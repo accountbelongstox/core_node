@@ -12,6 +12,8 @@
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'unified_storage.dart';
+import 'migration/hive_to_sqlite_migration.dart';
+import 'cleanup/storage_cleanup_tool.dart';
 
 /// Tool for migrating data from old storage systems to unified storage
 class StorageMigrationTool {
@@ -22,7 +24,13 @@ class StorageMigrationTool {
   static Future<bool> isMigrationNeeded() async {
     final prefs = await SharedPreferences.getInstance();
     final currentVersion = prefs.getInt(_migrationVersionKey) ?? 0;
-    return currentVersion < _currentMigrationVersion;
+    
+    // Check SharedPreferences migration, Hive to SQLite migration, and cleanup
+    final sharedPrefsMigrationNeeded = currentVersion < _currentMigrationVersion;
+    final hiveToSQLiteMigrationNeeded = await HiveToSQLiteMigration.isMigrationNeeded();
+    final cleanupNeeded = await StorageCleanupTool.isCleanupNeeded();
+    
+    return sharedPrefsMigrationNeeded || hiveToSQLiteMigrationNeeded || cleanupNeeded;
   }
   
   /// Perform migration of common settings from SharedPreferences to unified storage
@@ -32,6 +40,32 @@ class StorageMigrationTool {
     try {
       // Initialize unified storage
       await UnifiedStorage.init();
+
+      // Perform Hive to SQLite migration first
+      final hiveMigrationResult = await HiveToSQLiteMigration.performMigration();
+      if (hiveMigrationResult.success) {
+        result.migratedItems += hiveMigrationResult.migratedItems;
+        result.message = 'Hive to SQLite migration completed: ${hiveMigrationResult.migratedItems} items migrated';
+      } else {
+        result.message = 'Hive to SQLite migration failed: ${hiveMigrationResult.message}';
+      }
+
+      // Perform storage cleanup
+      final cleanupResult = await StorageCleanupTool.performCleanup();
+      if (cleanupResult.success) {
+        result.migratedItems += cleanupResult.cleanedItems;
+        if (result.message.isNotEmpty) {
+          result.message += '; Storage cleanup completed: ${cleanupResult.cleanedItems} items cleaned';
+        } else {
+          result.message = 'Storage cleanup completed: ${cleanupResult.cleanedItems} items cleaned';
+        }
+      } else {
+        if (result.message.isNotEmpty) {
+          result.message += '; Storage cleanup failed: ${cleanupResult.message}';
+        } else {
+          result.message = 'Storage cleanup failed: ${cleanupResult.message}';
+        }
+      }
 
       // Get SharedPreferences instance
       final prefs = await SharedPreferences.getInstance();
@@ -43,7 +77,11 @@ class StorageMigrationTool {
       await prefs.setInt(_migrationVersionKey, _currentMigrationVersion);
 
       result.success = true;
-      result.message = 'Common settings migration completed successfully';
+      if (result.message.isEmpty) {
+        result.message = 'Common settings migration completed successfully';
+      } else {
+        result.message += '; Common settings migration completed successfully';
+      }
 
     } catch (e) {
       result.success = false;

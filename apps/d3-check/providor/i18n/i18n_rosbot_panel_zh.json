@@ -86,7 +86,32 @@
       "config_loaded": "配置已加载",
       "config_saved": "配置已保存",
       "load_config_failed": "加载配置失败",
-      "save_config_failed": "保存配置失败"
+      "save_config_failed": "保存配置失败",
+      "auto_enable_latest_ros": "自动启用最新ROS",
+      "auto_start_other_exe": "自动启动其他EXE",
+      "force_cleanup_restart": "强制清理重启",
+      "auto_configure_ui": "自动配置UI",
+      "detailed_logging": "详细日志",
+      "startup": "开机启动",
+      "monitor_start_rosbot": "监控启动ROSBOT",
+      "battlenet_path": "战网路径",
+      "select_battlenet_executable": "选择战网可执行文件",
+      "ros_status": "ROS",
+      "d3_status": "D3",
+      "map_status": "地图",
+      "stage": "阶段",
+      "running": "运行中",
+      "not_running": "未运行",
+      "map_town": "城里",
+      "map_greater_rift": "大秘境",
+      "map_rift": "小秘境",
+      "map_unknown": "未知",
+      "stage_gem_upgrade": "升级宝石",
+      "stage_kill_boss": "击杀BOSS",
+      "stage_back_town": "回城",
+      "stage_in_greater_rift": "大秘中",
+      "stage_in_rift": "小秘中",
+      "stage_unknown": "未知"
     }
   }
 }

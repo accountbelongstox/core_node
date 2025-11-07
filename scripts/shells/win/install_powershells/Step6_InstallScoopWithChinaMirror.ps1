@@ -15,7 +15,7 @@ $STEP_NUMBER = 5
 
 # Import variable management functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"

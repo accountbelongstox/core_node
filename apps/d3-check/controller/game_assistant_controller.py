@@ -16,7 +16,7 @@ sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint
 from d3utils.interface_manager import D3InterfaceManager
-from d3utils.share.game_interface_data import get_game_interface_data
+from share.game_interface_data import get_game_interface_data
 from providor.providor_index import (
     can_start_assistant,
     set_assistant_running,

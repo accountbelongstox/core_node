@@ -1,9 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(for:*)",
+      "Bash(Select-Object ProcessName, Id, CPU)",
+      "Bash(Format-Table)",
+      "Bash(python -m py_compile:*)",
+      "Bash(find:*)"
+      "Bash(python:*)",
+      "Bash(Select-Object -Last 50)",
+      "Bash(tee:*)",
       "Bash(chmod:*)",
-      "Bash(do echo:*)"
+      "Bash(bash:*)",
+      "Bash(find:*)",
+      "Bash(test:*)",
+      "Bash(cmd:*)",
+      "mcp__context7__resolve-library-id",
+      "Bash(cmd.exe /c \"temp_qmake.bat\")",
+      "Bash(Select-Object -Last 100)",
+      "mcp__context7__get-library-docs",
+      "Bash(for file in device/controller/controller.h device/decoder/decoder.h device/device.h device/filehandler/filehandler.h device/server/server.h devicemanage/devicemanage.h util/config.h)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash(timeout 300 tail -f /d/programing/core_node/poly_apps/qtscrcpy_tc/build_log.txt)",
+      "mcp__PlaceholderImageGenerator__generate_placeholder"
     ],
     "deny": [],
     "ask": [],

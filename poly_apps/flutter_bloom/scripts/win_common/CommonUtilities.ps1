@@ -348,6 +348,137 @@ function Show-CompilationMenu {
 
 #endregion
 
+#region ADB Device Management Functions
+
+function Test-ADBAvailable {
+    <#
+    .SYNOPSIS
+    Check if ADB is available in the system PATH
+
+    .RETURNS
+    Boolean indicating if ADB is available
+    #>
+    
+    try {
+        $result = & adb version 2>$null
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+}
+
+function Get-ADBPath {
+    <#
+    .SYNOPSIS
+    Get the full path to the ADB executable
+
+    .RETURNS
+    Full path to ADB executable or null if not found
+    #>
+    
+    try {
+        $adbPath = Get-Command adb -ErrorAction SilentlyContinue
+        if ($adbPath) {
+            return $adbPath.Source
+        }
+        return $null
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-ADBDevices {
+    <#
+    .SYNOPSIS
+    Get list of connected ADB devices
+
+    .RETURNS
+    Array of device objects with ID, Status, and Info properties
+    #>
+    
+    if (-not (Test-ADBAvailable)) {
+        return @()
+    }
+
+    try {
+        $output = & adb devices 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return @()
+        }
+
+        $devices = @()
+        $lines = $output | Where-Object { $_ -match '\t' }
+        
+        foreach ($line in $lines) {
+            $parts = $line -split '\t'
+            if ($parts.Count -ge 2) {
+                $deviceId = $parts[0].Trim()
+                $status = $parts[1].Trim()
+                
+                $devices += [PSCustomObject]@{
+                    ID = $deviceId
+                    Status = $status
+                    Info = "$deviceId ($status)"
+                }
+            }
+        }
+
+        return $devices
+    }
+    catch {
+        Write-Warning "Failed to get ADB devices: $($_.Exception.Message)"
+        return @()
+    }
+}
+
+function Show-ADBDeviceInfo {
+    <#
+    .SYNOPSIS
+    Display ADB device information
+
+    .PARAMETER Devices
+    Array of device objects to display
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Devices
+    )
+
+    Write-Host ""
+    Write-Host "[ADB] Device Detection Results:" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+
+    # Show ADB path information
+    $adbPath = Get-ADBPath
+    if ($adbPath) {
+        Write-Host "  ADB Path: $adbPath" -ForegroundColor Green
+    } else {
+        Write-Host "  ADB Path: Not found in PATH" -ForegroundColor Red
+    }
+
+    if ($Devices.Count -eq 0) {
+        if (Test-ADBAvailable) {
+            Write-Host "  No ADB devices detected" -ForegroundColor Yellow
+            Write-Host "  Make sure USB debugging is enabled on your device" -ForegroundColor Yellow
+        } else {
+            Write-Host "  ADB is not available in PATH" -ForegroundColor Red
+            Write-Host "  Install Android SDK platform-tools to enable ADB" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  Found $($Devices.Count) device(s):" -ForegroundColor Green
+        for ($i = 0; $i -lt $Devices.Count; $i++) {
+            $device = $Devices[$i]
+            $statusIcon = if ($device.Status -eq "device") { "[OK]" } else { "[WARN]" }
+            Write-Host "    $($i + 1). $statusIcon $($device.Info)" -ForegroundColor White
+        }
+    }
+    Write-Host ""
+}
+
+#endregion
+
 #endregion
 
 #region Python Environment Management Functions

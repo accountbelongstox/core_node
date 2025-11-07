@@ -11,6 +11,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Source common variables and functions
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
 # Parameter validation
 TARGET_REMOTE=""
 PULL_MODE=false
@@ -40,14 +47,71 @@ done
 # Declare all variables at the beginning
 ENCRYPTION_CHECK_COMPLETED=false
 PULL_COMPLETED=false
+FILE_VALIDATION_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
 ORIGINAL_BRANCH=""
 BACKUP_ENABLED=false
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
-PROJECT_NAME="$(basename "$CORE_NODE_DIR")"
+PROJECT_NAME="core_node"  # Hardcoded project name
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
+export COMMIT_MESSAGE=""
+WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+
+# File validation function for win_common directory
+test_win_common_files() {
+    write_color_text "=== Validating win_common directory files ===" "Yellow"
+    
+    # Hardcoded list of files in win_common directory
+    local required_files=(
+        "ApplicationsList.ps1"
+        "CommonFunc.ps1"
+        "DesktopIconManager.ps1"
+        "GlobalVars.ps1"
+        "IconExtractor.ps1"
+        "PackageManagerInvokes.ps1"
+        "PostInstallCallbackProcessor.ps1"
+        "SimpleIconExtractor.ps1"
+        "StartupManager.ps1"
+        "WindowsPathFunction.ps1"
+        "WindowsServiceManager.ps1"
+        "CommonFunc.7z.gz.js"
+        "applicationsXml/ApplicationsList.xml"
+    )
+    
+    local missing_files=()
+    local existing_files=()
+    
+    for file in "${required_files[@]}"; do
+        local file_path="$WIN_COMMON_DIR/$file"
+        if [ -f "$file_path" ]; then
+            existing_files+=("$file")
+            write_color_text "[OK] Found: $file" "Green"
+        else
+            missing_files+=("$file")
+            write_color_text "[MISSING] Missing: $file" "Red"
+        fi
+    done
+    
+    echo ""
+    write_color_text "Validation Summary:" "Cyan"
+    write_color_text "  Existing files: ${#existing_files[@]}" "Green"
+    write_color_text "  Missing files: ${#missing_files[@]}" "Red"
+    
+    if [ ${#missing_files[@]} -gt 0 ]; then
+        echo ""
+        write_color_text "WARNING: The following files are missing from win_common directory:" "Red"
+        for missing_file in "${missing_files[@]}"; do
+            write_color_text "  - $missing_file" "Red"
+        done
+        echo ""
+        write_color_text "Continuing with commit process despite missing files..." "Yellow"
+    fi
+    
+    echo ""
+    return $([ ${#missing_files[@]} -eq 0 ])
+}
 
 # Global variable management function
 get_global_var() {
@@ -78,6 +142,163 @@ get_global_var() {
             echo "$value"
         fi
     fi
+}
+
+# Function to ensure SSH key permissions are correct
+ensure_ssh_permissions() {
+    # Get the home directory user from the SSH directory path
+    local ssh_dir="$HOME/.ssh"
+    local home_user=$(basename "$HOME")
+    
+    write_color_text "Detected home user: $home_user" "DarkGray" >&2
+    
+    # Check if SSH directory exists
+    if [ ! -d "$ssh_dir" ]; then
+        write_color_text "SSH directory does not exist: $ssh_dir" "Yellow" >&2
+        return 0
+    fi
+    
+    # Scan for SSH private keys in the directory
+    local ssh_keys=()
+    while IFS= read -r -d '' key_file; do
+        ssh_keys+=("$key_file")
+    done < <(find "$ssh_dir" -name "id_*" -type f ! -name "*.pub" -print0 2>/dev/null)
+    
+    if [ ${#ssh_keys[@]} -eq 0 ]; then
+        write_color_text "No SSH private keys found in $ssh_dir" "Yellow" >&2
+        return 0
+    fi
+    
+    write_color_text "Found ${#ssh_keys[@]} SSH private key(s)" "DarkGray" >&2
+    
+    # Process each SSH key
+    for ssh_key in "${ssh_keys[@]}"; do
+        local key_name=$(basename "$ssh_key")
+        write_color_text "Processing SSH key: $key_name" "Cyan" >&2
+        
+        # Check current ownership and permissions
+        local current_owner=$(stat -c '%U' "$ssh_key" 2>/dev/null)
+        local current_perms=$(stat -c '%a' "$ssh_key" 2>/dev/null)
+        
+        write_color_text "  Current owner: $current_owner, permissions: $current_perms" "DarkGray" >&2
+        
+        # Fix ownership if needed
+        if [ "$current_owner" != "$home_user" ]; then
+            write_color_text "  Fixing ownership from $current_owner to $home_user..." "Yellow" >&2
+            if $USE_SUDO chown "$home_user:$home_user" "$ssh_key" 2>/dev/null; then
+                write_color_text "  SSH key ownership fixed" "Green" >&2
+            else
+                write_color_text "  Failed to fix SSH key ownership" "Red" >&2
+            fi
+        else
+            write_color_text "  Ownership is correct" "Green" >&2
+        fi
+        
+        # Fix permissions if needed (should be 600)
+        if [ "$current_perms" != "600" ]; then
+            write_color_text "  Fixing permissions from $current_perms to 600..." "Yellow" >&2
+            if chmod 600 "$ssh_key" 2>/dev/null; then
+                write_color_text "  SSH key permissions fixed to 600" "Green" >&2
+            else
+                write_color_text "  Failed to fix SSH key permissions" "Red" >&2
+            fi
+        else
+            write_color_text "  Permissions are correct" "Green" >&2
+        fi
+    done
+    
+    # Also fix SSH directory permissions (should be 700)
+    local ssh_dir_perms=$(stat -c '%a' "$ssh_dir" 2>/dev/null)
+    local ssh_dir_owner=$(stat -c '%U' "$ssh_dir" 2>/dev/null)
+    
+    write_color_text "SSH directory owner: $ssh_dir_owner, permissions: $ssh_dir_perms" "DarkGray" >&2
+    
+    if [ "$ssh_dir_owner" != "$home_user" ]; then
+        write_color_text "Fixing SSH directory ownership..." "Yellow" >&2
+        if $USE_SUDO chown "$home_user:$home_user" "$ssh_dir" 2>/dev/null; then
+            write_color_text "SSH directory ownership fixed" "Green" >&2
+        else
+            write_color_text "Failed to fix SSH directory ownership" "Red" >&2
+        fi
+    fi
+    
+    if [ "$ssh_dir_perms" != "700" ]; then
+        write_color_text "Fixing SSH directory permissions..." "Yellow" >&2
+        if chmod 700 "$ssh_dir" 2>/dev/null; then
+            write_color_text "SSH directory permissions fixed to 700" "Green" >&2
+        else
+            write_color_text "Failed to fix SSH directory permissions" "Red" >&2
+        fi
+    fi
+}
+
+# Function to ensure git user identity is configured
+ensure_git_identity() {
+    # Check if git user.name is configured
+    local git_name=$(git config --global user.name 2>/dev/null)
+    local git_email=$(git config --global user.email 2>/dev/null)
+    
+    # If not configured, set default values
+    if [ -z "$git_name" ] || [ -z "$git_email" ]; then
+        write_color_text "Git user identity not configured. Setting default values..." "Yellow" >&2
+        
+        # Generate system-based name
+        local system_name=$(whoami)
+        local hostname=$(hostname)
+        local default_name="${system_name}@${hostname}"
+        
+        # Set default email
+        local default_email="${system_name}@dev.ai"
+        
+        # Configure git
+        if [ -z "$git_name" ]; then
+            git config --global user.name "$default_name"
+            write_color_text "Set git user.name to: $default_name" "Cyan" >&2
+        fi
+        
+        if [ -z "$git_email" ]; then
+            git config --global user.email "$default_email"
+            write_color_text "Set git user.email to: $default_email" "Cyan" >&2
+        fi
+        
+        write_color_text "Git identity configured successfully!" "Green" >&2
+    else
+        write_color_text "Git identity already configured: $git_name <$git_email>" "DarkGray" >&2
+    fi
+}
+
+# Function to get commit message (session-scoped only)
+get_commit_message() {
+    local commit_file="/tmp/git_commit_message_$$"
+    
+    # Check if we have a stored commit message
+    if [ -f "$commit_file" ]; then
+        local stored_message=$(cat "$commit_file")
+        if [ -n "$stored_message" ]; then
+            write_color_text "Reusing commit message from this session: $stored_message" "Cyan" >&2
+            echo "$stored_message"
+            return
+        fi
+    fi
+    
+    # Ask user for input (first time only)
+    write_color_text "Enter commit message (press Enter to use timestamp): " "Yellow" >&2
+    # Ensure the prompt is fully displayed before accepting input
+    sleep 0.1
+    read -r user_input
+    
+    if [ -z "$user_input" ]; then
+        COMMIT_MESSAGE="$TIMESTAMP"
+        write_color_text "Using timestamp as commit message: $TIMESTAMP" "Cyan" >&2
+    else
+        COMMIT_MESSAGE="$user_input"
+        write_color_text "Using custom commit message: $user_input" "Green" >&2
+    fi
+    
+    # Store the commit message in a file
+    echo "$COMMIT_MESSAGE" > "$commit_file"
+    
+    echo "$COMMIT_MESSAGE"
 }
 
 # Function to determine default remote based on region setting
@@ -386,8 +607,9 @@ invoke_safe_git_pull() {
         write_color_text "Found uncommitted changes. Saving local work..." "Yellow"
         write_color_text "Executing: git add ." "DarkGray"
         git add .
-        write_color_text "Executing: git commit -m \"Auto-commit before pull: $TIMESTAMP\"" "DarkGray"
-        git commit -m "Auto-commit before pull: $TIMESTAMP"
+        local commit_message=$(get_commit_message)
+        write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
+        git commit -m "$commit_message"
     else
         write_color_text "No uncommitted changes found." "Green"
     fi
@@ -458,6 +680,12 @@ invoke_git_operations() {
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
+    
+    # Ensure SSH permissions are correct
+    ensure_ssh_permissions
+    
+    # Ensure git identity is configured
+    ensure_git_identity
     
     # Store original branch and remote for restoration
     ORIGINAL_BRANCH=$(get_current_branch)
@@ -631,10 +859,19 @@ invoke_git_operations() {
     write_color_text "Executing: git add ." "DarkGray"
     git add .
     
+    # Validate win_common files before commit (only once per session)
+    if [ "$FILE_VALIDATION_COMPLETED" = false ]; then
+        test_win_common_files
+        FILE_VALIDATION_COMPLETED=true
+    else
+        write_color_text "INFO: File validation already completed in this session." "DarkGray"
+    fi
+    
     # Commit changes BEFORE pulling
-    write_color_text "Committing changes with timestamp: $TIMESTAMP" "Cyan"
-    write_color_text "Executing: git commit -m \"$TIMESTAMP\"" "DarkGray"
-    git commit -m "$TIMESTAMP"
+    local commit_message=$(get_commit_message)
+    write_color_text "Committing changes with message: $commit_message" "Cyan"
+    write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
+    git commit -m "$commit_message"
     
     # Now handle synchronization
     local current_branch=$(get_current_branch)
@@ -652,7 +889,6 @@ invoke_git_operations() {
     
     # Push changes to remote
     write_color_text "Pushing changes to remote..." "Cyan"
-    local current_branch=$(get_current_branch)
     write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
     git push --set-upstream origin "$current_branch"
     write_color_text "----------------------------------------------------------------" "DarkBlue"
@@ -698,7 +934,8 @@ main() {
                 break
             else
                 write_color_text "\n=== Pushing to $target ($target_url) ===" "Magenta"
-                if invoke_git_operations "$target_url"; then
+                invoke_git_operations "$target_url"
+                if [ $? -eq 0 ]; then
                     write_color_text "Successfully pushed to $target" "Green"
                 else
                     all_success=false

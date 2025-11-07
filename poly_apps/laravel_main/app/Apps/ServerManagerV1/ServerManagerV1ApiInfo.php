@@ -49,6 +49,7 @@ class ServerManagerV1ApiInfo
             'base_url' => $baseUrl,
             'api_prefix' => $apiPrefix,
             'endpoints' => self::getEndpoints(),
+            'cli_commands' => self::getCliCommands(),
             'supported_headers' => self::getSupportedHeaders(),
             'authentication' => self::getAuthenticationInfo()
         ];
@@ -171,6 +172,227 @@ class ServerManagerV1ApiInfo
             [
                 'path' => $apiPrefix . '/unified/logs',
                 'feature' => 'auth_required/GET|Get application logs from unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main),lines(int,optional,100)|response:logs(array,Log entries),total_lines(int,Total log lines)|tags:server,deploy'
+            ]
+        ];
+    }
+
+    /**
+     * Get all CLI commands with descriptions and parameters
+     *
+     * @return array
+     */
+    private static function getCliCommands(): array
+    {
+        return [
+            // Deploy Command
+            [
+                'command' => 'servermanager:deploy',
+                'description' => 'Deploy domain with nginx configuration and SSL certificate',
+                'signature' => 'servermanager:deploy {domain} {type}',
+                'arguments' => [
+                    'domain' => [
+                        'type' => 'string',
+                        'required' => true,
+                        'description' => 'The domain name to deploy',
+                        'example' => 'example.com'
+                    ],
+                    'type' => [
+                        'type' => 'string',
+                        'required' => true,
+                        'description' => 'Deployment type',
+                        'allowed_values' => ['laravel', 'poly-app', 'ncore-app', 'static', 'proxy'],
+                        'example' => 'laravel'
+                    ]
+                ],
+                'options' => [
+                    '--app-name' => [
+                        'type' => 'string',
+                        'description' => 'Application name for poly/ncore apps',
+                        'example' => 'laravel_main'
+                    ],
+                    '--www-dir' => [
+                        'type' => 'string',
+                        'description' => 'Custom web directory',
+                        'example' => '/www/wwwroot/example.com'
+                    ],
+                    '--php-version' => [
+                        'type' => 'string',
+                        'description' => 'PHP version (default from config)',
+                        'example' => '8.2'
+                    ],
+                    '--proxy-target' => [
+                        'type' => 'string',
+                        'description' => 'Proxy target URL',
+                        'example' => 'http://localhost:3000'
+                    ],
+                    '--no-ssl' => [
+                        'type' => 'boolean',
+                        'description' => 'Skip SSL certificate generation'
+                    ],
+                    '--force' => [
+                        'type' => 'boolean',
+                        'description' => 'Force update existing configuration'
+                    ],
+                    '--dry-run' => [
+                        'type' => 'boolean',
+                        'description' => 'Show what would be done without executing'
+                    ]
+                ],
+                'usage_examples' => [
+                    'php artisan servermanager:deploy example.com laravel',
+                    'php artisan servermanager:deploy api.example.com proxy --proxy-target=http://localhost:3000',
+                    'php artisan servermanager:deploy app.example.com poly-app --app-name=laravel_main',
+                    'php artisan servermanager:deploy example.com laravel --dry-run'
+                ],
+                'tags' => ['deploy', 'nginx', 'ssl']
+            ],
+
+            // SSL Command
+            [
+                'command' => 'servermanager:ssl',
+                'description' => 'Manage SSL certificates for domains',
+                'signature' => 'servermanager:ssl {action} {domain?}',
+                'arguments' => [
+                    'action' => [
+                        'type' => 'string',
+                        'required' => true,
+                        'description' => 'SSL action to perform',
+                        'allowed_values' => ['generate', 'renew', 'list', 'info', 'remove'],
+                        'example' => 'generate'
+                    ],
+                    'domain' => [
+                        'type' => 'string',
+                        'required' => false,
+                        'description' => 'Domain name (required for generate/renew/info/remove)',
+                        'example' => 'example.com'
+                    ]
+                ],
+                'options' => [
+                    '--provider' => [
+                        'type' => 'string',
+                        'description' => 'SSL provider (letsencrypt, dnspod, cloudflare)',
+                        'example' => 'letsencrypt'
+                    ],
+                    '--email' => [
+                        'type' => 'string',
+                        'description' => 'Email for SSL certificate',
+                        'example' => 'admin@example.com'
+                    ],
+                    '--staging' => [
+                        'type' => 'boolean',
+                        'description' => 'Use staging environment for testing'
+                    ],
+                    '--force' => [
+                        'type' => 'boolean',
+                        'description' => 'Force certificate regeneration'
+                    ]
+                ],
+                'usage_examples' => [
+                    'php artisan servermanager:ssl generate example.com',
+                    'php artisan servermanager:ssl list',
+                    'php artisan servermanager:ssl renew example.com',
+                    'php artisan servermanager:ssl info example.com'
+                ],
+                'tags' => ['ssl', 'certificate', 'security']
+            ],
+
+            // Certificate Command
+            [
+                'command' => 'servermanager:certificate',
+                'description' => 'Advanced SSL certificate management operations',
+                'signature' => 'servermanager:certificate {action}',
+                'arguments' => [
+                    'action' => [
+                        'type' => 'string',
+                        'required' => true,
+                        'description' => 'Certificate action',
+                        'allowed_values' => ['check', 'renew-all', 'cleanup', 'verify'],
+                        'example' => 'check'
+                    ]
+                ],
+                'options' => [
+                    '--domain' => [
+                        'type' => 'string',
+                        'description' => 'Specific domain to operate on',
+                        'example' => 'example.com'
+                    ],
+                    '--days' => [
+                        'type' => 'integer',
+                        'description' => 'Days before expiration for renewal check',
+                        'example' => '30'
+                    ]
+                ],
+                'usage_examples' => [
+                    'php artisan servermanager:certificate check',
+                    'php artisan servermanager:certificate renew-all',
+                    'php artisan servermanager:certificate verify --domain=example.com'
+                ],
+                'tags' => ['ssl', 'certificate', 'maintenance']
+            ],
+
+            // Website Command
+            [
+                'command' => 'servermanager:website',
+                'description' => 'Manage nginx website configurations',
+                'signature' => 'servermanager:website {action} {site?}',
+                'arguments' => [
+                    'action' => [
+                        'type' => 'string',
+                        'required' => true,
+                        'description' => 'Website action',
+                        'allowed_values' => ['list', 'enable', 'disable', 'remove', 'test', 'reload'],
+                        'example' => 'list'
+                    ],
+                    'site' => [
+                        'type' => 'string',
+                        'required' => false,
+                        'description' => 'Site name (required for enable/disable/remove)',
+                        'example' => 'example.com'
+                    ]
+                ],
+                'options' => [
+                    '--force' => [
+                        'type' => 'boolean',
+                        'description' => 'Force operation without confirmation'
+                    ]
+                ],
+                'usage_examples' => [
+                    'php artisan servermanager:website list',
+                    'php artisan servermanager:website enable example.com',
+                    'php artisan servermanager:website disable example.com',
+                    'php artisan servermanager:website test',
+                    'php artisan servermanager:website reload'
+                ],
+                'tags' => ['nginx', 'website', 'configuration']
+            ],
+
+            // Sync Command
+            [
+                'command' => 'servermanager:sync',
+                'description' => 'Synchronize configurations and data',
+                'signature' => 'servermanager:sync {type}',
+                'arguments' => [
+                    'type' => [
+                        'type' => 'string',
+                        'required' => true,
+                        'description' => 'Sync type',
+                        'allowed_values' => ['config', 'certificates', 'all'],
+                        'example' => 'config'
+                    ]
+                ],
+                'options' => [
+                    '--target' => [
+                        'type' => 'string',
+                        'description' => 'Target server or path',
+                        'example' => 'backup-server'
+                    ]
+                ],
+                'usage_examples' => [
+                    'php artisan servermanager:sync config',
+                    'php artisan servermanager:sync certificates',
+                    'php artisan servermanager:sync all'
+                ],
+                'tags' => ['sync', 'backup', 'configuration']
             ]
         ];
     }

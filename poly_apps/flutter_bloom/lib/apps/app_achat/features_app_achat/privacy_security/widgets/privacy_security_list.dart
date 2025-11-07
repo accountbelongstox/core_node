@@ -191,7 +191,7 @@ class PrivacySecurityList extends StatelessWidget {
         vertical: ThemeDimensions.spacingMedium,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
         borderRadius: BorderRadius.circular(ThemeDimensions.spacingMedium),
       ),
       child: Text(

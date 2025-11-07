@@ -97,6 +97,6 @@
 		<key>NSAppleMusicUsageDescription</key>
 		<string>$(NSAppleMusicUsageDescription)</string>
 		<key>UIStatusBarHidden</key>
-		<false/>
+		<true/>
 	</dict>
 </plist>

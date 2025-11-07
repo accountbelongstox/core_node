@@ -32,6 +32,7 @@ class TimerTask:
         enabled: Whether the task is enabled
         last_run: Last execution timestamp
         error_count: Number of consecutive errors
+        interceptor: Optional interceptor function to control execution
     """
     name: str
     interval: float
@@ -39,6 +40,7 @@ class TimerTask:
     enabled: bool = True
     last_run: float = 0.0
     error_count: int = 0
+    interceptor: Optional[Callable[[], bool]] = None
 
 
 # Global task registry
@@ -155,6 +157,52 @@ def disable_task(name: str) -> bool:
         return True
 
 
+def set_task_interval(name: str, interval: float) -> bool:
+    """
+    Set task interval
+
+    Args:
+        name: Task name to update
+        interval: New interval in seconds
+
+    Returns:
+        True if updated successfully, False if not found
+    """
+    global _tasks, _lock
+
+    with _lock:
+        if name not in _tasks:
+            ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
+            return False
+
+        _tasks[name].interval = interval
+        ColorPrint.blue(f"[TimerManager] Updated task '{name}' interval to {interval}s")
+        return True
+
+
+def set_task_interceptor(name: str, interceptor: Optional[Callable[[], bool]]) -> bool:
+    """
+    Set task interceptor function
+
+    Args:
+        name: Task name to update
+        interceptor: Interceptor function that returns True to allow execution, False to skip
+
+    Returns:
+        True if updated successfully, False if not found
+    """
+    global _tasks, _lock
+
+    with _lock:
+        if name not in _tasks:
+            ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
+            return False
+
+        _tasks[name].interceptor = interceptor
+        ColorPrint.blue(f"[TimerManager] Updated task '{name}' interceptor")
+        return True
+
+
 def _execute_task(task: TimerTask):
     """
     Execute a timer task
@@ -163,6 +211,11 @@ def _execute_task(task: TimerTask):
         task: TimerTask to execute
     """
     try:
+        # Check interceptor first
+        if task.interceptor is not None:
+            if not task.interceptor():
+                return  # Skip execution if interceptor returns False
+        
         task.callback()
         task.error_count = 0  # Reset error count on success
     except Exception as e:
@@ -191,7 +244,9 @@ def _timer_loop():
         try:
             current_time = time.time()
 
-            # Check all tasks
+            # Collect tasks to execute OUTSIDE the lock
+            tasks_to_execute = []
+
             with _lock:
                 for task in _tasks.values():
                     if not task.enabled:
@@ -200,8 +255,11 @@ def _timer_loop():
                     # Check if it's time to execute
                     if current_time - task.last_run >= task.interval:
                         task.last_run = current_time
-                        # Execute in current thread (don't spawn new threads)
-                        _execute_task(task)
+                        tasks_to_execute.append(task)
+
+            # Execute tasks OUTSIDE the lock to prevent deadlock
+            for task in tasks_to_execute:
+                _execute_task(task)
 
             # Sleep for 100ms to reduce CPU usage
             time.sleep(0.1)

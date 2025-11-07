@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -23,7 +23,6 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Declare variables

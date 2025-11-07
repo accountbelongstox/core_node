@@ -17,7 +17,6 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 COMMON_DIR="${PARENT_DIR_LEVEL_2}/common"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 
@@ -30,6 +29,7 @@ fi
 
 # Get region information
 SELECTED_REGION=$(get_var "SELECTED_REGION")
+echo "[29] Selected Region: $SELECTED_REGION"
 
 SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 CHECK_NPMRC_SCRIPT="$SHELLS_SCRIPTS_DIR/check_npmrc.js"
@@ -100,7 +100,7 @@ if [ "$SELECTED_REGION" != "Global" ]; then
     fi
     print_success_from_common_functions "Npmrc configuration completed"
 else
-    print_step_from_common_functions "Skipping npmrc configuration for non-CN environment"
+    print_step_from_common_functions "Skipping npmrc configuration for Global environment"
 fi
 
 # Step 5: Verify configuration

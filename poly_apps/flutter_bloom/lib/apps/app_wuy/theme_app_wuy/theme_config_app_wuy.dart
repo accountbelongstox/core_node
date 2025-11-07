@@ -14,18 +14,24 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
+import '../resources_app_wuy/assets_images_app_wuy.dart';
 
 /// Wuy App Theme Configuration
 /// Extends the common theme system with Wuy-specific customizations
 class WuyAppThemeConfig {
   
-  // Wuy App specific color overrides
+  // Wuy App specific color overrides - matching the login entry screen design
   static const Color wuyPrimaryColor = Color(0xFF2196F3); // Blue
   static const Color wuySecondaryColor = Color(0xFFFF9800); // Orange
   static const Color wuyAccentColor = Color(0xFF4CAF50); // Green
-  static const Color wuyBackgroundColor = Color(0xFFF5F5F5);
+  static const Color wuyBackgroundColor = Color(0xFFFFFFFF); // Pure white background
   static const Color wuySurfaceColor = Color(0xFFFFFFFF);
   static const Color wuyCardColor = Color(0xFFFFFFFF);
+  
+  // Gradient colors for login entry screen - more colorful
+  static const Color wuyGradientStart = Color(0xFFE1F5FE); // Very light blue
+  static const Color wuyGradientMiddle = Color(0xFFB3E5FC); // Light blue
+  static const Color wuyGradientEnd = Color(0xFF81D4FA); // Medium blue
   
   // Wuy App specific text colors
   static const Color wuyTextPrimary = Color(0xFF212121);
@@ -38,6 +44,12 @@ class WuyAppThemeConfig {
   static const Color wuyErrorColor = Color(0xFFD32F2F);
   static const Color wuyWarningColor = Color(0xFFFF9800);
   static const Color wuySuccessColor = Color(0xFF4CAF50);
+  
+  // Input field colors for login-register page
+  static const Color wuyInputBorderDefault = Color(0xFFE0E0E0); // Light gray border
+  static const Color wuyInputBorderFocused = Color(0xFFB0BEC5); // Darker border when focused
+  static const Color wuyInputFillDefault = Color(0xFFFAFAFA); // Light background
+  static const Color wuyInputFillFocused = Color(0xFFF5F5F5); // Light background when focused
   
   // Wuy App specific dimensions
   static const double wuyBorderRadius = 8.0;
@@ -86,6 +98,79 @@ class WuyAppThemeConfig {
       wuySecondaryColor,
       Color(0xFFE65100),
     ],
+  );
+  
+  // Login entry screen gradient background - more colorful with multiple stops
+  static const LinearGradient wuyLoginEntryGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: [0.0, 0.5, 1.0],
+    colors: [
+      wuyGradientStart,
+      wuyGradientMiddle,
+      wuyGradientEnd,
+    ],
+  );
+  
+  // Logo gradient
+  static const LinearGradient wuyLogoGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF2196F3),
+      Color(0xFF1976D2),
+    ],
+  );
+  
+  // Background image decoration - matching HTML design
+  static BoxDecoration get wuyBackgroundDecoration => BoxDecoration(
+    color: Colors.white, // White background color
+    image: const DecorationImage(
+      image: AssetImage(WuyAppAssetsImages.background),
+      fit: BoxFit.contain, // Match HTML background-size: contain
+      alignment: Alignment.topCenter, // Top 0, centered
+      repeat: ImageRepeat.noRepeat, // No repeat
+    ),
+  );
+  
+  // Login entry specific colors matching HTML
+  static const Color wuyTextMain = Color(0xFF222222); // --text-main
+  static const Color wuyTextSub = Color(0xFF555555); // --text-sub
+  static const Color wuyMuted = Color(0xFF8FA3B8); // --muted
+  static const Color wuyBorder = Color(0xFFE6EDF5); // --border
+  static const Color wuyPrimaryEnd = Color(0xFF2F7BF3); // --primary-end
+  
+  // Login entry specific gradients matching HTML
+  static const LinearGradient wuyLoginButtonGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      wuyPrimaryColor, // #1a73e8
+      wuyPrimaryEnd,   // #2f7bf3
+    ],
+  );
+  
+  // Button gradients for login-register page
+  static const LinearGradient wuyButtonGradientEnabled = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF2196F3), // Blue
+      Color(0xFF1976D2), // Dark blue
+      Color(0xFF4CAF50), // Green
+    ],
+    stops: [0.0, 0.6, 1.0],
+  );
+  
+  static const LinearGradient wuyButtonGradientDisabled = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFFBBDEFB), // Light blue
+      Color(0xFFE3F2FD), // Lighter blue
+      Color(0xFFC8E6C9), // Light green
+    ],
+    stops: [0.0, 0.6, 1.0],
   );
   
   // Wuy App specific text styles
@@ -154,14 +239,14 @@ class WuyAppThemeConfig {
   
   // Wuy App specific switch style
   static SwitchThemeData get wuySwitchTheme => SwitchThemeData(
-    thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-      if (states.contains(MaterialState.selected)) {
+    thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) {
         return wuyPrimaryColor;
       }
       return ThemeColors.greyColor;
     }),
-    trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-      if (states.contains(MaterialState.selected)) {
+    trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) {
         return wuyPrimaryColor.withOpacity(0.3);
       }
       return ThemeColors.greyColor.withOpacity(0.3);
@@ -268,12 +353,10 @@ class WuyAppThemeConfig {
     primary: wuyPrimaryColor,
     secondary: wuySecondaryColor,
     surface: wuySurfaceColor,
-    background: wuyBackgroundColor,
     error: wuyErrorColor,
     onPrimary: Colors.white,
     onSecondary: Colors.white,
     onSurface: wuyTextPrimary,
-    onBackground: wuyTextPrimary,
     onError: Colors.white,
   );
   
@@ -303,9 +386,7 @@ class WuyAppThemeConfig {
     colorScheme: wuyColorScheme.copyWith(
       brightness: Brightness.dark,
       surface: const Color(0xFF1C1C1E),
-      background: const Color(0xFF000000),
       onSurface: Colors.white,
-      onBackground: Colors.white,
     ),
     textTheme: ThemeTextStyles.darkTextTheme,
     appBarTheme: wuyAppBarTheme.copyWith(

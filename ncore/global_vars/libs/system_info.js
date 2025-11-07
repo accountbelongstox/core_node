@@ -13,7 +13,7 @@
 // systemInfo.js
 const os = require('os');
 const logger = require('#@logger');
-const { execPowerShell } = require('#@ncore/global_config/libs/tool/common/cmder.js');
+const { execPowerShell } = require('../tool/common/cmder.js');
 let si;
 try {
     si = require('systeminformation');

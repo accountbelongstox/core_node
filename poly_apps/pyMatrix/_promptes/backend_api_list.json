@@ -1,0 +1,455 @@
+{
+  "total_endpoints": 36,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/config/device/{device_name}",
+      "function": "get_device_config",
+      "file": "config_routes.py"
+    },
+    {
+      "method": "PATCH",
+      "path": "/config/device/{device_name}",
+      "function": "update_device_config",
+      "file": "config_routes.py"
+    },
+    {
+      "method": "DELETE",
+      "path": "/config/device/{device_name}",
+      "function": "delete_device_config",
+      "file": "config_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/config/global",
+      "function": "get_global_config",
+      "file": "config_routes.py"
+    },
+    {
+      "method": "PATCH",
+      "path": "/config/global",
+      "function": "update_global_config",
+      "file": "config_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/devices/list",
+      "function": "list_devices",
+      "file": "device_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/devices/{serial}/connect",
+      "function": "connect_device",
+      "file": "device_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/devices/{serial}/disconnect",
+      "function": "disconnect_device",
+      "file": "device_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/devices/{serial}/info",
+      "function": "get_device_info",
+      "file": "device_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/files/devices/{serial}/apk/install",
+      "function": "install_apk_to_device",
+      "file": "file_routes.py"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/files/devices/{serial}/apk/uninstall",
+      "function": "uninstall_apk_from_device",
+      "file": "file_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/devices/{serial}/packages",
+      "function": "list_installed_packages",
+      "file": "file_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/files/devices/{serial}/push",
+      "function": "push_file_to_device",
+      "file": "file_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/transfer/{task_id}",
+      "function": "get_transfer_status",
+      "file": "file_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/groups/{group_id}/batch/recording/start",
+      "function": "batch_start_recording",
+      "file": "group_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/groups/{group_id}/batch/recording/stop",
+      "function": "batch_stop_recording",
+      "file": "group_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/groups/{group_id}/batch/screen-control",
+      "function": "batch_screen_control",
+      "file": "group_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/groups/{group_id}/batch/screenshot",
+      "function": "batch_screenshot",
+      "file": "group_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/groups/{group_id}/batch/systemkey",
+      "function": "batch_system_key",
+      "file": "group_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "function": "root",
+      "file": "health_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "function": "health_check",
+      "file": "health_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/health/detailed",
+      "function": "detailed_health_check",
+      "file": "health_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/recording/start",
+      "function": "start_recording",
+      "file": "recording_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/{serial}/recording/status",
+      "function": "get_recording_status",
+      "file": "recording_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/recording/stop",
+      "function": "stop_recording",
+      "file": "recording_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/screenshot",
+      "function": "capture_screenshot",
+      "file": "recording_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/screen/auto-rotation/disable",
+      "function": "disable_auto_rotation",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/screen/auto-rotation/enable",
+      "function": "enable_auto_rotation",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/screen/brightness",
+      "function": "control_screen_brightness",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/{serial}/screen/brightness",
+      "function": "get_screen_brightness",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/screen/power",
+      "function": "control_screen_power",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/{serial}/screen/rotation",
+      "function": "control_screen_rotation",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/{serial}/screen/rotation",
+      "function": "get_screen_rotation",
+      "file": "screen_routes.py"
+    },
+    {
+      "method": "WEBSOCKET",
+      "path": "/ws/control/{serial}",
+      "function": "device_control_endpoint",
+      "file": "ws_routes.py"
+    },
+    {
+      "method": "WEBSOCKET",
+      "path": "/ws/group",
+      "function": "group_control_endpoint",
+      "file": "ws_routes.py"
+    },
+    {
+      "method": "WEBSOCKET",
+      "path": "/ws/video/{serial}",
+      "function": "video_stream_endpoint",
+      "file": "ws_routes.py"
+    }
+  ],
+  "by_file": {
+    "config_routes.py": [
+      {
+        "method": "GET",
+        "path": "/config/device/{device_name}",
+        "function": "get_device_config",
+        "file": "config_routes.py"
+      },
+      {
+        "method": "PATCH",
+        "path": "/config/device/{device_name}",
+        "function": "update_device_config",
+        "file": "config_routes.py"
+      },
+      {
+        "method": "DELETE",
+        "path": "/config/device/{device_name}",
+        "function": "delete_device_config",
+        "file": "config_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/config/global",
+        "function": "get_global_config",
+        "file": "config_routes.py"
+      },
+      {
+        "method": "PATCH",
+        "path": "/config/global",
+        "function": "update_global_config",
+        "file": "config_routes.py"
+      }
+    ],
+    "device_routes.py": [
+      {
+        "method": "GET",
+        "path": "/devices/list",
+        "function": "list_devices",
+        "file": "device_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/devices/{serial}/connect",
+        "function": "connect_device",
+        "file": "device_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/devices/{serial}/disconnect",
+        "function": "disconnect_device",
+        "file": "device_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/devices/{serial}/info",
+        "function": "get_device_info",
+        "file": "device_routes.py"
+      }
+    ],
+    "file_routes.py": [
+      {
+        "method": "POST",
+        "path": "/api/files/devices/{serial}/apk/install",
+        "function": "install_apk_to_device",
+        "file": "file_routes.py"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/files/devices/{serial}/apk/uninstall",
+        "function": "uninstall_apk_from_device",
+        "file": "file_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/files/devices/{serial}/packages",
+        "function": "list_installed_packages",
+        "file": "file_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/files/devices/{serial}/push",
+        "function": "push_file_to_device",
+        "file": "file_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/files/transfer/{task_id}",
+        "function": "get_transfer_status",
+        "file": "file_routes.py"
+      }
+    ],
+    "group_routes.py": [
+      {
+        "method": "POST",
+        "path": "/api/groups/{group_id}/batch/recording/start",
+        "function": "batch_start_recording",
+        "file": "group_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/groups/{group_id}/batch/recording/stop",
+        "function": "batch_stop_recording",
+        "file": "group_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/groups/{group_id}/batch/screen-control",
+        "function": "batch_screen_control",
+        "file": "group_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/groups/{group_id}/batch/screenshot",
+        "function": "batch_screenshot",
+        "file": "group_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/groups/{group_id}/batch/systemkey",
+        "function": "batch_system_key",
+        "file": "group_routes.py"
+      }
+    ],
+    "health_routes.py": [
+      {
+        "method": "GET",
+        "path": "/",
+        "function": "root",
+        "file": "health_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/health",
+        "function": "health_check",
+        "file": "health_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/health/detailed",
+        "function": "detailed_health_check",
+        "file": "health_routes.py"
+      }
+    ],
+    "recording_routes.py": [
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/recording/start",
+        "function": "start_recording",
+        "file": "recording_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/devices/{serial}/recording/status",
+        "function": "get_recording_status",
+        "file": "recording_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/recording/stop",
+        "function": "stop_recording",
+        "file": "recording_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/screenshot",
+        "function": "capture_screenshot",
+        "file": "recording_routes.py"
+      }
+    ],
+    "screen_routes.py": [
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/screen/auto-rotation/disable",
+        "function": "disable_auto_rotation",
+        "file": "screen_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/screen/auto-rotation/enable",
+        "function": "enable_auto_rotation",
+        "file": "screen_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/screen/brightness",
+        "function": "control_screen_brightness",
+        "file": "screen_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/devices/{serial}/screen/brightness",
+        "function": "get_screen_brightness",
+        "file": "screen_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/screen/power",
+        "function": "control_screen_power",
+        "file": "screen_routes.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/devices/{serial}/screen/rotation",
+        "function": "control_screen_rotation",
+        "file": "screen_routes.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/devices/{serial}/screen/rotation",
+        "function": "get_screen_rotation",
+        "file": "screen_routes.py"
+      }
+    ],
+    "ws_routes.py": [
+      {
+        "method": "WEBSOCKET",
+        "path": "/ws/control/{serial}",
+        "function": "device_control_endpoint",
+        "file": "ws_routes.py"
+      },
+      {
+        "method": "WEBSOCKET",
+        "path": "/ws/group",
+        "function": "group_control_endpoint",
+        "file": "ws_routes.py"
+      },
+      {
+        "method": "WEBSOCKET",
+        "path": "/ws/video/{serial}",
+        "function": "video_stream_endpoint",
+        "file": "ws_routes.py"
+      }
+    ]
+  }
+}

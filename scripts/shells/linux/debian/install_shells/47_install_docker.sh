@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -23,13 +23,12 @@ PARENT_DIR_LEVEL_2=""
 SCRIPT_INDEX="47"
 INSTALL_DOCKER=""
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Initialize variables
@@ -199,15 +198,23 @@ if [ "$INSTALL_DOCKER" = "true" ]; then
     # Install Docker if not present
     install_docker_with_snap_if_needed
     install_docker_compose_with_snap_if_needed
-    
-    # Enable Docker services
-    enable_docker_services
-    
+
+    # Disable Docker services to save memory
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Disabling Docker service to save memory..."
+    echo "[$SCRIPT_INDEX] ============================================"
+    disable_docker_services
+
     # Set global variables
     set_var "DOCKER_AVAILABLE" "true"
-    set_var "DOCKER_ENABLED" "true"
-    
-    echo "[$SCRIPT_INDEX] Docker installation and enablement completed"
+    set_var "DOCKER_ENABLED" "false"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] IMPORTANT: Docker is installed but NOT running"
+    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start Docker when needed"
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Docker installation completed"
     
 elif [ "$INSTALL_DOCKER" = "false" ]; then
     echo "[$SCRIPT_INDEX] INSTALL_DOCKER is false - Disabling Docker services..."

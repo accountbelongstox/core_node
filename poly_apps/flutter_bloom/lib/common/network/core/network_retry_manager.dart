@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'unified_network_client.dart';
 // Fix: Import RequestPriority from network_types.dart to use unified definition
 import 'network_types.dart' show NetworkRequest, NetworkResponse, RequestPriority;
 

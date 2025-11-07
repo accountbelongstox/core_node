@@ -12,31 +12,21 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-source "${SCRIPT_DIR}/gvar_common.sh"
+source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
 # Menu configuration table: Menu Name|Menu Key|Available Options|Default(base)|Default(server)|Default(full)|Default(desktop)
+# Note: Services (MySQL, Redis, PostgreSQL, Docker, Nginx) are always installed
+# The menu option controls whether to start them after installation
 declare -a MENU_CONFIG=(
     "[*] Switch Installation Mode|INSTALL_MODE|base server full desktop|base|server|full|desktop"
     "[@] Select Region|SELECTED_REGION|China Global|Global|Global|Global|Global"
-    "[D] Install MySQL|INSTALL_MYSQL|false true|false|true|true|true"
-    "[R] Install Redis|INSTALL_REDIS|false true|false|false|true|true"
-    "[Q] Install PostgreSQL|INSTALL_POSTGRESQL|false true|false|false|true|true"
-    "[>] Install Nginx|INSTALL_NGINX|false true|false|true|true|true"
-    "[G] Install Go Language|INSTALL_GO|false true|true|true|true|true"
-    "[J] Install Java|INSTALL_JAVA|false true|true|true|true|true"
-    "[E] Install Edge|INSTALL_EDGE|false true|true|true|true|true"
-    "[N] Install Node.js|INSTALL_NODE|false true|true|true|true|true"
-    "[P] Install PHP|INSTALL_PHP|false true|true|true|true|true"
-    "[^] Install Docker|INSTALL_DOCKER|false true|true|true|true|false"
-    "[~] Install AI Assistant Tools|INSTALL_AI_TOOLS|false true|true|false|true|true"
-    "[M] Install MCP Services|INSTALL_MCP_SERVICES|false true|false|true|true|true"
-    "[B] Install Base Packages|INSTALL_BASE_PACKAGES|false true|true|true|true|true"
-    "[V] Install Development Tools|INSTALL_DEV_PACKAGES|false true|false|false|true|true"
-    "[A] Install Application Packages|INSTALL_APP_PACKAGES|false true|false|false|false|true"
-    "[I] Install AI Development Tools|INSTALL_AI_PACKAGES|false true|true|true|true|true"
-    "[S] Install MCP Service Packages|INSTALL_MCP_PACKAGES|false true|false|true|true|true"
+    "[D] Start MySQL After Installation|START_MYSQL|false true|false|false|false|false"
+    "[R] Start Redis After Installation|START_REDIS|false true|false|false|false|false"
+    "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
+    "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
+    "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )

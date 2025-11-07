@@ -11,9 +11,9 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Check if yarn is installed
-if ! command -v yarn &> /dev/null; then
-    echo "???Error: Yarn is not installed or not in PATH"
+# Check if pnpm is installed
+if ! command -v pnpm &> /dev/null; then
+    echo "???Error: pnpm is not installed or not in PATH"
     exit 1
 fi
 
@@ -24,10 +24,10 @@ if [ ! -f "package.json" ]; then
 fi
 
 echo "???? Installing dependencies..."
-yarn install
+pnpm install
 
 echo "???? Building the application..."
-yarn build
+pnpm build
 
 # Check if build was successful
 if [ $? -ne 0 ]; then

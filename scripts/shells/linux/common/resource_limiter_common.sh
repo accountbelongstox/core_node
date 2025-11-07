@@ -22,12 +22,11 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_1/LGar.sh"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 DEFAULT_CPU_LIMIT="20"
 DEFAULT_MEMORY_LIMIT="200M"
-TMP_SCRIPT_DIR="/tmp/.core_node/dd_scripts"
+TMP_SCRIPT_DIR="${CORE_NODE_DATA_DIR}/dd_scripts"
 RESOURCE_METHOD="auto"
 AVAILABLE_METHODS=("systemd-run" "ulimit" "cpulimit" "cgroup")
 
@@ -295,7 +294,7 @@ run_with_limits_background_from_common_functions() {
     local memory_limit="${2:-$DEFAULT_MEMORY_LIMIT}"
     local command="$3"
     local method="${4:-auto}"
-    local log_file="${5:-/tmp/.core_node/dd-bg-$(date +%s).log}"
+    local log_file="${5:-${CORE_NODE_DATA_DIR}/dd-bg-$(date +%s).log}"
 
     if [ -z "$command" ]; then
         echo "[ERROR] Command is required"

@@ -15,17 +15,31 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../models_app_wuy/network_record_model_app_wuy.dart';
 
+/// Network Records Screen for Wuy App
+///
+/// This screen displays network activity and connection records.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyNetworkTitle.tr(context)
 class WuyNetworkRecordsScreen extends StatefulWidget {
   const WuyNetworkRecordsScreen({super.key});
 
   @override
-  State<WuyNetworkRecordsScreen> createState() => _WuyNetworkRecordsScreenState();
+  State<WuyNetworkRecordsScreen> createState() =>
+      _WuyNetworkRecordsScreenState();
 }
 
 class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
-  List<NetworkRecord> _networkRecords = [];
+  List<NetworkRecordModelAppWuy> networkRecords = [];
 
   @override
   void initState() {
@@ -33,45 +47,12 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
     _loadNetworkRecords();
   }
 
-  void _loadNetworkRecords() {
-    // Mock data based on the screenshot
-    _networkRecords = [
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '20:00',
-        description: '登录到小飞侠的账户',
-        type: NetworkType.login,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '20:00',
-        description: '登录成功',
-        type: NetworkType.success,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '19:45',
-        description: '连接WiFi网络',
-        type: NetworkType.wifi,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '19:30',
-        description: '移动网络连接',
-        type: NetworkType.mobile,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '19:15',
-        description: '网络请求超时',
-        type: NetworkType.error,
-        status: NetworkStatus.error,
-      ),
-    ];
+  void _loadNetworkRecords() async {
+    final dataManager = WuyUnifiedService();
+
+    setState(() {
+      networkRecords = [];
+    });
   }
 
   @override
@@ -80,14 +61,32 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Network Records',
-          style: ThemeTextStyles.displayMedium,
+          LocalizationKeysAppWuy.wuyNetworkTitle.tr(context),
+          style: ThemeTextStyles.displayMedium.copyWith(
+            color: ThemeColors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
+          onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: Column(
@@ -110,8 +109,8 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.orange.shade400,
-            Colors.red.shade400,
+            ThemeColors.orange40,
+            ThemeColors.red40,
           ],
         ),
       ),
@@ -121,32 +120,39 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
             top: 50,
             left: 0,
             right: 0,
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Icon(
-                    Icons.network_check,
-                    size: 40,
-                    color: Colors.white,
+            child: SizedBox(
+              height: 150,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: ThemeColors.white.withOpacity(0.2),
+                    child: Icon(
+                      Icons.network_check,
+                      size: 40,
+                      color: ThemeColors.white,
+                    ),
                   ),
-                ),
-                SizedBox(height: ThemeDimensions.spacingMedium),
-                Text(
-                  '小飞侠',
-                  style: ThemeTextStyles.title2.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  Text(
+                    WuyUnifiedService().currentUser?.displayName ?? 'User',
+                    style: ThemeTextStyles.title2.copyWith(
+                      color: ThemeColors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 26,
+                      letterSpacing: -0.6,
+                    ),
                   ),
-                ),
-                Text(
-                  'Network Activity',
-                  style: ThemeTextStyles.bodyLarge.copyWith(
-                    color: Colors.white.withOpacity(0.9),
+                  Text(
+                    LocalizationKeysAppWuy.wuyNetworkActivity.tr(context),
+                    style: ThemeTextStyles.bodyLarge.copyWith(
+                      color: ThemeColors.white.withOpacity(0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -155,56 +161,119 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
   }
 
   Widget _buildNetworkRecordsList() {
+    if (networkRecords.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.network_check,
+              size: 64,
+              color: ThemeColors.secondaryLabel,
+            ),
+            SizedBox(height: ThemeDimensions.paddingSizeDefault),
+            Text(
+              LocalizationKeysAppWuy.wuyNetworkNoRecords.tr(context),
+              style: ThemeTextStyles.body.copyWith(
+                color: ThemeColors.secondaryLabel,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
-      color: Colors.lightGreen.shade50,
+      color: ThemeColors.green05,
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
       child: ListView.builder(
-        itemCount: _networkRecords.length,
+        itemCount: networkRecords.length,
         itemBuilder: (context, index) {
-          final record = _networkRecords[index];
+          final record = networkRecords[index];
           return _buildNetworkRecordItem(record);
         },
       ),
     );
   }
 
-  Widget _buildNetworkRecordItem(NetworkRecord record) {
+  Widget _buildNetworkRecordItem(NetworkRecordModelAppWuy record) {
+    final IconData icon;
+    final Color iconColor;
+    final String description;
+
+    switch (record.type) {
+      case NetworkType.wifi:
+        icon = Icons.wifi;
+        iconColor = ThemeColors.blue;
+        description = record.wifiSsid != null
+            ? '${LocalizationKeysAppWuy.wuyNetworkConnectedWifiWith.tr(context)}: ${record.wifiSsid}'
+            : LocalizationKeysAppWuy.wuyNetworkConnectedWifi.tr(context);
+        break;
+      case NetworkType.mobile:
+        icon = Icons.signal_cellular_alt;
+        iconColor = ThemeColors.green;
+        description = LocalizationKeysAppWuy.wuyNetworkConnectedMobile.tr(context);
+        break;
+      default:
+        icon = Icons.network_check;
+        iconColor = ThemeColors.grey500;
+        description = LocalizationKeysAppWuy.wuyNetworkChange.tr(context);
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-      padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingSizeDefault),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+        color: ThemeColors.white,
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 5,
-            offset: Offset(0, 2),
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: Row(
         children: [
-          _buildNetworkIcon(record.type, record.status),
-          SizedBox(width: ThemeDimensions.spacingMedium),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+          ),
+          SizedBox(width: ThemeDimensions.paddingSizeDefault),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${record.date} ${record.time}',
-                  style: ThemeTextStyles.bodySmall.copyWith(
-                    color: ThemeColors.textSecondary,
-                    fontWeight: FontWeight.w500,
+                  '${record.formattedDate} ${record.formattedTime}',
+                  style: ThemeTextStyles.caption1.copyWith(
+                    color: ThemeColors.secondaryLabel,
                   ),
                 ),
-                SizedBox(height: ThemeDimensions.spacingSmall),
+                SizedBox(height: ThemeDimensions.spacing4),
                 Text(
-                  record.description,
-                  style: ThemeTextStyles.bodyMedium,
+                  description,
+                  style: ThemeTextStyles.subhead.copyWith(
+                    color: ThemeColors.label,
+                  ),
                 ),
-                SizedBox(height: ThemeDimensions.spacingSmall),
-                _buildStatusIndicator(record.status),
               ],
             ),
           ),
@@ -212,114 +281,4 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       ),
     );
   }
-
-  Widget _buildNetworkIcon(NetworkType type, NetworkStatus status) {
-    IconData iconData;
-    Color iconColor;
-
-    switch (type) {
-      case NetworkType.login:
-        iconData = Icons.login;
-        iconColor = Colors.blue;
-        break;
-      case NetworkType.success:
-        iconData = Icons.check_circle;
-        iconColor = Colors.green;
-        break;
-      case NetworkType.wifi:
-        iconData = Icons.wifi;
-        iconColor = Colors.orange;
-        break;
-      case NetworkType.mobile:
-        iconData = Icons.signal_cellular_alt;
-        iconColor = Colors.purple;
-        break;
-      case NetworkType.error:
-        iconData = Icons.error;
-        iconColor = Colors.red;
-        break;
-    }
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Icon(
-        iconData,
-        color: iconColor,
-        size: 20,
-      ),
-    );
-  }
-
-  Widget _buildStatusIndicator(NetworkStatus status) {
-    Color statusColor;
-    String statusText;
-
-    switch (status) {
-      case NetworkStatus.success:
-        statusColor = Colors.green;
-        statusText = 'Success';
-        break;
-      case NetworkStatus.error:
-        statusColor = Colors.red;
-        statusText = 'Error';
-        break;
-      case NetworkStatus.pending:
-        statusColor = Colors.orange;
-        statusText = 'Pending';
-        break;
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: ThemeDimensions.spacingSmall,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        statusText,
-        style: ThemeTextStyles.bodySmall.copyWith(
-          color: statusColor,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class NetworkRecord {
-  final String date;
-  final String time;
-  final String description;
-  final NetworkType type;
-  final NetworkStatus status;
-
-  NetworkRecord({
-    required this.date,
-    required this.time,
-    required this.description,
-    required this.type,
-    required this.status,
-  });
-}
-
-enum NetworkType {
-  login,
-  success,
-  wifi,
-  mobile,
-  error,
-}
-
-enum NetworkStatus {
-  success,
-  error,
-  pending,
 }

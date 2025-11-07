@@ -15,10 +15,16 @@
 # Author: Development Script System
 # Version: 1.0
 
-# Import Gvar system and common utilities
-. "$PSScriptRoot\FlutterGlobalVar.ps1"
-. "$PSScriptRoot\CommonUtilities.ps1"
-. "$PSScriptRoot\FlutterLogManager.ps1"
+# Import Gvar system and common utilities (only if not already loaded)
+if (-not (Get-Command -Name "Get-FileVariable" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\FlutterGlobalVar.ps1"
+}
+if (-not (Get-Command -Name "Test-PathSafe" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\CommonUtilities.ps1"
+}
+if (-not (Get-Command -Name "Write-LogMessage" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\FlutterLogManager.ps1"
+}
 
 function Invoke-SafeCommand {
     <#
@@ -285,12 +291,12 @@ function Test-FlutterEnvironment {
     try {
         $flutterVersion = flutter --version 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Flutter is available" -ForegroundColor Green
+            Write-Host "[OK] Flutter is available" -ForegroundColor Green
             return $true
         }
     }
     catch {
-        Write-Error "✗ Flutter is not available in PATH"
+        Write-Error "[X] Flutter is not available in PATH"
         Write-Host "Please install Flutter and ensure it's in your PATH" -ForegroundColor Red
         return $false
     }
@@ -558,6 +564,26 @@ function Invoke-DebugMode {
 
             Push-Location $projectRoot
             Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
+
+            # Import and run pre-debug splash update
+            # Use PSScriptRoot which works correctly even when dot-sourced
+            $splashManagerPath = Join-Path $PSScriptRoot "SplashManager.ps1"
+            if (Test-Path $splashManagerPath) {
+                Write-Host "[DEBUG] Loading SplashManager for pre-debug splash update" -ForegroundColor Magenta
+                . $splashManagerPath
+
+                # Run splash update before debug
+                Write-Host "[INFO] Running pre-debug splash update..." -ForegroundColor Cyan
+                $splashUpdateResult = Invoke-PreDebugSplashUpdate
+                if ($splashUpdateResult) {
+                    Write-Host "[SUCCESS] Pre-debug splash update completed" -ForegroundColor Green
+                } else {
+                    Write-Host "[WARNING] Pre-debug splash update failed, continuing with debug" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "[WARNING] SplashManager not found at: $splashManagerPath" -ForegroundColor Yellow
+            }
+
             Write-Host "[DEBUG] About to execute: powershell -File $scriptPath" -ForegroundColor Magenta
 
             # Execute the debug script directly (not through new PowerShell process)
@@ -629,10 +655,36 @@ function Invoke-BuildMode {
             return $false
         }
 
-        # Display build configuration
-        Write-Host "[INFO] $selectedApp [$selectedAction/$compilationPlatform] - Build Mode" -ForegroundColor Cyan
+        # Get entry file and build script path
+        $entryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue ""
+        $buildScriptPath = Get-FileVariable -Name $Global:KEY_BUILD_SCRIPT_PATH -DefaultValue ""
+
+        # Display build configuration summary
+        Write-Host ""
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host "  BUILD CONFIGURATION SUMMARY" -ForegroundColor Yellow
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host "[INFO] App: $selectedApp" -ForegroundColor White
+        Write-Host "[INFO] Mode: $selectedAction / $compilationPlatform" -ForegroundColor White
+        Write-Host "[INFO] Entry File: $entryFile" -ForegroundColor Green
         Write-Host "[INFO] Build Root: $buildRoot" -ForegroundColor Gray
         Write-Host "[INFO] Expected Output: $apkFileName" -ForegroundColor Gray
+
+        # Extract and display Flutter command from build script
+        if ($buildScriptPath -and (Test-Path $buildScriptPath)) {
+            try {
+                $flutterCommandLine = Select-String -Path $buildScriptPath -Pattern "Invoke-Expression " | Select-Object -First 1
+                if ($flutterCommandLine) {
+                    # Extract the flutter command from Invoke-Expression line
+                    $commandText = $flutterCommandLine.Line -replace '.*Invoke-Expression\s+"([^"]+)".*', '$1'
+                    Write-Host "[INFO] Flutter Command: $commandText" -ForegroundColor Cyan
+                }
+            } catch {
+                Write-Host "[INFO] Could not extract Flutter command from script" -ForegroundColor Yellow
+            }
+        }
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host ""
 
         # Change to build root directory
         Write-Host "[BUILD] Switching to build root: '$buildRoot'" -ForegroundColor Yellow
@@ -640,40 +692,57 @@ function Invoke-BuildMode {
         Write-Host "[BUILD] Current working directory: $(Get-Location)" -ForegroundColor Yellow
 
         try {
-            # Execute clean command if available
-            $cleanCommandVar = Get-FileVariable -Name "clean_command" -DefaultValue ""
-            $cleanScriptPath = Get-FileVariable -Name "clean_script_path" -DefaultValue ""
+            # Execute clean command only if compilation option is 'clean'
+            $compilationOption = Get-FileVariable -Name $Global:KEY_COMPILATION_OPTION -DefaultValue ""
 
-            if ($cleanCommandVar -and $cleanCommandVar.Trim() -ne "") {
-                Write-Host "[BUILD] Executing clean command..." -ForegroundColor Yellow
+            if ($compilationOption -eq "clean") {
+                Write-Host "[BUILD] Clean mode detected - executing clean command" -ForegroundColor Yellow
 
-                if ($cleanScriptPath -and (Test-Path $cleanScriptPath)) {
-                    Write-Host "[BUILD] Clean Script: $cleanScriptPath" -ForegroundColor Gray
-                    & powershell -File $cleanScriptPath
+                $cleanCommandVar = Get-FileVariable -Name $Global:KEY_CLEAN_COMMAND -DefaultValue ""
+                $cleanScriptPath = Get-FileVariable -Name $Global:KEY_CLEAN_SCRIPT_PATH -DefaultValue ""
+
+                if ($cleanCommandVar -and $cleanCommandVar.Trim() -ne "") {
+                    Write-Host "[BUILD] Executing clean command..." -ForegroundColor Yellow
+
+                    if ($cleanScriptPath -and (Test-Path $cleanScriptPath)) {
+                        Write-Host "[BUILD] Clean Script: $cleanScriptPath" -ForegroundColor Gray
+                        & powershell -File $cleanScriptPath
+                    } else {
+                        Write-Host "[BUILD] Clean Command: $cleanCommandVar" -ForegroundColor Gray
+                        Invoke-Expression $cleanCommandVar
+                    }
+
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Warning "[BUILD] Clean command failed but continuing with build..."
+                    }
                 } else {
-                    Write-Host "[BUILD] Clean Command: $cleanCommandVar" -ForegroundColor Gray
-                    Invoke-Expression $cleanCommandVar
+                    Write-Warning "[BUILD] Clean mode selected but no clean command found"
                 }
-
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "[BUILD] Clean command failed but continuing with build..."
-                }
+            } else {
+                Write-Host "[BUILD] Compilation option is '$compilationOption' - skipping clean command" -ForegroundColor Gray
             }
 
             # Execute main compilation command
             Write-Host "[BUILD] Executing compilation command..." -ForegroundColor Yellow
 
-            $buildScriptPath = Get-FileVariable -Name "script_path" -DefaultValue ""
-            $buildCommand = Get-FileVariable -Name "command" -DefaultValue ""
+            $buildScriptPath = Get-FileVariable -Name $Global:KEY_SCRIPT_PATH -DefaultValue ""
+            $buildCommand = Get-FileVariable -Name $Global:KEY_COMMAND -DefaultValue ""
+
+            # Determine log file path
+            $logFile = Join-Path $buildRoot "build_log.txt"
 
             if ($buildScriptPath -and (Test-Path $buildScriptPath)) {
                 Write-Host "[BUILD] Build Script: $buildScriptPath" -ForegroundColor Gray
-                & powershell -File $buildScriptPath
+                Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
+                # Execute script in current process for real-time output (not & powershell -File)
+                & $buildScriptPath
             } elseif ($buildCommand -and $buildCommand.Trim() -ne "") {
                 Write-Host "[BUILD] Build Command: $buildCommand" -ForegroundColor Gray
+                Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
                 Invoke-Expression $buildCommand
             } else {
                 Write-Host "[BUILD] Compilation Command: $compilationCommand" -ForegroundColor Gray
+                Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
                 Invoke-Expression $compilationCommand
             }
 
@@ -684,12 +753,25 @@ function Invoke-BuildMode {
                 return $true
             } else {
                 Write-ErrorMsg "[BUILD] Compilation failed with exit code: $LASTEXITCODE"
+                Write-Host "[ERROR] Press any key to view error details..." -ForegroundColor Red
+                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                 return $false
             }
 
         } finally {
             Pop-Location
             Write-Host "[BUILD] Restored working directory: $(Get-Location)" -ForegroundColor Yellow
+
+            # Open log file in explorer if it exists
+            $logFile = Join-Path $buildRoot "build_log.txt"
+            if (Test-Path $logFile) {
+                Write-Host "[BUILD] Opening build log file..." -ForegroundColor Cyan
+                try {
+                    Start-Process "explorer.exe" -ArgumentList "/select,`"$logFile`""
+                } catch {
+                    Write-Warning "[BUILD] Could not open log file: $_"
+                }
+            }
         }
 
     } catch {

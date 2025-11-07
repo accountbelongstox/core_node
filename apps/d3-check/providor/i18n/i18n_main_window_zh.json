@@ -17,7 +17,9 @@
       "main_functions": "主要功能",
       "auxiliary_functions": "辅助功能",
       "log": "日志",
-      "rosbot_extension": "Rosbot扩展"
+      "rosbot_extension": "Rosbot扩展",
+      "d4_functions": "D4功能",
+      "coordinate_calibration": "坐标效准"
     },
     "macro_controls": {
       "start_macro": "启动宏",
@@ -67,6 +69,10 @@
       "potion_interval": "药水间隔",
       "status_config_loaded": "配置已加载",
       "space_key": "空格"
+    },
+    "system_tray": {
+      "show_software": "显示软件",
+      "exit": "退出"
     }
   }
 }

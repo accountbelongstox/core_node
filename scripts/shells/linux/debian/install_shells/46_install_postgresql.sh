@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -30,13 +30,12 @@ POSTGRESQL_LOG_DIR=""
 POSTGRESQL_USER="postgres"
 POSTGRESQL_SERVICE_NAME="postgresql"
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Initialize variables
@@ -44,9 +43,10 @@ SCRIPT_INDEX="46"
 INSTALL_POSTGRESQL=$(get_var "INSTALL_POSTGRESQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 POSTGRESQL_VERSION="15"
-POSTGRESQL_DATA_DIR="/www/wwwroot/postgresql/data"
+# Use compile_dir for database data and logs (auto-selects based on environment)
+POSTGRESQL_DATA_DIR=$(map_web_path "compile_dir" "postgresql/data")
 POSTGRESQL_CONFIG_DIR=""
-POSTGRESQL_LOG_DIR="/www/wwwroot/postgresql/logs"
+POSTGRESQL_LOG_DIR=$(map_web_path "compile_dir" "postgresql/logs")
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
 echo "[$SCRIPT_INDEX] INSTALL_POSTGRESQL: $INSTALL_POSTGRESQL"
@@ -99,11 +99,18 @@ detect_postgresql_version() {
 create_postgresql_directories() {
     echo "[$SCRIPT_INDEX] Ensuring PostgreSQL directories..."
 
+    # Use compile_dir for database directories (auto-selects based on environment)
+    local postgresql_parent=$(map_web_path "compile_dir" "postgresql")
+
     # Parent and logs
-    $USE_SUDO mkdir -p "/www/wwwroot/postgresql"
+    $USE_SUDO mkdir -p "$postgresql_parent"
     $USE_SUDO mkdir -p "$POSTGRESQL_LOG_DIR"
-    $USE_SUDO chown -R postgres:postgres "/www/wwwroot/postgresql"
-    $USE_SUDO chmod 755 "$POSTGRESQL_LOG_DIR"
+
+    # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+    if [ "$IS_WSL" = false ]; then
+        $USE_SUDO chown -R postgres:postgres "$postgresql_parent"
+    fi
+    $USE_SUDO chmod 755 "$POSTGRESQL_LOG_DIR" 2>/dev/null || true
 
     echo "[$SCRIPT_INDEX] Directories prepared"
 }
@@ -170,8 +177,10 @@ configure_postgresql() {
     # Case 1: If target data dir already initialized (PG_VERSION exists), adopt it via config
     if [ -f "$POSTGRESQL_DATA_DIR/PG_VERSION" ]; then
         echo "[$SCRIPT_INDEX] Existing initialized data directory detected: $POSTGRESQL_DATA_DIR"
-        # Ensure correct ownership
-        $USE_SUDO chown -R postgres:postgres "$POSTGRESQL_DATA_DIR"
+        # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+        if [ "$IS_WSL" = false ]; then
+            $USE_SUDO chown -R postgres:postgres "$POSTGRESQL_DATA_DIR"
+        fi
         # Ensure config dir exists
         if [ ! -d "$cluster_dir" ]; then
             echo "[$SCRIPT_INDEX] Creating cluster directory structure"
@@ -214,7 +223,10 @@ configure_postgresql() {
             fi
             # Ensure parent and permissions; do not pre-create data dir (pg_createcluster will create it)
             $USE_SUDO mkdir -p "$(dirname "$POSTGRESQL_DATA_DIR")"
-            $USE_SUDO chown -R postgres:postgres "$(dirname "$POSTGRESQL_DATA_DIR")"
+            # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+            if [ "$IS_WSL" = false ]; then
+                $USE_SUDO chown -R postgres:postgres "$(dirname "$POSTGRESQL_DATA_DIR")"
+            fi
             # Create cluster in the desired data directory and start it
             $USE_SUDO pg_createcluster "$POSTGRESQL_VERSION" main --datadir="$POSTGRESQL_DATA_DIR" --start
             POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"
@@ -326,7 +338,9 @@ remove_postgresql() {
     echo "[$SCRIPT_INDEX] Do you want to remove PostgreSQL data directories? (y/N)"
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        $USE_SUDO rm -rf "/www/wwwroot/postgresql"
+        # Use compile_dir for database directories (auto-selects based on environment)
+        local postgresql_parent=$(map_web_path "compile_dir" "postgresql")
+        $USE_SUDO rm -rf "$postgresql_parent"
         echo "[$SCRIPT_INDEX] PostgreSQL data directories removed"
     fi
 
@@ -351,6 +365,20 @@ main() {
                     if is_postgresql_running; then
                         setup_postgresql_user
                         show_postgresql_info
+
+                        # Stop and disable service after installation to save memory
+                        echo "[$SCRIPT_INDEX] ============================================"
+                        echo "[$SCRIPT_INDEX] Stopping and disabling PostgreSQL service..."
+                        echo "[$SCRIPT_INDEX] ============================================"
+                        $USE_SUDO systemctl stop postgresql
+                        $USE_SUDO systemctl disable postgresql
+                        echo "[$SCRIPT_INDEX] PostgreSQL service stopped and disabled"
+
+                        echo "[$SCRIPT_INDEX] ============================================"
+                        echo "[$SCRIPT_INDEX] IMPORTANT: PostgreSQL is installed but NOT running"
+                        echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+                        echo "[$SCRIPT_INDEX] Use the Service Manager menu to start PostgreSQL when needed"
+                        echo "[$SCRIPT_INDEX] ============================================"
                         echo "[$SCRIPT_INDEX] PostgreSQL installation completed successfully"
                     else
                         echo "[$SCRIPT_INDEX] PostgreSQL installation failed - service not running"

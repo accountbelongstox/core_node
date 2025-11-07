@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'map_service.dart';
 
 class MapUtils {
@@ -175,8 +174,12 @@ class MapUtils {
 
   /// Normalize longitude to -180 to 180 range
   static double normalizeLongitude(double longitude) {
-    while (longitude > 180) longitude -= 360;
-    while (longitude < -180) longitude += 360;
+    while (longitude > 180) {
+      longitude -= 360;
+    }
+    while (longitude < -180) {
+      longitude += 360;
+    }
     return longitude;
   }
 

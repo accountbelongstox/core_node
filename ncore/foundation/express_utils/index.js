@@ -28,5 +28,15 @@ const startExpressServer = async (config) => {
 
 const broadcastWs = WsManager.broadcastWs
 const sendToWsClient = WsManager.sendToWsClient
+const getWebSocketServer = () => WsManager.getWebSocketServer()
+const getHttpServer = () => WsManager.getHttpServer()
 
-module.exports = { getConfig, updateConfig, broadcastWs, sendToWsClient, startExpressServer };
+module.exports = {
+    getConfig,
+    updateConfig,
+    broadcastWs,
+    sendToWsClient,
+    startExpressServer,
+    getWebSocketServer,
+    getHttpServer
+};

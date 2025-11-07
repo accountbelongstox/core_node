@@ -12,17 +12,40 @@
 # Flutter Bloom Start Script - Entry Point
 # Main script that handles the application flow
 
-# Variables declaration
+# CRITICAL: Locate script directory and Flutter Bloom root directory first
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$FLUTTER_BLOOM_ROOT = Split-Path -Parent $SCRIPT_DIR
+
+# Variables declaration
 $BUILD_SCRIPTS_DIR = Join-Path $SCRIPT_DIR "build_scripts"
 $WIN_COMMON_DIR = Join-Path $SCRIPT_DIR "win_common"
 $MAIN_PY = Join-Path $BUILD_SCRIPTS_DIR "main.py"
 
-# Import only necessary common functions
-. (Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1")
-. (Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1")
-. (Join-Path $WIN_COMMON_DIR "FlutterLogManager.ps1")
-. (Join-Path $WIN_COMMON_DIR "BCommon.ps1")  # For other common functions
+# Save current directory and switch to Flutter Bloom root
+$ORIGINAL_DIR = Get-Location
+Set-Location $FLUTTER_BLOOM_ROOT
+
+Write-Host "[DEBUG] Script directory: $SCRIPT_DIR" -ForegroundColor Magenta
+Write-Host "[DEBUG] Flutter Bloom root: $FLUTTER_BLOOM_ROOT" -ForegroundColor Magenta
+Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
+
+# Import only necessary common functions (using absolute paths)
+$globalVarPath = Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1"
+$commonUtilPath = Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1"
+$logManagerPath = Join-Path $WIN_COMMON_DIR "FlutterLogManager.ps1"
+$bcommonPath = Join-Path $WIN_COMMON_DIR "BCommon.ps1"
+
+if (-not (Test-Path $globalVarPath)) { Write-Host "[ERROR] Missing: $globalVarPath" -ForegroundColor Red; exit 1 }
+if (-not (Test-Path $commonUtilPath)) { Write-Host "[ERROR] Missing: $commonUtilPath" -ForegroundColor Red; exit 1 }
+if (-not (Test-Path $logManagerPath)) { Write-Host "[ERROR] Missing: $logManagerPath" -ForegroundColor Red; exit 1 }
+if (-not (Test-Path $bcommonPath)) { Write-Host "[ERROR] Missing: $bcommonPath" -ForegroundColor Red; exit 1 }
+
+. $globalVarPath
+. $commonUtilPath
+. $logManagerPath
+. $bcommonPath  # For other common functions
 
 try {
     Write-Host "Flutter Bloom Launcher" -ForegroundColor Cyan
@@ -95,5 +118,12 @@ try {
 
 } catch {
     Write-Host "[ERROR] Flutter Bloom startup failed: $_" -ForegroundColor Red
+    Set-Location $ORIGINAL_DIR
     exit 1
+} finally {
+    # Ensure we always restore original directory
+    if ($ORIGINAL_DIR) {
+        Set-Location $ORIGINAL_DIR
+        Write-Host "[DEBUG] Final directory restore: $(Get-Location)" -ForegroundColor Magenta
+    }
 }

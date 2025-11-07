@@ -110,7 +110,7 @@ class TitleBar:
             bd=1
         )
         self.minimize_btn.pack(side=tk.LEFT, padx=2)
-        
+
         # Maximize/Restore button
         self.maximize_btn = tk.Button(
             parent,
@@ -123,7 +123,20 @@ class TitleBar:
             bd=1
         )
         self.maximize_btn.pack(side=tk.LEFT, padx=2)
-        
+
+        # Restart button
+        self.restart_btn = tk.Button(
+            parent,
+            text="↻",
+            command=self._restart_application,
+            width=2,
+            bg=UITheme.get_color('bg_secondary'),
+            fg=UITheme.get_color('text_primary'),
+            relief=tk.RAISED,
+            bd=1
+        )
+        self.restart_btn.pack(side=tk.LEFT, padx=2)
+
         # Close button
         self.close_btn = tk.Button(
             parent,
@@ -139,41 +152,31 @@ class TitleBar:
     
     def _on_language_combo_changed(self, event=None):
         """Handle language combobox selection change - ConfigBinding will handle everything"""
+        from providor.common_imports import ColorPrint
         try:
             new_language = self.language_combo.get()
-            print(f"[TitleBar] Language combo changed to: {new_language}")
-
-            # ConfigBinding will automatically:
-            # 1. Update CONFIG['ui_settings']['current_language']
-            # 2. Call i18n_manager.set_language()
-            # 3. Trigger language change listeners
-            # So we don't need to do anything here - just log the change
-
+            ColorPrint.blue(f"[TitleBar] Language combo changed to: {new_language}")
         except Exception as e:
-            print(f"[TitleBar] Error handling language change: {e}")
+            ColorPrint.red(f"[TitleBar] Error handling language change: {e}")
 
     def _on_language_changed(self, new_language: str):
         """Handle language change - update UI elements (called by i18n_manager)"""
-        print(f"[TitleBar] Updating UI for language: {new_language}")
+        from providor.common_imports import ColorPrint
+        ColorPrint.blue(f"[TitleBar] Updating UI for language: {new_language}")
 
-        # Update title text
         if hasattr(self, 'title_label'):
             self.title_label.configure(text=i18n_manager.get_ui_text("main_window.title"))
 
-        # Update language label text
         if hasattr(self, 'lang_label'):
             self.lang_label.configure(text=i18n_manager.get_ui_text("main_window.language") + ":")
 
-        # Update combobox to reflect current language (avoid recursion)
         if hasattr(self, 'language_combo'):
             current_value = self.language_combo.get()
             if current_value != new_language:
-                # Temporarily unbind the event to avoid recursion
                 self.language_combo.unbind('<<ComboboxSelected>>')
                 self.language_combo.set(new_language)
                 self.language_combo.bind('<<ComboboxSelected>>', self._on_language_combo_changed)
 
-        # Notify parent component
         if hasattr(self.parent, '_on_language_changed'):
             self.parent._on_language_changed(new_language)
 
@@ -197,19 +200,15 @@ class TitleBar:
             root.state('zoomed')
             self.maximize_btn.configure(text="❐")
     
+    def _restart_application(self):
+        """Restart application - send restart signal to main thread"""
+        from d3utils.shutdown_manager import request_restart
+        request_restart()
+
     def _close_window(self):
-        """Close window - use unified exit"""
-        try:
-            # Use parent's unified exit method if available
-            if hasattr(self.parent, '_unified_exit'):
-                self.parent._unified_exit()
-            else:
-                # Fallback to direct destroy
-                self.parent.root.destroy()
-        except Exception as e:
-            # Final fallback
-            import os
-            os._exit(0)
+        """Close window - send shutdown signal to main thread"""
+        from d3utils.shutdown_manager import request_shutdown
+        request_shutdown()
     
     def _bind_drag_events(self):
         """Bind drag events for window dragging"""
@@ -240,8 +239,4 @@ class TitleBar:
     def grid(self, **kwargs):
         """Grid the title bar"""
         self.frame.grid(**kwargs)
-
-    def update_title(self, new_title: str):
-        """Update title text"""
-        self.title_label.configure(text=new_title)
 

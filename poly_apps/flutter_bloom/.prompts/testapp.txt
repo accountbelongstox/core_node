@@ -1,0 +1,5 @@
+D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 参考
+  ，添加一个新的APP，注意使用lib/common，以及参考 APP，按使用lib/common扩展子app的主题，数据model，api，子功能类的方式，构建
+  整个APP。这是一个射击、高尔夫球场、酒店的app，拥有普通会员浏览，VIP区域，VIP服务，VIP登际为
+  VIP金卡界面的功能，请全面构架出你设想的完整功能，并着手写代码。
+  注意请不要使用过多的emoji，涉及到图片，你可以调用mcp生成占位图。

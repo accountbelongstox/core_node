@@ -15,58 +15,50 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/assets/common_assets_images.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../models_app_wuy/history_record_model_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_location_history_item.dart';
 
+/// History Tracking Screen for Wuy App
+///
+/// This screen displays user activity history and tracking information.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyHistoryTitle.tr(context)
 class WuyHistoryTrackingScreen extends StatefulWidget {
   const WuyHistoryTrackingScreen({super.key});
 
   @override
-  State<WuyHistoryTrackingScreen> createState() => _WuyHistoryTrackingScreenState();
+  State<WuyHistoryTrackingScreen> createState() =>
+      _WuyHistoryTrackingScreenState();
 }
 
 class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
-  List<HistoryRecord> _historyRecords = [];
+  List<HistoryRecordModelAppWuy> historyRecords = [];
+  double totalDistance = 0.0;
+  String userName = '';
 
   @override
   void initState() {
     super.initState();
-    _loadHistoryRecords();
+    _loadHistoryData();
   }
 
-  void _loadHistoryRecords() {
-    // Mock data based on the screenshot
-    _historyRecords = [
-      HistoryRecord(
-        date: '2025-10-20',
-        time: '20:00',
-        description: '登录到小飞侠的账户',
-        type: HistoryType.login,
-      ),
-      HistoryRecord(
-        date: '2025-10-20',
-        time: '20:00',
-        description: '登录成功',
-        type: HistoryType.success,
-      ),
-      HistoryRecord(
-        date: '2025-10-20',
-        time: '19:30',
-        description: '查看好友列表',
-        type: HistoryType.action,
-      ),
-      HistoryRecord(
-        date: '2025-10-20',
-        time: '19:15',
-        description: '发送消息给小明',
-        type: HistoryType.message,
-      ),
-      HistoryRecord(
-        date: '2025-10-20',
-        time: '18:45',
-        description: '更新个人资料',
-        type: HistoryType.update,
-      ),
-    ];
+  void _loadHistoryData() async {
+    final dataManager = WuyUnifiedService();
+    userName = dataManager.currentUser?.displayName ?? 'User';
+
+    setState(() {
+      historyRecords = [];
+      totalDistance = 0.0;
+    });
   }
 
   @override
@@ -75,14 +67,32 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'History Tracking',
-          style: ThemeTextStyles.displayMedium,
+          LocalizationKeysAppWuy.wuyHistoryTitle.tr(context),
+          style: ThemeTextStyles.displayMedium.copyWith(
+            color: ThemeColors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
+          onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: Column(
@@ -99,174 +109,109 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
   Widget _buildHeaderSection() {
     return Container(
       width: double.infinity,
-      height: 200,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.green.shade400,
-            Colors.green.shade600,
-          ],
+        image: DecorationImage(
+          image: AssetImage(CommonAssetsImages.wuyBackground2),
+          fit: BoxFit.cover,
         ),
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 50,
-            left: 0,
-            right: 0,
-            child: Column(
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          vertical: ThemeDimensions.paddingSizeLarge,
+          horizontal: ThemeDimensions.paddingSizeDefault,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              ThemeColors.primary.withOpacity(0.8),
+              ThemeColors.primary.withOpacity(0.9),
+            ],
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(
+              userName,
+              style: ThemeTextStyles.title1.copyWith(
+                color: ThemeColors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 28,
+                letterSpacing: -0.7,
+              ),
+            ),
+            SizedBox(height: ThemeDimensions.spacing8),
+            Text(
+              LocalizationKeysAppWuy.wuyHistoryProtectFuture.tr(context),
+              style: ThemeTextStyles.subhead.copyWith(
+                color: ThemeColors.white.withOpacity(0.9),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: ThemeDimensions.paddingSizeDefault),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Icon(
-                    Icons.person,
-                    size: 40,
-                    color: Colors.white,
-                  ),
+                Icon(
+                  Icons.route,
+                  color: ThemeColors.white,
+                  size: 32,
                 ),
-                SizedBox(height: ThemeDimensions.spacingMedium),
+                SizedBox(width: ThemeDimensions.spacing8),
                 Text(
-                  '小飞侠',
-                  style: ThemeTextStyles.title2.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Activity History',
-                  style: ThemeTextStyles.bodyLarge.copyWith(
-                    color: Colors.white.withOpacity(0.9),
+                  '${LocalizationKeysAppWuy.wuyHistoryTrajectory.tr(context)} ${totalDistance.toStringAsFixed(1)}KM',
+                  style: ThemeTextStyles.title1Bold.copyWith(
+                    color: ThemeColors.white,
+                    fontSize: 26,
+                    letterSpacing: -0.6,
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHistoryList() {
+    if (historyRecords.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.location_off,
+              size: 64,
+              color: ThemeColors.secondaryLabel,
+            ),
+            SizedBox(height: ThemeDimensions.paddingSizeDefault),
+            Text(
+              LocalizationKeysAppWuy.wuyHistoryNoLocationHistory.tr(context),
+              style: ThemeTextStyles.body.copyWith(
+                color: ThemeColors.secondaryLabel,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
-      color: Colors.lightBlue.shade50,
-      padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+      color: ThemeColors.lightBackground,
       child: ListView.builder(
-        itemCount: _historyRecords.length,
+        padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing8),
+        itemCount: historyRecords.length,
         itemBuilder: (context, index) {
-          final record = _historyRecords[index];
-          return _buildHistoryItem(record);
+          final record = historyRecords[index];
+          return WuyLocationHistoryItem(
+            record: record,
+            onTap: () {
+            },
+          );
         },
       ),
     );
   }
-
-  Widget _buildHistoryItem(HistoryRecord record) {
-    return Container(
-      margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-      padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 5,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _buildHistoryIcon(record.type),
-          SizedBox(width: ThemeDimensions.spacingMedium),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${record.date} ${record.time}',
-                  style: ThemeTextStyles.bodySmall.copyWith(
-                    color: ThemeColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: ThemeDimensions.spacingSmall),
-                Text(
-                  record.description,
-                  style: ThemeTextStyles.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryIcon(HistoryType type) {
-    IconData iconData;
-    Color iconColor;
-
-    switch (type) {
-      case HistoryType.login:
-        iconData = Icons.login;
-        iconColor = Colors.blue;
-        break;
-      case HistoryType.success:
-        iconData = Icons.check_circle;
-        iconColor = Colors.green;
-        break;
-      case HistoryType.action:
-        iconData = Icons.touch_app;
-        iconColor = Colors.orange;
-        break;
-      case HistoryType.message:
-        iconData = Icons.message;
-        iconColor = Colors.purple;
-        break;
-      case HistoryType.update:
-        iconData = Icons.edit;
-        iconColor = Colors.teal;
-        break;
-    }
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Icon(
-        iconData,
-        color: iconColor,
-        size: 20,
-      ),
-    );
-  }
-}
-
-class HistoryRecord {
-  final String date;
-  final String time;
-  final String description;
-  final HistoryType type;
-
-  HistoryRecord({
-    required this.date,
-    required this.time,
-    required this.description,
-    required this.type,
-  });
-}
-
-enum HistoryType {
-  login,
-  success,
-  action,
-  message,
-  update,
 }

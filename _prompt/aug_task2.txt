@@ -1,0 +1,75 @@
+1：增强类库，在没有chrome时，类库会彼动安装，同时，使用正确的版本号和driver号。
+2：确保脚本的逻辑是，/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian/install_shells/121_install_cursor.sh /code 斛发 公共安装脚本(installer_node_modules.sh 中的)，使用sh安装yarn install，之后调用node app= 下载对应的cursor/vscode，这两个脚本任何一个触发后，后面无须再重复安装node_modules目录。
+3：分析  [DEBUG] Config not found: FILE_CACHE 这个是那里调用的，可以硬编码，
+4: ```21_install_cursor.sh...
+
+=== Cursor IDE Installation Script ===
+==================================================
+
+[INFO] Installation Directory: /mnt/dev_sdb3/_ubuntu_24/cursor
+[WARNING] Cursor is already installed
+[INFO] Current installation: /mnt/dev_sdb3/_ubuntu_24/cursor
+Do you want to clean up and reinstall? (y/N): y
+[INFO] Cleaning up existing installation...
+
+=== Cleaning up Cursor installation ===
+==================================================
+
+>>> Skipping process termination to avoid hanging...
+>>> Removing installation directory: /mnt/dev_sdb3/_ubuntu_24/cursor
+rm: cannot remove '/mnt/dev_sdb3/_ubuntu_24/cursor/extracted/squashfs-root/usr/share/cursor/locales': Directory not empty
+rm: cannot remove '/mnt/dev_sdb3/_ubuntu_24/cursor/extracted/squashfs-root/usr/share/cursor/resources/app/extensions/cursor-retrieval/node_modules/@anysphere/file-service': Directory not empty
+rm: cannot remove '/mnt/dev_sdb3/_ubuntu_24/cursor/extracted/squashfs-root/usr/share/cursor/resources/app/node_modules/@parcel/watcher/build/Release': Directory not empty
+rm: cannot remove '/mnt/dev_sdb3/_ubuntu_24/cursor/extracted/squashfs-root/usr/share/cursor/resources/app/node_modules/@vscode/spdlog/build/Release': Directory not empty
+rm: cannot remove '/mnt/dev_sdb3/_ubuntu_24/cursor/extracted/squashfs-root/usr/share/cursor/resources/app/node_modules/@vscode/sqlite3/build/Release': Directory not empty
+rm: cannot remove '/mnt/dev_sdb3``` 增加壮健性， 需要先kill了进程,
+5:```122_install_vscode.sh...
+
+
+
+=== Visual Studio Code Installation Script ===
+==================================================
+
+[INFO] Installation Directory: /mnt/dev_sdb3/_ubuntu_24/vscode
+
+=== Installing Visual Studio Code ===
+==================================================
+
+>>> Installing required dependencies...
+
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://la.archive.ubuntu.com/ubuntu noble InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://security.ubuntu.com/ubuntu noble-security InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://la.archive.ubuntu.com/ubuntu noble-updates InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://la.archive.ubuntu.com/ubuntu noble-backports InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://la.archive.ubuntu.com/ubuntu/dists/noble/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://la.archive.ubuntu.com/ubuntu/dists/noble-updates/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://la.archive.ubuntu.com/ubuntu/dists/noble-backports/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://security.ubuntu.com/ubuntu/dists/noble-security/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+>>> Scanning Downloads directories for VS Code .deb files...
+[INFO] Searching in: /home/ubuntu/Downloads
+[OK] Found VS Code .deb: code_1.105.1-1760482543_amd64.deb
+>>> Installing VS Code from .deb package...
+>>> Copying .deb to /mnt/dev_sdb3/_ubuntu_24/vscode/deb
+>>> Installing .deb package...
+Selecting previously unselected package code.
+(Reading database ... 211866 files and directories currently installed.)
+Preparing to unpack .../code_1.105.1-1760482543_amd64.deb ...
+Unpacking code (1.105.1-1760482543) ...
+Setting up code (1.105.1-1760482543) ...
+Processing triggers for gnome-menus (3.36.0-1.1ubuntu3) ...
+Processing triggers for desktop-file-utils (0.27-2build1) ...
+Processing triggers for shared-mime-info (2.4-4) ...
+[OK] VS Code .deb package installed successfully
+>>> Creating super scripts launcher...
+>>> Creating installation flag...
+[OK] Visual Studio Code installation completed successfully!
+[INFO] You can now launch VS Code from:
+[INFO]   - Applications menu
+[INFO]   - Command line: code
+[INFO]   - Alternative command: vscode
+
+Script execution completed with exit code: 0
+Press any key to return to test scripts menu...
+
+``` 也没有按预定的流程，先安装yarn install ，然后查看是否有Downloads目录是否有下载的文件，没有则启动node app= 使用puppteer自动下载。并在shell执行等待查找资源。

@@ -27,6 +27,10 @@ from shared.data_exchange.unified_variable_system import unified_vars
 from shared.directory_manager import DirectoryManager
 from utils.app_config_reader import AppConfigReader
 from utils.print_helper import PrintHelper
+from utils.universal_app_name_replacer import (
+    UniversalAppNameReplacer,
+    ReplacementConfig
+)
 from core.constants.build_constants import (
     DEFAULT_PACKAGE_ID,
     PLACEHOLDER_PACKAGE_ID,
@@ -37,22 +41,24 @@ from core.constants.build_constants import (
 
 class Step7AndroidConfigController:
     """
-    Step 7 Controller: Android Configuration Replacement
-    Replaces package IDs and app names in Android XML configuration files
+    Step 7 Controller: Universal Multi-Platform App Name Replacement
+    Replaces package IDs and app names across ALL platforms (Android, iOS, Web, macOS, Linux, Windows)
+    Using enhanced regex-based recursive scanning engine
     """
 
     def __init__(self):
         self.step_name = "STEP-7"
-        self.step_description = "Android Configuration Replacement"
+        self.step_description = "Universal Multi-Platform App Name Replacement"
         self.results = {}
         self.app_name = None
         self.config_reader = None
         self.target_files = []
         self.replacements_made = {}
         self.directory_manager = DirectoryManager()
+        self.replacer = None
 
     def execute(self, **kwargs) -> Dict[str, Any]:
-        """Execute Step 7: Android Configuration Replacement"""
+        """Execute Step 7: Universal Multi-Platform App Name Replacement"""
         try:
             PrintHelper.header(f"{self.step_name}: {self.step_description}")
 
@@ -62,33 +68,67 @@ class Step7AndroidConfigController:
                 PrintHelper.error("No app name found in unified variables", source=self.step_name)
                 return {'success': False, 'error': 'No app name provided'}
 
-            PrintHelper.info(f"DEBUG: app_name from unified_vars: '{self.app_name}'", source=self.step_name)
-            PrintHelper.info(f"DEBUG: kwargs app_name: '{kwargs.get('app_name', 'NOT_PROVIDED')}'", source=self.step_name)
-            PrintHelper.info(f"Processing Android configuration for app: {self.app_name}", source=self.step_name)
+            PrintHelper.info(f"Processing multi-platform app name replacement for: {self.app_name}", source=self.step_name)
 
-            # Get build directory from parameters or current directory first
-            build_dir = self._get_build_directory(**kwargs)
-            if not build_dir:
-                return {'success': False, 'error': 'Build directory not found'}
+            # Get build root directory (parent of android/, ios/, etc.) using DirectoryManager
+            build_root = self.directory_manager.get_build_root_directory(**kwargs)
+            if not build_root:
+                return {'success': False, 'error': 'Build root directory not found'}
 
-            # Load app configuration from build directory (not source directory)
-            self.config_reader = AppConfigReader(self.app_name, build_root=build_dir.parent)
+            PrintHelper.info(f"Build root: {build_root}", source=self.step_name)
+
+            # Load app configuration
+            self.config_reader = AppConfigReader(self.app_name, build_root=build_root)
             config_data = self.config_reader.load_config()
             self.config_reader.print_config_summary()
 
-            # Perform global text replacement on all text files
-            replacement_results = self._perform_global_replacement(build_dir, config_data)
+            # Get configuration values
+            package_id = self.config_reader.get_package_id()
+            app_name_en = self.config_reader.get_display_name_english()
+            app_name_cn = self.config_reader.get_display_name_chinese()
 
-            # Generate summary
-            summary = self._generate_summary(replacement_results)
+            PrintHelper.info(f"Replacement configuration:", source=self.step_name)
+            print(f"[{self.step_name}]   Package ID: {package_id}")
+            print(f"[{self.step_name}]   App Name (EN): {app_name_en}")
+            print(f"[{self.step_name}]   App Name (CN): {app_name_cn}")
+            print()
+
+            # Create replacement configuration
+            replacement_config = ReplacementConfig(
+                package_id=package_id,
+                app_name_en=app_name_en,
+                app_name_cn=app_name_cn
+            )
+
+            # Create and execute universal replacer with regex-based rules
+            self.replacer = UniversalAppNameReplacer(replacement_config)
+            platform_results = self.replacer.replace_all_platforms(build_root)
+
+            # Print detailed summary
+            self.replacer.print_summary(platform_results, self.step_name)
+
+            # Generate results
+            total_files_modified = sum(r.files_modified for r in platform_results.values())
+            total_replacements = sum(r.total_replacements for r in platform_results.values())
 
             self.results = {
                 'success': True,
                 'app_name': self.app_name,
                 'config_data': config_data,
-                'files_processed': replacement_results.get('stats', {}).get('files_modified', 0),
-                'replacements_made': self.replacements_made,
-                'summary': summary
+                'package_id': package_id,
+                'app_name_en': app_name_en,
+                'app_name_cn': app_name_cn,
+                'files_modified': total_files_modified,
+                'total_replacements': total_replacements,
+                'platform_results': {
+                    platform: {
+                        'files_scanned': result.files_scanned,
+                        'files_modified': result.files_modified,
+                        'total_replacements': result.total_replacements,
+                        'errors': result.errors
+                    }
+                    for platform, result in platform_results.items()
+                }
             }
 
             PrintHelper.success(f"{self.step_name} completed successfully", source=self.step_name)
@@ -97,10 +137,15 @@ class Step7AndroidConfigController:
         except Exception as e:
             error_msg = f"Step 7 execution failed: {str(e)}"
             PrintHelper.error(error_msg, source=self.step_name)
+            import traceback
+            traceback.print_exc()
             return {'success': False, 'error': error_msg}
 
     def _get_build_directory(self, **kwargs) -> Optional[Path]:
-        """Get the current build directory from parameters or directory manager"""
+        """
+        Get the current build directory from parameters or directory manager
+        [DEPRECATED - Use _get_build_root_directory instead]
+        """
         # First, try to get from kwargs (passed from modern_build_system)
         if 'temp_build_root' in kwargs:
             build_root = Path(kwargs['temp_build_root'])
@@ -108,10 +153,10 @@ class Step7AndroidConfigController:
             PrintHelper.info(f"Build root parameter: {build_root}", source=self.step_name)
             PrintHelper.info(f"Android path: {android_path}", source=self.step_name)
             if android_path.exists():
-                PrintHelper.info(f"✓ Android directory found: {android_path}", source=self.step_name)
+                PrintHelper.info(f"[OK] Android directory found: {android_path}", source=self.step_name)
                 return android_path
             else:
-                PrintHelper.error(f"✗ Android directory not found: {android_path}", source=self.step_name)
+                PrintHelper.error(f"[ERROR] Android directory not found: {android_path}", source=self.step_name)
 
         # Second, try build_root parameter
         if 'build_root' in kwargs:
@@ -212,13 +257,13 @@ class Step7AndroidConfigController:
                         content = f.read()
                 except UnicodeDecodeError as utf8_error:
                     relative_path = file_path.relative_to(build_dir)
-                    print(f"[{self.step_name}]   ⚠ UTF-8 decode error in {relative_path}: {utf8_error}")
+                    print(f"[{self.step_name}]   [WARN] UTF-8 decode error in {relative_path}: {utf8_error}")
                     print(f"[{self.step_name}]     Skipping file (likely binary or non-UTF-8 text)")
                     stats['utf8_errors'] += 1
                     continue
                 except Exception as read_error:
                     relative_path = file_path.relative_to(build_dir)
-                    print(f"[{self.step_name}]   ✗ Read error in {relative_path}: {read_error}")
+                    print(f"[{self.step_name}]   [ERROR] Read error in {relative_path}: {read_error}")
                     stats['other_errors'] += 1
                     continue
 
@@ -234,7 +279,7 @@ class Step7AndroidConfigController:
                         file_modified = True
 
                         relative_path = file_path.relative_to(build_dir)
-                        print(f"[{self.step_name}]   ✓ {relative_path}: {replacement_count}x '{old_text}' -> '{new_text}'")
+                        print(f"[{self.step_name}]   [OK] {relative_path}: {replacement_count}x '{old_text}' -> '{new_text}'")
 
                 # Write back if modified
                 if file_modified:
@@ -244,18 +289,18 @@ class Step7AndroidConfigController:
                         stats['files_modified'] += 1
                     except UnicodeEncodeError as utf8_write_error:
                         relative_path = file_path.relative_to(build_dir)
-                        print(f"[{self.step_name}]   ✗ UTF-8 write error in {relative_path}: {utf8_write_error}")
+                        print(f"[{self.step_name}]   [ERROR] UTF-8 write error in {relative_path}: {utf8_write_error}")
                         stats['utf8_errors'] += 1
                         continue
                     except Exception as write_error:
                         relative_path = file_path.relative_to(build_dir)
-                        print(f"[{self.step_name}]   ✗ Write error in {relative_path}: {write_error}")
+                        print(f"[{self.step_name}]   [ERROR] Write error in {relative_path}: {write_error}")
                         stats['other_errors'] += 1
                         continue
 
             except Exception as e:
                 relative_path = file_path.relative_to(build_dir)
-                print(f"[{self.step_name}]   ✗ Unexpected error processing {relative_path}: {e}")
+                print(f"[{self.step_name}]   [ERROR] Unexpected error processing {relative_path}: {e}")
                 stats['other_errors'] += 1
 
         # Print summary
@@ -376,7 +421,7 @@ class Step7AndroidConfigController:
                 # Show kept files
                 for file in files:
                     relative_path = file.relative_to(build_dir)
-                    print(f"[{self.step_name}]     ✓ KEPT: {relative_path}")
+                    print(f"[{self.step_name}]     [OK] KEPT: {relative_path}")
                 android_files[category].extend(files)
 
         return android_files
@@ -475,7 +520,7 @@ class Step7AndroidConfigController:
                 if changes_made:
                     manifest_file.write_text(content, encoding='utf-8')
                     self.replacements_made['files_modified'] += 1
-                    print(f"[{self.step_name}]   ✓ Modified: {', '.join(changes_made)}")
+                    print(f"[{self.step_name}]   [OK] Modified: {', '.join(changes_made)}")
                 else:
                     print(f"[{self.step_name}]   - No changes needed")
 
@@ -525,7 +570,7 @@ class Step7AndroidConfigController:
                 if changes_made:
                     gradle_file.write_text(content, encoding='utf-8')
                     self.replacements_made['files_modified'] += 1
-                    print(f"[{self.step_name}]   ✓ Modified: {', '.join(changes_made)}")
+                    print(f"[{self.step_name}]   [OK] Modified: {', '.join(changes_made)}")
                 else:
                     print(f"[{self.step_name}]   - No changes needed")
 
@@ -608,7 +653,7 @@ class Step7AndroidConfigController:
                 if changes_made:
                     tree.write(str(strings_file), encoding='utf-8', xml_declaration=True)
                     self.replacements_made['files_modified'] += 1
-                    print(f"[{self.step_name}]   ✓ MODIFIED: {len(changes_made)} changes")
+                    print(f"[{self.step_name}]   [OK] MODIFIED: {len(changes_made)} changes")
                     for change in changes_made:
                         print(f"[{self.step_name}]     - {change}")
                 else:
@@ -660,7 +705,7 @@ class Step7AndroidConfigController:
                 if changes_made:
                     source_file.write_text(content, encoding='utf-8')
                     self.replacements_made['files_modified'] += 1
-                    print(f"[{self.step_name}]   ✓ {source_file.name}: {', '.join(changes_made)}")
+                    print(f"[{self.step_name}]   [OK] {source_file.name}: {', '.join(changes_made)}")
 
                 results.append({
                     'file': str(source_file),

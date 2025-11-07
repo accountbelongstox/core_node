@@ -1,0 +1,639 @@
+================================================================================
+Flutter App Directory Tree
+================================================================================
+Generated: 2025-11-07 22:18:25
+App: app_vipclub
+Mode: code_assets
+Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
+Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+================================================================================
+
+app_vipclub [code_assets]
+├── lib/apps/app_vipclub/
+│   ├── _prompts
+│   │   └── task.txt
+│   ├── app_vipclub_tree_code_assets.txt
+│   ├── config_app_vipclub
+│   │   ├── app_config.dart
+│   │   └── constants.dart
+│   ├── controller_app_vipclub
+│   │   ├── settings_controller_app_vipclub.dart
+│   │   └── splash_controller_app_vipclub.dart
+│   ├── doc
+│   │   ├── 1.png
+│   │   └── 2.png
+│   ├── features_app_vipclub
+│   │   ├── articles
+│   │   │   └── views
+│   │   │       ├── article_detail_screen.dart
+│   │   │       └── articles_list_screen.dart
+│   │   ├── auth
+│   │   │   ├── controllers
+│   │   │   │   └── auth_controller.dart
+│   │   │   └── views
+│   │   │       ├── login_screen.dart
+│   │   │       ├── login_screen.dart.backup
+│   │   │       ├── register_screen.dart
+│   │   │       └── splash_screen.dart
+│   │   ├── bookings
+│   │   │   ├── controllers
+│   │   │   │   └── booking_controller.dart
+│   │   │   └── views
+│   │   │       ├── booking_detail_screen.dart
+│   │   │       ├── bookings_list_screen.dart
+│   │   │       └── create_booking_screen.dart
+│   │   ├── golf
+│   │   │   ├── controllers
+│   │   │   │   └── golf_controller.dart
+│   │   │   └── views
+│   │   │       ├── golf_detail_screen.dart
+│   │   │       └── golf_list_screen.dart
+│   │   ├── home
+│   │   │   ├── controllers
+│   │   │   │   └── home_controller.dart
+│   │   │   ├── views
+│   │   │   │   ├── home_screen.dart
+│   │   │   │   └── home_screen_old.dart.backup
+│   │   │   └── widgets
+│   │   │       ├── article_card.dart
+│   │   │       ├── banner_carousel.dart
+│   │   │       ├── facility_card.dart
+│   │   │       ├── facility_project_card.dart
+│   │   │       ├── price_tier_tab.dart
+│   │   │       └── vip_status_card.dart
+│   │   ├── hotel
+│   │   │   ├── controllers
+│   │   │   │   └── hotel_controller.dart
+│   │   │   └── views
+│   │   │       ├── hotel_detail_screen.dart
+│   │   │       └── hotel_list_screen.dart
+│   │   ├── membership
+│   │   │   └── views
+│   │   │       └── membership_tiers_screen.dart
+│   │   ├── payments
+│   │   │   └── views
+│   │   │       ├── payment_history_screen.dart
+│   │   │       └── payment_screen.dart
+│   │   ├── profile
+│   │   │   └── views
+│   │   │       └── profile_screen.dart
+│   │   ├── settings
+│   │   │   └── views
+│   │   │       └── settings_screen.dart
+│   │   ├── shooting
+│   │   │   ├── controllers
+│   │   │   │   └── shooting_controller.dart
+│   │   │   └── views
+│   │   │       ├── shooting_detail_screen.dart
+│   │   │       └── shooting_list_screen.dart
+│   │   ├── splash
+│   │   │   └── views
+│   │   │       └── splash_intro_screen.dart
+│   │   ├── support
+│   │   │   └── views
+│   │   │       └── customer_service_screen.dart
+│   │   ├── vip_benefits
+│   │   │   └── views
+│   │   │       └── vip_benefits_screen.dart
+│   │   └── vip_card
+│   │       └── views
+│   │           └── vip_card_screen.dart
+│   ├── localization_app_vipclub
+│   │   ├── en_app_vipclub.dart
+│   │   ├── localization_keys_app_vipclub.dart
+│   │   └── zh_app_vipclub.dart
+│   ├── main_app_vipclub.dart
+│   ├── main_app_vipclub.dart.backup
+│   ├── models_app_vipclub
+│   │   ├── article_model_app_vipclub.dart
+│   │   ├── banner_model_app_vipclub.dart
+│   │   ├── booking_model_app_vipclub.dart
+│   │   ├── facility_model_app_vipclub.dart
+│   │   ├── payment_model_app_vipclub.dart
+│   │   ├── price_tier_model_app_vipclub.dart
+│   │   ├── splash_model_app_vipclub.dart
+│   │   ├── support_model_app_vipclub.dart
+│   │   ├── user_model_app_vipclub.dart
+│   │   └── vip_card_model_app_vipclub.dart
+│   ├── provider_app_vipclub
+│   │   ├── app_data_provider_app_vipclub.dart
+│   │   └── user_provider_app_vipclub.dart
+│   ├── repositories_app_vipclub
+│   │   └── booking_repository.dart
+│   ├── resources_app_vipclub
+│   │   ├── assets_icons_app_vipclub.dart
+│   │   └── assets_images_app_vipclub.dart
+│   ├── router_app_vipclub
+│   │   └── router_app_vipclub.dart
+│   ├── services_app_vipclub
+│   │   ├── articles_api_service_app_vipclub.dart
+│   │   ├── membership_api_service_app_vipclub.dart
+│   │   ├── payments_api_service_app_vipclub.dart
+│   │   ├── support_api_service_app_vipclub.dart
+│   │   ├── vipclub_auth_adapter.dart
+│   │   ├── vipclub_auth_api_service.dart
+│   │   ├── vipclub_public_api_service.dart
+│   │   └── vipclub_storage_service.dart
+│   ├── settings_app_vipclub
+│   │   └── settings_app_vipclub.dart
+│   └── utils_app_vipclub
+│       └── splash_helper.dart
+├── lib/common/
+│   ├── README.md
+│   ├── app
+│   │   └── main_common.dart
+│   ├── assets
+│   │   ├── common_assets_icons.dart
+│   │   ├── common_assets_images.dart
+│   │   └── common_assets_launch.dart
+│   ├── auth_v2
+│   │   ├── README.md
+│   │   ├── auth_config.dart
+│   │   ├── auth_interface.dart
+│   │   ├── auth_manager.dart
+│   │   ├── auth_models.dart
+│   │   ├── auth_provider_factory.dart
+│   │   ├── auth_v2.dart
+│   │   └── providers
+│   │       ├── github_auth_provider.dart
+│   │       ├── google_auth_provider.dart
+│   │       ├── phone_auth_provider.dart
+│   │       ├── qq_auth_provider.dart
+│   │       └── wechat_auth_provider.dart
+│   ├── cache_manager
+│   │   └── cache_manager.dart
+│   ├── common.dart
+│   ├── common_tree.md
+│   ├── constants
+│   │   └── app_constants.dart
+│   ├── controller
+│   │   └── settings_controller.dart
+│   ├── database
+│   │   ├── database_manager.dart
+│   │   ├── idb
+│   │   │   └── idb_service.dart
+│   │   ├── interfaces
+│   │   │   └── database_interface.dart
+│   │   ├── models
+│   │   │   └── base_model.dart
+│   │   └── sqlite
+│   │       └── sqlite_service.dart
+│   ├── i18n
+│   │   ├── i18n_service.dart
+│   │   └── translations.dart
+│   ├── iframe
+│   │   └── iframe_listner.dart
+│   ├── localization
+│   │   ├── common_en.dart
+│   │   ├── common_zh.dart
+│   │   ├── localization.dart
+│   │   ├── localization_keys.dart
+│   │   ├── localization_manager.dart
+│   │   └── map_locales.dart
+│   ├── map
+│   │   ├── location_service.dart
+│   │   ├── map_service.dart
+│   │   └── map_utils.dart
+│   ├── media
+│   │   ├── audio
+│   │   │   ├── audio_player.dart
+│   │   │   └── audio_recorder.dart
+│   │   ├── media_utils.dart
+│   │   └── video
+│   │       ├── video_player.dart
+│   │       └── video_recorder.dart
+│   ├── model
+│   │   ├── bank_user_model.dart
+│   │   ├── messages.dart
+│   │   └── word_list_types.dart
+│   ├── network
+│   │   ├── NETWORKREADME.md
+│   │   ├── auth
+│   │   │   └── unified_auth_manager.dart
+│   │   ├── controller
+│   │   │   └── auth_controller.dart
+│   │   ├── core
+│   │   │   ├── endpoint_network_models.dart
+│   │   │   ├── network_config.dart
+│   │   │   ├── network_queue_and_offline.dart
+│   │   │   ├── network_retry_manager.dart
+│   │   │   ├── network_service_locator.dart
+│   │   │   ├── network_types.dart
+│   │   │   └── unified_network_client.dart
+│   │   ├── doc
+│   │   │   ├── ARCHITECTURE_ANALYSIS.md
+│   │   │   ├── AUTH_INTERCEPTOR_INTEGRATION.md
+│   │   │   ├── FINAL_STATUS_REPORT.md
+│   │   │   ├── INDEX.md
+│   │   │   ├── PHASE2_REFACTORING.md
+│   │   │   ├── PHASE3_AGGRESSIVE_CLEANUP.md
+│   │   │   ├── PHASE3_COMPLETION.md
+│   │   │   ├── PHASE4_AUTH_AND_FINAL_CLEANUP.md
+│   │   │   ├── REFACTORING_LOG.md
+│   │   │   └── REFACTORING_SUMMARY.md
+│   │   ├── endpoints
+│   │   │   ├── endpoint_config.dart
+│   │   │   └── laravel_endpoints.dart
+│   │   ├── integration
+│   │   │   └── network_user_integration.dart
+│   │   ├── interceptors
+│   │   │   ├── auth_interceptor.dart
+│   │   │   ├── error_interceptor.dart
+│   │   │   ├── logging_interceptor.dart
+│   │   │   └── network_interceptors.dart
+│   │   ├── models
+│   │   │   ├── api_config.dart
+│   │   │   └── api_response.dart
+│   │   ├── network.dart
+│   │   ├── network_framework.dart
+│   │   ├── parsers
+│   │   │   └── adaptive_data_parser.dart
+│   │   ├── security
+│   │   │   └── device_security_manager.dart
+│   │   ├── services
+│   │   │   └── advanced_network_service.dart
+│   │   ├── storage
+│   │   │   └── secure_storage.dart
+│   │   ├── ui
+│   │   │   └── global_loading_system.dart
+│   │   ├── utils
+│   │   │   └── network_utils.dart
+│   │   ├── websocket
+│   │   │   ├── WEBSOCKET_USAGE.dart
+│   │   │   ├── websocket_client.dart
+│   │   │   ├── websocket_config.dart
+│   │   │   ├── websocket_interceptor.dart
+│   │   │   └── websocket_types.dart
+│   │   └── widgets
+│   │       └── adaptive_loading_widgets.dart
+│   ├── network_v2
+│   │   ├── README.md
+│   │   ├── auth
+│   │   │   ├── auth_coordinator.dart
+│   │   │   ├── auth_registry.dart
+│   │   │   ├── auth_strategy.dart
+│   │   │   ├── composite_auth_strategy.dart
+│   │   │   ├── header_key_auth_strategy.dart
+│   │   │   ├── jwt_auth_strategy.dart
+│   │   │   ├── login_manager.dart
+│   │   │   ├── session_auth_strategy.dart
+│   │   │   └── user_provider_auth_coordinator.dart
+│   │   ├── cache
+│   │   │   ├── cache_entry.dart
+│   │   │   ├── cache_store.dart
+│   │   │   └── memory_cache_store.dart
+│   │   ├── core
+│   │   │   ├── http_client.dart
+│   │   │   └── network_manager.dart
+│   │   ├── endpoints
+│   │   │   ├── endpoint_catalog.dart
+│   │   │   └── endpoint_presets.dart
+│   │   ├── example_usage.dart
+│   │   ├── loading
+│   │   │   ├── loading_controller.dart
+│   │   │   └── loading_state.dart
+│   │   ├── models
+│   │   │   ├── auth_context.dart
+│   │   │   ├── auth_payload.dart
+│   │   │   ├── auth_requirement.dart
+│   │   │   ├── cache_policy.dart
+│   │   │   ├── endpoint_descriptor.dart
+│   │   │   ├── endpoint_group.dart
+│   │   │   ├── http_method.dart
+│   │   │   ├── network_environment.dart
+│   │   │   ├── network_error.dart
+│   │   │   ├── network_request.dart
+│   │   │   ├── network_response.dart
+│   │   │   ├── network_session_state.dart
+│   │   │   ├── request_options.dart
+│   │   │   └── retry_policy.dart
+│   │   ├── network_v2.dart
+│   │   ├── parsing
+│   │   │   ├── response_parser.dart
+│   │   │   └── schema_registry.dart
+│   │   ├── queue
+│   │   │   ├── queued_request.dart
+│   │   │   └── request_queue.dart
+│   │   └── utils
+│   │       └── id_generator.dart
+│   ├── provider_status
+│   │   ├── base_provider.dart
+│   │   ├── screen_size_provider.dart
+│   │   └── user_provider.dart
+│   ├── repo
+│   │   └── splash_repo.dart
+│   ├── sdk
+│   │   ├── azure_maps
+│   │   │   ├── azure_maps_config.dart
+│   │   │   ├── azure_maps_flutter_integration.dart
+│   │   │   ├── azure_maps_sdk.dart
+│   │   │   └── azure_maps_service.dart
+│   │   └── tencent_maps
+│   │       ├── tencent_maps_config.dart
+│   │       ├── tencent_maps_flutter_integration.dart
+│   │       ├── tencent_maps_sdk.dart
+│   │       └── tencent_maps_service.dart
+│   ├── services
+│   │   └── settings_service.dart
+│   ├── settings
+│   │   ├── configs
+│   │   │   └── base_settings.dart
+│   │   ├── models
+│   │   │   └── setting_item.dart
+│   │   └── storage
+│   │       └── settings_storage_manager.dart
+│   ├── storage
+│   │   ├── adapters
+│   │   │   ├── storage_adapter_factory.dart
+│   │   │   ├── storage_adapter_unified.dart
+│   │   │   └── web_storage_adapter.dart
+│   │   ├── app_prefs_base.dart
+│   │   ├── app_storage_base.dart
+│   │   ├── cleanup
+│   │   │   └── storage_cleanup_tool.dart
+│   │   ├── implementations
+│   │   │   ├── hive_storage.dart
+│   │   │   └── sqlite_storage_v1.dart
+│   │   ├── interfaces
+│   │   │   └── storage_interface.dart
+│   │   ├── migration
+│   │   │   └── hive_to_sqlite_migration.dart
+│   │   ├── models
+│   │   │   └── storage_models.dart
+│   │   ├── storage_manager.dart
+│   │   ├── storage_migration_tool.dart
+│   │   ├── storage_provider.dart
+│   │   └── unified_storage.dart
+│   ├── storagev2
+│   │   ├── README.md
+│   │   ├── application
+│   │   │   └── storage_application_service.dart
+│   │   ├── business
+│   │   │   ├── config_service.dart
+│   │   │   ├── security_service.dart
+│   │   │   ├── storage_service.dart
+│   │   │   ├── sync_service.dart
+│   │   │   └── user_service.dart
+│   │   ├── config
+│   │   │   └── storage_config.dart
+│   │   ├── data_access
+│   │   │   ├── cache_adapter.dart
+│   │   │   ├── encryption_adapter.dart
+│   │   │   ├── storage_adapter.dart
+│   │   │   └── storage_data_access.dart
+│   │   ├── di
+│   │   │   └── storage_container.dart
+│   │   ├── exceptions
+│   │   │   └── storage_exceptions.dart
+│   │   ├── flutter_storage.dart
+│   │   ├── infrastructure
+│   │   │   ├── hive_storage.dart
+│   │   │   ├── memory_cache.dart
+│   │   │   └── sqlite_storage.dart
+│   │   ├── interfaces
+│   │   │   ├── cache_service_interface.dart
+│   │   │   ├── encryption_service_interface.dart
+│   │   │   ├── storage_adapter_interface.dart
+│   │   │   └── storage_repository_interface.dart
+│   │   ├── migration
+│   │   │   └── storage_migration.dart
+│   │   ├── models
+│   │   │   ├── config_entity.dart
+│   │   │   ├── storage_entity.dart
+│   │   │   ├── storage_result.dart
+│   │   │   └── user_entity.dart
+│   │   ├── repository
+│   │   │   └── storage_repository_impl.dart
+│   │   └── utils
+│   │       └── storage_utils.dart
+│   ├── theme
+│   │   ├── app_theme.dart
+│   │   ├── base
+│   │   │   ├── theme_animations.dart
+│   │   │   ├── theme_colors.dart
+│   │   │   ├── theme_constants.dart
+│   │   │   ├── theme_dimensions.dart
+│   │   │   ├── theme_effects.dart
+│   │   │   ├── theme_extensions.dart
+│   │   │   ├── theme_gradients.dart
+│   │   │   ├── theme_shadow.dart
+│   │   │   └── theme_text_styles.dart
+│   │   ├── compatibility
+│   │   │   ├── gradient_compatibility.dart
+│   │   │   └── theme_compatibility.dart
+│   │   ├── extensions
+│   │   │   └── gradient_extensions.dart
+│   │   ├── platforms
+│   │   │   ├── desktop
+│   │   │   │   ├── desktop_dark_theme.dart
+│   │   │   │   └── desktop_light_theme.dart
+│   │   │   ├── mobile
+│   │   │   │   ├── mobile_dark_theme.dart
+│   │   │   │   └── mobile_light_theme.dart
+│   │   │   └── web
+│   │   │       ├── web_dark_theme.dart
+│   │   │       └── web_light_theme.dart
+│   │   ├── theme.dart
+│   │   └── theme_manager.dart
+│   ├── utils
+│   │   ├── common
+│   │   │   ├── price_converter.dart
+│   │   │   └── toaster_helper.dart
+│   │   ├── compatibility
+│   │   │   └── legacy_imports.dart
+│   │   ├── database
+│   │   │   └── cache_operations.dart
+│   │   ├── date
+│   │   │   └── date_converter.dart
+│   │   ├── device_utils.dart
+│   │   ├── display
+│   │   │   ├── display_helper.dart
+│   │   │   └── responsive_helper.dart
+│   │   ├── image
+│   │   │   ├── image_loader.dart
+│   │   │   └── image_size_checker.dart
+│   │   ├── mobile
+│   │   │   ├── native_splash.dart
+│   │   │   └── notification_helper.dart
+│   │   ├── platform
+│   │   │   └── get_platform.dart
+│   │   ├── text
+│   │   │   └── text_utils.dart
+│   │   ├── utils.dart
+│   │   ├── validation
+│   │   │   ├── email_checker.dart
+│   │   │   └── phone_checker.dart
+│   │   └── web
+│   │       ├── web_tools.dart
+│   │       ├── web_tools_non_web.dart
+│   │       ├── web_tools_web.dart
+│   │       └── webabs.dart
+│   └── widgets
+│       ├── README.md
+│       ├── action_bar.dart
+│       ├── animated_custom_dialog.dart
+│       ├── animations
+│       │   └── animation_utils.dart
+│       ├── back_app_bar.dart
+│       ├── badges
+│       │   ├── badges_chips.dart
+│       │   └── premium_badges.dart
+│       ├── bank_bottom_navigation.dart
+│       ├── bank_scaffold.dart
+│       ├── buttons
+│       │   ├── premium_buttons.dart
+│       │   └── primary_button.dart
+│       ├── cards
+│       │   ├── custom_cards.dart
+│       │   └── premium_cards.dart
+│       ├── config.dart
+│       ├── confirmation_dialog.dart
+│       ├── country_picker.dart
+│       ├── custom_app_bar.dart
+│       ├── custom_bottom_navigation.dart
+│       ├── custom_button.dart
+│       ├── custom_calender.dart
+│       ├── custom_card.dart
+│       ├── custom_date_picker.dart
+│       ├── custom_delegate.dart
+│       ├── custom_divider.dart
+│       ├── custom_drawer.dart
+│       ├── custom_drop_down_item.dart
+│       ├── custom_gradient_text.dart
+│       ├── custom_icon_label.dart
+│       ├── custom_icon_label_group.dart
+│       ├── custom_image.dart
+│       ├── custom_image_icon_label.dart
+│       ├── custom_image_icon_label_group.dart
+│       ├── custom_loader.dart
+│       ├── custom_search_input.dart
+│       ├── custom_slider_button.dart
+│       ├── custom_snackbar.dart
+│       ├── custom_swipable_button
+│       │   ├── swipeable_button_view.dart
+│       │   └── swipeable_widget.dart
+│       ├── custom_text_field.dart
+│       ├── custom_title.dart
+│       ├── dialogs
+│       │   └── custom_dialogs.dart
+│       ├── digital_payment_dialog.dart
+│       ├── enhanced_bottom_navigation.dart
+│       ├── enhanced_top_menu.dart
+│       ├── floating_avatar_header.dart
+│       ├── glassmorphism_card.dart
+│       ├── gradient_button.dart
+│       ├── image_dialog.dart
+│       ├── info_row_widget.dart
+│       ├── inputs
+│       │   └── custom_text_fields.dart
+│       ├── lists
+│       │   └── list_items.dart
+│       ├── navigation_widgets.dart
+│       ├── network_connection_dialog.dart
+│       ├── no_data_screen.dart
+│       ├── open_map.dart
+│       ├── outelineborder.dart
+│       ├── paginated_list_view.dart
+│       ├── payment_item_info.dart
+│       ├── progress
+│       │   └── progress_indicators.dart
+│       ├── responsive_layout.dart
+│       ├── segmented_button.dart
+│       ├── settings_page_example.dart
+│       ├── states
+│       │   └── empty_state.dart
+│       ├── type_button_widget.dart
+│       └── widgets.dart
+├── assets/apps/app_vipclub/
+│   └── images
+│       ├── banner_1.jpg
+│       ├── banner_2.jpg
+│       ├── banner_3.jpg
+│       ├── login_bg_1.png
+│       ├── login_bg_2.png
+│       ├── logo.png
+│       ├── placeholder_images_metadata.json
+│       ├── splash_1.png
+│       └── splash_2.png
+└── assets/common/
+    ├── fonts
+    │   ├── .gitkeep
+    │   ├── Roboto-Black.ttf
+    │   ├── Roboto-Bold.ttf
+    │   ├── Roboto-Medium.ttf
+    │   ├── Roboto-Regular.ttf
+    │   └── SourceHanSansCNLight.otf
+    ├── icons
+    │   ├── .gitkeep
+    │   ├── apple.png
+    │   ├── art.png
+    │   ├── baby.png
+    │   ├── back.png
+    │   ├── calender.png
+    │   ├── camera_placeholder.png
+    │   ├── chinese.png
+    │   ├── city.png
+    │   ├── education.png
+    │   ├── empty_box.png
+    │   ├── empty_cart.png
+    │   ├── facebook.png
+    │   ├── filter_vertical.png
+    │   ├── forgotpassword.png
+    │   ├── forgotpw.jpg
+    │   ├── gender.png
+    │   ├── github.png
+    │   ├── gmail.png
+    │   ├── google.png
+    │   ├── guest.png
+    │   ├── health.png
+    │   ├── ic_launcher.png
+    │   ├── ic_username.png
+    │   ├── init_trip.png
+    │   ├── inventor.png
+    │   ├── logo.png
+    │   ├── maintenance.png
+    │   ├── menu.png
+    │   ├── name.png
+    │   ├── no_data.png
+    │   ├── no_internet.png
+    │   ├── notification_icon.png
+    │   ├── onbording.jpg
+    │   ├── onbording1.jpg
+    │   ├── onbording1.png
+    │   ├── onbording2.png
+    │   ├── onbording3.png
+    │   ├── one_bg.jpg
+    │   ├── password.png
+    │   ├── people.png
+    │   ├── people_logo.png
+    │   ├── phone.png
+    │   ├── placeholder.jpg
+    │   ├── placeholder.png
+    │   ├── profile_icon.png
+    │   ├── raw-logo.png
+    │   ├── registry_logo_1.png
+    │   ├── registry_logo_2.png
+    │   ├── social.png
+    │   ├── splash.png
+    │   ├── splash_logo.png
+    │   ├── twitter.png
+    │   ├── united_kingdom.png
+    │   ├── website.png
+    │   ├── wechat.png
+    │   ├── weclom.png
+    │   ├── weibo-circle-fill.png
+    │   ├── welcm.png
+    │   ├── welcom.png
+    │   ├── welcome.jpg
+    │   └── youtube.png
+    ├── images
+    │   ├── .gitkeep
+    │   ├── splash.png
+    │   └── user.png
+    └── launch
+        ├── .gitkeep
+        ├── dark_launch.jpg
+        ├── light_launch.jpg
+        ├── splash_bg.png
+        ├── splash_logo.png
+        └── splash_logo_dark.png

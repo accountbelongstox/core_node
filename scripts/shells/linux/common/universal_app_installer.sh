@@ -146,6 +146,27 @@ install_via_npm() {
     # Install npm package globally
     if $USE_SUDO npm install -g "$package_id"; then
         echo -e "${GREEN}$SCRIPT_INDEX Successfully installed $app_name via NPM${NC}"
+        
+        # Fix permissions for npm global binaries
+        echo -e "${BLUE}$SCRIPT_INDEX Setting executable permissions for npm global binaries...${NC}"
+        local npm_global_bin
+        npm_global_bin=$($USE_SUDO npm config get prefix 2>/dev/null)
+        if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+            # Set executable permissions for all binaries in npm global bin directory
+            $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
+            echo -e "${GREEN}$SCRIPT_INDEX Set executable permissions for binaries in: $npm_global_bin/bin${NC}"
+            
+            # Also check for the specific package binary
+            local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
+            local binary_path="$npm_global_bin/bin/$package_name"
+            if [ -f "$binary_path" ]; then
+                $USE_SUDO chmod +x "$binary_path"
+                echo -e "${GREEN}$SCRIPT_INDEX Set executable permission for: $binary_path${NC}"
+            fi
+        else
+            echo -e "${YELLOW}$SCRIPT_INDEX Warning: Could not determine npm global bin directory${NC}"
+        fi
+        
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX Failed to install $app_name via NPM${NC}"

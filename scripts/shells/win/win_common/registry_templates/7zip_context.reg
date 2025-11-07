@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\*\shell\{{MENU_TEXT}}]
+@="{{MENU_TEXT}}"
+"Icon"="{{ICON_PATH}}"
+
+[HKEY_CLASSES_ROOT\*\shell\{{MENU_TEXT}}\command]
+@="{{OPERATION}}"

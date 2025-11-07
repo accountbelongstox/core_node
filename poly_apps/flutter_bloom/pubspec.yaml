@@ -46,10 +46,15 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   crypto: ^3.0.3
+  dio: ^5.4.0
   flutter_localizations:
     sdk: flutter
   flutter_native_splash: ^2.4.6
+  font_awesome_flutter: ^10.9.1 
 
+  equatable: any
+  sqflite: any
+  timezone: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -80,11 +85,26 @@ flutter:
     # - assets/.extra_achat/images/
     # - assets/.extra_achat/launch/
 
-    # - assets/apps/app_wuy/icons/
-    # - assets/apps/app_wuy/images/
-    # - assets/apps/app_wuy/launch/
+    - assets/apps/app_wuy/icons/
+    - assets/apps/app_wuy/images/
+    - assets/apps/app_wuy/launch/
 
     - assets/apps/app_bank/images/
+
+    # VIP Club App assets
+    - assets/apps/app_vipclub/images/
+    - assets/apps/app_vipclub/styles/
+
+    # Travel App assets
+    - assets/apps/app_travel/images/
+    - assets/apps/app_travel/images/nav/
+    - assets/apps/app_travel/images/upload/
+    - assets/apps/app_travel/fonts/
+    - assets/apps/app_travel/innerdata/
+
+    # QY App assets (English learning app)
+    - assets/apps/app_qy/test_images/
+    - assets/apps/app_qy/test_images/dictionaries/
 
   fonts:
     - family: Roboto
@@ -107,5 +127,8 @@ flutter:
           weight: 700
         - asset: assets/common/fonts/SourceHanSansCNLight.otf
           weight: 900
+    - family: iconfont
+      fonts:
+        - asset: assets/apps/app_travel/fonts/iconfont.ttf
 
 

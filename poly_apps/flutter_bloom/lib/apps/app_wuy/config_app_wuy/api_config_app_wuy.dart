@@ -21,7 +21,9 @@ class ApiConfigAppWuy {
   
   /// Development API configuration
   static ApiConfig get devApiConfig => ApiConfig.jwtAuth(
-    baseUrl: AppConfigAppWuy.apiBaseUrlDev,
+    baseUrl: AppConfigAppWuy.enableNewApiIntegration && !AppConfigAppWuy.forceLegacyApi
+        ? AppConfigAppWuy.apiBaseUrlDev
+        : AppConfigAppWuy.legacyApiBaseUrlDev,
     timeoutSeconds: AppConfigAppWuy.apiTimeoutSeconds,
     enableLogging: AppConfigAppWuy.enableLogging,
     defaultHeaders: {
@@ -34,7 +36,9 @@ class ApiConfigAppWuy {
   
   /// Production API configuration
   static ApiConfig get prodApiConfig => ApiConfig.jwtAuth(
-    baseUrl: AppConfigAppWuy.apiBaseUrlProd,
+    baseUrl: AppConfigAppWuy.enableNewApiIntegration && !AppConfigAppWuy.forceLegacyApi
+        ? AppConfigAppWuy.apiBaseUrlProd
+        : AppConfigAppWuy.legacyApiBaseUrlProd,
     timeoutSeconds: AppConfigAppWuy.apiTimeoutSeconds,
     enableLogging: false, // Disable logging in production
     defaultHeaders: {

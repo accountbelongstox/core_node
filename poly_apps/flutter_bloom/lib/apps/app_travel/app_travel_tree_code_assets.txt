@@ -1,0 +1,895 @@
+================================================================================
+Flutter App Directory Tree
+================================================================================
+Generated: 2025-11-07 03:03:56
+App: app_travel
+Mode: code_assets
+Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
+Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+================================================================================
+
+app_travel [code_assets]
+├── lib/apps/app_travel/
+│   ├── DEVELOPMENT_PLAN.md
+│   ├── IMPORT_PATH_GUIDE.md
+│   ├── MIGRATION_PLAN.md
+│   ├── MODEL_CENTRALIZATION_ANALYSIS.md
+│   ├── PROJECT_STATUS.md
+│   ├── R.jpg
+│   ├── app_travel_tree.md
+│   ├── app_travel_tree_code_assets.txt
+│   ├── build_config.ini
+│   ├── config_app_travel
+│   │   ├── app_config_app_travel.dart
+│   │   ├── constants_app_travel.dart
+│   │   ├── prefs_app_travel.dart
+│   │   └── provider_app_travel.dart
+│   ├── constants_app_travel
+│   │   └── cities_app_travel.dart
+│   ├── doc
+│   │   ├── Weixin Image_20251031061859_1_4.jpg
+│   │   ├── Weixin Image_20251031061900_2_4.jpg
+│   │   ├── Weixin Image_20251031061901_3_4.jpg
+│   │   ├── Weixin Image_20251031061902_4_4.jpg
+│   │   ├── Weixin Image_20251031061902_5_4.jpg
+│   │   ├── Weixin Image_20251031061903_6_4.jpg
+│   │   ├── Weixin Image_20251031061903_7_4.jpg
+│   │   ├── a.png
+│   │   ├── chat.png
+│   │   ├── icons
+│   │   │   ├── icon_1.png
+│   │   │   ├── icon_2.png
+│   │   │   ├── icon_3.png
+│   │   │   ├── icon_4.png
+│   │   │   └── icon_5.png
+│   │   ├── kf1.jpg
+│   │   ├── kfto.jpg
+│   │   ├── process_image.py
+│   │   ├── to;.png
+│   │   ├── xiaoguo.png
+│   │   ├── 微信图片_20251106000816.jpg
+│   │   ├── 微信图片_20251106000816.png
+│   │   ├── 微信图片_20251106001713.jpg
+│   │   ├── 微信截图_20251105144532.png
+│   │   ├── 微信截图_20251105145756.png
+│   │   ├── 微信截图_20251106001724.png
+│   │   ├── 微信截图_20251106202439.png
+│   │   ├── 微信截图_20251107013225.png
+│   │   └── 航空公司图标1.png
+│   ├── features_app_travel
+│   │   ├── authentication
+│   │   │   └── views
+│   │   │       └── login_screen.dart
+│   │   ├── bookmarks
+│   │   │   └── views
+│   │   │       └── bookmarks_screen.dart
+│   │   ├── city
+│   │   │   ├── views
+│   │   │   │   └── city_screen.dart
+│   │   │   └── widgets
+│   │   │       └── city_search_widget.dart
+│   │   ├── explore
+│   │   │   └── views
+│   │   │       └── explore_screen.dart
+│   │   ├── favorites
+│   │   │   └── views
+│   │   │       └── favorites_screen.dart
+│   │   ├── flight_detail
+│   │   │   └── flight_order_detail_page.dart
+│   │   ├── home
+│   │   │   ├── views
+│   │   │   │   └── home_screen.dart
+│   │   │   └── widgets
+│   │   │       ├── home_content_mix.dart
+│   │   │       ├── home_grid_nav.dart
+│   │   │       ├── home_grid_nav_section.dart
+│   │   │       ├── home_header.dart
+│   │   │       ├── home_header.dart.bak
+│   │   │       ├── home_local_hot.dart
+│   │   │       ├── home_local_nav.dart
+│   │   │       ├── home_location_prompt.dart
+│   │   │       ├── home_popular.dart
+│   │   │       ├── home_recommend.dart
+│   │   │       ├── home_subnav.dart
+│   │   │       ├── home_swiper.dart
+│   │   │       ├── home_waterfall.dart
+│   │   │       ├── home_waterfall_item.dart
+│   │   │       └── home_welcome.dart
+│   │   ├── journey
+│   │   │   ├── README.md
+│   │   │   ├── REFACTORING_COMPARISON.md
+│   │   │   ├── views
+│   │   │   │   └── journey_screen.dart
+│   │   │   └── widgets
+│   │   │       ├── all_orders_tab.dart
+│   │   │       ├── date_header.dart
+│   │   │       ├── flight_itinerary_card.dart
+│   │   │       ├── itinerary_timeline_view.dart
+│   │   │       ├── my_itinerary_tab.dart
+│   │   │       └── wechat_subscribe_banner.dart
+│   │   ├── main_scaffold
+│   │   │   └── main_scaffold.dart
+│   │   ├── profile
+│   │   │   └── views
+│   │   │       └── profile_screen.dart
+│   │   ├── search
+│   │   │   └── views
+│   │   │       └── search_screen.dart
+│   │   ├── service
+│   │   │   └── views
+│   │   │       └── service_screen.dart
+│   │   ├── settings
+│   │   │   └── views
+│   │   │       ├── settings_screen.dart
+│   │   │       └── traveler_management_screen.dart
+│   │   └── sight
+│   │       └── views
+│   │           └── sight_detail_screen.dart
+│   ├── localization_app_travel
+│   │   ├── en_app_travel.dart
+│   │   ├── localization_keys_app_travel.dart
+│   │   └── zh_app_travel.dart
+│   ├── main_app_travel.dart
+│   ├── migration_analysis.json
+│   ├── models_app_travel
+│   │   ├── city_model.dart
+│   │   ├── city_model.g.dart
+│   │   ├── grid_nav_model.dart
+│   │   ├── grid_nav_model.g.dart
+│   │   ├── home_data_model.dart
+│   │   ├── home_data_model.g.dart
+│   │   ├── hot_content_model.dart
+│   │   ├── itinerary_model.dart
+│   │   ├── local_hot_model.dart
+│   │   ├── local_hot_model.g.dart
+│   │   ├── local_nav_model.dart
+│   │   ├── local_nav_model.g.dart
+│   │   ├── order_model.dart
+│   │   ├── popular_item_model.dart
+│   │   ├── popular_item_model.g.dart
+│   │   ├── recommend_item_model.dart
+│   │   ├── recommend_item_model.g.dart
+│   │   ├── sight_model.dart
+│   │   ├── sight_model.g.dart
+│   │   ├── sight_model_app_travel.dart
+│   │   ├── subnav_model.dart
+│   │   ├── subnav_model.g.dart
+│   │   ├── swiper_item_model.dart
+│   │   ├── swiper_item_model.g.dart
+│   │   ├── travel_inspiration_model.dart
+│   │   ├── travel_map_model.dart
+│   │   ├── traveler_model.dart
+│   │   ├── user_model_app_travel.dart
+│   │   └── user_model_app_travel.g.dart
+│   ├── new_order
+│   │   ├── INTEGRATION_GUIDE.md
+│   │   ├── README.md
+│   │   ├── UNIFIED_NAVIGATION_SYSTEM.md
+│   │   ├── UPDATES_2025_11_06.md
+│   │   ├── airto.png
+│   │   ├── data
+│   │   │   └── order_detail_test_data.dart
+│   │   ├── example
+│   │   │   └── order_detail_demo.dart
+│   │   ├── hotel_detail_page.dart
+│   │   ├── jiudianxiaotu.png
+│   │   ├── list
+│   │   │   ├── a.png
+│   │   │   ├── b.png
+│   │   │   ├── c.png
+│   │   │   ├── d.png
+│   │   │   └── list_tree.md
+│   │   ├── models
+│   │   │   ├── order_detail_model.dart
+│   │   │   └── order_detail_test_data.dart
+│   │   ├── new1.jpg
+│   │   ├── new2.jpg
+│   │   ├── new3.jpg
+│   │   ├── new4.jpg
+│   │   ├── new5.jpg
+│   │   ├── new6.jpg
+│   │   ├── new7.jpg
+│   │   ├── order_detail_page.dart
+│   │   ├── tuijian1.png
+│   │   ├── tuijian2.png
+│   │   ├── tuijian3.png
+│   │   ├── utils
+│   │   │   └── order_converter.dart
+│   │   ├── widgets
+│   │   │   ├── bottom_action_button.dart
+│   │   │   ├── checkin_info_card.dart
+│   │   │   ├── faq_buttons_grid.dart
+│   │   │   ├── guest_info_card.dart
+│   │   │   ├── hotel_main_info_card.dart
+│   │   │   ├── hotel_recommendation_list.dart
+│   │   │   ├── order_detail_app_bar.dart
+│   │   │   ├── order_status_card.dart
+│   │   │   ├── payment_info_card.dart
+│   │   │   └── services_card.dart
+│   │   ├── yy.png
+│   │   └── 微信截图_20251107010729.png
+│   ├── provider_app_travel
+│   │   ├── city_provider_app_travel.dart
+│   │   ├── current_itinerary_provider.dart
+│   │   ├── home_provider_app_travel.dart
+│   │   ├── search_provider_app_travel.dart
+│   │   ├── traveler_provider_app_travel.dart
+│   │   └── user_provider_app_travel.dart
+│   ├── repositories_app_travel
+│   │   ├── city_repository.dart
+│   │   └── home_repository.dart
+│   ├── resources_app_travel
+│   │   ├── assets_icons_app_travel.dart
+│   │   ├── assets_images_app_travel.dart
+│   │   └── colors_app_travel.dart
+│   ├── router_app_travel
+│   │   ├── router_app_travel.dart
+│   │   └── routes_provider_app_travel.dart
+│   ├── services_app_travel
+│   │   ├── cache_service.dart
+│   │   ├── data_service.dart
+│   │   └── journey_service.dart
+│   ├── task.txt
+│   ├── testdata
+│   │   ├── journey_data.dart
+│   │   ├── orders_data.dart
+│   │   └── travel_map_data.dart
+│   └── widgets
+│       └── travel_icons.dart
+├── lib/common/
+│   ├── README.md
+│   ├── app
+│   │   └── main_common.dart
+│   ├── assets
+│   │   ├── common_assets_icons.dart
+│   │   ├── common_assets_images.dart
+│   │   └── common_assets_launch.dart
+│   ├── auth_v2
+│   │   ├── README.md
+│   │   ├── auth_config.dart
+│   │   ├── auth_interface.dart
+│   │   ├── auth_manager.dart
+│   │   ├── auth_models.dart
+│   │   ├── auth_provider_factory.dart
+│   │   ├── auth_v2.dart
+│   │   └── providers
+│   │       ├── github_auth_provider.dart
+│   │       ├── google_auth_provider.dart
+│   │       ├── phone_auth_provider.dart
+│   │       ├── qq_auth_provider.dart
+│   │       └── wechat_auth_provider.dart
+│   ├── cache_manager
+│   │   └── cache_manager.dart
+│   ├── common.dart
+│   ├── common_tree.md
+│   ├── constants
+│   │   └── app_constants.dart
+│   ├── controller
+│   │   └── settings_controller.dart
+│   ├── database
+│   │   ├── database_manager.dart
+│   │   ├── idb
+│   │   │   └── idb_service.dart
+│   │   ├── interfaces
+│   │   │   └── database_interface.dart
+│   │   ├── models
+│   │   │   └── base_model.dart
+│   │   └── sqlite
+│   │       └── sqlite_service.dart
+│   ├── i18n
+│   │   ├── i18n_service.dart
+│   │   └── translations.dart
+│   ├── iframe
+│   │   └── iframe_listner.dart
+│   ├── localization
+│   │   ├── common_en.dart
+│   │   ├── common_zh.dart
+│   │   ├── localization_keys.dart
+│   │   ├── localization_manager.dart
+│   │   └── map_locales.dart
+│   ├── map
+│   │   ├── location_service.dart
+│   │   ├── map_service.dart
+│   │   └── map_utils.dart
+│   ├── media
+│   │   ├── audio
+│   │   │   ├── audio_player.dart
+│   │   │   └── audio_recorder.dart
+│   │   ├── media_utils.dart
+│   │   └── video
+│   │       ├── video_player.dart
+│   │       └── video_recorder.dart
+│   ├── model
+│   │   ├── bank_user_model.dart
+│   │   ├── messages.dart
+│   │   └── word_list_types.dart
+│   ├── network
+│   │   ├── NETWORKREADME.md
+│   │   ├── auth
+│   │   │   └── unified_auth_manager.dart
+│   │   ├── controller
+│   │   │   └── auth_controller.dart
+│   │   ├── core
+│   │   │   ├── endpoint_network_models.dart
+│   │   │   ├── network_config.dart
+│   │   │   ├── network_queue_and_offline.dart
+│   │   │   ├── network_retry_manager.dart
+│   │   │   ├── network_service_locator.dart
+│   │   │   ├── network_types.dart
+│   │   │   └── unified_network_client.dart
+│   │   ├── doc
+│   │   │   ├── ARCHITECTURE_ANALYSIS.md
+│   │   │   ├── AUTH_INTERCEPTOR_INTEGRATION.md
+│   │   │   ├── FINAL_STATUS_REPORT.md
+│   │   │   ├── INDEX.md
+│   │   │   ├── PHASE2_REFACTORING.md
+│   │   │   ├── PHASE3_AGGRESSIVE_CLEANUP.md
+│   │   │   ├── PHASE3_COMPLETION.md
+│   │   │   ├── PHASE4_AUTH_AND_FINAL_CLEANUP.md
+│   │   │   ├── REFACTORING_LOG.md
+│   │   │   └── REFACTORING_SUMMARY.md
+│   │   ├── endpoints
+│   │   │   ├── endpoint_config.dart
+│   │   │   └── laravel_endpoints.dart
+│   │   ├── integration
+│   │   │   └── network_user_integration.dart
+│   │   ├── interceptors
+│   │   │   ├── auth_interceptor.dart
+│   │   │   ├── error_interceptor.dart
+│   │   │   ├── logging_interceptor.dart
+│   │   │   └── network_interceptors.dart
+│   │   ├── models
+│   │   │   ├── api_config.dart
+│   │   │   └── api_response.dart
+│   │   ├── network_framework.dart
+│   │   ├── parsers
+│   │   │   └── adaptive_data_parser.dart
+│   │   ├── security
+│   │   │   └── device_security_manager.dart
+│   │   ├── services
+│   │   │   └── advanced_network_service.dart
+│   │   ├── storage
+│   │   │   └── secure_storage.dart
+│   │   ├── ui
+│   │   │   └── global_loading_system.dart
+│   │   ├── utils
+│   │   │   └── network_utils.dart
+│   │   ├── websocket
+│   │   │   ├── WEBSOCKET_USAGE.dart
+│   │   │   ├── websocket_client.dart
+│   │   │   ├── websocket_config.dart
+│   │   │   ├── websocket_interceptor.dart
+│   │   │   └── websocket_types.dart
+│   │   └── widgets
+│   │       └── adaptive_loading_widgets.dart
+│   ├── network_v2
+│   │   ├── README.md
+│   │   ├── auth
+│   │   │   ├── auth_coordinator.dart
+│   │   │   ├── auth_registry.dart
+│   │   │   ├── auth_strategy.dart
+│   │   │   ├── composite_auth_strategy.dart
+│   │   │   ├── header_key_auth_strategy.dart
+│   │   │   ├── jwt_auth_strategy.dart
+│   │   │   ├── login_manager.dart
+│   │   │   ├── session_auth_strategy.dart
+│   │   │   └── user_provider_auth_coordinator.dart
+│   │   ├── cache
+│   │   │   ├── cache_entry.dart
+│   │   │   ├── cache_store.dart
+│   │   │   └── memory_cache_store.dart
+│   │   ├── core
+│   │   │   ├── http_client.dart
+│   │   │   └── network_manager.dart
+│   │   ├── endpoints
+│   │   │   ├── endpoint_catalog.dart
+│   │   │   └── endpoint_presets.dart
+│   │   ├── example_usage.dart
+│   │   ├── loading
+│   │   │   ├── loading_controller.dart
+│   │   │   └── loading_state.dart
+│   │   ├── models
+│   │   │   ├── auth_context.dart
+│   │   │   ├── auth_payload.dart
+│   │   │   ├── auth_requirement.dart
+│   │   │   ├── cache_policy.dart
+│   │   │   ├── endpoint_descriptor.dart
+│   │   │   ├── endpoint_group.dart
+│   │   │   ├── http_method.dart
+│   │   │   ├── network_environment.dart
+│   │   │   ├── network_error.dart
+│   │   │   ├── network_request.dart
+│   │   │   ├── network_response.dart
+│   │   │   ├── network_session_state.dart
+│   │   │   ├── request_options.dart
+│   │   │   └── retry_policy.dart
+│   │   ├── network_v2.dart
+│   │   ├── parsing
+│   │   │   ├── response_parser.dart
+│   │   │   └── schema_registry.dart
+│   │   ├── queue
+│   │   │   ├── queued_request.dart
+│   │   │   └── request_queue.dart
+│   │   └── utils
+│   │       └── id_generator.dart
+│   ├── provider_status
+│   │   ├── base_provider.dart
+│   │   ├── screen_size_provider.dart
+│   │   └── user_provider.dart
+│   ├── repo
+│   │   └── splash_repo.dart
+│   ├── sdk
+│   │   ├── azure_maps
+│   │   │   ├── azure_maps_config.dart
+│   │   │   ├── azure_maps_flutter_integration.dart
+│   │   │   ├── azure_maps_sdk.dart
+│   │   │   └── azure_maps_service.dart
+│   │   └── tencent_maps
+│   │       ├── tencent_maps_config.dart
+│   │       ├── tencent_maps_flutter_integration.dart
+│   │       ├── tencent_maps_sdk.dart
+│   │       └── tencent_maps_service.dart
+│   ├── services
+│   │   └── settings_service.dart
+│   ├── settings
+│   │   ├── configs
+│   │   │   └── base_settings.dart
+│   │   ├── models
+│   │   │   └── setting_item.dart
+│   │   └── storage
+│   │       └── settings_storage_manager.dart
+│   ├── storage
+│   │   ├── adapters
+│   │   │   ├── storage_adapter_factory.dart
+│   │   │   ├── storage_adapter_unified.dart
+│   │   │   └── web_storage_adapter.dart
+│   │   ├── app_prefs_base.dart
+│   │   ├── app_storage_base.dart
+│   │   ├── cleanup
+│   │   │   └── storage_cleanup_tool.dart
+│   │   ├── implementations
+│   │   │   ├── hive_storage.dart
+│   │   │   └── sqlite_storage_v1.dart
+│   │   ├── interfaces
+│   │   │   └── storage_interface.dart
+│   │   ├── migration
+│   │   │   └── hive_to_sqlite_migration.dart
+│   │   ├── models
+│   │   │   └── storage_models.dart
+│   │   ├── storage_manager.dart
+│   │   ├── storage_migration_tool.dart
+│   │   ├── storage_provider.dart
+│   │   └── unified_storage.dart
+│   ├── storagev2
+│   │   ├── README.md
+│   │   ├── application
+│   │   │   └── storage_application_service.dart
+│   │   ├── business
+│   │   │   ├── config_service.dart
+│   │   │   ├── security_service.dart
+│   │   │   ├── storage_service.dart
+│   │   │   ├── sync_service.dart
+│   │   │   └── user_service.dart
+│   │   ├── config
+│   │   │   └── storage_config.dart
+│   │   ├── data_access
+│   │   │   ├── cache_adapter.dart
+│   │   │   ├── encryption_adapter.dart
+│   │   │   ├── storage_adapter.dart
+│   │   │   └── storage_data_access.dart
+│   │   ├── di
+│   │   │   └── storage_container.dart
+│   │   ├── exceptions
+│   │   │   └── storage_exceptions.dart
+│   │   ├── flutter_storage.dart
+│   │   ├── infrastructure
+│   │   │   ├── hive_storage.dart
+│   │   │   ├── memory_cache.dart
+│   │   │   └── sqlite_storage.dart
+│   │   ├── interfaces
+│   │   │   ├── cache_service_interface.dart
+│   │   │   ├── encryption_service_interface.dart
+│   │   │   ├── storage_adapter_interface.dart
+│   │   │   └── storage_repository_interface.dart
+│   │   ├── migration
+│   │   │   └── storage_migration.dart
+│   │   ├── models
+│   │   │   ├── config_entity.dart
+│   │   │   ├── storage_entity.dart
+│   │   │   ├── storage_result.dart
+│   │   │   └── user_entity.dart
+│   │   ├── repository
+│   │   │   └── storage_repository_impl.dart
+│   │   └── utils
+│   │       └── storage_utils.dart
+│   ├── theme
+│   │   ├── app_theme.dart
+│   │   ├── base
+│   │   │   ├── theme_animations.dart
+│   │   │   ├── theme_colors.dart
+│   │   │   ├── theme_constants.dart
+│   │   │   ├── theme_dimensions.dart
+│   │   │   ├── theme_effects.dart
+│   │   │   ├── theme_extensions.dart
+│   │   │   ├── theme_gradients.dart
+│   │   │   ├── theme_shadow.dart
+│   │   │   └── theme_text_styles.dart
+│   │   ├── compatibility
+│   │   │   ├── gradient_compatibility.dart
+│   │   │   └── theme_compatibility.dart
+│   │   ├── extensions
+│   │   │   └── gradient_extensions.dart
+│   │   ├── platforms
+│   │   │   ├── desktop
+│   │   │   │   ├── desktop_dark_theme.dart
+│   │   │   │   └── desktop_light_theme.dart
+│   │   │   ├── mobile
+│   │   │   │   ├── mobile_dark_theme.dart
+│   │   │   │   └── mobile_light_theme.dart
+│   │   │   └── web
+│   │   │       ├── web_dark_theme.dart
+│   │   │       └── web_light_theme.dart
+│   │   ├── theme.dart
+│   │   └── theme_manager.dart
+│   ├── utils
+│   │   ├── common
+│   │   │   ├── price_converter.dart
+│   │   │   └── toaster_helper.dart
+│   │   ├── compatibility
+│   │   │   └── legacy_imports.dart
+│   │   ├── database
+│   │   │   └── cache_operations.dart
+│   │   ├── date
+│   │   │   └── date_converter.dart
+│   │   ├── device_utils.dart
+│   │   ├── display
+│   │   │   ├── display_helper.dart
+│   │   │   └── responsive_helper.dart
+│   │   ├── image
+│   │   │   ├── image_loader.dart
+│   │   │   └── image_size_checker.dart
+│   │   ├── mobile
+│   │   │   ├── native_splash.dart
+│   │   │   └── notification_helper.dart
+│   │   ├── platform
+│   │   │   └── get_platform.dart
+│   │   ├── text
+│   │   │   └── text_utils.dart
+│   │   ├── utils.dart
+│   │   ├── validation
+│   │   │   ├── email_checker.dart
+│   │   │   └── phone_checker.dart
+│   │   └── web
+│   │       ├── web_tools.dart
+│   │       ├── web_tools_non_web.dart
+│   │       ├── web_tools_web.dart
+│   │       └── webabs.dart
+│   └── widgets
+│       ├── README.md
+│       ├── action_bar.dart
+│       ├── animated_custom_dialog.dart
+│       ├── animations
+│       │   └── animation_utils.dart
+│       ├── back_app_bar.dart
+│       ├── badges
+│       │   ├── badges_chips.dart
+│       │   └── premium_badges.dart
+│       ├── bank_bottom_navigation.dart
+│       ├── bank_scaffold.dart
+│       ├── buttons
+│       │   ├── premium_buttons.dart
+│       │   └── primary_button.dart
+│       ├── cards
+│       │   ├── custom_cards.dart
+│       │   └── premium_cards.dart
+│       ├── config.dart
+│       ├── confirmation_dialog.dart
+│       ├── country_picker.dart
+│       ├── custom_app_bar.dart
+│       ├── custom_bottom_navigation.dart
+│       ├── custom_button.dart
+│       ├── custom_calender.dart
+│       ├── custom_card.dart
+│       ├── custom_date_picker.dart
+│       ├── custom_delegate.dart
+│       ├── custom_divider.dart
+│       ├── custom_drawer.dart
+│       ├── custom_drop_down_item.dart
+│       ├── custom_gradient_text.dart
+│       ├── custom_icon_label.dart
+│       ├── custom_icon_label_group.dart
+│       ├── custom_image.dart
+│       ├── custom_image_icon_label.dart
+│       ├── custom_image_icon_label_group.dart
+│       ├── custom_loader.dart
+│       ├── custom_search_input.dart
+│       ├── custom_slider_button.dart
+│       ├── custom_snackbar.dart
+│       ├── custom_swipable_button
+│       │   ├── swipeable_button_view.dart
+│       │   └── swipeable_widget.dart
+│       ├── custom_text_field.dart
+│       ├── custom_title.dart
+│       ├── dialogs
+│       │   └── custom_dialogs.dart
+│       ├── digital_payment_dialog.dart
+│       ├── enhanced_bottom_navigation.dart
+│       ├── enhanced_top_menu.dart
+│       ├── floating_avatar_header.dart
+│       ├── glassmorphism_card.dart
+│       ├── gradient_button.dart
+│       ├── image_dialog.dart
+│       ├── info_row_widget.dart
+│       ├── inputs
+│       │   └── custom_text_fields.dart
+│       ├── lists
+│       │   └── list_items.dart
+│       ├── navigation_widgets.dart
+│       ├── network_connection_dialog.dart
+│       ├── no_data_screen.dart
+│       ├── open_map.dart
+│       ├── outelineborder.dart
+│       ├── paginated_list_view.dart
+│       ├── payment_item_info.dart
+│       ├── progress
+│       │   └── progress_indicators.dart
+│       ├── responsive_layout.dart
+│       ├── segmented_button.dart
+│       ├── settings_page_example.dart
+│       ├── states
+│       │   └── empty_state.dart
+│       ├── type_button_widget.dart
+│       └── widgets.dart
+├── assets/apps/app_travel/
+│   ├── fonts
+│   │   ├── iconfont.css
+│   │   ├── iconfont.eot
+│   │   ├── iconfont.js
+│   │   ├── iconfont.svg
+│   │   ├── iconfont.ttf
+│   │   ├── iconfont.woff
+│   │   └── iconfont.woff2
+│   ├── icons
+│   │   └── logo.jpg
+│   ├── images
+│   │   ├── airline_logo_jeju.png
+│   │   ├── airline_logo_singapore.png
+│   │   ├── ajax-loader.gif
+│   │   ├── article1.png
+│   │   ├── article2.png
+│   │   ├── article3.png
+│   │   ├── article4.png
+│   │   ├── content_map_bottom.png
+│   │   ├── content_map_top.png
+│   │   ├── content_video.png
+│   │   ├── crop_images.py
+│   │   ├── destination_changbai.png
+│   │   ├── destination_hongcun.png
+│   │   ├── destination_sanya.png
+│   │   ├── destination_tengchong.png
+│   │   ├── empty_order_mascot.png
+│   │   ├── explore_header_bg.png
+│   │   ├── flight_icon.png
+│   │   ├── grid-nav-items-dingzhi@v7.15.png
+│   │   ├── grid-nav-items-flight@v7.15.png
+│   │   ├── grid-nav-items-hotel@v7.15.png
+│   │   ├── grid-nav-items-jhj@v7.15.png
+│   │   ├── grid-nav-items-minsu@v7.15.png
+│   │   ├── grid-nav-items-train.png
+│   │   ├── grid-nav-items-travel@v7.15.png
+│   │   ├── home-fivemain-sprite2x@v7.15.png
+│   │   ├── hot_content_1.png
+│   │   ├── hot_content_2.png
+│   │   ├── hot_content_3.png
+│   │   ├── hot_content_4.png
+│   │   ├── hotel_recommend_1.png
+│   │   ├── hotel_recommend_2.png
+│   │   ├── hotel_recommend_3.png
+│   │   ├── hotel_title_logo.png
+│   │   ├── icon_1.png
+│   │   ├── icon_2.png
+│   │   ├── icon_3.png
+│   │   ├── icon_4.png
+│   │   ├── icon_5.png
+│   │   ├── icon_bg_1.png
+│   │   ├── icon_transfer.png
+│   │   ├── inspiration_november.png
+│   │   ├── journey_empty_bg.png
+│   │   ├── journey_inspiration_map.png
+│   │   ├── nav
+│   │   │   ├── grid-nav-items-dingzhi@v7.15.png
+│   │   │   ├── grid-nav-items-flight@v7.15.png
+│   │   │   ├── grid-nav-items-hotel@v7.15.png
+│   │   │   ├── grid-nav-items-jhj@v7.15.png
+│   │   │   ├── grid-nav-items-minsu@v7.15.png
+│   │   │   ├── grid-nav-items-train.png
+│   │   │   ├── grid-nav-items-travel@v7.15.png
+│   │   │   ├── home-fivemain-sprite2x@v7.15.png
+│   │   │   ├── local_nav_0@2x.png
+│   │   │   ├── local_nav_1@2x.png
+│   │   │   ├── local_nav_2@2x.png
+│   │   │   ├── local_nav_3@2x.png
+│   │   │   ├── local_nav_4@2x.png
+│   │   │   ├── local_nav_flight@2x.png
+│   │   │   ├── local_nav_hotel@2x.png
+│   │   │   ├── local_nav_package@2x.png
+│   │   │   ├── local_nav_scenic@2x.png
+│   │   │   ├── local_nav_train@2x.png
+│   │   │   ├── no-result.png
+│   │   │   ├── placeholder_images_metadata.json
+│   │   │   ├── subnav_0@2x.png
+│   │   │   ├── subnav_1@2x.png
+│   │   │   ├── subnav_2@2x.png
+│   │   │   ├── subnav_3@2x.png
+│   │   │   ├── subnav_4@2x.png
+│   │   │   ├── subnav_5@2x.png
+│   │   │   ├── subnav_6@2x.png
+│   │   │   ├── subnav_7@2x.png
+│   │   │   ├── subnav_8@2x.png
+│   │   │   ├── subnav_9@2x.png
+│   │   │   └── un_ico_subnav2x@v7.152.png
+│   │   ├── no-result.png
+│   │   ├── order_flight_1.png
+│   │   ├── order_flight_2.png
+│   │   ├── order_hotel_1.png
+│   │   ├── order_hotel_2.png
+│   │   ├── order_hotel_saipan.png
+│   │   ├── placeholder_images_metadata.json
+│   │   ├── profile_avatar.png
+│   │   ├── profile_member_badge.png
+│   │   ├── profile_member_banner.png
+│   │   ├── profile_recommendation_banner.png
+│   │   ├── promo_winter_banner.png
+│   │   ├── recommend_icon_1.png
+│   │   ├── recommend_icon_2.png
+│   │   ├── recommend_icon_3.png
+│   │   ├── recommend_icon_4.png
+│   │   ├── recommend_icon_5.png
+│   │   ├── service_header_bg.png
+│   │   ├── settings_avatar.png
+│   │   ├── travel_map_1.png
+│   │   ├── travel_map_2.png
+│   │   ├── travel_map_3.png
+│   │   ├── travel_map_4.png
+│   │   ├── un_ico_subnav2x@v7.152.png
+│   │   ├── upload
+│   │   │   ├── 10020f0000007exdc99FE.jpg
+│   │   │   ├── 10020f0000007exdc99FE_C_250_250.jpg
+│   │   │   ├── 10020l000000ddw8hB633.png
+│   │   │   ├── 10030f0000007ey067AAD.jpg
+│   │   │   ├── 10030v000000jvdhwAE46.jpg
+│   │   │   ├── 10040m000000dxiffB127_C_250_250.jpg
+│   │   │   ├── 10060v000000ju9p8E776.jpg
+│   │   │   ├── 1009080000002zroc5DA7.jpg
+│   │   │   ├── 100a10000000pc62478FA.jpg
+│   │   │   ├── 100b0m000000dzead78F2.jpg
+│   │   │   ├── 100c0l000000d9klbC07D.png
+│   │   │   ├── 100e11000000rhibf621B.jpg
+│   │   │   ├── 100m0v000000k30yv9102.jpg
+│   │   │   ├── 100o050000000nlyc5211.jpg
+│   │   │   ├── 100p0q000000g9x8xBE5C.jpg
+│   │   │   ├── 100r0700000020y2fDB0A.jpg
+│   │   │   ├── 100s0900000040wmiA99D.jpg
+│   │   │   ├── 100t0l000000d61ht687A.png
+│   │   │   ├── 100t10000000paws4EC47.jpg
+│   │   │   ├── 100t10000000paws4EC47_C_250_250.jpg
+│   │   │   ├── 100u0l000000d6wtm2B89.png
+│   │   │   ├── 100u10000000pau0s116D.jpg
+│   │   │   ├── 100v0g0000007to4oD551.jpg
+│   │   │   ├── 200u0j000000aw3xuE230_C_360_360_Q50.jpg_.webp
+│   │   │   ├── 2dcda4e400ace9f993835fbb.jpg_250x250_d841fd57.jpg
+│   │   │   ├── CggYGVaMtQqAN2wTAAP7AxHB-nk418.jpg
+│   │   │   ├── CggYHVXdfOSAVy69ABd4hFYdsMU359.jpg
+│   │   │   ├── CggYHlXWwYCAWSf4AD7T3hxEde0314.jpg
+│   │   │   ├── CggYHlXWwYCAWSf4AD7T3hxEde0314_D_500_250.jpg
+│   │   │   ├── CghzfFWwxsuAHIL8ABLulITTChw397.jpg
+│   │   │   ├── carousel_promo_food_001.jpg
+│   │   │   ├── d846f0a902264018b0bbf57410e6127a_D_250_250_Q90.jpg
+│   │   │   ├── zg0516000000zifq4FC3C.jpg
+│   │   │   ├── zg0a15000000ypf1tBC70.jpg
+│   │   │   ├── zg0e15000000yqzweE43E.jpg
+│   │   │   ├── zg0r16000000yrvpo1109.jpg
+│   │   │   └── zg0r16000000zx6hb0CB8.jpg
+│   │   ├── user_avatar_default.png
+│   │   └── vip_badge.png
+│   ├── innerdata
+│   │   ├── city.json
+│   │   ├── home.json
+│   │   ├── sight0.json
+│   │   └── sight1.json
+│   ├── launch
+│   │   └── background.png
+│   └── placeholder_images_report.json
+└── assets/common/
+    ├── fonts
+    │   ├── .gitkeep
+    │   ├── Roboto-Black.ttf
+    │   ├── Roboto-Bold.ttf
+    │   ├── Roboto-Medium.ttf
+    │   ├── Roboto-Regular.ttf
+    │   └── SourceHanSansCNLight.otf
+    ├── icons
+    │   ├── .gitkeep
+    │   ├── apple.png
+    │   ├── art.png
+    │   ├── baby.png
+    │   ├── back.png
+    │   ├── calender.png
+    │   ├── camera_placeholder.png
+    │   ├── chinese.png
+    │   ├── city.png
+    │   ├── education.png
+    │   ├── empty_box.png
+    │   ├── empty_cart.png
+    │   ├── facebook.png
+    │   ├── filter_vertical.png
+    │   ├── forgotpassword.png
+    │   ├── forgotpw.jpg
+    │   ├── gender.png
+    │   ├── github.png
+    │   ├── gmail.png
+    │   ├── google.png
+    │   ├── guest.png
+    │   ├── health.png
+    │   ├── ic_launcher.backup.png
+    │   ├── ic_launcher.png
+    │   ├── ic_username.png
+    │   ├── init_trip.png
+    │   ├── inventor.png
+    │   ├── logo.backup.png
+    │   ├── logo.png
+    │   ├── maintenance.backup.png
+    │   ├── maintenance.png
+    │   ├── menu.png
+    │   ├── name.png
+    │   ├── no_data.png
+    │   ├── no_internet.png
+    │   ├── notification_icon.png
+    │   ├── onbording.jpg
+    │   ├── onbording1.jpg
+    │   ├── onbording1.png
+    │   ├── onbording2.png
+    │   ├── onbording3.png
+    │   ├── one_bg.backup.jpg
+    │   ├── one_bg.jpg
+    │   ├── password.png
+    │   ├── people.png
+    │   ├── people_logo.png
+    │   ├── phone.png
+    │   ├── placeholder.jpg
+    │   ├── placeholder.png
+    │   ├── profile_icon.png
+    │   ├── raw-logo.backup.png
+    │   ├── raw-logo.png
+    │   ├── registry_logo_1.backup.png
+    │   ├── registry_logo_1.png
+    │   ├── registry_logo_2.backup.png
+    │   ├── registry_logo_2.png
+    │   ├── social.png
+    │   ├── splash.png
+    │   ├── splash_logo.backup.png
+    │   ├── splash_logo.png
+    │   ├── twitter.png
+    │   ├── united_kingdom.png
+    │   ├── website.png
+    │   ├── wechat.png
+    │   ├── weclom.png
+    │   ├── weibo-circle-fill.png
+    │   ├── welcm.png
+    │   ├── welcom.backup.png
+    │   ├── welcom.png
+    │   ├── welcome.jpg
+    │   └── youtube.png
+    ├── images
+    │   ├── .gitkeep
+    │   ├── splash.png
+    │   └── user.png
+    └── launch
+        ├── .gitkeep
+        ├── dark_launch.backup.jpg
+        ├── dark_launch.jpg
+        ├── light_launch.backup.jpg
+        ├── light_launch.jpg
+        ├── splash_bg.png
+        ├── splash_logo.png
+        └── splash_logo_dark.png

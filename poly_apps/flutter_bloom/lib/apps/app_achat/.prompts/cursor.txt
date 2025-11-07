@@ -1,0 +1,132 @@
+现在我打开的文件，都是报错的，请对我打开的文件进行一个一个的测试
+同时你查看错误文件 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\errot.txt
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 查看所有构架
+如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+开发进度  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+同时了解基本规则:首页 实际上是连接到 我的好友,但如果没有登陆将跳转到登陆页,
+现在的任务:
+1: 修复所有打开文件中的错误,首先你要根据现有的构架,以及规范,使用同一个app的主题(未创建则他那),使用同一个数据共享中心(用户\地图\好友等),全局的api访问中心(使用common库 本子app使用的https://api.anwuyou.test/api/v1),当网络不可访问时使用一致性的fake数据(目前设计一个全局的变量表示网络不可访问,模拟本地测试)
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。同时,你要整体分析,构架的缺陷.合并冗余代码,
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md  
+
+
+根据我传给你的图,查看这个app的最低页
+同时根据页面资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\pageviews\screenshots_catalog.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+同时了解基本规则:首页 实际上是连接到 我的好友,但如果没有登陆将跳转到登陆页,
+现在的任务:
+1:分析已经完成的页和未完成的页，并进行评分，然后更新进度 文件。
+基本原则 ： 同时首页默认指向该我的好友,但是未登陆跳到登陆,首先你要根据现有的构架,以及规范,使用同一个app的主题(未创建则他那),使用同一个数据共享中心(用户\地图\好友等),全局的api访问中心(使用common库 本子app使用的https://api.anwuyou.test/api/v1),当网络不可访问时使用一致性的fake数据(目前设计一个全局的变量表示网络不可访问,模拟本地测试)
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+同时,你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+
+根据我传给你的图,现在我们每一页进行修复
+同时你查看错误文件 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\errot.txt
+同时根据页面资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\pageviews\screenshots_catalog.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+现在的任务:
+1:严格按图上的设置，布局登陆，当时当点击手机号码登陆注册时，会跳转到一个新的手机登陆面（也就是登陆页有两个）一个登陆引导而，一个新的登陆页
+2：目前设置一个全局变量，表示网络不可访问，并在api中切换到fake数据，在本例中，当输入任何一个手机号和密码时，都直接在api中因为变量直接生成fake数据。使用用户数据目录。
+基本原则 ： 同时首页默认指向该我的好友,但是未登陆跳到登陆,首先你要根据现有的构架,以及规范,使用同一个app的主题(未创建则他那),使用同一个数据共享中心(用户\地图\好友等),全局的api访问中心(使用common库 本子app使用的https://api.anwuyou.test/api/v1),当网络不可访问时使用一致性的fake数据(目前设计一个全局的变量表示网络不可访问,模拟本地测试)
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+同时,你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+
+同时根据页面资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\pageviews\screenshots_catalog.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+同时,你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+全面检查所有 页的路由系统
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+修正全部路由系统
+首先你要认真阅读一下 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md  中的关于路由部份 
+参考结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+现在多语言并没有起作用
+首先你要认真阅读一下 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md  中的关于多语言的部份 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+修正全部多语言为正确的使用方法 ，注意使用的是tr函数，比较复杂
+参考结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+同时你查看错误文件 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\errot.txt
+同时根据页面资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\pageviews\screenshots_catalog.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+同时,你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+根据我传给你的图,现在进行效果修复,显示你现在做的效果比较老旧且是默认效果,没有达到效果图上的设置效果,比如渐变色\圆色\色彩等,缺少了很多自定义设置.
+同时查看错误  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\errot.txt
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+现在的任务:
+1:严格按图上的设置，进行更多主题设置,同时,尽可能的使用common中的公共组件,以及你在子app中聚合更多的子app特有的组件
+2:尽量在个各页面各写各的,对于公共组件,首选你引用common中的,然后在 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\子appname\ 中创建个性的公共widgets,同时要使用公共的主题设置.
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+
+注意，你不能单独的修复或创建一个文件，同时要确保引用tr()多语言,而是整体分析然后做处调整甚至可以重构，确保数据模型,api等的数据一至性,自洽性.不要重复定义,以及清除冗余代码.
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 查看所有构架
+你需要优先引用首先你要使用common中的公共库,但是不要在common库中引入外部文件.
+
+
+根据我传给你的图,现在进行效果修复,显示你现在做的效果比较老旧且是默认效果,没有达到效果图上的设置效果,比如渐变色\圆色\色彩等,缺少了很多自定义设置.
+同时查看错误 D:\programing\core_node\poly_apps\flutter_bloom\assets\apps\app_wuy\app_wuy_tree.md
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+现在的任务:
+你要区分common共公的widgets区和子aqq的widgets区,比如本例为 lib\apps\app_wuy\widgets_app_wuy
+1:更新公共asset,加入背景1,背景2,
+2:创建公司的头部widgets,使用背景1作为背景,然后应用在profile中,
+3:使用公共数据,注意一定要登陆时的公共用户数据,在/#/wuy/profile 全页调整profile 使用公共widget,以及登陆时的用户数据,在此处按我传给你的图显示.同时,保留 底部菜单,编辑用户资料,退出登陆.
+4:保费底部菜单,但是无关的就可以移除掉,比如头部标题.保留一个back 的 < 图标即可,参考 pubspec yaml中的图标库.
+注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+注意，数据中的val不用需要调用tr(),比如聊天记录.
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+
+
+注意，数据中的val不用需要调用tr(),比如聊天记录  同时，回顾以下任务，可以再胡保一遍，当然如果无问题你直接报告即可、不用修改代码， ···D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\services_app_wuy   D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 你先要看其中有没有重复定义的瓿，保证数据一至性， ···现在，从登陆起，到设置 #/wuy/login-entry #/wuy/login-register  /#/wuy/profile /#/wuy/edit-profile 都共用一个数据对象，注意不要再在代码中硬编码数据，所有数据由统一提供方提供，你可能注意到了用户模型和存储是绑定的，同时也是和api绑定的，所以这个任务有点复杂。首先参考全部框架文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt ，1：确保数据源只有一个，不要重复定义，2：你应该整合，现在通过一个全局变量控制表示测试阶段，在访问api时不访问http，而直接使用fake数据，所以应该简化为统一的一个方法提供一个主用户数据对象，去掉重复定义，同时，fake数据中直接提供头像图片，手机号将根据登陆的初始化，登陆的是什么就是什么。3，该数据对象是与存放绑定的，所以即使登陆后退出，再使用同一账号登陆时，也会先读取缓存中的数据。除非清除APP的全部缓存，4，简化重复定义的代码，全面重构。 请
+
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  ，你至少要分析与之相关的至少20个文件再开始改动。这是一个很复杂的过程，请多设置一点步骤。······
+
+查看错误 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\error.txt
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  
+
+项目起点  D:\programing\core_node\poly_apps\flutter_bloom
+ 查看错误 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_achat\error.txt
+ 本项目有多个子APP
+先分析  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_achat\app_achat_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  
+如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 

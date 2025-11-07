@@ -15,9 +15,10 @@ use Illuminate\Support\Facades\Route;
 
 // AwyV0 User Management Routes
 Route::prefix('awy-v0/user')->middleware('auth:sanctum')->group(function () {
-    Route::get('/profile', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'getUser']);
-    Route::put('/profile', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'updateUser']);
+    Route::get('/profile', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'profile']);
+    Route::put('/profile', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'updateProfile']);
     Route::post('/change-password', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'changePassword']);
     Route::post('/bind-phone', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'bindPhone']);
     Route::post('/bind-email', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'bindEmail']);
+    Route::post('/avatar', [App\Apps\AwyV0\Controllers\AwyV0UserCtl::class, 'uploadAvatar']);
 });

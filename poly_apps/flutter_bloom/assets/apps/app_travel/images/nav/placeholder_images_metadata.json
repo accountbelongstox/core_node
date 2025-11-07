@@ -1,0 +1,41 @@
+{
+  "directory": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_travel/images/nav",
+  "generated_at": "2025-11-04T07:34:55.503339",
+  "total_images": 2,
+  "images": [
+    {
+      "filename": "grid-nav-items-minsu@v7.15.png",
+      "file_path": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_travel/images/nav/grid-nav-items-minsu@v7.15.png",
+      "width": 74,
+      "height": 40,
+      "placeholder_type": "unsplash_image",
+      "created_at": "2025-11-04T07:32:53.536883",
+      "file_size": 2063,
+      "source": "unsplash",
+      "description": "C:\\DCIM\\100GOPRO\\GOPR0360.GPR",
+      "photographer": "NIR HIMI",
+      "photographer_url": "https://unsplash.com/@nirhimi",
+      "unsplash_id": "-REaN1TMrUQ",
+      "unsplash_url": "https://unsplash.com/photos/divers-exploring-a-coral-reef-underwater--REaN1TMrUQ",
+      "color": "#262626",
+      "likes": 17
+    },
+    {
+      "filename": "grid-nav-items-minsu@v7.15.png",
+      "file_path": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_travel/images/nav/grid-nav-items-minsu@v7.15.png",
+      "width": 74,
+      "height": 40,
+      "placeholder_type": "unsplash_image",
+      "created_at": "2025-11-04T07:34:55.501080",
+      "file_size": 1463,
+      "source": "unsplash",
+      "description": "Aurora borealis over snow-capped mountains and starry sky",
+      "photographer": "Jonny Gios",
+      "photographer_url": "https://unsplash.com/@supergios",
+      "unsplash_id": "2vVhfhbj5-s",
+      "unsplash_url": "https://unsplash.com/photos/aurora-borealis-over-snow-capped-mountains-and-starry-sky-2vVhfhbj5-s",
+      "color": "#262640",
+      "likes": 129
+    }
+  ]
+}

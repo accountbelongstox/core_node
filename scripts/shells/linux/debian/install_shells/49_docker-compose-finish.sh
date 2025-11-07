@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -26,7 +26,7 @@ DOCKER_AFTER_DIR="$SERVER_DIR/docker_after"
 # Source global variables
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Check if Docker installation is enabled

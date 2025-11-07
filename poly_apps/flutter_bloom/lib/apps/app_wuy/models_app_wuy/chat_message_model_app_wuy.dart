@@ -28,6 +28,16 @@ enum MessageStatus {
   failed,
 }
 
+enum SystemMessageType {
+  battery,
+  appOpened,
+  screenshot,
+  locationChanged,
+  networkChanged,
+  deviceUnlock,
+  appUsage,
+}
+
 class ChatMessageModelAppWuy {
   final String id;
   final String chatId;
@@ -42,6 +52,8 @@ class ChatMessageModelAppWuy {
   final String? replyToId;
   final bool isEdited;
   final DateTime? editedAt;
+  final bool isSystemMessage;
+  final String? systemMessageType;
 
   const ChatMessageModelAppWuy({
     required this.id,
@@ -57,6 +69,8 @@ class ChatMessageModelAppWuy {
     this.replyToId,
     this.isEdited = false,
     this.editedAt,
+    this.isSystemMessage = false,
+    this.systemMessageType,
   });
 
   factory ChatMessageModelAppWuy.fromJson(Map<String, dynamic> json) {
@@ -81,11 +95,13 @@ class ChatMessageModelAppWuy {
       metadata: json['metadata'] as Map<String, dynamic>?,
       replyToId: json['reply_to_id'] as String? ?? json['replyToId'] as String?,
       isEdited: json['is_edited'] as bool? ?? json['isEdited'] as bool? ?? false,
-      editedAt: json['edited_at'] != null 
+      editedAt: json['edited_at'] != null
           ? DateTime.parse(json['edited_at'] as String)
-          : json['editedAt'] != null 
+          : json['editedAt'] != null
               ? DateTime.parse(json['editedAt'] as String)
               : null,
+      isSystemMessage: json['is_system_message'] as bool? ?? json['isSystemMessage'] as bool? ?? false,
+      systemMessageType: json['system_message_type'] as String? ?? json['systemMessageType'] as String?,
     );
   }
 
@@ -104,6 +120,8 @@ class ChatMessageModelAppWuy {
       'reply_to_id': replyToId,
       'is_edited': isEdited,
       'edited_at': editedAt?.toIso8601String(),
+      'is_system_message': isSystemMessage,
+      'system_message_type': systemMessageType,
     };
   }
 
@@ -121,6 +139,8 @@ class ChatMessageModelAppWuy {
     String? replyToId,
     bool? isEdited,
     DateTime? editedAt,
+    bool? isSystemMessage,
+    String? systemMessageType,
   }) {
     return ChatMessageModelAppWuy(
       id: id ?? this.id,
@@ -136,6 +156,8 @@ class ChatMessageModelAppWuy {
       replyToId: replyToId ?? this.replyToId,
       isEdited: isEdited ?? this.isEdited,
       editedAt: editedAt ?? this.editedAt,
+      isSystemMessage: isSystemMessage ?? this.isSystemMessage,
+      systemMessageType: systemMessageType ?? this.systemMessageType,
     );
   }
 

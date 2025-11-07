@@ -13,6 +13,8 @@
 /// WebSocket Type Definitions
 /// 
 /// Core types for WebSocket communication system
+library;
+
 
 /// WebSocket connection state
 enum WebSocketState {

@@ -25,6 +25,8 @@ $WIN_COMMON_DIR = Join-Path $SCRIPTS_ROOT "win_common"
 # Import required modules
 . (Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1")
 . (Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1")
+. (Join-Path $WIN_COMMON_DIR "BCommon.ps1")
+. (Join-Path $WIN_COMMON_DIR "SplashManager.ps1")
 
 # Change to project root directory
 Write-Host "[DEBUG] Script location: $SCRIPT_DIR" -ForegroundColor Magenta
@@ -40,10 +42,10 @@ function Load-AndroidDebugVariables {
     Write-Host "[INFO] Loading variables for Android debug..." -ForegroundColor Cyan
 
     # Load essential variables with sensible defaults
-    $selectedApp = Get-FileVariable -Name "SELECTED_APP" -DefaultValue "app_main"
-    $entryFile = Get-FileVariable -Name "SELECTED_ENTRY_FILE" -DefaultValue "lib/apps/$selectedApp/main_app_$($selectedApp.Replace('app_', '')).dart"
-    $appIndex = Get-FileVariable -Name "APP_INDEX" -DefaultValue "0"
-    $debugPort = Get-FileVariable -Name "DEBUG_PORT" -DefaultValue "10000"
+    $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue "app_main"
+    $entryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue "lib/apps/$selectedApp/main_app_$($selectedApp.Replace('app_', '')).dart"
+    $appIndex = Get-FileVariable -Name $Global:KEY_APP_INDEX -DefaultValue "0"
+    $debugPort = Get-FileVariable -Name $Global:KEY_DEBUG_PORT -DefaultValue "10000"
 
     # Display loaded configuration
     Write-Host "[INFO] Android Debug Configuration:" -ForegroundColor Green
@@ -107,6 +109,16 @@ function Start-AndroidDebug {
     $entryFile = $config.EntryFile
     $buildMode = "--debug"  # Hardcoded for debug
     $modeDescription = "Debug"
+
+    # Check pubspec status for information only
+    try {
+        $pubspecChanged = Test-PubspecChanged -ProjectRoot (Get-Location)
+        if (-not $pubspecChanged) {
+            Write-Host "[INFO] pubspec.yaml unchanged, using cached packages" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "[DEBUG] Could not check pubspec status: $_" -ForegroundColor Magenta
+    }
 
     if ($adbDevices.Count -gt 0) {
         Write-Host "[INFO] Launching on connected Android device..." -ForegroundColor Cyan

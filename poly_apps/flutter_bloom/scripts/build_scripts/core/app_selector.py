@@ -96,7 +96,7 @@ class FlutterAppSelector:
         while True:
             # Clear screen and show header
             os.system('cls' if os.name == 'nt' else 'clear')
-            PrintHelper.header("Flutter Bloom App Selection", "APP-SELECTOR")
+            PrintHelper.header("Flutter Bloom App Selection (By Python)", "APP-SELECTOR")
 
             print("\nAvailable Flutter Apps:")
             print("-" * 50)
@@ -262,14 +262,6 @@ class FlutterAppSelector:
         unified_vars.set_file_variable(unified_vars.KEY_APP_NAME, selection_data["app"])
         unified_vars.set_file_variable(unified_vars.KEY_BUILD_ACTION, selection_data["action"])
         unified_vars.set_file_variable(unified_vars.KEY_BUILD_PLATFORM, selection_data["platform"])
-
-        # Additional PowerShell compatibility variables (without KEY_ prefix)
-        unified_vars.set_file_variable("SELECTED_APP", selection_data["app"])
-        unified_vars.set_file_variable("SELECTED_ACTION", selection_data["action"])
-        unified_vars.set_file_variable("SELECTED_PLATFORM", selection_data["platform"])
-        unified_vars.set_file_variable("SELECTED_ENTRY_FILE", selection_data["entry_file"])
-        unified_vars.set_file_variable("APP_INDEX", selection_data["index"])
-        unified_vars.set_file_variable("DEBUG_PORT", selection_data["port"])
 
     def get_cached_selection(self) -> Optional[Dict[str, Any]]:
         """

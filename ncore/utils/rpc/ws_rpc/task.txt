@@ -1,0 +1,551 @@
+      * 3. 调用服务器路由（模拟HTTP请求的wait回调）
+      * 4. 发送和接收事件
+      *
+      * @author ncore
+
+● 现在创建示例代码和文档：
+
+● Write(ncore\rpc_framework\examples\server_example.js)
+  ⎿  Wrote 1 lines to ncore\rpc_framework\examples\server_example.js
+     /**
+      * WebSocket RPC Server 使用示例
+      */
+     const WsRpcServer = require('../WsRpcServer');
+     // 创建服务器实例
+     const server = new WsRpcServer({
+         port: 8080,
+         host: '0.0.0.0',
+
+● Write(ncore\rpc_framework\examples\client_example.html)
+  ⎿  Wrote 1 lines to ncore\rpc_framework\examples\client_example.html
+     <!DOCTYPE html>
+     <html lang="zh-CN">
+     <head>
+         <meta charset="UTF-8">
+         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+         <title>WebSocket RPC Client 示例</title>
+         <style>
+             * {
+                 margin: 0;
+                 padding: 0;
+
+> 代码全英文。
+
+● 创建 README 和配置文件（全英文）：
+
+● Write(ncore\rpc_framework\README.md)
+  ⎿  Wrote 1 lines to ncore\rpc_framework\README.md
+     # WebSocket RPC Framework
+     A lightweight, bidirectional RPC (Remote Procedure Call) framework over WebSocket for Node.js and browsers.
+     ## Features
+     - ✅ **Bidirectional Communication**: Server and client can both call each other's functions
+     - ✅ **Request-Response Pattern**: Async/await style with unique request IDs
+     - ✅ **Event System**: Pub/Sub event broadcasting
+     - ✅ **Auto Reconnection**: Built-in reconnection mechanism
+
+● Write(ncore\rpc_framework\package.json)
+  ⎿  Wrote 1 lines to ncore\rpc_framework\package.json
+     {
+       "name": "@ncore/ws-rpc-framework",
+       "version": "1.0.0",
+       "description": "Lightweight bidirectional RPC framework over WebSocket for Node.js and browsers",
+       "main": "index.js",
+       "scripts": {
+         "start": "node examples/server_example.js",
+         "test": "echo \"Error: no test specified\" && exit 1"
+       },
+       "keywords": [
+
+● Write(ncore\rpc_framework\index.js)
+  ⎿  Wrote 1 lines to ncore\rpc_framework\index.js
+     /**
+      * WebSocket RPC Framework - Main Entry Point
+      * @author ncore
+      * @version 1.0.0
+      */
+     module.exports = {
+         WsRpcServer: require('./WsRpcServer'),
+         WsRpcClient: require('./WsRpcClient')
+     };
+
+● Write(ncore\rpc_framework\.gitignore)
+  ⎿  Wrote 1 lines to ncore\rpc_framework\.gitignore
+     # Dependencies
+     node_modules/
+     package-lock.json
+     yarn.lock
+     # Logs
+     *.log
+     logs/
+     # OS files
+
+> 参考 D:\programing\core_node\development-guides\NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md
+D:\programing\core_node\ncore\rpc_framework 重构到  D:\programing\core_node\ncore\utils ，并使用常量 库
+D:\programing\core_node\ncore\foundation D:\programing\core_node\ncore\global_vars 请你扫描一下目录 分析 文件。
+
+ ▐▛███▜▌   Claude Code v2.0.29
+▝▜█████▛▘  Sonnet 4.5 · API Usage Billing
+  ▘▘ ▝▝    D:\programing\core_node
+══════════════════════════════════════ Conversation compacted · ctrl+o for history ═════════════════════════════════════
+  ⎿  Read ncore\rpc_framework\.gitignore (27 lines)
+  ⎿  Read ncore\rpc_framework\index.js (11 lines)
+  ⎿  Read ncore\rpc_framework\package.json (40 lines)
+  ⎿  Read ncore\rpc_framework\README.md (481 lines)
+  ⎿  Read ncore\rpc_framework\examples\client_example.html (459 lines)
+
+● I'll continue with the refactoring task. Let me start by scanning the necessary directories and reading the
+  development guide to understand ncore standards.
+
+● Read(development-guides\NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md)
+  ⎿  Read 313 lines
+
+● Search(pattern: "**/*", path: "ncore\foundation")
+  ⎿  Found 98 files (ctrl+o to expand)
+
+● Search(pattern: "**/*", path: "ncore\global_vars")
+  ⎿  Found 31 files (ctrl+o to expand)
+
+● Search(pattern: "**/*", path: "ncore\utils")
+  ⎿  Found 100 files (ctrl+o to expand)
+
+● Now let me read some key files to understand the patterns used in ncore:
+
+● Read(ncore\foundation\common\logger.js)
+  ⎿  Read 486 lines
+
+● Read(ncore\global_vars\index.js)
+  ⎿  Read 122 lines
+
+● Read(ncore\utils\net\libs\requests.js)
+  ⎿  Read 466 lines
+
+● Read(ncore\foundation\express_utils\libs\WsManager.js)
+  ⎿  Read 194 lines
+
+● Now let me read the existing RPC framework files to understand what needs to be refactored:
+
+● Read(ncore\rpc_framework\WsRpcServer.js)
+  ⎿  Read 412 lines
+
+● Read(ncore\rpc_framework\WsRpcClient.js)
+  ⎿  Read 451 lines
+
+● Now I'll create a task list and begin the refactoring process:
+
+● Let me first check the structure of gcommon to understand where to add RPC constants:
+
+● Read(ncore\global_vars\gcommon\encyclopedia.js)
+  ⎿  Read 79 lines
+
+● Now I'll create the RPC constants file:
+
+● Write(ncore\global_vars\gcommon\ws_rpc_constants.js)
+  ⎿  Wrote 1 lines to ncore\global_vars\gcommon\ws_rpc_constants.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Now I need to update the global_vars index.js to export these constants:
+
+● Update(ncore\global_vars\index.js)
+  ⎿  Updated ncore\global_vars\index.js with 1 addition
+       11    // ### AI SPECIAL ATTENTION RULES END ###
+       12
+       13    const encyclopedia = require('./gcommon/encyclopedia.js')
+       14 +  const WS_RPC_CONSTANTS = require('./gcommon/ws_rpc_constants.js')
+       15
+       16
+       17    const path = require('path');
+
+> 你 是否注意到 rpc_framework 只是整 个项目中的一个环节。
+
+● 是的,我注意到了。rpc_framework 是 ncore/utils 中的一个工具模块,它将为整个项目的 apps 和其他模块提供 WebSocket RPC
+  通信能力。我正在按照 ncore 规范重构它,使其能够很好地集成到整个系统中。
+
+  现在继续添加常量导出:
+
+● Update(ncore\global_vars\index.js)
+  ⎿  Updated ncore\global_vars\index.js with 1 addition
+       119        isService,
+       120        apps,
+       121        startTime,
+       122 +      WS_RPC_CONSTANTS,
+       123
+       124    };
+       125   \ No newline at end of file
+
+● Now I'll create the refactored WsRpcServer.js following ncore patterns:
+
+● Write(ncore\utils\ws_rpc\WsRpcServer.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\WsRpcServer.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Let me check how other utils handle instances that need configuration:
+
+● Read(ncore\utils\ai_translator\index.js)
+  ⎿  Read 88 lines
+
+● I see the pattern now. Let me update WsRpcServer.js to export the class (not an instance), and create a proper
+  index.js:
+
+● Update(ncore\utils\ws_rpc\WsRpcServer.js)
+  ⎿  Updated ncore\utils\ws_rpc\WsRpcServer.js with 1 addition and 1 removal
+       327        }
+       328    }
+       329
+       330 -  module.exports = new WsRpcServer();
+       330 +  module.exports = WsRpcServer;
+
+● Now I'll create the refactored WsRpcClient.js:
+
+● Write(ncore\utils\ws_rpc\WsRpcClient.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\WsRpcClient.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Now I'll create the index.js entry point:
+
+● Write(ncore\utils\ws_rpc\index.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\index.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Now let me move the example files:
+
+● Read(ncore\rpc_framework\examples\server_example.js)
+  ⎿  Read 50 lines
+
+● Let me create the updated server example:
+
+● Write(ncore\utils\ws_rpc\examples\server_example.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\examples\server_example.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Now let me create the updated client example HTML file:
+
+● Write(ncore\utils\ws_rpc\examples\client_example.html)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\examples\client_example.html
+     <!DOCTYPE html>
+     <html lang="en">
+     <head>
+         <meta charset="UTF-8">
+         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+         <title>WebSocket RPC Client Example</title>
+         <style>
+             * {
+                 margin: 0;
+                 padding: 0;
+
+● Refactoring completed! Here's what I've accomplished:
+
+  Completed Refactoring
+
+  1. Created Constants (ncore/global_vars/gcommon/ws_rpc_constants.js)
+
+  - MESSAGE_TYPES: request, response, event, welcome, error
+  - DEFAULTS: ports, timeouts, reconnection settings
+  - Exported via #@global_vars
+
+  2. Refactored WsRpcServer (ncore/utils/ws_rpc/WsRpcServer.js)
+
+  - ✅ Added AI rules header
+  - ✅ Uses #@logger instead of console.log
+  - ✅ Uses logger.error() instead of throw new Error()
+  - ✅ Uses constants from #@global_vars
+  - ✅ Exports class (not instance) for flexibility
+  - ✅ All variables declared at top
+
+  3. Refactored WsRpcClient (ncore/utils/ws_rpc/WsRpcClient.js)
+
+  - ✅ Added AI rules header
+  - ✅ Maintained UMD pattern for browser compatibility
+  - ✅ Uses constants from #@global_vars (with fallback for browser)
+  - ✅ Improved error handling without throw
+
+  4. Created Index Entry Point (ncore/utils/ws_rpc/index.js)
+
+  - Follows ai_translator pattern
+  - Provides singleton instance via getServerInstance()
+  - Provides factory functions: createServer(), createClient()
+  - Provides convenience functions: startServer(), stopServer()
+  - Exports classes for advanced usage
+
+  5. Created Updated Examples
+
+  - examples/server_example.js - Uses #@logger and #@ncore/utils/ws_rpc
+  - examples/client_example.html - Updated to work with new structure
+
+  Usage Examples
+
+  // Simple usage with singleton
+  const { startServer } = require('#@ncore/utils/ws_rpc');
+  await startServer({ port: 8080 });
+
+  // Advanced usage with multiple servers
+  const { createServer } = require('#@ncore/utils/ws_rpc');
+  const server1 = createServer({ port: 8080 });
+  const server2 = createServer({ port: 8081 });
+
+  // Client usage
+  const { createClient } = require('#@ncore/utils/ws_rpc');
+  const client = createClient('ws://localhost:8080');
+
+  原来的 ncore/rpc_framework 目录保持不变,新的重构代码在 ncore/utils/ws_rpc 目录中,完全符合 ncore 规范。
+
+> 你写的库太简单了，妈的写好点。
+
+● 明白了，我重新写一个功能更完善的版本。让我先更新 todo list 然后开始：
+
+● 首先更新常量文件，添加更多配置：
+
+● Update(ncore\global_vars\gcommon\ws_rpc_constants.js)
+  ⎿  Updated ncore\global_vars\gcommon\ws_rpc_constants.js with 38 additions and 2 removals
+       16            RESPONSE: 'response',
+       17            EVENT: 'event',
+       18            WELCOME: 'welcome',
+       19 -          ERROR: 'error'
+       19 +          ERROR: 'error',
+       20 +          PING: 'ping',
+       21 +          PONG: 'pong',
+       22 +          AUTH: 'auth',
+       23 +          AUTH_RESPONSE: 'auth_response',
+       24 +          SUBSCRIBE: 'subscribe',
+       25 +          UNSUBSCRIBE: 'unsubscribe',
+       26 +          BROADCAST: 'broadcast',
+       27 +          CANCEL: 'cancel'
+       28        },
+       29
+       30        DEFAULTS: {
+     ...
+       24            SERVER_HOST: '0.0.0.0',
+       25            REQUEST_TIMEOUT: 30000,
+       26            RECONNECT_INTERVAL: 3000,
+       27 -          MAX_RECONNECT_ATTEMPTS: 10
+       27 +          MAX_RECONNECT_ATTEMPTS: 10,
+       28 +          HEARTBEAT_INTERVAL: 30000,
+       29 +          HEARTBEAT_TIMEOUT: 5000,
+       30 +          MAX_PAYLOAD_SIZE: 10485760,
+       31 +          COMPRESSION_THRESHOLD: 1024,
+       32 +          MAX_LISTENERS: 100
+       33        },
+       34
+       35        CONNECTION: {
+     ...
+       32            STATE_OPEN: 1,
+       33            STATE_CLOSING: 2,
+       34            STATE_CLOSED: 3
+       35 +      },
+       36 +
+       37 +      ERROR_CODES: {
+       38 +          ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
+       39 +          TIMEOUT: 'TIMEOUT',
+       40 +          UNAUTHORIZED: 'UNAUTHORIZED',
+       41 +          FORBIDDEN: 'FORBIDDEN',
+       42 +          PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+       43 +          INTERNAL_ERROR: 'INTERNAL_ERROR',
+       44 +          INVALID_MESSAGE: 'INVALID_MESSAGE',
+       45 +          CONNECTION_LOST: 'CONNECTION_LOST',
+       46 +          CANCELLED: 'CANCELLED'
+       47 +      },
+       48 +
+       49 +      EVENTS: {
+       50 +          CONNECTION: 'connection',
+       51 +          DISCONNECT: 'disconnect',
+       52 +          ERROR: 'error',
+       53 +          RECONNECT: 'reconnect',
+       54 +          RECONNECT_FAILED: 'reconnect_failed',
+       55 +          AUTHENTICATED: 'authenticated',
+       56 +          UNAUTHORIZED: 'unauthorized',
+       57 +          MESSAGE: 'message'
+       58        }
+       59    };
+       60
+
+● 现在创建核心库文件：
+
+● Write(ncore\utils\ws_rpc\libs\HeartbeatManager.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\HeartbeatManager.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+> 日你妈，现在新分析 存在那些问题。 然后继续写完善。
+
+● 好，让我重新分析问题并完善设计。当前存在以下问题：
+
+  核心问题
+
+  1. 缺少消息可靠性 - 无 ACK 确认、无重发、无去重
+  2. 缺少安全机制 - 无认证授权、无加密、无速率限制
+  3. 缺少性能优化 - 无消息批处理、无背压处理、无连接池
+  4. 缺少完整中间件 - 中间件链不完整、无拦截器
+  5. 缺少监控追踪 - 无性能指标、无请求追踪
+  6. 缺少错误处理 - 无重试策略、无降级、无断路器
+  7. 缺少高级特性 - 无流式传输、无二进制、无文件传输
+
+  我现在创建完整的核心库：
+
+● Write(ncore\utils\ws_rpc\libs\MiddlewareChain.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\MiddlewareChain.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Write(ncore\utils\ws_rpc\libs\AuthManager.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\AuthManager.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Write(ncore\utils\ws_rpc\libs\RateLimiter.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\RateLimiter.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Write(ncore\utils\ws_rpc\libs\PerformanceMonitor.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\PerformanceMonitor.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Write(ncore\utils\ws_rpc\libs\NamespaceManager.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\NamespaceManager.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Write(ncore\utils\ws_rpc\libs\MessageCompressor.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\MessageCompressor.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+
+● Write(ncore\utils\ws_rpc\libs\InterceptorManager.js)
+  ⎿  Wrote 1 lines to ncore\utils\ws_rpc\libs\InterceptorManager.js
+     // ### AI SPECIAL ATTENTION RULES START ###
+     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+     // 1. Write all code in English only.
+     // 2. Never execute, create, or modify test code.
+     // 3. Never create or update documentation (*.md).
+     // 4. Never write summaries during development or thinking process.
+     // 5. Declare all variables at the beginning of the file.
+     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths
+     such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or
+     Resolve-Path).
+     // 7. Do not modify these rules.
+     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED

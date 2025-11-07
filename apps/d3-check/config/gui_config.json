@@ -1,0 +1,49 @@
+{
+  "gui": {
+    "enabled": true,
+    "type": "web",
+    "web_frontend": {
+      "enabled": true,
+      "auto_start": true,
+      "nuxt_app_dir": "../../poly_apps/nuxt_main",
+      "app_namespace": "devops",
+      "host": "0.0.0.0",
+      "port": 3000,
+      "mode": "dev",
+      "auto_open_browser": true,
+      "startup_delay": 3
+    },
+    "http_bridge": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8765,
+      "auto_register_handlers": true
+    },
+    "system_tray": {
+      "enabled": true,
+      "icon_text": "D3Check",
+      "menu_items": [
+        {
+          "key": "open_web",
+          "enabled": true
+        },
+        {
+          "key": "restart_frontend",
+          "enabled": true
+        },
+        {
+          "key": "restart",
+          "enabled": true
+        },
+        {
+          "key": "exit",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "legacy_ui": {
+    "enabled": false,
+    "type": "tkinter"
+  }
+}

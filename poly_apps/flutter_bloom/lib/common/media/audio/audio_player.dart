@@ -45,7 +45,7 @@ class AudioPlayer implements AudioPlayerInterface {
 
   AudioPlayerState _currentState = AudioPlayerState.idle;
   Duration _currentPosition = Duration.zero;
-  Duration _currentDuration = Duration.zero;
+  final Duration _currentDuration = Duration.zero;
   double _currentVolume = 1.0;
   String? _currentUrl;
 

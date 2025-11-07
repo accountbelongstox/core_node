@@ -158,12 +158,14 @@ Usage: node ${path.basename(process.argv[1])} <command> [package]
 Commands:
   list                     List all globally installed packages
   check <package>          Check if a package is installed
+  check <json_mapping>     Check multiple packages using JSON mapping
   install <package>        Install a package if not already installed
   ensure <package>         Same as install
 
 Examples:
   node check_global_packages.js list
   node check_global_packages.js check typescript
+  node check_global_packages.js check '{"typescript":"typescript","pm2":"pm2"}'
   node check_global_packages.js install pm2
         `);
         process.exit(1);
@@ -179,9 +181,31 @@ Examples:
                 console.error('Please specify a package name to check');
                 process.exit(1);
             }
-            const isInstalled = isPackageInstalled(packageName);
-            console.log(`Package ${packageName} is ${isInstalled ? 'installed' : 'not installed'}`);
-            process.exit(isInstalled ? 0 : 1);
+            
+            // Check if packageName is a JSON string (package mapping)
+            try {
+                const packageMapping = JSON.parse(packageName);
+                const missingPackages = [];
+                
+                for (const [installName, importName] of Object.entries(packageMapping)) {
+                    try {
+                        // Try to require the package to check if it's available
+                        require(importName);
+                    } catch (error) {
+                        // Package is not available, add to missing list
+                        missingPackages.push(installName);
+                    }
+                }
+                
+                // Output missing packages as JSON array
+                console.log(JSON.stringify(missingPackages));
+                process.exit(missingPackages.length > 0 ? 1 : 0);
+            } catch (jsonError) {
+                // Fallback to single package check
+                const isInstalled = isPackageInstalled(packageName);
+                console.log(`Package ${packageName} is ${isInstalled ? 'installed' : 'not installed'}`);
+                process.exit(isInstalled ? 0 : 1);
+            }
             break;
 
         case 'install':

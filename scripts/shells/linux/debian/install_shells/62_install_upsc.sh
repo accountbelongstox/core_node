@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -16,13 +16,12 @@ source "$COMMON_DIR/common_functions.sh"
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # WARNING: INSTALL_UPSC is hardcoded to false - UPS Control installation is disabled
@@ -62,16 +61,18 @@ uninstall_upsc() {
 
     # Check for and uninstall apache2
     if dpkg -l | grep -q "apache2"; then
-        echo "Uninstalling apache2 as it is a dependency..."
+        echo "Uninstalling apache2..."
         if systemctl list-units --type=service --all | grep -q "apache2.service"; then
             $USE_SUDO systemctl stop apache2.service
             $USE_SUDO systemctl disable apache2.service
+            $USE_SUDO systemctl mask apache2.service
         else
             echo -e "\033[1;33mWarning: Service apache2.service not found, skipping stop/disable.\033[0m"
         fi
-        $USE_SUDO apt-get purge -y apache2
+        $USE_SUDO apt-get purge -y apache2* 2>/dev/null || true
+        $USE_SUDO apt-get autoremove -y 2>/dev/null || true
     fi
-    
+
     echo "UPSC uninstallation complete."
 }
 

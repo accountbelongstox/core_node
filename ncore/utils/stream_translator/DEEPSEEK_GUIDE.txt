@@ -1,0 +1,348 @@
+DeepSeek-VL 1.3B Local Model Translation Guide
+==============================================
+
+OVERVIEW
+--------
+This guide explains how to use DeepSeek-VL 1.3B model as a LOCAL translation
+provider instead of cloud-based Azure Translator API.
+
+ADVANTAGES:
+✓ Free (no API costs)
+✓ Privacy (data stays local)
+✓ No rate limits
+✓ Works offline
+✓ Customizable
+
+REQUIREMENTS:
+- Git (for cloning repository)
+- Python 3.8+ with pip
+- PyTorch with CUDA support (recommended for GPU)
+- At least 4GB RAM (8GB+ recommended)
+- 5GB+ disk space for model
+
+AUTOMATIC INITIALIZATION
+------------------------
+
+Step 1: Run the initialization script
+--------------------------------------
+cd D:\programing\core_node\ncore\utils\stream_translator
+node init_deepseek.js
+
+Or use npm:
+npm run init:deepseek
+
+What it does:
+1. Detects your platform (Windows/WSL/Linux)
+2. Determines the correct base directory:
+   - Windows: D:\programing
+   - WSL: /mnt/d/programing
+   - Linux Desktop: /mnt/dev_*/programing (auto-detects)
+3. Checks if DeepSeek-VL already exists
+4. If not found:
+   - Clones repository from GitHub
+   - Installs Python dependencies
+   - Verifies installation
+5. Reports success or failure with clear messages
+
+Step 2: Verify installation
+----------------------------
+After initialization completes successfully, the script will show:
+
+SUCCESS! DeepSeek-VL model initialized successfully!
+
+Model location: D:\programing\DeepSeek-VL (or equivalent path)
+
+USAGE
+-----
+
+Method 1: Environment Variables
+--------------------------------
+Windows PowerShell:
+  $env:TRANSLATOR_PROVIDER="deepseek"
+  $env:DEEPSEEK_MODEL_DIR="D:\programing\DeepSeek-VL"
+  node test_deepseek.js
+
+Linux/WSL:
+  export TRANSLATOR_PROVIDER="deepseek"
+  export DEEPSEEK_MODEL_DIR="/mnt/d/programing/DeepSeek-VL"
+  node test_deepseek.js
+
+Method 2: Programmatic Configuration
+-------------------------------------
+const translator = require('./index.js');
+
+// Set provider to DeepSeek
+translator.setTranslationProvider('deepseek', {
+    modelPath: 'deepseek-ai/deepseek-vl-1.3b-chat',
+    modelDir: 'D:\\programing\\DeepSeek-VL'
+});
+
+// Use normally
+const sessionId = 'my-session';
+translator.appendData(sessionId, 'Hello world\n');
+translator.appendData(sessionId, 'How are you?\n');
+translator.flushSession(sessionId);
+
+setTimeout(() => {
+    const result = translator.getFullText(sessionId);
+    console.log(result);
+}, 5000);
+
+Method 3: Config File
+---------------------
+Create config.json in plugin directory:
+
+{
+    "defaultProvider": "deepseek",
+    "deepseek": {
+        "enabled": true,
+        "modelPath": "deepseek-ai/deepseek-vl-1.3b-chat",
+        "modelDir": "D:\\programing\\DeepSeek-VL",
+        "pythonCommand": "python",
+        "timeout": 30000
+    }
+}
+
+PLATFORM-SPECIFIC PATHS
+------------------------
+
+Windows:
+  Base: D:\programing
+  Model: D:\programing\DeepSeek-VL
+  Python: python or py
+
+WSL (Windows Subsystem for Linux):
+  Base: /mnt/d/programing
+  Model: /mnt/d/programing/DeepSeek-VL
+  Python: python3
+
+Linux Desktop:
+  Base: /mnt/dev_sda/programing (or similar, auto-detected)
+  Model: /mnt/dev_sda/programing/DeepSeek-VL
+  Python: python3
+
+The init script automatically detects and uses the correct paths!
+
+COMMAND EXECUTOR FEATURES
+--------------------------
+
+The plugin includes a sophisticated CommandExecutor class that:
+
+1. Real-time Output:
+   - Streams command output as it happens
+   - No waiting for command completion
+   - See progress immediately
+
+2. Result Verification:
+   - Doesn't trust exit codes
+   - Verifies actual results
+   - git clone: checks for .git directory and files
+   - pip install: verifies package in pip list
+
+3. Cross-platform:
+   - Works on Windows, WSL, Linux
+   - Handles path differences automatically
+   - Uses correct shell commands
+
+Example:
+const CommandExecutor = require('./libs/CommandExecutor.js');
+const executor = new CommandExecutor();
+
+// Clone with real-time output and verification
+const result = await executor.gitClone(
+    'https://github.com/deepseek-ai/DeepSeek-VL.git',
+    'D:\\programing\\DeepSeek-VL'
+);
+
+console.log('Clone success:', result.success);
+console.log('Verification passed:', result.verified);
+
+MULTI-THREADING
+---------------
+
+DeepSeek runs in a SEPARATE Python process, not blocking the main thread:
+
+1. Main thread: Your Node.js application
+2. Separate process: Python running DeepSeek model
+3. Communication: JSON over stdin/stdout
+
+This means:
+✓ Translation doesn't block your app
+✓ Model can be reused across translations
+✓ Automatic queue management
+✓ Graceful shutdown handling
+
+The model process starts automatically on first translation and stays running
+until you stop it or exit your application.
+
+TESTING
+-------
+
+Test 1: Basic functionality (no model needed)
+  node test_without_api.js
+
+Test 2: Initialize model
+  node init_deepseek.js
+
+Test 3: Test DeepSeek translation
+  node test_deepseek.js
+
+Test 4: Test trigger words with DeepSeek
+  $env:TRANSLATOR_PROVIDER="deepseek"
+  node test_trigger_words.js
+
+TROUBLESHOOTING
+---------------
+
+Issue: "Git not found"
+Solution:
+  Install Git from: https://git-scm.com/
+  Verify: git --version
+
+Issue: "Python not found"
+Solution:
+  Install Python 3.8+ from: https://python.org/
+  Verify: python --version
+
+Issue: "Model clone failed"
+Solution:
+  1. Check internet connection
+  2. Try manual clone:
+     git clone https://github.com/deepseek-ai/DeepSeek-VL.git D:\programing\DeepSeek-VL
+
+Issue: "Dependency installation failed"
+Solution:
+  1. Navigate to model directory
+  2. Run manually:
+     cd D:\programing\DeepSeek-VL
+     pip install -r requirements.txt
+
+Issue: "Model not loading"
+Solution:
+  1. Check Python version: python --version (need 3.8+)
+  2. Check PyTorch: python -c "import torch; print(torch.__version__)"
+  3. Check CUDA (if GPU): python -c "import torch; print(torch.cuda.is_available())"
+
+Issue: "Translation timeout"
+Solution:
+  1. First translation is slow (model loading)
+  2. Increase timeout in config:
+     deepseek.timeout = 60000 (60 seconds)
+  3. Use GPU if available (10x faster)
+
+Issue: "Out of memory"
+Solution:
+  1. Close other applications
+  2. Use 1.3B model (not 7B)
+  3. Reduce batch size
+  4. Add swap space on Linux
+
+PERFORMANCE
+-----------
+
+First Translation:
+  CPU: 30-60 seconds (model loading)
+  GPU: 10-20 seconds (model loading)
+
+Subsequent Translations:
+  CPU: 5-10 seconds per sentence
+  GPU: 1-2 seconds per sentence
+
+Memory Usage:
+  1.3B model: ~3-4GB RAM
+  7B model: ~14GB RAM (not recommended without GPU)
+
+Optimization Tips:
+1. Use GPU if available (install torch with CUDA)
+2. Keep the process running (reuse loaded model)
+3. Enable translation cache
+4. Use trigger words to reduce unnecessary translations
+
+COMPARISON WITH AZURE
+---------------------
+
+Azure Translator:
+  ✓ Fast (API call ~200ms)
+  ✓ High quality
+  ✓ Many languages supported
+  ✗ Costs money ($10 per million characters)
+  ✗ Requires internet
+  ✗ Privacy concerns
+
+DeepSeek Local:
+  ✓ Free
+  ✓ Private (data stays local)
+  ✓ No rate limits
+  ✓ Works offline
+  ✗ Slower (especially CPU)
+  ✗ Requires setup
+  ✗ Uses local resources
+
+RECOMMENDATION:
+- Development/Testing: Use DeepSeek (free)
+- Production/High-volume: Use Azure (faster)
+- Privacy-sensitive: Use DeepSeek (local)
+- Low-resource environment: Use Azure (cloud)
+
+ADVANCED CONFIGURATION
+----------------------
+
+config.json:
+{
+    "defaultProvider": "deepseek",
+    "deepseek": {
+        "enabled": true,
+        "modelPath": "deepseek-ai/deepseek-vl-1.3b-chat",
+        "modelDir": "/path/to/DeepSeek-VL",
+        "pythonCommand": "python3",
+        "timeout": 30000,
+        "autoInit": true
+    },
+    "triggerWords": ["翻译", "请翻译"],
+    "enableTriggerWords": true,
+    "enableCache": true
+}
+
+Environment Variables:
+  TRANSLATOR_PROVIDER=deepseek
+  DEEPSEEK_MODEL_DIR=/path/to/model
+  DEEPSEEK_MODEL_PATH=deepseek-ai/deepseek-vl-1.3b-chat
+  PYTHON_COMMAND=python3
+  DEEPSEEK_ENABLED=true
+
+API Status Check:
+  const status = translator.getDeepSeekStatus();
+  console.log('Ready:', status.isReady);
+  console.log('Has process:', status.hasProcess);
+  console.log('Queue length:', status.queueLength);
+
+NEXT STEPS
+----------
+
+1. Initialize model:
+   npm run init:deepseek
+
+2. Test it:
+   npm run test:deepseek
+
+3. Use in your application:
+   translator.setTranslationProvider('deepseek');
+
+4. Combine with trigger words:
+   translator.setTriggerWords(id, ['翻译']);
+
+5. Monitor status:
+   translator.getDeepSeekStatus();
+
+RESOURCES
+---------
+DeepSeek-VL GitHub: https://github.com/deepseek-ai/DeepSeek-VL
+Hugging Face: https://huggingface.co/deepseek-ai
+Documentation: See README in DeepSeek-VL directory
+
+SUPPORT
+-------
+For issues with:
+- Initialization: Check init_deepseek.js output
+- Translation: Check test_deepseek.js output
+- Configuration: Run npm run config:summary

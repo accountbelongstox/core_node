@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 import '../../../common/network/network_framework.dart';
-import '../../../common/network/models/api_config.dart';
 
 /// Authenticated API service for app_example
 /// Provides standardized API methods with authentication verification

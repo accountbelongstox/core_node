@@ -11,11 +11,43 @@ from tkinter import ttk
 from typing import Any, Callable, Optional, Union, Dict, List
 from providor.providor_index import CONFIG, save_config
 from providor.common_imports import ColorPrint
+from d3utils.i18n_manager import i18n_manager
 
 
 class ConfigBinding:
     """CONFIG数据绑定工具类"""
-    
+
+    # Registry to track all bindings: {key_path: [var1, var2, ...]}
+    _bindings: Dict[str, List[tk.Variable]] = {}
+
+    # Flag to prevent recursive updates
+    _updating: bool = False
+
+    @staticmethod
+    def _register_binding(key_path: str, var: tk.Variable):
+        """Register a variable binding for a config key"""
+        if key_path not in ConfigBinding._bindings:
+            ConfigBinding._bindings[key_path] = []
+        ConfigBinding._bindings[key_path].append(var)
+        ColorPrint.debug(f"[ConfigBinding] Registered binding for '{key_path}'")
+
+    @staticmethod
+    def _update_bindings(key_path: str, new_value: Any):
+        """Update all registered bindings for a config key"""
+        if ConfigBinding._updating:
+            return
+
+        ConfigBinding._updating = True
+        try:
+            if key_path in ConfigBinding._bindings:
+                for var in ConfigBinding._bindings[key_path]:
+                    current_value = var.get()
+                    if str(current_value) != str(new_value):
+                        var.set(str(new_value))
+                        ColorPrint.debug(f"[ConfigBinding] Updated UI binding for '{key_path}' to '{new_value}'")
+        finally:
+            ConfigBinding._updating = False
+
     @staticmethod
     def get_config_value(key_path: str, default_value: Any = None) -> Any:
         """
@@ -73,14 +105,13 @@ class ConfigBinding:
 
             ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
 
+            # Update all UI bindings for this key
+            ConfigBinding._update_bindings(key_path, value)
+
             # 特殊处理：语言切换
             if key_path == "ui_settings.current_language":
-                try:
-                    from d3utils.i18n_manager import i18n_manager
-                    i18n_manager.set_language(value)
-                    ColorPrint.blue(f"[ConfigBinding] Triggered language change to: {value}")
-                except Exception as e:
-                    ColorPrint.red(f"[ConfigBinding] Error triggering language change: {e}")
+                i18n_manager.set_language(value)
+                ColorPrint.blue(f"[ConfigBinding] Triggered language change to: {value}")
 
             return True
             
@@ -106,19 +137,22 @@ class ConfigBinding:
         """
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-        
+
         # 创建变量
-        var = tk.StringVar(value=str(current_value))
-        
+        var = tk.StringVar(master=parent, value=str(current_value))
+
+        # Register binding for two-way sync
+        ConfigBinding._register_binding(key_path, var)
+
         # 创建输入框
         entry = tk.Entry(parent, textvariable=var, width=width, **kwargs)
-        
-        # 绑定变化事件
+
+        # 绑定变化事件 (UI -> CONFIG)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
-        
+
         var.trace_add('write', on_change)
-        
+
         return entry
     
     @staticmethod
@@ -139,19 +173,22 @@ class ConfigBinding:
         """
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-        
+
         # 创建变量
-        var = tk.BooleanVar(value=bool(current_value))
-        
+        var = tk.BooleanVar(master=parent, value=bool(current_value))
+
+        # Register binding for two-way sync
+        ConfigBinding._register_binding(key_path, var)
+
         # 创建复选框
         checkbox = tk.Checkbutton(parent, text=text, variable=var, **kwargs)
-        
-        # 绑定变化事件
+
+        # 绑定变化事件 (UI -> CONFIG)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
-        
+
         var.trace_add('write', on_change)
-        
+
         return checkbox
     
     @staticmethod
@@ -173,20 +210,23 @@ class ConfigBinding:
         """
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-        
+
         # 创建变量
-        var = tk.StringVar(value=str(current_value))
-        
+        var = tk.StringVar(master=parent, value=str(current_value))
+
+        # Register binding for two-way sync
+        ConfigBinding._register_binding(key_path, var)
+
         # 创建下拉框
-        combobox = ttk.Combobox(parent, textvariable=var, values=values, 
+        combobox = ttk.Combobox(parent, textvariable=var, values=values,
                                width=width, state='readonly', **kwargs)
-        
-        # 绑定变化事件
+
+        # 绑定变化事件 (UI -> CONFIG)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
-        
+
         var.trace_add('write', on_change)
-        
+
         return combobox
     
     @staticmethod
@@ -212,29 +252,30 @@ class ConfigBinding:
         """
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-        
+
         # 创建变量
-        var = tk.StringVar(value=str(current_value))
-        
+        var = tk.StringVar(master=parent, value=str(current_value))
+
+        # Register binding for two-way sync
+        ConfigBinding._register_binding(key_path, var)
+
         # 创建数字选择框
-        spinbox = tk.Spinbox(parent, textvariable=var, from_=from_, to=to, 
+        spinbox = tk.Spinbox(parent, textvariable=var, from_=from_, to=to,
                            increment=increment, width=width, **kwargs)
-        
-        # 绑定变化事件
+
+        # 绑定变化事件 (UI -> CONFIG)
         def on_change(*args):
-            try:
-                # 尝试转换为数字
-                value = var.get()
-                if isinstance(increment, int):
-                    value = int(value)
-                else:
-                    value = float(value)
-                ConfigBinding.set_config_value(key_path, value)
-            except ValueError:
-                ColorPrint.red(f"[ConfigBinding] Invalid number value for '{key_path}': {var.get()}")
-        
+            value_str = var.get()
+            if isinstance(increment, int):
+                ConfigBinding.set_config_value(key_path, int(value_str) if value_str.isdigit() else default_value)
+            else:
+                try:
+                    ConfigBinding.set_config_value(key_path, float(value_str))
+                except ValueError:
+                    ConfigBinding.set_config_value(key_path, default_value)
+
         var.trace_add('write', on_change)
-        
+
         return spinbox
     
     @staticmethod

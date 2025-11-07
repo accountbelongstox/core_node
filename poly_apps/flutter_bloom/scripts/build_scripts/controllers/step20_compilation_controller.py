@@ -18,6 +18,7 @@ Final step that generates compilation commands and prepares variables for extern
 
 import os
 import json
+import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -25,22 +26,26 @@ from datetime import datetime
 from shared.data_exchange.unified_variable_system import unified_vars
 from shared.directory_manager import DirectoryManager
 from utils.print_helper import PrintHelper
+from utils.cache_cleaner import CacheCleaner, normalize_path, adapt_flutter_command, generate_powershell_helpers
+from utils.cleanup_manager import CleanupManager
+from utils.script_generator import ScriptGenerator
+from utils.path_helper import PathHelper
+
+
+# Helper functions are now imported from utils.cache_cleaner
 
 
 class Step20CompilationController:
-    """
-    Step 20 Controller: Final Compilation Preparation
-    Generates compilation commands and writes variables for external triggers
-    """
-
+    """Step 20: Flutter Compilation Controller with modular script generation"""
+    
     def __init__(self):
         self.step_name = "STEP-20"
         self.step_description = "Final Compilation Preparation"
         self.results = {}
         self.directory_manager = DirectoryManager()
-
+    
     def execute(self, **kwargs) -> Dict[str, Any]:
-        """Execute Step 20: Final Compilation Preparation"""
+        """Execute Step 20: Final Compilation Preparation with modular script generation"""
         try:
             PrintHelper.header(f"{self.step_name}: {self.step_description}")
 
@@ -51,7 +56,7 @@ class Step20CompilationController:
             # Get build information
             build_info = self._get_build_information(**kwargs)
 
-            # Generate compilation commands
+            # Generate compilation commands with modular scripts
             compilation_commands = self._generate_compilation_commands(compilation_option, build_info)
 
             # Prepare output paths
@@ -118,170 +123,126 @@ class Step20CompilationController:
         build_platform = build_info['build_platform']
         build_mode = build_info['build_mode']
 
-        # Determine platform-specific build command
-        platform_cmd = self._get_platform_build_command(build_platform, build_mode)
+        # Get Flutter command based on compilation option
+        flutter_command = self._get_flutter_command(build_platform, build_mode, compilation_option)
 
-        if compilation_option == 'analyze':
-            commands.update(self._generate_platform_commands(build_root, f'flutter analyze'))
-            commands['description'] = 'Run static analysis on the codebase'
+        # Note: 'analyze' option removed - analysis is disabled in build scripts to avoid duplicate pub get
+        # If needed, run 'flutter analyze' separately
 
-        elif compilation_option == 'clean':
-            clean_commands = self._generate_platform_commands(build_root, f'flutter clean', prefix='clean_')
-            commands.update(clean_commands)
-            build_commands = self._generate_platform_commands(build_root, platform_cmd, prefix='build_')
-            commands.update(build_commands)
+        if compilation_option == 'clean':
+            flutter_command = 'flutter clean'
             commands['description'] = f'Clean build cache and rebuild {build_mode} {build_platform.upper()}'
 
         elif compilation_option == 'debug':
-            flutter_cmd = f'flutter build {self._get_platform_target(build_platform)} --debug'
-            commands.update(self._generate_platform_commands(build_root, flutter_cmd))
+            flutter_command = f'flutter build {self._get_platform_target(build_platform)} --debug'
             commands['description'] = f'Build debug {build_platform.upper()}'
 
         elif compilation_option == 'profile':
-            flutter_cmd = f'flutter build {self._get_platform_target(build_platform)} --profile'
-            commands.update(self._generate_platform_commands(build_root, flutter_cmd))
+            flutter_command = f'flutter build {self._get_platform_target(build_platform)} --profile'
             commands['description'] = f'Build profile {build_platform.upper()} for performance testing'
 
         elif compilation_option == 'release':
-            release_cmd = self._get_optimized_release_command_only(build_platform)
-            commands.update(self._generate_platform_commands(build_root, release_cmd))
+            flutter_command = self._get_optimized_release_command_only(build_platform)
             commands['description'] = f'Build optimized release {build_platform.upper()} for production'
 
         elif compilation_option == 'test':
-            commands.update(self._generate_platform_commands(build_root, f'flutter test'))
+            flutter_command = 'flutter test'
             commands['description'] = 'Run test suite'
 
         else:
             # Default based on original build mode
-            commands.update(self._generate_platform_commands(build_root, platform_cmd))
+            flutter_command = self._get_platform_build_command(build_platform, build_mode)
             commands['description'] = f'Build {build_mode} {build_platform.upper()} (default)'
+
+        # Generate platform-specific commands with modular scripts
+        commands.update(self._generate_platform_commands(build_root, flutter_command, build_platform))
 
         PrintHelper.info(f"Generated commands: {commands}", source=self.step_name)
         return commands
 
-    def _generate_platform_commands(self, build_root: str, flutter_command: str, prefix: str = '') -> Dict[str, str]:
-        """Generate platform-specific commands (Windows script files vs Linux command strings)"""
+    def _get_flutter_command(self, platform: str, mode: str, compilation_option: str = None) -> str:
+        """Get Flutter command based on platform and mode"""
+        target = self._get_platform_target(platform)
+
+        if platform.lower() == 'android':
+            if mode.lower() == 'debug':
+                command = f"flutter build apk --debug"
+            elif mode.lower() == 'release':
+                command = f"flutter build apk --release"
+            else:
+                command = f"flutter build apk --{mode}"
+        elif platform.lower() == 'ios':
+            command = f"flutter build ios --{mode}"
+        elif platform.lower() == 'web':
+            command = f"flutter build web --{mode}"
+        else:
+            command = f"flutter build {target} --{mode}"
+
+        # Add entry file from user selection (stored in unified variables)
+        entry_file = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, '')
+        if entry_file and entry_file.strip():
+            # Use --target parameter (long form) for clarity
+            command += f" --target={entry_file}"
+            PrintHelper.info(f"Using entry file: {entry_file}", source=self.step_name)
+        else:
+            PrintHelper.warning("No entry file specified, using Flutter default main.dart", source=self.step_name)
+
+        return command
+
+    def _generate_platform_commands(self, build_root: str, flutter_command: str, platform: str) -> Dict[str, str]:
+        """Generate platform-specific commands with modular scripts"""
         import os
-
-        # Calculate entry file from app name
-        # Rule: app_bank -> lib\apps\app_bank\main_app_bank.dart
-        app_name = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_APP, '')
-        if app_name and app_name.strip():
-            # Extract the suffix from app name (e.g., app_bank -> bank)
-            app_suffix = app_name.replace('app_', '') if app_name.startswith('app_') else app_name
-            entry_file = f"lib\\apps\\{app_name}\\main_app_{app_suffix}.dart"
-            flutter_command = f"{flutter_command} -t {entry_file}"
-            PrintHelper.info(f"Using entry file: {entry_file}", source="STEP-20")
-
+        
         commands = {}
+        prefix = f"{platform}_"
+        
+        # Use Python helper functions to pre-process command
+        flutter_command = adapt_flutter_command(flutter_command)
+        PrintHelper.info(f"Adapted Flutter command: {flutter_command}", source="STEP-20")
 
         if os.name == 'nt':  # Windows
             # Generate PowerShell script file
             script_filename = f"{prefix}compile_script.ps1"
             script_path = Path(build_root) / script_filename
 
-            # Create PowerShell script content with pre-cleanup and APK scanning
-            script_content = f'''# Flutter Compilation Script
+            # Initialize cache cleaner, cleanup manager, and script generator
+            cache_cleaner = CacheCleaner(build_root)
+            cleanup_manager = CleanupManager(build_root)
+            script_generator = ScriptGenerator(build_root)
+            
+            # Get cleanup information
+            cleanup_info = cache_cleaner.get_comprehensive_cleanup_info()
+            retry_info_1 = cache_cleaner.get_retry_cleanup_info(1)
+            retry_info_2 = cache_cleaner.get_retry_cleanup_info(2)
+            
+            # Get cleanup paths
+            cleanup_paths = cleanup_manager.get_cleanup_info()
+            comprehensive_paths = cleanup_manager.get_cleanup_paths("comprehensive")
+            retry_paths = cleanup_manager.get_cleanup_paths("retry")
+
+            # Generate all script files using script generator
+            script_files = script_generator.generate_all_scripts(
+                cleanup_info=cleanup_info,
+                comprehensive_paths=comprehensive_paths,
+                retry_paths=retry_paths,
+                flutter_command=flutter_command
+            )
+            
+            # Create main orchestrator script content
+            # Normalize paths using PathHelper for consistency
+            orchestrator_path = PathHelper.normalize_for_powershell(script_files['orchestrator_script'])
+            build_root_normalized = PathHelper.normalize_for_powershell(build_root)
+
+            script_content = rf'''# Flutter Build Orchestrator
 # Generated by step20_compilation_controller.py
 
-Set-Location "{build_root}"
+Set-Location "{build_root_normalized}"
 Write-Host "[BUILD] Changed to directory: $(Get-Location)" -ForegroundColor Yellow
 
-# Pre-compilation cleanup - remove old build artifacts
-Write-Host "[BUILD] Cleaning old build artifacts..." -ForegroundColor Yellow
-$cleanupPaths = @(
-    "build\\app\\outputs\\flutter-apk\\*.apk",
-    "build\\app\\outputs\\apk\\release\\*.apk",
-    "build\\app\\outputs\\apk\\debug\\*.apk",
-    "build\\app\\outputs\\bundle\\release\\*.aab"
-)
-
-foreach ($cleanupPath in $cleanupPaths) {{
-    $fullCleanupPath = Join-Path (Get-Location) $cleanupPath
-    $filesToClean = Get-ChildItem -Path $fullCleanupPath -ErrorAction SilentlyContinue
-    foreach ($file in $filesToClean) {{
-        try {{
-            Remove-Item $file.FullName -Force
-            Write-Host "[BUILD] Removed old artifact: $($file.Name)" -ForegroundColor Gray
-        }} catch {{
-            Write-Host "[BUILD] Could not remove: $($file.Name)" -ForegroundColor Yellow
-        }}
-    }}
-}}
-
-# Clean root cache directory only (preserve lib/common/cache_manager)
-$rootCacheDir = Join-Path (Get-Location) "cache"
-if (Test-Path $rootCacheDir) {{
-    try {{
-        Remove-Item $rootCacheDir -Recurse -Force
-        Write-Host "[BUILD] Removed root cache directory" -ForegroundColor Gray
-    }} catch {{
-        Write-Host "[BUILD] Could not remove root cache directory" -ForegroundColor Yellow
-    }}
-}}
-
-Write-Host "[BUILD] Executing: {flutter_command}" -ForegroundColor Cyan
-
-# Execute Flutter command directly
-{flutter_command}
-
-$exitCode = $LASTEXITCODE
-
-if ($exitCode -eq 0) {{
-    Write-Host "[BUILD] Command completed successfully" -ForegroundColor Green
-
-    # Scan for APK files after successful build
-    Write-Host "[BUILD] Scanning for APK files..." -ForegroundColor Cyan
-    $apkSearchPaths = @(
-        "build\\app\\outputs\\flutter-apk",
-        "build\\app\\outputs\\apk\\release",
-        "build\\app\\outputs\\apk\\debug"
-    )
-
-    $foundApks = @()
-    foreach ($searchPath in $apkSearchPaths) {{
-        $fullPath = Join-Path (Get-Location) $searchPath
-        if (Test-Path $fullPath) {{
-            $apkFiles = Get-ChildItem -Path $fullPath -Filter "*.apk" -File
-            foreach ($apk in $apkFiles) {{
-                $foundApks += @{{
-                    "File" = $apk.Name
-                    "Path" = $apk.FullName
-                    "Directory" = $apk.DirectoryName
-                    "Size" = [math]::Round($apk.Length / 1MB, 2)
-                }}
-                Write-Host "[BUILD] Found APK: $($apk.Name) ($([math]::Round($apk.Length / 1MB, 2)) MB)" -ForegroundColor Green
-                Write-Host "[BUILD] Location: $($apk.FullName)" -ForegroundColor Gray
-            }}
-        }}
-    }}
-
-    if ($foundApks.Count -gt 0) {{
-        Write-Host "[BUILD] Total APK files found: $($foundApks.Count)" -ForegroundColor Yellow
-
-        # Auto-open directories containing APK files AFTER compilation is complete
-        Write-Host "[BUILD] Opening output directories..." -ForegroundColor Cyan
-        $uniqueDirectories = $foundApks | ForEach-Object {{ $_.Directory }} | Sort-Object -Unique
-        foreach ($directory in $uniqueDirectories) {{
-            Write-Host "[BUILD] Opening directory: $directory" -ForegroundColor Cyan
-            try {{
-                Start-Process "explorer.exe" -ArgumentList $directory
-            }} catch {{
-                Write-Host "[BUILD] Could not open directory: $directory" -ForegroundColor Red
-            }}
-        }}
-    }} else {{
-        Write-Host "[BUILD] No APK files found in expected locations" -ForegroundColor Yellow
-        Write-Host "[BUILD] Searched in:" -ForegroundColor Gray
-        foreach ($searchPath in $apkSearchPaths) {{
-            Write-Host "[BUILD]   - $searchPath" -ForegroundColor Gray
-        }}
-    }}
-
-}} else {{
-    Write-Host "[BUILD] Command failed with exit code: $exitCode" -ForegroundColor Red
-    exit $exitCode
-}}
+# Execute main orchestrator script
+Write-Host "[BUILD] Starting build orchestration..." -ForegroundColor Yellow
+& "{orchestrator_path}"
+exit $LASTEXITCODE
 '''
 
             # Write script file
@@ -289,7 +250,15 @@ if ($exitCode -eq 0) {{
                 script_path.write_text(script_content, encoding='utf-8')
                 commands[f'{prefix}script_path'] = str(script_path)
                 commands[f'{prefix}command'] = f'powershell -File "{script_path}"'
-                PrintHelper.info(f"Created Windows script: {script_path}", source=self.step_name)
+                commands[f'{prefix}script_files'] = script_files
+                
+                # Add individual script paths for unified variable system
+                commands[f'{prefix}clean_script_path'] = script_files.get('cleanup_script', '')
+                commands[f'{prefix}build_script_path'] = script_files.get('build_script', '')
+                commands[f'{prefix}debug_script_path'] = script_files.get('orchestrator_script', '')
+                
+                PrintHelper.info(f"Created Windows orchestrator script: {script_path}", source=self.step_name)
+                PrintHelper.info(f"Generated modular scripts: {list(script_files.keys())}", source=self.step_name)
             except Exception as e:
                 PrintHelper.error(f"Failed to create Windows script: {e}", source=self.step_name)
                 # Fallback to direct command
@@ -299,8 +268,7 @@ if ($exitCode -eq 0) {{
             script_filename = f"{prefix}compile_script.sh"
             script_path = Path(build_root) / script_filename
 
-            # Create shell script content with real-time output
-            script_content = f'''#!/bin/bash
+            script_content = rf'''#!/bin/bash
 # Flutter Compilation Script
 # Generated by step20_compilation_controller.py
 
@@ -362,63 +330,82 @@ fi
         else:
             flag = '--debug'  # Default
 
-        return f'flutter build {target} {flag}'
+        command = f'flutter build {target} {flag}'
+
+        # Add entry file from user selection
+        entry_file = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, '')
+        if entry_file and entry_file.strip():
+            command += f' --target={entry_file}'
+
+        return command
 
     def _get_optimized_release_command(self, build_root: str, platform: str) -> str:
         """Get optimized release build command with compression and obfuscation"""
         target = self._get_platform_target(platform)
 
+        # Get entry file from user selection
+        entry_file = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, '')
+        entry_file_param = f' --target={entry_file}' if entry_file and entry_file.strip() else ''
+
         if platform.lower() == 'android':
             # Android-specific optimizations
-            return (f'cd "{build_root}" && '
-                   f'flutter build {target} --release '
-                   f'--obfuscate --split-debug-info=build/debug-info '
-                   f'--shrink --tree-shake-icons '
-                   f'--target-platform android-arm,android-arm64,android-x64')
+            command = (f'cd "{build_root}" && '
+                      f'flutter build {target} --release '
+                      f'--obfuscate --split-debug-info=build/debug-info '
+                      f'--shrink --tree-shake-icons '
+                      f'--target-platform android-arm,android-arm64,android-x64')
         elif platform.lower() == 'ios':
             # iOS-specific optimizations
-            return (f'cd "{build_root}" && '
-                   f'flutter build {target} --release '
-                   f'--obfuscate --split-debug-info=build/debug-info '
-                   f'--tree-shake-icons')
+            command = (f'cd "{build_root}" && '
+                      f'flutter build {target} --release '
+                      f'--obfuscate --split-debug-info=build/debug-info '
+                      f'--tree-shake-icons')
         elif platform.lower() == 'web':
             # Web-specific optimizations
-            return (f'cd "{build_root}" && '
-                   f'flutter build {target} --release '
-                   f'--web-renderer canvaskit '
-                   f'--tree-shake-icons')
+            command = (f'cd "{build_root}" && '
+                      f'flutter build {target} --release '
+                      f'--web-renderer canvaskit '
+                      f'--tree-shake-icons')
         else:
             # Default optimizations for other platforms
-            return (f'cd "{build_root}" && '
-                   f'flutter build {target} --release '
-                   f'--obfuscate --split-debug-info=build/debug-info '
-                   f'--tree-shake-icons')
+            command = (f'cd "{build_root}" && '
+                      f'flutter build {target} --release '
+                      f'--obfuscate --split-debug-info=build/debug-info '
+                      f'--tree-shake-icons')
+
+        return command + entry_file_param
 
     def _get_optimized_release_command_only(self, platform: str) -> str:
         """Get only the Flutter command part for optimized release build"""
         target = self._get_platform_target(platform)
 
+        # Get entry file from user selection
+        entry_file = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, '')
+        entry_file_param = f' --target={entry_file}' if entry_file and entry_file.strip() else ''
+
         if platform.lower() == 'android':
             # Android-specific optimizations
-            return (f'flutter build {target} --release '
-                   f'--obfuscate --split-debug-info=build/debug-info '
-                   f'--shrink --tree-shake-icons '
-                   f'--target-platform android-arm,android-arm64,android-x64')
+            command = (f'flutter build {target} --release '
+                      f'--obfuscate --split-debug-info=build/debug-info '
+                      f'--shrink --tree-shake-icons '
+                      f'--target-platform android-arm,android-arm64,android-x64')
         elif platform.lower() == 'ios':
             # iOS-specific optimizations
-            return (f'flutter build {target} --release '
-                   f'--obfuscate --split-debug-info=build/debug-info '
-                   f'--tree-shake-icons')
+            command = (f'flutter build {target} --release '
+                      f'--obfuscate --split-debug-info=build/debug-info '
+                      f'--tree-shake-icons')
         elif platform.lower() == 'web':
             # Web-specific optimizations
-            return (f'flutter build {target} --release '
-                   f'--web-renderer canvaskit '
-                   f'--tree-shake-icons')
+            command = (f'flutter build {target} --release '
+                      f'--web-renderer canvaskit '
+                      f'--tree-shake-icons')
         else:
             # Default optimizations for other platforms
-            return (f'flutter build {target} --release '
-                   f'--obfuscate --split-debug-info=build/debug-info '
-                   f'--tree-shake-icons')
+            command = (f'flutter build {target} --release '
+                      f'--obfuscate --split-debug-info=build/debug-info '
+                      f'--tree-shake-icons')
+
+        return command + entry_file_param
 
     def _prepare_output_paths(self, build_info: Dict[str, Any], compilation_option: str) -> Dict[str, str]:
         """Prepare output paths for build artifacts"""
@@ -466,12 +453,26 @@ fi
     def _write_compilation_variables(self, commands: Dict[str, str], output_paths: Dict[str, str], build_info: Dict[str, Any]):
         """Write compilation variables using unified_variable_system for PowerShell sharing"""
 
+        # Clear all potential old variables first to prevent using stale data from previous runs
+        unified_vars.set_file_variable(unified_vars.KEY_CLEAN_COMMAND, '')
+        unified_vars.set_file_variable(unified_vars.KEY_CLEAN_SCRIPT_PATH, '')
+        unified_vars.set_file_variable(unified_vars.KEY_BUILD_COMMAND, '')
+        unified_vars.set_file_variable(unified_vars.KEY_BUILD_SCRIPT_PATH, '')
+        unified_vars.set_file_variable(unified_vars.KEY_COMMAND, '')
+        unified_vars.set_file_variable(unified_vars.KEY_SCRIPT_PATH, '')
+
         # Get main build command - prioritize script-based commands
-        main_command = (commands.get('command', '') or
+        PrintHelper.info(f"Available commands keys: {list(commands.keys())}", source=self.step_name)
+        PrintHelper.info(f"android_command value: {commands.get('android_command', 'NOT_FOUND')}", source=self.step_name)
+        
+        main_command = (commands.get('android_command', '') or
+                       commands.get('command', '') or
                        commands.get('build_command', '') or
                        commands.get('build', '') or
                        commands.get('analyze', '') or
                        commands.get('test', ''))
+        
+        PrintHelper.info(f"Final main_command: '{main_command}'", source=self.step_name)
 
         # Get clean command - prioritize script-based commands
         clean_command = (commands.get('clean_command', '') or
@@ -487,28 +488,33 @@ fi
 
         # Store additional build information using existing or new KEYs
         unified_vars.set_file_variable(unified_vars.KEY_APP_NAME, build_info['app_name'])
-        unified_vars.set_file_variable('KEY_BUILD_ROOT', output_paths['build_root'])
-        unified_vars.set_file_variable('KEY_CLEAN_COMMAND', clean_command)
-        unified_vars.set_file_variable('KEY_BUILD_TIMESTAMP', build_info['build_timestamp'])
-        unified_vars.set_file_variable('KEY_APK_FILE_NAME', output_paths['apk_file'])
+        unified_vars.set_file_variable(unified_vars.KEY_BUILD_ROOT, output_paths['build_root'])
+        unified_vars.set_file_variable(unified_vars.KEY_CLEAN_COMMAND, clean_command)
+        unified_vars.set_file_variable(unified_vars.KEY_BUILD_TIMESTAMP, build_info['build_timestamp'])
+        unified_vars.set_file_variable(unified_vars.KEY_APK_FILE_NAME, output_paths['apk_file'])
 
         # Store script paths for PowerShell access
-        script_path = commands.get('script_path', '')
+        script_path = commands.get('android_script_path', '') or commands.get('script_path', '')
         clean_script_path = commands.get('clean_script_path', '')
         build_script_path = commands.get('build_script_path', '')
+        debug_script_path = commands.get('debug_script_path', '')
 
         if script_path:
-            unified_vars.set_file_variable('script_path', script_path)
+            unified_vars.set_file_variable(unified_vars.KEY_SCRIPT_PATH, script_path)
         if clean_script_path:
-            unified_vars.set_file_variable('clean_script_path', clean_script_path)
+            unified_vars.set_file_variable(unified_vars.KEY_CLEAN_SCRIPT_PATH, clean_script_path)
         if build_script_path:
-            unified_vars.set_file_variable('build_script_path', build_script_path)
+            unified_vars.set_file_variable(unified_vars.KEY_BUILD_SCRIPT_PATH, build_script_path)
+        if debug_script_path:
+            unified_vars.set_file_variable(unified_vars.KEY_DEBUG_SCRIPT_PATH, debug_script_path)
 
         # Store individual commands for fallback
         if commands.get('command'):
-            unified_vars.set_file_variable('command', commands.get('command'))
+            unified_vars.set_file_variable(unified_vars.KEY_COMMAND, commands.get('command'))
         if commands.get('clean_command'):
-            unified_vars.set_file_variable('clean_command', commands.get('clean_command'))
+            unified_vars.set_file_variable(unified_vars.KEY_CLEAN_COMMAND, commands.get('clean_command'))
+        if commands.get('build_command'):
+            unified_vars.set_file_variable(unified_vars.KEY_BUILD_COMMAND, commands.get('build_command'))
 
         # Log the stored variables
         PrintHelper.info("Variables stored in unified_variable_system:", source=self.step_name)
@@ -554,3 +560,25 @@ fi
     def get_results(self) -> Dict[str, Any]:
         """Get the results of Step 20 execution"""
         return self.results
+
+
+def main():
+    """Main function for testing"""
+    import sys
+    if len(sys.argv) < 4:
+        print("Usage: python step20_compilation_controller.py <build_root> <platform> <mode> [entry_file]")
+        sys.exit(1)
+    
+    build_root = sys.argv[1]
+    platform = sys.argv[2]
+    mode = sys.argv[3]
+    entry_file = sys.argv[4] if len(sys.argv) > 4 else None
+    
+    controller = Step20CompilationController()
+    result = controller.execute(build_root=build_root, platform=platform, mode=mode, entry_file=entry_file)
+    
+    print(f"Result: {result}")
+
+
+if __name__ == "__main__":
+    main()

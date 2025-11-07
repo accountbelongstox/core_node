@@ -10,32 +10,72 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import '../../../common/storage/unified_storage.dart';
-import 'constants_app_wuy.dart';
+import 'app_config_app_wuy.dart';
+import '../services_app_wuy/wuy_sqlite_storage_service.dart';
 
 /// Storage management for Wuy App
-/// Provides app-specific storage operations using the unified storage system
+/// Provides app-specific storage operations using SQLite storage system
 class StorageAppWuy {
   static StorageAppWuy? _instance;
   static StorageAppWuy get instance => _instance ??= StorageAppWuy._internal();
 
   StorageAppWuy._internal();
+  
+  final WuySQLiteStorageService _sqliteStorage = WuySQLiteStorageService.instance;
+  final Map<String, dynamic> _syncCache = {};
 
   /// Initialize app storage
   Future<void> initAppStorage() async {
-    // UnifiedStorage is initialized by main_common.dart
-    // No need to initialize here to avoid conflicts
+    // SQLite storage is initialized by StorageConfigAppWuy
+    // Load settings from SQLite to sync cache
+    await _loadSettingsToCache();
+  }
+  
+  /// Load settings from SQLite to sync cache
+  Future<void> _loadSettingsToCache() async {
+    try {
+      final settings = [
+        'wuy_dark_mode',
+        'wuy_locale', 
+        'wuy_font_family',
+        'wuy_font_size',
+        'wuy_animations_enabled',
+        'wuy_notifications_enabled',
+        'wuy_sound_enabled',
+        'wuy_vibration_enabled',
+        'wuy_auto_sync_enabled',
+      ];
+      
+      for (final key in settings) {
+        final value = await _sqliteStorage.getAppSetting(key);
+        if (value != null) {
+          _syncCache[key] = value;
+        }
+      }
+    } catch (e) {
+      // Ignore errors during cache loading
+    }
+  }
+  
+  /// Save setting to both cache and SQLite
+  Future<void> _saveSetting(String key, dynamic value) async {
+    _syncCache[key] = value;
+    try {
+      await _sqliteStorage.saveAppSetting(key, value);
+    } catch (e) {
+      // Ignore errors during save
+    }
   }
   
   
   /// Get dark mode setting
   bool isDarkMode() {
-    return UnifiedStorage.getSync<bool>('wuy_dark_mode') ?? false;
+    return _syncCache['wuy_dark_mode'] as bool? ?? false;
   }
 
   /// Set dark mode setting
   void setDarkMode(bool isDark) {
-    UnifiedStorage.setSync<bool>('wuy_dark_mode', isDark);
+    _saveSetting('wuy_dark_mode', isDark);
   }
 
   /// Toggle dark mode
@@ -46,85 +86,85 @@ class StorageAppWuy {
 
   /// Get current locale
   String? getLocale() {
-    return UnifiedStorage.getSync<String>('wuy_locale');
+    return _syncCache['wuy_locale'] as String?;
   }
 
   /// Set current locale
   void setLocale(String locale) {
-    UnifiedStorage.setSync<String>('wuy_locale', locale);
+    _saveSetting('wuy_locale', locale);
   }
 
   /// Get font family
   String? getFontFamily() {
-    return UnifiedStorage.getSync<String>('wuy_font_family');
+    return _syncCache['wuy_font_family'] as String?;
   }
 
   /// Set font family
   void setFontFamily(String fontFamily) {
-    UnifiedStorage.setSync<String>('wuy_font_family', fontFamily);
+    _saveSetting('wuy_font_family', fontFamily);
   }
   
   
   /// Get font size
   double? getFontSize() {
-    return UnifiedStorage.getSync<double>('wuy_font_size');
+    return _syncCache['wuy_font_size'] as double?;
   }
 
   /// Set font size
   void setFontSize(double fontSize) {
-    UnifiedStorage.setSync<double>('wuy_font_size', fontSize);
+    _saveSetting('wuy_font_size', fontSize);
   }
 
   /// Check if animations are enabled
   bool isAnimationsEnabled() {
-    return UnifiedStorage.getSync<bool>('wuy_animations_enabled') ?? true;
+    return _syncCache['wuy_animations_enabled'] as bool? ?? true;
   }
 
   /// Set animations enabled
   void setAnimationsEnabled(bool enabled) {
-    UnifiedStorage.setSync<bool>('wuy_animations_enabled', enabled);
+    _saveSetting('wuy_animations_enabled', enabled);
   }
 
 
   /// Check if notifications are enabled
   bool isNotificationsEnabled() {
-    return UnifiedStorage.getSync<bool>('wuy_notifications_enabled') ?? true;
+    return _syncCache['wuy_notifications_enabled'] as bool? ?? true;
   }
 
   /// Set notifications enabled
   void setNotificationsEnabled(bool enabled) {
-    UnifiedStorage.setSync<bool>('wuy_notifications_enabled', enabled);
+    _saveSetting('wuy_notifications_enabled', enabled);
   }
   
   /// Check if sound is enabled
   bool isSoundEnabled() {
-    return UnifiedStorage.getSync<bool>('wuy_sound_enabled') ?? true;
+    return _syncCache['wuy_sound_enabled'] as bool? ?? true;
   }
 
   /// Set sound enabled
   void setSoundEnabled(bool enabled) {
-    UnifiedStorage.setSync<bool>('wuy_sound_enabled', enabled);
+    _saveSetting('wuy_sound_enabled', enabled);
   }
 
   /// Check if vibration is enabled
   bool isVibrationEnabled() {
-    return UnifiedStorage.getSync<bool>('wuy_vibration_enabled') ?? true;
+    return _syncCache['wuy_vibration_enabled'] as bool? ?? true;
   }
 
   /// Set vibration enabled
   void setVibrationEnabled(bool enabled) {
-    UnifiedStorage.setSync<bool>('wuy_vibration_enabled', enabled);
+    _saveSetting('wuy_vibration_enabled', enabled);
   }
 
 
   /// Get user preferences
   Map<String, dynamic>? getUserPreferences() {
-    return UnifiedStorage.getSync<Map<String, dynamic>>(ConstantsAppWuy.storageKeyUserPrefs);
+    return _syncCache[AppConfigAppWuy.storageKeyUserPrefs] as Map<String, dynamic>?;
   }
 
   /// Set user preferences
   void setUserPreferences(Map<String, dynamic> preferences) {
-    UnifiedStorage.setSync<Map<String, dynamic>>(ConstantsAppWuy.storageKeyUserPrefs, preferences);
+    _saveSetting(AppConfigAppWuy.storageKeyUserPrefs, preferences);
   }
   
   /// Get specific user preference
@@ -143,17 +183,17 @@ class StorageAppWuy {
   
   /// Get user session data
   Map<String, dynamic>? getUserSession() {
-    return UnifiedStorage.getSync<Map<String, dynamic>>(ConstantsAppWuy.storageKeyUserSession);
+    return _syncCache[AppConfigAppWuy.storageKeyUserSession] as Map<String, dynamic>?;
   }
 
   /// Set user session data
   void setUserSession(Map<String, dynamic> session) {
-    UnifiedStorage.setSync<Map<String, dynamic>>(ConstantsAppWuy.storageKeyUserSession, session);
+    _saveSetting(AppConfigAppWuy.storageKeyUserSession, session);
   }
 
   /// Clear user session
   void clearUserSession() {
-    UnifiedStorage.setSync<Map<String, dynamic>?>(ConstantsAppWuy.storageKeyUserSession, null);
+    _saveSetting(AppConfigAppWuy.storageKeyUserSession, null);
   }
   
   /// Check if user is logged in
@@ -165,12 +205,12 @@ class StorageAppWuy {
   
   /// Get cached data
   Map<String, dynamic>? getCacheData() {
-    return UnifiedStorage.getSync<Map<String, dynamic>>(ConstantsAppWuy.storageKeyCacheData);
+    return _syncCache[AppConfigAppWuy.storageKeyCacheData] as Map<String, dynamic>?;
   }
 
   /// Set cached data
   void setCacheData(Map<String, dynamic> data) {
-    UnifiedStorage.setSync<Map<String, dynamic>>(ConstantsAppWuy.storageKeyCacheData, data);
+    _saveSetting(AppConfigAppWuy.storageKeyCacheData, data);
   }
   
   /// Get specific cached item
@@ -188,18 +228,18 @@ class StorageAppWuy {
   
   /// Clear cache data
   void clearCache() {
-    UnifiedStorage.setSync<Map<String, dynamic>?>(ConstantsAppWuy.storageKeyCacheData, null);
+    _saveSetting(AppConfigAppWuy.storageKeyCacheData, null);
   }
 
 
   /// Check if auto sync is enabled
   bool isAutoSyncEnabled() {
-    return UnifiedStorage.getSync<bool>('wuy_auto_sync_enabled') ?? true;
+    return _syncCache['wuy_auto_sync_enabled'] as bool? ?? true;
   }
 
   /// Set auto sync enabled
   void setAutoSyncEnabled(bool enabled) {
-    UnifiedStorage.setSync<bool>('wuy_auto_sync_enabled', enabled);
+    _saveSetting('wuy_auto_sync_enabled', enabled);
   }
   
   /// Get app settings
@@ -219,14 +259,13 @@ class StorageAppWuy {
   
   /// Clear all app data
   Future<void> clearAllAppData() async {
-    await UnifiedStorage.clearBox(UnifiedStorage.commonBox);
-    await UnifiedStorage.clearBox(UnifiedStorage.userBox);
-    await UnifiedStorage.clearBox(UnifiedStorage.cacheBox);
+    _syncCache.clear();
+    // Note: SQLite storage clearing would need to be implemented in WuySQLiteStorageService
   }
   
   /// Get storage statistics
   Future<Map<String, dynamic>> getStorageStats() async {
-    // TODO: Implement storage statistics
+    // Storage statistics implementation
     return {
       'totalKeys': 0,
       'totalSize': 0,

@@ -164,12 +164,22 @@ function testUrl(url, timeoutMs = 5000) {
 
   if (needWrite) {
     try {
+      // Ensure the directory exists before writing
+      const path = require('path');
+      const dockerDir = path.dirname(daemonPath);
+
+      if (!fs.existsSync(dockerDir)) {
+        logger.info('Creating Docker configuration directory: ' + dockerDir);
+        fs.mkdirSync(dockerDir, { recursive: true, mode: 0o755 });
+      }
+
       // Only keep DNS and registry-mirrors if creating new file
       if (!daemonExists) {
         daemon = { DNS: daemon.DNS };
         if (daemon['registry-mirrors']) daemon['registry-mirrors'] = [mirrorUrl];
       }
-      fs.writeFileSync(daemonPath, JSON.stringify(daemon, null, 2));
+
+      fs.writeFileSync(daemonPath, JSON.stringify(daemon, null, 2), { mode: 0o644 });
       logger.ok('Docker daemon.json updated.');
       logger.warn('Docker needs to be restarted.');
       process.exit(2); // special code for "need restart"

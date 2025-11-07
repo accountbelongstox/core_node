@@ -1,0 +1,4 @@
+你要根据
+ D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看一下,
+实现下面的要求  ```也就是目前公共数据,状态存储未适配好, #/wuy/login-entry 在该页点击登陆 #/wuy/login-register 以后,如果登陆成功将跳到 我的好友(首页) ,目前只要登陆以后将不再返回  #/wuy/login-entry ,显然这几个地方并没有做到数据一致性和自洽,同时,你要了解一下api的规范,如果一个api是还有权限的(比如该api每个访问都会先验证是否有权限),那一般要传入个用户model绑定.这样登陆成功后数据model就有数据,那该api就能根据用户数据判断是否登陆过,以及是否可以访问api了.  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 注意，你不能单独的修复或创建一个文件，同时要确保引用tr()多语言,而是整体分析然后做处调整甚至可以重构，确保数据模型,api等的数据一至性,自洽性.不要重复定义,以及清除冗余代码. 同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt
+  查看所有构架 你需要优先引用首先你要使用common中的公共库,但是不要在common库中引入外部文件. 规范参考  D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md ,你要先分析起码10个文件再开动.```

@@ -126,6 +126,9 @@ class LogPanel:
         )
         auto_scroll_check.grid(row=0, column=3, padx=UnifiedStyles.SPACING['sm'], sticky="e")
 
+        # Store auto_scroll variable reference
+        self.auto_scroll_var = auto_scroll_check.cget('variable')
+
         # Log level filter
         level_label = tk.Label(control_frame, text=i18n_manager.get_ui_text("log_panel.log_level") + ":",
                               bg=UnifiedStyles.COLORS['bg_secondary'],
@@ -134,7 +137,6 @@ class LogPanel:
         level_label.grid(row=0, column=4, padx=(UnifiedStyles.SPACING['md'], UnifiedStyles.SPACING['xs']), sticky="e")
 
         # Log level using ConfigBinding
-        self.log_level_var = tk.StringVar(value="INFO")
         level_combo = ConfigBinding.create_combobox_binding(
             control_frame, "log_settings.log_level",
             values=['ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],

@@ -71,5 +71,10 @@
         "right": "右"
       }
     }
+  },
+  "gui_menu": {
+    "open_web": "打开Web界面",
+    "restart": "重启",
+    "exit": "退出"
   }
 }

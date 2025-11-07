@@ -1,0 +1,40 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+const { appname, isServer, isService } = require('#@global_vars');
+const config = require('./config/index.js');
+const http = require('./http/index.js');
+const logger = require('#@logger');
+const StreamManager = require('./server_controller/StreamManager.js');
+const AdbManager = require('./server_controller/AdbManager.js');
+
+class Main {
+    constructor() {
+    }
+
+    async start() {
+        logger.info(`App name: ${appname}`);
+        logger.info(`Is server: ${isServer}`);
+        logger.info(`Is service: ${isService}`);
+        logger.info('ScreenCast service starting...');
+
+        http.start(config);
+
+        await AdbManager.initialize();
+        await StreamManager.start();
+
+        logger.info('ScreenCast service started successfully');
+    }
+}
+
+module.exports.Main = Main;
+module.exports = new Main();

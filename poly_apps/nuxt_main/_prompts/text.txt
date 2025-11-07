@@ -1,0 +1,7 @@
+继续， 同时这是桥接文件
+  D:\programing\core_node\poly_apps\pyMatrix\AI_COLLABORATI
+  ON_BRIDGE.json
+  你将把状态和后端通过这个文件沟通。但注意端目录是
+  D:\programing\core_node\poly_apps\nuxt_main 参考文档
+  D:\programing\core_node\poly_apps\nuxt_main\development-gui
+  des\NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md

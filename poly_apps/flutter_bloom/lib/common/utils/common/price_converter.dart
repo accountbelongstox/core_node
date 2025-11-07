@@ -367,13 +367,13 @@ class PriceConverter {
     String currencySymbol = '',
   }) {
     if (number.abs() >= 1000000000) {
-      return '${currencySymbol}${(number / 1000000000).toStringAsFixed(decimalPlaces)}B';
+      return '$currencySymbol${(number / 1000000000).toStringAsFixed(decimalPlaces)}B';
     } else if (number.abs() >= 1000000) {
-      return '${currencySymbol}${(number / 1000000).toStringAsFixed(decimalPlaces)}M';
+      return '$currencySymbol${(number / 1000000).toStringAsFixed(decimalPlaces)}M';
     } else if (number.abs() >= 1000) {
-      return '${currencySymbol}${(number / 1000).toStringAsFixed(decimalPlaces)}K';
+      return '$currencySymbol${(number / 1000).toStringAsFixed(decimalPlaces)}K';
     } else {
-      return '${currencySymbol}${number.toStringAsFixed(decimalPlaces)}';
+      return '$currencySymbol${number.toStringAsFixed(decimalPlaces)}';
     }
   }
 }

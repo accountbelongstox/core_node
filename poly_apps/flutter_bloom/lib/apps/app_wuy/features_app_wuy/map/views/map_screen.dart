@@ -16,9 +16,22 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/sdk/tencent_maps/tencent_maps_sdk.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../config_app_wuy/app_config_app_wuy.dart';
+import '../../../models_app_wuy/friend_model_app_wuy.dart';
+import '../../../services_app_wuy/wuy_fake_data_generator.dart';
 
+/// Map Screen for Wuy App
+///
+/// This screen displays map functionality and location services.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyMapTitle.tr(context)
 class WuyMapScreen extends StatefulWidget {
   const WuyMapScreen({super.key});
 
@@ -27,6 +40,65 @@ class WuyMapScreen extends StatefulWidget {
 }
 
 class _WuyMapScreenState extends State<WuyMapScreen> {
+  late TencentMapController _mapController;
+  late TencentMapsService _mapService;
+  FriendModelAppWuy? selectedFriend;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapService = TencentMapsService(
+      apiKey: AppConfigAppWuy.getTencentMapApiKey(),
+      language: AppConfigAppWuy.defaultMapLanguage,
+      region: AppConfigAppWuy.defaultMapRegion,
+    );
+
+    _mapController = TencentMapController(
+      service: _mapService,
+      initialZoom: 15.0,
+      initialStyle: TencentMapStyle.normal,
+      initialLatitude: 39.908823,
+      initialLongitude: 116.397470,
+    );
+
+    _loadSelectedFriend();
+    _addSampleMarkers();
+  }
+
+  void _loadSelectedFriend() {
+    final friends = WuyFakeDataGenerator.generateFakeFriends();
+    if (friends.isNotEmpty) {
+      selectedFriend = friends.first;
+    }
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  void _addSampleMarkers() {
+    _mapController.addMarker(
+      TencentMapMarker(
+        id: 'marker_1',
+        latitude: 39.908823,
+        longitude: 116.397470,
+        title: LocalizationKeysAppWuy.wuyMapBeijing.tr(context),
+        snippet: LocalizationKeysAppWuy.wuyMapCapitalOfChina.tr(context),
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${LocalizationKeysAppWuy.wuyMapBeijing.tr(context)} ${LocalizationKeysAppWuy.wuyMapMarkerTapped.tr(context)}',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,16 +106,35 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       appBar: AppBar(
         title: Text(
           LocalizationKeysAppWuy.wuyMapTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.my_location, color: Colors.white),
-            onPressed: () {
-              // Handle location center
-            },
+            icon: const Icon(Icons.my_location, color: ThemeColors.white),
+            onPressed: _centerOnCurrentLocation,
+          ),
+          IconButton(
+            icon: const Icon(Icons.layers, color: ThemeColors.white),
+            onPressed: _showMapStyleDialog,
           ),
         ],
       ),
@@ -57,62 +148,98 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
     );
   }
 
-  Widget _buildMapView() {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.shade200,
-            Colors.blue.shade200,
-            Colors.green.shade300,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.map,
-              size: 100,
-              color: Colors.white.withOpacity(0.8),
-            ),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            Text(
-              'Map View',
-              style: ThemeTextStyles.displayMedium.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'Interactive map with friend locations',
-              style: ThemeTextStyles.bodyLarge.copyWith(
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
-          ],
-        ),
+  void _centerOnCurrentLocation() {
+    _mapController.animateCamera(
+      latitude: 39.908823,
+      longitude: 116.397470,
+      zoom: 15.0,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(LocalizationKeysAppWuy.wuyMapCenterLocation.tr(context)),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
 
+  void _showMapStyleDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(LocalizationKeysAppWuy.wuyMapStyleTitle.tr(context)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildMapStyleOption(TencentMapStyle.normal, LocalizationKeysAppWuy.wuyMapStyleNormal.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.satellite, LocalizationKeysAppWuy.wuyMapStyleSatellite.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.dark, LocalizationKeysAppWuy.wuyMapStyleDark.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.light, LocalizationKeysAppWuy.wuyMapStyleLight.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.traffic, LocalizationKeysAppWuy.wuyMapStyleTraffic.tr(context)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMapStyleOption(TencentMapStyle style, String label) {
+    return ListTile(
+      title: Text(label),
+      onTap: () {
+        _mapController.setMapStyle(style);
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  Widget _buildMapView() {
+    return TencentMapWidget(
+      controller: _mapController,
+      showMyLocation: true,
+      showCompass: true,
+      showScale: true,
+      enableZoomControls: true,
+      enableRotation: true,
+      enableScrolling: true,
+      onTap: (latitude, longitude) {
+        debugPrint('Map tapped: $latitude, $longitude');
+      },
+    );
+  }
+
   Widget _buildFloatingProfileCard() {
+    if (selectedFriend == null) {
+      return const SizedBox.shrink();
+    }
+
+    final friend = selectedFriend!;
+
     return Positioned(
       top: 100,
       left: 20,
       right: 20,
-      child: Card(
-        elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+              spreadRadius: 0,
+            ),
+          ],
         ),
         child: Padding(
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          padding: const EdgeInsets.all(20),
           child: Column(
             children: [
               Row(
@@ -123,7 +250,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                     child: Icon(
                       Icons.person,
                       size: 30,
-                      color: Colors.white,
+                      color: ThemeColors.white,
                     ),
                   ),
                   SizedBox(width: ThemeDimensions.spacingMedium),
@@ -131,15 +258,70 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '小飞侠',
-                          style: ThemeTextStyles.title3,
+                        Row(
+                          children: [
+                            Text(
+                              friend.displayName,
+                              style: ThemeTextStyles.title3Bold.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            if (friend.daysTogether != null) ...[
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: ThemeColors.orange.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${friend.daysTogether} days',
+                                  style: ThemeTextStyles.caption1.copyWith(
+                                    color: ThemeColors.orange,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        Text(
-                          '守护的未来',
-                          style: ThemeTextStyles.bodyMedium.copyWith(
-                            color: ThemeColors.textSecondary,
-                          ),
+                        SizedBox(height: ThemeDimensions.spacing4),
+                        Row(
+                          children: [
+                            if (friend.relationship != null) ...[
+                              Icon(
+                                _getRelationshipIcon(friend.relationship!),
+                                size: 14,
+                                color: ThemeColors.primary,
+                              ),
+                              SizedBox(width: ThemeDimensions.spacing4),
+                              Text(
+                                friend.relationship!,
+                                style: ThemeTextStyles.subhead.copyWith(
+                                  color: ThemeColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(width: ThemeDimensions.spacing8),
+                            ],
+                            Expanded(
+                              child: Text(
+                                friend.bio ?? '',
+                                style: ThemeTextStyles.footnote.copyWith(
+                                  color: ThemeColors.secondaryLabel,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -147,33 +329,31 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                   IconButton(
                     icon: Icon(Icons.info_outline, color: ThemeColors.primary),
                     onPressed: () {
-                      context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', '1'));
+                      context.go(WuyAppRouter.getFriendInfoRoute(friend.id));
                     },
                   ),
                 ],
-              ),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              Container(
-                padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildInfoItem(Icons.directions_walk, 'Steps', '8,432'),
-                    _buildInfoItem(Icons.favorite, 'Heart Rate', '72'),
-                    _buildInfoItem(Icons.thermostat, 'Temperature', '36.5°C'),
-                    _buildInfoItem(Icons.local_fire_department, 'Calories', '245'),
-                  ],
-                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  IconData _getRelationshipIcon(String relationship) {
+    switch (relationship.toLowerCase()) {
+      case 'partner':
+      case 'boyfriend':
+      case 'girlfriend':
+        return Icons.favorite;
+      case 'family':
+        return Icons.family_restroom;
+      case 'colleague':
+        return Icons.work;
+      default:
+        return Icons.people;
+    }
   }
 
   Widget _buildInfoItem(IconData icon, String label, String value) {
@@ -204,25 +384,48 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       right: 0,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ThemeColors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: Offset(0, -2),
+              color: ThemeColors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+              spreadRadius: 0,
             ),
           ],
         ),
         child: SafeArea(
           child: Container(
             height: 60,
-            padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
+            padding: EdgeInsets.symmetric(
+                horizontal: ThemeDimensions.defaultPadding),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(Icons.map, 'Map', true, null),
-                _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyMapFriends.tr(context), false, () => context.go(WuyAppRouter.routeFriends)),
-                _buildNavItem(Icons.person, LocalizationKeysAppWuy.wuyMapMine.tr(context), false, () => context.go(WuyAppRouter.routeProfile)),
+                _buildNavItem(
+                  Icons.map,
+                  LocalizationKeysAppWuy.wuyMapTitle.tr(context),
+                  true,
+                  null,
+                ),
+                _buildNavItem(
+                  Icons.people,
+                  LocalizationKeysAppWuy.wuyMapFriends.tr(context),
+                  false,
+                  () => context.go(WuyAppRouter.getFriendsRoute()),
+                ),
+                _buildNavItem(
+                  Icons.person,
+                  LocalizationKeysAppWuy.wuyMapMine.tr(context),
+                  false,
+                  () => context.go(WuyAppRouter.getProfileRoute()),
+                ),
               ],
             ),
           ),
@@ -231,7 +434,8 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected, VoidCallback? onTap) {
+  Widget _buildNavItem(
+      IconData icon, String label, bool isSelected, VoidCallback? onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -244,17 +448,16 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected 
-                  ? ThemeColors.primary 
-                  : ThemeColors.textSecondary,
+              color:
+                  isSelected ? ThemeColors.primary : ThemeColors.textSecondary,
               size: 24,
             ),
             SizedBox(height: ThemeDimensions.spacing4),
             Text(
               label,
               style: ThemeTextStyles.bodySmall.copyWith(
-                color: isSelected 
-                    ? ThemeColors.primary 
+                color: isSelected
+                    ? ThemeColors.primary
                     : ThemeColors.textSecondary,
               ),
             ),

@@ -12,13 +12,33 @@
       "NCORE_DIR": "C:\\Users\\<USERNAME>\\.ncore",
       "DEV_LANG_DIR": "D:\\lang_compiler",
       "APP_INSTALL_DIR": "D:\\applications",
-      "PROJECT_DIR": "D:\\programing"
+      "PROJECT_DIR": "D:\\programing",
+      "BASE_DATA_DIR": "D:\\",
+      "COMPILE_DIR": "D:\\_system_version",
+      "WIS_PROGRAMING_DIR": "D:\\programing",
+      "path_mapping_rules": {
+        "base_dir": "D:\\",
+        "compile_dir": "D:\\_system_version",
+        "project_dir": "D:\\programing\\core_node"
+      }
     },
     "linux": {
-      "NCORE_DIR": "/usr/local/.ncore",
-      "DEV_LANG_DIR": "/usr/lang_compiler",
-      "APP_INSTALL_DIR": "/www/applications",
-      "PROJECT_DIR": "/www/programing"
+      "NCORE_DIR": "/usr/.core_node",
+      "DEV_LANG_DIR": "/usr/.core_node/lang_compiler", 
+      "APP_INSTALL_DIR": "/usr/.core_node/applications",
+      "PROJECT_DIR": "auto_detected",
+      "BASE_DATA_DIR": "auto_detected",
+      "COMPILE_DIR": "auto_detected",
+      "WIS_PROGRAMING_DIR": "auto_detected",
+      "path_mapping_rules": {
+        "development_env": "WSL/Desktop/NTFS detected",
+        "production_env": "No desktop/NTFS detected",
+        "base_dir_priority": "WSL /mnt/d → NTFS mount → Data disk mount → /www",
+        "compile_dir_dev": "base_dir/_system_version",
+        "compile_dir_prod": "/usr/system_version",
+        "project_dir_dev": "base_dir/programing/core_node", 
+        "project_dir_prod": "base_dir/wwwroot/core_node"
+      }
     }
   }
   

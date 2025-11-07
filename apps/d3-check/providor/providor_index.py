@@ -43,8 +43,13 @@ KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO = 0.20  # 20% from right edge (adjustable)
 # ============================================================================
 # STANDARD RESOLUTION - Reference resolution for template matching
 # ============================================================================
+# D3 Standard Resolution
 STANDARD_RESOLUTION_WIDTH = 1826
 STANDARD_RESOLUTION_HEIGHT = 1301
+
+# D4 Standard Resolution
+D4_STANDARD_RESOLUTION_WIDTH = 1763
+D4_STANDARD_RESOLUTION_HEIGHT = 1126
 
 # ============================================================================
 # GLOBAL RESOLUTION SCALE - Moved to d3utils.share.game_interface_data
@@ -101,9 +106,9 @@ def reset_assistant_state():
     ASSISTANT_EXECUTION_STATE["enabled"] = True
 
 # ============================================================================
-# TEMPLATE CONFIGURATIONS - Global template paths and thresholds
+# D3 TEMPLATE CONFIGURATIONS - D3 game template paths and thresholds
 # ============================================================================
-TEMPLATE_CONFIGS = {
+D3_TEMPLATE_CONFIGS = {
     # Bag templates
     "bag_opened_indicator": {
         "path": os.path.join(TEMPLATE_DIR, "bag_opened_indicator.png"),
@@ -313,20 +318,20 @@ TEMPLATE_CONFIGS = {
 def get_templates_by_category(category: str) -> Dict[str, Dict]:
     """Get all templates in a specific category"""
     return {
-        name: config for name, config in TEMPLATE_CONFIGS.items()
+        name: config for name, config in D3_TEMPLATE_CONFIGS.items()
         if config.get("category") == category
     }
 
 # Helper function to get template path
 def get_template_path(template_name: str) -> Optional[str]:
     """Get template file path by name"""
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config["path"] if config else None
 
 # Helper function to get template threshold
 def get_template_threshold(template_name: str) -> float:
     """Get template matching threshold by name"""
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config.get("threshold", 0.8) if config else 0.8
 
 # Helper function to get template match method
@@ -337,7 +342,7 @@ def get_template_match_method(template_name: str) -> str:
     Returns:
         'SIFT', 'ORB', or 'TEMPLATE' (default)
     """
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config.get("match_method", "ORB") if config else "ORB"
 
 # Helper function for intelligent threshold conversion
@@ -354,7 +359,7 @@ def get_adjusted_threshold(template_name: str, target_match_method: Optional[str
     - TM_SQDIFF methods: Use distance thresholds (lower is better, inverted logic)
 
     Args:
-        template_name: Template name from TEMPLATE_CONFIGS
+        template_name: Template name from D3_TEMPLATE_CONFIGS
         target_match_method: Target matching method (if None, uses template's original method)
 
     Returns:
@@ -369,7 +374,7 @@ def get_adjusted_threshold(template_name: str, target_match_method: Optional[str
         >>> get_adjusted_threshold("blacksmith_indicator_1", "SIFT")
         0.75  # Adjusted for SIFT feature matching
     """
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     if not config:
         ColorPrint.yellow(f"[ThresholdConvert] Template '{template_name}' not found, using default 0.8")
         return 0.8
@@ -448,7 +453,7 @@ def get_adjusted_threshold(template_name: str, target_match_method: Optional[str
 # Helper function to get use_alpha setting
 def get_template_use_alpha(template_name: str) -> bool:
     """Get whether template should use alpha channel"""
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config.get("use_alpha", False) if config else False
 
 # Deprecated: PNG matcher has been removed, use image_matcher with use_alpha instead
@@ -480,8 +485,49 @@ CONFIG = {}
 # Dynamic path that needs DOCUMENTS_PATH
 DOCUMENTS_PATH = os.path.expanduser("~/Documents")
 
+# ============================================================================
+# CLIENT TYPE CONSTANTS - Unified client type identifiers
+# ============================================================================
+# These constants define the standard client type identifiers used throughout the application
+# to identify different game clients and launchers. Use these constants instead of hardcoded strings.
+#
+# Usage:
+#   - UI components: Use these to identify which client window to capture/interact with
+#   - Template matching: Use these to select appropriate template configurations
+#   - Window detection: Use these to map to corresponding window title lists
+#
+# IMPORTANT: Always use these constants instead of hardcoded strings like 'battlenet', 'd3_game', etc.
+
+CLIENT_TYPE_BATTLENET = 'battlenet'  # Battle.net launcher client
+CLIENT_TYPE_D3_GAME = 'd3_game'      # Diablo III game client
+CLIENT_TYPE_D4_GAME = 'd4_game'      # Diablo IV game client
+
+# All valid client types (for validation)
+VALID_CLIENT_TYPES = [
+    CLIENT_TYPE_BATTLENET,
+    CLIENT_TYPE_D3_GAME,
+    CLIENT_TYPE_D4_GAME
+]
+
 # Game tab auto_id constants
 DIABLO_III_TAB_AUTO_ID = "game-nav-btn-D3"
+
+# Battle.net Launcher window title constants
+BATTLE_NET_WINDOW_TITLES = [
+    "Battle.net",                    # EN standard
+    "Battle.net Launcher",           # EN with Launcher suffix
+    "Blizzard Launcher",             # Alternative EN name
+    "战网",                          # CN short form
+    "戰網",                          # TW short form
+    "战网启动器",                    # CN
+    "戰網啟動器",                    # TW
+    "Battle.net 启动器",             # CN with EN prefix
+    "Battle.net 啟動器",             # TW with EN prefix
+    "暴雪战网",                      # CN Blizzard Battle.net
+    "暴雪戰網",                      # TW Blizzard Battle.net
+    "Blizzard Battle.net",          # EN full name
+    "Battle.net - Blizzard Entertainment",  # EN with company
+]
 
 # Diablo III window title constants
 DIABLO_III_WINDOW_TITLES = [
@@ -497,7 +543,37 @@ DIABLO_III_WINDOW_TITLES = [
     "暗黑破坏神III (64位)",          # CN 64-bit
     "暗黑破壞神III (32位)",          # TW 32-bit
     "暗黑破壞神III (64位)",           # TW 64-bit22
-    "III" 
+    "III"
+]
+
+# Diablo IV window title constants
+DIABLO_IV_WINDOW_TITLES = [
+    "暗黑破坏神IV",                   # CN
+    "暗黑破壞神IV",                   # TW
+    "《暗黑破坏神 IV》",              # CN with book title marks
+    "《暗黑破壞神 IV》",              # TW with book title marks
+    "《暗黑破坏神IV》",               # CN with book title marks (no space)
+    "《暗黑破壞神IV》",               # TW with book title marks (no space)
+    "Diablo IV - Blizzard Entertainment",  # EN with company
+    "暗黑破坏神IV - 暴雪娱乐",         # CN with company
+    "暗黑破壞神IV - 暴雪娛樂",         # TW with company
+    "《暗黑破坏神 IV》- 暴雪娱乐",     # CN with book title marks and company
+    "《暗黑破壞神 IV》- 暴雪娛樂",     # TW with book title marks and company
+    "Diablo IV (32-bit)",           # EN 32-bit
+    "Diablo IV (64-bit)",           # EN 64-bit
+    "暗黑破坏神IV (32位)",           # CN 32-bit
+    "暗黑破坏神IV (64位)",           # CN 64-bit
+    "暗黑破壞神IV (32位)",           # TW 32-bit
+    "暗黑破壞神IV (64位)",            # TW 64-bit
+    "《暗黑破坏神 IV》(32位)",        # CN with book title marks 32-bit
+    "《暗黑破坏神 IV》(64位)",        # CN with book title marks 64-bit
+    "《暗黑破壞神 IV》(32位)",        # TW with book title marks 32-bit
+    "《暗黑破壞神 IV》(64位)",        # TW with book title marks 64-bit
+    "IV》",                          # Short form
+    "暗黑破坏神4",                    # CN alternative
+    "暗黑破壞神4",                    # TW alternative
+    "《暗黑破坏神 IV》",               # CN alternative with book title marks
+    "《暗黑破壞神 IV》"                # TW alternative with book title marks
 ]
 
 # Battle.net server region constants
@@ -753,3 +829,37 @@ PLAY_BUTTON_AUTOMATION_IDS = [
     "launch-game-btn",
     "game-launch-btn"
 ]
+
+# ============================================================================
+# BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
+# ============================================================================
+BATTLENET_TEMPLATE_CONFIGS = {
+    # Placeholder for Battle.net-specific templates
+    # Will contain templates specific to the Battle.net client UI
+    # Add templates here as needed for Battle.net screenshot analysis
+}
+
+# ============================================================================
+# D4 TEMPLATE CONFIGURATIONS - D4-specific template paths and thresholds
+# ============================================================================
+D4_TEMPLATE_CONFIGS = {
+    # D4 Small map templates
+    "d4_small_map": {
+        "path": os.path.join(TEMPLATE_DIR, "d4", "small_map.jpg"),
+        "threshold": 0.6,  # Lower threshold for small map detection
+        "category": "d4_map",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "D4 small map template - detects if player is in town (city) vs dungeon"
+    },
+    
+    # Add more D4-specific templates here as needed
+    # "d4_other_template": {
+    #     "path": os.path.join(TEMPLATE_DIR, "d4", "other_template.png"),
+    #     "threshold": 0.8,
+    #     "category": "d4_ui",
+    #     "use_alpha": False,
+    #     "match_method": "SIFT",
+    #     "note": "D4 other template description"
+    # },
+}

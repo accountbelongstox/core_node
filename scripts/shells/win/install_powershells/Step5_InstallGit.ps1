@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
@@ -159,7 +159,16 @@ function Step21_InstallGit {
 function SetGetEnvGit {
     if (Test-Path $GIT_EXE_PATH) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding Git to environment variables..." -Type "Info"
+        
+        # Add Git cmd directory to PATH (WindowsPathFunction.ps1 will auto-detect if it's a file)
         & $windowsPathFunctionPath "add" $GIT_EXE_PATH
+        
+        # Add Git bin directory to PATH (contains other Git tools)
+        $gitBinDir = Join-Path $GIT_INSTALL_DIR "bin"
+        if (Test-Path $gitBinDir) {
+            & $windowsPathFunctionPath "add" $gitBinDir
+        }
+        
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully added Git to environment variables" -Type "Success"
     }
     else {

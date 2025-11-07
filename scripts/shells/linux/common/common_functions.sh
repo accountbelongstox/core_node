@@ -6,8 +6,49 @@
 COMMON_FUNCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
 
-source "$SHELLS_DIR/LGar.sh"
+# Source gvar_common.sh from the same directory
 source "$COMMON_FUNCS_DIR/gvar_common.sh"
+
+
+# Helper function: Ensure service name has mcp prefix
+ensure_mcp_prefix() {
+    local service_name="$1"
+    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
+        echo "mcp-$service_name"
+    else
+        echo "$service_name"
+    fi
+}
+
+# Helper function: Check if binary name is protected
+is_protected_binary() {
+    local bin_name="$1"
+    local protected_binaries=(
+        "sudo" "su" "passwd" "chown" "chmod" "chroot" "mount" "umount"
+        "init" "systemctl" "service" "systemd" "dbus" "udev" "cron"
+        "ssh" "sshd" "login" "getty" "bash" "sh" "dash" "zsh"
+        "iptables" "firewall" "ufw" "selinux" "apparmor" "polkit"
+        "pkexec" "gksu" "kdesu" "visudo" "newgrp" "sg" "gpasswd"
+    )
+
+    for protected in "${protected_binaries[@]}"; do
+        if [[ "$bin_name" == "$protected" ]]; then
+            return 0  # Is protected
+        fi
+    done
+    return 1  # Not protected
+}
+
+# Helper function: Add directory to PATH in /etc/environment
+add_to_path_environment() {
+    local dir_path="$1"
+
+    if ! grep -q "PATH.*$dir_path" /etc/environment 2>/dev/null; then
+        print_step_from_common_functions "Adding $dir_path to /etc/environment"
+        $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
+        echo "PATH=\"$dir_path:/usr/local/bin:/usr/bin:/bin\"" | $USE_SUDO tee -a /etc/environment > /dev/null
+    fi
+}
 
 
 # Print a section header (from common_functions.sh)
@@ -316,9 +357,7 @@ add_to_systemd_startup() {
     local service_name="$2"
 
     # Ensure service name has mcp prefix for identification
-    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
-        service_name="mcp-$service_name"
-    fi
+    service_name=$(ensure_mcp_prefix "$service_name")
 
     local service_file="/etc/systemd/system/${service_name}.service"
 
@@ -337,7 +376,7 @@ Restart=always
 RestartSec=10
 User=$USER
 Environment=HOME=$HOME
-Environment=MCP_DIR=$COMPILE_DIR/mcp_server
+Environment=MCP_DIR=$(map_web_path "www" "mcp_server")
 
 [Install]
 WantedBy=multi-user.target
@@ -356,9 +395,7 @@ add_to_initd_startup() {
     local service_name="$2"
 
     # Ensure service name has mcp prefix for identification
-    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
-        service_name="mcp-$service_name"
-    fi
+    service_name=$(ensure_mcp_prefix "$service_name")
 
     local init_script="/etc/init.d/$service_name"
 
@@ -409,9 +446,7 @@ add_to_wsl_startup() {
     local service_name="$2"
 
     # Ensure service name has mcp prefix for identification
-    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
-        service_name="mcp-$service_name"
-    fi
+    service_name=$(ensure_mcp_prefix "$service_name")
 
     print_step_from_common_functions "Setting up WSL startup for: $service_name"
 
@@ -470,49 +505,31 @@ add_to_global_path_from_common_functions() {
         print_step_from_common_functions "Processing binary: $bin_name"
 
         # Enhanced protection: Skip creating symlinks for system critical files
-        local protected_binaries=(
-            "sudo" "su" "passwd" "chown" "chmod" "chroot" "mount" "umount"
-            "init" "systemctl" "service" "systemd" "dbus" "udev" "cron"
-            "ssh" "sshd" "login" "getty" "bash" "sh" "dash" "zsh"
-            "iptables" "firewall" "ufw" "selinux" "apparmor" "polkit"
-            "pkexec" "gksu" "kdesu" "visudo" "newgrp" "sg" "gpasswd"
-        )
-
-        for protected in "${protected_binaries[@]}"; do
-            if [[ "$bin_name" == "$protected" ]]; then
-                print_error_from_common_functions "SECURITY: Skipping protected system binary: $bin_name"
-                return 1
-            fi
-        done
+        if is_protected_binary "$bin_name"; then
+            print_error_from_common_functions "SECURITY: Skipping protected system binary: $bin_name"
+            return 1
+        fi
 
         # Additional check: prevent symlinks to system directories
         if [[ "$bin_path" == /usr/bin/* ]] || [[ "$bin_path" == /bin/* ]] || [[ "$bin_path" == /sbin/* ]] || [[ "$bin_path" == /usr/sbin/* ]]; then
-            for protected in "${protected_binaries[@]}"; do
-                if [[ "$bin_name" == "$protected" ]]; then
-                    print_error_from_common_functions "SECURITY: Refusing to create symlink to system binary: $bin_path"
-                    return 1
-                fi
-            done
+            if is_protected_binary "$bin_name"; then
+                print_error_from_common_functions "SECURITY: Refusing to create symlink to system binary: $bin_path"
+                return 1
+            fi
         fi
 
         # Add binary directory to global PATH in /etc/environment
-        if ! grep -q "PATH.*$bin_dir" /etc/environment 2>/dev/null; then
-            print_step_from_common_functions "Adding $bin_dir to /etc/environment"
-            sudo sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-            echo "PATH=\"$bin_dir:/usr/local/bin:/usr/bin:/bin\"" | sudo tee -a /etc/environment > /dev/null
-        fi
+        add_to_path_environment "$bin_dir"
 
         # Final safety check before creating symlink
         if [ -L "$link_path" ]; then
             local existing_target=$(readlink -f "$link_path" 2>/dev/null)
             if [[ "$existing_target" == /usr/bin/* ]] || [[ "$existing_target" == /bin/* ]] || [[ "$existing_target" == /sbin/* ]] || [[ "$existing_target" == /usr/sbin/* ]]; then
                 local existing_name=$(basename "$existing_target")
-                for protected in "${protected_binaries[@]}"; do
-                    if [[ "$existing_name" == "$protected" ]]; then
-                        print_error_from_common_functions "SECURITY: Existing symlink points to protected binary: $link_path -> $existing_target"
-                        return 1
-                    fi
-                done
+                if is_protected_binary "$existing_name"; then
+                    print_error_from_common_functions "SECURITY: Existing symlink points to protected binary: $link_path -> $existing_target"
+                    return 1
+                fi
             fi
         fi
 
@@ -536,19 +553,15 @@ add_to_global_path_from_common_functions() {
         local dir_name=$(basename "$target_dir")
         
         print_step_from_common_functions "Processing directory: $dir_name"
-        
+
         # Add directory to global PATH in /etc/environment
-        if ! grep -q "PATH.*$target_dir" /etc/environment 2>/dev/null; then
-            print_step_from_common_functions "Adding $target_dir to /etc/environment"
-            sudo sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-            echo "PATH=\"$target_dir:/usr/local/bin:/usr/bin:/bin\"" | sudo tee -a /etc/environment > /dev/null
-        fi
-        
+        add_to_path_environment "$target_dir"
+
         # Also add bin subdirectory if it exists
         if [ -d "$target_dir/bin" ]; then
             if ! grep -q "PATH.*$target_dir/bin" /etc/environment 2>/dev/null; then
-                sudo sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-                echo "PATH=\"$target_dir/bin:$target_dir:/usr/local/bin:/usr/bin:/bin\"" | sudo tee -a /etc/environment > /dev/null
+                $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
+                echo "PATH=\"$target_dir/bin:$target_dir:/usr/local/bin:/usr/bin:/bin\"" | $USE_SUDO tee -a /etc/environment > /dev/null
             fi
         fi
         
@@ -573,6 +586,160 @@ add_to_global_path_from_common_functions() {
     set +a
     
     print_success_from_common_functions "Global environment setup completed for $input_path"
+    return 0
+}
+
+# Common download function with fallback support
+download_with_fallback_from_common_functions() {
+    local download_urls=("$@")
+    local output_file="${download_urls[-1]}"
+    unset 'download_urls[-1]'
+
+    local downloaded=false
+
+    print_step_from_common_functions "Starting download to: $output_file"
+
+    # Try each URL
+    for url in "${download_urls[@]}"; do
+        print_step_from_common_functions "Attempting to download from: $url"
+
+        # Try with different wget options
+        local wget_options=(
+            "--timeout=30 --tries=3 --show-progress"
+            "--timeout=60 --tries=2 --no-check-certificate"
+            "--timeout=120 --tries=1 --no-dns-cache"
+        )
+
+        for options in "${wget_options[@]}"; do
+            print_step_from_common_functions "Using wget options: $options"
+            if eval "wget $options -O \"$output_file\" \"$url\""; then
+                print_success_from_common_functions "Successfully downloaded from: $url"
+                downloaded=true
+                break 2
+            else
+                print_warning_from_common_functions "Failed with options: $options"
+                $USE_SUDO rm -f "$output_file" 2>/dev/null
+            fi
+        done
+
+        print_warning_from_common_functions "All wget attempts failed for: $url"
+    done
+
+    # Fallback to curl if wget failed
+    if [ "$downloaded" = "false" ]; then
+        print_step_from_common_functions "All wget sources failed. Checking if curl is available..."
+        if command -v curl >/dev/null 2>&1; then
+            print_step_from_common_functions "Trying with curl as fallback..."
+            for url in "${download_urls[@]}"; do
+                print_step_from_common_functions "Attempting curl download from: $url"
+                if curl -L --connect-timeout 30 --max-time 300 -o "$output_file" "$url"; then
+                    print_success_from_common_functions "Successfully downloaded with curl from: $url"
+                    downloaded=true
+                    break
+                else
+                    print_warning_from_common_functions "Curl failed for: $url"
+                    $USE_SUDO rm -f "$output_file" 2>/dev/null
+                fi
+            done
+        fi
+    fi
+
+    if [ "$downloaded" = "false" ]; then
+        print_error_from_common_functions "All download methods failed"
+        print_error_from_common_functions "Please check your network connectivity or try manually downloading:"
+        for url in "${download_urls[@]}"; do
+            echo "  $url"
+        done
+        return 1
+    fi
+
+    return 0
+}
+
+# Check if downloaded file exists and has valid size
+check_existing_download_from_common_functions() {
+    local file_path="$1"
+    local min_size="${2:-20971520}"  # Default 20MB
+
+    if [ -f "$file_path" ]; then
+        print_step_from_common_functions "Found existing download file: $file_path"
+        local file_size=$(stat -c%s "$file_path" 2>/dev/null || echo "0")
+        if [ "$file_size" -gt "$min_size" ]; then
+            print_success_from_common_functions "Existing file size looks good ($file_size bytes), skipping download"
+            return 0
+        else
+            print_warning_from_common_functions "Existing file size too small ($file_size bytes), will re-download"
+            $USE_SUDO rm -f "$file_path"
+            return 1
+        fi
+    fi
+    return 1
+}
+
+# Extract compressed archive (tar.gz, tar.xz, zip)
+extract_archive_from_common_functions() {
+    local archive_file="$1"
+    local target_dir="$2"
+    local strip_components="${3:-1}"
+
+    if [ ! -f "$archive_file" ]; then
+        print_error_from_common_functions "Archive file not found: $archive_file"
+        return 1
+    fi
+
+    print_step_from_common_functions "Extracting archive: $archive_file"
+    $USE_SUDO mkdir -p "$target_dir"
+
+    case "$archive_file" in
+        *.tar.gz|*.tgz)
+            if $USE_SUDO tar -xzf "$archive_file" -C "$target_dir" --strip-components="$strip_components"; then
+                print_success_from_common_functions "Successfully extracted tar.gz archive"
+                return 0
+            fi
+            ;;
+        *.tar.xz)
+            if $USE_SUDO tar -xf "$archive_file" -C "$target_dir" --strip-components="$strip_components"; then
+                print_success_from_common_functions "Successfully extracted tar.xz archive"
+                return 0
+            fi
+            ;;
+        *.zip)
+            if $USE_SUDO unzip -q "$archive_file" -d "$target_dir"; then
+                print_success_from_common_functions "Successfully extracted zip archive"
+                return 0
+            fi
+            ;;
+        *)
+            print_error_from_common_functions "Unsupported archive format: $archive_file"
+            return 1
+            ;;
+    esac
+
+    print_error_from_common_functions "Failed to extract archive: $archive_file"
+    return 1
+}
+
+# Clean up temporary files and directories
+cleanup_temp_files_from_common_functions() {
+    local file_or_dir="$1"
+
+    if [ -z "$file_or_dir" ]; then
+        print_warning_from_common_functions "No file or directory specified for cleanup"
+        return 1
+    fi
+
+    if [ -e "$file_or_dir" ]; then
+        print_step_from_common_functions "Cleaning up: $file_or_dir"
+        $USE_SUDO rm -rf "$file_or_dir" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            print_success_from_common_functions "Cleanup completed: $file_or_dir"
+            return 0
+        else
+            print_warning_from_common_functions "Failed to cleanup: $file_or_dir"
+            return 1
+        fi
+    fi
+
     return 0
 }
 

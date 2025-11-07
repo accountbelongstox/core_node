@@ -5,9 +5,17 @@ Shared directory management class for handling origin and temp directory switchi
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
-from utils.print_helper import PrintHelper
+
+# Import PrintHelper from utils directory
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
+from print_helper import PrintHelper
+
+# Import build constants
+sys.path.insert(0, str(Path(__file__).parent.parent / "core" / "constants"))
+from build_constants import COMPILE_FACTORY_DIR
 
 
 class DirectoryManager:
@@ -96,6 +104,61 @@ class DirectoryManager:
             'is_in_temp': self._is_in_temp,
             'working_dir': str(Path.cwd())
         }
+
+    def get_build_root_directory(self, **kwargs) -> Optional[Path]:
+        """
+        Get the build root directory (parent directory containing android/, ios/, etc.)
+
+        This method tries multiple strategies to locate the build root directory:
+        1. temp_build_root from kwargs (preferred)
+        2. build_root from kwargs
+        3. Current temp directory if in temp
+        4. Latest build directory in compile_factory (fallback)
+
+        Args:
+            **kwargs: May contain 'temp_build_root' or 'build_root' parameters
+
+        Returns:
+            Path to build root directory, or None if not found
+        """
+        # Strategy 1: temp_build_root parameter (from modern_build_system)
+        if 'temp_build_root' in kwargs:
+            build_root = Path(kwargs['temp_build_root'])
+            if build_root.exists():
+                PrintHelper.info(f"Using temp_build_root parameter: {build_root}", "DIR-MANAGER")
+                return build_root
+            else:
+                PrintHelper.warning(f"temp_build_root does not exist: {build_root}", "DIR-MANAGER")
+
+        # Strategy 2: build_root parameter
+        if 'build_root' in kwargs:
+            build_root = Path(kwargs['build_root'])
+            if build_root.exists():
+                PrintHelper.info(f"Using build_root parameter: {build_root}", "DIR-MANAGER")
+                return build_root
+
+        # Strategy 3: Current temp directory (if we're in temp)
+        if self.is_in_temp and self._temp_dir:
+            PrintHelper.info(f"Using current temp directory: {self._temp_dir}", "DIR-MANAGER")
+            return self._temp_dir
+
+        # Strategy 4: Current directory (if in temp but temp_dir not set)
+        if self.is_in_temp:
+            PrintHelper.info(f"Using current directory (in temp): {self.current_dir}", "DIR-MANAGER")
+            return self.current_dir
+
+        # Strategy 5: Fallback - look for latest build in compile_factory
+        compile_factory = Path(COMPILE_FACTORY_DIR)
+        if compile_factory.exists():
+            build_dirs = [d for d in compile_factory.iterdir()
+                         if d.is_dir() and 'app_' in d.name]
+            if build_dirs:
+                latest_build = max(build_dirs, key=lambda x: x.stat().st_mtime)
+                PrintHelper.info(f"Using latest compile_factory directory: {latest_build}", "DIR-MANAGER")
+                return latest_build
+
+        PrintHelper.error("Could not determine build root directory", "DIR-MANAGER")
+        return None
 
     def print_status(self):
         """Print current directory status"""

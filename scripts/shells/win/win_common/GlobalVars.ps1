@@ -64,9 +64,39 @@ else {
 }
 $Global:supportedWin = $Global:isWin11 -or $Global:isWin10
 
-$Global:BASE_DIR = "D:\programing\core_node"
+# Dynamically determine the core node root directory
+# This script is located at: scripts/shells/win/win_common/GlobalVars.ps1
+# So we need to go up 4 levels to reach the root directory
+try {
+    $scriptDir = $PSScriptRoot
+    $candidateCore = (Get-Item $scriptDir).Parent.Parent.Parent.Parent.FullName
+    if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
+        $Global:BASE_DIR = $candidateCore
+    } else {
+        # Fallback: try to find the root by looking for package.json or main.js
+        $currentDir = $scriptDir
+        while ($currentDir -and $currentDir -ne (Split-Path $currentDir -Parent)) {
+            if ((Test-Path (Join-Path $currentDir 'package.json')) -or (Test-Path (Join-Path $currentDir 'main.js'))) {
+                $Global:BASE_DIR = $currentDir
+                break
+            }
+            $currentDir = Split-Path $currentDir -Parent
+        }
+        if (-not $Global:BASE_DIR) {
+            throw "Cannot determine core node root directory"
+        }
+    }
+} catch {
+    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
+    exit 1
+}
+
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
 $Global:CORE_NODE_SCRIPTS_DIR = Join-Path $BASE_DIR "scripts"
+
+# Backup configuration
+$Global:BACKUP_PARENT_DIR = Split-Path $Global:BASE_DIR -Parent
+$Global:BACKUP_NAME_PREFIX = "core_node"
 
 # Check if current script is running from BASE_DIR or its subdirectories
 $Global:IS_RUNNING_FROM_BASE_DIR = $PSScriptRoot -like "$Global:BASE_DIR*"
@@ -82,6 +112,9 @@ $Global:STEP_COUNT = 1
 $Global:DEBUG_MODE = $true  # Set to $false to disable debug output
 $Global:DEBUG_PREFIX = "[DEBUG]"
 
+# Execution Mode Configuration
+$Global:EXECUTION_MODE = "PROJECT"  # Default to PROJECT mode, will be set by InitializationManager.ps1
+
 # Desktop Cleanup Configuration
 $Global:AGGRESSIVE_CLEANUP_ENABLED = $false  # Set to $true to enable aggressive desktop cleanup
 
@@ -92,6 +125,7 @@ $Global:PROJECT_ROOT_DIR = "D:\programing"
 $Global:PROJECT_DIR = "$PROJECT_ROOT_DIR\core_node"
 $Global:PROJECT_SCRIPTS_DIR = "$PROJECT_DIR\scripts"
 $Global:PROJECT_WIN_SCRIPTS_DIR = "$PROJECT_SCRIPTS_DIR\shells\win"
+$Global:INLINE_WINENVS_DIR = "$PROJECT_SCRIPTS_DIR\winenvs"  # Inline scripts directory - scripts in memory travel with code
 $Global:CHOCO_DIR = "C:\ProgramData\chocolatey"
 $Global:SCOOP_CACHE_DIR = "$TEMP_DIR\scoop"
 $Global:SCOOP_DIR = "$LANG_COMPILER_DIR\scoop"
@@ -432,6 +466,12 @@ $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
+# Python related global variables
+$Global:PYTHON_DIR = "$Global:LANG_COMPILER_DIR\python313"
+$Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
+$Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
+$Global:PYTHON_WINGET_ID = "Python.Python.3.13"
+
 # Repository Configuration - Auto-switch based on region
 $Global:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"
 $Global:GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/accountbelongstox/core_node/main"
@@ -565,6 +605,15 @@ $Global:FLUTTER_MIRRORS = @{
 
 # Note: Rust configuration moved to ApplicationsList.ps1 for consistency
 
+# Global Qt Variables
+$Global:QT_DEFAULT_VERSION = "6.10.0"
+$Global:QT_INSTALL_BASE_DIR = Join-Path $Global:LANG_COMPILER_DIR "Qt"
+$Global:QT_INSTALL_METHOD = Get-GlobalVar -key "QT_INSTALL_METHOD" -defaultValue "installer"  # "installer" or "source"
+$Global:QT_INSTALLER_FILENAME = "qt-online-installer-windows-x64-online.exe"
+$Global:QT_INSTALLER_URL_GLOBAL = "https://download.qt.io/official_releases/online_installers/$Global:QT_INSTALLER_FILENAME"
+$Global:QT_INSTALLER_URL_CHINA = "https://mirrors.tuna.tsinghua.edu.cn/qt/official_releases/online_installers/$Global:QT_INSTALLER_FILENAME"
+$Global:QT_INSTALLER_DOWNLOAD_PATH = Join-Path $Global:DOWNLOADS_DIR $Global:QT_INSTALLER_FILENAME
+
 # Global Visual Studio Variables
 $Global:VS2022_VERSIONS = @{
     "2022" = @{
@@ -572,28 +621,42 @@ $Global:VS2022_VERSIONS = @{
         Workloads  = @(
             "Microsoft.VisualStudio.Workload.ManagedDesktop",
             "Microsoft.VisualStudio.Workload.NetWeb",
-            "Microsoft.VisualStudio.Workload.NetCrossPlat",
-            "Microsoft.VisualStudio.Workload.Universal",
-            "Microsoft.VisualStudio.Workload.Xamarin",
             "Microsoft.VisualStudio.Workload.NativeDesktop"
         )
         Components = @(
+            # Core C++ components
             "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
             "Microsoft.VisualStudio.Component.VC.14.34.17.4.x86.x64",
-            "Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64",
-            "Microsoft.VisualStudio.Component.VC.14.28.16.9.x86.x64",
-            "Microsoft.VisualStudio.Component.Windows11SDK.22621",
-            "Microsoft.VisualStudio.Component.Windows10SDK.20348",
-            "Microsoft.VisualStudio.Component.Windows10SDK.22000",
+
+            # Windows SDK
             "Microsoft.VisualStudio.Component.Windows10SDK.19041",
-            "Microsoft.VisualStudio.ComponentGroup.UWP.VB",
-            "Microsoft.VisualStudio.ComponentGroup.UWP.VC",
+            "Microsoft.VisualStudio.Component.Windows11SDK.22000",
+
+            # CMake support
             "Microsoft.VisualStudio.Component.CMake.Tools",
             "Microsoft.VisualStudio.Component.VC.CMake.Project",
+
+            # ATL and MFC (required for Qt Speech, WebView, and other Win32 apps)
+            "Microsoft.VisualStudio.Component.VC.ATL",
+            "Microsoft.VisualStudio.Component.VC.ATLMFC",
+
+            # C++/CLI support
+            "Microsoft.VisualStudio.Component.VC.CLI.Support",
+
+            # Additional useful components
             "Microsoft.VisualStudio.Component.IntelliCode",
-            "Component.Android.SDK.MAUI",
-            "Component.Xamarin.RemotedSimulator",
-            "Component.OpenJDK"
+            "Microsoft.VisualStudio.Component.VC.DiagnosticTools",
+            "Microsoft.VisualStudio.Component.VC.Redist.14.Latest"
+        )
+    }
+    "2022-minimal" = @{
+        WingetId   = "Microsoft.VisualStudio.2022.Community"
+        Workloads  = @(
+            "Microsoft.VisualStudio.Workload.ManagedDesktop"
+        )
+        Components = @(
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+            "Microsoft.VisualStudio.Component.Windows10SDK.19041"
         )
     }
 }

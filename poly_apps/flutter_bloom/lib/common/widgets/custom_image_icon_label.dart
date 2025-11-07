@@ -32,7 +32,7 @@ class CustomImageIconLabel extends StatelessWidget {
   final FontWeight? labelFontWeight;
 
   const CustomImageIconLabel({
-    Key? key,
+    super.key,
     required this.imagePath,
     required this.label,
     this.onTap,
@@ -50,7 +50,7 @@ class CustomImageIconLabel extends StatelessWidget {
     this.showBorder = false,
     this.badge,
     this.labelFontWeight,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

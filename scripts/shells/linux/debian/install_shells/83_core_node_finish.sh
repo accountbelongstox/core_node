@@ -24,21 +24,20 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 CORE_NODE_GIT_URL="https://github.com/your-username/core_node.git"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Function to check package manager availability
 check_package_manager() {
-    if command -v yarn >/dev/null 2>&1; then
-        echo "yarn is available: $(yarn --version)"
-        echo "Will use yarn for installation"
+    if command -v pnpm >/dev/null 2>&1; then
+        echo "pnpm is available: $(pnpm --version)"
+        echo "Will use pnpm for installation"
         return 0
     elif command -v npm >/dev/null 2>&1; then
-        echo "yarn not found, npm is available: $(npm --version)"
+        echo "pnpm not found, npm is available: $(npm --version)"
         echo "Will use npm for installation"
         return 1
     else
-        echo "Error: Neither yarn nor npm is installed. Please install a package manager first." >&2
+        echo "Error: Neither pnpm nor npm is installed. Please install a package manager first." >&2
         return 2
     fi
 }
@@ -87,8 +86,8 @@ install_dependencies() {
     }
 
     if [ "$use_yarn" = true ]; then
-        echo "Installing dependencies with yarn (PUPPETEER_SKIP_DOWNLOAD=true)..."
-        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true yarn install
+        echo "Installing dependencies with pnpm (PUPPETEER_SKIP_DOWNLOAD=true)..."
+        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true pnpm install
     else
         echo "Installing dependencies with npm (PUPPETEER_SKIP_DOWNLOAD=true)..."
         $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true npm install

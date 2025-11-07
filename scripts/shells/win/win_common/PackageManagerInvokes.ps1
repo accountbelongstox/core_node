@@ -12,14 +12,18 @@
 
 # Package Manager Invocation Functions
 # This script contains all Invoke-*Command functions for various package managers
-# Excluded: Invoke-WingetCommand (remains in CommanFunc.ps1)
+# Excluded: Invoke-WingetCommand (remains in CommonFunc.ps1)
 
 # Import required modules
-. "$PSScriptRoot\CommanFunc.ps1"
+. "$PSScriptRoot\CommonFunc.ps1"
 
+# =============================================================================
 # NPM Package Manager Functions
+# =============================================================================
 
+# =============================================================================
 # Package Installation Methods Framework
+# =============================================================================
 # These functions provide unified interface for different package managers
 # All functions follow the same pattern: check -> install -> verify -> return executable path
 # This design solves the problem of inconsistent package manager behaviors and
@@ -77,7 +81,7 @@
 function Invoke-NpmCommand {
     param (
         [Parameter(Mandatory = $true)]
-        $PackageName, # Accept string or array of packages
+        [string]$PackageName,
         [string]$InstallDir = "", # Ignored for npm (API consistency)
         [string]$Keyword = "",
         [array]$AdditionalKeywords = @(),
@@ -85,19 +89,10 @@ function Invoke-NpmCommand {
         [bool]$ForceInstall = $false
     )
 
-    # Handle array of packages - batch installation
-    if ($PackageName -is [array] -and $PackageName.Count -gt 1) {
-        Write-DebugLog -Message "Processing npm package array with $($PackageName.Count) packages" -Category "NPM_BATCH" -Color "Cyan"
-        return Install-NpmPackagesBatch -Packages $PackageName -ForceInstall $ForceInstall
-    }
-
-    # Handle single package (extract from array if needed)
-    $singlePackage = if ($PackageName -is [array] -and $PackageName.Count -eq 1) { $PackageName[0] } else { $PackageName }
-
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-
-    Write-DebugLog -Message "Processing package: $singlePackage" -Category "NPM" -Color "Cyan"
+    
+    Write-DebugLog -Message "Processing package: $PackageName" -Category "NPM" -Color "Cyan"
     
     # Get npm executable path
     $npmExe = $Global:NPM_EXE_PATH
@@ -117,8 +112,8 @@ function Invoke-NpmCommand {
     }
     
     # Extract package name without scope for directory paths
-    $packageDirName = $singlePackage
-    if ($singlePackage -match '^@[^/]+/(.+)$') {
+    $packageDirName = $PackageName
+    if ($PackageName -match '^@[^/]+/(.+)$') {
         $packageDirName = $matches[1]
         Write-Host "       [NPM] Package directory name: $packageDirName" -ForegroundColor Cyan
     }
@@ -178,7 +173,7 @@ function Invoke-NpmCommand {
         $searchKeywords += $AdditionalKeywords
     }
     if (-not $searchKeywords -or $searchKeywords -eq "") {
-        $searchKeywords = @($singlePackage)
+        $searchKeywords = @($PackageName)
     }
     
     # Check if already installed - search in all npm paths at once
@@ -195,9 +190,9 @@ function Invoke-NpmCommand {
     }
     
     # Install package
-    Write-DebugLog -Message "Installing package: $singlePackage" -Category "NPM" -Color "Yellow"
+    Write-DebugLog -Message "Installing package: $PackageName" -Category "NPM" -Color "Yellow"
     try {
-        $installArgs = @("install", "-g", $singlePackage)
+        $installArgs = @("install", "-g", $PackageName)
         $Command = "$npmExe $installArgs"
         Write-DebugLog -Message "Command: $Command" -Category "NPM" -Color "Magenta"
         
@@ -255,79 +250,6 @@ function Invoke-NpmCommand {
     }
 }
 
-# Helper function to test Python package imports
-function Test-PythonPackageImport {
-    param (
-        [string]$ImportName,
-        [string]$PipExePath
-    )
-    
-    if (-not $ImportName -or -not $PipExePath) {
-        return $false
-    }
-    
-    # Get Python executable from pip path
-    $pythonExe = $PipExePath -replace "Scripts\\pip\.exe$", "python.exe"
-    if (-not (Test-Path $pythonExe)) {
-        Write-DebugLog -Message "Python executable not found: $pythonExe" -Category "PIP" -Color "Red"
-        return $false
-    }
-    
-    # Create temp directory for validation script
-    $tempNamespace = Join-Path $Global:TEMP_DIR "python_validation"
-    if (-not (Test-Path $tempNamespace)) {
-        New-Item -ItemType Directory -Path $tempNamespace -Force | Out-Null
-    }
-    
-    # Ensure permanent validation script exists
-    $validationScript = Join-Path $tempNamespace "package_import_validator.py"
-    if (-not (Test-Path $validationScript)) {
-        $pythonCode = @"
-import sys
-import importlib
-
-def test_import(package_name):
-    try:
-        # Try to import the package
-        importlib.import_module(package_name)
-        print("IMPORT_SUCCESS")
-        return True
-    except ImportError as e:
-        print(f"IMPORT_FAILED: {str(e)}")
-        return False
-    except Exception as e:
-        print(f"IMPORT_ERROR: {str(e)}")
-        return False
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("IMPORT_ERROR: No package name provided")
-        sys.exit(1)
-    
-    package_name = sys.argv[1]
-    test_import(package_name)
-"@
-        
-        Set-Content -Path $validationScript -Value $pythonCode -Encoding UTF8
-        Write-DebugLog -Message "Created permanent validation script: $validationScript" -Category "PIP" -Color "Magenta"
-    }
-    
-    try {
-        # Run Python script with ImportName as parameter
-        $output = & $pythonExe $validationScript $ImportName 2>&1
-        Write-DebugLog -Message "Python import test output: $($output -join ' ')" -Category "PIP" -Color "Cyan"
-        
-        # Check if import was successful
-        $success = $output -match "IMPORT_SUCCESS"
-        Write-DebugLog -Message "Import test result for '$ImportName': $success" -Category "PIP" -Color $(if ($success) { "Green" } else { "Yellow" })
-        return $success
-        
-    } catch {
-        Write-DebugLog -Message "Error testing Python import: $($_.Exception.Message)" -Category "PIP" -Color "Red"
-        return $false
-    }
-}
-
 <#
 .SYNOPSIS
     Installs Python packages using PIP with binary scanning verification
@@ -378,168 +300,387 @@ if __name__ == "__main__":
     - Supports both global and virtual environment installations
     - Returns executable path for environment variable setup
 #>
-
-# Enhanced batch npm installation function
-function Install-NpmPackagesBatch {
-    param (
-        [Parameter(Mandatory = $true)]
-        [array]$Packages,
-        [bool]$ForceInstall = $false
-    )
-
-    Write-DebugLog -Message "Starting npm batch installation for $($Packages.Count) packages" -Category "NPM_BATCH" -Color "Cyan"
-
-    # Get npm executable
-    $npmExe = $Global:NPM_EXE_PATH
-    if (-not (Test-Path $npmExe)) {
-        Write-DebugLog -Message "npm not found at: $npmExe" -Category "NPM_BATCH" -Color "Red"
-        return $null
-    }
-
-    Write-DebugLog -Message "Using npm: $npmExe" -Category "NPM_BATCH" -Color "Cyan"
-
-    # Extract package names from mixed array
-    $packageNames = @()
-    foreach ($pkg in $Packages) {
-        if ($pkg -is [hashtable] -and $pkg.ContainsKey("packageName")) {
-            $packageNames += $pkg.packageName
-        } elseif ($pkg -is [string]) {
-            $packageNames += $pkg
-        }
-    }
-
-    # Batch install all packages
-    if ($packageNames.Count -gt 0) {
-        Write-DebugLog -Message "Batch installing npm packages: $($packageNames -join ', ')" -Category "NPM_BATCH" -Color "Green"
-
-        try {
-            $installArgs = @("install", "-g") + $packageNames
-            if ($ForceInstall) {
-                $installArgs += "--force"
-            }
-
-            $npmOutput = & $npmExe $installArgs 2>&1
-
-            if ($LASTEXITCODE -eq 0) {
-                Write-DebugLog -Message "Batch npm installation successful" -Category "NPM_BATCH" -Color "Green"
-                return "BATCH_COMPLETED"
-            } else {
-                Write-DebugLog -Message "Batch npm installation failed, exit code: $LASTEXITCODE" -Category "NPM_BATCH" -Color "Yellow"
-                Write-DebugLog -Message "npm output: $($npmOutput -join ' ')" -Category "NPM_BATCH" -Color "Yellow"
-                return $null
-            }
-        } catch {
-            Write-DebugLog -Message "Batch npm installation error: $_" -Category "NPM_BATCH" -Color "Red"
-            return $null
-        }
-    }
-
-    return $null
-}
-
 function Invoke-PipCommand {
     param (
         [Parameter(Mandatory = $true)]
-        $PackageName, # Accept string, hashtable, or array of packages
+        [string]$PackageName,
         [string]$InstallDir = "", # Ignored for pip (API consistency)
         [string]$Keyword = "",
         [array]$AdditionalKeywords = @(),
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-
-    # Handle array of packages - batch installation
-    if ($PackageName -is [array] -and $PackageName.Count -gt 1) {
-        Write-DebugLog -Message "Processing pip package array with $($PackageName.Count) packages" -Category "PIP_BATCH" -Color "Cyan"
-        return Install-PipPackagesBatch -Packages $PackageName -ForceInstall $ForceInstall
-    }
-
-    # Handle single package (extract from array if needed)
-    $singlePackage = if ($PackageName -is [array] -and $PackageName.Count -eq 1) { $PackageName[0] } else { $PackageName }
-
-    # Parse package information based on input type
-    $actualPackageName = ""
-    $validationType = "command" # Default to command validation
-    $importName = ""
-
-    if ($singlePackage -is [hashtable]) {
-        # Object format with validation type
-        $actualPackageName = $singlePackage.packageName
-        $validationType = if ($singlePackage.validationType) { $singlePackage.validationType } else { "command" }
-        $importName = if ($singlePackage.importName) { $singlePackage.importName } else { $actualPackageName }
-
-        if (-not $actualPackageName) {
-            Write-DebugLog -Message "ERROR: Hashtable package missing packageName property" -Category "PIP" -Color "Red"
-            return $null
+    
+    $Recurse = $false
+    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    
+    Write-DebugLog -Message "Processing pip package: $PackageName" -Category "PIP" -Color "Cyan"
+    
+    # Get pip executable path
+    $pipExe = $Global:PIP_EXE_PATH
+    
+    # Get Python Scripts directory using GlobalVars.ps1 definitions
+    $pythonScriptsDir = $null
+    Write-DebugLog -Message "Starting Python Scripts directory detection..." -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "PIP executable path: $pipExe" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Global PYTHON_DIR: $Global:PYTHON_DIR" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Global PYTHON_EXE_PATH: $Global:PYTHON_EXE_PATH" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Global PIP_EXE_PATH: $Global:PIP_EXE_PATH" -Category "PIP" -Color "Cyan"
+    
+    try {
+        # Method 1: Use GlobalVars.ps1 PYTHON_DIR + Scripts
+        Write-DebugLog -Message "Method 1: Using GlobalVars PYTHON_DIR..." -Category "PIP" -Color "Cyan"
+        if ($Global:PYTHON_DIR) {
+            $pythonScriptsDir = Join-Path $Global:PYTHON_DIR "Scripts"
+            Write-DebugLog -Message "Method 1: Calculated Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "Method 1: Path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+            
+            if (Test-Path $pythonScriptsDir) {
+                Write-DebugLog -Message "Method 1 SUCCESS: Python Scripts directory (from GlobalVars): $pythonScriptsDir" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "Method 1 FAILED: GlobalVars Scripts directory not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+                $pythonScriptsDir = $null
+            }
+        } else {
+            Write-DebugLog -Message "Method 1 FAILED: GlobalVars PYTHON_DIR is not defined" -Category "PIP" -Color "Yellow"
         }
-
-        Write-DebugLog -Message "Processing pip package object - Name: $actualPackageName, Validation: $validationType, Import: $importName" -Category "PIP" -Color "Cyan"
-    } elseif ($singlePackage -is [string] -and $singlePackage -ne "") {
-        # String format (original behavior)
-        $actualPackageName = $singlePackage
-        $importName = $actualPackageName
-        Write-DebugLog -Message "Processing pip package string: $actualPackageName" -Category "PIP" -Color "Cyan"
-    } else {
-        # Invalid package format
-        Write-DebugLog -Message "ERROR: Invalid package format - Expected string or hashtable with packageName, got: $($singlePackage.GetType().Name)" -Category "PIP" -Color "Red"
+        
+        # Method 2: Try pip show pip command
+        if (-not $pythonScriptsDir) {
+            Write-DebugLog -Message "Method 2: Trying 'pip show pip' command..." -Category "PIP" -Color "Cyan"
+            $pipShowOutput = & $pipExe show pip 2>&1
+            $pipShowExitCode = $LASTEXITCODE
+            Write-DebugLog -Message "pip show pip exit code: $pipShowExitCode" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "pip show pip output: $($pipShowOutput -join '`n')" -Category "PIP" -Color "Cyan"
+            
+            if ($pipShowExitCode -eq 0 -and $pipShowOutput) {
+                $locationLine = $pipShowOutput | Select-String "Location:"
+                if ($locationLine) {
+                    $pipLocation = $locationLine.ToString() -replace "^Location:\s*", ""
+                    $pythonScriptsDir = Join-Path $pipLocation "Scripts"
+                    Write-DebugLog -Message "Method 2 SUCCESS: Python Scripts directory (from pip show): $pythonScriptsDir" -Category "PIP" -Color "Green"
+                    Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+                } else {
+                    Write-DebugLog -Message "Method 2 FAILED: Location line not found in pip show output" -Category "PIP" -Color "Yellow"
+                }
+            } else {
+                Write-DebugLog -Message "Method 2 FAILED: pip show pip command failed or returned empty output" -Category "PIP" -Color "Yellow"
+            }
+        }
+        
+        # Method 3: Fallback to Python executable location
+        if (-not $pythonScriptsDir) {
+            Write-DebugLog -Message "Method 3: Trying to find Python executable..." -Category "PIP" -Color "Cyan"
+            $pythonExe = Get-Command python -ErrorAction SilentlyContinue
+            if ($pythonExe) {
+                Write-DebugLog -Message "Found Python executable: $($pythonExe.Source)" -Category "PIP" -Color "Cyan"
+                $pythonDir = Split-Path $pythonExe.Source -Parent
+                $pythonScriptsDir = Join-Path $pythonDir "Scripts"
+                Write-DebugLog -Message "Method 3 SUCCESS: Python Scripts directory (from python command): $pythonScriptsDir" -Category "PIP" -Color "Green"
+                Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+            } else {
+                Write-DebugLog -Message "Method 3 FAILED: Python executable not found in PATH" -Category "PIP" -Color "Yellow"
+            }
+        }
+        
+        # Method 4: Fallback to PIP_EXE_PATH location
+        if (-not $pythonScriptsDir) {
+            Write-DebugLog -Message "Method 4: Trying PIP executable location..." -Category "PIP" -Color "Cyan"
+            $pipDir = Split-Path $pipExe -Parent
+            $pythonScriptsDir = Join-Path $pipDir "Scripts"
+            Write-DebugLog -Message "Method 4 SUCCESS: Python Scripts directory (from pip path): $pythonScriptsDir" -Category "PIP" -Color "Green"
+            Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+        }
+        
+        # Final validation
+        if ($pythonScriptsDir) {
+            Write-DebugLog -Message "Final validation: Checking if $pythonScriptsDir exists..." -Category "PIP" -Color "Cyan"
+            if (Test-Path $pythonScriptsDir) {
+                Write-DebugLog -Message "SUCCESS: Python Scripts directory found and accessible: $pythonScriptsDir" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "WARNING: Python Scripts directory found but not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+            }
+        } else {
+            Write-DebugLog -Message "ERROR: Could not determine Python Scripts directory using any method" -Category "PIP" -Color "Red"
+            throw "Could not determine Python Scripts directory using any method"
+        }
+    }
+    catch {
+        Write-DebugLog -Message "CRITICAL ERROR: Failed to get Python Scripts directory: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
         return $null
     }
     
-    # Get pip executable path
-    $pipExe = $null
+    # Build search paths for pip packages with comprehensive debugging
+    $searchPaths = @()
+    Write-DebugLog -Message "Starting search paths building..." -Category "PIP" -Color "Cyan"
     
-    # Find default Python package from BasePackages
-    if ($Global:BasePackages) {
-        foreach ($basePackageName in $Global:BasePackages.Keys) {
-            $packageConfig = $Global:BasePackages[$basePackageName]
-            $isDefault = if ($packageConfig.ContainsKey("IsDefault")) { $packageConfig.IsDefault } else { $false }
-            if ($isDefault -eq $true -and $packageConfig.Exec -eq "python.exe") {
-                $pythonDir = Join-Path $Global:LANG_COMPILER_DIR $packageConfig.Name
-                $derivedPipPath = Join-Path $pythonDir "Scripts\pip.exe"
+    try {
+        # Add the main Python Scripts directory
+        if ($pythonScriptsDir) {
+            Write-DebugLog -Message "Adding main Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+            if (Test-Path $pythonScriptsDir) {
+                $searchPaths += $pythonScriptsDir
+                Write-DebugLog -Message "SUCCESS: Added Python Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "WARNING: Python Scripts directory not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+            }
+        } else {
+            Write-DebugLog -Message "ERROR: pythonScriptsDir is null or empty" -Category "PIP" -Color "Red"
+        }
+        
+        # Add user-specific pip paths if available
+        Write-DebugLog -Message "Trying to find user-specific pip paths..." -Category "PIP" -Color "Cyan"
+        try {
+            $userPipShowOutput = & $pipExe show pip --user 2>&1
+            $userPipExitCode = $LASTEXITCODE
+            Write-DebugLog -Message "pip show pip --user exit code: $userPipExitCode" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "pip show pip --user output: $($userPipShowOutput -join '`n')" -Category "PIP" -Color "Cyan"
+            
+            if ($userPipExitCode -eq 0 -and $userPipShowOutput) {
+                $userLocationLine = $userPipShowOutput | Select-String "Location:"
+                if ($userLocationLine) {
+                    $userPipDir = $userLocationLine.ToString() -replace "^Location:\s*", ""
+                    $userScriptsDir = Join-Path $userPipDir "Scripts"
+                    Write-DebugLog -Message "Found user pip directory: $userScriptsDir" -Category "PIP" -Color "Cyan"
+                    
+                    if (Test-Path $userScriptsDir) {
+                        $searchPaths += $userScriptsDir
+                        Write-DebugLog -Message "SUCCESS: Added user pip Scripts path: $userScriptsDir" -Category "PIP" -Color "Green"
+                    } else {
+                        Write-DebugLog -Message "WARNING: User pip Scripts directory not accessible: $userScriptsDir" -Category "PIP" -Color "Yellow"
+                    }
+                } else {
+                    Write-DebugLog -Message "WARNING: Location line not found in user pip show output" -Category "PIP" -Color "Yellow"
+                }
+            } else {
+                Write-DebugLog -Message "WARNING: pip show pip --user command failed or returned empty output" -Category "PIP" -Color "Yellow"
+            }
+        }
+        catch {
+            Write-DebugLog -Message "ERROR: Exception while getting user pip location: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        }
+        
+        # Add additional common pip installation paths
+        Write-DebugLog -Message "Adding additional common pip installation paths..." -Category "PIP" -Color "Cyan"
+        $additionalPaths = @(
+            (Join-Path $env:USERPROFILE ".local\Scripts"),
+            (Join-Path $env:APPDATA "Python\Scripts"),
+            (Join-Path $env:LOCALAPPDATA "Programs\Python\Scripts"),
+            (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python\Scripts"),
+            (Join-Path $env:USERPROFILE "AppData\Roaming\Python\Scripts")
+        )
+        
+        foreach ($path in $additionalPaths) {
+            Write-DebugLog -Message "Checking additional path: $path" -Category "PIP" -Color "Cyan"
+            if (Test-Path $path) {
+                $searchPaths += $path
+                Write-DebugLog -Message "SUCCESS: Added additional pip path: $path" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "Path not found: $path" -Category "PIP" -Color "Gray"
+            }
+        }
+        
+        # Ensure we have at least one search path
+        Write-DebugLog -Message "Final search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
+        if ($searchPaths.Count -eq 0) {
+            Write-DebugLog -Message "WARNING: No valid pip search paths found, adding fallback path" -Category "PIP" -Color "Yellow"
+            # Add a fallback path based on pip executable location
+            $pipDir = Split-Path $pipExe -Parent
+            $fallbackPath = Join-Path $pipDir "Scripts"
+            $searchPaths += $fallbackPath
+            Write-DebugLog -Message "Added fallback pip path: $fallbackPath" -Category "PIP" -Color "Yellow"
+        }
+        
+        # Log all final search paths
+        Write-DebugLog -Message "Final search paths:" -Category "PIP" -Color "Cyan"
+        for ($i = 0; $i -lt $searchPaths.Count; $i++) {
+            Write-DebugLog -Message "  [$i] $($searchPaths[$i])" -Category "PIP" -Color "Cyan"
+        }
+    }
+    catch {
+        Write-DebugLog -Message "CRITICAL ERROR: Error building search paths: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
+        # Don't throw here, continue with empty search paths
+        Write-DebugLog -Message "Continuing with empty search paths" -Category "PIP" -Color "Yellow"
+    }
+    
+    # Build search keywords
+    $searchKeywords = @($Keyword)
+    if ($AdditionalKeywords) {
+        $searchKeywords += $AdditionalKeywords
+    }
+    if (-not $searchKeywords -or $searchKeywords -eq "") {
+        $searchKeywords = @($PackageName)
+    }
+    
+    # Check if already installed - search in all pip paths at once
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+    
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "Package already installed: $executable" -Category "PIP" -Color "Green"
+        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "PIP" -Color "Cyan"
+        return $executable
+    }
+    
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+    
+    # Install package
+    # Install package with comprehensive debugging
+    Write-DebugLog -Message "Starting pip package installation for: $PackageName" -Category "PIP" -Color "Yellow"
+    Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
+    
+    try {
+        # Try different installation methods with detailed logging
+        $installMethods = @(
+            @{ Args = @("install", $PackageName); Name = "global installation" },
+            @{ Args = @("install", "--upgrade", $PackageName); Name = "upgrade installation" },
+            @{ Args = @("install", "--force-reinstall", $PackageName); Name = "force reinstall" }
+        )
+        
+        $installationSuccessful = $false
+        $pipOutput = $null
+        $successfulMethod = $null
+        
+        Write-DebugLog -Message "Will try $($installMethods.Count) installation methods" -Category "PIP" -Color "Cyan"
+        
+        foreach ($method in $installMethods) {
+            Write-DebugLog -Message "=== Trying $($method.Name) ===" -Category "PIP" -Color "Magenta"
+            Write-DebugLog -Message "Command: $pipExe $($method.Args -join ' ')" -Category "PIP" -Color "Magenta"
+            
+            try {
+                $startTime = Get-Date
+                Write-DebugLog -Message "Starting pip installation..." -Category "PIP" -Color "Cyan"
                 
-                if (Test-Path $derivedPipPath) {
-                    $pipExe = $derivedPipPath
-                    Write-DebugLog -Message "Using pip: $pipExe" -Category "PIP" -Color "Green"
+                # Use direct execution with real-time output
+                $pipOutput = & $pipExe $method.Args 2>&1
+                $endTime = Get-Date
+                $duration = ($endTime - $startTime).TotalSeconds
+                
+                # Display real-time output
+                Write-DebugLog -Message "Installation completed in $duration seconds" -Category "PIP" -Color "Cyan"
+                Write-DebugLog -Message "Pip output:" -Category "PIP" -Color "Cyan"
+                if ($pipOutput) {
+                    foreach ($line in $pipOutput) {
+                        Write-DebugLog -Message "  $line" -Category "PIP" -Color "White"
+                    }
+                }
+                
+                # Check if binary actually exists after installation attempt
+                Write-DebugLog -Message "Checking if binary exists after installation attempt..." -Category "PIP" -Color "Cyan"
+                $binaryFound = $false
+                
+                # Search for the installed binary in all possible locations
+                $binarySearchPaths = @()
+                if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+                    $binarySearchPaths += $pythonScriptsDir
+                }
+                $binarySearchPaths += $searchPaths
+                
+                foreach ($searchPath in $binarySearchPaths) {
+                    if (Test-Path $searchPath) {
+                        foreach ($ext in $ExecutableExtensions) {
+                            $binaryPath = Join-Path $searchPath "$PackageName$ext"
+                            if (Test-Path $binaryPath) {
+                                Write-DebugLog -Message "SUCCESS: Binary found at $binaryPath" -Category "PIP" -Color "Green"
+                                $binaryFound = $true
+                                break
+                            }
+                        }
+                        if ($binaryFound) { break }
+                    }
+                }
+                
+                if ($binaryFound) {
+                    Write-DebugLog -Message "SUCCESS: Installation successful with $($method.Name) - binary exists" -Category "PIP" -Color "Green"
+                    $installationSuccessful = $true
+                    $successfulMethod = $method.Name
                     break
+                } else {
+                    Write-DebugLog -Message "FAILED: Installation failed with $($method.Name) - binary not found" -Category "PIP" -Color "Yellow"
                 }
             }
-        }
-    }
-    
-    # Fallback: try to find pip via Get-Command
-    if (-not $pipExe) {
-        $pipCmd = Get-Command "pip" -ErrorAction SilentlyContinue
-        if ($pipCmd) {
-            $pipExe = $pipCmd.Source
-            Write-DebugLog -Message "Found pip via PATH: $pipExe" -Category "PIP" -Color "Green"
-        } else {
-            Write-DebugLog -Message "pip not found" -Category "PIP" -Color "Red"
-            return $null
-        }
-    }
-    
-    # Skip all detection - just install directly
-    Write-DebugLog -Message "Installing pip package: $actualPackageName" -Category "PIP" -Color "Yellow"
-    try {
-        $installArgs = @("install", $actualPackageName)
-        $pipOutput = & $pipExe $installArgs 2>&1
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-DebugLog -Message "Installation successful for: $actualPackageName" -Category "PIP" -Color "Green"
-            # Return appropriate marker based on validation type
-            if ($validationType -eq "import") {
-                return "IMPORT_VALIDATED"
-            } else {
-                return "INSTALLED_SUCCESS"
+            catch {
+                Write-DebugLog -Message "EXCEPTION: Exception during $($method.Name): $($_.Exception.Message)" -Category "PIP" -Color "Red"
+                Write-DebugLog -Message "Exception type: $($_.Exception.GetType().Name)" -Category "PIP" -Color "Red"
             }
-        } else {
-            Write-DebugLog -Message "Installation failed for $actualPackageName - exit code: $LASTEXITCODE" -Category "PIP" -Color "Red"
-            Write-DebugLog -Message "pip output: $($pipOutput -join ' ')" -Category "PIP" -Color "Red"
+        }
+        
+        if ($installationSuccessful) {
+            Write-DebugLog -Message "Installation successful with method: $successfulMethod" -Category "PIP" -Color "Green"
+            
+            # Refresh search paths after installation
+            Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PIP" -Color "Magenta"
+            $refreshedSearchPaths = @()
+            try {
+                # Rebuild search paths with the same logic as before
+                if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+                    $refreshedSearchPaths += $pythonScriptsDir
+                    Write-DebugLog -Message "Added refreshed path: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+                }
+                
+                # Add additional common paths
+                $additionalPaths = @(
+                    (Join-Path $env:USERPROFILE ".local\Scripts"),
+                    (Join-Path $env:APPDATA "Python\Scripts"),
+                    (Join-Path $env:LOCALAPPDATA "Programs\Python\Scripts")
+                )
+                
+                foreach ($path in $additionalPaths) {
+                    if (Test-Path $path) {
+                        $refreshedSearchPaths += $path
+                        Write-DebugLog -Message "Added refreshed additional path: $path" -Category "PIP" -Color "Cyan"
+                    }
+                }
+                
+                # Ensure we have at least one search path
+                if ($refreshedSearchPaths.Count -eq 0) {
+                    $pipDir = Split-Path $pipExe -Parent
+                    $fallbackPath = Join-Path $pipDir "Scripts"
+                    $refreshedSearchPaths += $fallbackPath
+                    Write-DebugLog -Message "Added refreshed fallback path: $fallbackPath" -Category "PIP" -Color "Yellow"
+                }
+                
+                Write-DebugLog -Message "Refreshed search paths count: $($refreshedSearchPaths.Count)" -Category "PIP" -Color "Cyan"
+            }
+            catch {
+                Write-DebugLog -Message "ERROR: Error refreshing search paths: $($_.Exception.Message)" -Category "PIP" -Color "Yellow"
+                # Use original search paths as fallback
+                $refreshedSearchPaths = $searchPaths
+                Write-DebugLog -Message "Using original search paths as fallback" -Category "PIP" -Color "Yellow"
+            }
+            
+            # Find the installed executable
+            Write-DebugLog -Message "Searching for executable after installation..." -Category "PIP" -Color "Magenta"
+            Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "Search paths: $($refreshedSearchPaths -join ', ')" -Category "PIP" -Color "Cyan"
+            
+            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $refreshedSearchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+            
+            if ($executable) {
+                Write-DebugLog -Message "SUCCESS: Found executable: $executable" -Category "PIP" -Color "Green"
+                return $executable
+            }
+            else {
+                Write-DebugLog -Message "WARNING: Installation completed but executable not found" -Category "PIP" -Color "Yellow"
+                Write-DebugLog -Message "This might be normal for packages that don't install executables" -Category "PIP" -Color "Yellow"
+                return $null
+            }
+        }
+        else {
+            Write-DebugLog -Message "CRITICAL ERROR: All installation methods failed" -Category "PIP" -Color "Red"
+            Write-DebugLog -Message "Package: $PackageName" -Category "PIP" -Color "Red"
+            Write-DebugLog -Message "Tried methods: $($installMethods.Name -join ', ')" -Category "PIP" -Color "Red"
             return $null
         }
     }
     catch {
-        Write-DebugLog -Message "Installation error for $actualPackageName`: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "CRITICAL ERROR: Exception during pip installation: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Exception type: $($_.Exception.GetType().Name)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
         return $null
     }
 }
@@ -593,94 +734,6 @@ function Invoke-PipCommand {
     - Provides global access to applications
     - Returns executable path for environment variable setup
 #>
-
-# Enhanced batch pip installation function
-function Install-PipPackagesBatch {
-    param (
-        [Parameter(Mandatory = $true)]
-        [array]$Packages,
-        [bool]$ForceInstall = $true
-    )
-
-    Write-DebugLog -Message "Starting pip batch installation for $($Packages.Count) packages" -Category "PIP_BATCH" -Color "Cyan"
-
-    # Get pip executable
-    $pipExe = $null
-    if ($Global:BasePackages) {
-        foreach ($basePackageName in $Global:BasePackages.Keys) {
-            $basePackage = $Global:BasePackages[$basePackageName]
-            if ($basePackage.type -eq "python" -and $basePackage.ContainsKey("ExecutablePaths")) {
-                foreach ($execPath in $basePackage.ExecutablePaths) {
-                    $pipPath = Join-Path (Split-Path $execPath -Parent) "Scripts\pip.exe"
-                    if (Test-Path $pipPath) {
-                        $pipExe = $pipPath
-                        break
-                    }
-                }
-                if ($pipExe) { break }
-            }
-        }
-    }
-
-    if (-not $pipExe) {
-        $pipExe = Get-Command "pip" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-        if (-not $pipExe) {
-            Write-DebugLog -Message "pip executable not found" -Category "PIP_BATCH" -Color "Red"
-            return $null
-        }
-    }
-
-    Write-DebugLog -Message "Using pip: $pipExe" -Category "PIP_BATCH" -Color "Cyan"
-
-    # Separate simple packages from complex ones
-    $simplePackages = @()
-    $complexPackages = @()
-
-    foreach ($pkg in $Packages) {
-        if ($pkg -is [hashtable] -and $pkg.ContainsKey("validationType") -and $pkg.validationType -eq "import") {
-            $complexPackages += $pkg
-        } elseif ($pkg -is [hashtable] -and $pkg.ContainsKey("packageName")) {
-            $simplePackages += $pkg.packageName
-        } elseif ($pkg -is [string]) {
-            $simplePackages += $pkg
-        }
-    }
-
-    # Batch install simple packages
-    if ($simplePackages.Count -gt 0) {
-        Write-DebugLog -Message "Batch installing simple packages: $($simplePackages -join ', ')" -Category "PIP_BATCH" -Color "Green"
-
-        try {
-            $installArgs = @("install") + $simplePackages
-            if ($ForceInstall) {
-                $installArgs += "--force-reinstall"
-            }
-
-            $pipOutput = & $pipExe $installArgs 2>&1
-
-            if ($LASTEXITCODE -eq 0) {
-                Write-DebugLog -Message "Batch installation successful" -Category "PIP_BATCH" -Color "Green"
-            } else {
-                Write-DebugLog -Message "Batch installation failed, exit code: $LASTEXITCODE" -Category "PIP_BATCH" -Color "Yellow"
-                Write-DebugLog -Message "pip output: $($pipOutput -join ' ')" -Category "PIP_BATCH" -Color "Yellow"
-            }
-        } catch {
-            Write-DebugLog -Message "Batch installation error: $_" -Category "PIP_BATCH" -Color "Red"
-        }
-    }
-
-    # Handle complex packages individually
-    foreach ($complexPkg in $complexPackages) {
-        Write-DebugLog -Message "Installing complex package individually: $($complexPkg.packageName)" -Category "PIP_BATCH" -Color "Cyan"
-        $result = Invoke-PipCommand -PackageName $complexPkg -ForceInstall $ForceInstall
-        if (-not $result) {
-            Write-DebugLog -Message "Failed to install complex package: $($complexPkg.packageName)" -Category "PIP_BATCH" -Color "Red"
-        }
-    }
-
-    return "BATCH_COMPLETED"
-}
-
 function Invoke-PipxCommand {
     param (
         [Parameter(Mandatory = $true)]
@@ -704,95 +757,40 @@ function Invoke-PipxCommand {
         return $null
     }
     
-    # Get pipx home directory with robust fallback
-    $pipxHome = ""
+    # Get pipx home directory
     try {
         $pipxHome = & pipx environment 2>$null | Select-String "PIPX_HOME=" | ForEach-Object { $_.ToString().Split("=")[1].Trim() }
-        if ([string]::IsNullOrEmpty($pipxHome)) {
-            if ([string]::IsNullOrEmpty($env:USERPROFILE)) {
-                throw "USERPROFILE environment variable is not set"
-            }
+        if (-not $pipxHome) {
             $pipxHome = Join-Path $env:USERPROFILE ".local"
         }
         Write-DebugLog -Message "PIPX home directory: $pipxHome" -Category "PIPX" -Color "Cyan"
     }
     catch {
-        if ([string]::IsNullOrEmpty($env:USERPROFILE)) {
-            Write-DebugLog -Message "USERPROFILE environment variable is not set, using C:\Users\Default" -Category "PIPX" -Color "Red"
-            $pipxHome = "C:\Users\Default\.local"
-        } else {
-            $pipxHome = Join-Path $env:USERPROFILE ".local"
-        }
+        $pipxHome = Join-Path $env:USERPROFILE ".local"
         Write-DebugLog -Message "Using default PIPX home: $pipxHome" -Category "PIPX" -Color "Yellow"
     }
-
-    # Final validation to ensure pipxHome is not empty
-    if ([string]::IsNullOrEmpty($pipxHome)) {
-        if ([string]::IsNullOrEmpty($env:USERPROFILE)) {
-            $pipxHome = "C:\Users\Default\.local"
-        } else {
-            $pipxHome = Join-Path $env:USERPROFILE ".local"
-        }
-        Write-DebugLog -Message "Final fallback PIPX home: $pipxHome" -Category "PIPX" -Color "Red"
-    }
-
-    # Ensure the directory exists
-    if (-not (Test-Path $pipxHome)) {
-        try {
-            New-Item -ItemType Directory -Path $pipxHome -Force | Out-Null
-            Write-DebugLog -Message "Created PIPX home directory: $pipxHome" -Category "PIPX" -Color "Green"
-        }
-        catch {
-            Write-DebugLog -Message "Failed to create PIPX home directory: $($_.Exception.Message)" -Category "PIPX" -Color "Red"
-        }
-    }
     
-    # Build search paths for pipx packages with validation
+    # Build search paths for pipx packages
     $searchPaths = @()
     try {
-        # Validate pipxHome before using it
-        if ([string]::IsNullOrEmpty($pipxHome)) {
-            throw "PIPX home directory is empty or null"
-        }
-
         # PIPX bin directory
         $pipxBinDir = Join-Path $pipxHome "bin"
-        if (-not [string]::IsNullOrEmpty($pipxBinDir)) {
-            $searchPaths += $pipxBinDir
-            Write-DebugLog -Message "Added PIPX bin path: $pipxBinDir" -Category "PIPX" -Color "Magenta"
-        }
-
+        $searchPaths += $pipxBinDir
+        Write-DebugLog -Message "Added PIPX bin path: $pipxBinDir" -Category "PIPX" -Color "Magenta"
+        
         # PIPX venvs directory for specific package
-        if (-not [string]::IsNullOrEmpty($PackageName)) {
-            $pipxVenvsDir = Join-Path $pipxHome "venvs\$PackageName\Scripts"
-            if (-not [string]::IsNullOrEmpty($pipxVenvsDir)) {
-                $searchPaths += $pipxVenvsDir
-                Write-DebugLog -Message "Added PIPX venv Scripts path: $pipxVenvsDir" -Category "PIPX" -Color "Magenta"
-            }
-        }
-
+        $pipxVenvsDir = Join-Path $pipxHome "venvs\$PackageName\Scripts"
+        $searchPaths += $pipxVenvsDir
+        Write-DebugLog -Message "Added PIPX venv Scripts path: $pipxVenvsDir" -Category "PIPX" -Color "Magenta"
+        
         # Alternative Windows paths
-        if (-not [string]::IsNullOrEmpty($env:USERPROFILE)) {
-            $windowsPipxBin = Join-Path $env:USERPROFILE ".local\Scripts"
-            if (-not [string]::IsNullOrEmpty($windowsPipxBin)) {
-                $searchPaths += $windowsPipxBin
-                Write-DebugLog -Message "Added Windows PIPX Scripts path: $windowsPipxBin" -Category "PIPX" -Color "Magenta"
-            }
-        }
-
-        # Ensure we have at least one search path
-        if ($searchPaths.Count -eq 0) {
-            $fallbackPath = Join-Path $env:USERPROFILE ".local\Scripts"
-            $searchPaths += $fallbackPath
-            Write-DebugLog -Message "Added fallback search path: $fallbackPath" -Category "PIPX" -Color "Yellow"
-        }
+        $windowsPipxBin = Join-Path $env:USERPROFILE ".local\Scripts"
+        $searchPaths += $windowsPipxBin
+        Write-DebugLog -Message "Added Windows PIPX Scripts path: $windowsPipxBin" -Category "PIPX" -Color "Magenta"
     }
     catch {
         Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "PIPX" -Color "Red"
-        # Create a minimal fallback search path
-        $fallbackPath = Join-Path $env:USERPROFILE ".local\Scripts"
-        $searchPaths = @($fallbackPath)
-        Write-DebugLog -Message "Using fallback search paths: $($searchPaths -join '; ')" -Category "PIPX" -Color "Yellow"
+        throw
     }
     
     # Build search keywords
@@ -996,8 +994,8 @@ function Invoke-UvCommand {
                 $searchPaths += $scriptsDir
                 Write-DebugLog -Message "Added Python Scripts path: $scriptsDir" -Category "UV" -Color "Magenta"
                 
-                # User-specific pip paths - NOTE: Not using --user parameter for consistency
-                $userPipDir = & pip show pip 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
+                # User-specific pip paths
+                $userPipDir = & pip show pip --user 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
                 if ($userPipDir) {
                     $userScriptsDir = Join-Path $userPipDir "Scripts"
                     $searchPaths += $userScriptsDir
@@ -1025,195 +1023,99 @@ function Invoke-UvCommand {
         $searchKeywords = @($PackageName)
     }
     
-    # For UV packages, skip scanning and use direct pip installation
-    # Check if pip is available first
-    $pipExecutable = Get-Command "pip" -ErrorAction SilentlyContinue
-    if (-not $pipExecutable) {
-        Write-DebugLog -Message "pip not found, cannot install UV package: $PackageName" -Category "UV" -Color "Red"
-        return $null
-    }
-
-    if ($OnlyCheckFlag) {
-        # For check-only mode, try to import the package
-        try {
-            $checkResult = & python -c "import $PackageName; print('installed')" 2>$null
-            if ($checkResult -eq "installed") {
-                Write-DebugLog -Message "Package already installed (import check): $PackageName" -Category "UV" -Color "Green"
-                return "installed"
-            }
-        } catch {
-            Write-DebugLog -Message "Package not installed (import check failed): $PackageName" -Category "UV" -Color "Yellow"
-        }
-        return $null
+    # Check if already installed - search in all uv paths at once
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+    
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "Package already installed: $executable" -Category "UV" -Color "Green"
+        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "UV" -Color "Cyan"
+        return $executable
     }
     
-    # Install package using pip directly (unified approach)
-    Write-DebugLog -Message "Installing package via pip: $PackageName" -Category "UV" -Color "Yellow"
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+    
+    # Install package
+    Write-DebugLog -Message "Installing uv package: $PackageName" -Category "UV" -Color "Yellow"
     try {
-        # Use pip install directly
-        $installArgs = @("install", $PackageName)
+        # Try uv tool install first (for applications), fallback to uv pip install
+        $installArgs = @("tool", "install", $PackageName)
         if ($ForceInstall) {
-            $installArgs += "--force-reinstall"
-        }
-
-        $Command = "pip $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "UV" -Color "Magenta"
-
-        # Execute pip install
-        $pipOutput = & pip @installArgs 2>&1
-        Write-DebugLog -Message "pip installation output: $($pipOutput -join ' ')" -Category "UV" -Color "Cyan"
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-DebugLog -Message "pip installation successful" -Category "UV" -Color "Green"
-        } else {
-            Write-DebugLog -Message "pip install failed with exit code: $LASTEXITCODE" -Category "UV" -Color "Red"
-            return $null
+            $installArgs += "--force"
         }
         
-        # Return success indicator for pip installations
-        Write-DebugLog -Message "Package installation completed successfully" -Category "UV" -Color "Green"
-        return "installed"
-    }
-    catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "UV" -Color "Red"
-        return $null
-    }
-}
-
-<#
-.SYNOPSIS
-    Installs tools using uvx (universal executor for Python tools)
-
-.DESCRIPTION
-    uvx installation method that provides isolated tool execution without
-    installing packages globally. uvx is designed for running Python
-    tools in isolated environments.
-    
-    Design Problems Solved:
-    - Tool isolation and conflict prevention
-    - Simple tool execution without global installation
-    - Automatic dependency management for tools
-    - Consistent tool behavior across environments
-    
-    Solution Approach:
-    - Use uvx for isolated tool execution
-    - Support package@version syntax
-    - Return executable identifier for tracking
-    - Leverage uv's fast Python package management
-
-.PARAMETER PackageName
-    The uvx package name with optional version (e.g., "black", "mcp-feedback-enhanced@latest")
-
-.PARAMETER InstallDir
-    NOTE: uvx manages isolated environments automatically.
-    This parameter is kept for API consistency but is not used.
-
-.PARAMETER Keyword
-    Primary tool name for detection (e.g., "black", "uvx")
-
-.PARAMETER AdditionalKeywords
-    Additional keywords for comprehensive detection
-
-.PARAMETER OnlyCheckFlag
-    If true, only checks if uvx is available
-
-.PARAMETER ForceInstall
-    If true, forces reinstallation
-
-.RETURNS
-    Returns "uvx" executable path if uvx is available, or $null if not found
-
-.NOTES
-    - Provides isolated tool execution
-    - No global package installation
-    - Fast dependency resolution via uv
-    - Returns uvx path for environment variable setup
-#>
-function Invoke-UvxCommand {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$PackageName,
-        [string]$InstallDir = "",
-        [string]$Keyword = "",
-        [array]$AdditionalKeywords = @(),
-        [bool]$OnlyCheckFlag = $false,
-        [bool]$ForceInstall = $true
-    )
-    
-    Write-DebugLog -Message "Processing uvx package: $PackageName" -Category "UVX" -Color "Cyan"
-    
-    # Check if uvx is available (uvx is part of uv)
-    $uvxExe = Get-Command "uvx" -ErrorAction SilentlyContinue
-    if (-not $uvxExe) {
-        # Try uv instead (uvx might be accessed via uv)
-        $uvExe = Get-Command "uv" -ErrorAction SilentlyContinue
-        if (-not $uvExe) {
-            Write-DebugLog -Message "Neither uvx nor uv found, attempting to install uv via pip..." -Category "UVX" -Color "Yellow"
-            try {
-                $pipExe = Get-Command "pip" -ErrorAction SilentlyContinue
-                if ($pipExe) {
-                    & pip install uv 2>&1 | Out-Null
-                    if ($LASTEXITCODE -eq 0) {
-                        $uvExe = Get-Command "uv" -ErrorAction SilentlyContinue
-                        if (-not $uvExe) {
-                            Write-DebugLog -Message "uv installation failed" -Category "UVX" -Color "Red"
-                            return $null
-                        }
-                        Write-DebugLog -Message "uv installed successfully" -Category "UVX" -Color "Green"
-                    } else {
-                        Write-DebugLog -Message "Failed to install uv via pip" -Category "UVX" -Color "Red"
-                        return $null
-                    }
-                } else {
-                    Write-DebugLog -Message "pip not found, cannot install uv" -Category "UVX" -Color "Red"
-                    return $null
-                }
+        $Command = "uv $($installArgs -join ' ')"
+        Write-DebugLog -Message "Command: $Command" -Category "UV" -Color "Magenta"
+        
+        # Capture uv output but don't return it
+        $uvOutput = & uv $installArgs 2>&1
+        Write-DebugLog -Message "uv tool installation output: $($uvOutput -join ' ')" -Category "UV" -Color "Cyan"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-DebugLog -Message "UV tool installation successful" -Category "UV" -Color "Green"
+        } else {
+            Write-DebugLog -Message "UV tool install failed, trying pip install..." -Category "UV" -Color "Yellow"
+            # Fallback to uv pip install
+            $pipInstallArgs = @("pip", "install", $PackageName)
+            if ($ForceInstall) {
+                $pipInstallArgs += "--force-reinstall"
             }
-            catch {
-                Write-DebugLog -Message "Error installing uv: $($_.Exception.Message)" -Category "UVX" -Color "Red"
+            
+            $uvPipOutput = & uv $pipInstallArgs 2>&1
+            Write-DebugLog -Message "uv pip installation output: $($uvPipOutput -join ' ')" -Category "UV" -Color "Cyan"
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-DebugLog -Message "Both UV tool and pip install failed with exit code: $LASTEXITCODE" -Category "UV" -Color "Red"
                 return $null
             }
         }
         
-        # Check for uvx command again
-        $uvxExe = Get-Command "uvx" -ErrorAction SilentlyContinue
-        if (-not $uvxExe) {
-            # Use 'uv tool run' as fallback for uvx functionality
-            Write-DebugLog -Message "uvx not found, will use 'uv tool run' for execution" -Category "UVX" -Color "Yellow"
-            $uvxExe = $uvExe
+        # Refresh search paths after installation
+        Write-DebugLog -Message "Refreshing search paths..." -Category "UV" -Color "Magenta"
+        $searchPaths = @()
+        try {
+            $uvTool = & uv tool dir 2>$null
+            if ($uvTool) {
+                $searchPaths += $uvTool
+            }
+            
+            if ($pipExe) {
+                $pythonScriptsDir = & pip show pip 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
+                if ($pythonScriptsDir) {
+                    $scriptsDir = Join-Path $pythonScriptsDir "Scripts"
+                    $searchPaths += $scriptsDir
+                    $userPipDir = & pip show pip --user 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
+                    if ($userPipDir) {
+                        $userScriptsDir = Join-Path $userPipDir "Scripts"
+                        $searchPaths += $userScriptsDir
+                    }
+                }
+            }
+            
+            $uvHome = Join-Path $env:USERPROFILE ".local\bin"
+            $searchPaths += $uvHome
         }
-    }
-    
-    if ($OnlyCheckFlag) {
-        Write-DebugLog -Message "uvx available for tool execution: $PackageName" -Category "UVX" -Color "Green"
-        return $uvxExe.Source
-    }
-    
-    # For uvx, we don't actually install the package globally
-    # Instead, we verify that uvx/uv is available for tool execution
-    Write-DebugLog -Message "uvx tool prepared for execution: $PackageName" -Category "UVX" -Color "Green"
-    Write-DebugLog -Message "Package will be executed in isolated environment when needed" -Category "UVX" -Color "Cyan"
-    
-    try {
-        # Test uvx functionality by checking if we can access the tool
-        if ($uvxExe.Name -eq "uvx") {
-            # Test with uvx directly
-            $testResult = & uvx --help 2>$null
-        } else {
-            # Test with uv tool command
-            $testResult = & uv tool --help 2>$null
+        catch {
+            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "UV" -Color "Red"
+            throw
         }
         
-        if ($LASTEXITCODE -eq 0) {
-            Write-DebugLog -Message "uvx/uv tool functionality verified" -Category "UVX" -Color "Green"
-            return $uvxExe.Source
-        } else {
-            Write-DebugLog -Message "uvx/uv tool functionality test failed" -Category "UVX" -Color "Red"
+        # Find the installed executable
+        Write-DebugLog -Message "Searching for executable after installation..." -Category "UV" -Color "Magenta"
+        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+        
+        if ($executable) {
+            Write-DebugLog -Message "Found executable: $executable" -Category "UV" -Color "Green"
+            return $executable
+        }
+        else {
+            Write-DebugLog -Message "Installation completed but executable not found" -Category "UV" -Color "Yellow"
             return $null
         }
     }
     catch {
-        Write-DebugLog -Message "uvx installation error: $($_.Exception.Message)" -Category "UVX" -Color "Red"
+        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "UV" -Color "Red"
         return $null
     }
 }
@@ -1448,82 +1350,8 @@ function Invoke-ChocoCommand {
     # Check if chocolatey is available
     $chocoExe = Get-Command "choco" -ErrorAction SilentlyContinue
     if (-not $chocoExe) {
-        Write-DebugLog -Message "Chocolatey not found in PATH, attempting to install..." -Category "CHOCO" -Color "Yellow"
-        Write-DebugLog -Message "Current PATH: $env:Path" -Category "CHOCO" -Color "Magenta"
-        Write-DebugLog -Message "Windows Version: $([System.Environment]::OSVersion.Version)" -Category "CHOCO" -Color "Magenta"
-
-        try {
-            # Check if chocolatey directory already exists
-            $chocoPath = "$env:ProgramData\chocolatey"
-            if (Test-Path $chocoPath) {
-                Write-DebugLog -Message "Chocolatey directory exists at: $chocoPath" -Category "CHOCO" -Color "Yellow"
-                Write-DebugLog -Message "Attempting to refresh PATH to detect existing installation..." -Category "CHOCO" -Color "Yellow"
-
-                # Refresh environment variables first
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                Write-DebugLog -Message "Refreshed PATH: $env:Path" -Category "CHOCO" -Color "Magenta"
-
-                # Check again after PATH refresh
-                $chocoExe = Get-Command "choco" -ErrorAction SilentlyContinue
-                if ($chocoExe) {
-                    Write-DebugLog -Message "Chocolatey found after PATH refresh: $($chocoExe.Source)" -Category "CHOCO" -Color "Green"
-                } else {
-                    Write-DebugLog -Message "Chocolatey still not found after PATH refresh, checking bin directory..." -Category "CHOCO" -Color "Yellow"
-                    $chocoBin = Join-Path $chocoPath "bin\choco.exe"
-                    if (Test-Path $chocoBin) {
-                        Write-DebugLog -Message "Found choco.exe at: $chocoBin" -Category "CHOCO" -Color "Green"
-                        Write-DebugLog -Message "Adding chocolatey bin to PATH..." -Category "CHOCO" -Color "Yellow"
-                        $env:Path = "$chocoPath\bin;$env:Path"
-                        $chocoExe = Get-Command "choco" -ErrorAction SilentlyContinue
-                        if ($chocoExe) {
-                            Write-DebugLog -Message "Chocolatey now available: $($chocoExe.Source)" -Category "CHOCO" -Color "Green"
-                        }
-                    }
-                }
-            }
-
-            # If still not found, attempt installation
-            if (-not $chocoExe) {
-                Write-DebugLog -Message "Installing Chocolatey using official script..." -Category "CHOCO" -Color "Yellow"
-
-                # Use different installation methods based on Windows version
-                $osVersion = [System.Environment]::OSVersion.Version
-                if ($osVersion.Major -ge 10) {
-                    # Windows 10/11 - use modern method
-                    $installCommand = 'Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString("https://community.chocolatey.org/install.ps1"))'
-                    Write-DebugLog -Message "Using Windows 10/11 installation method" -Category "CHOCO" -Color "Cyan"
-                } else {
-                    # Older Windows - use legacy method
-                    $installCommand = 'iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex'
-                    Write-DebugLog -Message "Using legacy Windows installation method" -Category "CHOCO" -Color "Cyan"
-                }
-
-                Write-DebugLog -Message "Executing installation command..." -Category "CHOCO" -Color "Cyan"
-                $installOutput = Invoke-Expression $installCommand 2>&1
-                Write-DebugLog -Message "Installation output: $($installOutput -join ' ')" -Category "CHOCO" -Color "Cyan"
-
-                # Refresh environment variables to pick up chocolatey
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                Write-DebugLog -Message "PATH after installation: $env:Path" -Category "CHOCO" -Color "Magenta"
-
-                # Check if installation was successful
-                $chocoExe = Get-Command "choco" -ErrorAction SilentlyContinue
-                if ($chocoExe) {
-                    Write-DebugLog -Message "Chocolatey successfully installed at: $($chocoExe.Source)" -Category "CHOCO" -Color "Green"
-                } else {
-                    Write-DebugLog -Message "Chocolatey installation failed - command not found after installation" -Category "CHOCO" -Color "Red"
-                    Write-DebugLog -Message "Installation output was: $($installOutput -join ' ')" -Category "CHOCO" -Color "Red"
-                    return $null
-                }
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Failed to install Chocolatey: $($_.Exception.Message)" -Category "CHOCO" -Color "Red"
-            Write-DebugLog -Message "Exception details: $($_.Exception.ToString())" -Category "CHOCO" -Color "Red"
-            return $null
-        }
-    } else {
-        Write-DebugLog -Message "Chocolatey found at: $($chocoExe.Source)" -Category "CHOCO" -Color "Green"
+        Write-DebugLog -Message "Chocolatey not found in PATH" -Category "CHOCO" -Color "Red"
+        return $null
     }
     
     # Build search paths for chocolatey packages
@@ -2914,157 +2742,117 @@ function Invoke-WebDownloadCommand {
     # Set executable path
     $executablePath = Join-Path $InstallDir $ExecutableName
     
-    # Check if already installed by looking for executable in install directory
-    if (-not $IsArchive) {
-        # For direct executable downloads, check the exact path
-        if (Test-Path $executablePath) {
-            Write-Host "       [WEB] $PackageName executable found at: $executablePath" -ForegroundColor Green
-            
-            if ($OnlyCheckFlag) {
-                return $executablePath
-            }
-            
-            if (-not $ForceInstall) {
-                Write-Host "       [WEB] $PackageName already installed, skipping download" -ForegroundColor Yellow
-                return $executablePath
-            }
-            
-            Write-Host "       [WEB] Force install requested, will re-download $PackageName" -ForegroundColor Yellow
+    # Check if already installed
+    if (Test-Path $executablePath) {
+        Write-Host "       [WEB] $PackageName executable found at: $executablePath" -ForegroundColor Green
+        
+        if ($OnlyCheckFlag) {
+            return $executablePath
         }
-    } else {
-        # For archive downloads, search for executable in install directory
-        $foundExecutable = Get-ChildItem -Path $InstallDir -Name $ExecutableName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($foundExecutable) {
-            $executablePath = Join-Path $InstallDir $foundExecutable
-            Write-Host "       [WEB] $PackageName executable found at: $executablePath" -ForegroundColor Green
-            
-            if ($OnlyCheckFlag) {
-                return $executablePath
-            }
-            
-            if (-not $ForceInstall) {
-                Write-Host "       [WEB] $PackageName already installed, skipping download" -ForegroundColor Yellow
-                return $executablePath
-            }
-            
-            Write-Host "       [WEB] Force install requested, will re-download $PackageName" -ForegroundColor Yellow
+        
+        if (-not $ForceInstall) {
+            Write-Host "       [WEB] $PackageName already installed, skipping download" -ForegroundColor Yellow
+            return $executablePath
         }
+        
+        Write-Host "       [WEB] Force install requested, will re-download $PackageName" -ForegroundColor Yellow
     }
     
-    # Determine download approach based on whether it's an archive
+    # Download the file
     try {
         Write-Host "       [WEB] Downloading $PackageName from: $DownloadUrl" -ForegroundColor Cyan
         
+        # Determine file type from URL or IsArchive parameter
+        $downloadedFile = ""
+        $fileExtension = ""
+        
+        # Auto-detect file type from URL if not specified
+        if (-not $IsArchive) {
+            $urlExtension = [System.IO.Path]::GetExtension($DownloadUrl).ToLower()
+            if ($urlExtension -in @(".zip", ".7z", ".tar.gz", ".tar", ".gz")) {
+                $IsArchive = $true
+                $ArchiveType = $urlExtension.TrimStart('.')
+                Write-Host "       [WEB] Auto-detected archive type from URL: $ArchiveType" -ForegroundColor Yellow
+            }
+        }
+        
         if ($IsArchive) {
-            # For archives, download to temporary location first
-            $tempDir = Join-Path $Global:USER_CACHE_DIR "temp_downloads"
-            if (-not (Test-Path $tempDir)) {
-                New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-            }
+            # For archives, download to a temporary file first
+            $tempFile = Join-Path $env:TEMP "$PackageName.$ArchiveType"
+            Write-Host "       [WEB] Downloading archive to: $tempFile" -ForegroundColor Cyan
             
-            $fileName = [System.IO.Path]::GetFileName($DownloadUrl)
-            if (-not $fileName -or $fileName -eq "") {
-                $fileName = "$PackageName.$ArchiveType"
-            }
-            $tempFilePath = Join-Path $tempDir $fileName
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $tempFile -UseBasicParsing -ErrorAction Stop
+            $downloadedFile = $tempFile
+            $fileExtension = $ArchiveType
+        } else {
+            # For direct executables, download directly to target
+            Write-Host "       [WEB] Downloading executable to: $executablePath" -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $executablePath -UseBasicParsing -ErrorAction Stop
+            $downloadedFile = $executablePath
+            $fileExtension = "exe"
+        }
+        
+        Write-Host "       [WEB] Successfully downloaded $PackageName" -ForegroundColor Green
+        
+        # Process the downloaded file based on type
+        if ($IsArchive) {
+            Write-Host "       [WEB] Processing archive file: $downloadedFile" -ForegroundColor Cyan
             
-            Write-Host "       [WEB] Downloading archive to temp location: $tempFilePath" -ForegroundColor Cyan
-            
-            # Download the archive
-            Invoke-WebRequest -Uri $DownloadUrl -OutFile $tempFilePath -UseBasicParsing -ErrorAction Stop
-            
-            if (-not (Test-Path $tempFilePath)) {
-                throw "Downloaded file not found at expected location: $tempFilePath"
-            }
-            
-            Write-Host "       [WEB] Successfully downloaded archive $PackageName" -ForegroundColor Green
-            
-            # Extract the archive
-            Write-Host "       [WEB] Extracting $ArchiveType archive..." -ForegroundColor Cyan
-            
-            # Clear install directory for clean extraction
-            if (Test-Path $InstallDir) {
-                Remove-Item -Path $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-            
-            # Extract based on archive type
-            switch ($ArchiveType.ToLower()) {
+            # Extract archive to installation directory
+            switch ($fileExtension.ToLower()) {
                 "zip" {
-                    if (Get-Command "Expand-Archive" -ErrorAction SilentlyContinue) {
-                        Expand-Archive -Path $tempFilePath -DestinationPath $InstallDir -Force
-                        Write-Host "       [WEB] Archive extracted using Expand-Archive" -ForegroundColor Green
-                    } else {
-                        throw "Expand-Archive not available and no alternative extraction method configured"
-                    }
+                    Expand-Archive -Path $downloadedFile -DestinationPath $InstallDir -Force
+                    Write-Host "       [WEB] Extracted ZIP archive to: $InstallDir" -ForegroundColor Green
                 }
                 "7z" {
-                    # Try 7-Zip if available, fallback to Expand-Archive for zip-compatible formats
-                    if (Test-Path $Global:SEVENZIP_EXE_PATH -ErrorAction SilentlyContinue) {
-                        $arguments = "x `"$tempFilePath`" -o`"$InstallDir`" -y"
-                        $process = Start-Process -FilePath $Global:SEVENZIP_EXE_PATH -ArgumentList $arguments -Wait -NoNewWindow -PassThru
-                        if ($process.ExitCode -eq 0) {
-                            Write-Host "       [WEB] Archive extracted using 7-Zip" -ForegroundColor Green
-                        } else {
-                            throw "7-Zip extraction failed with exit code: $($process.ExitCode)"
-                        }
+                    # Use 7-Zip if available
+                    $sevenZip = Get-Command "7z.exe" -ErrorAction SilentlyContinue
+                    if ($sevenZip) {
+                        & $sevenZip x $downloadedFile "-o$InstallDir" -y
+                        Write-Host "       [WEB] Extracted 7Z archive to: $InstallDir" -ForegroundColor Green
                     } else {
-                        throw "7-Zip not available for .7z file extraction"
+                        Write-Host "       [WEB] Error: 7-Zip not found for extracting 7Z archive" -ForegroundColor Red
+                        return $null
+                    }
+                }
+                "tar.gz" {
+                    # Use tar if available (Windows 10+ has built-in tar)
+                    $tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
+                    if ($tar) {
+                        & $tar -xzf $downloadedFile -C $InstallDir
+                        Write-Host "       [WEB] Extracted TAR.GZ archive to: $InstallDir" -ForegroundColor Green
+                    } else {
+                        Write-Host "       [WEB] Error: tar not found for extracting TAR.GZ archive" -ForegroundColor Red
+                        return $null
                     }
                 }
                 default {
-                    throw "Unsupported archive type: $ArchiveType"
+                    Write-Host "       [WEB] Error: Unsupported archive type: $fileExtension" -ForegroundColor Red
+                    return $null
                 }
             }
             
             # Clean up temporary file
-            Remove-Item -Path $tempFilePath -Force -ErrorAction SilentlyContinue
+            if (Test-Path $downloadedFile) {
+                Remove-Item $downloadedFile -Force
+                Write-Host "       [WEB] Cleaned up temporary file: $downloadedFile" -ForegroundColor Gray
+            }
             
-            # Search for the executable in the extracted contents
-            Write-Host "       [WEB] Searching for executable: $ExecutableName" -ForegroundColor Cyan
-            $foundFiles = Get-ChildItem -Path $InstallDir -Name $ExecutableName -Recurse -ErrorAction SilentlyContinue
-            
-            if ($foundFiles -and $foundFiles.Count -gt 0) {
-                # Get the first match and construct full path
-                $relativePath = $foundFiles[0]
-                $executablePath = Join-Path $InstallDir $relativePath
-                Write-Host "       [WEB] Found executable at: $executablePath" -ForegroundColor Green
-                
-                # Verify the executable exists and is accessible
-                if (Test-Path $executablePath) {
-                    Write-Host "       [WEB] $PackageName installation verified at: $executablePath" -ForegroundColor Green
-                    return $executablePath
-                } else {
-                    Write-Host "       [WEB] Error: Found executable path is not accessible: $executablePath" -ForegroundColor Red
-                    return $null
-                }
+            # Find the executable in the extracted files
+            $foundExecutable = Find-ExecutableByKeyword -Keywords $ExecutableName -AdditionalScanPaths $InstallDir -Recursive $true -AdditionalKeywords $AdditionalKeywords
+            if ($foundExecutable) {
+                Write-Host "       [WEB] Found executable after extraction: $foundExecutable" -ForegroundColor Green
+                return $foundExecutable
             } else {
-                Write-Host "       [WEB] Warning: Could not find executable '$ExecutableName' in extracted archive" -ForegroundColor Yellow
-                Write-Host "       [WEB] Archive contents extracted to: $InstallDir" -ForegroundColor Yellow
-                # List contents for debugging
-                $contents = Get-ChildItem -Path $InstallDir -Recurse -File | Select-Object -First 10
-                if ($contents) {
-                    Write-Host "       [WEB] First 10 files in archive:" -ForegroundColor Yellow
-                    foreach ($file in $contents) {
-                        Write-Host "       [WEB]   - $($file.FullName.Substring($InstallDir.Length + 1))" -ForegroundColor Yellow
-                    }
-                }
+                Write-Host "       [WEB] Error: Executable $ExecutableName not found after archive extraction" -ForegroundColor Red
                 return $null
             }
         } else {
-            # For direct executable downloads
-            Write-Host "       [WEB] Target path: $executablePath" -ForegroundColor Cyan
-            
-            Invoke-WebRequest -Uri $DownloadUrl -OutFile $executablePath -UseBasicParsing -ErrorAction Stop
-            
-            Write-Host "       [WEB] Successfully downloaded $PackageName" -ForegroundColor Green
-            
-            # Verify the download
+            # For direct executables, verify the download
             if (Test-Path $executablePath) {
                 Write-Host "       [WEB] $PackageName installation verified at: $executablePath" -ForegroundColor Green
                 return $executablePath
-            }
-            else {
+            } else {
                 Write-Host "       [WEB] Error: $PackageName executable not found after download" -ForegroundColor Red
                 return $null
             }
@@ -3073,6 +2861,192 @@ function Invoke-WebDownloadCommand {
     catch {
         $errorMsg = $_.Exception.Message
         Write-Host "       [WEB] Error downloading $PackageName - $errorMsg" -ForegroundColor Red
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
+    Installs PowerShell modules using Install-Module cmdlet
+
+.DESCRIPTION
+    This function handles PowerShell module installation using the built-in Install-Module cmdlet.
+    It supports checking for existing installations and force installation.
+
+.PARAMETER PackageName
+    Name of the PowerShell module to install
+
+.PARAMETER InstallDir
+    Ignored for PowerShell modules (API consistency)
+
+.PARAMETER Keyword
+    Keyword for executable search (usually the module name)
+
+.PARAMETER AdditionalKeywords
+    Additional keywords for search
+
+.PARAMETER OnlyCheckFlag
+    If true, only checks if module is installed without installing
+
+.PARAMETER ForceInstall
+    If true, forces installation even if module appears to be installed
+
+.RETURNS
+    Returns the module name if successfully installed/verified, or $null if not found/installed
+
+.EXAMPLE
+    $moduleName = Invoke-PowerShellCommand -PackageName "PSScriptAnalyzer" -Keyword "Invoke-ScriptAnalyzer"
+
+.NOTES
+    - Uses Install-Module cmdlet for installation
+    - Supports both user and system-wide installation
+    - Returns module name for environment variable configuration
+    - Recommended for PowerShell modules and cmdlets
+#>
+function Invoke-PowerShellCommand {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [string]$InstallDir = "", # Ignored for PowerShell modules (API consistency)
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $true,
+        [string]$PowerShellCommand = ""
+    )
+    
+    $Recurse = $false
+    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1", ".psm1", ".psd1")
+    
+    Write-DebugLog -Message "Processing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Cyan"
+    
+    # Build search paths for PowerShell packages
+    $searchPaths = @()
+    try {
+        # System PATH directories
+        $systemPaths = @(
+            ${env:LOCALAPPDATA},
+            ${env:APPDATA},
+            "C:\Program Files",
+            "C:\Program Files (x86)",
+            $env:USERPROFILE
+        )
+        $searchPaths += $systemPaths
+        
+        # PowerShell module paths
+        $psModulePaths = $env:PSModulePath -split ';'
+        foreach ($path in $psModulePaths) {
+            if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
+                $searchPaths += $path
+                Write-DebugLog -Message "Added PowerShell module path: $path" -Category "POWERSHELL" -Color "Magenta"
+            }
+        }
+        
+        # Add user-specific module path
+        $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+        if (Test-Path $userModulePath) {
+            $searchPaths += $userModulePath
+            Write-DebugLog -Message "Added user PowerShell module path: $userModulePath" -Category "POWERSHELL" -Color "Magenta"
+        }
+    }
+    catch {
+        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "POWERSHELL" -Color "Red"
+        throw
+    }
+    
+    # Build search keywords
+    $searchKeywords = @($Keyword)
+    if ($AdditionalKeywords) {
+        $searchKeywords += $AdditionalKeywords
+    }
+    if (-not $searchKeywords -or $searchKeywords -eq "") {
+        $searchKeywords = @($PackageName)
+    }
+    
+    # Check if already installed - search for executable files
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+    
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "PowerShell package already installed: $executable" -Category "POWERSHELL" -Color "Green"
+        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "POWERSHELL" -Color "Cyan"
+        return $executable
+    }
+    
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+    
+    # Install the package
+    Write-DebugLog -Message "Installing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Yellow"
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($PowerShellCommand)) {
+            # Execute PowerShell script command
+            Write-Host "       [POWERSHELL] Executing PowerShell command: $PowerShellCommand" -ForegroundColor Cyan
+            Invoke-Expression $PowerShellCommand
+            
+            if ($LASTEXITCODE -eq 0 -or $?) {
+                Write-DebugLog -Message "PowerShell command execution successful" -Category "POWERSHELL" -Color "Green"
+            } else {
+                Write-DebugLog -Message "PowerShell command execution failed with exit code: $LASTEXITCODE" -Category "POWERSHELL" -Color "Red"
+                return $null
+            }
+        } else {
+            # Fallback to Install-Module for PowerShell modules
+            Write-Host "       [POWERSHELL] No PowerShellCommand specified, attempting module installation" -ForegroundColor Yellow
+            
+            # Try to install with -Force if ForceInstall is true
+            if ($ForceInstall) {
+                Install-Module -Name $PackageName -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop
+            } else {
+                Install-Module -Name $PackageName -AllowClobber -Scope CurrentUser -ErrorAction Stop
+            }
+            
+            Write-DebugLog -Message "Module installation successful" -Category "POWERSHELL" -Color "Green"
+        }
+        
+        # Refresh search paths after installation
+        Write-DebugLog -Message "Refreshing search paths..." -Category "POWERSHELL" -Color "Magenta"
+        $searchPaths = @()
+        try {
+            $systemPaths = @(
+                ${env:LOCALAPPDATA},
+                ${env:APPDATA},
+                "C:\Program Files",
+                "C:\Program Files (x86)",
+                $env:USERPROFILE
+            )
+            $searchPaths += $systemPaths
+            
+            $psModulePaths = $env:PSModulePath -split ';'
+            foreach ($path in $psModulePaths) {
+                if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
+                    $searchPaths += $path
+                }
+            }
+            $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+            if (Test-Path $userModulePath) {
+                $searchPaths += $userModulePath
+            }
+        }
+        catch {
+            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "POWERSHELL" -Color "Red"
+            throw
+        }
+        
+        # Search for installed executable
+        $installedExecutable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+        
+        if ($installedExecutable) {
+            Write-DebugLog -Message "PowerShell package installation verified: $installedExecutable" -Category "POWERSHELL" -Color "Green"
+            return $installedExecutable
+        } else {
+            Write-DebugLog -Message "PowerShell package installation verification failed" -Category "POWERSHELL" -Color "Yellow"
+            return $null
+        }
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-DebugLog -Message "Error installing PowerShell package $PackageName - $errorMsg" -Category "POWERSHELL" -Color "Red"
         return $null
     }
 }

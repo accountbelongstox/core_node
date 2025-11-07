@@ -14,14 +14,28 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_center.dart';
+import '../../../providers_app_wuy/wu_user_provider.dart';
+import '../../../providers_app_wuy/friends_provider_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_common_background.dart';
+import '../../../widgets_app_wuy/wuy_enhanced_friend_list_item.dart';
 
+/// Friends List Screen for Wuy App
+///
+/// This screen displays a list of friends and provides search functionality.
+/// Users can view friend information and add new friends.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyFriendsTitle.tr(context)
 class WuyFriendsListScreen extends StatefulWidget {
   const WuyFriendsListScreen({super.key});
 
@@ -32,12 +46,17 @@ class WuyFriendsListScreen extends StatefulWidget {
 class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<FriendModelAppWuy> _filteredFriends = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadFriends();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final friendsProvider =
+          Provider.of<FriendsProviderAppWuy>(context, listen: false);
+      if (friendsProvider.friends.isEmpty) {
+        friendsProvider.loadFriends();
+      }
+    });
   }
 
   @override
@@ -46,111 +65,120 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
     super.dispose();
   }
 
-  Future<void> _loadFriends() async {
+  void _filterFriends(String query, List<FriendModelAppWuy> allFriends) {
     setState(() {
-      _isLoading = true;
-    });
-
-    // Get data from data center
-    final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
-    await dataCenter.initialize();
-    
-    // Get friends from data center
-    final friends = dataCenter.friends;
-    _filteredFriends = List.from(friends);
-
-    setState(() {
-      _isLoading = false;
-    });
-  }
-
-  void _filterFriends(String query) {
-    setState(() {
-      final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
-      final friends = dataCenter.friends;
-      
       if (query.isEmpty) {
-        _filteredFriends = List.from(friends);
+        _filteredFriends = allFriends;
       } else {
-        _filteredFriends = friends
-            .where((friend) =>
-                friend.displayName.toLowerCase().contains(query.toLowerCase()) ||
-                friend.username.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        _filteredFriends = allFriends.where((friend) {
+          return friend.displayName
+                  .toLowerCase()
+                  .contains(query.toLowerCase()) ||
+              friend.username.toLowerCase().contains(query.toLowerCase()) ||
+              (friend.phoneNumber?.contains(query) ?? false);
+        }).toList();
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<WuyDataCenter>(
-      builder: (context, dataCenter, child) {
-        return Scaffold(
-      backgroundColor: WuyAppThemeConfig.wuyBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
-          style: WuyAppThemeConfig.wuyAppBarTitle,
-        ),
-        backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-        elevation: 0,
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () {
-              context.go(WuyAppRouter.routeSearch);
-            },
+    return Consumer2<WuUserProvider, FriendsProviderAppWuy>(
+      builder: (context, userProvider, friendsProvider, child) {
+        final allFriends = friendsProvider.friends;
+        final displayFriends =
+            _filteredFriends.isEmpty && _searchController.text.isEmpty
+                ? allFriends
+                : _filteredFriends;
+
+        return WuyCommonBackground(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: AppBar(
+              title: Text(
+                LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
+                style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
+              elevation: 0,
+              centerTitle: true,
+              flexibleSpace: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      WuyAppThemeConfig.wuyPrimaryColor,
+                      WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.9),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            body: Column(
+              children: [
+                _buildSearchBar(allFriends),
+                Expanded(
+                  child: friendsProvider.isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildFriendsList(displayFriends),
+                ),
+              ],
+            ),
+            bottomNavigationBar: WuyBottomNavigation(
+              currentIndex: 1,
+              onTap: (index) {
+                switch (index) {
+                  case 0:
+                    context.go(WuyAppRouter.routeSearch);
+                    break;
+                  case 1:
+                    break;
+                  case 2:
+                    context.go(WuyAppRouter.routeFindFriends);
+                    break;
+                  case 3:
+                    context.go(WuyAppRouter.routeProfile);
+                    break;
+                }
+              },
+            ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildFriendsList(),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNavigation(),
         );
       },
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(List<FriendModelAppWuy> allFriends) {
     return Container(
-      padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-      child: TextField(
-        controller: _searchController,
-        onChanged: _filterFriends,
-        decoration: InputDecoration(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: WuyModernInputField(
+          controller: _searchController,
+          onChanged: (query) => _filterFriends(query, allFriends),
           hintText: LocalizationKeysAppWuy.wuyFriendsSearch.tr(context),
-          prefixIcon: Icon(
-            Icons.search,
-            color: WuyAppThemeConfig.wuyTextSecondary,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            borderSide: BorderSide(color: WuyAppThemeConfig.wuyTextSecondary),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            borderSide: BorderSide(color: WuyAppThemeConfig.wuyPrimaryColor, width: 2),
-          ),
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-            vertical: WuyAppThemeConfig.wuySmallPadding,
-          ),
+          prefixIcon: Icons.search,
         ),
       ),
     );
   }
 
-  Widget _buildFriendsList() {
-    if (_filteredFriends.isEmpty) {
+  Widget _buildFriendsList(List<FriendModelAppWuy> friends) {
+    if (friends.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -176,7 +204,8 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
                   context.go(WuyAppRouter.routeFindFriends);
                 },
                 style: WuyAppThemeConfig.wuyPrimaryButton,
-                child: Text(LocalizationKeysAppWuy.wuyFriendsAddFriend.tr(context)),
+                child: Text(
+                    LocalizationKeysAppWuy.wuyFriendsAddFriend.tr(context)),
               ),
             ],
           ],
@@ -185,125 +214,11 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
     }
 
     return ListView.builder(
-      itemCount: _filteredFriends.length,
+      itemCount: friends.length,
       itemBuilder: (context, index) {
-        final friend = _filteredFriends[index];
-        return _buildFriendItem(friend);
+        final friend = friends[index];
+        return WuyEnhancedFriendListItem(friend: friend);
       },
     );
   }
-
-  Widget _buildFriendItem(FriendModelAppWuy friend) {
-    return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-        vertical: ThemeDimensions.spacing4,
-      ),
-      decoration: WuyAppThemeConfig.wuyCardDecoration,
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-          vertical: WuyAppThemeConfig.wuySmallPadding,
-        ),
-        leading: CircleAvatar(
-          radius: WuyAppThemeConfig.wuyAvatarRadius,
-          backgroundColor: friend.isOnline 
-              ? WuyAppThemeConfig.wuyOnlineColor 
-              : WuyAppThemeConfig.wuyOfflineColor,
-          child: Icon(
-            Icons.person,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          friend.displayName,
-          style: WuyAppThemeConfig.wuyFriendName,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chat, size: 20),
-              onPressed: () {
-                context.go('${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.displayName)}');
-              },
-              tooltip: 'Chat',
-            ),
-            IconButton(
-              icon: const Icon(Icons.info_outline, size: 20),
-              onPressed: () {
-                context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
-              },
-              tooltip: 'Info',
-            ),
-            Switch(
-              value: friend.isOnline,
-              onChanged: (value) {
-                final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
-                dataCenter.updateFriendStatus(friend.id, value);
-              },
-              activeColor: WuyAppThemeConfig.wuyPrimaryColor,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigation() {
-    return Container(
-      decoration: WuyAppThemeConfig.wuyBottomNavDecoration,
-      child: SafeArea(
-        child: Container(
-          height: WuyAppThemeConfig.wuyBottomNavHeight,
-          padding: EdgeInsets.symmetric(horizontal: WuyAppThemeConfig.wuyDefaultPadding),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.chat, LocalizationKeysAppWuy.wuyMenuMessages.tr(context), false, () => context.go(WuyAppRouter.routeSearch)),
-              _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyFriendsTitle.tr(context), true, null),
-              _buildNavItem(Icons.explore, '发现', false, () => context.go(WuyAppRouter.routeFindFriends)),
-              _buildNavItem(Icons.person, LocalizationKeysAppWuy.wuyMenuProfile.tr(context), false, () => context.go(WuyAppRouter.routeProfile)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isSelected, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: ThemeDimensions.spacing12,
-          vertical: WuyAppThemeConfig.wuySmallPadding,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected 
-                  ? WuyAppThemeConfig.wuyPrimaryColor 
-                  : WuyAppThemeConfig.wuyTextSecondary,
-              size: 24,
-            ),
-            SizedBox(height: ThemeDimensions.spacing4),
-            Text(
-              label,
-              style: WuyAppThemeConfig.wuyNavLabel.copyWith(
-                color: isSelected 
-                    ? WuyAppThemeConfig.wuyPrimaryColor 
-                    : WuyAppThemeConfig.wuyTextSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
-
