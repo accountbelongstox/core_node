@@ -28,12 +28,12 @@ import 'package:flutter_localization/flutter_localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:qyflutter/common/localization/map_locales.dart';
 import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/common/provider_status/screen_size_provider.dart';
-import 'package:qyflutter/common/storage/app_storage.dart';
 import 'package:qyflutter/common/storage/unified_storage.dart';
 import 'package:qyflutter/common/storage/storage_migration_tool.dart';
 import 'package:qyflutter/common/storage/app_prefs_base.dart';
@@ -97,6 +97,14 @@ Future<void> runCommonApp({
   String? homeRoute,
   String? splashRoute,
   List<dynamic>? additionalProviders, // Additional app-specific providers
+  List<SingleChildWidget> Function(SettingsController commonSettingsController)?
+      scopedProvidersBuilder,
+  // Storage configuration - control whether to initialize UnifiedStorage
+  bool initializeUnifiedStorage = true, // Default to true for backward compatibility
+  ThemeData? lightTheme,
+  ThemeData? darkTheme,
+  List<ThemeExtension<dynamic>>? lightThemeExtensions,
+  List<ThemeExtension<dynamic>>? darkThemeExtensions,
 }) async {
   // Prevent multiple initializations
   if (_appInitialized) {
@@ -131,23 +139,25 @@ Future<void> runCommonApp({
     initializeWebFeatures();
   }
 
-  await AppStorage.init();
+  // Initialize unified storage system (optional)
+  if (initializeUnifiedStorage) {
+    await UnifiedStorage.init(appName: appName);
 
-  // Initialize unified storage system
-  await UnifiedStorage.init(appName: appName);
-
-  // Check and perform data migration if needed
-  if (await StorageMigrationTool.isMigrationNeeded()) {
-    try {
-      final migrationResult = await StorageMigrationTool.performCommonMigration();
-      if (migrationResult.success) {
-        log('Storage migration completed successfully: ${migrationResult.migratedItems} items migrated');
-      } else {
-        log('Storage migration failed: ${migrationResult.message}');
+    // Check and perform data migration if needed
+    if (await StorageMigrationTool.isMigrationNeeded()) {
+      try {
+        final migrationResult = await StorageMigrationTool.performCommonMigration();
+        if (migrationResult.success) {
+          log('Storage migration completed successfully: ${migrationResult.migratedItems} items migrated');
+        } else {
+          log('Storage migration failed: ${migrationResult.message}');
+        }
+      } catch (e) {
+        log('Storage migration error: $e');
       }
-    } catch (e) {
-      log('Storage migration error: $e');
     }
+  } else {
+    log('Skipping UnifiedStorage initialization - using app-specific storage');
   }
 
   // Inject localization maps based on the entry point
@@ -204,20 +214,39 @@ Future<void> runCommonApp({
   // Mark app as initialized
   _appInitialized = true;
 
+  final List<SingleChildWidget> providerList = [
+    ChangeNotifierProvider.value(value: userProvider),
+    Provider.value(value: prefs),
+    ChangeNotifierProvider.value(value: settingsController),
+    ChangeNotifierProvider.value(value: screenSizeProvider),
+  ];
+
+  if (appPrefs != null) {
+    providerList.add(Provider.value(value: appPrefs));
+  }
+
+  if (scopedProvidersBuilder != null) {
+    final scopedProviders = scopedProvidersBuilder(settingsController);
+    if (scopedProviders.isNotEmpty) {
+      providerList.addAll(scopedProviders);
+    }
+  }
+
+  if (additionalProviders != null) {
+    providerList.addAll(additionalProviders.cast<SingleChildWidget>());
+  }
+
   runApp(
     MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: userProvider),
-        Provider.value(value: prefs),
-        ChangeNotifierProvider.value(value: settingsController),
-        ChangeNotifierProvider.value(value: screenSizeProvider),
-        // Register app-specific SharedPreferences class for Provider access
-        // This is a required class that must be implemented by all apps
-        if (appPrefs != null) Provider.value(value: appPrefs),
-        // Add additional app-specific providers if provided
-        if (additionalProviders != null) ...additionalProviders,
-      ],
-      child: customApp ?? FlutterBloomMainApp(routerConfig: routerConfig),
+      providers: providerList,
+      child: customApp ??
+          FlutterBloomMainApp(
+            routerConfig: routerConfig,
+            lightTheme: lightTheme,
+            darkTheme: darkTheme,
+            lightThemeExtensions: lightThemeExtensions,
+            darkThemeExtensions: darkThemeExtensions,
+          ),
     ),
   );
 
@@ -247,7 +276,19 @@ Future<void> runCommonApp({
 class FlutterBloomMainApp extends StatefulWidget {
   final GoRouter? routerConfig;
 
-  const FlutterBloomMainApp({super.key, this.routerConfig});
+  final ThemeData? lightTheme;
+  final ThemeData? darkTheme;
+  final List<ThemeExtension<dynamic>>? lightThemeExtensions;
+  final List<ThemeExtension<dynamic>>? darkThemeExtensions;
+
+  const FlutterBloomMainApp({
+    super.key,
+    this.routerConfig,
+    this.lightTheme,
+    this.darkTheme,
+    this.lightThemeExtensions,
+    this.darkThemeExtensions,
+  });
 
   @override
   State<FlutterBloomMainApp> createState() => _FlutterBloomMainAppState();
@@ -280,21 +321,38 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
       screenSizeProvider.updateScreenSize(context);
     });
 
+    final ThemeData resolvedLightTheme = _mergeThemeExtensions(
+      widget.lightTheme ?? getAppLightTheme(),
+      widget.lightThemeExtensions ?? const <ThemeExtension<dynamic>>[GradientLight()],
+    );
+
+    final ThemeData resolvedDarkTheme = _mergeThemeExtensions(
+      widget.darkTheme ?? getAppDarkTheme(),
+      widget.darkThemeExtensions ?? const <ThemeExtension<dynamic>>[GradientDark()],
+    );
+
     return MaterialApp.router(
       title: appName,
       debugShowCheckedModeBanner: false,
-      theme: getAppLightTheme().copyWith(
-        extensions: <ThemeExtension<dynamic>>[const GradientLight()],
-      ),
-      darkTheme: getAppDarkTheme().copyWith(
-        extensions: <ThemeExtension<dynamic>>[const GradientDark()],
-      ),
+      theme: resolvedLightTheme,
+      darkTheme: resolvedDarkTheme,
       themeMode: settingsController.themeMode,
       supportedLocales: _localization.supportedLocales,
       localizationsDelegates: _localization.localizationsDelegates,
       routerConfig: widget.routerConfig,
     );
   }
+}
+
+ThemeData _mergeThemeExtensions(
+  ThemeData baseTheme,
+  List<ThemeExtension<dynamic>> extensions,
+) {
+  final mergedExtensions = [
+    ...baseTheme.extensions.values.cast<ThemeExtension<dynamic>>(),
+    ...extensions,
+  ];
+  return baseTheme.copyWith(extensions: mergedExtensions);
 }
 
 class FlutterBloomHttpOverrides extends HttpOverrides {

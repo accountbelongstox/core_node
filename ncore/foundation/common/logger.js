@@ -13,6 +13,33 @@
 const util = require('util');
 const readline = require('readline');
 
+/**
+ * Detect if running in MCP mode
+ * MCP mode uses stdio for JSON-RPC communication, so logs must go to stderr
+ */
+function isMCPMode() {
+    const envMode = process.env.MCP_MODE || process.env.NODE_ENV;
+    if (envMode === 'mcp') return true;
+
+    const args = process.argv;
+    for (const arg of args) {
+        if (arg.toLowerCase().includes('mcp=true') ||
+            arg.toLowerCase().includes('--mcp') ||
+            arg.toLowerCase() === 'mcp') {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Get output stream based on mode
+ * In MCP mode, use stderr to avoid interfering with stdio communication
+ */
+function getOutputStream() {
+    return isMCPMode() ? process.stderr : process.stdout;
+}
+
 // ANSI color codes
 const colors = {
     reset: '\x1b[0m',
@@ -98,7 +125,8 @@ const interval = {
     }
 };
 function getTrimmedMessage(message) {
-    const terminalWidth = process.stdout.columns || 80;
+    const outputStream = getOutputStream();
+    const terminalWidth = outputStream.columns || 80;
     if (message.length > terminalWidth) {
         const maxLength = terminalWidth - 3;
         return message.substring(0, maxLength) + '...';
@@ -276,7 +304,8 @@ class Logger {
         if (shouldLog) {
             const formattedMessage = this.formatMessage(message, ...args);
             const logMessage = `[${new Date().toISOString()}] ${config.prefix}: ${formattedMessage}`;
-            console.log(colorize[config.color](logMessage));
+            const outputStream = getOutputStream();
+            outputStream.write(colorize[config.color](logMessage) + '\n');
             this.sendLogToWs(type, formattedMessage);
         }
     }
@@ -312,8 +341,9 @@ class Logger {
     }
     clearRefresh() {
         if (this.lastLineCount > 0) {
-            readline.moveCursor(process.stdout, 0, -this.lastLineCount);
-            readline.clearScreenDown(process.stdout);
+            const outputStream = getOutputStream();
+            readline.moveCursor(outputStream, 0, -this.lastLineCount);
+            readline.clearScreenDown(outputStream);
             this.lastLineCount = 0;
         }
     }
@@ -416,6 +446,8 @@ class Logger {
      */
     refresh(message, logLevel = 'info', trimMessage = true) {
         if (!this.shouldLog(logLevel)) return;
+        const outputStream = getOutputStream();
+
         // Get color function based on log level
         const colorFunc = {
             'info': colorize.white,
@@ -431,14 +463,14 @@ class Logger {
 
         // Clear previous lines if any
         if (this.lastLineCount > 0) {
-            readline.moveCursor(process.stdout, 0, -this.lastLineCount);
-            readline.clearScreenDown(process.stdout);
+            readline.moveCursor(outputStream, 0, -this.lastLineCount);
+            readline.clearScreenDown(outputStream);
         }
 
         lines.forEach(line => {
             const createMessage = `[${new Date().toISOString()}] ${line}\n`;
             const trimmedMessage = trimMessage ? getTrimmedMessage(createMessage) : createMessage;
-            process.stdout.write(colorFunc(trimmedMessage));
+            outputStream.write(colorFunc(trimmedMessage));
         });
 
         // Update line count

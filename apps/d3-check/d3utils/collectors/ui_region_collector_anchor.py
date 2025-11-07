@@ -24,10 +24,11 @@ from providor.common_imports import ColorPrint, ImageAnnotator
 from d3utils.d3u_common.image_annotator_helper import save_anchor_detection_result, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.scaled_template_matcher import get_scaled_template_matcher
-from d3utils.share import get_game_interface_data, UIRegion
+from share import get_game_interface_data, UIRegion
 from providor.providor_index import (
     get_template_path, get_template_threshold, get_template_use_alpha,
-    STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT,
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     DEBUG, TMP_DIR
 )
 
@@ -142,10 +143,10 @@ class UIRegionCollectorAnchor:
             # Log resolution info
             actual_width = screenshot_data.fullscreen_size[0]
             actual_height = screenshot_data.fullscreen_size[1]
-            ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {STANDARD_RESOLUTION_WIDTH}x{STANDARD_RESOLUTION_HEIGHT}")
-            if actual_width != STANDARD_RESOLUTION_WIDTH or actual_height != STANDARD_RESOLUTION_HEIGHT:
-                scale_x = actual_width / STANDARD_RESOLUTION_WIDTH
-                scale_y = actual_height / STANDARD_RESOLUTION_HEIGHT
+            ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
+            if actual_width != D3_STANDARD_RESOLUTION_WIDTH or actual_height != D3_STANDARD_RESOLUTION_HEIGHT:
+                scale_x = actual_width / D3_STANDARD_RESOLUTION_WIDTH
+                scale_y = actual_height / D3_STANDARD_RESOLUTION_HEIGHT
                 ColorPrint.blue(f"[Resolution] Auto-scaling enabled: {scale_x:.4f}x, {scale_y:.4f}y")
 
             # Save screenshot if requested

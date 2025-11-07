@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -27,13 +27,12 @@ MYSQL_CONFIG_FILE=""
 MYSQL_DATA_DIR=""
 MYSQL_LOG_DIR=""
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Source repository manager
@@ -43,18 +42,21 @@ SCRIPT_INDEX="48"
 INSTALL_MYSQL=$(get_var "INSTALL_MYSQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 MYSQL_CONFIG_FILE="/etc/mysql/mysql.conf.d/mysqld.cnf"
-MYSQL_DATA_DIR="/www/mysql/data"
-MYSQL_LOG_DIR="/var/log/mysql"
+# Use compile_dir for database data and logs (auto-selects based on environment)
+MYSQL_DATA_DIR=$(map_web_path "compile_dir" "mysql/data")
+MYSQL_LOG_DIR=$(map_web_path "compile_dir" "mysql/logs")
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
-echo "[$SCRIPT_INDEX] INSTALL_MYSQL: $INSTALL_MYSQL"
+echo "[$SCRIPT_INDEX] MySQL will always be installed"
 
-# Check repository status before proceeding (only when installing)
-if [ "$INSTALL_MYSQL" = "true" ]; then
-    if ! verify_mysql_repo_for_install; then
-        echo "[$SCRIPT_INDEX] Please run 12_update.sh first to properly manage repositories"
-        exit 1
-    fi
+# Check if MySQL should be started after installation
+START_MYSQL=$(get_var "START_MYSQL" "false")
+echo "[$SCRIPT_INDEX] Start after installation: $START_MYSQL"
+
+# Check repository status before proceeding
+if ! verify_mysql_repo_for_install; then
+    echo "[$SCRIPT_INDEX] Please run 12_update.sh first to properly manage repositories"
+    exit 1
 fi
 
 # Function to check if command exists
@@ -137,17 +139,20 @@ enable_mysql_services() {
 
 # Function to setup MySQL data directory
 setup_data_dir() {
-    local DATA_DIR="/www/mysql/data"
-    
-    # Create MySQL directories
+    # Use the mapped path from variable initialization
+    local DATA_DIR="$MYSQL_DATA_DIR"
+
+    # Create MySQL directories using mapped paths
     mkdir -p "$DATA_DIR"
-    mkdir -p /var/log/mysql
-    
-    # Set proper ownership
-    chown -R mysql:mysql "$DATA_DIR"
-    chown -R mysql:mysql /var/log/mysql
-    chmod 750 "$DATA_DIR"
-    
+    mkdir -p "$MYSQL_LOG_DIR"
+
+    # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+    if [ "$IS_WSL" = false ]; then
+        chown -R mysql:mysql "$DATA_DIR"
+        chown -R mysql:mysql "$MYSQL_LOG_DIR"
+    fi
+    chmod 750 "$DATA_DIR" 2>/dev/null || true
+
     # Check if data directory is empty
     if [ -z "$(ls -A $DATA_DIR)" ]; then
         return 1  # Need initialization
@@ -274,7 +279,7 @@ install_mysql() {
     # Initialize MySQL if needed
     if [ $need_init -eq 1 ]; then
         echo "Initializing MySQL data directory..."
-        mysql_install_db --user=mysql --datadir=/www/mysql/data
+        mysql_install_db --user=mysql --datadir="$MYSQL_DATA_DIR"
     fi
     
     # Start MariaDB service
@@ -295,8 +300,9 @@ store_mysql_info() {
     set_global_var "MYSQLD_BIN" "$(which mysqld)"
     set_global_var "MYSQL_VERSION" "$(mysql --version)"
     set_global_var "MYSQL_CONFIG_DIR" "/etc/mysql"
-    set_global_var "MYSQL_DATA_DIR" "/www/mysql/data"
-    set_global_var "MYSQL_LOG_DIR" "/var/log/mysql"
+    # Use the mapped paths from variable initialization
+    set_global_var "MYSQL_DATA_DIR" "$MYSQL_DATA_DIR"
+    set_global_var "MYSQL_LOG_DIR" "$MYSQL_LOG_DIR"
     set_global_var "MYSQL_CONFIG_FILE" "/etc/mysql/mysql.conf.d/mysqld.cnf"
     set_global_var "MYSQL_SERVICE_STATUS" "$(systemctl is-active mariadb)"
     local port=$(mysql -N -e "SHOW VARIABLES LIKE 'port';" | awk '{print $2}')
@@ -330,14 +336,22 @@ if [ "$INSTALL_MYSQL" = "true" ]; then
         echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
     fi
     
-    # Enable MySQL services
-    enable_mysql_services
-    
+    # Disable MySQL services to save memory
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Disabling MySQL service to save memory..."
+    echo "[$SCRIPT_INDEX] ============================================"
+    disable_mysql_services
+
     # Set global variables
     set_var "MYSQL_AVAILABLE" "true"
-    set_var "MYSQL_ENABLED" "true"
-    
-    echo "[$SCRIPT_INDEX] MySQL installation and enablement completed"
+    set_var "MYSQL_ENABLED" "false"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] IMPORTANT: MySQL is installed but NOT running"
+    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start MySQL when needed"
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] MySQL installation completed"
     
 elif [ "$INSTALL_MYSQL" = "false" ]; then
     echo "[$SCRIPT_INDEX] INSTALL_MYSQL is false - Disabling MySQL services..."

@@ -1,0 +1,5 @@
+For the code present, we get this error:
+```
+A value of type 'Future<bool>' can't be returned from the function 'isCrashReportingEnabled' because it has a return type of 'bool'.
+```
+How can I resolve this? If you propose a fix, please make it concise.

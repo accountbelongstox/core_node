@@ -11,14 +11,26 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_common_background.dart';
+import '../../../widgets_app_wuy/wuy_common_logo.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
+import '../../../utils_app_wuy/auth_guard.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
+/// Login Screen for Wuy App
+///
+/// This screen provides traditional email/password login functionality.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyLoginTitle.tr(context)
 class WuyLoginScreen extends StatefulWidget {
   const WuyLoginScreen({super.key});
 
@@ -42,36 +54,42 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          LocalizationKeysAppWuy.wuyLoginTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+    return WuyCommonBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            LocalizationKeysAppWuy.wuyLoginTitle.tr(context),
+            style: ThemeTextStyles.displayMedium.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          backgroundColor: ThemeColors.primary,
+          elevation: 0,
+          centerTitle: true,
         ),
-        backgroundColor: ThemeColors.primary,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: ThemeDimensions.spacingLarge),
-              _buildLogo(),
-              SizedBox(height: ThemeDimensions.spacingXLarge),
-              _buildEmailField(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildPasswordField(),
-              SizedBox(height: ThemeDimensions.spacingSmall),
-              _buildForgotPassword(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
-              _buildSignInButton(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildSignUpLink(),
-            ],
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 20),
+                _buildLogo(),
+                const SizedBox(height: 40),
+                _buildEmailField(),
+                const SizedBox(height: 18),
+                _buildPasswordField(),
+                const SizedBox(height: 8),
+                _buildForgotPassword(),
+                const SizedBox(height: 32),
+                _buildSignInButton(),
+                const SizedBox(height: 24),
+                _buildSignUpLink(),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -81,20 +99,23 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   Widget _buildLogo() {
     return Column(
       children: [
-        Icon(
-          Icons.apps,
-          size: 80,
-          color: ThemeColors.primary,
-        ),
-        SizedBox(height: ThemeDimensions.spacingMedium),
+        const WuyCommonLogo(),
+        const SizedBox(height: 20),
         Text(
-          'Welcome to Wuy App',
-          style: ThemeTextStyles.displayMedium,
+          LocalizationKeysAppWuy.wuyLoginWelcome.tr(context),
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 26,
+            letterSpacing: -0.5,
+          ),
         ),
+        const SizedBox(height: 8),
         Text(
-          'Sign in to continue',
+          LocalizationKeysAppWuy.wuyLoginSignInToContinue.tr(context),
           style: ThemeTextStyles.bodyLarge.copyWith(
-            color: ThemeColors.textSecondary,
+            color: ThemeColors.textSecondary.withOpacity(0.8),
+            fontSize: 15,
+            letterSpacing: 0.2,
           ),
         ),
       ],
@@ -102,27 +123,18 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildEmailField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyLoginEmail.tr(context),
-        hintText: LocalizationKeysAppWuy.wuyLoginEnterEmail.tr(context),
-        prefixIcon: Icon(Icons.email, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: LocalizationKeysAppWuy.wuyLoginEmail.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyLoginEnterEmail.tr(context),
+      prefixIcon: Icons.email,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter your email';
+          return LocalizationKeysAppWuy.wuyLoginPleaseEnterEmail.tr(context);
         }
         if (!value.contains('@')) {
-          return 'Please enter a valid email';
+          return LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail.tr(context);
         }
         return null;
       },
@@ -130,38 +142,29 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildPasswordField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyLoginPassword.tr(context),
-        hintText: LocalizationKeysAppWuy.wuyLoginEnterPassword.tr(context),
-        prefixIcon: Icon(Icons.lock, color: ThemeColors.primary),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary,
-          ),
-          onPressed: () {
-            setState(() {
-              _obscurePassword = !_obscurePassword;
-            });
-          },
+      labelText: LocalizationKeysAppWuy.wuyLoginPassword.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyLoginEnterPassword.tr(context),
+      prefixIcon: Icons.lock,
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+          color: ThemeColors.textSecondary,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
+        onPressed: () {
+          setState(() {
+            _obscurePassword = !_obscurePassword;
+          });
+        },
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter your password';
+          return LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword.tr(context);
         }
         if (value.length < 6) {
-          return 'Password must be at least 6 characters';
+          return LocalizationKeysAppWuy.wuyLoginPasswordMinLength.tr(context);
         }
         return null;
       },
@@ -175,10 +178,18 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         onPressed: () {
           // Handle forgot password
         },
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         child: Text(
-          'Forgot Password?',
+          LocalizationKeysAppWuy.wuyAuthForgotPassword.tr(context),
           style: ThemeTextStyles.bodyMedium.copyWith(
             color: ThemeColors.primary,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
           ),
         ),
       ),
@@ -186,23 +197,33 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildSignInButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _handleSignIn,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: ThemeColors.primary,
-        minimumSize: Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.primary.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.accent.withOpacity(0.15),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
       ),
-      child: _isLoading
-          ? CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
-            )
-          : Text(
-              LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
-              style: ThemeTextStyles.buttonLarge,
-            ),
+      child: WuyGradientButton(
+        text: LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
+        onPressed: _handleSignIn,
+        isLoading: _isLoading,
+        height: 54,
+        borderRadius: 28,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
@@ -212,17 +233,28 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       children: [
         Text(
           LocalizationKeysAppWuy.wuyLoginDontHaveAccount.tr(context),
-          style: ThemeTextStyles.bodyMedium,
+          style: ThemeTextStyles.bodyMedium.copyWith(
+            fontSize: 14,
+            color: ThemeColors.textSecondary.withOpacity(0.9),
+            letterSpacing: 0.1,
+          ),
         ),
         TextButton(
           onPressed: () {
             // Navigate to sign up
           },
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           child: Text(
             LocalizationKeysAppWuy.wuyLoginSignUp.tr(context),
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: ThemeColors.primary,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              letterSpacing: 0.1,
             ),
           ),
         ),
@@ -236,15 +268,48 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         _isLoading = true;
       });
 
-      // Simulate login
-      await Future.delayed(const Duration(seconds: 2));
+      try {
+        // Use data manager for login to ensure data consistency
+        final dataManager = WuyUnifiedService();
 
-      setState(() {
-        _isLoading = false;
-      });
+        // For email login, we'll use the email as phone for mock data generation
+        final email = _emailController.text.trim();
+        final mockPhone =
+            '138${email.hashCode.abs().toString().substring(0, 8)}';
 
-      if (mounted) {
-        context.go(WuyAppRouter.routeFriends);
+        // Use data manager login method
+        final result = await dataManager.loginWithPhone(
+          phone: mockPhone,
+          verificationCode: '123456', // Mock verification code
+        );
+
+        if (result.isSuccess) {
+          // Use AuthGuard to handle login success
+          await AuthGuard.onLoginSuccess(context);
+        } else {
+          throw Exception(result.error ?? 'Login failed');
+        }
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Login error: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          // Show error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(LocalizationKeysAppWuy.wuyLoginErrorMessage.tr(context).replaceAll('{error}', e.toString())),
+              backgroundColor: ThemeColors.error,
+            ),
+          );
+        }
       }
     }
   }

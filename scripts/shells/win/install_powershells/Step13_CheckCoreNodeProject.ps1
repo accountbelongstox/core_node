@@ -31,7 +31,7 @@ $NEEDS_CLONE = $false
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $WIN_COMMON_DIR = Join-Path (Split-Path -Parent $SCRIPT_DIR) "win_common"
 $GLOBAL_VARS_PATH = Join-Path $WIN_COMMON_DIR "GlobalVars.ps1"
-$COMMON_FUNC_PATH = Join-Path $WIN_COMMON_DIR "CommanFunc.ps1"
+$COMMON_FUNC_PATH = Join-Path $WIN_COMMON_DIR "CommonFunc.ps1"
 
 . $GLOBAL_VARS_PATH
 . $COMMON_FUNC_PATH

@@ -37,12 +37,16 @@ if not exist "%PS1_SCRIPT%" (
 
 REM Execute PowerShell script with proper execution policy
 echo [INFO] Executing PowerShell script: %PS1_SCRIPT%
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_SCRIPT%"
+echo [DEBUG] Normalizing working directory to script location: %SCRIPT_DIR%
+pushd "%SCRIPT_DIR%" >nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS1_SCRIPT%"
+set EXIT_CODE=%ERRORLEVEL%
+popd >nul
 
 REM Check exit code
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] flutter_bloom startup failed with exit code: %ERRORLEVEL%
-    exit /b %ERRORLEVEL%
+if %EXIT_CODE% neq 0 (
+    echo [ERROR] flutter_bloom startup failed with exit code: %EXIT_CODE%
+    exit /b %EXIT_CODE%
 )
 
 echo [SUCCESS] flutter_bloom startup completed

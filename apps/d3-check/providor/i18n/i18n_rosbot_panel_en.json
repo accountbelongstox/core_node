@@ -88,7 +88,32 @@
       "stop_rosbot": "Stop ROSBOT",
       "rosbot_log": "ROSBOT Log",
       "start_functionality": "ROSBOT Start Functionality",
-      "stop_functionality": "ROSBOT Stop Functionality"
+      "stop_functionality": "ROSBOT Stop Functionality",
+      "auto_enable_latest_ros": "Auto Enable Latest ROS",
+      "auto_start_other_exe": "Auto Start Other EXE",
+      "force_cleanup_restart": "Force Cleanup Restart",
+      "auto_configure_ui": "Auto Configure UI",
+      "detailed_logging": "Detailed Logging",
+      "startup": "Startup on Boot",
+      "monitor_start_rosbot": "Monitor Start ROSBOT",
+      "battlenet_path": "Battle.net Path",
+      "select_battlenet_executable": "Select Battle.net Executable",
+      "ros_status": "ROS",
+      "d3_status": "D3",
+      "map_status": "Map",
+      "stage": "Stage",
+      "running": "Running",
+      "not_running": "Not Running",
+      "map_town": "Town",
+      "map_greater_rift": "Greater Rift",
+      "map_rift": "Rift",
+      "map_unknown": "Unknown",
+      "stage_gem_upgrade": "Gem Upgrade",
+      "stage_kill_boss": "Kill BOSS",
+      "stage_back_town": "Back Town",
+      "stage_in_greater_rift": "In Greater Rift",
+      "stage_in_rift": "In Rift",
+      "stage_unknown": "Unknown"
     }
   }
 }

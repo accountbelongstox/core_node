@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -20,7 +20,6 @@ source "$COMMON_DIR/common_functions.sh"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Check if we are running as root
@@ -32,11 +31,34 @@ fi
 # Function to stop Hostguard service
 stop_hostguard() {
     echo "Stopping Hostguard service..."
-    /etc/init.d/hostguard stop
-    if [ $? -eq 0 ]; then
-        echo "Hostguard service stopped successfully."
+
+    # Check if init script exists
+    if [ -f "/etc/init.d/hostguard" ]; then
+        /etc/init.d/hostguard stop
+        if [ $? -eq 0 ]; then
+            echo "Hostguard service stopped successfully."
+        else
+            echo "Failed to stop Hostguard service."
+        fi
     else
-        echo "Failed to stop Hostguard service."
+        echo "Hostguard init script not found at /etc/init.d/hostguard"
+
+        # Try systemctl if available
+        if command -v systemctl >/dev/null 2>&1; then
+            if systemctl list-units --full -all | grep -q "hostguard"; then
+                echo "Trying to stop Hostguard via systemctl..."
+                systemctl stop hostguard 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo "Hostguard service stopped successfully via systemctl."
+                else
+                    echo "Hostguard service not running or already stopped."
+                fi
+            else
+                echo "Hostguard service not found in systemctl."
+            fi
+        else
+            echo "Hostguard service not found or not running."
+        fi
     fi
 }
 

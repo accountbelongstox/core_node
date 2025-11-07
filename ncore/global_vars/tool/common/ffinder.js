@@ -233,9 +233,26 @@ class FileFinder {
      */
     async searchFileInDirectory(basePath, fileName, maxDepth = -1, stopOnFirst = false) {
         const results = [];
+        const visitedPaths = new Set();
 
         async function search(currentPath, depth) {
             if (maxDepth !== -1 && depth > maxDepth) return;
+
+            // Resolve real path to detect symbolic link loops
+            let realPath;
+            try {
+                realPath = fs.realpathSync(currentPath);
+            } catch (error) {
+                log.debug(`Cannot resolve real path for ${currentPath}:`, error.message);
+                return stopOnFirst ? null : undefined;
+            }
+
+            // Skip if we've already visited this real path (prevents loops)
+            if (visitedPaths.has(realPath)) {
+                log.debug(`Skipping already visited path: ${realPath}`);
+                return stopOnFirst ? null : undefined;
+            }
+            visitedPaths.add(realPath);
 
             try {
                 const entries = fs.readdirSync(currentPath, { withFileTypes: true });
@@ -243,12 +260,19 @@ class FileFinder {
                 for (const entry of entries) {
                     const fullPath = path.join(currentPath, entry.name);
 
+                    // Skip problematic X11 directories that commonly have symbolic link loops
+                    if (entry.name === 'X11' && currentPath.includes('/usr/bin')) {
+                        log.debug(`Skipping potentially problematic X11 directory: ${fullPath}`);
+                        continue;
+                    }
+
                     if (entry.isFile() && entry.name.toLowerCase() === fileName.toLowerCase()) {
                         if (stopOnFirst) {
                             return fullPath;
                         }
                         results.push(fullPath);
-                    } else if (entry.isDirectory()) {
+                    } else if (entry.isDirectory() && !entry.isSymbolicLink()) {
+                        // Only follow directories, not symbolic links to prevent loops
                         const result = await search(fullPath, depth + 1);
                         if (stopOnFirst && result) {
                             return result;

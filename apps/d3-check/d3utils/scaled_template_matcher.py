@@ -8,7 +8,7 @@ Unified template matching interface for the entire application
 Workflow:
 1. Get actual game window size from screenshot_provider
 2. Calculate scale factors: actual_size / STANDARD_RESOLUTION
-3. Auto-scale templates from TEMPLATE_CONFIGS based on scale factors
+3. Auto-scale templates from D3_TEMPLATE_CONFIGS based on scale factors
 4. Cache scaled templates in memory for performance
 5. Call image_matcher with scaled templates
 6. Return results
@@ -19,7 +19,7 @@ Usage:
     matcher = ScaledTemplateMatcher()
     result = matcher.match_template(
         target_image=game_window_image,  # PIL Image or path
-        template_name="bag_left",        # Name from TEMPLATE_CONFIGS
+        template_name="bag_left",        # Name from D3_TEMPLATE_CONFIGS
         output_dir=None                  # Optional output directory
     )
 """
@@ -40,9 +40,11 @@ sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint, ImageMatcher
 from providor.providor_index import (
-    TEMPLATE_CONFIGS,
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
+    D3_TEMPLATE_CONFIGS,
+    D4_TEMPLATE_CONFIGS,
+    BATTLENET_TEMPLATE_CONFIGS,
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     SCALED_TEMPLATES_CACHE_DIR,
     get_template_path,
     get_template_threshold,
@@ -50,7 +52,7 @@ from providor.providor_index import (
     get_template_match_method,
     get_adjusted_threshold
 )
-from d3utils.share import get_global_scale
+from share import get_global_scale
 
 class ScaledTemplateMatcher:
     """
@@ -68,13 +70,18 @@ class ScaledTemplateMatcher:
     - Intelligent threshold conversion between match methods (via get_adjusted_threshold)
 
     Threshold Management:
-    - Each template in TEMPLATE_CONFIGS has a threshold designed for its match_method
+    - Each template in D3_TEMPLATE_CONFIGS has a threshold designed for its match_method
     - Use get_template_threshold() for standard operation (recommended)
     - Use get_adjusted_threshold(template_name, override_method) when changing match methods at runtime
     """
 
-    def __init__(self):
-        """Initialize scaled template matcher"""
+    def __init__(self, use_d4_templates: bool = False):
+        """
+        Initialize scaled template matcher
+
+        Args:
+            use_d4_templates: If True, use D4_TEMPLATE_CONFIGS; otherwise use D3_TEMPLATE_CONFIGS
+        """
         # Create ImageMatcher instances for different feature detectors
         # We'll create them on-demand to save memory
         self._matchers = {}  # {detector_type: ImageMatcher instance}
@@ -86,8 +93,12 @@ class ScaledTemplateMatcher:
         # In-memory cache for scaled templates
         # Format: {(template_name, scale_x, scale_y): numpy.ndarray}
         self._template_cache = {}
+        
+        # Select template config based on game type
+        self.use_d4_templates = use_d4_templates
+        self.template_configs = D4_TEMPLATE_CONFIGS if use_d4_templates else D3_TEMPLATE_CONFIGS
 
-        ColorPrint.green("[ScaledTemplateMatcher] Initialized")
+        ColorPrint.green(f"[ScaledTemplateMatcher] Initialized (D4 mode: {use_d4_templates})")
 
     def _get_matcher(self, match_method: str = "ORB") -> ImageMatcher:
         """
@@ -125,11 +136,8 @@ class ScaledTemplateMatcher:
                     ratio_thresh=0.80,
                     min_inliers=4,
                     nfeatures=10000,
-                    standard_width=STANDARD_RESOLUTION_WIDTH,
-                    standard_height=STANDARD_RESOLUTION_HEIGHT,
-                    default_method=cv2.TM_CCORR_NORMED,  # Default for fallback template matching
-                    support_alpha=False,  # Alpha controlled per-template via config
-                    feature_detector=method_type
+                    standard_width=D3_STANDARD_RESOLUTION_WIDTH,
+                    standard_height=D3_STANDARD_RESOLUTION_HEIGHT
                 )
         else:
             # Template matching - use ORB as feature detector, but with custom template method
@@ -142,11 +150,8 @@ class ScaledTemplateMatcher:
                     ratio_thresh=0.80,
                     min_inliers=4,
                     nfeatures=10000,
-                    standard_width=STANDARD_RESOLUTION_WIDTH,
-                    standard_height=STANDARD_RESOLUTION_HEIGHT,
-                    default_method=cv_method,  # Use the specified template matching method
-                    support_alpha=False,  # Alpha controlled per-template via config
-                    feature_detector="ORB"  # Use ORB for feature fallback
+                    standard_width=D3_STANDARD_RESOLUTION_WIDTH,
+                    standard_height=D3_STANDARD_RESOLUTION_HEIGHT
                 )
 
         return self._matchers[cache_key]
@@ -202,7 +207,7 @@ class ScaledTemplateMatcher:
         Load original template image from disk (cached)
 
         Args:
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS or D4_TEMPLATE_CONFIGS
 
         Returns:
             Original template as numpy array (BGR or BGRA) or None if failed
@@ -212,10 +217,23 @@ class ScaledTemplateMatcher:
             ColorPrint.gray(f"[ScaledMatcher] Using cached original template: {template_name}")
             return self._original_template_cache[template_name]
 
-        # Get original template path
-        original_path = get_template_path(template_name)
-        if not original_path or not Path(original_path).exists():
-            ColorPrint.yellow(f"[ScaledMatcher] Template not found: {template_name}")
+        # Get original template path based on current template config
+        if self.use_d4_templates:
+            # Use D4 template config
+            template_config = self.template_configs.get(template_name)
+            if not template_config:
+                ColorPrint.yellow(f"[ScaledMatcher] D4 template not found: {template_name}")
+                return None
+            original_path = template_config["path"]
+        else:
+            # Use D3 template config
+            original_path = get_template_path(template_name)
+            if not original_path:
+                ColorPrint.yellow(f"[ScaledMatcher] D3 template not found: {template_name}")
+                return None
+        
+        if not Path(original_path).exists():
+            ColorPrint.yellow(f"[ScaledMatcher] Template file not found: {original_path}")
             return None
 
         # Load original template from disk
@@ -249,7 +267,7 @@ class ScaledTemplateMatcher:
         Get scaled template image data in memory (creates if not cached)
 
         Args:
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS
             scale_x: X scale factor
             scale_y: Y scale factor
             force_refresh: Force re-scaling even if cached
@@ -317,7 +335,7 @@ class ScaledTemplateMatcher:
 
         Args:
             target_image: Target image (path, PIL Image, or numpy array)
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS
             output_dir: Optional output directory for debug images
             force_refresh_scale: Force re-scaling template even if cached
 
@@ -360,15 +378,25 @@ class ScaledTemplateMatcher:
                 "error": "Failed to load target image"
             }
 
-        # Get template config
-        # Note: get_template_threshold() returns the threshold from TEMPLATE_CONFIGS,
-        # which is designed for the template's specified match_method.
-        # If you need to override match_method at runtime, use get_adjusted_threshold()
-        # to automatically convert the threshold to the appropriate range:
-        #   threshold = get_adjusted_threshold(template_name, override_method)
-        threshold = get_template_threshold(template_name)
-        use_alpha = get_template_use_alpha(template_name)
-        match_method = get_template_match_method(template_name)
+        # Get template config based on current template config
+        if self.use_d4_templates:
+            # Use D4 template config
+            template_config = self.template_configs.get(template_name)
+            if not template_config:
+                ColorPrint.red(f"[ScaledMatcher] D4 template config not found: {template_name}")
+                return {
+                    "total_matches": 0,
+                    "matches": [],
+                    "error": f"D4 template config not found: {template_name}"
+                }
+            threshold = template_config["threshold"]
+            use_alpha = template_config.get("use_alpha", False)
+            match_method = template_config.get("match_method", "ORB")
+        else:
+            # Use D3 template config
+            threshold = get_template_threshold(template_name)
+            use_alpha = get_template_use_alpha(template_name)
+            match_method = get_template_match_method(template_name)
 
         # Get appropriate matcher for this template
         matcher = self._get_matcher(match_method)
@@ -410,7 +438,7 @@ class ScaledTemplateMatcher:
 
         Args:
             target_image: Target image (path, PIL Image, or numpy array)
-            template_names: List of template names from TEMPLATE_CONFIGS
+            template_names: List of template names from D3_TEMPLATE_CONFIGS
             output_dir: Optional output directory for debug images
             force_refresh_scale: Force re-scaling templates even if cached
 
@@ -501,7 +529,7 @@ class ScaledTemplateMatcher:
 
         Args:
             target_image: Target region image (path, PIL Image, or numpy array)
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS
             output_dir: Optional output directory for debug images
 
         Returns:

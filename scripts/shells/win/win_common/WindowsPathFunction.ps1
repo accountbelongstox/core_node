@@ -51,6 +51,17 @@ if ($winBuild -ge 22000) {
 $Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"
 
+$scriptCurrentPath = $PSScriptRoot
+$winDirPath = Split-Path $scriptCurrentPath -Parent
+$shellsDirPath = Split-Path $winDirPath -Parent
+$scriptsDirPath = Split-Path $shellsDirPath -Parent
+$projectDirPath = Split-Path $scriptsDirPath -Parent
+
+$Global:PROJECT_ROOT_DIR = Split-Path $projectDirPath -Parent
+$Global:PROJECT_DIR = $projectDirPath
+$Global:PROJECT_SCRIPTS_DIR = $scriptsDirPath
+$Global:INLINE_WINENVS_DIR = Join-Path $scriptsDirPath "winenvs"  # Inline scripts directory - scripts travel with code
+
 function Write-Log {
     param (
         [string]$message,
@@ -242,6 +253,17 @@ function Add-Path {
     param (
         [string]$newPath
     )
+    
+    # Smart detection: if it's a file path, automatically extract parent directory
+    if (-not [string]::IsNullOrWhiteSpace($newPath)) {
+        $normalizedPath = Normalize-WindowsPath $newPath
+        if ($normalizedPath -and (Test-Path $normalizedPath -PathType Leaf)) {
+            $parentDir = Split-Path $normalizedPath -Parent
+            Write-Log "Detected file path, using parent directory: $parentDir" -color "Yellow"
+            $newPath = $parentDir
+        }
+    }
+    
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $paths = $currentPath -split ';'
     $newPath = Normalize-WindowsPath $newPath
@@ -451,6 +473,15 @@ function Add-FileToWinEnvs {
             Write-Log "File is not a supported executable format: $filePathNormalized (Supported: .exe, .cmd, .bat, .ps1)" -color "Yellow"
         }
     }
+
+    # Ensure .winenvs is on PATH and refresh environment after adding
+    try {
+        $globalEnvsNormalized = Normalize-WindowsPath $winEnvsDir
+        Add-Path -newPath $globalEnvsNormalized
+        Write-RefreshAllVarsBatch
+    } catch {
+        Write-Log "Failed to update PATH/refresh environment: $($_.Exception.Message)" -color "Yellow"
+    }
 }
 
 function Copy-FileToWinEnvs {
@@ -548,6 +579,116 @@ function Add-ScriptContentToWinEnvs {
     } catch {
         Write-Log "Failed to write script content to .winenvs: $($_.Exception.Message)" -color "Red"
     }
+
+    # Ensure .winenvs is on PATH and refresh environment after writing
+    try {
+        $globalEnvsNormalized = Normalize-WindowsPath $winEnvsDir
+        Add-Path -newPath $globalEnvsNormalized
+        Write-RefreshAllVarsBatch
+    } catch {
+        Write-Log "Failed to update PATH/refresh environment: $($_.Exception.Message)" -color "Yellow"
+    }
+}
+
+function Ensure-InlineWinEnvsDir {
+    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
+        New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
+        Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"
+    }
+    $inlineEnvsNormalized = Normalize-WindowsPath $Global:INLINE_WINENVS_DIR
+    Add-Path -newPath $inlineEnvsNormalized
+}
+
+function Copy-ItemToInline {
+    param (
+        [System.IO.FileInfo]$item
+    )
+    $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $item.Name
+    if (Test-Path $targetPath) {
+        Remove-Item -Path $targetPath -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+    try {
+        Copy-Item -Path $item.FullName -Destination $targetPath -Force
+        Write-Log "File added to inline: $($item.Name) -> $targetPath" -color "Green"
+    } catch {
+        Write-Log "Failed to copy: $($_.Exception.Message)" -color "Red"
+    }
+}
+
+function Link-ExecToInline {
+    param (
+        [System.IO.FileInfo]$item
+    )
+    $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $item.Name
+    if (Test-Path $targetPath) {
+        Remove-Item -Path $targetPath -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+    try {
+        New-Item -ItemType SymbolicLink -Path $targetPath -Target $item.FullName -Force | Out-Null
+        Write-Log "Symbolic link created: $($item.Name) -> $($item.FullName)" -color "Green"
+    } catch {
+        Write-Log "Failed to create link: $($_.Exception.Message)" -color "Red"
+    }
+}
+
+function Add-FileToInline {
+    param ([string]$filePath)
+    Ensure-InlineWinEnvsDir
+    $pathNormalized = Normalize-WindowsPath $filePath
+    if (-not (Test-Path $pathNormalized)) {
+        Write-Log "Path does not exist: $pathNormalized" -color "Red"
+        return
+    }
+    $item = Get-Item $pathNormalized
+    if ($item.PSIsContainer) {
+        Get-ChildItem -Path $pathNormalized -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { Copy-ItemToInline -item $_ }
+    } else {
+        Copy-ItemToInline -item $item
+    }
+}
+
+function Add-ExecToInline {
+    param ([string]$execPath)
+    Ensure-InlineWinEnvsDir
+    $pathNormalized = Normalize-WindowsPath $execPath
+    if (-not (Test-Path $pathNormalized)) {
+        Write-Log "Path does not exist: $pathNormalized" -color "Red"
+        return
+    }
+    $item = Get-Item $pathNormalized
+    if ($item.PSIsContainer) {
+        Get-ChildItem -Path $pathNormalized -Recurse -ErrorAction SilentlyContinue | Where-Object { Test-IsExecutableFile -FileItem $_ } | ForEach-Object { Link-ExecToInline -item $_ }
+    } else {
+        if (Test-IsExecutableFile -FileItem $item) {
+            Link-ExecToInline -item $item
+        } else {
+            Write-Log "Not an executable: $pathNormalized" -color "Red"
+        }
+    }
+}
+
+Set-Alias -Name Add-ScriptToInline -Value Add-FileToInline
+
+# Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
+try {
+    $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
+    if ($winEnvsNormGuard) {
+        Add-Path -newPath $winEnvsNormGuard
+    }
+} catch {
+    Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
+}
+
+# Ensure inline winenvs exists in Machine PATH before executing any action (after all functions are defined)
+try {
+    $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
+    $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
+    if ($inlineWinEnvsNormGuard) {
+        Add-Path -newPath $inlineWinEnvsNormGuard
+    }
+} catch {
+    Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
 }
 
 # Main logic
@@ -667,10 +808,31 @@ switch ($action) {
             Add-ScriptContentToWinEnvs -Content $param1 -FileName $param2
         }
     }
+    "inlineaddscript" {
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "Script path is required" -color "Red"
+        } else {
+            Add-FileToInline -filePath $param1
+        }
+    }
+    "inlineaddfile" {
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "File path is required" -color "Red"
+        } else {
+            Add-FileToInline -filePath $param1
+        }
+    }
+    "inlineaddexec" {
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "Executable path is required" -color "Red"
+        } else {
+            Add-ExecToInline -execPath $param1
+        }
+    }
     "help" {
         Write-Log "Invalid action. Available actions:" -color "Red"
         Write-Log "  PATH Management:" -color "Yellow"
-        Write-Log "    add <path>                    - Add directory to system PATH" -color "White"
+        Write-Log "    add <path>                    - Add directory to system PATH (auto-detects file paths)" -color "White"
         Write-Log "    remove <path>                 - Remove directory from system PATH" -color "White"
         Write-Log "    is <path>                     - Check if directory exists in PATH" -color "White"
         Write-Log "    show                          - Display current PATH entries" -color "White"
@@ -687,12 +849,17 @@ switch ($action) {
         Write-Log "    refresh                       - Output PATH for CMD consumption" -color "White"
         Write-Log "    refresh-bat                   - Generate refresh batch file" -color "White"
         Write-Log "    refreshvar                    - Refresh all environment variables using batch script" -color "White"
-        Write-Log "  Symbolic Link Management:" -color "Yellow"
-        Write-Log "    addexec <exePath>             - Add executable via symbolic links to GlobalEnvs" -color "White"
-        Write-Log "    addfile <filePath>             - Copy file to $Global:WINENVS_DIR directory" -color "White"
-        Write-Log "    addscript <content> <filename> - Write script content to $Global:WINENVS_DIR directory" -color "White"
+        Write-Log "  File Management:" -color "Yellow"
+        Write-Log "    addexec <exePath>              - Add executable via symbolic links to external .winenvs" -color "White"
+        Write-Log "    addfile <filePath>             - Copy file to external .winenvs directory" -color "White"
+        Write-Log "    addscript <content> <filename> - Write script content to external .winenvs directory" -color "White"
+        Write-Log "  Inline File Management (version-controlled):" -color "Yellow"
+        Write-Log "    inlineaddscript <scriptPath>   - Add script to inline winenvs (travels with code)" -color "White"
+        Write-Log "    inlineaddfile <filePath>       - Add file to inline winenvs (travels with code)" -color "White"
+        Write-Log "    inlineaddexec <execPath>       - Add executable to inline winenvs (travels with code)" -color "White"
         Write-Log "  Examples:" -color "Yellow"
         Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\bin'" -color "Cyan"
+        Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\cmd\git.exe'  # Auto-detects file" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 setvar 'JAVA_HOME' 'C:\Program Files\Java\jdk-11'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 addexec 'C:\Program Files\Git\bin'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 addscript '@echo off\necho Hello' 'test.bat'" -color "Cyan"

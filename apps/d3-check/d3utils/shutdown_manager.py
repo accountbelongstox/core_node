@@ -23,6 +23,7 @@ _hotkey_listener: Optional[HotkeyListener] = None
 
 # Global shutdown events
 _shutdown_requested = threading.Event()
+_restart_requested = threading.Event()
 _shutdown_completed = threading.Event()
 _shutdown_lock = threading.Lock()
 
@@ -32,6 +33,33 @@ def register_hotkey_listener(hotkey_listener):
     global _hotkey_listener
     _hotkey_listener = hotkey_listener
     ColorPrint.blue("[ShutdownManager] Hotkey listener registered")
+
+
+def request_restart():
+    """
+    Request application restart
+
+    This is the ONLY method that should be called from anywhere to trigger restart.
+    It sets both restart and shutdown event flags and quits UI mainloop.
+    """
+    global _restart_requested, _shutdown_requested
+
+    if _shutdown_requested.is_set():
+        return
+
+    ColorPrint.yellow("[ShutdownManager] ========================================")
+    ColorPrint.yellow("[ShutdownManager] Restart requested")
+    ColorPrint.yellow("[ShutdownManager] ========================================")
+    _restart_requested.set()
+    _shutdown_requested.set()
+
+    ui = ENCYCLOPEDIA.get('ui')
+    if ui:
+        try:
+            ColorPrint.blue("[ShutdownManager] Quitting UI mainloop for restart...")
+            ui.root.quit()
+        except Exception as e:
+            ColorPrint.red(f"[ShutdownManager] Error quitting UI mainloop: {e}")
 
 
 def request_shutdown():
@@ -44,14 +72,13 @@ def request_shutdown():
     global _shutdown_requested
 
     if _shutdown_requested.is_set():
-        return  # Already requested
+        return
 
     ColorPrint.yellow("[ShutdownManager] ========================================")
     ColorPrint.yellow("[ShutdownManager] Shutdown requested")
     ColorPrint.yellow("[ShutdownManager] ========================================")
     _shutdown_requested.set()
 
-    # Quit UI mainloop to let main thread continue
     ui = ENCYCLOPEDIA.get('ui')
     if ui:
         try:
@@ -64,6 +91,11 @@ def request_shutdown():
 def is_shutdown_requested() -> bool:
     """Check if shutdown has been requested"""
     return _shutdown_requested.is_set()
+
+
+def is_restart_requested() -> bool:
+    """Check if restart has been requested"""
+    return _restart_requested.is_set()
 
 
 def execute_shutdown():
@@ -90,17 +122,17 @@ def execute_shutdown():
                 try:
                     ColorPrint.blue("[ShutdownManager] [1/3] Stopping hotkey listener...")
                     _hotkey_listener.stop_listening()
-                    ColorPrint.green("[ShutdownManager] ✓ Hotkey listener stopped")
+                    ColorPrint.green("[ShutdownManager] [OK] Hotkey listener stopped")
                 except Exception as e:
-                    ColorPrint.red(f"[ShutdownManager] ✗ Hotkey listener error: {e}")
+                    ColorPrint.red(f"[ShutdownManager] [ERROR] Hotkey listener error: {e}")
 
             # Step 2: Stop timer manager (stop periodic tasks)
             try:
                 ColorPrint.blue("[ShutdownManager] [2/3] Stopping timer manager...")
                 timer_manager.stop()
-                ColorPrint.green("[ShutdownManager] ✓ Timer manager stopped")
+                ColorPrint.green("[ShutdownManager] [OK] Timer manager stopped")
             except Exception as e:
-                ColorPrint.red(f"[ShutdownManager] ✗ Timer manager error: {e}")
+                ColorPrint.red(f"[ShutdownManager] [ERROR] Timer manager error: {e}")
 
             # Step 3: Destroy UI (cleanup window and system tray)
             ui = ENCYCLOPEDIA.get('ui')
@@ -126,9 +158,9 @@ def execute_shutdown():
                     except:
                         pass
 
-                    ColorPrint.green("[ShutdownManager] ✓ UI destroyed")
+                    ColorPrint.green("[ShutdownManager] [OK] UI destroyed")
                 except Exception as e:
-                    ColorPrint.red(f"[ShutdownManager] ✗ UI destruction error: {e}")
+                    ColorPrint.red(f"[ShutdownManager] [ERROR] UI destruction error: {e}")
 
             _shutdown_completed.set()
 
@@ -136,13 +168,18 @@ def execute_shutdown():
             ColorPrint.green("[ShutdownManager] Shutdown sequence completed")
             ColorPrint.green("[ShutdownManager] ========================================")
 
-            # Final exit
-            ColorPrint.blue("[ShutdownManager] Exiting application...")
-            time.sleep(0.3)
-            os._exit(0)
+            # Check if restart was requested
+            if is_restart_requested():
+                ColorPrint.blue("[ShutdownManager] Restarting application...")
+                time.sleep(0.3)
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                ColorPrint.blue("[ShutdownManager] Exiting application...")
+                time.sleep(0.3)
+                os._exit(0)
 
         except Exception as e:
-            ColorPrint.red(f"[ShutdownManager] ✗ Critical error: {e}")
+            ColorPrint.red(f"[ShutdownManager] [ERROR] Critical error: {e}")
             import traceback
             traceback.print_exc()
             os._exit(1)

@@ -17,7 +17,6 @@ import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/apps/app_example/router_app_example/routes_provider_app_example.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:get/get.dart';
 
 class VerifyScreenView extends StatelessWidget {

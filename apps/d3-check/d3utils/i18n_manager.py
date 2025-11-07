@@ -101,14 +101,16 @@ class I18nManager:
     def _load_language_files(self, language: str) -> Dict[str, Any]:
         """Load all translation files for specified language"""
         translations = {}
-        
+
         # Define file loading order (by dependency)
         file_patterns = [
             f"i18n_main_window_{language}.json",
-            f"i18n_skill_config_{language}.json", 
+            f"i18n_skill_config_{language}.json",
             f"i18n_auxiliary_panel_{language}.json",
             f"i18n_rosbot_panel_{language}.json",
+            f"i18n_d4_panel_{language}.json",
             f"i18n_log_panel_{language}.json",
+            f"i18n_tabs_{language}.json",
             f"i18n_common_{language}.json",
             f"i18n_errors_{language}.json"
         ]

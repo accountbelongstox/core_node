@@ -10,36 +10,41 @@ import os
 from pathlib import Path
 from typing import Final
 
-# Add ncore path for pytools access
+# Add ncore and pycore paths for pytools access
 # Current file: apps/d3-check/providor/common_imports.py
-# Need to go up 3 levels to reach core_node, then add ncore
+# Need to go up 3 levels to reach core_node, then add core_node (for pycore) and ncore
 current_dir = os.path.dirname(__file__)  # apps/d3-check/providor
 d3_check_dir = os.path.dirname(current_dir)  # apps/d3-check
 apps_dir = os.path.dirname(d3_check_dir)  # apps
 core_node_dir = os.path.dirname(apps_dir)  # core_node
 ncore_path = os.path.join(core_node_dir, "ncore")
+
+# Add core_node to path (so we can import pycore.xxx)
+if core_node_dir not in sys.path:
+    sys.path.insert(0, core_node_dir)
+# Add ncore to path (so we can import pytools.xxx)
 if ncore_path not in sys.path:
     sys.path.insert(0, ncore_path)
 
-# pytools foundations
-from pytools.pyfoundations.color_print import ColorPrint  # noqa: E402
-from pytools.pyfoundations.encyclopedia import ENCYCLOPEDIA  # noqa: E402
+# pytools foundations (from pycore)
+from pycore.pyfoundations.color_print import ColorPrint  # noqa: E402
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA  # noqa: E402
 
-# pytools utils - Core utilities
-from pytools.pyutils.click_handler import ClickHandler  # noqa: E402
-from pytools.pyutils.window_screenshot import WindowScreenshot  # noqa: E402
+# pytools utils - Core utilities (from pycore)
+from pycore.pyutils.click_handler import ClickHandler  # noqa: E402
+from pycore.pyutils.window_screenshot import WindowScreenshot  # noqa: E402
 
-# pytools utils - Image processing
-from pytools.pyutils.image_annotator import ImageAnnotator  # noqa: E402
-from pytools.pyutils.image_comparator import ImageComparator  # noqa: E402
-from pytools.pyutils.image_crop import ImageCrop  # noqa: E402
-from pytools.pyutils.image_matcher import ImageMatcher  # noqa: E402
+# pytools utils - Image processing (from pycore)
+from pycore.pyutils.image_annotator import ImageAnnotator  # noqa: E402
+from pycore.pyutils.image_comparator import ImageComparator  # noqa: E402
+from pycore.pyutils.image_crop import ImageCrop  # noqa: E402
+from pycore.pyutils.image_matcher import ImageMatcher  # noqa: E402
 
-# pytools utils - OCR
-from pytools.pyutils.ocr_cnocr_engine import CnOCREngine  # noqa: E402
+# pytools utils - OCR (from pycore)
+from pycore.pyutils.ocr_cnocr_engine import CnOCREngine  # noqa: E402
 
-# pytools utils - Hotkey listener (explicit imports instead of *)
-from pytools.pyutils.hotkey_listener import (  # noqa: E402
+# pytools utils - Hotkey listener (explicit imports instead of *) (from pycore)
+from pycore.pyutils.hotkey_listener import (  # noqa: E402
     HotkeyListener,
     HotkeyType,
     HotkeyInfo,
@@ -50,14 +55,38 @@ from pytools.pyutils.hotkey_listener import (  # noqa: E402
     stop_global_hotkey_listening,
 )
 
-# pytools utils - Advanced features
-from pytools.pyutils.ultralytics_trainer import UltralyticsTrainer, TrainingConfig  # noqa: E402
-from pytools.pyutils.window_activator import WindowActivator  # noqa: E402
-from pytools.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
-# Note: PNGMatcher has been replaced by ImageMatcher, no need to import separately
+# pytools utils - Advanced features (from pycore)
+# Lazy import for ultralytics to avoid loading torch/CUDA at startup
+# Only import when actually needed to prevent memory issues
+def _get_ultralytics_trainer():
+    """Lazy import UltralyticsTrainer to avoid loading torch at startup"""
+    from pycore.pyutils.ultralytics.ultralytics_trainer import UltralyticsTrainer, TrainingConfig
+    return UltralyticsTrainer, TrainingConfig
+
+def _get_classification_trainer():
+    """Lazy import ClassificationTrainer to avoid loading torch at startup"""
+    from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
+    return ClassificationTrainer
+
+# Expose lazy loading functions
+UltralyticsTrainer = None  # Will be loaded on demand
+TrainingConfig = None  # Will be loaded on demand
+UltralyticsClassificationTrainer = None  # Will be loaded on demand
+
+from pycore.pyutils.window_activator import WindowActivator  # noqa: E402
+from pycore.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
+
+# PyWeb - HTTP Bridge for web GUI communication (from pycore)
+from pycore.pyweb.http_bridge import HTTPBridgeServer, get_http_bridge, create_http_bridge  # noqa: E402
+from pycore.pyweb.universal_gui_launcher import (  # noqa: E402
+    UniversalGUILauncher,
+    SystemTrayManager,
+    get_universal_gui_launcher,
+    set_menu_labels
+)
 
 __all__ = [
-    'ColorPrint',   
+    'ColorPrint',
     'ENCYCLOPEDIA',
     'ClickHandler',
     'WindowScreenshot',
@@ -74,8 +103,18 @@ __all__ = [
     'unregister_global_hotkey',
     'start_global_hotkey_listening',
     'stop_global_hotkey_listening',
+    '_get_ultralytics_trainer',
+    '_get_classification_trainer',
     'UltralyticsTrainer',
     'TrainingConfig',
+    'UltralyticsClassificationTrainer',
     'WindowActivator',
     'DatasetGenerator',
+    'HTTPBridgeServer',
+    'get_http_bridge',
+    'create_http_bridge',
+    'UniversalGUILauncher',
+    'SystemTrayManager',
+    'get_universal_gui_launcher',
+    'set_menu_labels',
 ]

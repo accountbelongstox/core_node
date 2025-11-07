@@ -13,12 +13,72 @@
 # Import variable management functions and global variables
 $WinCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) "win_common"
 . (Join-Path $WinCommonDir "GlobalVars.ps1")
-. (Join-Path $WinCommonDir "CommanFunc.ps1")
+. (Join-Path $WinCommonDir "CommonFunc.ps1")
 
 $STEP_NUMBER = 2
 
 # Registry file path for Windows 10 context menu
 $REG_SUB_PATH = "shells/win/scripts/Step2_Win10ContextMenu.reg"
+
+function Stop-DisableHttpIisServices {
+    Write-Host "[Step 2] Stopping and disabling HTTP and IIS services..." -ForegroundColor Cyan
+    
+    try {
+        # Stop IIS services using iisreset
+        Write-Host "[Step 2] Stopping IIS services..." -ForegroundColor Yellow
+        $iisResetResult = & iisreset /stop 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[Step 2] IIS services stopped successfully." -ForegroundColor Green
+        } else {
+            Write-Host "[Step 2] IIS services may not be running or already stopped." -ForegroundColor Yellow
+        }
+        
+        # Stop HTTP service
+        Write-Host "[Step 2] Stopping HTTP service..." -ForegroundColor Yellow
+        $httpStopResult = & net stop http 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[Step 2] HTTP service stopped successfully." -ForegroundColor Green
+        } else {
+            Write-Host "[Step 2] HTTP service may not be running or already stopped." -ForegroundColor Yellow
+        }
+        
+        # Disable and prevent startup of HTTP service
+        Write-Host "[Step 2] Disabling HTTP service..." -ForegroundColor Yellow
+        $httpService = Get-Service -Name "HTTP" -ErrorAction SilentlyContinue
+        if ($httpService) {
+            Set-Service -Name "HTTP" -StartupType Disabled -ErrorAction SilentlyContinue
+            Write-Host "[Step 2] HTTP service disabled successfully." -ForegroundColor Green
+        } else {
+            Write-Host "[Step 2] HTTP service not found." -ForegroundColor Yellow
+        }
+        
+        # Disable and prevent startup of IIS services
+        $iisServices = @("W3SVC", "IISADMIN", "WAS")
+        foreach ($serviceName in $iisServices) {
+            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($service) {
+                Write-Host "[Step 2] Disabling $serviceName service..." -ForegroundColor Yellow
+                Set-Service -Name $serviceName -StartupType Disabled -ErrorAction SilentlyContinue
+                Write-Host "[Step 2] $serviceName service disabled successfully." -ForegroundColor Green
+            } else {
+                Write-Host "[Step 2] $serviceName service not found." -ForegroundColor Yellow
+            }
+        }
+        
+        # Disable HTTP.sys driver
+        Write-Host "[Step 2] Disabling HTTP.sys driver..." -ForegroundColor Yellow
+        $httpSysDriver = Get-Service -Name "HTTP" -ErrorAction SilentlyContinue
+        if ($httpSysDriver) {
+            sc.exe config HTTP start= disabled 2>$null
+            Write-Host "[Step 2] HTTP.sys driver disabled successfully." -ForegroundColor Green
+        }
+        
+        Write-Host "[Step 2] HTTP and IIS services stopped and disabled successfully." -ForegroundColor Green
+        
+    } catch {
+        Write-Host "[Step 2] Error occurred while stopping/disabling services: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
 
 function Set-PluggedInPowerSettings {
     Write-Host "[Step 2] Configuring power settings for always-on (plugged in) mode..." -ForegroundColor Cyan
@@ -222,6 +282,10 @@ function Restart-ExplorerOnce {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error restarting File Explorer: $_" -Type "Error"
     }
 }
+
+# Always stop and disable HTTP/IIS services (independent of base settings flag)
+Write-ColorMessage -Message "[Step $STEP_NUMBER] Stopping and disabling HTTP/IIS services..." -Type "Info"
+Stop-DisableHttpIisServices
 
 # Check if Step2 base settings have already been completed
 if (Test-Path $Global:STEP2_BASE_SETTINGS_FLAG) {

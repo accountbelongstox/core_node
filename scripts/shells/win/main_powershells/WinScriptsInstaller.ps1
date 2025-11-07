@@ -14,7 +14,12 @@
 $FILES = @(
     'scripts/shells/win/dd.ps1',
     'scripts/shells/win/main_powershells/EnvironmentDetection.ps1',
-    'scripts/shells/win/win_common/CommanFunc.ps1',
+    'scripts/shells/win/win_common/CommonFunc.ps1',
+    'scripts/shells/win/win_common/StringEscapeUtils.ps1',
+    'scripts/shells/win/win_common/registry_templates/all_files_context.reg',
+    'scripts/shells/win/win_common/registry_templates/file_context.reg',
+    'scripts/shells/win/win_common/registry_templates/folder_context.reg',
+    'scripts/shells/win/win_common/registry_templates/new_document.reg',
     'scripts/shells/win/win_common/ApplicationsList.ps1',
     'scripts/shells/win/win_common/GlobalVars.ps1',
     'scripts/shells/win/win_common/IconExtractor.ps1',
@@ -26,10 +31,34 @@ $FILES = @(
     'scripts/shells/win/win_common/DesktopIconManager.ps1',
     'scripts/shells/win/win_common/StartupManager.ps1',
     'scripts/shells/win/install_powershells/InstallerScriptsList.ps1',
+    'scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1',
+    'scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1',
+    'scripts/shells/win/install_powershells/Step3_InitWinget.ps1',
+    'scripts/shells/win/install_powershells/Step4_InstallGitSSH.ps1',
+    'scripts/shells/win/install_powershells/Step5_InstallGit.ps1',
+    'scripts/shells/win/install_powershells/Step6_InstallScoopWithChinaMirror.ps1',
+    'scripts/shells/win/install_powershells/Step8_DV.ps1',
+    'scripts/shells/win/install_powershells/Step9_SetFileAssociations.ps1',
+    'scripts/shells/win/install_powershells/Step11_Install7ipBase.ps1',
+    'scripts/shells/win/install_powershells/Step12_InstallApplications.ps1',
+    'scripts/shells/win/install_powershells/Step13_CheckCoreNodeProject.ps1',
+    'scripts/shells/win/install_powershells/Step26_InstallChrome.ps1',
+    'scripts/shells/win/install_powershells/Step47_InstallApkTool.ps1',
+    'scripts/shells/win/install_powershells/Step56_InstallAndroidStudio.ps1',
+    'scripts/shells/win/install_powershells/Step57_InstallAndroidPlatformTools.ps1',
+    'scripts/shells/win/install_powershells/Step66_InstallFlutter.ps1',
+    'scripts/shells/win/install_powershells/Step80_InstallWSL.ps1',
+    'scripts/shells/win/install_powershells/Step81_InstallWSLUbuntu24.ps1',
+    'scripts/shells/win/install_powershells/Step82_SetRootLoginWSLUbuntuDebian.ps1',
+    'scripts/shells/win/install_powershells/Step83_InstallVisualStudio.ps1',
+    'scripts/shells/win/install_powershells/Step84_InstallQtBuildTools.ps1',
+    'scripts/shells/win/install_powershells/Step85_InstallQt.ps1',
     'scripts/shells/win/menu_itemshells/DevInstaller.ps1',
+    'scripts/shells/win/menu_itemshells/InitializationManager.ps1',
     'scripts/shells/win/menu_itemshells/ScriptScanner.ps1',
     'scripts/shells/win/menu_itemshells/TestInstaller.ps1',
-    'scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1'
+    'scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1',
+    'scripts/shells/win/tools/ScriptProcessor.ps1'
 )
 
 ## Dynamic configuration based on region to reduce complexity
@@ -38,7 +67,7 @@ function Get-RepoBaseUrl {
     $globalVarDir = "$env:USERPROFILE\.core_node\.global_vars"
     $regionFile = Join-Path $globalVarDir "SELECTED_REGION"
     
-    $selectedRegion = "China"  # Default to China if no preference set
+    $selectedRegion = "Global"  # Default to Global if no preference set
     if (Test-Path $regionFile) {
         $selectedRegion = Get-Content $regionFile -Raw -ErrorAction SilentlyContinue
         $selectedRegion = $selectedRegion.Trim()

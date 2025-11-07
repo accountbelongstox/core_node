@@ -421,3 +421,296 @@ def batch_convert_images(input_paths: List[Path],
     """Batch convert multiple images"""
     processor = ImageProcessor(flutter_root_dir)
     return processor.process_multiple_images(input_paths, output_format, compress)
+
+
+class SplashImageProcessor(ImageProcessor):
+    """
+    Specialized image processor for splash screens
+    Bypasses safety checks and provides splash-specific optimizations
+    """
+
+    def __init__(self, flutter_root_dir: Optional[Path] = None):
+        super().__init__(flutter_root_dir)
+
+        # Splash-specific optimal sizes for different platforms
+        self.splash_optimal_sizes = {
+            'android': {
+                'xxxhdpi': (1440, 2560),  # 4x
+                'xxhdpi': (1080, 1920),   # 3x
+                'xhdpi': (720, 1280),     # 2x
+                'hdpi': (480, 800),       # 1.5x
+                'mdpi': (320, 480),       # 1x
+            },
+            'ios': {
+                'iphone_x': (1125, 2436),
+                'iphone_plus': (1242, 2208),
+                'iphone': (750, 1334),
+                'ipad_pro': (2048, 2732),
+                'ipad': (1536, 2048),
+            },
+            'common': {
+                'fullhd': (1080, 1920),
+                'hd': (720, 1280),
+            }
+        }
+
+    def convert_splash_image_in_place(self,
+                                     input_path: Path,
+                                     output_format: str = '.png',
+                                     compress: bool = True,
+                                     keep_original: bool = True) -> Dict:
+        """
+        Convert splash image in the same directory (bypass safety checks)
+
+        Args:
+            input_path: Path to input image
+            output_format: Target format (default: PNG)
+            compress: Whether to apply compression (default: True)
+            keep_original: Keep original file (default: True)
+
+        Returns:
+            Dict with processing results
+        """
+        input_path = Path(input_path)
+        output_format = output_format or '.png'
+
+        # Ensure output format has leading dot
+        if not output_format.startswith('.'):
+            output_format = '.' + output_format
+
+        result = {
+            'success': False,
+            'original_path': str(input_path),
+            'converted_path': None,
+            'original_size': 0,
+            'converted_size': 0,
+            'compression_ratio': 0,
+            'format_changed': False,
+            'original_kept': keep_original,
+            'error': None
+        }
+
+        try:
+            # Validate input
+            if not input_path.exists():
+                result['error'] = f"Input file does not exist: {input_path}"
+                return result
+
+            if input_path.suffix.lower() not in self.supported_input_formats:
+                result['error'] = f"Unsupported input format: {input_path.suffix}"
+                return result
+
+            if output_format.lower() not in self.supported_output_formats:
+                result['error'] = f"Unsupported output format: {output_format}"
+                return result
+
+            # Get original file size
+            result['original_size'] = input_path.stat().st_size
+
+            # Check if format conversion is needed
+            result['format_changed'] = input_path.suffix.lower() != output_format.lower()
+
+            # If no conversion needed and not compressing, return early
+            if not result['format_changed'] and not compress:
+                result['converted_path'] = str(input_path)
+                result['converted_size'] = result['original_size']
+                result['success'] = True
+                return result
+
+            # Generate output path in the same directory
+            output_path = input_path.with_suffix(output_format)
+
+            # If output would overwrite input, use temp name first
+            if output_path == input_path:
+                temp_output = input_path.with_stem(input_path.stem + '_temp')
+                use_temp = True
+            else:
+                temp_output = output_path
+                use_temp = False
+
+            print(f"[SPLASH-IMG] Converting {input_path.name} to {output_format}")
+            print(f"[SPLASH-IMG]   Original format: {input_path.suffix}")
+            print(f"[SPLASH-IMG]   Target format: {output_format}")
+            print(f"[SPLASH-IMG]   Compression: {'enabled' if compress else 'disabled'}")
+
+            # Process image
+            with Image.open(input_path) as img:
+                print(f"[SPLASH-IMG]   Dimensions: {img.size[0]}x{img.size[1]}")
+                print(f"[SPLASH-IMG]   Mode: {img.mode}")
+
+                # Prepare image for target format
+                processed_img = self._prepare_image_for_format(img, output_format)
+
+                # Get save parameters
+                save_kwargs = self._get_save_kwargs(output_format, result['original_size'], compress)
+
+                print(f"[SPLASH-IMG]   Save parameters: {save_kwargs}")
+
+                # Save processed image
+                processed_img.save(temp_output, **save_kwargs)
+
+            # Update results
+            result['converted_path'] = str(output_path)
+            result['converted_size'] = temp_output.stat().st_size
+
+            if result['original_size'] > 0:
+                result['compression_ratio'] = (1 - result['converted_size'] / result['original_size']) * 100
+
+            print(f"[SPLASH-IMG]   Original size: {result['original_size']:,} bytes")
+            print(f"[SPLASH-IMG]   Converted size: {result['converted_size']:,} bytes")
+            if result['compression_ratio'] > 0:
+                print(f"[SPLASH-IMG]   Size reduction: {result['compression_ratio']:.1f}%")
+
+            # Handle file renaming/replacement
+            if use_temp:
+                # If we used temp name, rename it to final name
+                temp_output.replace(output_path)
+
+            # Handle original file
+            if keep_original and result['format_changed']:
+                # Rename original file with .backup extension
+                backup_path = input_path.with_suffix(input_path.suffix + '.backup')
+                if not backup_path.exists():
+                    input_path.rename(backup_path)
+                    print(f"[SPLASH-IMG]   Original backed up as: {backup_path.name}")
+            elif not keep_original and result['format_changed']:
+                # Delete original file
+                input_path.unlink()
+                print(f"[SPLASH-IMG]   Original file removed")
+
+            result['success'] = True
+            print(f"[SPLASH-IMG] Conversion completed successfully")
+
+        except Exception as e:
+            result['error'] = f"Processing failed: {str(e)}"
+            print(f"[SPLASH-IMG] Error: {result['error']}")
+            import traceback
+            traceback.print_exc()
+
+        return result
+
+    def resize_and_optimize_splash(self,
+                                   input_path: Path,
+                                   target_size: Optional[Tuple[int, int]] = None,
+                                   output_format: str = '.png',
+                                   compress: bool = True) -> Dict:
+        """
+        Resize and optimize splash image to target size
+
+        Args:
+            input_path: Path to input image
+            target_size: Target (width, height) or None for auto-detect optimal size
+            output_format: Target format
+            compress: Whether to compress
+
+        Returns:
+            Dict with processing results
+        """
+        input_path = Path(input_path)
+
+        # If no target size specified, use common fullhd
+        if target_size is None:
+            target_size = self.splash_optimal_sizes['common']['fullhd']
+
+        result = {
+            'success': False,
+            'original_path': str(input_path),
+            'resized_path': None,
+            'original_size': 0,
+            'resized_file_size': 0,
+            'original_dimensions': (0, 0),
+            'resized_dimensions': target_size,
+            'error': None
+        }
+
+        try:
+            if not input_path.exists():
+                result['error'] = f"Input file does not exist: {input_path}"
+                return result
+
+            result['original_size'] = input_path.stat().st_size
+
+            print(f"[SPLASH-RESIZE] Resizing {input_path.name} to {target_size}")
+
+            with Image.open(input_path) as img:
+                result['original_dimensions'] = img.size
+                print(f"[SPLASH-RESIZE]   Original dimensions: {img.size[0]}x{img.size[1]}")
+
+                # Calculate aspect ratios
+                img_ratio = img.size[0] / img.size[1]
+                target_ratio = target_size[0] / target_size[1]
+
+                print(f"[SPLASH-RESIZE]   Original aspect ratio: {img_ratio:.2f}")
+                print(f"[SPLASH-RESIZE]   Target aspect ratio: {target_ratio:.2f}")
+
+                # Resize maintaining aspect ratio (cover mode)
+                if img_ratio > target_ratio:
+                    # Image is wider than target
+                    new_height = target_size[1]
+                    new_width = int(new_height * img_ratio)
+                else:
+                    # Image is taller than target
+                    new_width = target_size[0]
+                    new_height = int(new_width / img_ratio)
+
+                print(f"[SPLASH-RESIZE]   Intermediate size: {new_width}x{new_height}")
+
+                # Resize image
+                resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+                # Center crop to target size
+                left = (new_width - target_size[0]) // 2
+                top = (new_height - target_size[1]) // 2
+                right = left + target_size[0]
+                bottom = top + target_size[1]
+
+                cropped_img = resized_img.crop((left, top, right, bottom))
+
+                print(f"[SPLASH-RESIZE]   Final dimensions: {cropped_img.size[0]}x{cropped_img.size[1]}")
+
+                # Prepare for output format
+                output_img = self._prepare_image_for_format(cropped_img, output_format)
+
+                # Generate output path
+                output_path = input_path.with_stem(input_path.stem + f'_{target_size[0]}x{target_size[1]}')
+                output_path = output_path.with_suffix(output_format)
+
+                # Get save parameters
+                save_kwargs = self._get_save_kwargs(output_format, result['original_size'], compress)
+
+                # Save
+                output_img.save(output_path, **save_kwargs)
+
+                result['resized_path'] = str(output_path)
+                result['resized_file_size'] = output_path.stat().st_size
+                result['success'] = True
+
+                print(f"[SPLASH-RESIZE]   Output: {output_path.name}")
+                print(f"[SPLASH-RESIZE]   File size: {result['resized_file_size']:,} bytes")
+                print(f"[SPLASH-RESIZE] Resize completed successfully")
+
+        except Exception as e:
+            result['error'] = f"Resize failed: {str(e)}"
+            print(f"[SPLASH-RESIZE] Error: {result['error']}")
+            import traceback
+            traceback.print_exc()
+
+        return result
+
+    def get_optimal_splash_size(self, platform: str = 'common', variant: str = 'fullhd') -> Tuple[int, int]:
+        """
+        Get optimal splash size for platform
+
+        Args:
+            platform: 'android', 'ios', or 'common'
+            variant: Size variant (e.g., 'xxxhdpi', 'iphone_x', 'fullhd')
+
+        Returns:
+            (width, height) tuple
+        """
+        if platform in self.splash_optimal_sizes:
+            if variant in self.splash_optimal_sizes[platform]:
+                return self.splash_optimal_sizes[platform][variant]
+
+        # Default to common fullhd
+        return self.splash_optimal_sizes['common']['fullhd']

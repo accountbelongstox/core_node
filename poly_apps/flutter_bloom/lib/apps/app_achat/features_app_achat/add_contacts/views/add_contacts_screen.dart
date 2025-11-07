@@ -11,11 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 
-import 'package:qyflutter/common/widgets/custom_text_field.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/apps/app_achat/features_app_achat/add_contacts/controllers/add_contacts_controller.dart';

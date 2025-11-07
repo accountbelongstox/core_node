@@ -11,153 +11,178 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import '../../../common/settings/models/setting_item.dart';
+import '../localization_app_wuy/localization_keys_app_wuy.dart';
 
 /// Wuy App Settings
 /// Provides app-specific settings following the unified architecture
+/// NOTE: Settings are available before login - stored in UnifiedStorage
 class WuyAppSettings {
   static const String appId = 'wuy';
-  
+
   /// Get all Wuy app settings
   static List<SettingItem> getWuySettings() {
     return [
-      // General settings
+      // Location & Privacy settings
       SettingItem.toggle(
-        key: 'wuy_enable_notifications',
-        name: 'Enable Notifications',
-        description: 'Receive push notifications from Wuy app',
-        category: 'general',
-        defaultValue: true,
-        appId: 'wuy',
-      ),
-      
-      SettingItem.toggle(
-        key: 'wuy_enable_sound',
-        name: 'Enable Sound',
-        description: 'Play sound effects in the app',
-        category: 'general',
-        defaultValue: true,
-        appId: 'wuy',
-      ),
-      
-      SettingItem.toggle(
-        key: 'wuy_enable_vibration',
-        name: 'Enable Vibration',
-        description: 'Enable haptic feedback',
-        category: 'general',
-        defaultValue: true,
-        appId: 'wuy',
-      ),
-      
-      // Display settings
-      SettingItem.select(
-        key: 'wuy_theme_mode',
-        name: 'Theme Mode',
-        description: 'Choose app theme',
-        category: 'display',
-        defaultValue: 'system',
-        options: ['light', 'dark', 'system'],
-        labels: {
-          'light': 'Light',
-          'dark': 'Dark',
-          'system': 'System',
-        },
-        appId: 'wuy',
-      ),
-      
-      SettingItem.select(
-        key: 'wuy_language',
-        name: 'Language',
-        description: 'Choose app language',
-        category: 'display',
-        defaultValue: 'en',
-        options: ['en', 'zh'],
-        labels: {
-          'en': 'English',
-          'zh': '中文',
-        },
-        appId: 'wuy',
-      ),
-      
-      SettingItem.slider(
-        key: 'wuy_font_size',
-        name: 'Font Size',
-        description: 'Adjust text size',
-        category: 'display',
-        defaultValue: 16.0,
-        minValue: 12.0,
-        maxValue: 24.0,
-        appId: 'wuy',
-      ),
-      
-      // Privacy settings
-      SettingItem.toggle(
-        key: 'wuy_analytics_enabled',
-        name: 'Analytics',
-        description: 'Help improve the app by sharing usage data',
+        key: 'wuy_location_sharing',
+        name: LocalizationKeysAppWuy.wuySettingsLocationSharing,
+        description: LocalizationKeysAppWuy.wuySettingsLocationSharingDesc,
         category: 'privacy',
         defaultValue: false,
-        appId: 'wuy',
+        appId: appId,
       ),
-      
+
       SettingItem.toggle(
-        key: 'wuy_crash_reporting',
-        name: 'Crash Reporting',
-        description: 'Automatically send crash reports',
+        key: 'wuy_location_history',
+        name: LocalizationKeysAppWuy.wuySettingsLocationHistory,
+        description: LocalizationKeysAppWuy.wuySettingsLocationHistoryDesc,
         category: 'privacy',
         defaultValue: true,
-        appId: 'wuy',
+        appId: appId,
       ),
-      
-      // Performance settings
+
+      SettingItem.toggle(
+        key: 'wuy_show_online_status',
+        name: LocalizationKeysAppWuy.wuySettingsShowOnlineStatus,
+        description: LocalizationKeysAppWuy.wuySettingsShowOnlineStatusDesc,
+        category: 'privacy',
+        defaultValue: true,
+        appId: appId,
+      ),
+
+      // Friend & Social settings
+      SettingItem.toggle(
+        key: 'wuy_friend_requests_notification',
+        name: LocalizationKeysAppWuy.wuySettingsFriendRequestNotif,
+        description: LocalizationKeysAppWuy.wuySettingsFriendRequestNotifDesc,
+        category: 'social',
+        defaultValue: true,
+        appId: appId,
+      ),
+
+      SettingItem.select(
+        key: 'wuy_default_map_view',
+        name: LocalizationKeysAppWuy.wuySettingsDefaultMapView,
+        description: LocalizationKeysAppWuy.wuySettingsDefaultMapViewDesc,
+        category: 'social',
+        defaultValue: 'standard',
+        options: ['standard', 'satellite', 'hybrid'],
+        labels: {
+          'standard': LocalizationKeysAppWuy.wuyMapViewStandard,
+          'satellite': LocalizationKeysAppWuy.wuyMapViewSatellite,
+          'hybrid': LocalizationKeysAppWuy.wuyMapViewHybrid,
+        },
+        appId: appId,
+      ),
+
+      // Performance & Data settings
       SettingItem.toggle(
         key: 'wuy_enable_animations',
-        name: 'Enable Animations',
-        description: 'Show smooth animations',
+        name: LocalizationKeysAppWuy.wuySettingsEnableAnimations,
+        description: LocalizationKeysAppWuy.wuySettingsEnableAnimationsDesc,
         category: 'performance',
         defaultValue: true,
-        appId: 'wuy',
+        appId: appId,
       ),
-      
+
+      SettingItem.toggle(
+        key: 'wuy_data_saver_mode',
+        name: LocalizationKeysAppWuy.wuySettingsDataSaverMode,
+        description: LocalizationKeysAppWuy.wuySettingsDataSaverModeDesc,
+        category: 'performance',
+        defaultValue: false,
+        appId: appId,
+      ),
+
       SettingItem.select(
         key: 'wuy_cache_size',
-        name: 'Cache Size',
-        description: 'Amount of data to cache',
+        name: LocalizationKeysAppWuy.wuySettingsCacheSize,
+        description: LocalizationKeysAppWuy.wuySettingsCacheSizeDesc,
         category: 'performance',
         defaultValue: '100',
         options: ['50', '100', '200', '500'],
         labels: {
-          '50': '50 MB',
-          '100': '100 MB',
-          '200': '200 MB',
-          '500': '500 MB',
+          '50': LocalizationKeysAppWuy.wuyCacheSize50MB,
+          '100': LocalizationKeysAppWuy.wuyCacheSize100MB,
+          '200': LocalizationKeysAppWuy.wuyCacheSize200MB,
+          '500': LocalizationKeysAppWuy.wuyCacheSize500MB,
         },
-        appId: 'wuy',
+        appId: appId,
       ),
-      
+
+      SettingItem.number(
+        key: 'wuy_refresh_interval',
+        name: LocalizationKeysAppWuy.wuySettingsRefreshInterval,
+        description: LocalizationKeysAppWuy.wuySettingsRefreshIntervalDesc,
+        category: 'performance',
+        defaultValue: 5,
+        minIntValue: 1,
+        maxIntValue: 60,
+        appId: appId,
+      ),
+
       // Security settings
       SettingItem.toggle(
         key: 'wuy_biometric_auth',
-        name: 'Biometric Authentication',
-        description: 'Use fingerprint or face unlock',
+        name: LocalizationKeysAppWuy.wuySettingsBiometricAuthName,
+        description: LocalizationKeysAppWuy.wuySettingsBiometricAuthDesc,
         category: 'security',
         defaultValue: false,
-        appId: 'wuy',
+        appId: appId,
       ),
-      
+
       SettingItem.select(
         key: 'wuy_auto_lock_time',
-        name: 'Auto Lock Time',
-        description: 'Time before app locks automatically',
+        name: LocalizationKeysAppWuy.wuySettingsAutoLockTime,
+        description: LocalizationKeysAppWuy.wuySettingsAutoLockTimeDesc,
         category: 'security',
         defaultValue: '5',
-        options: ['1', '5', '15', '30'],
+        options: ['never', '1', '5', '15', '30'],
         labels: {
-          '1': '1 minute',
-          '5': '5 minutes',
-          '15': '15 minutes',
-          '30': '30 minutes',
+          'never': LocalizationKeysAppWuy.wuyAutoLockNever,
+          '1': LocalizationKeysAppWuy.wuyAutoLock1Min,
+          '5': LocalizationKeysAppWuy.wuyAutoLock5Min,
+          '15': LocalizationKeysAppWuy.wuyAutoLock15Min,
+          '30': LocalizationKeysAppWuy.wuyAutoLock30Min,
         },
-        appId: 'wuy',
+        appId: appId,
+      ),
+
+      SettingItem.toggle(
+        key: 'wuy_require_auth_on_startup',
+        name: LocalizationKeysAppWuy.wuySettingsRequireAuthStartup,
+        description: LocalizationKeysAppWuy.wuySettingsRequireAuthStartupDesc,
+        category: 'security',
+        defaultValue: false,
+        appId: appId,
+      ),
+
+      // Chat & Messaging settings
+      SettingItem.toggle(
+        key: 'wuy_message_preview',
+        name: LocalizationKeysAppWuy.wuySettingsMessagePreview,
+        description: LocalizationKeysAppWuy.wuySettingsMessagePreviewDesc,
+        category: 'messaging',
+        defaultValue: true,
+        appId: appId,
+      ),
+
+      SettingItem.toggle(
+        key: 'wuy_typing_indicators',
+        name: LocalizationKeysAppWuy.wuySettingsTypingIndicators,
+        description: LocalizationKeysAppWuy.wuySettingsTypingIndicatorsDesc,
+        category: 'messaging',
+        defaultValue: true,
+        appId: appId,
+      ),
+
+      SettingItem.toggle(
+        key: 'wuy_read_receipts',
+        name: LocalizationKeysAppWuy.wuySettingsReadReceipts,
+        description: LocalizationKeysAppWuy.wuySettingsReadReceiptsDesc,
+        category: 'messaging',
+        defaultValue: true,
+        appId: appId,
       ),
     ];
   }

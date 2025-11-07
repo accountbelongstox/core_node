@@ -10,8 +10,37 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-// Application Entry Point Manager
-export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard';
+// ============================================================================
+// APPLICATION ENTRY POINT CONFIGURATION REGISTRY
+// ============================================================================
+//
+// **PURPOSE**:
+// Central registry for all application metadata including themes, API configs,
+// features, and permissions. This file is imported by middleware and entry points
+// to provide app-specific configuration.
+//
+// **ARCHITECTURE NOTE**:
+// ⚠️ KNOWN LIMITATION: This file contains ALL app configurations in one place.
+// While metadata objects are small (~1KB each), having them centralized means:
+// 1. All app configs are loaded even if only one app is active
+// 2. Increases coupling between apps
+// 3. Requires modification of this file when adding new apps
+//
+// **FUTURE OPTIMIZATION**:
+// Consider moving configs to individual app directories:
+//   apps/app_ittools/app-config.json
+//   apps/app_example/app-config.json
+// Then dynamically import only the active app's config:
+//   const config = await import(`./apps/app_${APP_ENTRY}/app-config.json`);
+//
+// **USAGE**:
+// - Middleware: getCurrentAppEntry() to detect active app
+// - Entry points: getAppEntryConfig('ittools') to load app settings
+// - Routes: getAppEntryByNamespace('ittools') to find app by namespace
+// ============================================================================
+
+// Supported application types (must match directory names in apps/)
+export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools' | 'pymatrix';
 
 export interface AppEntryConfig {
   name: string;
@@ -40,6 +69,35 @@ export interface AppEntryConfig {
 
 // App Entry Registry
 const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
+  ittools: {
+    name: 'ittools',
+    displayName: 'IT Tools',
+    description: 'Collection of 88+ handy online tools for developers',
+    namespace: 'ittools',
+    defaultRoute: '/ittools',
+    theme: {
+      primary: '#3b82f6',
+      secondary: '#8b5cf6',
+      layout: 'default'
+    },
+    api: {
+      namespace: 'ittools',
+      baseUrl: '/api/ittools',
+      version: 'v1'
+    },
+    features: {
+      search: true,
+      favorites: true,
+      history: true,
+      api: true,
+      themes: true,
+      localization: false
+    },
+    permissions: {
+      required: ['ittools.access'],
+      roles: ['user', 'developer', 'admin']
+    }
+  },
   example: {
     name: 'example',
     displayName: 'Core Node Examples',
@@ -133,7 +191,7 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     theme: {
       primary: '#e7515a',
       secondary: '#e2a03f',
-      layout: 'admin-layout'
+      layout: 'admin'
     },
     api: {
       namespace: 'admin',
@@ -161,7 +219,7 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     theme: {
       primary: '#00ab55',
       secondary: '#2196f3',
-      layout: 'dashboard-layout'
+      layout: 'dashboard'
     },
     api: {
       namespace: 'dashboard',
@@ -177,6 +235,34 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     permissions: {
       required: ['dashboard.access'],
       roles: ['analyst', 'admin']
+    }
+  },
+  pymatrix: {
+    name: 'pymatrix',
+    displayName: 'pyMatrix Device Control',
+    description: 'Android device mirroring and group control system',
+    namespace: 'pymatrix',
+    defaultRoute: '/pymatrix',
+    theme: {
+      primary: '#3b82f6',
+      secondary: '#8b5cf6',
+      layout: 'pymatrix'
+    },
+    api: {
+      namespace: 'pymatrix',
+      baseUrl: '/api/pymatrix',
+      version: 'v1'
+    },
+    features: {
+      videoStreaming: true,
+      deviceControl: true,
+      groupControl: true,
+      touchInput: true,
+      keyboardInput: true
+    },
+    permissions: {
+      required: ['pymatrix.access'],
+      roles: ['user', 'developer', 'admin']
     }
   }
 };

@@ -11,17 +11,20 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_wuy/app_config_app_wuy.dart';
 import 'router_app_wuy/router_app_wuy.dart';
 import 'settings_app_wuy/settings_app_wuy.dart';
-import 'localization_app_wuy/locales_provider_app_wuy.dart';
+import 'localization_app_wuy/en_app_wuy.dart';
+import 'localization_app_wuy/zh_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
-import 'services_app_wuy/wuy_data_center.dart';
-import 'services_app_wuy/wuy_network_manager.dart';
-import 'services_app_wuy/wuy_api_center.dart';
+import 'providers_app_wuy/friends_provider_app_wuy.dart';
+import 'services_app_wuy/wuy_unified_service.dart';
+import 'services_app_wuy/wuy_auth_state_manager.dart';
+import 'models_app_wuy/user_model_app_wuy.dart';
 
 /// Wuy App specific widget
 /// This can be customized for Wuy app specific needs
@@ -30,8 +33,8 @@ class WuyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // For now, use the common app structure
-    // Later this can be customized for Wuy app specific needs
+    // Use the common app structure with router config
+    // We need to pass routerConfig since we're using customApp
     return FlutterBloomMainApp(
       routerConfig: WuyAppRouter.createRouter(),
     );
@@ -42,6 +45,9 @@ class WuyApp extends StatelessWidget {
 /// This entry point can be used to launch only the Wuy app
 /// with specific configurations and customizations
 Future<void> main() async {
+  // Initialize Flutter binding first
+  WidgetsFlutterBinding.ensureInitialized();
+
   // Initialize Wuy app-specific configurations
   WuyAppInfo.initializeApp();
 
@@ -49,32 +55,65 @@ Future<void> main() async {
   final AppPrefsAppWuy appPrefs = AppPrefsAppWuy.instance;
   await appPrefs.initSharedPreferences();
 
-  // Initialize data center
-  final WuyDataCenter dataCenter = WuyDataCenter();
-  await dataCenter.initialize();
-
-  // Initialize network manager
-  final WuyNetworkManager networkManager = WuyNetworkManager();
-  await networkManager.initialize();
-
-        // Initialize API center
-        WuyApiCenter();
-
-  // Create app-specific user provider
+  // Create app-specific user provider first
   final WuUserProvider userProvider = WuUserProvider();
+
+  // Create friends provider
+  final FriendsProviderAppWuy friendsProvider = FriendsProviderAppWuy();
+
+  // Initialize unified data manager
+  final WuyUnifiedService dataManager = WuyUnifiedService();
+
+  // Initialize auth state manager BEFORE runCommonApp
+  final WuyAuthStateManager authStateManager = WuyAuthStateManager.instance;
+  await authStateManager.initialize();
+
+  // Note: Test user creation moved to after runCommonApp to ensure UnifiedStorage is initialized
 
   await runCommonApp(
     appName: AppConfigAppWuy.appName,
     appId: AppConfigAppWuy.appId, // Specific app ID for app-specific routing
     appSettings: WuyAppSettings.getWuySettings(), // Wuy specific settings
-    enAppLocales: WuyAppLocales.getEnLocales(),
-    zhAppLocales: WuyAppLocales.getZhLocales(),
-    routerConfig: WuyAppRouter.createRouter(), // Use createRouter method as per guidelines
-    initialRoute: WuyAppRouter.getDefaultRoute(),
+    enAppLocales: [EnAppWuy.locales],
+    zhAppLocales: [ZhAppWuy.locales],
+    routerConfig: WuyAppRouter
+        .createRouter(), // Use createRouter method as per guidelines
+    initialRoute: WuyAppRouter
+        .getDefaultRoute(), // This will be overridden by GoRouter's initialLocation
     homeRoute: WuyAppRouter.getHomeRoute(),
     appConfig: AppConfigAppWuy.appInfo,
     customApp: const WuyApp(),
     appPrefs: appPrefs, // Provide app-specific SharedPreferences
     customUserProvider: userProvider, // Provide app-specific user provider
+    additionalProviders: [
+      // Register WuUserProvider as a specific type for AuthGuard access
+      ChangeNotifierProvider<WuUserProvider>.value(value: userProvider),
+      // Register FriendsProviderAppWuy for friends list management
+      ChangeNotifierProvider<FriendsProviderAppWuy>.value(value: friendsProvider),
+    ],
+    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + SQLite)
   );
+
+  // Initialize data manager after runCommonApp has initialized UnifiedStorage
+  await dataManager.initialize();
+  dataManager.initializeWithUserProvider(userProvider: userProvider);
+
+  // For testing: Create a test user if no user is authenticated (after UnifiedStorage is initialized)
+  if (!authStateManager.isAuthenticated) {
+    debugPrint(
+        'No authenticated user found, creating test user for development');
+    // Create a test user for development
+    final testUser = UserModelAppWuy(
+      id: 1,
+      name: 'Test User',
+      username: 'test_user_001',
+      email: 'test@example.com',
+      phoneNumber: '+1234567890',
+      isActive: true,
+      isVerified: true,
+      preferences: {},
+    );
+    await authStateManager.setAuthenticatedUser(testUser);
+    debugPrint('Test user created and authenticated');
+  }
 }

@@ -15,9 +15,18 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_auth_state_manager.dart';
 
+/// Splash Screen for Wuy App
+///
+/// This screen displays the app splash screen during startup.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuySplashTitle.tr(context)
 class WuySplashScreen extends StatefulWidget {
   const WuySplashScreen({super.key});
 
@@ -32,38 +41,77 @@ class _WuySplashScreenState extends State<WuySplashScreen> {
     _navigateToHome();
   }
 
-  _navigateToHome() async {
+  Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) {
-      context.go(WuyAppRouter.routeHome);
+      // Use auth state manager to determine the correct initial route
+      final authStateManager = WuyAuthStateManager.instance;
+      final initialRoute = authStateManager.getInitialRoute();
+      debugPrint('Splash: Navigating to initial route: $initialRoute');
+      context.go(initialRoute);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.primary,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.apps,
-              size: 100,
-              color: ThemeColors.white,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              LocalizationKeysAppWuy.wuySplashTitle.tr(context),
-              style: ThemeTextStyles.displayLarge.copyWith(
-                color: ThemeColors.white,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              ThemeColors.primary,
+              ThemeColors.primaryDark,
+              ThemeColors.accent,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ThemeColors.white.withOpacity(0.3),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                      spreadRadius: 5,
+                    ),
+                    BoxShadow(
+                      color: ThemeColors.white.withOpacity(0.15),
+                      blurRadius: 50,
+                      offset: const Offset(0, 20),
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.apps,
+                  size: 120,
+                  color: ThemeColors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
-            ),
-          ],
+              const SizedBox(height: 32),
+              Text(
+                LocalizationKeysAppWuy.wuySplashTitle.tr(context),
+                style: ThemeTextStyles.displayLarge.copyWith(
+                  color: ThemeColors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 32,
+                  letterSpacing: -0.8,
+                ),
+              ),
+              const SizedBox(height: 40),
+              CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
+              ),
+            ],
+          ),
         ),
       ),
     );

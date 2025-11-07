@@ -11,31 +11,84 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# =============================================================================
 # Variable Declarations
-CORE_NODE_ROOT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# =============================================================================
+# All variables are declared at the beginning of the file for clarity
+
+# Environment Detection Variables (aligned with gvar_common.sh logic)
+IS_WSL=false
+IS_PRODUCTION=false
+HAS_DESKTOP_ENVIRONMENT=false
+WSL_USERS_PATH="/mnt/c/Users"
+
+# Check for desktop environment first
+if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || [ -n "$XDG_CURRENT_DESKTOP" ] || [ -n "$DESKTOP_SESSION" ]; then
+    HAS_DESKTOP_ENVIRONMENT=true
+fi
+
+# Detect environment type
+if [ -d "$WSL_USERS_PATH" ]; then
+    IS_WSL=true
+elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+    # Not WSL and no desktop environment = production server
+    IS_PRODUCTION=true
+fi
+
+# Function to check if system has NTFS disks
+has_ntfs_disk() {
+    local ntfs_devices=$(blkid 2>/dev/null | grep -i 'TYPE="ntfs"')
+    [ -n "$ntfs_devices" ] && return 0 || return 1
+}
+
+# Get actual script path and directory
+SCRIPT_ACTUAL_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_ACTUAL_DIR="$(dirname "$SCRIPT_ACTUAL_PATH")"
+
+# Determine if running in installation mode (from /usr/tmp or /tmp)
+IS_INSTALLATION_MODE=false
+if [[ "$SCRIPT_ACTUAL_DIR" == /usr/tmp* ]] || [[ "$SCRIPT_ACTUAL_DIR" == /tmp* ]]; then
+    IS_INSTALLATION_MODE=true
+fi
+
+# Set CORE_NODE_ROOT_DIR based on mode
+if [ "$IS_INSTALLATION_MODE" = true ]; then
+    # Installation mode - running from temporary location
+    CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
+else
+    # Normal mode - dd.sh is in actual project directory
+    CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
+fi
+
+# Directory Path Variables
 SCRIPT_DIR="$CORE_NODE_ROOT_DIR/scripts"
 SHELLS_DIR="$SCRIPT_DIR/shells"
 INSTALL_DIR="$CORE_NODE_ROOT_DIR/install"
-COMMON_SHELLS_DIR="$SHELLS_DIR/linux/common" 
+COMMON_SHELLS_DIR="$SHELLS_DIR/linux/common"
 COMMON_SCRIPTS_DIR="$SHELLS_DIR/scripts"
-# Initialize GLOBAL_VAR_DIR (will be set after function definition)
+
+# Global Variable Directory (will be set after function definition)
 GLOBAL_VAR_DIR=""
-script_symlink_path="/usr/local/bin/dd.sh"
-script_path="$(readlink -f "$0")"
+
+# Array Variables
 target_dirs=("apps" "ncore" "scripts")
+
+# System Variables
 sudo=""
 SYSTEM_VERSION=""
 SYSTEM_NAME=""
 
-# Detection module (Windows PowerShell) presence check for messaging
-ENV_DETECTOR_PATH="$SHELLS_DIR/win/win_common/EnvironmentDetection.ps1"
-if [ -f "$ENV_DETECTOR_PATH" ]; then
-  DETECTOR_AVAILABLE=1
-else
-  DETECTOR_AVAILABLE=0
-fi
+# URL Constants
+GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
+GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 
-# Menu Configuration
+# File Download Variables
+GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
+SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/2_setting_base.sh"
+PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_validator.sh"
+
+
+# Menu Configuration Variables
 declare -A menu_items
 declare -a menu_order
 
@@ -61,24 +114,28 @@ detect_system_version() {
         echo "Running inside Docker container"
         SYSTEM_VERSION="Docker"
         SYSTEM_NAME="Docker"
+        set_global_var "CURRENT_SYSTEM" "DOCKER"
         return
     fi
-    
+
     if [ ! -f /etc/os-release ]; then
         echo "Error: Cannot detect operating system (missing /etc/os-release)"
         exit 1
     fi
-    
+
     . /etc/os-release
     case "$ID" in
         ubuntu)
-            SYSTEM_VERSION="debian_$(echo $VERSION_ID | cut -d. -f1)"  # Using debian version
-            SYSTEM_NAME="debian"  # Using debian as system name
-            echo -e "\033[33mWarning: Ubuntu detected - using Debian scripts for compatibility\033[0m"
+            SYSTEM_VERSION="ubuntu_$(echo $VERSION_ID | cut -d. -f1)"
+            SYSTEM_NAME="debian"
+            echo -e "\033[32mUbuntu $(echo $VERSION_ID) detected - using Debian-compatible scripts\033[0m"
+            set_global_var "CURRENT_SYSTEM" "UBUNTU_$(echo $VERSION_ID | cut -d. -f1)"
             ;;
         debian)
             SYSTEM_VERSION="debian_$(echo $VERSION_ID | cut -d. -f1)"
             SYSTEM_NAME="debian"
+            echo -e "\033[32mDebian $(echo $VERSION_ID) detected\033[0m"
+            set_global_var "CURRENT_SYSTEM" "DEBIAN_$(echo $VERSION_ID | cut -d. -f1)"
             ;;
         *)
             echo "Error: This script only supports Debian and Ubuntu systems"
@@ -99,6 +156,15 @@ install_package() {
 }
 
 check_and_install_sudo() {
+    # If running as root, no need for sudo
+    if [ "$EUID" -eq 0 ]; then
+        sudo=""
+        USE_SUDO=""
+        echo "Running as root. sudo not needed."
+        export USE_SUDO
+        return
+    fi
+
     if ! command -v sudo >/dev/null 2>&1; then
         echo "sudo not found. Attempting to install..."
         if install_package "sudo"; then
@@ -106,17 +172,22 @@ check_and_install_sudo() {
         else
             echo "Failed to install sudo. Commands will be run without sudo."
             sudo=""
+            USE_SUDO=""
+            export USE_SUDO
             return
         fi
     fi
 
     if command -v sudo >/dev/null 2>&1; then
         sudo="sudo"
+        USE_SUDO="sudo"
         echo "sudo is available and will be used."
     else
         sudo=""
+        USE_SUDO=""
         echo "sudo is not available. Commands will be run without sudo."
     fi
+    export USE_SUDO
 }
 
 check_and_install_dos2unix() {
@@ -417,27 +488,337 @@ make_sh_executable() {
     fi
 }
 
+# File Download Functions
+download_file() {
+    local file_path="$1"
+    local relative_path="$2"
+    local selected_region=$(get_global_var "SELECTED_REGION" "Global")
+
+    # Determine base URL based on region
+    local base_url=""
+    case "$selected_region" in
+        "Global")
+            base_url="$GITHUB_BASE_URL"
+            ;;
+        "China")
+            base_url="$GITEE_BASE_URL"
+            ;;
+        *)
+            base_url="$GITHUB_BASE_URL"
+            ;;
+    esac
+
+    local download_url="$base_url/$relative_path"
+
+    # Improved temp file path logic - always use /tmp for downloads
+    local temp_file="/tmp/core_node_download_$(basename "$file_path").$$"
+
+    echo "Downloading $relative_path..."
+    echo "Source URL: $download_url"
+    echo "Target file: $file_path"
+    echo "Temp file: $temp_file"
+
+    # Download flags
+    local download_success=false
+    local download_method=""
+
+    # Try wget first (more reliable than snap curl)
+    if command -v wget >/dev/null 2>&1; then
+        echo "Attempting download with wget..."
+        if wget -q -O "$temp_file" "$download_url" 2>&1; then
+            if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                echo "Download successful using wget"
+                download_success=true
+                download_method="wget"
+            else
+                echo "wget completed but file is missing or empty"
+                rm -f "$temp_file" 2>/dev/null
+            fi
+        else
+            echo "wget download failed"
+            rm -f "$temp_file" 2>/dev/null
+        fi
+    else
+        echo "wget not found, will try curl..."
+    fi
+
+    # If wget failed or not available, try curl
+    if [ "$download_success" = false ] && command -v curl >/dev/null 2>&1; then
+        echo "Attempting download with curl..."
+        if curl -f -s -L -o "$temp_file" "$download_url" 2>&1; then
+            if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                echo "Download successful using curl"
+                download_success=true
+                download_method="curl"
+            else
+                echo "curl completed but file is missing or empty"
+                rm -f "$temp_file" 2>/dev/null
+            fi
+        else
+            local curl_error=$?
+            echo "curl download failed with exit code: $curl_error"
+            echo "Note: If using snap curl, it may have sandbox restrictions"
+            rm -f "$temp_file" 2>/dev/null
+        fi
+    fi
+
+    # If both failed, try installing wget first (preferred)
+    if [ "$download_success" = false ]; then
+        echo "Primary download methods failed. Installing wget..."
+        if command -v apt-get >/dev/null 2>&1; then
+            if $sudo apt-get update -qq && $sudo apt-get install -y wget 2>&1 | grep -q "Setting up"; then
+                echo "wget installed successfully, retrying download..."
+                if wget -q -O "$temp_file" "$download_url" 2>&1; then
+                    if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                        echo "Download successful using newly installed wget"
+                        download_success=true
+                        download_method="wget (newly installed)"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # Last resort: try installing native curl (non-snap)
+    if [ "$download_success" = false ]; then
+        echo "wget installation failed. Attempting to install native curl..."
+        if command -v apt-get >/dev/null 2>&1; then
+            if $sudo apt-get install -y curl 2>&1 | grep -q "Setting up"; then
+                echo "Native curl installed, retrying download..."
+                if curl -f -s -L -o "$temp_file" "$download_url" 2>&1; then
+                    if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                        echo "Download successful using native curl"
+                        download_success=true
+                        download_method="curl (native)"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # Check if download was successful
+    if [ "$download_success" = false ]; then
+        echo "[ERROR] All download methods failed"
+        echo "  URL: $download_url"
+        echo "  Target: $file_path"
+        echo "  Temp file: $temp_file"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  1. Check internet connectivity"
+        echo "  2. Verify the URL is accessible"
+        echo "  3. Ensure wget or curl is properly installed"
+        echo "  4. If using snap curl, consider installing native version:"
+        echo "     sudo apt update && sudo apt install -y wget curl"
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+
+    # Verify downloaded file
+    if [ ! -f "$temp_file" ] || [ ! -s "$temp_file" ]; then
+        echo "[ERROR] Downloaded file verification failed"
+        echo "  File exists: $([ -f "$temp_file" ] && echo "yes" || echo "no")"
+        echo "  File size: $(stat -c%s "$temp_file" 2>/dev/null || echo "0") bytes"
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+
+    local file_size=$(stat -c%s "$temp_file" 2>/dev/null)
+    echo "Downloaded successfully using $download_method ($file_size bytes)"
+
+    # Create target directory if needed
+    local file_dir=$(dirname "$file_path")
+    if [ ! -d "$file_dir" ]; then
+        echo "Creating directory: $file_dir"
+        if ! $sudo mkdir -p "$file_dir"; then
+            echo "[ERROR] Failed to create directory: $file_dir"
+            rm -f "$temp_file" 2>/dev/null
+            return 1
+        fi
+    fi
+
+    # Move file to target location with safe replacement
+    echo "Installing file to: $file_path"
+
+    # If target file already exists, backup first
+    local backup_file=""
+    if [ -f "$file_path" ]; then
+        backup_file="${file_path}.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing file to: $backup_file"
+        if ! $sudo cp "$file_path" "$backup_file"; then
+            echo "[WARNING] Failed to create backup, proceeding anyway"
+        fi
+    fi
+
+    # Move new file to target location
+    if $sudo mv "$temp_file" "$file_path"; then
+        $sudo chmod +x "$file_path"
+        echo "[SUCCESS] File installed: $file_path"
+
+        # Remove old backup if installation succeeded
+        if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
+            $sudo rm -f "$backup_file"
+            echo "Removed backup file"
+        fi
+        return 0
+    else
+        echo "[ERROR] Failed to move file to target location"
+        echo "  Source: $temp_file"
+        echo "  Target: $file_path"
+
+        # Restore backup if move failed
+        if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
+            echo "Restoring backup file"
+            $sudo mv "$backup_file" "$file_path"
+        fi
+
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+}
+
+is_file_valid() {
+    local file_path="$1"
+
+    if [ ! -f "$file_path" ]; then
+        return 1
+    fi
+
+    if [ ! -r "$file_path" ]; then
+        echo "[WARNING] File exists but is not readable: $file_path"
+        return 1
+    fi
+
+    if [ ! -s "$file_path" ]; then
+        echo "[WARNING] File exists but is empty: $file_path"
+        return 1
+    fi
+
+    local first_line=$(head -n 1 "$file_path" 2>/dev/null)
+    if [[ ! "$first_line" =~ ^#! ]]; then
+        echo "[WARNING] File does not start with shebang: $file_path"
+        return 1
+    fi
+
+    return 0
+}
+
+check_and_download_files() {
+    echo "Checking for required files..."
+
+    # Use the IS_INSTALLATION_MODE variable set at script start
+    local force_update=false
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
+        force_update=true
+        echo -e "\033[33m[INFO] Installation mode detected - will update all temporary scripts\033[0m"
+    fi
+
+    # Check gvar_common.sh
+    if [ "$force_update" = true ] || ! is_file_valid "$GVAR_COMMON_FILE"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating gvar_common.sh to latest version..."
+        else
+            echo "gvar_common.sh not found or invalid, downloading..."
+        fi
+        if download_file "$GVAR_COMMON_FILE" "scripts/shells/linux/common/gvar_common.sh"; then
+            echo "gvar_common.sh downloaded successfully"
+        else
+            echo "Failed to download gvar_common.sh"
+            return 1
+        fi
+    else
+        echo "gvar_common.sh already exists and is valid"
+    fi
+
+    # Check 2_setting_base.sh
+    if [ "$force_update" = true ] || ! is_file_valid "$SETTING_BASE_FILE"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating 2_setting_base.sh to latest version..."
+        else
+            echo "2_setting_base.sh not found or invalid, downloading..."
+        fi
+        if download_file "$SETTING_BASE_FILE" "scripts/shells/linux/debian/install_shells/2_setting_base.sh"; then
+            echo "2_setting_base.sh downloaded successfully"
+        else
+            echo "Failed to download 2_setting_base.sh"
+            return 1
+        fi
+    else
+        echo "2_setting_base.sh already exists and is valid"
+    fi
+
+    # Check 8_project_validator.sh
+    if [ "$force_update" = true ] || ! is_file_valid "$PROJECT_VALIDATOR_FILE"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating 8_project_validator.sh to latest version..."
+        else
+            echo "8_project_validator.sh not found or invalid, downloading..."
+        fi
+        if download_file "$PROJECT_VALIDATOR_FILE" "scripts/shells/linux/debian/install_shells/8_project_validator.sh"; then
+            echo "8_project_validator.sh downloaded successfully"
+        else
+            echo "Failed to download 8_project_validator.sh"
+            return 1
+        fi
+    else
+        echo "8_project_validator.sh already exists and is valid"
+    fi
+
+    if [ "$force_update" = true ]; then
+        echo -e "\033[32mAll required files updated to latest version\033[0m"
+    else
+        echo "All required files are available and valid"
+    fi
+    return 0
+}
+
+show_region_selection_menu() {
+    echo ""
+    echo "=========================================="
+    echo "Select Download Region:"
+    echo "=========================================="
+    echo "1) Global (GitHub)"
+    echo "2) China (Gitee)"
+    echo "=========================================="
+    echo -n "Enter your choice (1-2): "
+    
+    read -r choice
+    case "$choice" in
+        1)
+            set_global_var "SELECTED_REGION" "Global"
+            echo "Selected region: Global (GitHub)"
+            ;;
+        2)
+            set_global_var "SELECTED_REGION" "China"
+            echo "Selected region: China (Gitee)"
+            ;;
+        *)
+            echo "Invalid choice, defaulting to Global"
+            set_global_var "SELECTED_REGION" "Global"
+            ;;
+    esac
+}
+
 # Git and PM2 Functions
 get_git() {
     echo "Starting SAFE git pull operation..."
-    local unified_git_script="$SCRIPT_DIR/git/gitput_unified.sh"
-    
+    local unified_git_script="$CORE_NODE_ROOT_DIR/scripts/git/gitput_unified.sh"
+
     if [ -f "$unified_git_script" ]; then
         echo "Using unified git script for safe pull: $unified_git_script"
-        
+
         # Determine target remote based on region setting
         local selected_region=$(get_global_var "SELECTED_REGION")
         local target_remote="gitee"  # default
         if [ "$selected_region" = "Global" ]; then
             target_remote="github"
         fi
-        
+
         echo "Target remote: $target_remote (based on region: $selected_region)"
-        
+
         # Execute safe pull using unified script
         cd "$CORE_NODE_ROOT_DIR"
         bash "$unified_git_script" --pull "$target_remote"
-        
+
         if [ $? -eq 0 ]; then
             echo "Safe git pull operation completed successfully!"
             make_sh_executable
@@ -587,16 +968,68 @@ set_global_var() {
 }
 
 # Menu Functions
+
+# Initialize liunxenvs directory and register all scripts
+initialize_liunxenvs() {
+    local liunxenvs_dir="$SCRIPT_DIR/liunxenvs"
+    local linux_path_function="$COMMON_SHELLS_DIR/linux_path_function.sh"
+
+    if [ ! -f "$linux_path_function" ]; then
+        return 0
+    fi
+
+    if [ ! -d "$liunxenvs_dir" ]; then
+        return 0
+    fi
+
+    source "$linux_path_function"
+
+    for script_file in "$liunxenvs_dir"/*.sh; do
+        if [ -f "$script_file" ]; then
+            local filename=$(basename "$script_file")
+            local basename_without_ext="${filename%.sh}"
+            local link_path="/usr/local/bin/$basename_without_ext"
+
+            if [ ! -L "$link_path" ] && [ ! -f "$link_path" ]; then
+                local target_path="$liunxenvs_dir/$filename"
+                chmod +x "$target_path" 2>/dev/null || $sudo chmod +x "$target_path"
+
+                if [ -w "/usr/local/bin" ]; then
+                    ln -sf "$target_path" "$link_path" 2>/dev/null
+                else
+                    $sudo ln -sf "$target_path" "$link_path" 2>/dev/null
+                fi
+            fi
+        fi
+    done
+}
+
 show_special_software_env_menu() {
     local special_env_manager_script="$SHELLS_DIR/linux/menu_itemshells/special_software_env_manager.sh"
 
     if [ -f "$special_env_manager_script" ]; then
-        echo "Launching Special Software Environment Variables Manager..."
+        # Export USE_SUDO for child script
+        export USE_SUDO
         # Source the script to allow it to modify the current environment
         . "$special_env_manager_script"
     else
         echo "Error: special_software_env_manager.sh script not found at: $special_env_manager_script"
         echo "Please check if the special software environment manager is properly installed"
+    fi
+}
+
+# Function to show service manager
+show_service_manager() {
+    local service_manager_script="$SHELLS_DIR/linux/menu_itemshells/service_manager.sh"
+
+    if [ -f "$service_manager_script" ]; then
+        # Export USE_SUDO for child script
+        export USE_SUDO
+        # Execute the service manager script
+        bash "$service_manager_script"
+    else
+        echo "Error: service_manager.sh script not found at: $service_manager_script"
+        echo "Please check if the service manager is properly installed"
         echo "Press Enter to continue..."
         read
     fi
@@ -606,23 +1039,14 @@ initialize_menu_items() {
     menu_items["Install and Test Environment"]="text=Install and Test Environment;values=default;current=0;key=INSTALL_TEST_MENU;action=show_install_test_menu"
     menu_order+=("Install and Test Environment")
 
-    menu_items["Select Region"]="text=Select Region;values=China,Global;current=0;key=SELECTED_REGION;action=set_region"
-    menu_order+=("Select Region")
-
-    menu_items["Cloud Provider"]="text=Cloud Provider;values=null,Tencent,Alibaba,Huawei,Other;current=0;key=CLOUD_PROVIDER;action=set_cloud_provider"
-    menu_order+=("Cloud Provider")
+    menu_items["Enable Router Forwarding"]="text=Enable Router Forwarding;values=default;current=0;key=ROUTER_FORWARD_MENU;action=enable_router_forwarding"
+    menu_order+=("Enable Router Forwarding")
 
     menu_items["Get the latest git version"]="text=Get the latest git version;values=default;current=0;key=GIT_UPDATE_TYPE;action=get_git"
     menu_order+=("Get the latest git version")
 
-    menu_items["Display global variables"]="text=Display global variables;values=default;current=0;key=DISPLAY_VARS_TYPE;action=show_global_vars"
-    menu_order+=("Display global variables")
-
-    menu_items["Display system information"]="text=Display system information;values=basic,detailed,network;current=0;key=SYSINFO_TYPE;action=show_system_info"
-    menu_order+=("Display system information")
-
-    menu_items["Run Ncore"]="text=Run Ncore;values=default;current=0;key=RUN_NCORE_TYPE;action=run_ncore"
-    menu_order+=("Run Ncore")
+    menu_items["System Information & Variables"]="text=System Information & Variables;values=default;current=0;key=SYSTEM_INFO_MENU;action=show_system_info_menu"
+    menu_order+=("System Information & Variables")
 
     menu_items["Unified App Manager"]="text=Unified App Manager;values=default;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
     menu_order+=("Unified App Manager")
@@ -630,9 +1054,10 @@ initialize_menu_items() {
     menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
     menu_order+=("Set Special Software Environment Variables (like AI)")
 
-    menu_items["Push to git"]="text=Push to git;values=gitee,github,local,all;current=3;key=GIT_PUSH_TARGET;action=push_git"
-    menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
+    menu_items["Service Manager"]="text=Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH);values=default;current=0;key=SERVICE_MANAGER_MENU;action=show_service_manager"
+    menu_order+=("Service Manager")
 
+    menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
     menu_order+=("Push to git")
 
     menu_items["Exit"]="text=Exit;values=default;current=0;key=EXIT_TYPE;action=exit_script"
@@ -666,15 +1091,19 @@ handle_menu_action() {
     set_global_var "$key" "$value"
 
     case "$action" in
-        "set_region")
-            echo "Region set to: $value"
-            ;;
-        "set_cloud_provider")
-            echo "Cloud Provider set to: $value"
+        "enable_router_forwarding")
+            echo "Enabling router forwarding mode..."
+            local router_script="$SHELLS_DIR/linux/debian/install_shells/101_lnxrouter.sh"
+            if [ -f "$router_script" ]; then
+                bash "$router_script"
+            else
+                echo "Error: Router forwarding script not found at $router_script"
+                echo "Please ensure the script exists and try again."
+            fi
             ;;
         "show_install_test_menu")
             echo "Opening Install and Test Environment menu..."
-            local install_test_menu_script="$SHELLS_DIR/linux/common/install_test_menu.sh"
+            local install_test_menu_script="$COMMON_SHELLS_DIR/install_test_menu.sh"
             if [ -f "$install_test_menu_script" ]; then
                 bash "$install_test_menu_script"
             else
@@ -682,61 +1111,27 @@ handle_menu_action() {
                 echo "Please ensure the script exists and try again."
             fi
             ;;
-        "install_server")
-        run_install_script "install.sh"
-        ;;
         "get_git")
-        get_git
-        ;;
-        "show_global_vars")
-        echo "Global Variables in $GLOBAL_VAR_DIR:"
-        if [ -d "$GLOBAL_VAR_DIR" ] && [ "$(ls -A $GLOBAL_VAR_DIR)" ]; then
-            for file in "$GLOBAL_VAR_DIR"/*; do
-                if [ -f "$file" ]; then
-                    filename=$(basename "$file")
-                        value=$(cat "$file")
-                    echo "$filename = $value"
-                fi
-            done
-        else
-            echo "No global variables found."
-        fi
-        echo "Press Enter to continue..."
-        read
-        ;;
-        "show_system_info")
-            case "$value" in
-                "basic")
-                    uname -a
-                    ;;
-                "detailed")
-                    cat /etc/os-release
-                    ;;
-                "network")
-                    ip addr show
-                    ;;
-            esac
+            get_git
+            ;;
+        "show_system_info_menu")
+            echo "Opening System Information & Variables menu..."
+            local system_info_script="$SHELLS_DIR/linux/menu_itemshells/system_info_display.sh"
+            if [ -f "$system_info_script" ]; then
+                bash "$system_info_script"
+            else
+                echo "Error: system_info_display.sh script not found at $system_info_script"
+                echo "Please ensure the script exists and try again."
+            fi
             ;;
         "show_special_software_env_menu")
             show_special_software_env_menu
             ;;
-        "run_ncore")
-            local main_entry="$CORE_NODE_ROOT_DIR/main.js"
-            if [ -f "$main_entry" ]; then
-                echo "Starting ncore using $main_entry"
-                (
-                    cd "$CORE_NODE_ROOT_DIR"
-                    node "./main.js"
-                )
-            else
-                echo "Error: main.js not found at $main_entry"
-            fi
-            echo ""
-            echo "Press Enter to continue..."
-            read
+        "show_service_manager")
+            show_service_manager
             ;;
         "unified_manager")
-            local unified_manager_script="$SCRIPT_DIR/unified_manager/unified_manager.sh"
+            local unified_manager_script="$CORE_NODE_ROOT_DIR/scripts/unified_manager/unified_manager.sh"
             if [ -x "$unified_manager_script" ]; then
                 bash "$unified_manager_script"
             else
@@ -751,36 +1146,7 @@ handle_menu_action() {
             echo "Starting Git Push Operations..."
             echo "Target: $value"
 
-            # Use the unified git script
-            local unified_git_script="$SCRIPT_DIR/git/gitput_unified.sh"
-            if [ -f "$unified_git_script" ]; then
-                echo "Running unified git push script..."
-
-                # Determine the argument to pass to the script
-                local git_arg=""
-                case "$value" in
-                    "gitee"|"github"|"local")
-                        git_arg="$value"
-                        ;;
-                    "all")
-                        git_arg=""  # Empty means push to all remotes
-                        ;;
-                    *)
-                        echo "Unknown git target: $value"
-                        echo "Press Enter to continue..."
-                        read
-                        return
-                        ;;
-                esac
-
-                # Execute the git push script
-                if [ -n "$git_arg" ]; then
-                    bash "$unified_git_script" "$git_arg"
-                else
-                    bash "$unified_git_script"
-                fi
-
-            local git_script="$SCRIPT_DIR/git/gitput_unified.sh"
+            local git_script="$CORE_NODE_ROOT_DIR/scripts/git/gitput_unified.sh"
             if [ -f "$git_script" ]; then
                 echo "Using unified git push script: $git_script"
                 cd "$CORE_NODE_ROOT_DIR"
@@ -789,17 +1155,13 @@ handle_menu_action() {
                 else
                     bash "$git_script" "$value"
                 fi
-                
+
                 if [ $? -eq 0 ]; then
                     echo "Git push operations completed successfully"
                 else
                     echo "Git push operations failed"
                 fi
             else
-                echo "Error: Unified git script not found: $unified_git_script"
-                echo "Please ensure the git scripts are properly installed"
-            fi
-
                 echo "Error: Unified git script not found: $git_script"
                 echo "Please ensure the git scripts are properly installed"
             fi
@@ -829,10 +1191,8 @@ show_interactive_menu() {
     while true; do
         # Clear screen and show header
         printf "\033c"  # Clear screen more reliably
-        printf "Current system: %s\n" "$SYSTEM_VERSION"
-        if [ "$DETECTOR_AVAILABLE" -eq 0 ]; then
-            echo "[Info] Current script has no detection module."
-        fi
+        local current_sys=$(get_global_var "CURRENT_SYSTEM" "$SYSTEM_VERSION")
+        printf "Current system: %s\n" "$current_sys"
         printf "Select an option (Up/Down to move, Left/Right to change value, Enter to select):\n"
         printf "Press Ctrl+C to exit\n\n"
 
@@ -913,30 +1273,27 @@ show_interactive_menu() {
                 esac
                 ;;
             '')  # Enter key
-                stty "$old_settings"
-                
                 local key="${menu_order[$selected]}"
                 local item="${menu_items[$key]}"
                 local values=($(echo "$item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
                 local current=$(echo "$item" | grep -o 'current=[0-9]*' | cut -d= -f2)
                 local action=$(echo "$item" | grep -o 'action=[^;]*' | cut -d= -f2)
                 local var_key=$(echo "$item" | grep -o 'key=[^;]*' | cut -d= -f2)
-                
+
+                # Restore terminal settings before executing action
+                stty "$old_settings"
                 printf "\033c"
+
                 handle_menu_action "$action" "${values[$current]}" "$var_key"
-                local cloud_item="${menu_items[\"Cloud Provider\"]}"
-                local cloud_values=($(echo "$cloud_item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
-                local cloud_current=$(echo "$cloud_item" | grep -o 'current=[0-9]*' | cut -d= -f2)
-                if [ "${cloud_values[$cloud_current]}" = "null" ]; then
-                    print_color yellow "[Warning] Cloud Provider is not selected, please select Cloud Provider first!"
-                fi
+
                 echo
                 echo "Press 'q' to quit, any other key to continue..."
                 read -n 1 key
                 if [ "$key" = "q" ]; then
                     exit 0
                 fi
-                
+
+                # Restore terminal settings for menu navigation
                 stty -icanon -echo
                 ;;
         esac
@@ -982,6 +1339,20 @@ main() {
     check_and_install_sudo
     ensure_dos2unix
 
+    # Check and download required files
+    echo -e "\033[36m[FILE CHECK] Checking for required files...\033[0m"
+
+    # Check if required files exist, if not show region selection menu
+    if [ ! -f "$GVAR_COMMON_FILE" ] || [ ! -f "$SETTING_BASE_FILE" ] || [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
+        show_region_selection_menu
+    fi
+
+    # Download missing files
+    if ! check_and_download_files; then
+        echo -e "\033[31m[ERROR] Failed to download required files. Exiting.\033[0m"
+        exit 1
+    fi
+
     # Clean up expired behavior cache
     cleanup_behavior_cache
     # Clean up orphaned file cache entries
@@ -989,48 +1360,55 @@ main() {
 
     # Process shell files
     echo -e "\033[36m[FILE PROCESSING] Starting scan and conversion of .sh files\033[0m"
-    
-    local total_dirs=0
-    local processed_dirs=0
-    local overall_start_time=$(date +%s.%N)
-    
-    # Count total directories to process
-    for dir in "${target_dirs[@]}"; do
-        local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-        if [ -d "$absolute_dir" ]; then
-            ((total_dirs++))
-        fi
-    done
-    
-    echo -e "\033[33m[INFO] Found $total_dirs directories to scan: ${target_dirs[*]}\033[0m"
-    echo
-    
-    for dir in "${target_dirs[@]}"; do
-        # Convert to absolute path by joining with CORE_NODE_ROOT_DIR
-        local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-        if [ -d "$absolute_dir" ]; then
-            ((processed_dirs++))
-            echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
-            process_sh_files "$absolute_dir"
-            echo
-        else
-            echo -e "\033[31m[WARNING] Directory '$absolute_dir' not found. Skipping.\033[0m"
-        fi
-    done
-    
-    # Calculate overall timing
-    local overall_end_time=$(date +%s.%N)
-    local overall_duration
-    if command -v bc >/dev/null 2>&1; then
-        overall_duration=$(echo "$overall_end_time - $overall_start_time" | bc -l)
+
+    # Use IS_INSTALLATION_MODE variable instead of checking path again
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
+        echo -e "\033[33m[INFO] Installation mode detected (running from: $CORE_NODE_ROOT_DIR)\033[0m"
+        echo -e "\033[33m[INFO] Skipping project directories scan (apps/ncore/scripts not yet installed)\033[0m"
+        echo -e "\033[32m[SKIPPED] Directory scanning skipped in installation mode\033[0m"
     else
-        # Fallback calculation without bc
-        overall_duration=$(awk "BEGIN {printf \"%.2f\", $overall_end_time - $overall_start_time}")
+        local total_dirs=0
+        local processed_dirs=0
+        local overall_start_time=$(date +%s.%N)
+
+        # Count total directories to process
+        for dir in "${target_dirs[@]}"; do
+            local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
+            if [ -d "$absolute_dir" ]; then
+                ((total_dirs++))
+            fi
+        done
+
+        echo -e "\033[33m[INFO] Found $total_dirs directories to scan: ${target_dirs[*]}\033[0m"
+        echo
+
+        for dir in "${target_dirs[@]}"; do
+            # Convert to absolute path by joining with CORE_NODE_ROOT_DIR
+            local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
+            if [ -d "$absolute_dir" ]; then
+                ((processed_dirs++))
+                echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
+                process_sh_files "$absolute_dir"
+                echo
+            else
+                echo -e "\033[31m[WARNING] Directory '$absolute_dir' not found. Skipping.\033[0m"
+            fi
+        done
+
+        # Calculate overall timing
+        local overall_end_time=$(date +%s.%N)
+        local overall_duration
+        if command -v bc >/dev/null 2>&1; then
+            overall_duration=$(echo "$overall_end_time - $overall_start_time" | bc -l)
+        else
+            # Fallback calculation without bc
+            overall_duration=$(awk "BEGIN {printf \"%.2f\", $overall_end_time - $overall_start_time}")
+        fi
+
+        echo -e "\033[32m[COMPLETE] All .sh files processed!\033[0m"
+        echo -e "\033[32m  - Directories processed: $processed_dirs/$total_dirs\033[0m"
+        echo -e "\033[32m  - Total processing time: ${overall_duration}s\033[0m"
     fi
-    
-    echo -e "\033[32m[COMPLETE] All .sh files processed!\033[0m"
-    echo -e "\033[32m  - Directories processed: $processed_dirs/$total_dirs\033[0m"
-    echo -e "\033[32m  - Total processing time: ${overall_duration}s\033[0m"
 
     # Create and initialize global variable directory
     if [ ! -d "$GLOBAL_VAR_DIR" ]; then
@@ -1060,11 +1438,90 @@ main() {
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
 
-    # Update CORE_NODE_ROOT_DIR if running from symlink
-    if [ -L "$0" ] && [ "$0" -ef "$script_symlink_path" ]; then
-        original_source="$(readlink -f "$script_path")"
-        CORE_NODE_ROOT_DIR="$(dirname "$original_source")"
-        echo "Updating CORE_NODE_ROOT_DIR to: $CORE_NODE_ROOT_DIR"
+    # Run base system setup first (disk detection and mount management)
+    echo -e "\033[36m[BASE SETUP] Checking if base system setup is needed...\033[0m"
+
+    local disk_setup_flag="$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
+    local skip_disk_setup=false
+
+    # Check if running in WSL environment (skip disk setup in WSL)
+    if [ "$IS_WSL" = true ]; then
+        echo -e "\033[33m[BASE SETUP] WSL environment detected - skipping disk setup\033[0m"
+        echo -e "\033[33m[BASE SETUP] WSL manages disk mounts automatically via /mnt/c, /mnt/d, etc.\033[0m"
+        skip_disk_setup=true
+    elif [ -f "$disk_setup_flag" ]; then
+        local setup_time=$(cat "$disk_setup_flag" 2>/dev/null)
+        echo -e "\033[33m[BASE SETUP] Disk setup already completed at: $setup_time\033[0m"
+        echo -e "\033[33m[BASE SETUP] Skipping disk detection to avoid redundant operations\033[0m"
+        skip_disk_setup=true
+    fi
+
+    if [ "$skip_disk_setup" = false ] && [ -f "$SETTING_BASE_FILE" ]; then
+        echo -e "\033[36m[BASE SETUP] Running base system setup...\033[0m"
+        bash "$SETTING_BASE_FILE"
+        local base_setup_exit_code=$?
+
+        if [ $base_setup_exit_code -eq 0 ]; then
+            echo -e "\033[32m[BASE SETUP] Base system setup completed successfully\033[0m"
+        else
+            echo -e "\033[33m[BASE SETUP] Base system setup completed with warnings\033[0m"
+        fi
+
+        # Re-source gvar_common.sh to refresh CORE_NODE_PROJECT_ROOT after disk setup
+        if [ -f "$GVAR_COMMON_FILE" ]; then
+            echo -e "\033[36m[BASE SETUP] Refreshing environment variables after disk setup...\033[0m"
+            source "$GVAR_COMMON_FILE"
+            echo -e "\033[32m[BASE SETUP] Updated CORE_NODE_PROJECT_ROOT: $CORE_NODE_PROJECT_ROOT\033[0m"
+        fi
+    elif [ "$skip_disk_setup" = false ]; then
+        echo -e "\033[31m[BASE SETUP] 2_setting_base.sh not found at: $SETTING_BASE_FILE\033[0m"
+    fi
+
+    # Validate project location using 8_project_validator.sh
+    echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
+    if [ -f "$PROJECT_VALIDATOR_FILE" ]; then
+        bash "$PROJECT_VALIDATOR_FILE"
+        if [ $? -eq 0 ]; then
+            echo -e "\033[32m[PROJECT VALIDATION] Project validation completed successfully\033[0m"
+        else
+            echo -e "\033[33m[PROJECT VALIDATION] Project validation completed with warnings\033[0m"
+        fi
+    else
+        echo -e "\033[31m[PROJECT VALIDATION] 8_project_validator.sh not found at: $PROJECT_VALIDATOR_FILE\033[0m"
+    fi
+
+    # After successful project validation, check if we need to switch to cloned version
+    # This happens during initial deployment when dd.sh is running from /usr/tmp or /tmp
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
+        echo -e "\033[36m[INITIAL DEPLOYMENT] Running from temporary location: $CORE_NODE_ROOT_DIR\033[0m"
+
+        # Source gvar_common.sh to get CORE_NODE_PROJECT_ROOT
+        if [ -f "$GVAR_COMMON_FILE" ]; then
+            source "$GVAR_COMMON_FILE"
+
+            # Check if project was successfully cloned to CORE_NODE_PROJECT_ROOT
+            if [ -d "$CORE_NODE_PROJECT_ROOT" ] && [ -f "$CORE_NODE_PROJECT_ROOT/dd.sh" ]; then
+                echo -e "\033[32m[INITIAL DEPLOYMENT] Project successfully cloned to: $CORE_NODE_PROJECT_ROOT\033[0m"
+                echo -e "\033[36m[INITIAL DEPLOYMENT] Switching to cloned version...\033[0m"
+
+                # Set execute permission on the cloned dd.sh
+                chmod +x "$CORE_NODE_PROJECT_ROOT/dd.sh"
+                echo -e "\033[32m[INITIAL DEPLOYMENT] Set execute permission on $CORE_NODE_PROJECT_ROOT/dd.sh\033[0m"
+
+                # Navigate to project directory and execute the new dd.sh
+                cd "$CORE_NODE_PROJECT_ROOT"
+                echo -e "\033[32m[INITIAL DEPLOYMENT] Switched to directory: $CORE_NODE_PROJECT_ROOT\033[0m"
+                echo -e "\033[36m[INITIAL DEPLOYMENT] Executing cloned dd.sh...\033[0m"
+                echo ""
+
+                # Replace current process with the new dd.sh
+                exec bash "$CORE_NODE_PROJECT_ROOT/dd.sh"
+            else
+                echo -e "\033[33m[INITIAL DEPLOYMENT] Project not yet cloned to $CORE_NODE_PROJECT_ROOT, continuing with tmp version\033[0m"
+            fi
+        else
+            echo -e "\033[33m[INITIAL DEPLOYMENT] gvar_common.sh not found, continuing with tmp version\033[0m"
+        fi
     fi
 
     # Ensure dos2unix is installed
@@ -1072,19 +1529,44 @@ main() {
         check_and_install_dos2unix
     fi
 
-    # Create symlink if needed
-    if [ -e "$script_symlink_path" ]; then
-        if [ ! -L "$script_symlink_path" ] || [ "$(readlink -f "$script_symlink_path")" != "$script_path" ]; then
-            echo "Removing existing $script_symlink_path as it is not a symlink to the current script."
-            $sudo rm -f "$script_symlink_path"
+    # Create symlink to /usr/local/bin/dd.sh if not in installation mode
+    if [ "$IS_INSTALLATION_MODE" = false ]; then
+        local symlink_target="/usr/local/bin/dd.sh"
+
+        # Check if symlink exists and points to correct location
+        if [ -L "$symlink_target" ]; then
+            local current_target=$(readlink -f "$symlink_target")
+            if [ "$current_target" != "$SCRIPT_ACTUAL_PATH" ]; then
+                echo "Updating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+                $sudo rm -f "$symlink_target"
+                $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+                echo "Symlink updated successfully"
+            else
+                echo "Symlink already correct: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+            fi
+        elif [ -e "$symlink_target" ]; then
+            # File exists but is not a symlink
+            echo "Warning: $symlink_target exists but is not a symlink"
+            echo "Removing and creating symlink..."
+            $sudo rm -f "$symlink_target"
+            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+            echo "Symlink created: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+        else
+            # Symlink doesn't exist, create it
+            echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+            if [ $? -eq 0 ]; then
+                echo "Symlink created successfully"
+            else
+                echo "Warning: Failed to create symlink (may need sudo privileges)"
+            fi
         fi
+    else
+        echo "[INSTALLATION MODE] Skipping symlink creation - running from temporary location"
     fi
 
-    if [ ! -e "$script_symlink_path" ]; then
-        $sudo ln -s "$script_path" "$script_symlink_path"
-        echo "Symbolic link created: $script_symlink_path -> $script_path"
-        chmod +x "$script_symlink_path"
-    fi
+    # Initialize liunxenvs directory and register all scripts
+    initialize_liunxenvs
 
     # Initialize and show menu
     detect_system_version
@@ -1108,7 +1590,7 @@ print_color() {
 
 # Function to handle command line arguments
 handle_arguments() {
-    local resource_limiter="$SCRIPT_DIR/unified_manager/common/resource_limiter.sh"
+    local resource_limiter="$CORE_NODE_ROOT_DIR/scripts/unified_manager/common/resource_limiter.sh"
 
     if [ $# -eq 0 ]; then
         # No arguments, run interactive menu

@@ -1,0 +1,70 @@
+# Codex MCP Servers Configuration Template (Windows)
+# This file contains MCP server configurations for Codex on Windows
+# Auto-generated template - do not modify directly
+
+# Global MCP settings
+experimental_use_rmcp_client = true
+
+# ==================== Developer Documentation ====================
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.context7.env]
+# Add any required environment variables here
+# CONTEXT7_API_KEY = "your_key_here"
+
+# ==================== File Processing ====================
+
+[mcp_servers.file_processor]
+command = "python"
+args = [
+    "D:\\programing\\core_node\\ncore\\mcp_server\\file_processor\\main.py"
+]
+
+[mcp_servers.file_processor.env]
+# File processor environment variables
+PYTHONIOENCODING = "utf-8"
+
+# ==================== Project-Specific Servers ====================
+
+# Example: Project-specific MCP server
+# Uncomment and modify as needed
+# [mcp_servers.my_project]
+# command = "node"
+# args = ["$PROJECT_NAME$/mcp-server/index.js"]
+# startup_timeout_sec = 30
+# tool_timeout_sec = 60
+
+# ==================== HTTP-based MCP Servers ====================
+
+# Example: Figma Remote MCP
+# [mcp_servers.figma]
+# url = "https://mcp.figma.com/mcp"
+# bearer_token = "your_token_here"
+
+# ==================== Custom STDIO Servers ====================
+
+# Example: Custom Python MCP server
+# [mcp_servers.custom_python]
+# command = "python"
+# args = ["-m", "my_mcp_server"]
+# [mcp_servers.custom_python.env]
+# MY_VAR = "my_value"
+
+# ==================== Notes ====================
+#
+# Configuration structure:
+# - command: The executable to launch the server
+# - args: Array of arguments to pass to the command
+# - env: Environment variables (optional)
+# - url: For HTTP-based servers (instead of command)
+# - bearer_token: For HTTP servers requiring authentication
+# - startup_timeout_sec: Timeout for server initialization (optional)
+# - tool_timeout_sec: Timeout for tool execution (optional)
+#
+# Placeholders:
+# - $PROJECT_NAME$: Will be replaced with actual project path during sync
+#
+# More info: https://docs.codex.ai/mcp

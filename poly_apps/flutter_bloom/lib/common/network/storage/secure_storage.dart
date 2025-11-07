@@ -8,7 +8,7 @@ class SecureStorage {
   static SecureStorage get instance => _instance ??= SecureStorage._();
   SecureStorage._();
 
-  Map<String, String> _memoryStorage = {};
+  final Map<String, String> _memoryStorage = {};
   final String _prefix = 'secure_';
 
   /// Initialize secure storage

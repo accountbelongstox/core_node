@@ -7,8 +7,6 @@ flutter_bloom/
 ├── android/
 │   ├── app/
 │   │   ├── src/
-│   │   │   ├── debug/
-│   │   │   │   └── AndroidManifest.xml
 │   │   │   ├── main/
 │   │   │   │   ├── java/
 │   │   │   │   │   ├── com/
@@ -21,10 +19,13 @@ flutter_bloom/
 │   │   │   │   │   │   ├── background.png
 │   │   │   │   │   │   └── launch_background.xml
 │   │   │   │   │   ├── drawable-night/
+│   │   │   │   │   │   ├── background.png
 │   │   │   │   │   │   └── launch_background.xml
 │   │   │   │   │   ├── drawable-night-v21/
+│   │   │   │   │   │   ├── background.png
 │   │   │   │   │   │   └── launch_background.xml
 │   │   │   │   │   ├── drawable-v21/
+│   │   │   │   │   │   ├── background.png
 │   │   │   │   │   │   └── launch_background.xml
 │   │   │   │   │   ├── drawable-xhdpi/
 │   │   │   │   │   │   └── background.png
@@ -57,13 +58,10 @@ flutter_bloom/
 │   │   └── proguard-rules.pro
 │   ├── gradle/
 │   │   └── wrapper/
-│   │       ├── gradle-wrapper.jar
 │   │       └── gradle-wrapper.properties
 │   ├── .gitignore
 │   ├── build.gradle
 │   ├── gradle.properties
-│   ├── gradlew
-│   ├── gradlew.bat
 │   ├── local.properties
 │   └── settings.gradle
 ├── assets/
@@ -454,12 +452,29 @@ flutter_bloom/
 │   │   └── app_wuy/
 │   │       ├── fonts/
 │   │       ├── icons/
+│   │       │   ├── avatar2_placeholder.jpg
+│   │       │   ├── avatar3_placeholder.png
+│   │       │   ├── avatar_placeholder.png
+│   │       │   ├── banner_placeholder.png
+│   │       │   ├── empty_state.png
+│   │       │   ├── enable.png
+│   │       │   ├── error_state.png
+│   │       │   ├── image_placeholder.png
 │   │       │   ├── logo.png
-│   │       │   └── logo_bak.png
+│   │       │   ├── logo_bak.png
+│   │       │   ├── maintenance.png
+│   │       │   ├── no_internet.png
+│   │       │   ├── on1.png
+│   │       │   ├── onboarding.png
+│   │       │   ├── onboarding_d.png
+│   │       │   └── staff_onboarding.png
 │   │       ├── images/
-│   │       └── launch/
-│   │           ├── luanch.backup.jpg
-│   │           └── luanch.jpg
+│   │       │   ├── background1.jpg
+│   │       │   ├── background2.jpg
+│   │       │   └── bg.png
+│   │       ├── launch/
+│   │       │   └── background.png
+│   │       └── app_wuy_tree.md
 │   └── common/
 │       ├── fonts/
 │       │   ├── Roboto-Black.ttf
@@ -548,18 +563,7 @@ flutter_bloom/
 │           ├── splash_logo.png
 │           └── splash_logo_dark.png
 ├── development-guides/
-│   ├── blueprint/
-│   │   ├── achat_design/
-│   │   │   ├── 1_ORIGINAL_REQUEST.md
-│   │   │   ├── 2_FUNCTIONAL_FLOWCHART_ORIGINAL_REQUIREMENTS.mmd
-│   │   │   └── 3_APP_CODE_STRUCTURE_BASED_ON_FLOWCHART_AND_DEVELOPMENT_PLAN.md
-│   │   └── common_design/
-│   │       └── flutter_bloom_tree.md
-│   ├── COMMON_COMPONENTS_ARCHITECTURE.md
-│   ├── FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
-│   ├── NETWORK_ARCHITECTURE_CURRENT_STATE.md
-│   ├── ROUTING_STANDARDS.md
-│   └── bank_feeback2.txt
+│   └── FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 ├── docs/
 │   ├── achat-api-docs/
 │   │   ├── 01_api_library_coding_plan_final.md
@@ -830,15 +834,13 @@ flutter_bloom/
 │   │   │   │   │   │   └── proxy_settings_screen.dart
 │   │   │   │   │   └── widgets/
 │   │   │   │   │       └── proxy_setting_card.dart
-│   │   │   │   ├── qr_profile/
-│   │   │   │   │   ├── controllers/
-│   │   │   │   │   │   └── qr_profile_controller.dart
-│   │   │   │   │   ├── models/
-│   │   │   │   │   │   └── qr_profile_model.dart
-│   │   │   │   │   └── views/
-│   │   │   │   │       └── qr_profile_screen.dart
-│   │   │   │   └── test_backend/
-│   │   │   │       └── test_backend_page.dart
+│   │   │   │   └── qr_profile/
+│   │   │   │       ├── controllers/
+│   │   │   │       │   └── qr_profile_controller.dart
+│   │   │   │       ├── models/
+│   │   │   │       │   └── qr_profile_model.dart
+│   │   │   │       └── views/
+│   │   │   │           └── qr_profile_screen.dart
 │   │   │   ├── localization_app_achat/
 │   │   │   │   ├── en_app_achat.dart
 │   │   │   │   ├── localization_keys_app_achat.dart
@@ -870,8 +872,8 @@ flutter_bloom/
 │   │   │   ├── storage/
 │   │   │   │   └── achat_storage_manager.dart
 │   │   │   ├── utils_app_achat/
-│   │   │   │   ├── app_utils.dart
-│   │   │   │   └── test_data_generator.dart
+│   │   │   │   └── app_utils.dart
+│   │   │   ├── app_achat_tree.md
 │   │   │   ├── build_config.ini
 │   │   │   └── main_app_achat.dart
 │   │   ├── app_bank/
@@ -884,9 +886,6 @@ flutter_bloom/
 │   │   │   │   ├── prefs_app_bank.dart
 │   │   │   │   ├── provider_app_bank.dart
 │   │   │   │   └── theme_config_app_bank.dart
-│   │   │   ├── docs/
-│   │   │   │   ├── homepage_image_requirements.txt
-│   │   │   │   └── wealth_page_image_requirements.txt
 │   │   │   ├── features_app_bank/
 │   │   │   │   ├── account_overview/
 │   │   │   │   │   └── views/
@@ -902,12 +901,6 @@ flutter_bloom/
 │   │   │   │   ├── dashboard/
 │   │   │   │   │   └── views/
 │   │   │   │   │       └── dashboard_screen.dart
-│   │   │   │   ├── debug/
-│   │   │   │   │   └── views/
-│   │   │   │   │       ├── debug_settings_screen.dart
-│   │   │   │   │       ├── developer_feedback_screen.dart
-│   │   │   │   │       ├── developer_tools_screen.dart
-│   │   │   │   │       └── exclusive_customer_screen.dart
 │   │   │   │   ├── help/
 │   │   │   │   │   └── views/
 │   │   │   │   │       └── help_screen.dart
@@ -968,7 +961,6 @@ flutter_bloom/
 │   │   │   ├── services_app_bank/
 │   │   │   │   ├── bank_auth_api_service.dart
 │   │   │   │   ├── bank_network_service.dart
-│   │   │   │   ├── bank_network_v3_service.dart
 │   │   │   │   └── bank_public_api_service.dart
 │   │   │   ├── settings_app_bank/
 │   │   │   │   └── settings_app_bank.dart
@@ -976,6 +968,7 @@ flutter_bloom/
 │   │   │   │   ├── bank_app_bar.dart
 │   │   │   │   ├── bank_custom_button.dart
 │   │   │   │   └── bank_custom_card.dart
+│   │   │   ├── app_bank_tree.md
 │   │   │   ├── build_config.ini
 │   │   │   └── main_app_bank.dart
 │   │   ├── app_example/
@@ -1231,7 +1224,6 @@ flutter_bloom/
 │   │   │   │   │   │   └── word_card_controller.dart
 │   │   │   │   │   ├── models/
 │   │   │   │   │   │   ├── word_card_model.dart
-│   │   │   │   │   │   ├── word_card_model.g.dart
 │   │   │   │   │   │   └── word_model.dart
 │   │   │   │   │   └── views/
 │   │   │   │   │       ├── word_card_screen.dart
@@ -1248,11 +1240,12 @@ flutter_bloom/
 │   │   │   │   └── zh_app_example.dart
 │   │   │   ├── model_app_example/
 │   │   │   │   └── user_model.dart
+│   │   │   ├── providers_app_example/
+│   │   │   │   └── example_user_provider.dart
 │   │   │   ├── resources_app_example/
 │   │   │   │   ├── assets_icons_app_example.dart
 │   │   │   │   ├── assets_images_app_example.dart
 │   │   │   │   ├── assets_launch_app_example.dart
-│   │   │   │   ├── test_file.dart
 │   │   │   │   ├── text_styles_app_example.dart
 │   │   │   │   └── theme_extensions_app_example.dart
 │   │   │   ├── router_app_example/
@@ -1271,6 +1264,7 @@ flutter_bloom/
 │   │   │   │   └── settings_app_example.dart
 │   │   │   ├── utils_app_example/
 │   │   │   │   └── utils_app_example.dart
+│   │   │   ├── app_example_tree.md
 │   │   │   ├── build_config.ini
 │   │   │   └── main_app_example.dart
 │   │   ├── app_main/
@@ -1314,29 +1308,143 @@ flutter_bloom/
 │   │   └── app_wuy/
 │   │       ├── config_app_wuy/
 │   │       │   ├── api_config_app_wuy.dart
-│   │       │   ├── api_data_models_app_wuy.dart
 │   │       │   ├── api_endpoints_app_wuy.dart
 │   │       │   ├── app_config_app_wuy.dart
-│   │       │   ├── constants_app_wuy.dart
-│   │       │   └── storage_app_wuy.dart
+│   │       │   ├── storage_app_wuy.dart
+│   │       │   └── storage_config_app_wuy.dart
 │   │       ├── controller_app_wuy/
 │   │       │   └── settings_controller_app_wuy.dart
 │   │       ├── doc/
-│   │       │   ├── awuy.pdf
-│   │       │   └── awuy.png
+│   │       │   ├── pageviews/
+│   │       │   │   ├── 01_profile_page.png
+│   │       │   │   ├── 02_about_us_page.png
+│   │       │   │   ├── 03_history_tracking_page.png
+│   │       │   │   ├── 04_map_page.png
+│   │       │   │   ├── 05_friend_info_page.png
+│   │       │   │   ├── 06_friends_list_page.png
+│   │       │   │   ├── 07_my_profile_page.png
+│   │       │   │   ├── 08_find_friends_page.png
+│   │       │   │   ├── 09_registration_page.png
+│   │       │   │   ├── 10_add_friend_page.png
+│   │       │   │   ├── 11_login_page.png
+│   │       │   │   ├── 12_network_records_page.png
+│   │       │   │   ├── 13_chat_page.png
+│   │       │   │   ├── 14_search_functionality.png
+│   │       │   │   ├── bg.png
+│   │       │   │   ├── create_composite_image.py
+│   │       │   │   ├── login.html
+│   │       │   │   ├── logo.png
+│   │       │   │   ├── screenshots_catalog.md
+│   │       │   │   └── wuy_screenshots_composite.png
+│   │       │   ├── pageviewshtmlclaude/
+│   │       │   │   ├── 02_bottom_navigation.html
+│   │       │   │   ├── 03_menu_drawer_open.html
+│   │       │   │   ├── 04_settings_page.html
+│   │       │   │   ├── 05_account_settings.html
+│   │       │   │   ├── 06_display_settings.html
+│   │       │   │   ├── 07_notification_settings.html
+│   │       │   │   └── 08_privacy_settings.html
+│   │       │   ├── pageviewshtmlclaude.bak/
+│   │       │   │   ├── 01_homepage_main_view.html
+│   │       │   │   ├── 02_bottom_navigation.html
+│   │       │   │   ├── 03_menu_drawer_open.html
+│   │       │   │   ├── 04_settings_page.html
+│   │       │   │   ├── 05_account_settings.html
+│   │       │   │   ├── 06_display_settings.html
+│   │       │   │   ├── 07_notification_settings.html
+│   │       │   │   ├── 08_privacy_settings.html
+│   │       │   │   ├── 09_data_storage_settings.html
+│   │       │   │   ├── 10_help_feedback_page.html
+│   │       │   │   ├── 11_about_page.html
+│   │       │   │   ├── 12_theme_selection_dialog.html
+│   │       │   │   ├── 13_font_size_adjustment.html
+│   │       │   │   ├── 14_language_settings.html
+│   │       │   │   ├── 15_search_functionality.html
+│   │       │   │   └── 16_app_info_details.html
+│   │       │   ├── pageviewshtmlcodebuddy/
+│   │       │   │   ├── about.html
+│   │       │   │   ├── add-friend.html
+│   │       │   │   ├── chat.html
+│   │       │   │   ├── friend-info.html
+│   │       │   │   ├── friends-list.html
+│   │       │   │   ├── history-tracks.html
+│   │       │   │   ├── login.html
+│   │       │   │   ├── logo.base64.txt
+│   │       │   │   ├── map.html
+│   │       │   │   ├── mine.html
+│   │       │   │   ├── modify-info.html
+│   │       │   │   ├── network-records.html
+│   │       │   │   ├── pages_overview.md
+│   │       │   │   ├── personal-info.html
+│   │       │   │   ├── register.html
+│   │       │   │   ├── search-friend.html
+│   │       │   │   └── settings.html
+│   │       │   ├── pageviewshtmlcodex/
+│   │       │   │   ├── 01_homepage_main_view.full.html
+│   │       │   │   ├── 02_bottom_navigation.full.html
+│   │       │   │   ├── 03_menu_drawer_open.full.html
+│   │       │   │   ├── 04_settings_page.full.html
+│   │       │   │   ├── 05_account_settings.full.html
+│   │       │   │   ├── 06_display_settings.full.html
+│   │       │   │   ├── 07_notification_settings.full.html
+│   │       │   │   ├── 08_privacy_settings.full.html
+│   │       │   │   ├── 09_data_storage_settings.full.html
+│   │       │   │   ├── 10_help_feedback_page.full.html
+│   │       │   │   ├── 11_about_page.full.html
+│   │       │   │   ├── 12_theme_selection_dialog.full.html
+│   │       │   │   ├── 13_font_size_adjustment.full.html
+│   │       │   │   ├── 14_language_settings.full.html
+│   │       │   │   ├── 15_search_functionality.full.html
+│   │       │   │   ├── 16_app_info_details.full.html
+│   │       │   │   └── index.full.html
+│   │       │   ├── app_wuy_review_20251008_codex.txt
+│   │       │   ├── awuy.base64.txt
+│   │       │   ├── claude_development_analysis_report.md
+│   │       │   ├── cursor_architecture_analysis_report.md
+│   │       │   ├── cursor_development_progress.md
+│   │       │   ├── cursor_implementation_summary.md
+│   │       │   └── logo.png
 │   │       ├── features_app_wuy/
+│   │       │   ├── about/
+│   │       │   │   └── views/
+│   │       │   │       └── about_screen.dart
 │   │       │   ├── authentication/
 │   │       │   │   └── views/
-│   │       │   │       └── login_screen.dart
+│   │       │   │       ├── login_entry_screen.dart
+│   │       │   │       ├── login_register_screen.dart
+│   │       │   │       ├── login_screen.dart
+│   │       │   │       ├── phone_login_screen.dart
+│   │       │   │       └── register_screen.dart
+│   │       │   ├── chat/
+│   │       │   │   └── views/
+│   │       │   │       └── chat_screen.dart
 │   │       │   ├── dashboard/
 │   │       │   │   └── views/
 │   │       │   │       └── dashboard_screen.dart
+│   │       │   ├── friends/
+│   │       │   │   └── views/
+│   │       │   │       ├── add_friend_screen.dart
+│   │       │   │       ├── friend_info_screen.dart
+│   │       │   │       └── friends_list_screen.dart
+│   │       │   ├── history/
+│   │       │   │   └── views/
+│   │       │   │       └── history_tracking_screen.dart
 │   │       │   ├── home/
 │   │       │   │   └── views/
 │   │       │   │       └── home_screen.dart
+│   │       │   ├── map/
+│   │       │   │   └── views/
+│   │       │   │       └── map_screen.dart
+│   │       │   ├── network/
+│   │       │   │   └── views/
+│   │       │   │       └── network_records_screen.dart
 │   │       │   ├── profile/
 │   │       │   │   └── views/
+│   │       │   │       ├── personal_info_screen.dart
 │   │       │   │       └── profile_screen.dart
+│   │       │   ├── search/
+│   │       │   │   └── views/
+│   │       │   │       └── search_screen.dart
 │   │       │   ├── settings/
 │   │       │   │   └── views/
 │   │       │   │       └── settings_screen.dart
@@ -1345,12 +1453,16 @@ flutter_bloom/
 │   │       │           └── splash_screen.dart
 │   │       ├── localization_app_wuy/
 │   │       │   ├── en_app_wuy.dart
-│   │       │   ├── locales_provider_app_wuy.dart
 │   │       │   ├── localization_keys_app_wuy.dart
 │   │       │   └── zh_app_wuy.dart
 │   │       ├── models_app_wuy/
+│   │       │   ├── chat_message_model_app_wuy.dart
+│   │       │   ├── friend_model_app_wuy.dart
+│   │       │   ├── location_model_app_wuy.dart
+│   │       │   ├── search_filter_model_app_wuy.dart
 │   │       │   └── user_model_app_wuy.dart
 │   │       ├── providers_app_wuy/
+│   │       │   ├── app_prefs_app_wuy.dart
 │   │       │   └── wu_user_provider.dart
 │   │       ├── resources_app_wuy/
 │   │       │   ├── assets_icons_app_wuy.dart
@@ -1360,14 +1472,29 @@ flutter_bloom/
 │   │       │   ├── router_app_wuy.dart
 │   │       │   └── routes_provider_app_wuy.dart
 │   │       ├── services_app_wuy/
-│   │       │   └── wuy_service.dart
+│   │       │   ├── wuy_auth_state_manager.dart
+│   │       │   ├── wuy_data_manager.dart
+│   │       │   ├── wuy_fake_data_generator.dart
+│   │       │   ├── wuy_sqlite_storage_service.dart
+│   │       │   └── wuy_unified_service.dart
 │   │       ├── settings_app_wuy/
 │   │       │   └── settings_app_wuy.dart
 │   │       ├── theme_app_wuy/
 │   │       │   └── theme_config_app_wuy.dart
 │   │       ├── utils_app_wuy/
-│   │       │   └── app_info_app_wuy.dart
+│   │       │   ├── app_info_app_wuy.dart
+│   │       │   └── auth_guard.dart
+│   │       ├── widgets_app_wuy/
+│   │       │   ├── wuy_background_decoration.dart
+│   │       │   ├── wuy_bottom_navigation.dart
+│   │       │   ├── wuy_common_background.dart
+│   │       │   ├── wuy_common_logo.dart
+│   │       │   ├── wuy_gradient_button.dart
+│   │       │   └── wuy_modern_input_field.dart
+│   │       ├── Claude_development_result.md
+│   │       ├── app_wuy_tree_code_assets.txt
 │   │       ├── build_config.ini
+│   │       ├── error.txt
 │   │       └── main_app_wuy.dart
 │   ├── common/
 │   │   ├── app/
@@ -1376,14 +1503,11 @@ flutter_bloom/
 │   │   │   ├── common_assets_icons.dart
 │   │   │   ├── common_assets_images.dart
 │   │   │   └── common_assets_launch.dart
-│   │   ├── auth/
-│   │   │   └── auth_controller.dart
 │   │   ├── cache_manager/
 │   │   │   └── cache_manager.dart
 │   │   ├── constants/
 │   │   │   └── app_constants.dart
 │   │   ├── controller/
-│   │   │   ├── auth_controller.dart
 │   │   │   └── settings_controller.dart
 │   │   ├── database/
 │   │   │   ├── idb/
@@ -1422,17 +1546,27 @@ flutter_bloom/
 │   │   ├── network/
 │   │   │   ├── auth/
 │   │   │   │   └── unified_auth_manager.dart
-│   │   │   ├── client/
-│   │   │   │   ├── enhanced_http_client.dart
-│   │   │   │   └── network_client.dart
+│   │   │   ├── controller/
+│   │   │   │   └── auth_controller.dart
 │   │   │   ├── core/
+│   │   │   │   ├── endpoint_network_models.dart
 │   │   │   │   ├── network_config.dart
-│   │   │   │   ├── network_models.dart
 │   │   │   │   ├── network_queue_and_offline.dart
 │   │   │   │   ├── network_retry_manager.dart
 │   │   │   │   ├── network_service_locator.dart
 │   │   │   │   ├── network_types.dart
 │   │   │   │   └── unified_network_client.dart
+│   │   │   ├── doc/
+│   │   │   │   ├── ARCHITECTURE_ANALYSIS.md
+│   │   │   │   ├── AUTH_INTERCEPTOR_INTEGRATION.md
+│   │   │   │   ├── FINAL_STATUS_REPORT.md
+│   │   │   │   ├── INDEX.md
+│   │   │   │   ├── PHASE2_REFACTORING.md
+│   │   │   │   ├── PHASE3_AGGRESSIVE_CLEANUP.md
+│   │   │   │   ├── PHASE3_COMPLETION.md
+│   │   │   │   ├── PHASE4_AUTH_AND_FINAL_CLEANUP.md
+│   │   │   │   ├── REFACTORING_LOG.md
+│   │   │   │   └── REFACTORING_SUMMARY.md
 │   │   │   ├── endpoints/
 │   │   │   │   ├── endpoint_config.dart
 │   │   │   │   └── laravel_endpoints.dart
@@ -1443,32 +1577,31 @@ flutter_bloom/
 │   │   │   │   ├── error_interceptor.dart
 │   │   │   │   ├── logging_interceptor.dart
 │   │   │   │   └── network_interceptors.dart
-│   │   │   ├── loading/
-│   │   │   │   └── loading_manager.dart
 │   │   │   ├── models/
 │   │   │   │   ├── api_config.dart
-│   │   │   │   ├── api_response.dart
-│   │   │   │   └── enhanced_api_response.dart
+│   │   │   │   └── api_response.dart
 │   │   │   ├── parsers/
 │   │   │   │   └── adaptive_data_parser.dart
-│   │   │   ├── queue/
-│   │   │   │   └── request_queue.dart
 │   │   │   ├── security/
 │   │   │   │   └── device_security_manager.dart
 │   │   │   ├── services/
-│   │   │   │   ├── advanced_network_service.dart
-│   │   │   │   ├── base_service.dart
-│   │   │   │   └── enhanced_base_service.dart
+│   │   │   │   └── advanced_network_service.dart
 │   │   │   ├── storage/
 │   │   │   │   └── secure_storage.dart
 │   │   │   ├── ui/
 │   │   │   │   └── global_loading_system.dart
 │   │   │   ├── utils/
 │   │   │   │   └── network_utils.dart
+│   │   │   ├── websocket/
+│   │   │   │   ├── WEBSOCKET_USAGE.dart
+│   │   │   │   ├── websocket_client.dart
+│   │   │   │   ├── websocket_config.dart
+│   │   │   │   ├── websocket_interceptor.dart
+│   │   │   │   └── websocket_types.dart
 │   │   │   ├── widgets/
 │   │   │   │   └── adaptive_loading_widgets.dart
-│   │   │   ├── network_framework.dart
-│   │   │   └── network_tree.md
+│   │   │   ├── NETWORKREADME.md
+│   │   │   └── network_framework.dart
 │   │   ├── network_v2/
 │   │   │   ├── auth/
 │   │   │   │   ├── auth_coordinator.dart
@@ -1480,10 +1613,6 @@ flutter_bloom/
 │   │   │   │   ├── login_manager.dart
 │   │   │   │   ├── session_auth_strategy.dart
 │   │   │   │   └── user_provider_auth_coordinator.dart
-│   │   │   ├── cache/
-│   │   │   │   ├── cache_entry.dart
-│   │   │   │   ├── cache_store.dart
-│   │   │   │   └── memory_cache_store.dart
 │   │   │   ├── core/
 │   │   │   │   ├── http_client.dart
 │   │   │   │   └── network_manager.dart
@@ -1520,12 +1649,17 @@ flutter_bloom/
 │   │   │   ├── example_usage.dart
 │   │   │   └── network_v2.dart
 │   │   ├── provider_status/
-│   │   │   ├── bank_user_provider.dart
 │   │   │   ├── base_provider.dart
 │   │   │   ├── screen_size_provider.dart
 │   │   │   └── user_provider.dart
 │   │   ├── repo/
 │   │   │   └── splash_repo.dart
+│   │   ├── sdk/
+│   │   │   └── azure_maps/
+│   │   │       ├── azure_maps_config.dart
+│   │   │       ├── azure_maps_flutter_integration.dart
+│   │   │       ├── azure_maps_sdk.dart
+│   │   │       └── azure_maps_service.dart
 │   │   ├── settings/
 │   │   │   ├── configs/
 │   │   │   │   └── base_settings.dart
@@ -1534,20 +1668,68 @@ flutter_bloom/
 │   │   │   └── storage/
 │   │   │       └── settings_storage_manager.dart
 │   │   ├── storage/
+│   │   │   ├── adapters/
+│   │   │   │   ├── storage_adapter_factory.dart
+│   │   │   │   ├── storage_adapter_unified.dart
+│   │   │   │   └── web_storage_adapter.dart
+│   │   │   ├── cleanup/
+│   │   │   │   └── storage_cleanup_tool.dart
 │   │   │   ├── implementations/
-│   │   │   │   └── hive_storage.dart
+│   │   │   │   ├── hive_storage.dart
+│   │   │   │   └── sqlite_storage_v1.dart
 │   │   │   ├── interfaces/
 │   │   │   │   └── storage_interface.dart
+│   │   │   ├── migration/
+│   │   │   │   └── hive_to_sqlite_migration.dart
 │   │   │   ├── models/
 │   │   │   │   └── storage_models.dart
 │   │   │   ├── app_prefs_base.dart
-│   │   │   ├── app_storage.dart
-│   │   │   ├── app_storage_base.dart
 │   │   │   ├── storage_manager.dart
 │   │   │   ├── storage_migration_tool.dart
 │   │   │   ├── storage_provider.dart
-│   │   │   ├── storage_usage_examples.dart
 │   │   │   └── unified_storage.dart
+│   │   ├── storagev2/
+│   │   │   ├── application/
+│   │   │   │   └── storage_application_service.dart
+│   │   │   ├── business/
+│   │   │   │   ├── config_service.dart
+│   │   │   │   ├── security_service.dart
+│   │   │   │   ├── storage_service.dart
+│   │   │   │   ├── sync_service.dart
+│   │   │   │   └── user_service.dart
+│   │   │   ├── config/
+│   │   │   │   └── storage_config.dart
+│   │   │   ├── data_access/
+│   │   │   │   ├── cache_adapter.dart
+│   │   │   │   ├── encryption_adapter.dart
+│   │   │   │   ├── storage_adapter.dart
+│   │   │   │   └── storage_data_access.dart
+│   │   │   ├── di/
+│   │   │   │   └── storage_container.dart
+│   │   │   ├── exceptions/
+│   │   │   │   └── storage_exceptions.dart
+│   │   │   ├── infrastructure/
+│   │   │   │   ├── hive_storage.dart
+│   │   │   │   ├── memory_cache.dart
+│   │   │   │   └── sqlite_storage.dart
+│   │   │   ├── interfaces/
+│   │   │   │   ├── cache_service_interface.dart
+│   │   │   │   ├── encryption_service_interface.dart
+│   │   │   │   ├── storage_adapter_interface.dart
+│   │   │   │   └── storage_repository_interface.dart
+│   │   │   ├── migration/
+│   │   │   │   └── storage_migration.dart
+│   │   │   ├── models/
+│   │   │   │   ├── config_entity.dart
+│   │   │   │   ├── storage_entity.dart
+│   │   │   │   ├── storage_result.dart
+│   │   │   │   └── user_entity.dart
+│   │   │   ├── repository/
+│   │   │   │   └── storage_repository_impl.dart
+│   │   │   ├── utils/
+│   │   │   │   └── storage_utils.dart
+│   │   │   ├── README.md
+│   │   │   └── flutter_storage.dart
 │   │   ├── theme/
 │   │   │   ├── base/
 │   │   │   │   ├── theme_colors.dart
@@ -1595,7 +1777,8 @@ flutter_bloom/
 │   │   │   ├── text/
 │   │   │   │   └── text_utils.dart
 │   │   │   ├── validation/
-│   │   │   │   └── email_checker.dart
+│   │   │   │   ├── email_checker.dart
+│   │   │   │   └── phone_checker.dart
 │   │   │   ├── web/
 │   │   │   │   ├── web_tools.dart
 │   │   │   │   ├── web_tools_non_web.dart
@@ -1603,55 +1786,57 @@ flutter_bloom/
 │   │   │   │   └── webabs.dart
 │   │   │   ├── device_utils.dart
 │   │   │   └── utils.dart
-│   │   └── widgets/
-│   │       ├── custom_swipable_button/
-│   │       │   ├── swipeable_button_view.dart
-│   │       │   └── swipeable_widget.dart
-│   │       ├── action_bar.dart
-│   │       ├── animated_custom_dialog.dart
-│   │       ├── back_app_bar.dart
-│   │       ├── bank_bottom_navigation.dart
-│   │       ├── bank_scaffold.dart
-│   │       ├── config.dart
-│   │       ├── confirmation_dialog.dart
-│   │       ├── country_picker.dart
-│   │       ├── custom_app_bar.dart
-│   │       ├── custom_bottom_navigation.dart
-│   │       ├── custom_button.dart
-│   │       ├── custom_calender.dart
-│   │       ├── custom_card.dart
-│   │       ├── custom_date_picker.dart
-│   │       ├── custom_delegate.dart
-│   │       ├── custom_divider.dart
-│   │       ├── custom_drawer.dart
-│   │       ├── custom_drop_down_item.dart
-│   │       ├── custom_gradient_text.dart
-│   │       ├── custom_icon_label.dart
-│   │       ├── custom_icon_label_group.dart
-│   │       ├── custom_image.dart
-│   │       ├── custom_image_icon_label.dart
-│   │       ├── custom_image_icon_label_group.dart
-│   │       ├── custom_loader.dart
-│   │       ├── custom_search_input.dart
-│   │       ├── custom_slider_button.dart
-│   │       ├── custom_snackbar.dart
-│   │       ├── custom_text_field.dart
-│   │       ├── custom_title.dart
-│   │       ├── digital_payment_dialog.dart
-│   │       ├── enhanced_bottom_navigation.dart
-│   │       ├── enhanced_top_menu.dart
-│   │       ├── image_dialog.dart
-│   │       ├── navigation_widgets.dart
-│   │       ├── network_connection_dialog.dart
-│   │       ├── no_data_screen.dart
-│   │       ├── open_map.dart
-│   │       ├── outelineborder.dart
-│   │       ├── paginated_list_view.dart
-│   │       ├── payment_item_info.dart
-│   │       ├── responsive_layout.dart
-│   │       ├── segmented_button.dart
-│   │       ├── settings_page_example.dart
-│   │       └── type_button_widget.dart
+│   │   ├── widgets/
+│   │   │   ├── custom_swipable_button/
+│   │   │   │   ├── swipeable_button_view.dart
+│   │   │   │   └── swipeable_widget.dart
+│   │   │   ├── action_bar.dart
+│   │   │   ├── animated_custom_dialog.dart
+│   │   │   ├── back_app_bar.dart
+│   │   │   ├── bank_bottom_navigation.dart
+│   │   │   ├── bank_scaffold.dart
+│   │   │   ├── config.dart
+│   │   │   ├── confirmation_dialog.dart
+│   │   │   ├── country_picker.dart
+│   │   │   ├── custom_app_bar.dart
+│   │   │   ├── custom_bottom_navigation.dart
+│   │   │   ├── custom_button.dart
+│   │   │   ├── custom_calender.dart
+│   │   │   ├── custom_card.dart
+│   │   │   ├── custom_date_picker.dart
+│   │   │   ├── custom_delegate.dart
+│   │   │   ├── custom_divider.dart
+│   │   │   ├── custom_drawer.dart
+│   │   │   ├── custom_drop_down_item.dart
+│   │   │   ├── custom_gradient_text.dart
+│   │   │   ├── custom_icon_label.dart
+│   │   │   ├── custom_icon_label_group.dart
+│   │   │   ├── custom_image.dart
+│   │   │   ├── custom_image_icon_label.dart
+│   │   │   ├── custom_image_icon_label_group.dart
+│   │   │   ├── custom_loader.dart
+│   │   │   ├── custom_search_input.dart
+│   │   │   ├── custom_slider_button.dart
+│   │   │   ├── custom_snackbar.dart
+│   │   │   ├── custom_text_field.dart
+│   │   │   ├── custom_title.dart
+│   │   │   ├── digital_payment_dialog.dart
+│   │   │   ├── enhanced_bottom_navigation.dart
+│   │   │   ├── enhanced_top_menu.dart
+│   │   │   ├── floating_avatar_header.dart
+│   │   │   ├── image_dialog.dart
+│   │   │   ├── info_row_widget.dart
+│   │   │   ├── navigation_widgets.dart
+│   │   │   ├── no_data_screen.dart
+│   │   │   ├── open_map.dart
+│   │   │   ├── outelineborder.dart
+│   │   │   ├── paginated_list_view.dart
+│   │   │   ├── payment_item_info.dart
+│   │   │   ├── responsive_layout.dart
+│   │   │   ├── segmented_button.dart
+│   │   │   ├── settings_page_example.dart
+│   │   │   └── type_button_widget.dart
+│   │   └── common_tree.md
 │   ├── lib_tree.md
 │   └── main.dart
 ├── linux/
@@ -1765,67 +1950,6 @@ flutter_bloom/
 │   ├── original-f376e8b87fa11a3afb5657bcbeda9bca.webp
 │   └── settings.png
 ├── scripts/
-│   ├── build_debug_scripts/
-│   │   ├── controllers/
-│   │   │   ├── step1_project_copy_controller.py
-│   │   │   ├── step2_asset_controller.py
-│   │   │   ├── step3_platform_controller.py
-│   │   │   └── step4_image_replacement_controller.py
-│   │   ├── core/
-│   │   │   ├── constants/
-│   │   │   │   ├── __init__.py
-│   │   │   │   └── build_constants.py
-│   │   │   ├── debugging/
-│   │   │   │   └── debug_provider.py
-│   │   │   ├── gvar/
-│   │   │   │   └── __init__.py
-│   │   │   ├── __init__.py
-│   │   │   ├── build_system.py
-│   │   │   └── temp_build_dir.txt
-│   │   ├── shared/
-│   │   │   ├── data_exchange/
-│   │   │   │   └── unified_variable_system.py
-│   │   │   ├── __init__.py
-│   │   │   ├── image_patterns.py
-│   │   │   └── standard_image_data.py
-│   │   ├── utils/
-│   │   │   ├── platform_specs/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── android_specs.py
-│   │   │   │   ├── ios_specs.py
-│   │   │   │   ├── macos_specs.py
-│   │   │   │   ├── platform_specs_manager.py
-│   │   │   │   ├── web_specs.py
-│   │   │   │   └── windows_specs.py
-│   │   │   ├── __init__.py
-│   │   │   ├── asset_scanner.py
-│   │   │   ├── commander.py
-│   │   │   ├── enhanced_viewer.js
-│   │   │   ├── factory_analyzer.py
-│   │   │   ├── file_operations.py
-│   │   │   ├── image_classifier.py
-│   │   │   ├── image_processor.py
-│   │   │   ├── menu_helper.py
-│   │   │   ├── platform_image_scanner.py
-│   │   │   ├── platform_specs_map.py
-│   │   │   ├── print_helper.py
-│   │   │   ├── smart_image_resizer.py
-│   │   │   ├── smart_image_selector.py
-│   │   │   ├── source_scanner.py
-│   │   │   └── source_viewer_server.py
-│   │   ├── web_static/
-│   │   │   └── build_monitor.js
-│   │   ├── web_templates/
-│   │   │   └── build_monitor.html
-│   │   ├── TREE.md
-│   │   ├── build_app.ps1
-│   │   ├── build_coordinator.py
-│   │   ├── build_main.ps1
-│   │   ├── main.py
-│   │   ├── pre_compilation_assets.py
-│   │   ├── prebuild_app.ps1
-│   │   ├── print.py
-│   │   └── source_viewer.py
 │   ├── build_scripts/
 │   │   ├── controllers/
 │   │   │   ├── step19_view_effects_controller.py
@@ -1841,13 +1965,8 @@ flutter_bloom/
 │   │   │   ├── constants/
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── build_constants.py
-│   │   │   ├── debug/
-│   │   │   │   ├── __init__.py
-│   │   │   │   └── debug_system.py
 │   │   │   ├── debugging/
 │   │   │   │   └── debug_provider.py
-│   │   │   ├── gvar/
-│   │   │   │   └── __init__.py
 │   │   │   ├── __init__.py
 │   │   │   ├── app_scanner.py
 │   │   │   ├── app_selector.py
@@ -1868,9 +1987,12 @@ flutter_bloom/
 │   │   ├── shared/
 │   │   │   ├── data_exchange/
 │   │   │   │   └── unified_variable_system.py
+│   │   │   ├── splash_template/
+│   │   │   │   └── flutter_native_splash_template.yaml
 │   │   │   ├── __init__.py
 │   │   │   ├── directory_manager.py
 │   │   │   ├── image_patterns.py
+│   │   │   ├── project_constants.py
 │   │   │   ├── resource_directory_collector.py
 │   │   │   └── standard_image_data.py
 │   │   ├── utils/
@@ -1899,7 +2021,8 @@ flutter_bloom/
 │   │   │   ├── smart_image_selector.py
 │   │   │   ├── source_scanner.py
 │   │   │   ├── source_viewer.py
-│   │   │   └── source_viewer_server.py
+│   │   │   ├── source_viewer_server.py
+│   │   │   └── splash_manager.py
 │   │   ├── web_static/
 │   │   │   └── build_monitor.js
 │   │   ├── web_templates/
@@ -1949,20 +2072,9 @@ flutter_bloom/
 │   │   ├── check_dependencies.bat
 │   │   ├── image_analyzer.py
 │   │   ├── main.py
-│   │   ├── quick_test.py
 │   │   ├── run_icons_viewer.bat
 │   │   ├── run_web_viewer.bat
-│   │   ├── test_compress_fix.html
-│   │   ├── test_final_fixes.py
-│   │   ├── test_integration.py
 │   │   └── web_main.py
-│   ├── flutter_icons_view_ui/
-│   │   ├── README.md
-│   │   ├── check_dependencies.bat
-│   │   ├── image_analyzer.py
-│   │   ├── main.py
-│   │   ├── run_icons_viewer.bat
-│   │   └── test_integration.py
 │   ├── utils/
 │   │   └── platform_specs_map.py
 │   ├── win_common/
@@ -1975,138 +2087,12 @@ flutter_bloom/
 │   │   ├── FlutterBuildExecutor.ps1
 │   │   ├── FlutterGlobalVar.ps1
 │   │   ├── FlutterLogManager.ps1
-│   │   └── FlutterMenuSystem.ps1
+│   │   ├── FlutterMenuSystem.ps1
+│   │   └── SplashManager.ps1
+│   ├── scripts_tree.md
 │   ├── start.bat
 │   ├── start.ps1
-│   ├── start.sh
-│   └── test_logging.ps1
-├── scripts.bak/
-│   ├── build_scripts/
-│   │   ├── compilation_helpers/
-│   │   │   ├── app_display_name_manager.py
-│   │   │   ├── apply_config.py
-│   │   │   ├── copy_android_icons.py
-│   │   │   ├── copy_assets.py
-│   │   │   ├── copy_build_files.py
-│   │   │   ├── copy_platform_resources.py
-│   │   │   ├── copy_splash.py
-│   │   │   ├── id_manager.py
-│   │   │   ├── image_compressor.py
-│   │   │   └── run_all_helpers.py
-│   │   ├── pybuildscripts/
-│   │   │   ├── gvar/
-│   │   │   │   └── gvar.py
-│   │   │   ├── installer_py_package/
-│   │   │   │   ├── install_pypackages.ps1
-│   │   │   │   └── python_packages.json
-│   │   │   ├── provider/
-│   │   │   │   └── build_provider.py
-│   │   │   ├── pybppkg/
-│   │   │   │   ├── backup_icon_android.py
-│   │   │   │   ├── bp_fileops.py
-│   │   │   │   ├── check_android_dir.py
-│   │   │   │   ├── pubspec_replace.py
-│   │   │   │   ├── replace_android_id.py
-│   │   │   │   ├── replace_macos_xcschemes.py
-│   │   │   │   ├── replace_res_android.py
-│   │   │   │   └── replace_up_android.py
-│   │   │   ├── tools/
-│   │   │   │   ├── bp_icons.py
-│   │   │   │   ├── create_app_name.py
-│   │   │   │   ├── file_tool.py
-│   │   │   │   ├── find_app_name.py
-│   │   │   │   ├── find_gradle_file_id.py
-│   │   │   │   ├── find_macos_xcschemes.py
-│   │   │   │   ├── find_res_by_build_dir.py
-│   │   │   │   ├── ignore_res_image.py
-│   │   │   │   ├── images_tool.py
-│   │   │   │   ├── parse_pubspec.py
-│   │   │   │   ├── ppath_tool.py
-│   │   │   │   ├── pyprint.py
-│   │   │   │   └── str_tool.py
-│   │   │   └── main.py
-│   │   ├── BCommon.ps1
-│   │   ├── BGVar.ps1
-│   │   ├── README.md
-│   │   ├── build_app.ps1
-│   │   ├── build_release.ps1
-│   │   ├── example_config.json
-│   │   ├── pre_compilation_assets.py
-│   │   └── prebuild_app.ps1
-│   ├── dev/
-│   │   ├── powershell_helper/
-│   │   │   ├── backup_manager.ps1
-│   │   │   ├── build_executor.ps1
-│   │   │   └── menu_system.ps1
-│   │   ├── py_helper/
-│   │   │   ├── cleanup_restore.py
-│   │   │   ├── collect_package_ids.py
-│   │   │   ├── external_safe_build.py
-│   │   │   ├── gvar_common.py
-│   │   │   ├── manage_pubspec.py
-│   │   │   ├── process_images.py
-│   │   │   ├── replace_app_names.py
-│   │   │   ├── replace_package_ids.py
-│   │   │   └── yaml_operations.py
-│   │   ├── win_common/
-│   │   │   ├── BCommon.ps1
-│   │   │   ├── CommonUtilities.ps1
-│   │   │   └── FlutterGlobalVar.ps1
-│   │   ├── build_option.ini
-│   │   ├── original_config.ini
-│   │   ├── startDebugByIOS.ps1
-│   │   ├── startDebugByPhone.ps1
-│   │   ├── startDebugByWeb.ps1
-│   │   ├── startDebugByWindows.ps1
-│   │   └── testAppScanner.ps1
-│   ├── flutter_icon_reduction/
-│   │   ├── README.md
-│   │   ├── android_asset_generator.py
-│   │   ├── asset_generator.py
-│   │   ├── base_asset_generator.py
-│   │   └── ios_asset_generator.py
-│   ├── flutter_icons_view/
-│   │   ├── web_static/
-│   │   │   └── app.js
-│   │   ├── web_templates/
-│   │   │   └── index.html
-│   │   ├── FINAL_IMPLEMENTATION.md
-│   │   ├── README.md
-│   │   ├── UPDATES.md
-│   │   ├── check_dependencies.bat
-│   │   ├── image_analyzer.py
-│   │   ├── main.py
-│   │   ├── quick_test.py
-│   │   ├── run_icons_viewer.bat
-│   │   ├── run_web_viewer.bat
-│   │   ├── test_compress_fix.html
-│   │   ├── test_final_fixes.py
-│   │   ├── test_integration.py
-│   │   └── web_main.py
-│   ├── flutter_icons_view_ui/
-│   │   ├── README.md
-│   │   ├── check_dependencies.bat
-│   │   ├── image_analyzer.py
-│   │   ├── main.py
-│   │   ├── run_icons_viewer.bat
-│   │   └── test_integration.py
-│   ├── README_asset_generator.md
-│   ├── asset_mapping.json
-│   ├── build_result.md
-│   ├── clean_updated_comments.py
-│   ├── compress_images.py
-│   ├── deploy.sh
-│   ├── flutter_image_batch_replacer.py
-│   ├── flutter_image_transparentizer.py
-│   ├── generate_assets.bat
-│   ├── install.bat
-│   ├── install.ps1
-│   ├── install.sh
-│   ├── start.bat
-│   ├── start.ps1
-│   ├── start.sh
-│   ├── stop.bat
-│   └── stop.ps1
+│   └── start.sh
 ├── web/
 │   ├── icons/
 │   │   ├── Icon-192.png
@@ -2139,20 +2125,14 @@ flutter_bloom/
 │   └── CMakeLists.txt
 ├── .gitignore
 ├── README.md
-├── README_权限配置分析.md
 ├── analysis_options.yaml
 ├── auth_manifest_list.txt
 ├── dartdoc_options.yaml
 ├── debug.txt
 ├── devtools_options.yaml
-├── flutter_native_splash.bak.yaml
 ├── flutter_native_splash.yaml
-├── flutter_native_splash.yaml.disabled
-├── pubspec.yaml
-├── search_auth_files.py
-├── update-aichat.zip
-├── update-y.zip
-└── update1-top.zip
+├── flutter_native_splash.yaml.backup
+└── pubspec.yaml
 ```
 
 ---

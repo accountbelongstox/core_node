@@ -1,7 +1,10 @@
 {
   "description": "Internationalization configuration for D3-Check application",
   "default_language": "zh",
-  "supported_languages": ["zh", "en"],
+  "supported_languages": [
+    "zh",
+    "en"
+  ],
   "translations": {
     "zh": {
       "ui": {
@@ -20,7 +23,9 @@
           "main_functions": "主要功能",
           "auxiliary_functions": "辅助功能",
           "log": "日志",
-          "rosbot_extension": "Rosbot扩展"
+          "rosbot_extension": "Rosbot扩展",
+          "d4_functions": "D4功能",
+          "coordinate_calibration": "坐标效准"
         },
         "skill_config": {
           "title": "技能配置",
@@ -69,6 +74,11 @@
           "config2": "配置2",
           "config3": "配置3",
           "config4": "配置4"
+        },
+        "main_functions_sub_tabs": {
+          "function_1": "功能一",
+          "function_2": "待扩展",
+          "function_3": "待扩展"
         },
         "basic_info": {
           "title": "基本信息",
@@ -213,7 +223,7 @@
         "auxiliary_panel": {
           "bag_correction": "背包校正与图像显示",
           "image_display_area": "图像显示区域",
-          "bag_correction_image": "背包位置校正图",
+          "bag_correction_image": "背包校正图",
           "image_area": "图像区域",
           "bag_correction_label": "背包校正图",
           "image_label": "图像",
@@ -224,7 +234,6 @@
           "error": "错误",
           "image_file_not_exist": "图像文件不存在",
           "load_image_failed": "加载图像失败",
-          "bag_correction_image": "背包校正图",
           "image_info": "图像信息",
           "no_image_loaded": "没有加载图像",
           "image_info_title": "图像信息 - 区域",
@@ -365,6 +374,58 @@
           "error_occurred": "发生错误",
           "success": "成功",
           "failed": "失败"
+        },
+        "coord_calibration": {
+          "control_title": "效准控制",
+          "game_mode": "游戏模式:",
+          "client_mode": "客户端类型:",
+          "save_screenshot": "保存截图",
+          "compress_screenshot": "压缩截图",
+          "capture_button": "拾取坐标",
+          "clear_button": "清除历史",
+          "export_button": "导出JSON",
+          "history_title": "坐标历史记录",
+          "history_type": "类型",
+          "history_coords": "坐标",
+          "history_mode": "模式",
+          "history_time": "时间",
+          "rename_item": "重命名",
+          "delete_item": "删除",
+          "error_title": "错误",
+          "no_game_window": "未找到游戏窗口，请先打开游戏。",
+          "capture_failed": "截图失败。",
+          "error_prefix": "错误",
+          "warning_title": "警告",
+          "select_item_first": "请先选择一项。",
+          "invalid_selection": "选择无效。",
+          "confirm_title": "确认",
+          "confirm_clear": "确定要清除所有历史记录吗?",
+          "history_empty": "历史记录为空，没有内容可导出。",
+          "success_title": "成功",
+          "export_success": "导出成功!",
+          "export_failed": "导出失败",
+          "rename_title": "重命名项目",
+          "new_name": "新名称:",
+          "client_battlenet": "战网",
+          "client_d3": "D3游戏",
+          "client_d4": "D4游戏"
+        },
+        "coord_picker": {
+          "window_title": "坐标效准工具",
+          "menu_title": "拾取工具",
+          "pick_mode_title": "拾取类型",
+          "pick_type_point": "点",
+          "pick_type_rect": "矩形范围",
+          "pick_type_circle": "圆形",
+          "values_title": "参数设置",
+          "width": "宽度:",
+          "height": "高度:",
+          "radius": "半径:",
+          "start_picking": "开始拾取",
+          "stop_picking": "停止拾取",
+          "undo": "撤销",
+          "picks_count": "拾取总数:",
+          "close": "关闭"
         }
       },
       "skills": {
@@ -393,7 +454,9 @@
           "main_functions": "Main Functions",
           "auxiliary_functions": "Auxiliary Functions",
           "log": "Log",
-          "rosbot_extension": "Rosbot Extension"
+          "rosbot_extension": "Rosbot Extension",
+          "d4_functions": "D4 Functions",
+          "coordinate_calibration": "Coordinate Calibration"
         },
         "skill_config": {
           "title": "Skill Configuration",
@@ -442,6 +505,11 @@
           "config2": "Config 2",
           "config3": "Config 3",
           "config4": "Config 4"
+        },
+        "main_functions_sub_tabs": {
+          "function_1": "Function 1",
+          "function_2": "To be Extended",
+          "function_3": "To be Extended"
         },
         "basic_info": {
           "title": "Basic Info",
@@ -586,7 +654,7 @@
         "auxiliary_panel": {
           "bag_correction": "Bag Correction & Image Display",
           "image_display_area": "Image Display Area",
-          "bag_correction_image": "Bag Position Correction Image",
+          "bag_correction_image": "Bag Correction Image",
           "image_area": "Image Area",
           "bag_correction_label": "Bag Correction Image",
           "image_label": "Image",
@@ -597,7 +665,6 @@
           "error": "Error",
           "image_file_not_exist": "Image file does not exist",
           "load_image_failed": "Load image failed",
-          "bag_correction_image": "Bag Correction Image",
           "image_info": "Image Info",
           "no_image_loaded": "No image loaded",
           "image_info_title": "Image Info - Area",
@@ -738,6 +805,58 @@
           "error_occurred": "An error occurred",
           "success": "Success",
           "failed": "Failed"
+        },
+        "coord_calibration": {
+          "control_title": "Calibration Controls",
+          "game_mode": "Game Mode:",
+          "client_mode": "Client Type:",
+          "save_screenshot": "Save Screenshot",
+          "compress_screenshot": "Compress Screenshot",
+          "capture_button": "Capture Screenshot",
+          "clear_button": "Clear History",
+          "export_button": "Export to JSON",
+          "history_title": "Coordinate History",
+          "history_type": "Type",
+          "history_coords": "Coordinates",
+          "history_mode": "Mode",
+          "history_time": "Timestamp",
+          "rename_item": "Rename",
+          "delete_item": "Delete",
+          "error_title": "Error",
+          "no_game_window": "Game window not found. Please open the game first.",
+          "capture_failed": "Failed to capture screenshot.",
+          "error_prefix": "Error",
+          "warning_title": "Warning",
+          "select_item_first": "Please select an item first.",
+          "invalid_selection": "Invalid selection.",
+          "confirm_title": "Confirm",
+          "confirm_clear": "Are you sure you want to clear all history?",
+          "history_empty": "History is empty. Nothing to export.",
+          "success_title": "Success",
+          "export_success": "Export completed successfully!",
+          "export_failed": "Export failed",
+          "rename_title": "Rename Item",
+          "new_name": "New name:",
+          "client_battlenet": "Battle.net",
+          "client_d3": "D3 Game",
+          "client_d4": "D4 Game"
+        },
+        "coord_picker": {
+          "window_title": "Coordinate Calibration Tool",
+          "menu_title": "Picking Tools",
+          "pick_mode_title": "Pick Type",
+          "pick_type_point": "Point",
+          "pick_type_rect": "Rectangle",
+          "pick_type_circle": "Circle",
+          "values_title": "Parameters",
+          "width": "Width:",
+          "height": "Height:",
+          "radius": "Radius:",
+          "start_picking": "Start Picking",
+          "stop_picking": "Stop Picking",
+          "undo": "Undo",
+          "picks_count": "Total Picks:",
+          "close": "Close"
         }
       },
       "skills": {

@@ -21,7 +21,7 @@ from d3utils.d3u_common.image_annotator_helper import (
     draw_grid_overlay,
     get_annotation_color
 )
-from d3utils.share.game_interface_data import (
+from share.game_interface_data import (
     get_interference_colors,
     get_color_references,
     SEPARATOR_COLOR_TOLERANCE,
@@ -29,7 +29,7 @@ from d3utils.share.game_interface_data import (
     SEPARATOR_SCAN_WIDTH_PERCENT
 )
 from providor.providor_index import CONFIG
-from d3utils.share import get_global_scale
+from share import get_global_scale
 
 class BagLayoutDetector:
     """

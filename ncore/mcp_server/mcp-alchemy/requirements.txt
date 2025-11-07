@@ -19,8 +19,8 @@ pymssql>=2.2.0
 oracledb>=1.0.0
 
 # Additional database support
-# CrateDB
-sqlalchemy-cratedb>=0.42.0
+# CrateDB - using compatible version
+sqlalchemy-cratedb>=0.41.0
 
 # Vertica
 vertica-python>=1.0.0

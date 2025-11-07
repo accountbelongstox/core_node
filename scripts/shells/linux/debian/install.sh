@@ -15,16 +15,8 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
 SHELLS_DIR="$PARENT_DIR"
 
-# Source LGar.sh from parent directory
-if [ -f "${PARENT_DIR}/LGar.sh" ]; then
-    source "${PARENT_DIR}/LGar.sh"
-else
-    echo "Error: LGar.sh not found in ${PARENT_DIR}"
-    exit 1
-fi
-
-# Source common variables
-source "${SHELLS_DIR}/common/gvar_common.sh"
+# Source gvar_common.sh from parent directory - use relative path
+source "${PARENT_DIR}/common/gvar_common.sh"
 
 selector_common_file="${SHELLS_DIR}/common/selector_common.sh"
 INSTALL_SHELLS_DIR="${SCRIPT_CURRENT_DIR}/install_shells"
@@ -120,7 +112,15 @@ echo
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 echo "Selected options:"
 echo "  Installation mode: $INSTALL_MODE"
-echo 
+echo
+
+# Set installation variables for services (always install, START_* controls whether to start)
+echo "Setting up installation variables for services..."
+set_var "INSTALL_MYSQL" "true"
+set_var "INSTALL_REDIS" "true"
+set_var "INSTALL_POSTGRESQL" "true"
+set_var "INSTALL_DOCKER" "true"
+set_var "INSTALL_NGINX" "true"
 
 execute_installation_scripts
 

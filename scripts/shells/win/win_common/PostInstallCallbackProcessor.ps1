@@ -38,11 +38,12 @@
 
 # Import global variables and common functions
 . "$PSScriptRoot\GlobalVars.ps1"
-. "$PSScriptRoot\CommanFunc.ps1"
+. "$PSScriptRoot\CommonFunc.ps1"
+. "$PSScriptRoot\StringEscapeUtils.ps1"
 
 # MCP path constants - Fixed paths for consistent MCP configuration handling
-$Global:MCP_CONFIG_PATH = Join-Path $Global:PROJECT_DIR ".prompt\mcp.json"
-$Global:MCP_TEMPLATE_PATH = Join-Path $Global:PROJECT_DIR ".prompt\mcpWindowsTemplate.json"
+$Global:MCP_CONFIG_PATH = Join-Path $Global:PROJECT_DIR "_prompt\mcp.json"
+$Global:MCP_TEMPLATE_PATH = Join-Path $Global:PROJECT_DIR "_prompt\mcpWindowsTemplate.json"
 $Global:MCP_DEFAULT_SEARCH_VALUE = "cunzhi-placeholder-path"
 
 <#
@@ -81,6 +82,296 @@ $Global:MCP_DEFAULT_SEARCH_VALUE = "cunzhi-placeholder-path"
 
 # ===== REGISTRY TEMPLATE FUNCTIONS =====
 
+# Generic function to process registry templates
+function Invoke-RegistryTemplateApplier {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemplateName,
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Replacements,
+        [Parameter(Mandatory = $true)]
+        [string]$LogPrefix,
+        [Parameter(Mandatory = $false)]
+        [string]$RegFileName = ""
+    )
+    
+    # Load template
+    $templatePath = Join-Path $PSScriptRoot "registry_templates\$TemplateName"
+    if (-not (Test-Path $templatePath)) {
+        Write-Warning "$LogPrefix Template file not found: $templatePath"
+        return $false
+    }
+
+    $templateContent = Get-Content -Path $templatePath -Raw
+
+    # Apply all replacements
+    $regContent = $templateContent
+    foreach ($key in $Replacements.Keys) {
+        $value = $Replacements[$key]
+        # Escape backslashes for registry paths
+        # OPERATION should already be properly escaped by caller using Escape-ForRegistryValue
+        # Only escape EXECUTABLE_PATH and ICON_PATH (pure paths without quotes)
+        if ($key -match "EXECUTABLE_PATH|ICON_PATH") {
+            $value = $value -replace "\\", "\\"
+        }
+        # OPERATION and other complex command strings should be pre-escaped
+        $regContent = $regContent -replace [regex]::Escape($key), $value
+    }
+
+    # Generate temporary reg file
+    if ([string]::IsNullOrEmpty($RegFileName)) {
+        $RegFileName = "$($TemplateName -replace '\.reg$', '')_$(Get-Date -Format 'yyyyMMdd_HHmmss').reg"
+    }
+    $regFilePath = Join-Path $Global:TEMP_DIR $RegFileName
+    
+    # Write reg file
+    $regContent | Out-File -FilePath $regFilePath -Encoding ASCII
+    Write-Host "$LogPrefix Generated reg file: $regFilePath" -ForegroundColor Cyan
+    Write-Host "$LogPrefix Registry content:" -ForegroundColor Magenta
+    Write-Host "$regContent" -ForegroundColor Gray
+    
+    # Import reg file
+    try {
+        $importResult = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$regFilePath`"" -Wait -PassThru -NoNewWindow
+        if ($importResult.ExitCode -eq 0) {
+            Write-Host "$LogPrefix Successfully imported reg file" -ForegroundColor Green
+            
+            # Clean up temporary reg file
+            Remove-Item -Path $regFilePath -Force -ErrorAction SilentlyContinue
+            Write-Host "$LogPrefix Cleaned up temporary reg file" -ForegroundColor Cyan
+            
+            # Force Windows to refresh context menu cache
+            Write-Host "$LogPrefix Refreshing Windows context menu cache..." -ForegroundColor Cyan
+            try {
+                # Send WM_SETTINGCHANGE message to refresh shell
+                Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32 {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+}
+"@
+                $HWND_BROADCAST = [IntPtr]0xffff
+                $WM_SETTINGCHANGE = 0x001A
+                $SMTO_ABORTIFHUNG = 0x0002
+                $result = [IntPtr]::Zero
+                [Win32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [IntPtr]::Zero, "Environment", $SMTO_ABORTIFHUNG, 5000, [ref]$result)
+                Write-Host "$LogPrefix Context menu cache refreshed successfully" -ForegroundColor Green
+            } catch {
+                Write-Host "$LogPrefix Warning: Could not refresh context menu cache: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+            
+            return $true
+        } else {
+            Write-Warning "$LogPrefix Failed to import reg file. Exit code: $($importResult.ExitCode)"
+            return $false
+        }
+    } catch {
+        Write-Warning "$LogPrefix Error importing reg file: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to process context menu callbacks
+function Invoke-ContextMenuProcessor {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$ContextMenuCallback,
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallDir,
+        [Parameter(Mandatory = $false)]
+        [string]$LogPrefix = "[CONTEXT_MENU]"
+    )
+
+    # Validate required parameters
+    if (-not $ContextMenuCallback.ContainsKey("Operation")) {
+        Write-Warning "$LogPrefix Context menu callback missing 'Operation' parameter for $PackageName"
+        return $false
+    }
+
+    # Debug: Check ExecutablePath
+    Write-Host "$LogPrefix DEBUG: ExecutablePath = '$ExecutablePath'" -ForegroundColor Magenta
+    Write-Host "$LogPrefix DEBUG: InstallDir = '$InstallDir'" -ForegroundColor Magenta
+    
+    if (-not $ExecutablePath -or -not (Test-Path $ExecutablePath)) {
+        Write-Warning "$LogPrefix ERROR: ExecutablePath is invalid or file not found: '$ExecutablePath'"
+        return $false
+    }
+
+    $operation = $ContextMenuCallback["Operation"]
+    Write-Host "$LogPrefix Processing context menu operation: $operation for $PackageName" -ForegroundColor Cyan
+
+    switch ($operation.ToLower()) {
+            "add_file_context" {
+                $fileExtensions = $ContextMenuCallback["FileExtensions"]
+                $menuText = $ContextMenuCallback["MenuText"]
+                $iconPath = $ContextMenuCallback["IconPath"]
+
+                if (-not $fileExtensions -or -not $menuText) {
+                    Write-Warning "$LogPrefix Missing required parameters for add_file_context operation"
+                    return $false
+                }
+
+                # Check if wildcard pattern is used
+                if ($fileExtensions -contains "*") {
+                    Write-Host "$LogPrefix Detected wildcard pattern, using all_files_context template" -ForegroundColor Cyan
+                    $actualIconPath = if ($iconPath) { $iconPath -replace "{{EXECUTABLE_PATH}}", $ExecutablePath } else { $ExecutablePath }
+
+                    $replacements = @{
+                        "{{MENU_TEXT}}" = $menuText
+                        "{{ICON_PATH}}" = $actualIconPath
+                        "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                    }
+
+                    $result = Invoke-RegistryTemplateApplier -TemplateName "all_files_context.reg" -Replacements $replacements -LogPrefix "$LogPrefix [WILDCARD]"
+                    if (-not $result) { return $false }
+
+                    Write-Host "$LogPrefix Successfully processed wildcard file context" -ForegroundColor Green
+                    return $true
+                }
+
+                # Process each file extension
+                foreach ($extension in $fileExtensions) {
+                    $extension = $extension.TrimStart('.')
+                    $actualIconPath = if ($iconPath) { $iconPath -replace "{{EXECUTABLE_PATH}}", $ExecutablePath } else { $ExecutablePath }
+
+                    $replacements = @{
+                        "{{EXTENSION}}" = $extension
+                        "{{MENU_TEXT}}" = $menuText
+                        "{{ICON_PATH}}" = $actualIconPath
+                        "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                    }
+
+                    $result = Invoke-RegistryTemplateApplier -TemplateName "file_context.reg" -Replacements $replacements -LogPrefix "$LogPrefix [EXT:$extension]"
+                    if (-not $result) { return $false }
+                }
+
+                Write-Host "$LogPrefix Successfully processed all file extensions: $($fileExtensions -join ', ')" -ForegroundColor Green
+            }
+            
+            "add_all_files_context" {
+                $menuText = $ContextMenuCallback["MenuText"]
+                $iconPath = if ($ContextMenuCallback.ContainsKey("IconPath")) { $ContextMenuCallback["IconPath"] } else { $ExecutablePath }
+                
+                if (-not $menuText) {
+                    Write-Warning "$LogPrefix Missing required parameters for add_all_files_context operation"
+                    return $false
+                }
+
+                $replacements = @{
+                    "{{MENU_TEXT}}" = $menuText
+                    "{{ICON_PATH}}" = $iconPath
+                    "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                }
+                
+                return Invoke-RegistryTemplateApplier -TemplateName "all_files_context.reg" -Replacements $replacements -LogPrefix $LogPrefix
+            }
+            
+            "add_folder_context" {
+                $menuText = $ContextMenuCallback["MenuText"]
+                $iconPath = if ($ContextMenuCallback.ContainsKey("IconPath")) { $ContextMenuCallback["IconPath"] } else { $ExecutablePath }
+                $command = if ($ContextMenuCallback.ContainsKey("Command")) { $ContextMenuCallback["Command"] } else { "" }
+
+                if (-not $menuText) {
+                    Write-Warning "$LogPrefix Missing required parameters for add_folder_context operation"
+                    return $false
+                }
+
+                # If Command contains template placeholders, replace them and then escape for registry
+                if ($command -and $command -match "{{.*}}") {
+                    $command = $command -replace "{{EXECUTABLE_PATH}}", $ExecutablePath
+                    # After template replacement, escape for registry format
+                    $command = Escape-ForRegistryValue -InputString $command
+                }
+
+                $replacements = @{
+                    "{{MENU_TEXT}}" = $menuText
+                    "{{ICON_PATH}}" = $iconPath
+                    "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                }
+
+                # Add COMMAND to replacements if provided
+                if ($command) {
+                    $replacements["{{COMMAND}}"] = $command
+                }
+
+                return Invoke-RegistryTemplateApplier -TemplateName "folder_context.reg" -Replacements $replacements -LogPrefix $LogPrefix
+            }
+            
+            "add_new_document" {
+                $fileExtension = $ContextMenuCallback["FileExtension"]
+                $menuText = $ContextMenuCallback["MenuText"]
+                $iconPath = $ContextMenuCallback["IconPath"]
+                
+                if (-not $fileExtension -or -not $menuText) {
+                    Write-Warning "$LogPrefix Missing required parameters for add_new_document operation"
+                    return $false
+                }
+
+                $fileExtension = $fileExtension.TrimStart('.')
+
+                $replacements = @{
+                    "{{EXTENSION}}" = $fileExtension
+                    "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                }
+                
+                return Invoke-RegistryTemplateApplier -TemplateName "new_document.reg" -Replacements $replacements -LogPrefix $LogPrefix
+            }
+            
+            "add_7zip_context" {
+                $menuText = $ContextMenuCallback["MenuText"]
+                $iconPath = if ($ContextMenuCallback.ContainsKey("IconPath")) { $ContextMenuCallback["IconPath"] } else { $ExecutablePath }
+                $command = $ContextMenuCallback["Command"]
+                
+                if (-not $menuText -or -not $command) {
+                    Write-Warning "$LogPrefix Missing required parameters for add_7zip_context operation"
+                    return $false
+                }
+
+                $replacements = @{
+                    "{{MENU_TEXT}}" = $menuText
+                    "{{ICON_PATH}}" = $iconPath
+                    "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                    "{{OPERATION}}" = $command
+                }
+                
+                return Invoke-RegistryTemplateApplier -TemplateName "7zip_context.reg" -Replacements $replacements -LogPrefix $LogPrefix
+            }
+            
+            "add_7zip_folder_context" {
+                $menuText = $ContextMenuCallback["MenuText"]
+                $iconPath = if ($ContextMenuCallback.ContainsKey("IconPath")) { $ContextMenuCallback["IconPath"] } else { $ExecutablePath }
+                $command = $ContextMenuCallback["Command"]
+                
+                if (-not $menuText -or -not $command) {
+                    Write-Warning "$LogPrefix Missing required parameters for add_7zip_folder_context operation"
+                    return $false
+                }
+
+                $replacements = @{
+                    "{{MENU_TEXT}}" = $menuText
+                    "{{ICON_PATH}}" = $iconPath
+                    "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                    "{{OPERATION}}" = $command
+                }
+                
+                return Invoke-RegistryTemplateApplier -TemplateName "7zip_folder_context.reg" -Replacements $replacements -LogPrefix $LogPrefix
+            }
+            
+            default {
+                Write-Warning "$LogPrefix Unknown context menu operation: $operation"
+                return $false
+            }
+        }
+        
+        Write-Host "$LogPrefix Context menu operation completed successfully for $PackageName" -ForegroundColor Green
+        return $true
+}
 # Function to process registry template callbacks
 function Invoke-RegistryTemplateProcessor {
     param(
@@ -795,7 +1086,7 @@ function Invoke-McpProcessor {
             return Merge-McpServerConfiguration -SourceMcpPath $sourceMcpPath -TargetJsonPath $targetJsonPath -LogPrefix $LogPrefix
         }
         "gemini_integration" {
-            # Gemini MCP integration - convert .prompt\mcp.json to Gemini settings.json format
+            # Gemini MCP integration - convert _prompt\mcp.json to Gemini settings.json format
             $mcpConfigPath = $Global:MCP_CONFIG_PATH
 
             # Resolve relative path if needed
@@ -832,6 +1123,59 @@ function Invoke-McpProcessor {
             Write-Host "$LogPrefix Service will be available as: $serviceName" -ForegroundColor Green
             Write-Host "$LogPrefix Note: Package is installed via uvx and will be managed by AI IDE" -ForegroundColor Yellow
             return $true
+        }
+        "exec_command" {
+            # Handle generic command execution
+            $command = if ($McpCallback.ContainsKey("Command")) { $McpCallback.Command } else { "" }
+            $workingDirectory = if ($McpCallback.ContainsKey("WorkingDirectory")) { $McpCallback.WorkingDirectory } else { "" }
+            $description = if ($McpCallback.ContainsKey("Description")) { $McpCallback.Description } else { "Command execution" }
+            
+            if ([string]::IsNullOrEmpty($command)) {
+                Write-Host "$LogPrefix Error: exec_command operation missing Command parameter" -ForegroundColor Red
+                return $false
+            }
+            
+            Write-Host "$LogPrefix Executing command: $description" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Command: $command" -ForegroundColor Cyan
+            if ($workingDirectory) {
+                Write-Host "$LogPrefix Working Directory: $workingDirectory" -ForegroundColor Cyan
+            }
+            
+            try {
+                # Set working directory if specified
+                $originalLocation = Get-Location
+                if ($workingDirectory -and (Test-Path $workingDirectory)) {
+                    Set-Location $workingDirectory
+                    Write-Host "$LogPrefix Changed working directory to: $workingDirectory" -ForegroundColor Yellow
+                }
+                
+                Write-Host "$LogPrefix Executing: $command" -ForegroundColor Yellow
+                
+                $result = Invoke-Expression $command 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "$LogPrefix Command executed successfully" -ForegroundColor Green
+                    if ($result) {
+                        Write-Host "$LogPrefix Output: $result" -ForegroundColor Green
+                    }
+                    return $true
+                } else {
+                    Write-Host "$LogPrefix Command failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+                    if ($result) {
+                        Write-Host "$LogPrefix Error: $result" -ForegroundColor Red
+                    }
+                    return $false
+                }
+            }
+            catch {
+                Write-Host "$LogPrefix Error executing command: $($_.Exception.Message)" -ForegroundColor Red
+                return $false
+            }
+            finally {
+                # Restore original working directory
+                if ($workingDirectory) {
+                    Set-Location $originalLocation
+                }
+            }
         }
         default {
             Write-Host "$LogPrefix Error: Unknown MCP operation: $mcpOperation" -ForegroundColor Red
@@ -1003,13 +1347,13 @@ function Invoke-PostInstallCallbacks {
                         Write-Host "$LogPrefix MCP callback failed" -ForegroundColor Red
                     }
                 }
-                "registry_template" {
-                    Write-Host "$LogPrefix Processing registry template callback for $PackageName" -ForegroundColor Cyan
-                    $success = Invoke-RegistryTemplateProcessor -RegistryCallback $callback -PackageName $PackageName -ExecutablePath $ExecutablePath -InstallDir $InstallDir -LogPrefix "$LogPrefix [REGISTRY_TEMPLATE]"
+                "context_menu" {
+                    Write-Host "$LogPrefix Processing context menu callback for $PackageName" -ForegroundColor Cyan
+                    $success = Invoke-ContextMenuProcessor -ContextMenuCallback $callback -PackageName $PackageName -ExecutablePath $ExecutablePath -InstallDir $InstallDir -LogPrefix "$LogPrefix [CONTEXT_MENU]"
                     if ($success) {
-                        Write-Host "$LogPrefix Registry template callback completed successfully" -ForegroundColor Green
+                        Write-Host "$LogPrefix Context menu callback completed successfully" -ForegroundColor Green
                     } else {
-                        Write-Host "$LogPrefix Registry template callback failed" -ForegroundColor Red
+                        Write-Host "$LogPrefix Context menu callback failed" -ForegroundColor Red
                     }
                 }
                 default {

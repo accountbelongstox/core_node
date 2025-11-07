@@ -47,7 +47,7 @@ param(
 # Load global variables and common functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
 . "$PSScriptRoot\..\win_common\ApplicationsList.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 . "$PSScriptRoot\..\win_common\WindowsPathFunction.ps1"
 . "$PSScriptRoot\..\win_common\PackageManagerInvokes.ps1"
 . "$PSScriptRoot\..\win_common\PostInstallCallbackProcessor.ps1"
@@ -202,6 +202,7 @@ function Install-SinglePackageViaManager {
             "choco" { $executable = Invoke-ChocoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "scoop" { $executable = Invoke-ScoopCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "brew" { $executable = Invoke-BrewCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "powershell" { $executable = Invoke-PowerShellCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             default { 
                 Write-Host "$SCRIPT_INDEX Unknown installation type '$InstallType'" -ForegroundColor Red
                 return $null
@@ -249,9 +250,10 @@ function Get-ValidatedPackageId {
     }
     
     # Check if PackageId is required for this install type
-    $RequiredTypes = @("winget", "choco", "scoop", "web", "uvx", "pipx", "npm", "pip", "uv", "poetry", "cargo", "go", "gem", "brew")
+    $RequiredTypes = @("winget", "choco", "scoop", "web", "uvx", "pipx", "uv", "poetry", "cargo", "go", "gem", "brew")
     $IsRequired = $InstallType -in $RequiredTypes
     
+    # For npm and pip, PackageId is not required as package name is used directly
     if ([string]::IsNullOrEmpty($PackageId) -and $IsRequired) {
         Write-Host "$SCRIPT_INDEX Error: Package requires PackageId for $InstallType installation type" -ForegroundColor Red -BackgroundColor White
         return $null
@@ -613,6 +615,11 @@ function Install-BasePackage {
             # Check if already installed using binary presence (idempotent, fast path)
             $executable = Invoke-WingetCommand -IncludeSystemPaths $INCLUDE_SYSTEM_PATHS -Id $PACKAGE_ID -InstallDir $InstallDir -OnlyCheckFlag $false -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceToInstallDir $FORCE_TO_INSTALL_DIR -RegistrySearchKeyword $REGISTRY_SEARCH_KEYWORD
         }
+        "powershell" {
+            $PowerShellCommand = if ($PackageMeta.ContainsKey("PowerShellCommand")) { $PackageMeta.PowerShellCommand } else { "" }
+            $executable = Invoke-PowerShellCommand -PackageName $PackageName -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceInstall $false -PowerShellCommand $PowerShellCommand
+            $installed = $null -ne $executable
+        }
         { $_ -in @("npm", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {
             $executable = Invoke-StandardPackageInstallation -InstallType $InstallType -PackageId $PACKAGE_ID -ExecName $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -Description $DESCRIPTION -PackageName $PackageName -PackageMeta $PackageMeta
             $installed = $null -ne $executable
@@ -754,7 +761,7 @@ function Install-BasePackage {
             Write-DebugLog -Message "scanKeywords: $($scanKeywords -join ', ')" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
             Write-Host "$SCRIPT_INDEX Shortcut Name: $shortcutName" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Exe Path: $executable" -ForegroundColor Cyan
-            Write-Host "$SCRIPT_INDEX Icon Path: $iconPath" -ForegroundColor Cyan
+            # Write-Host "$SCRIPT_INDEX Icon Path: $iconPath" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Category Names: $($DESKTOP_CATEGORIES -join ', ')" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Scan Keywords: $scanKeywords" -ForegroundColor Cyan
             
@@ -762,7 +769,7 @@ function Install-BasePackage {
             Write-DebugLog -Message "Parameter details:" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
             Write-Host "$SCRIPT_INDEX   - ShortcutName type: $($(if ($shortcutName) { $shortcutName.GetType().Name } else { 'null' })), value: '$shortcutName'" -ForegroundColor Magenta
             Write-Host "$SCRIPT_INDEX   - ExePath type: $($(if ($executable) { $executable.GetType().Name } else { 'null' })), value: '$executable'" -ForegroundColor Magenta
-            Write-Host "$SCRIPT_INDEX   - IconPath type: $($(if ($iconPath) { $iconPath.GetType().Name } else { 'null' })), value: '$iconPath'" -ForegroundColor Magenta
+            # Write-Host "$SCRIPT_INDEX   - IconPath type: $($(if ($iconPath) { $iconPath.GetType().Name } else { 'null' })), value: '$iconPath'" -ForegroundColor Magenta
             Write-Host "$SCRIPT_INDEX   - CategoryNames type: $($(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.GetType().Name } else { 'null' })), count: $($(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.Count } else { 0 }))" -ForegroundColor Magenta
             Write-Host "$SCRIPT_INDEX   - ScanKeywords type: $($(if ($scanKeywords) { $scanKeywords.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
             
@@ -895,9 +902,14 @@ function Install-BasePackage {
     # Handle PostInstallCallbacks if defined and executable is available
     if ($executable) {
         # Determine install directory for callbacks
-        $callbackInstallDir = if ($InstallType -eq "web" -and $IsArchive) {
-            # For web archives, use the install directory
-            $InstallDir
+        $callbackInstallDir = if ($InstallType -eq "web") {
+            # For web installations, check if it's an archive
+            $isWebArchive = if ($PackageMeta.ContainsKey("IsArchive")) { $PackageMeta.IsArchive } else { $false }
+            if ($isWebArchive) {
+                $InstallDir
+            } else {
+                Split-Path $executable -Parent
+            }
         }
         else {
             # For other types, use the executable's parent directory
@@ -918,8 +930,8 @@ function Install-BasePackage {
         Write-DebugLog -Message "About to call Set-MultipleEnvironmentVariablesForPackage" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "PackageName: '$PackageName'" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "PackageName type: $($(if ($PackageName) { $PackageName.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
-        Write-DebugLog -Message "EnvVars: $($PackageMeta.EnvVars | ConvertTo-Json -Depth 2)" -Category "STEP12" -Color "Magenta"
-        Write-DebugLog -Message "EnvVars type: $($(if ($PackageMeta.EnvVars) { $PackageMeta.EnvVars.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
+        # Write-DebugLog -Message "EnvVars: $($PackageMeta.EnvVars | ConvertTo-Json -Depth 2)" -Category "STEP12" -Color "Magenta"
+        # Write-DebugLog -Message "EnvVars type: $($(if ($PackageMeta.EnvVars) { $PackageMeta.EnvVars.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "executable: '$executable'" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "executable type: $($(if ($executable) { $executable.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "executable value: $($(if ($executable) { $executable | ConvertTo-Json -Depth 3 } else { 'null' }))" -Category "STEP12" -Color "Magenta"
@@ -1088,10 +1100,10 @@ if (Test-PackageGroupFilter -GroupName "McpServicesPackages") {
 Write-Host "$SCRIPT_INDEX Executing post-MCP installation integration..." -ForegroundColor Cyan
 try {
     # Execute Gemini MCP integration
-    $mcpConfigPath = Join-Path $Global:PROJECT_DIR ".prompt\mcp.json"
+    $mcpConfigPath = Join-Path $Global:PROJECT_DIR "_prompt\mcp.json"
     # Check if mcp.json exists, if not copy from template
     if (-not (Test-Path $mcpConfigPath)) {
-        $templatePath = Join-Path $Global:PROJECT_DIR ".prompt\mcpWindowsTemplate.json"
+        $templatePath = Join-Path $Global:PROJECT_DIR "_prompt\mcpWindowsTemplate.json"
         if (Test-Path $templatePath) {
             Copy-Item $templatePath $mcpConfigPath
             Write-Host "$SCRIPT_INDEX [GEMINI_MCP] Created mcp.json from template" -ForegroundColor Green

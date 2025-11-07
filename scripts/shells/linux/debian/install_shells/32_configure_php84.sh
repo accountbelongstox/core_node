@@ -32,7 +32,6 @@ SCRIPT_INDEX="[32_PHP84_CONFIG]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -40,20 +39,12 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
-# USE_SUDO is now sourced from gvar_common.sh
 
 # Check for force refresh flag
 FORCE_REFRESH=false
 if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
     FORCE_REFRESH=true
     echo -e "${YELLOW}$SCRIPT_INDEX Force refresh mode enabled${NC}"
-fi
-
-# Check if PHP installation is enabled
-INSTALL_PHP=$(get_var "INSTALL_PHP")
-if [ "$INSTALL_PHP" != "true" ]; then
-    echo -e "${YELLOW}$SCRIPT_INDEX PHP installation is disabled (INSTALL_PHP: $INSTALL_PHP). Skipping configuration.${NC}"
-    exit 0
 fi
 
 # Check if Nginx is enabled for configuration
@@ -94,7 +85,9 @@ configure_php_fpm() {
 
 # Set directory permissions for Laravel - now using PHP common function
 set_directory_permissions() {
-    set_directory_permissions_from_php_common "/www/wwwroot" "$SCRIPT_INDEX"
+    # Use path mapping from gvar_common.sh to support WSL Windows directories
+    local www_root=$(map_web_path "wwwroot")
+    set_directory_permissions_from_php_common "$www_root" "$SCRIPT_INDEX"
 }
 
 # 4.5 Setup PHP 8.4 as default - Following test_phpdoc.txt exactly
@@ -115,9 +108,18 @@ setup_php_default() {
     if [ -f "$php84_binary" ] && [ -x "$php84_binary" ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.4 binary: $php84_binary${NC}"
 
+        # Remove all existing PHP alternatives first to ensure clean state
+        echo -e "${YELLOW}$SCRIPT_INDEX Removing all existing PHP alternatives...${NC}"
+        $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
+
         # Use update-alternatives as per documentation
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding only PHP 8.4 to alternatives...${NC}"
         if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.4 84; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 set as default with priority 84${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 added to alternatives with priority 84${NC}"
+
+            # Explicitly set PHP 8.4 as the default
+            $USE_SUDO update-alternatives --set php /usr/bin/php8.4 2>/dev/null || true
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 explicitly set as default${NC}"
         else
             echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.4 as default${NC}"
             return 1
@@ -128,7 +130,7 @@ setup_php_default() {
         echo -e "${CYAN}$SCRIPT_INDEX Current PHP default: $current_php${NC}"
 
         if [ "$current_php" = "/usr/bin/php8.4" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default ï¿?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 default verification failed${NC}"
         fi
@@ -144,7 +146,7 @@ setup_php_default() {
         echo -e "${GREEN}$SCRIPT_INDEX Current PHP version: $php_version${NC}"
 
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working ï¿?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.4.x, got $php_version${NC}"
         fi
@@ -168,6 +170,20 @@ setup_php_default() {
                 echo -e "${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}"
             fi
         done
+    fi
+
+    # Step 5: Verify no other PHP versions are in alternatives
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 5: Verifying alternatives configuration...${NC}"
+    if update-alternatives --query php >/dev/null 2>&1; then
+        local alternatives_list=$(update-alternatives --list php 2>/dev/null || echo "")
+        local alternatives_count=$(echo "$alternatives_list" | wc -l)
+
+        if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.4"; then
+            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.4 is in alternatives ï¿?{NC}"
+        else
+            echo -e "${YELLOW}$SCRIPT_INDEX Warning: Multiple PHP versions in alternatives:${NC}"
+            echo "$alternatives_list"
+        fi
     fi
 
     echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 default setup completed successfully${NC}"

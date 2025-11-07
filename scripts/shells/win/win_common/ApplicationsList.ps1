@@ -1,3 +1,40 @@
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+<#
+.SYNOPSIS
+    Applications list management and export utility
+
+.DESCRIPTION
+    This script manages application package definitions and can export them in JSON format
+    for use by backup systems and other automation tools.
+
+.PARAMETER OutputApplicationsList
+    When specified, outputs the applications list in JSON format and exits.
+    This is used by backup systems to get the list of applications to backup.
+
+.EXAMPLE
+    .\ApplicationsList.ps1 -OutputApplicationsList
+    Outputs JSON array of all applications with their installation paths
+
+.EXAMPLE
+    . .\ApplicationsList.ps1
+    Loads the applications configuration (normal usage)
+#>
+
+param(
+    [Parameter(Mandatory=$false)]
+    [switch]$OutputApplicationsList
+)
 
 # Import GlobalVars for access to global variables
 $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\GlobalVars.ps1"
@@ -27,6 +64,7 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
     - "go"      : Go Module Manager (for Go packages)
     - "gem"     : RubyGems Package Manager (for Ruby gems)
     - "brew"    : Homebrew Package Manager (if available on Windows)
+    - "powershell" : PowerShell Script Installation (for PowerShell-based installers)
 
 .PARAMETER Required Properties
     - PackageId: Package ID for winget installation
@@ -48,6 +86,9 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
       * Minimum 2 keywords recommended for accurate detection
       * Avoid overly broad terms (e.g., "ai", "google", "code") that match many binaries
       * Use specific tool names, hyphenated variants, or unique identifiers
+    - PowerShellCommand: PowerShell command to execute for installation (required for powershell InstallType)
+      * Used for PowerShell-based installations (e.g., irm https://app.factory.ai/cli/windows | iex)
+      * Should be a complete PowerShell command that can be executed with Invoke-Expression
       * Chinese software should use Unicode variables for cross-platform compatibility
     - ForceToInstallDir: Force to install to install directory, bucase some package need to install to install directory
     - AppCustomInstallDir: App specific install directory, if not specified, uses LANG_COMPILER_DIR\app_name
@@ -682,6 +723,24 @@ $Global:APPLICATIONS_PACKAGES = @{
                 Name = "VSCode"
             }
         )
+        PostInstallCallbacks = @(
+            @{
+                Type = "context_menu"
+                Operation = "add_file_context"
+                FileExtensions = @("*")
+                MenuText = "Open with VSCode"
+                IconPath = "EXECUTABLE_PATH"
+                Description = "Add VSCode to file context menu for all file types"
+            }
+            @{
+                Type = "context_menu"
+                Operation = "add_folder_context"
+                MenuText = "Open Folder in VSCode"
+                Command = "`"{{EXECUTABLE_PATH}}`" `"%1`""
+                IconPath = "EXECUTABLE_PATH"
+                Description = "Add folder context menu to open folder in VSCode"
+            }
+        )
     }
     RustDesk        = @{
         PackageId           = "RustDesk.RustDesk"
@@ -828,6 +887,14 @@ $Global:APPLICATIONS_PACKAGES = @{
         EnvVars           = @(
             @{
                 Type = @("AddExec")
+            }
+        )
+        PostInstallCallbacks = @(
+            @{
+                Type = "context_menu"
+                Operation = "add_all_files_context"
+                MenuText = "Edit with Notepad++"
+                Description = "Add Notepad++ to context menu for ALL file types"
             }
         )
     }
@@ -1162,6 +1229,50 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    Droid          = @{
+        PackageId           = ""
+        Exec               = "droid.exe"
+        Name               = "Droid"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description        = "AI-powered development assistant from Factory.ai"
+        InstallType        = "powershell"
+        ForceToInstallDir  = $false
+        VerifySuffix       = ""
+        AdditionalKeywords = @("Droid", "factory-ai", "ai-assistant")
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+        PowerShellCommand  = "irm https://app.factory.ai/cli/windows | iex"
+    }
+    ClaudeCodeRouter = @{
+        PackageId           = ""
+        Exec               = "claude-code-router.exe"
+        Name               = "ClaudeCodeRouter"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description        = "Claude Code Router for AI-powered code analysis and routing"
+        InstallType        = "powershell"
+        ForceToInstallDir  = $false
+        VerifySuffix       = ""
+        AdditionalKeywords = @("ClaudeCodeRouter", "claude-router", "code-analysis")
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+        PowerShellCommand  = "irm https://app.factory.ai/cli/windows | iex"
+    }
     AlibabaQoder   = @{
         PackageId           = "Alibaba.Qoder"
         Exec               = "Qoder.exe"
@@ -1236,24 +1347,13 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
                 Operation = "copy_config"
                 TargetDirectory = "$env:USERPROFILE\.claude"
             }
-        )
-    }
-    ClaudeCodeRouter = @{
-        PackageId         = "@musistudio/claude-code-router"
-        Exec              = "ccr.exe"
-        Name              = "ClaudeCodeRouter"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Claude Code Router - Routing and management tool for Claude Code"
-        InstallType       = "npm"
-        ForceToInstallDir = $false
-        VerifySuffix      = "--version"
-        AdditionalKeywords = @("ccr", "claude-router")
-        EnvVars           = @(
             @{
-                Type = @("Path")
+                Type = "mcp"
+                Operation = "exec_command"
+                Command = 'npx claude mcp add context7 -- cmd /c "npx -y @upstash/context7-mcp"'
+                Description = "Add context7 MCP service to Claude"
             }
         )
-        # TODO: Unknown callback requirements for Claude Code Router
     }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"
@@ -1407,43 +1507,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
 # MCP Services Packages - Tools providing MCP services for IDEs
 # For PostInstallCallbacks usage, see: <#POSTINSTALL_CALLBACKS_ANCHOR#>
 $Global:MCP_SERVICES_PACKAGES = @{
-    CunzhiCli = @{
-        Exec              = "$($Global:CHINESE_CUNZHI).exe"
-        Name              = "CunzhiCli"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Cunzhi CLI - Smart clipboard and memory tool providing MCP service"
-        InstallType       = "web"
-        ForceToInstallDir = $true
-        VerifySuffix      = "--version"
-        PackageId         = "https://github.com/imhuso/cunzhi/releases/download/v0.3.8/cunzhi-cli-v0.3.8-windows-x86_64.zip"
-        ExecutableName    = "$($Global:CHINESE_CUNZHI).exe"
-        MenuName          = "Cunzhi CLI"
-        IsArchive         = $true
-        ArchiveType       = "zip"
-        EnvVars           = @(
-            @{
-                Type = @("AddExec")
-                ExecutableFiles = @("cunzhi.exe", "wait.exe", "$($Global:CHINESE_CUNZHI).exe", "$($Global:CHINESE_DENGYIXIA).exe")
-            }
-        )
-        PostInstallCallbacks = @(
-            @{
-                Type       = "copy"
-                SourceFile = "$($Global:CHINESE_CUNZHI).exe"
-                TargetFile = "cunzhi.exe"
-            }
-            @{
-                Type       = "copy"
-                SourceFile = "$($Global:CHINESE_DENGYIXIA).exe"
-                TargetFile = "wait.exe"
-            }
-            @{
-                Type = "mcp"
-                Operation = "replace_path"
-            }
-        )
-    }
-    # Remote MCP Services from Step103_InstallMCPService.ps1
     AlibabaDataworksMCP = @{
         Name              = "AlibabaDataworksMCP"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
@@ -1618,7 +1681,7 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
         )
     }
     WPSOffice      = @{
-        PackageId           = "Kingsoft.WPSOffice.CN"
+        PackageId           = "Kingsoft.WPSOffice"
         Exec               = "WPS.exe"
         Name               = "WPSOffice"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_OFFICE_TOOLS
@@ -1837,7 +1900,85 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
         ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\gitput.bat"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Quick Git status and recent commits"
-        CreateDesktopShortcut = $true 
+        CreateDesktopShortcut = $true
     }
 }
+
+# Output applications list in JSON format if requested
+# This is used by backup systems to get the list of installed applications
+if ($OutputApplicationsList) {
+    $applicationsOutput = @()
+
+    # Combine all package collections with source tracking
+    $allPackages = @{}
+
+    # Add APPLICATIONS_PACKAGES
+    if ($Global:APPLICATIONS_PACKAGES) {
+        foreach ($key in $Global:APPLICATIONS_PACKAGES.Keys) {
+            $packageCopy = $Global:APPLICATIONS_PACKAGES[$key].Clone()
+            $packageCopy['_PackageSource'] = 'APPLICATIONS_PACKAGES'
+            $allPackages[$key] = $packageCopy
+        }
+    }
+
+    # Add DEV_SOFTWARE_PACKAGES
+    if ($Global:DEV_SOFTWARE_PACKAGES) {
+        foreach ($key in $Global:DEV_SOFTWARE_PACKAGES.Keys) {
+            $packageCopy = $Global:DEV_SOFTWARE_PACKAGES[$key].Clone()
+            $packageCopy['_PackageSource'] = 'DEV_SOFTWARE_PACKAGES'
+            $allPackages[$key] = $packageCopy
+        }
+    }
+
+    # Add COMMON_SOFTWARE_PACKAGES
+    if ($Global:COMMON_SOFTWARE_PACKAGES) {
+        foreach ($key in $Global:COMMON_SOFTWARE_PACKAGES.Keys) {
+            $packageCopy = $Global:COMMON_SOFTWARE_PACKAGES[$key].Clone()
+            $packageCopy['_PackageSource'] = 'COMMON_SOFTWARE_PACKAGES'
+            $allPackages[$key] = $packageCopy
+        }
+    }
+
+    # Process each package
+    foreach ($packageKey in $allPackages.Keys) {
+        $package = $allPackages[$packageKey]
+
+        $appInfo = @{
+            Name = if ($package.ContainsKey('Name')) { $package.Name } else { $packageKey }
+            Exec = if ($package.ContainsKey('Exec')) { $package.Exec } else { $null }
+            PackageId = if ($package.ContainsKey('PackageId')) { $package.PackageId } else { $null }
+            Description = if ($package.ContainsKey('Description')) { $package.Description } else { $null }
+            InstallType = if ($package.ContainsKey('InstallType')) { $package.InstallType } else { $null }
+            ForceToInstallDir = if ($package.ContainsKey('ForceToInstallDir')) { $package.ForceToInstallDir } else { $false }
+            AppCustomInstallDir = if ($package.ContainsKey('AppCustomInstallDir')) { $package.AppCustomInstallDir } else { $null }
+            Category = if ($package.ContainsKey('DesktopCategory')) { $package.DesktopCategory } else { $null }
+            PackageSource = if ($package.ContainsKey('_PackageSource')) { $package._PackageSource } else { 'UNKNOWN' }
+        }
+
+        $applicationsOutput += $appInfo
+    }
+
+    # Define output directory and file path
+    $userProfile = $env:USERPROFILE
+    $pybackupDir = Join-Path $userProfile ".core_node\pybackup"
+    $jsonOutputFile = Join-Path $pybackupDir "applications_list.json"
+
+    # Ensure directory exists
+    if (-not (Test-Path $pybackupDir)) {
+        New-Item -ItemType Directory -Path $pybackupDir -Force | Out-Null
+    }
+
+    # Convert to JSON and save to file
+    $jsonOutput = $applicationsOutput | ConvertTo-Json -Depth 10
+
+    # Write to file
+    $jsonOutput | Out-File -FilePath $jsonOutputFile -Encoding UTF8 -Force
+
+    # Also output to stdout for compatibility
+    Write-Output $jsonOutput
+
+    # Exit immediately to prevent loading rest of the script
+    exit 0
+}
+
 

@@ -15,7 +15,7 @@ const {
     getContentsFromMainDBByWordsArray,
     getContentFromMainDBByContent
 } = require('../middware/middb/wordQuery.js');
-const { getAnyParam } = require('#@/ncore/foundation/express_utils/libs/res_helper.js');
+const { getAnyParam } = require('#@ncore/utils/rpc/http_rpc/libs/res_helper.js');
 const { queryWordQueryCache, putWordQueryCache } = require('../middware/cacheMainMid.js');
 const gconfig = require('#@gconfig');
 function formatResponse(records, success = true, message = '') {

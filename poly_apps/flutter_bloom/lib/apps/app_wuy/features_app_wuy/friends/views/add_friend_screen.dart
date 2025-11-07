@@ -15,8 +15,22 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 
+/// Add Friend Screen for Wuy App
+///
+/// This screen provides functionality to search and add new friends.
+///
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyAddFriendTitle.tr(context)
 class WuyAddFriendScreen extends StatefulWidget {
   const WuyAddFriendScreen({super.key});
 
@@ -26,20 +40,25 @@ class WuyAddFriendScreen extends StatefulWidget {
 
 class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nicknameController = TextEditingController();
-  final _genderController = TextEditingController();
-  final _ageController = TextEditingController();
-  final _heightController = TextEditingController();
-  final _weightController = TextEditingController();
+  final _greetingController = TextEditingController(text: 'Hello');
+  final _remarkController = TextEditingController();
+  final _relationshipController = TextEditingController();
   bool _isLoading = false;
+  String _selectedRelationship = 'Friend';
+
+  final List<String> _relationshipOptions = [
+    'Friend',
+    'Family',
+    'Partner',
+    'Colleague',
+    'Other',
+  ];
 
   @override
   void dispose() {
-    _nicknameController.dispose();
-    _genderController.dispose();
-    _ageController.dispose();
-    _heightController.dispose();
-    _weightController.dispose();
+    _greetingController.dispose();
+    _remarkController.dispose();
+    _relationshipController.dispose();
     super.dispose();
   }
 
@@ -50,27 +69,46 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       appBar: AppBar(
         title: Text(
           'Add Friend',
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 8),
               _buildProfileSection(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
+              const SizedBox(height: 24),
               _buildFormSection(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
+              const SizedBox(height: 28),
               _buildAddButton(),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -79,239 +117,251 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildProfileSection() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.orange.shade400,
-              Colors.red.shade400,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
-        ),
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: Icon(
-                Icons.person,
-                size: 50,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            Text(
-              '小飞侠',
-              style: ThemeTextStyles.title2.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'openAI',
-              style: ThemeTextStyles.bodyLarge.copyWith(
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ThemeColors.orange40,
+            ThemeColors.red40,
           ],
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.orange40.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.red40.withOpacity(0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 54,
+              backgroundColor: Colors.white.withOpacity(0.25),
+              child: const Icon(
+                Icons.person,
+                size: 52,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            WuyUnifiedService().currentUser?.displayName ?? 'User',
+            style: ThemeTextStyles.title2.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 24,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'openAI',
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 16,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildFormSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      child: Padding(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Friend Information',
-              style: ThemeTextStyles.title3,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Friend Information',
+            style: ThemeTextStyles.title3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
             ),
-            SizedBox(height: ThemeDimensions.spacingLarge),
-            _buildNicknameField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildGenderField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildAgeField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildHeightField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildWeightField(),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+          _buildGreetingField(),
+          const SizedBox(height: 16),
+          _buildRemarkField(),
+          const SizedBox(height: 16),
+          _buildRelationshipField(),
+        ],
       ),
     );
   }
 
-  Widget _buildNicknameField() {
-    return TextFormField(
-      controller: _nicknameController,
-      decoration: InputDecoration(
-        labelText: 'Nickname',
-        hintText: 'Enter friend\'s nickname',
-        prefixIcon: Icon(Icons.person_outline, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+  Widget _buildGreetingField() {
+    return WuyModernInputField(
+      controller: _greetingController,
+      labelText: 'Greeting Message',
+      hintText: 'Enter your greeting message',
+      prefixIcon: Icons.chat_bubble_outline,
+      maxLines: 3,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter a nickname';
+          return 'Please enter a greeting message';
         }
         return null;
       },
     );
   }
 
-  Widget _buildGenderField() {
-    return TextFormField(
-      controller: _genderController,
-      decoration: InputDecoration(
-        labelText: 'Gender',
-        hintText: 'Enter gender (Male/Female)',
-        prefixIcon: Icon(Icons.wc, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+  Widget _buildRemarkField() {
+    return WuyModernInputField(
+      controller: _remarkController,
+      labelText: 'Remark',
+      hintText: 'Enter friend remark',
+      prefixIcon: Icons.note_outlined,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter gender';
+          return 'Please enter a remark';
         }
         return null;
       },
     );
   }
 
-  Widget _buildAgeField() {
-    return TextFormField(
-      controller: _ageController,
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Age',
-        hintText: 'Enter age',
-        prefixIcon: Icon(Icons.cake, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+  Widget _buildRelationshipField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Relationship',
+          style: ThemeTextStyles.subhead.copyWith(
+            color: ThemeColors.label,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
+        SizedBox(height: ThemeDimensions.spacing8),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: ThemeDimensions.paddingSizeDefault,
+            vertical: ThemeDimensions.spacing4,
+          ),
+          decoration: BoxDecoration(
+            color: ThemeColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ThemeColors.grey300),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedRelationship,
+              isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down, color: ThemeColors.primary),
+              items: _relationshipOptions.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Row(
+                    children: [
+                      Icon(_getRelationshipIcon(value), size: 20, color: ThemeColors.primary),
+                      SizedBox(width: ThemeDimensions.spacing8),
+                      Text(value, style: ThemeTextStyles.body),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedRelationship = newValue;
+                  });
+                }
+              },
+            ),
+          ),
         ),
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter age';
-        }
-        final age = int.tryParse(value);
-        if (age == null || age < 1 || age > 120) {
-          return 'Please enter a valid age';
-        }
-        return null;
-      },
+      ],
     );
   }
 
-  Widget _buildHeightField() {
-    return TextFormField(
-      controller: _heightController,
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Height (cm)',
-        hintText: 'Enter height in cm',
-        prefixIcon: Icon(Icons.height, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter height';
-        }
-        final height = double.tryParse(value);
-        if (height == null || height < 50 || height > 250) {
-          return 'Please enter a valid height';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildWeightField() {
-    return TextFormField(
-      controller: _weightController,
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Weight (kg)',
-        hintText: 'Enter weight in kg',
-        prefixIcon: Icon(Icons.monitor_weight, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter weight';
-        }
-        final weight = double.tryParse(value);
-        if (weight == null || weight < 20 || weight > 300) {
-          return 'Please enter a valid weight';
-        }
-        return null;
-      },
-    );
+  IconData _getRelationshipIcon(String relationship) {
+    switch (relationship) {
+      case 'Friend':
+        return Icons.people;
+      case 'Family':
+        return Icons.family_restroom;
+      case 'Partner':
+        return Icons.favorite;
+      case 'Colleague':
+        return Icons.work;
+      default:
+        return Icons.person;
+    }
   }
 
   Widget _buildAddButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _handleAddFriend,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.green,
-        minimumSize: Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.green40.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.green60.withOpacity(0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
       ),
-      child: _isLoading
-          ? CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            )
-          : Text(
-              'Add Friend',
-              style: ThemeTextStyles.buttonLarge,
-            ),
+      child: WuyGradientButton(
+        text: 'Add Friend',
+        onPressed: _handleAddFriend,
+        isLoading: _isLoading,
+        height: 54,
+        borderRadius: 28.0,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+        gradientColors: [ThemeColors.green40, ThemeColors.green60],
+      ),
     );
   }
 
@@ -330,9 +380,11 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Friend added successfully!')),
+          SnackBar(
+              content: Text(
+                  LocalizationKeysAppWuy.wuyMessageFriendAdded.tr(context))),
         );
-        context.go(WuyAppRouter.routeFriends);
+        context.go(WuyAppRouter.routeHome);
       }
     }
   }

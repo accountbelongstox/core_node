@@ -1,5 +1,6 @@
 /// Network and User Provider Integration
 /// This file provides integration between the network framework and user providers
+library;
 
 import 'package:flutter/foundation.dart';
 import '../auth/unified_auth_manager.dart';

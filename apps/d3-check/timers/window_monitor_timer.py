@@ -7,6 +7,7 @@ Monitors Diablo III window status every 10 seconds and updates game interface da
 
 import os
 import sys
+import tkinter as tk
 from typing import Optional, List, Callable
 
 # Add project paths
@@ -20,7 +21,7 @@ sys.path.insert(0, ncore_path)
 
 from providor.common_imports import ColorPrint
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from d3utils.share.game_interface_data import get_game_interface_data
+from share.game_interface_data import get_game_interface_data, get_screen_resolution
 from pyutils.common.window_finder import WindowFinder
 
 # Global window monitor state
@@ -28,6 +29,7 @@ DEFAULT_INTERVAL = 10.0
 _callbacks: List[Callable] = []
 _last_window_found = False
 _game_data = get_game_interface_data()
+
 
 
 def add_callback(callback: Callable):
@@ -150,8 +152,9 @@ def _update_game_data(window_info: Optional[dict]):
             width = window_info['width']
             height = window_info['height']
 
-            # Update fullscreen size (assuming game window size)
-            _game_data.fullscreen_size = (width, height)
+            # Update fullscreen size (get actual screen resolution)
+            screen_width, screen_height = get_screen_resolution()
+            _game_data.fullscreen_size = (screen_width, screen_height)
 
             # Calculate window offset (left, top)
             window_offset = (rect[0], rect[1])

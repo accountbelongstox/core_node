@@ -256,7 +256,7 @@ import { getAppEntryConfig } from '@/app-entry';
 // Page metadata
 definePageMeta({
   title: 'Admin Panel Home',
-  layout: 'default',
+  layout: 'admin',
   namespace: 'admin'
 });
 

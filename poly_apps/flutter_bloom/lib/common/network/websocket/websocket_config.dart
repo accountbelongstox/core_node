@@ -13,6 +13,8 @@
 /// WebSocket Configuration
 /// 
 /// Provides flexible configuration for WebSocket connections
+library;
+
 
 /// WebSocket reconnection strategy
 enum ReconnectionStrategy {

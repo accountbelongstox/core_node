@@ -1,0 +1,1013 @@
+{
+  "file_info": {
+    "filename": "word_listening_1.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_1.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_1.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:00\nKB/S\nRs9il 591l 92\n单词随身听\n单词书•今日新词 =\nbok Manuseript\n单词书\n生词本\n今日任务\n在学单词\n未学单词\n简单词\n20\n1\n63",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 19,
+    "processing_time": 2.925513982772827,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:00",
+        "bbox": {
+          "left": 0,
+          "top": 52.0,
+          "width": 0,
+          "height": 50.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 76.0,
+              "top": 52.0,
+              "width": 61.0,
+              "height": 49.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 136.0,
+              "top": 52.0,
+              "width": 24.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "00",
+            "confidence": 0,
+            "bbox": {
+              "left": 160.0,
+              "top": 53.0,
+              "width": 58.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "KB/S",
+        "bbox": {
+          "left": 0,
+          "top": 77.0,
+          "width": 0,
+          "height": 20.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "KB",
+            "confidence": 0,
+            "bbox": {
+              "left": 796.0,
+              "top": 77.0,
+              "width": 28.0,
+              "height": 20.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 824.0,
+              "top": 77.0,
+              "width": 10.0,
+              "height": 20.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "S",
+            "confidence": 0,
+            "bbox": {
+              "left": 834.0,
+              "top": 77.0,
+              "width": 11.0,
+              "height": 20.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "Rs9il 591l 92",
+        "bbox": {
+          "left": 0,
+          "top": 48.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Rs9il",
+            "confidence": 0,
+            "bbox": {
+              "left": 941.0,
+              "top": 48.0,
+              "width": 95.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "591l",
+            "confidence": 0,
+            "bbox": {
+              "left": 1039.0,
+              "top": 48.0,
+              "width": 75.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "92",
+            "confidence": 0,
+            "bbox": {
+              "left": 1117.0,
+              "top": 48.0,
+              "width": 78.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "单词随身听",
+        "bbox": {
+          "left": 0,
+          "top": 209.0,
+          "width": 0,
+          "height": 66.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 488.0,
+              "top": 209.0,
+              "width": 120.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "随身听",
+            "confidence": 0,
+            "bbox": {
+              "left": 608.0,
+              "top": 210.0,
+              "width": 167.0,
+              "height": 66.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "单词书•今日新词 =",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 505.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 392.0,
+              "top": 449.0,
+              "width": 105.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "书",
+            "confidence": 0,
+            "bbox": {
+              "left": 497.0,
+              "top": 449.0,
+              "width": 63.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "•",
+            "confidence": 0,
+            "bbox": {
+              "left": 560.0,
+              "top": 449.0,
+              "width": 42.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "今日",
+            "confidence": 0,
+            "bbox": {
+              "left": 602.0,
+              "top": 449.0,
+              "width": 91.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "新词",
+            "confidence": 0,
+            "bbox": {
+              "left": 693.0,
+              "top": 449.0,
+              "width": 121.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "=",
+            "confidence": 0,
+            "bbox": {
+              "left": 817.0,
+              "top": 449.0,
+              "width": 55.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "bok Manuseript",
+        "bbox": {
+          "left": 0,
+          "top": 1005.0,
+          "width": 0,
+          "height": 47.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "bok",
+            "confidence": 0,
+            "bbox": {
+              "left": 204.0,
+              "top": 1016.0,
+              "width": 64.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "Manuseript",
+            "confidence": 0,
+            "bbox": {
+              "left": 266.0,
+              "top": 1005.0,
+              "width": 160.0,
+              "height": 43.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "单词书",
+        "bbox": {
+          "left": 0,
+          "top": 1507.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 416.0,
+              "top": 1507.0,
+              "width": 114.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "书",
+            "confidence": 0,
+            "bbox": {
+              "left": 530.0,
+              "top": 1507.0,
+              "width": 47.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "生词本",
+        "bbox": {
+          "left": 0,
+          "top": 1511.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "生词",
+            "confidence": 0,
+            "bbox": {
+              "left": 687.0,
+              "top": 1511.0,
+              "width": 113.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "本",
+            "confidence": 0,
+            "bbox": {
+              "left": 800.0,
+              "top": 1511.0,
+              "width": 48.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "今日任务",
+        "bbox": {
+          "left": 0,
+          "top": 1696.0,
+          "width": 0,
+          "height": 55.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "今日",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 1697.0,
+              "width": 105.0,
+              "height": 54.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "任务",
+            "confidence": 0,
+            "bbox": {
+              "left": 241.0,
+              "top": 1696.0,
+              "width": 98.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "在学单词",
+        "bbox": {
+          "left": 0,
+          "top": 1826.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "在",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 1826.0,
+              "width": 57.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 194.0,
+              "top": 1826.0,
+              "width": 50.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 244.0,
+              "top": 1826.0,
+              "width": 95.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "未学单词",
+        "bbox": {
+          "left": 0,
+          "top": 1948.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "未",
+            "confidence": 0,
+            "bbox": {
+              "left": 141.0,
+              "top": 1948.0,
+              "width": 49.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 190.0,
+              "top": 1948.0,
+              "width": 56.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 246.0,
+              "top": 1948.0,
+              "width": 89.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "简单词",
+        "bbox": {
+          "left": 0,
+          "top": 2069.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "简单",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 2069.0,
+              "width": 105.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "词",
+            "confidence": 0,
+            "bbox": {
+              "left": 242.0,
+              "top": 2069.0,
+              "width": 45.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 13,
+        "text": "20",
+        "bbox": {
+          "left": 0,
+          "top": 1701.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "20",
+            "confidence": 0,
+            "bbox": {
+              "left": 1066.0,
+              "top": 1701.0,
+              "width": 69.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 14,
+        "text": "1",
+        "bbox": {
+          "left": 0,
+          "top": 1814.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 1102.0,
+              "top": 1814.0,
+              "width": 28.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 15,
+        "text": "63",
+        "bbox": {
+          "left": 0,
+          "top": 1952.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "63",
+            "confidence": 0,
+            "bbox": {
+              "left": 1070.0,
+              "top": 1952.0,
+              "width": 65.0,
+              "height": 48.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 76.0,
+          "top": 52.0,
+          "width": 61.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 136.0,
+          "top": 52.0,
+          "width": 24.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "00",
+        "confidence": 0,
+        "bbox": {
+          "left": 160.0,
+          "top": 53.0,
+          "width": 58.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "KB",
+        "confidence": 0,
+        "bbox": {
+          "left": 796.0,
+          "top": 77.0,
+          "width": 28.0,
+          "height": 20.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 824.0,
+          "top": 77.0,
+          "width": 10.0,
+          "height": 20.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "S",
+        "confidence": 0,
+        "bbox": {
+          "left": 834.0,
+          "top": 77.0,
+          "width": 11.0,
+          "height": 20.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Rs9il",
+        "confidence": 0,
+        "bbox": {
+          "left": 941.0,
+          "top": 48.0,
+          "width": 95.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "591l",
+        "confidence": 0,
+        "bbox": {
+          "left": 1039.0,
+          "top": 48.0,
+          "width": 75.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "92",
+        "confidence": 0,
+        "bbox": {
+          "left": 1117.0,
+          "top": 48.0,
+          "width": 78.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 488.0,
+          "top": 209.0,
+          "width": 120.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "随身听",
+        "confidence": 0,
+        "bbox": {
+          "left": 608.0,
+          "top": 210.0,
+          "width": 167.0,
+          "height": 66.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 392.0,
+          "top": 449.0,
+          "width": 105.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "书",
+        "confidence": 0,
+        "bbox": {
+          "left": 497.0,
+          "top": 449.0,
+          "width": 63.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "•",
+        "confidence": 0,
+        "bbox": {
+          "left": 560.0,
+          "top": 449.0,
+          "width": 42.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "今日",
+        "confidence": 0,
+        "bbox": {
+          "left": 602.0,
+          "top": 449.0,
+          "width": 91.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "新词",
+        "confidence": 0,
+        "bbox": {
+          "left": 693.0,
+          "top": 449.0,
+          "width": 121.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "=",
+        "confidence": 0,
+        "bbox": {
+          "left": 817.0,
+          "top": 449.0,
+          "width": 55.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "bok",
+        "confidence": 0,
+        "bbox": {
+          "left": 204.0,
+          "top": 1016.0,
+          "width": 64.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "Manuseript",
+        "confidence": 0,
+        "bbox": {
+          "left": 266.0,
+          "top": 1005.0,
+          "width": 160.0,
+          "height": 43.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 416.0,
+          "top": 1507.0,
+          "width": 114.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "书",
+        "confidence": 0,
+        "bbox": {
+          "left": 530.0,
+          "top": 1507.0,
+          "width": 47.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "生词",
+        "confidence": 0,
+        "bbox": {
+          "left": 687.0,
+          "top": 1511.0,
+          "width": 113.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "本",
+        "confidence": 0,
+        "bbox": {
+          "left": 800.0,
+          "top": 1511.0,
+          "width": 48.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "今日",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 1697.0,
+          "width": 105.0,
+          "height": 54.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "任务",
+        "confidence": 0,
+        "bbox": {
+          "left": 241.0,
+          "top": 1696.0,
+          "width": 98.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "在",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 1826.0,
+          "width": 57.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 194.0,
+          "top": 1826.0,
+          "width": 50.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 244.0,
+          "top": 1826.0,
+          "width": 95.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "未",
+        "confidence": 0,
+        "bbox": {
+          "left": 141.0,
+          "top": 1948.0,
+          "width": 49.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 190.0,
+          "top": 1948.0,
+          "width": 56.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 246.0,
+          "top": 1948.0,
+          "width": 89.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "简单",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 2069.0,
+          "width": 105.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "词",
+        "confidence": 0,
+        "bbox": {
+          "left": 242.0,
+          "top": 2069.0,
+          "width": 45.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "20",
+        "confidence": 0,
+        "bbox": {
+          "left": 1066.0,
+          "top": 1701.0,
+          "width": 69.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 1102.0,
+          "top": 1814.0,
+          "width": 28.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "63",
+        "confidence": 0,
+        "bbox": {
+          "left": 1070.0,
+          "top": 1952.0,
+          "width": 65.0,
+          "height": 48.0
+        }
+      }
+    ]
+  }
+}

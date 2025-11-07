@@ -18,11 +18,7 @@ from utils.smart_image_resizer import SmartImageResizer
 from utils.menu_helper import MenuHelper
 from utils.print_helper import PrintHelper
 from utils.backup_manager import BackupManager
-# Import AndroidSpecs for unified target definitions
-import sys
-from pathlib import Path
-build_debug_scripts_path = Path(__file__).parent.parent.parent / "build_debug_scripts"
-sys.path.insert(0, str(build_debug_scripts_path))
+# Import AndroidSpecs for unified target definitions (using relative import from build_scripts)
 from utils.platform_specs.android_specs import AndroidSpecs
 
 

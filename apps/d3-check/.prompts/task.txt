@@ -1,0 +1,126 @@
+
+● Now let me check the ConfigBinding and the i18n configuration files:
+
+● Read(apps\d3-check\ui\utils\config_binding.py)
+  ⎿  Read 336 lines
+
+● Read(apps\d3-check\providor\i18n\i18n_base.json)
+  ⎿  Read 6 lines
+
+● Read(apps\d3-check\providor\template_config.json)
+  ⎿  Read 559 lines
+
+● Perfect! Now I understand the issue. Let me create a comprehensive analysis document:
+
+● Language Data Consistency Analysis
+
+  I've analyzed the language inconsistency issue in the d3-check UI. Here's what I
+  found:
+
+  Root Cause
+
+  The language dropdown shows "zh" (Chinese) while the entire UI displays in English.
+  This is happening because:
+
+  1. template_config.json:7 - "current_language": "en" is set to English
+  2. i18n_base.json:3 - "default_language": "zh" is set to Chinese
+  3. Language combobox displays raw language code instead of a user-friendly name
+
+  Data Flow Issues
+
+  1. Initialization mismatch:
+    - i18n_manager loads from template_config.json and sets language to "en"
+    - UI displays in English correctly
+    - Combobox is bound to ui_settings.current_language via ConfigBinding
+    - The combobox shows the raw code "zh" or "en" instead of "中文" or "English"
+  2. Configuration priority:
+    - i18n_manager.py:272-289 loads language from template_config.json
+    - This overrides the default from i18n_base.json
+    - Current value is "en", so UI is in English
+
+  Issues Identified
+
+  1. Combobox displays language codes not names (title_bar.py:90-93):
+  self.language_combo = ConfigBinding.create_combobox_binding(
+      parent, "ui_settings.current_language",
+      values=["zh", "en"], default_value="zh", width=5
+  )
+  1. Should display "中文" / "English" instead of "zh" / "en"
+  2. No visual feedback: Users see "zh" but UI is in English, creating confusion
+
+  Solutions
+
+  Option 1: Display user-friendly language names (Recommended)
+  - Modify the combobox to show "中文" / "English"
+  - Map display values to language codes internally
+  - More intuitive for users
+
+  Option 2: Update documentation
+  - Add tooltip explaining "zh" = Chinese, "en" = English
+  - Less user-friendly but minimal code change
+
+  Option 3: Sync default values
+  - Set i18n_base.json default to "en" to match template_config.json
+  - Maintains consistency but doesn't solve UX issue
+
+  Recommended Fix
+
+  Modify title_bar.py:77-97 to use a custom combobox that displays language names:
+
+  def _create_language_menu(self, parent):
+      """Create language selection menu"""
+      # Language label
+      self.lang_label = tk.Label(
+          parent,
+          text=i18n_manager.get_ui_text("main_window.language") + ":",
+          font=('Arial', 9),
+          fg=UITheme.get_color('test_high_contrast'),
+          bg=UITheme.get_color('bg_primary')
+      )
+      self.lang_label.pack(side=tk.LEFT, padx=(0, 5))
+
+      # Language display mapping
+      lang_display = {"zh": "中文", "en": "English"}
+      current_lang = i18n_manager.get_current_language()
+
+      # Create combobox with display names
+      self.language_var = tk.StringVar(value=lang_display.get(current_lang,
+  current_lang))
+      self.language_combo = ttk.Combobox(
+          parent,
+          textvariable=self.language_var,
+          values=list(lang_display.values()),
+          width=8,
+          state='readonly'
+      )
+      self.language_combo.pack(side=tk.LEFT, padx=(0, 10))
+
+      # Custom binding for language change
+      def on_language_change(event):
+          display_value = self.language_var.get()
+          # Reverse mapping: display name -> code
+          lang_code = {v: k for k, v in lang_display.items()}.get(display_value)
+          if lang_code:
+              ConfigBinding.set_config_value("ui_settings.current_language", lang_code)
+
+      self.language_combo.bind('<<ComboboxSelected>>', on_language_change)
+
+● Summary
+
+  The inconsistency occurs because:
+  - Actual UI language: English (correctly loaded from template_config.json:7)
+  - Dropdown display: Shows raw code "zh" instead of current language "en"
+  - Root cause: Combobox displays language codes, not reflecting actual UI state
+
+  The recommended fix displays user-friendly names ("中文"/"English") and properly syncs
+   with the actual UI language state.
+
+> Diablo III', 'Diablo 3', 'D3']
+[WindowFinder] No windows found matching: ['Diablo III', 'Diablo 3', 'D3']
+[FAST_SINGLE] No windows found matching: ['Diablo III', 'Diablo 3', 'D3']
+[COORD_CALIBRATION] Could not find window matching: ['Diablo III', 'Diablo 3', 这个是从
+那里来的,请引用providor/中的类库D:\programing\core_node\apps\d3-check\d3-check_tree.md
+
+· Brewing… (esc to interrupt)
+  ⎿ Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify
+    its suggested edits

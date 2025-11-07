@@ -39,6 +39,8 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyStatusSuccess: '成功！',
     LocalizationKeysAppWuy.wuyStatusError: '发生错误',
     LocalizationKeysAppWuy.wuyStatusNoData: '暂无数据',
+    LocalizationKeysAppWuy.wuyStatusOnline: '在线',
+    LocalizationKeysAppWuy.wuyStatusOffline: '离线',
 
     LocalizationKeysAppWuy.wuyValidationRequired: '此字段为必填项',
     LocalizationKeysAppWuy.wuyValidationInvalidEmail: '请输入有效的邮箱地址',
@@ -52,6 +54,10 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyFriendsAddFriend: '添加好友',
     LocalizationKeysAppWuy.wuyFriendsOnline: '在线',
     LocalizationKeysAppWuy.wuyFriendsOffline: '离线',
+    LocalizationKeysAppWuy.wuyMonitoringEnabled: '已开启监控',
+    LocalizationKeysAppWuy.wuyMonitoringDisabled: '已关闭监控',
+    LocalizationKeysAppWuy.wuyMonitoringError: '更新监控状态失败',
+    LocalizationKeysAppWuy.wuyLastLocation: '最后位置',
 
     // Chat related
     LocalizationKeysAppWuy.wuyChatTitle: '聊天',
@@ -64,9 +70,35 @@ class WuyZhTranslations {
     // Search related
     LocalizationKeysAppWuy.wuySearchTitle: '搜索好友',
     LocalizationKeysAppWuy.wuySearchName: '姓名',
+    LocalizationKeysAppWuy.wuySearchNameHint: '请输入姓名',
     LocalizationKeysAppWuy.wuySearchSignature: '个性签名',
+    LocalizationKeysAppWuy.wuySearchSignatureHint: '请输入个性签名',
     LocalizationKeysAppWuy.wuySearchPhone: '电话号码',
+    LocalizationKeysAppWuy.wuySearchPhoneHint: '请输入电话号码',
     LocalizationKeysAppWuy.wuySearchGender: '性别',
+
+    // History related
+    LocalizationKeysAppWuy.wuyHistoryLoginAccount: '登录到账户',
+    LocalizationKeysAppWuy.wuyHistoryLoginSuccess: '登录成功',
+    LocalizationKeysAppWuy.wuyHistoryViewFriends: '查看好友列表',
+    LocalizationKeysAppWuy.wuyHistorySendMessage: '发送消息',
+    LocalizationKeysAppWuy.wuyHistoryUpdateProfile: '更新个人资料',
+
+    // Chat related
+    LocalizationKeysAppWuy.wuyChatHelloMessage: '你好，请问有什么可以帮助你的吗？',
+    LocalizationKeysAppWuy.wuyChatLookingForChat: '我想找一个可以聊天的人',
+    LocalizationKeysAppWuy.wuyChatInputHint: '输入',
+
+    // Profile form fields
+    LocalizationKeysAppWuy.wuyProfileNickname: '昵称',
+    LocalizationKeysAppWuy.wuyProfileSignature: '个性签名',
+    LocalizationKeysAppWuy.wuyProfileGender: '性别',
+    LocalizationKeysAppWuy.wuyProfilePhone: '手机号',
+    LocalizationKeysAppWuy.wuyProfileBirthday: '出生日期',
+    LocalizationKeysAppWuy.wuyProfileAddress: '居住地址',
+    LocalizationKeysAppWuy.wuyProfileEmail: '邮箱',
+    LocalizationKeysAppWuy.wuyProfileIdNumber: '身份证号码',
+
     LocalizationKeysAppWuy.wuySearchMale: '男',
     LocalizationKeysAppWuy.wuySearchFemale: '女',
     LocalizationKeysAppWuy.wuySearchReset: '重置',
@@ -83,7 +115,6 @@ class WuyZhTranslations {
     // About related
     LocalizationKeysAppWuy.wuyAboutTitle: '关于我们',
     LocalizationKeysAppWuy.wuyAboutFeatures: '功能介绍',
-    LocalizationKeysAppWuy.wuyAboutVersion: '版本更新',
     LocalizationKeysAppWuy.wuyAboutAppInfo: '应用信息',
     LocalizationKeysAppWuy.wuyAboutVersionInfo: '查看最新版本信息',
     LocalizationKeysAppWuy.wuyAboutFeatureInfo: '了解应用的主要功能',
@@ -96,6 +127,9 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyHistoryAction: '操作',
     LocalizationKeysAppWuy.wuyHistoryMessage: '消息',
     LocalizationKeysAppWuy.wuyHistoryUpdate: '更新',
+    LocalizationKeysAppWuy.wuyHistoryProtectFuture: '守护你的未来',
+    LocalizationKeysAppWuy.wuyHistoryNoLocationHistory: '暂无位置记录',
+    LocalizationKeysAppWuy.wuyHistoryTrajectory: '轨迹',
 
     // Network related
     LocalizationKeysAppWuy.wuyNetworkTitle: '网络记录',
@@ -103,6 +137,11 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyNetworkSuccess: '成功',
     LocalizationKeysAppWuy.wuyNetworkError: '错误',
     LocalizationKeysAppWuy.wuyNetworkPending: '等待中',
+    LocalizationKeysAppWuy.wuyNetworkConnectedWifi: '已连接 WiFi',
+    LocalizationKeysAppWuy.wuyNetworkConnectedWifiWith: '已连接 WiFi',
+    LocalizationKeysAppWuy.wuyNetworkConnectedMobile: '已连接移动网络',
+    LocalizationKeysAppWuy.wuyNetworkChange: '网络变更',
+    LocalizationKeysAppWuy.wuyNetworkNoRecords: '暂无网络记录',
 
     // Map related
     LocalizationKeysAppWuy.wuyMapTitle: '地图',
@@ -121,7 +160,9 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyAuthSignUp: '注册',
     LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: '已有账户？',
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: '没有账户？',
-    
+    LocalizationKeysAppWuy.wuyAlreadyHaveAccount: '已有账户？',
+    LocalizationKeysAppWuy.wuyNeedAccount: '需要账户？',
+
     // Login Entry Page
     LocalizationKeysAppWuy.wuyAppName: '安无忧',
     LocalizationKeysAppWuy.wuyAppSlogan: '为您精心守护',
@@ -131,7 +172,7 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyWeChatLogin: '微信登录',
     LocalizationKeysAppWuy.wuyQQLogin: 'QQ登录',
     LocalizationKeysAppWuy.wuyAlipayLogin: '支付宝登录',
-    
+
     // Phone Login Page
     LocalizationKeysAppWuy.wuyPhoneLoginTitle: '登录/注册',
     LocalizationKeysAppWuy.wuyEnterPhoneNumber: '请输入手机号',
@@ -170,11 +211,25 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyMapViewDetails: '查看详情',
     LocalizationKeysAppWuy.wuyMapFriends: '好友',
     LocalizationKeysAppWuy.wuyMapMine: '我的',
+    LocalizationKeysAppWuy.wuyMapCenterLocation: '已定位到当前位置',
+    LocalizationKeysAppWuy.wuyMapStyleTitle: '地图样式',
+    LocalizationKeysAppWuy.wuyMapStyleNormal: '标准',
+    LocalizationKeysAppWuy.wuyMapStyleSatellite: '卫星',
+    LocalizationKeysAppWuy.wuyMapStyleDark: '深色',
+    LocalizationKeysAppWuy.wuyMapStyleLight: '浅色',
+    LocalizationKeysAppWuy.wuyMapStyleTraffic: '路况',
+    LocalizationKeysAppWuy.wuyMapZoomIn: '放大',
+    LocalizationKeysAppWuy.wuyMapZoomOut: '缩小',
+    LocalizationKeysAppWuy.wuyMapMarkerTapped: '标记已点击',
+    LocalizationKeysAppWuy.wuyMapBeijing: '北京',
+    LocalizationKeysAppWuy.wuyMapCapitalOfChina: '中国首都',
+    LocalizationKeysAppWuy.wuyMapSteps: '步数',
+    LocalizationKeysAppWuy.wuyMapHeartRate: '心率',
+    LocalizationKeysAppWuy.wuyMapTemperature: '温度',
+    LocalizationKeysAppWuy.wuyMapCalories: '卡路里',
 
     // Profile screen
     LocalizationKeysAppWuy.wuyProfileUsername: '用户名',
-    LocalizationKeysAppWuy.wuyProfileEmail: '邮箱',
-    LocalizationKeysAppWuy.wuyProfilePhone: '手机号',
     LocalizationKeysAppWuy.wuyProfileEditProfile: '编辑个人资料',
     LocalizationKeysAppWuy.wuyProfileChangePassword: '修改密码',
     LocalizationKeysAppWuy.wuyProfileNotificationSettings: '通知设置',
@@ -183,6 +238,14 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyProfileTermsOfService: '服务条款',
     LocalizationKeysAppWuy.wuyProfilePrivacyPolicy: '隐私政策',
     LocalizationKeysAppWuy.wuyProfileLogout: '退出登录',
+    LocalizationKeysAppWuy.wuyProfileMemberSince: '注册时间',
+
+    // Profile detailed info
+    LocalizationKeysAppWuy.wuyProfileName: '名字',
+    LocalizationKeysAppWuy.wuyProfileBirthDate: '出生日期',
+    LocalizationKeysAppWuy.wuyProfileLocation: '所在地址',
+    LocalizationKeysAppWuy.wuyProfileMale: '男',
+    LocalizationKeysAppWuy.wuyProfileFemale: '女',
 
     // Login screen
     LocalizationKeysAppWuy.wuyLoginTitle: '登录',
@@ -265,6 +328,282 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyDashboardStats: '统计',
     LocalizationKeysAppWuy.wuyDashboardRecentActivity: '最近活动',
     LocalizationKeysAppWuy.wuyDashboardQuickActions: '快速操作',
+
+    // Messages
+    LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated: '个人信息更新成功！',
+    LocalizationKeysAppWuy.wuyMessageFriendAdded: '好友添加成功！',
+    LocalizationKeysAppWuy.wuyMessageEnterPhoneFirst: '请先输入手机号',
+    LocalizationKeysAppWuy.wuyMessageVerificationCodeSent: '验证码已发送到 {phone}',
+    LocalizationKeysAppWuy.wuyMessageRegistrationSuccessful: '注册成功！',
+    LocalizationKeysAppWuy.wuyMessageFeatureComingSoon: '功能信息即将推出！',
+    LocalizationKeysAppWuy.wuyMessageVersionComingSoon: '版本信息即将推出！',
+    LocalizationKeysAppWuy.wuyMessageLoginFailed: '登录失败: {error}',
+    LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline: '登录成功 (离线模式)',
+    LocalizationKeysAppWuy.wuyMessageApiKeyNotConfigured:
+        '后端ApiKey还未配置、使用非API模式',
+
+    // Debug messages
+    LocalizationKeysAppWuy.wuyDebugLoginError: '登录错误',
+    LocalizationKeysAppWuy.wuyDebugRegistrationError: '注册错误',
+    LocalizationKeysAppWuy.wuyDebugVerificationCodeError: '验证码发送错误',
+    LocalizationKeysAppWuy.wuyDebugLogoutError: '登出错误',
+    LocalizationKeysAppWuy.wuyDebugGetFriendsError: '获取好友列表错误',
+    LocalizationKeysAppWuy.wuyDebugGetChatMessagesError: '获取聊天消息错误',
+    LocalizationKeysAppWuy.wuyDebugGetLocationError: '获取位置信息错误',
+    LocalizationKeysAppWuy.wuyDebugUpdateProfileError: '更新个人资料错误',
+    LocalizationKeysAppWuy.wuyDebugLoadUserDataError: '加载用户数据错误',
+    LocalizationKeysAppWuy.wuyDebugAuthStateValidationFailed: '认证状态验证失败',
+    LocalizationKeysAppWuy.wuyDebugAuthStateError: '认证状态错误',
+    LocalizationKeysAppWuy.wuyDebugStorageError: '存储错误',
+    LocalizationKeysAppWuy.wuyDebugStorageNotInitialized: '存储未初始化',
+    LocalizationKeysAppWuy.wuyDebugUserNotFound: '用户未找到',
+    LocalizationKeysAppWuy.wuyDebugCannotUpdateProfile: '无法更新个人资料，无当前用户',
+    LocalizationKeysAppWuy.wuyDebugNoAuthStateFound: '存储中未找到认证状态',
+    LocalizationKeysAppWuy.wuyDebugErrorLoadingAuthState: '加载认证状态错误',
+    LocalizationKeysAppWuy.wuyDebugErrorSettingUser: '设置用户错误',
+    LocalizationKeysAppWuy.wuyDebugErrorClearingAuth: '清除认证错误',
+    LocalizationKeysAppWuy.wuyDebugErrorInAuthCheck: '认证检查错误',
+    LocalizationKeysAppWuy.wuyDebugLoginSuccessNoUser: '登录成功但未找到用户',
+    LocalizationKeysAppWuy.wuyDebugErrorInLoginSuccess: '登录成功处理错误',
+    LocalizationKeysAppWuy.wuyDebugFallbackNavigation: '回退导航',
+    LocalizationKeysAppWuy.wuyDebugRedirectingToHome: '重定向到主页',
+    LocalizationKeysAppWuy.wuyDebugCheckingAuthState: '检查认证状态',
+    LocalizationKeysAppWuy.wuyDebugFinalAuthCheck: '最终认证检查结果',
+    LocalizationKeysAppWuy.wuyDebugLoginSuccess: '登录成功',
+    LocalizationKeysAppWuy.wuyDebugNavigatingToHome: '导航到主页',
+    LocalizationKeysAppWuy.wuyDebugUserAuthenticated: '用户已认证',
+    LocalizationKeysAppWuy.wuyDebugUserNotAuthenticated: '用户未认证',
+    LocalizationKeysAppWuy.wuyDebugAuthCleared: '认证已清除',
+    LocalizationKeysAppWuy.wuyDebugLogoutHandled: '登出已处理',
+    LocalizationKeysAppWuy.wuyDebugLoginSuccessHandled: '登录成功已处理',
+    LocalizationKeysAppWuy.wuyDebugAuthStateLoaded: '认证状态已从存储加载',
+    LocalizationKeysAppWuy.wuyDebugUserDataLoaded: '用户数据加载成功',
+    LocalizationKeysAppWuy.wuyDebugUserDataCleared: '用户数据已清除',
+    LocalizationKeysAppWuy.wuyDebugUserSaved: '用户保存成功',
+    LocalizationKeysAppWuy.wuyDebugUserUpdated: '用户更新成功',
+    LocalizationKeysAppWuy.wuyDebugUserDeleted: '用户删除成功',
+    LocalizationKeysAppWuy.wuyDebugStorageInitialized: '存储初始化成功',
+    LocalizationKeysAppWuy.wuyDebugStorageInitError: '存储初始化错误',
+    LocalizationKeysAppWuy.wuyDebugStorageInitFailed: '存储初始化失败',
+    LocalizationKeysAppWuy.wuyDebugSaveUserError: '保存用户错误',
+    LocalizationKeysAppWuy.wuyDebugGetUserError: '获取用户错误',
+    LocalizationKeysAppWuy.wuyDebugUpdateUserError: '更新用户错误',
+    LocalizationKeysAppWuy.wuyDebugDeleteUserError: '删除用户错误',
+    LocalizationKeysAppWuy.wuyDebugFakeDataEnabled: '假数据生成已启用',
+    LocalizationKeysAppWuy.wuyDebugFakeDataDisabled: '假数据生成已禁用',
+    LocalizationKeysAppWuy.wuyDebugUsingFakeData: '使用假数据',
+    LocalizationKeysAppWuy.wuyDebugLoadedFromFakeData: '从假数据加载',
+    LocalizationKeysAppWuy.wuyDebugLoadedFromApi: '从API加载',
+    LocalizationKeysAppWuy.wuyDebugProfileUpdated: '个人资料已更新',
+    LocalizationKeysAppWuy.wuyDebugProfileUpdatedViaApi: '通过API更新个人资料',
+    LocalizationKeysAppWuy.wuyDebugSyncedWithAuth: '与认证状态管理器同步',
+    LocalizationKeysAppWuy.wuyDebugClearedUser: '已清除用户',
+    LocalizationKeysAppWuy.wuyDebugRealLogoutFailed: '真实登出API调用失败',
+    LocalizationKeysAppWuy.wuyDebugGetInitialRoute: '获取初始路由',
+
+    // About screen specific
+    LocalizationKeysAppWuy.wuyAboutAppName: '安无忧',
+    LocalizationKeysAppWuy.wuyAboutAppNameEn: 'An Wu You',
+    LocalizationKeysAppWuy.wuyAboutVersion: '版本',
+    LocalizationKeysAppWuy.wuyAboutBuild: '构建',
+    LocalizationKeysAppWuy.wuyAboutDeveloper: '开发者',
+    LocalizationKeysAppWuy.wuyAboutPlatform: '平台',
+    LocalizationKeysAppWuy.wuyAboutLicense: '许可证',
+    LocalizationKeysAppWuy.wuyAboutVersionValue: '1.0.0',
+    LocalizationKeysAppWuy.wuyAboutBuildValue: '2025.01.08',
+    LocalizationKeysAppWuy.wuyAboutDeveloperValue: 'Wuy Team',
+    LocalizationKeysAppWuy.wuyAboutPlatformValue: 'Flutter',
+    LocalizationKeysAppWuy.wuyAboutLicenseValue: 'MIT',
+
+    // Validation messages
+    LocalizationKeysAppWuy.wuyValidationPhoneInvalid: '请输入有效的手机号',
+    LocalizationKeysAppWuy.wuyValidationPhoneRequired: '手机号不能为空',
+    LocalizationKeysAppWuy.wuyValidationPhoneFormat: '请输入正确的手机号格式',
+
+    // Search screen specific
+    LocalizationKeysAppWuy.wuySearchSampleUser1: '小飞侠',
+    LocalizationKeysAppWuy.wuySearchSampleUser1Bio: '今天天气真好',
+    LocalizationKeysAppWuy.wuySearchSampleUser2: '阳光明媚',
+    LocalizationKeysAppWuy.wuySearchSampleUser2Bio: '热爱生活，享受每一天',
+
+    // Settings screen specific (additional keys)
+    LocalizationKeysAppWuy.wuySettingsDarkModeDescription: '启用深色主题',
+    LocalizationKeysAppWuy.wuySettingsPushNotifications: '推送通知',
+    LocalizationKeysAppWuy.wuySettingsPushNotificationsDescription: '接收推送通知',
+    LocalizationKeysAppWuy.wuySettingsBiometricLogin: '生物识别登录',
+    LocalizationKeysAppWuy.wuySettingsBiometricLoginDescription: '使用指纹或面部识别',
+    LocalizationKeysAppWuy.wuySettingsChangePassword: '修改密码',
+    LocalizationKeysAppWuy.wuySettingsChangePasswordDescription: '更新您的密码',
+    LocalizationKeysAppWuy.wuySettingsVersion: '版本',
+    LocalizationKeysAppWuy.wuySettingsVersionValue: '1.0.0',
+    LocalizationKeysAppWuy.wuySettingsTermsOfService: '服务条款',
+    LocalizationKeysAppWuy.wuySettingsTermsOfServiceDescription: '阅读我们的条款',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicy: '隐私政策',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicyDescription: '阅读我们的隐私政策',
+    LocalizationKeysAppWuy.wuySettingsLanguageEnglish: 'English',
+    LocalizationKeysAppWuy.wuySettingsLanguageChinese: '中文',
+
+    // Add friend screen specific
+    LocalizationKeysAppWuy.wuyAddFriendEnterNickname: '输入好友昵称',
+    LocalizationKeysAppWuy.wuyAddFriendEnterGender: '输入性别 (男/女)',
+    LocalizationKeysAppWuy.wuyAddFriendEnterAge: '输入年龄',
+    LocalizationKeysAppWuy.wuyAddFriendEnterHeight: '输入身高 (cm)',
+    LocalizationKeysAppWuy.wuyAddFriendEnterWeight: '输入体重 (kg)',
+
+    // Register screen specific
+    LocalizationKeysAppWuy.wuyRegisterEnterPhone: '请输入手机号',
+    LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode: '请输入验证码',
+
+    // Social login messages
+    LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting: '微信登录API正在接入中',
+    LocalizationKeysAppWuy.wuyMessageQQApiConnecting: 'QQ登录API正在接入中',
+    LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting: '钉钉登录API正在接入中',
+    LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin: '推荐使用手机号登录',
+
+    // Missing translations
+    LocalizationKeysAppWuy.wuyVerificationCode: '验证码',
+    LocalizationKeysAppWuy.wuyGetCode: '获取验证码',
+    LocalizationKeysAppWuy.wuyRegisterLogin: '注册/登录',
+    LocalizationKeysAppWuy.wuyLogin: '登录',
+    LocalizationKeysAppWuy.wuyValidationVerificationRequired: '请输入验证码',
+    LocalizationKeysAppWuy.wuyValidationVerificationFormat: '验证码格式不正确',
+    LocalizationKeysAppWuy.wuyAgreementText: '注册即表示同意',
+    LocalizationKeysAppWuy.wuyAnd: '和',
+    LocalizationKeysAppWuy.wuyPrivacyPolicy: '隐私政策',
+    LocalizationKeysAppWuy.wuyMessageSendCodeFailed: '发送验证码失败',
+    LocalizationKeysAppWuy.wuyMessageSendCodeError: '发送验证码出错',
+    LocalizationKeysAppWuy.wuyMessageOperationFailed: '操作失败',
+
+    // Network records screen specific
+    LocalizationKeysAppWuy.wuyNetworkLoginAccount: '登录到账户',
+    LocalizationKeysAppWuy.wuyNetworkLoginSuccess: '登录成功',
+    LocalizationKeysAppWuy.wuyNetworkConnectWifi: '连接WiFi网络',
+    LocalizationKeysAppWuy.wuyNetworkMobileConnection: '移动网络连接',
+    LocalizationKeysAppWuy.wuyNetworkRequestTimeout: '网络请求超时',
+
+    // Dashboard screen specific
+    LocalizationKeysAppWuy.wuyDashboardWelcome: '欢迎回来！',
+    LocalizationKeysAppWuy.wuyDashboardOverviewText: '这是您的仪表板概览',
+    LocalizationKeysAppWuy.wuyDashboardQuickStats: '快速统计',
+    LocalizationKeysAppWuy.wuyDashboardTotalUsers: '总用户数',
+    LocalizationKeysAppWuy.wuyDashboardActiveSessions: '活跃会话',
+    LocalizationKeysAppWuy.wuyDashboardMessages: '消息',
+    LocalizationKeysAppWuy.wuyDashboardTasks: '任务',
+    LocalizationKeysAppWuy.wuyDashboardNewUserRegistered: '新用户注册',
+    LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted: '系统更新完成',
+    LocalizationKeysAppWuy.wuyDashboardNewMessageReceived: '收到新消息',
+    LocalizationKeysAppWuy.wuyDashboardTaskCompleted: '任务完成',
+    LocalizationKeysAppWuy.wuyDashboardReportGenerated: '报告已生成',
+    LocalizationKeysAppWuy.wuyDashboardMinutesAgo: '{count}分钟前',
+    LocalizationKeysAppWuy.wuyDashboardHourAgo: '1小时前',
+    LocalizationKeysAppWuy.wuyDashboardHoursAgo: '{count}小时前',
+    LocalizationKeysAppWuy.wuyDashboardDayAgo: '1天前',
+
+    // Settings screen extended
+    LocalizationKeysAppWuy.wuySettingsAppearance: '外观',
+    LocalizationKeysAppWuy.wuySettingsLanguageSection: '语言',
+    LocalizationKeysAppWuy.wuySettingsSocial: '社交',
+    LocalizationKeysAppWuy.wuySettingsMessaging: '消息',
+    LocalizationKeysAppWuy.wuySettingsPerformance: '性能',
+    LocalizationKeysAppWuy.wuySettingsResetTitle: '重置设置',
+    LocalizationKeysAppWuy.wuySettingsResetConfirm: '确定要将所有设置重置为默认值吗？',
+    LocalizationKeysAppWuy.wuySettingsResetSuccess: '设置已重置为默认值',
+    LocalizationKeysAppWuy.wuySettingsResetToDefaults: '恢复默认设置',
+
+    // Common buttons
+    LocalizationKeysAppWuy.wuyButtonCancel: '取消',
+    LocalizationKeysAppWuy.wuyButtonReset: '重置',
+    LocalizationKeysAppWuy.wuyButtonSave: '保存',
+    LocalizationKeysAppWuy.wuyButtonConfirm: '确认',
+    LocalizationKeysAppWuy.wuyButtonSend: '发送',
+    LocalizationKeysAppWuy.wuyButtonEdit: '编辑',
+
+    // Map view options
+    LocalizationKeysAppWuy.wuyMapViewStandard: '标准',
+    LocalizationKeysAppWuy.wuyMapViewSatellite: '卫星',
+    LocalizationKeysAppWuy.wuyMapViewHybrid: '混合',
+
+    // Cache size options
+    LocalizationKeysAppWuy.wuyCacheSize50MB: '50 MB',
+    LocalizationKeysAppWuy.wuyCacheSize100MB: '100 MB',
+    LocalizationKeysAppWuy.wuyCacheSize200MB: '200 MB',
+    LocalizationKeysAppWuy.wuyCacheSize500MB: '500 MB',
+
+    // Auto lock time options
+    LocalizationKeysAppWuy.wuyAutoLockNever: '从不',
+    LocalizationKeysAppWuy.wuyAutoLock1Min: '1分钟',
+    LocalizationKeysAppWuy.wuyAutoLock5Min: '5分钟',
+    LocalizationKeysAppWuy.wuyAutoLock15Min: '15分钟',
+    LocalizationKeysAppWuy.wuyAutoLock30Min: '30分钟',
+
+    // Login screen specific
+    LocalizationKeysAppWuy.wuyLoginWelcome: '欢迎使用乌语应用',
+    LocalizationKeysAppWuy.wuyLoginSignInToContinue: '登录以继续',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterEmail: '请输入邮箱',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail: '请输入有效的邮箱地址',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword: '请输入密码',
+    LocalizationKeysAppWuy.wuyLoginPasswordMinLength: '密码长度至少6个字符',
+    LocalizationKeysAppWuy.wuyLoginErrorMessage: '登录失败: {error}',
+
+    // Personal info screen specific
+    LocalizationKeysAppWuy.wuyPersonalInfoPleaseEnter: '请输入{label}',
+    LocalizationKeysAppWuy.wuyPersonalInfoGallery: '相册',
+    LocalizationKeysAppWuy.wuyPersonalInfoCamera: '相机',
+    LocalizationKeysAppWuy.wuyPersonalInfoAvatarUpdated: '头像更新成功',
+    LocalizationKeysAppWuy.wuyPersonalInfoNoUser: '未登录用户',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateSuccess: '资料更新成功',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateFailed: '更新资料失败: {error}',
+
+    // Phone login screen specific
+    LocalizationKeysAppWuy.wuyPhoneLoginSubtitle: '使用手机号登录',
+
+    // Register screen specific
+    LocalizationKeysAppWuy.wuyRegisterSend: '发送',
+    LocalizationKeysAppWuy.wuyRegisterPasswordHint: '请输入密码',
+    LocalizationKeysAppWuy.wuyRegisterPasswordValidation: '请输入您的密码',
+    LocalizationKeysAppWuy.wuyRegisterPasswordLengthValidation: '密码长度至少6个字符',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordHint: '确认密码',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordValidation: '请确认您的密码',
+    LocalizationKeysAppWuy.wuyRegisterPasswordMismatch: '两次输入的密码不一致',
+    LocalizationKeysAppWuy.wuyRegisterNow: '注册',
+    LocalizationKeysAppWuy.wuyRegisterHaveAccount: '已有账户？',
+
+    // Profile screen specific
+    LocalizationKeysAppWuy.wuyProfileLogoutConfirm: '确定要退出登录吗？',
+    LocalizationKeysAppWuy.wuyProfileLogoutCancel: '取消',
+    LocalizationKeysAppWuy.wuyProfileLogoutButton: '退出登录',
+
+    // Friend info screen specific
+    LocalizationKeysAppWuy.wuyFriendInfoHealth: 'TA的健康',
+    LocalizationKeysAppWuy.wuyFriendInfoPhoneReport: 'TA今天的手机报告',
+    LocalizationKeysAppWuy.wuyFriendInfoPlacesVisited: 'TA今天去过的地方',
+    LocalizationKeysAppWuy.wuyFriendInfoAchievements: 'TA今天的成就',
+    LocalizationKeysAppWuy.wuyFriendInfoRunningKm: '跑步公里',
+    LocalizationKeysAppWuy.wuyFriendInfoSteps: '步数',
+    LocalizationKeysAppWuy.wuyFriendInfoCalories: '卡路里',
+    LocalizationKeysAppWuy.wuyFriendInfoSleep: '睡眠',
+
+    // Friends list screen specific
+    LocalizationKeysAppWuy.wuyFriendsListMyFriends: '我的好友',
+    LocalizationKeysAppWuy.wuyFriendsListSearchFriends: '搜索好友...',
+    LocalizationKeysAppWuy.wuyFriendsListNoFriendsYet: '还没有好友',
+
+    // Chat screen specific
+    LocalizationKeysAppWuy.wuyChatNoMessages: '暂无消息',
+    LocalizationKeysAppWuy.wuyChatStartConversation: '开始对话',
+
+    // Search screen specific
+    LocalizationKeysAppWuy.wuySearchPlaceholder: '搜索...',
+    LocalizationKeysAppWuy.wuySearchHistory: '搜索历史',
+    LocalizationKeysAppWuy.wuySearchRecentlyViewed: '最近查看',
+    LocalizationKeysAppWuy.wuySearchRecommended: '推荐好友',
+    LocalizationKeysAppWuy.wuySearchClearHistory: '清空历史',
+    LocalizationKeysAppWuy.wuySearchAllGender: '全部',
+    LocalizationKeysAppWuy.wuySearchShareIcon: '分享',
+    LocalizationKeysAppWuy.wuySearchNotificationIcon: '通知',
+
+    // Map screen specific
+    LocalizationKeysAppWuy.wuyMapNoLocation: '暂无位置信息',
   };
 }
 

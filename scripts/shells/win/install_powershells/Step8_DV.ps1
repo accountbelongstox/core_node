@@ -12,7 +12,7 @@
 
 # Import required modules
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 # Define step number
 $STEP_NUMBER = 8

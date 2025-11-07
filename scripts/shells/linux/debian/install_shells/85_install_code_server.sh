@@ -1,8 +1,8 @@
 #!/bin/bash
-# Include common functions
+# Include common functions and variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-source "$COMMON_DIR/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
@@ -20,10 +20,10 @@ source "$COMMON_DIR/common_functions.sh"
 # This script installs code-server, configures it for vscode web, and manages its startup
 #
 # Development Requirements:
-# 1. Install code-server to COMPILE_DIR directory (from LGar.sh)
-# 2. Set SERVER_ROOT_DIR as the root directory (CORE_NODE_ROOT_DIR from LGar.sh)
+# 1. Install code-server to COMPILE_DIR directory (from gvar_common.sh)
+# 2. Set CORE_NODE_PROJECT_ROOT as the root directory (from gvar_common.sh)
 # 3. Create symbolic link to /usr/local/bin directory for startup command
-# 4. Reference LGar.sh using relative path: $PARENT_DIR_LEVEL_2$PARENT_DIR_LEVEL_2/linux/LGar.sh
+# 4. Reference gvar_common.sh using relative path: $PARENT_DIR_LEVEL_2/common/gvar_common.sh
 # 5. Do not print localhost, instead print all available IP addresses (support WSL and Linux server)
 # 6. Do not use nohup in start_code_server, use systemd service instead
 # 7. Execute order: create_systemd_service first, then start code-server
@@ -52,11 +52,9 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
-# Source LGar.sh to get CORE_NODE_ROOT_DIR and COMPILE_DIR
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+# Source common scripts
 source "$PARENT_DIR_LEVEL_2/common/resource_limiter_common.sh"
-source "$PARENT_DIR_LEVEL_2/linux/common/debian_service_manager.sh"
+source "../../common/debian_service_manager.sh"
 
 # Get installation mode
 INSTALL_MODE=$(get_var "INSTALL_MODE")
@@ -83,10 +81,10 @@ fi
 echo "[$SCRIPT_INDEX] Code Server installation enabled (INSTALL_MODE: $INSTALL_MODE)"
 
 # Configuration variables
-CODE_SERVER_INSTALL_DIR="$COMPILE_DIR/code-server"
+CODE_SERVER_INSTALL_DIR="$(map_web_path "www" "code-server")"
 CODE_SERVER_CONFIG_DIR="$CODE_SERVER_INSTALL_DIR/config"
 CODE_SERVER_DATA_DIR="$CODE_SERVER_INSTALL_DIR/data"
-SERVER_ROOT_DIR="$CORE_NODE_ROOT_DIR"
+SERVER_ROOT_DIR="$CORE_NODE_PROJECT_ROOT"
 CODE_SERVER_PORT=38008
 CODE_SERVER_HOST="0.0.0.0"
 CODE_SERVER_CPU_LIMIT="10"
@@ -223,7 +221,7 @@ EOF
         log "Access URL: http://localhost:$CODE_SERVER_PORT"
     fi
     
-    log "Server root directory: $SERVER_ROOT_DIR"
+    log "Server root directory: $CORE_NODE_PROJECT_ROOT"
 }
 
 # Function to check if code-server is running using debian_service_manager
@@ -299,7 +297,7 @@ create_systemd_service() {
     cat > "$wrapper_script" << EOF
 #!/bin/bash
 export PASSWORD=admin123
-cd "$SERVER_ROOT_DIR"
+cd "$CORE_NODE_PROJECT_ROOT"
 exec /usr/bin/code-server --bind-addr $CODE_SERVER_HOST:$CODE_SERVER_PORT --auth password --user-data-dir $CODE_SERVER_DATA_DIR --log debug
 EOF
     chmod +x "$wrapper_script"
@@ -337,7 +335,7 @@ EOF
             fi
 
             log "Password: admin123"
-            log "Server root directory: $SERVER_ROOT_DIR"
+            log "Server root directory: $CORE_NODE_PROJECT_ROOT"
         else
             warn "Service may not have started properly, checking status..."
             $USE_SUDO systemctl status "ncore-${CODE_SERVER_SERVICE_NAME}.service" --no-pager -l
@@ -417,8 +415,8 @@ show_service_management_commands() {
 # Main execution
 main() {
     log "Starting code-server installation and configuration..."
-    log "Using COMPILE_DIR: $COMPILE_DIR"
-    log "Using CORE_NODE_ROOT_DIR: $CORE_NODE_ROOT_DIR"
+    log "Using COMPILE_DIR: $(map_web_path "www")"
+    log "Using CORE_NODE_PROJECT_ROOT: $CORE_NODE_PROJECT_ROOT"
     
     # Check if code-server is installed
     if ! check_code_server_installed; then

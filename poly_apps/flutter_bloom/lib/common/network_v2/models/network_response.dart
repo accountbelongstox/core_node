@@ -24,21 +24,14 @@ class NetworkResponse<T> {
 
 class NetworkFailure<T> extends NetworkResponse<T> {
   NetworkFailure({
-    required int statusCode,
-    required Map<String, String> headers,
-    required Duration duration,
+    required super.statusCode,
+    required super.headers,
+    required super.duration,
     this.error,
-    dynamic rawBody,
-    String? requestId,
-    bool fromCache = false,
-  }) : super(
-          statusCode: statusCode,
-          headers: headers,
-          duration: duration,
-          rawBody: rawBody,
-          requestId: requestId,
-          fromCache: fromCache,
-        );
+    super.rawBody,
+    super.requestId,
+    super.fromCache,
+  });
 
   final NetworkError? error;
 

@@ -57,8 +57,8 @@ class EndpointCatalog {
     String path = pathTemplate;
     pathParams.forEach((key, value) {
       final replacement = Uri.encodeComponent(value.toString());
-      path = path.replaceAll('{' + key + '}', replacement);
-      path = path.replaceAll(':' + key, replacement);
+      path = path.replaceAll('{$key}', replacement);
+      path = path.replaceAll(':$key', replacement);
     });
 
     final remainingQuery = <String, dynamic>{};

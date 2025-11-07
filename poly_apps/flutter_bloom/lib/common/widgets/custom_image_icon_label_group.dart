@@ -81,9 +81,9 @@ class CustomImageIconLabelGroup extends StatefulWidget {
   final IconGroupConfig config;
 
   const CustomImageIconLabelGroup({
-    Key? key,
+    super.key,
     required this.config,
-  }) : super(key: key);
+  });
 
   @override
   State<CustomImageIconLabelGroup> createState() => _CustomImageIconLabelGroupState();

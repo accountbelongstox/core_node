@@ -1,0 +1,7 @@
+D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\do
+  c\Task.md 开始完成，同时更新桥接文件
+  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\_p
+  rompts\AI_COLLABORATION_BRIDGE_WY.json
+  ，注意数据model定义中心化，主题，API中心化，不要在页面中硬编码数据
+  ，API逻辑、主题代码，优先引用lib/common中的
+  主题，类库，widgets，之后在子app中扩展出特色类库。

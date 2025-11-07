@@ -48,6 +48,7 @@ class ThemeColors {
   static const Color blue60 = Color(0xFF4DA2FF); // Light blue
   static const Color blue50 = Color(0xFF66B6FF); // Very light blue
   static const Color blue40 = Color(0xFF80CAFF); // Ultra light blue
+  static const Color blue05 = Color(0xFFE6F3FF); // Very light blue
   static const Color blue30 = Color(0xFF99DEFF); // Pale blue
   static const Color blue20 = Color(0xFFB3F2FF); // Very pale blue
   static const Color blue10 = Color(0xFFCCF6FF); // Almost white blue
@@ -61,6 +62,7 @@ class ThemeColors {
   static const Color green60 = Color(0xFF48DE65); // Light green
   static const Color green50 = Color(0xFF51F36F); // Very light green
   static const Color green40 = Color(0xFF5AFF79); // Ultra light green
+  static const Color green05 = Color(0xFFE6F7E6); // Very light green
   static const Color green30 = Color(0xFF63FF83); // Pale green
   static const Color green20 = Color(0xFF6CFF8D); // Very pale green
   static const Color green10 = Color(0xFF75FF97); // Almost white green
@@ -225,6 +227,7 @@ class ThemeColors {
   static const Color transparent = Color(0x00000000);
 
   /// Common grey shades (equivalent to Colors.grey[xxx])
+  static const Color grey05 = Color(0xFFFDFDFD); // Very light grey for input fills
   static const Color grey50 = Color(0xFFFAFAFA);
   static const Color grey100 = Color(0xFFF5F5F5);
   static const Color grey200 = Color(0xFFEEEEEE);
@@ -264,13 +267,14 @@ class ThemeColors {
   static const Color borderColor = grey300;
   static const Color shadowColor = Color(0x1A000000);
   static const Color overlayColor = Color(0x80000000);
-  
+
   // Common aliases used in app_wuy and other apps
   static const Color primary = blue;
   static const Color primaryColor = blue;
   static const Color primaryDark = blue100;
   static const Color textSecondary = secondaryLabel;
   static const Color textPrimary = label;
+  static const Color textTertiary = tertiaryLabel;
   static const Color surfaceVariant = grey100;
   static const Color secondaryColor = green;
   static const Color error = red;
@@ -281,17 +285,47 @@ class ThemeColors {
 
   static const Color primaryLight = blue10;
 
+  // Additional semantic aliases for refactored screens
+  static const Color surface = lightSurface;
+  static const Color background = lightBackground;
+  static const Color border = borderColor;
+  static const Color shadow = shadowColor;
+
+  // Semantic color aliases for VIP Club and modern apps
+  // Use these for consistent theming across all features
+
+  // Neutral colors (for backgrounds, text, borders)
+  static const Color neutralWhite = white;           // #FFFFFF - Pure white backgrounds
+  static const Color neutralBlack = black;           // #000000 - Pure black text
+  static const Color neutralGrey = grey500;          // #9E9E9E - Default grey
+  static const Color neutralLightGrey = grey300;     // #E0E0E0 - Light grey backgrounds
+  static const Color neutralDarkGrey = grey700;      // #616161 - Dark grey text
+
+  // Primary and accent colors (for branding and highlights)
+  static const Color primaryBlue = blue;             // #007AFF - Primary brand color
+  static const Color accent = blue;                  // Default accent color for highlights
+  static const Color accentGold = Color(0xFFD4AF37); // #D4AF37 - VIP Gold tier
+  static const Color accentPurple = purple;          // #AF52DE - Purple accents
+  static const Color accentGreen = green;            // #34C759 - Green accents
+  static const Color accentOrange = orange;          // #FF9500 - Orange accents
+
+  // Semantic state colors (for status indicators)
+  static const Color successGreen = green;           // #34C759 - Success states
+  static const Color errorRed = red;                 // #FF3B30 - Error states
+  static const Color warningYellow = yellow;         // #FFCC00 - Warning states
+
+  // iOS system gray colors (for UI elements)
+  static const Color systemGray6 = grey100;          // #F5F5F5 - Very light gray for fills
+
   // Color scheme generators
   static ColorScheme lightColorScheme = const ColorScheme.light(
     primary: blue,
     secondary: green,
     surface: lightSurface,
-    background: lightBackground,
     error: red,
     onPrimary: white,
     onSecondary: white,
     onSurface: black,
-    onBackground: black,
     onError: white,
   );
 
@@ -299,12 +333,10 @@ class ThemeColors {
     primary: blue60,
     secondary: green60,
     surface: darkSurface,
-    background: darkBackground,
     error: red60,
     onPrimary: black,
     onSecondary: black,
     onSurface: white,
-    onBackground: white,
     onError: black,
   );
 
@@ -313,7 +345,6 @@ class ThemeColors {
   /// Primary brand color - commonly used green
   static const Color primaryBrand = Color(0xFF0B9722);
 
-  
   /// Generates a consistent color based on a string input
   /// The same string will always generate the same color
   static Color getStringColor(String input, {bool isDark = false}) {
@@ -360,4 +391,7 @@ class ThemeColors {
       end: Alignment.bottomRight,
     );
   }
+
+  // Backward compatibility aliases for app_qy
+  static const Color secondary = green;
 }

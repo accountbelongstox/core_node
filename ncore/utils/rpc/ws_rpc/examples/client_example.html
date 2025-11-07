@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket RPC Client Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background: #10b981;
+            color: white;
+        }
+
+        .status.disconnected {
+            background: #ef4444;
+            color: white;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .log-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .log-container h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        #log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+        }
+
+        .log-entry.info {
+            color: #4fc3f7;
+        }
+
+        .log-entry.success {
+            color: #81c784;
+        }
+
+        .log-entry.error {
+            color: #e57373;
+        }
+
+        .log-entry.warning {
+            color: #ffb74d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WebSocket RPC Client Example</h1>
+            <div>
+                Status: <span class="status disconnected" id="status">Disconnected</span>
+                <span id="clientId" style="margin-left: 20px; color: #666;"></span>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>Connection Management</h2>
+                <div class="form-group">
+                    <label>Server URL</label>
+                    <input type="text" id="serverUrl" value="ws://localhost:8080">
+                </div>
+                <button id="connectBtn" onclick="handleConnect()">Connect</button>
+                <button id="disconnectBtn" onclick="handleDisconnect()" disabled>Disconnect</button>
+            </div>
+
+            <div class="card">
+                <h2>Call Server Routes</h2>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="nameInput" value="Alice">
+                </div>
+                <button onclick="callHello()">Call hello</button>
+                <button onclick="callGetUserData()">Call getUserData</button>
+                <div class="result" id="routeResult"></div>
+            </div>
+
+            <div class="card">
+                <h2>Calculator</h2>
+                <div class="form-group">
+                    <label>Operation</label>
+                    <select id="operation">
+                        <option value="add">Add</option>
+                        <option value="subtract">Subtract</option>
+                        <option value="multiply">Multiply</option>
+                        <option value="divide">Divide</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Number A</label>
+                    <input type="number" id="numA" value="10">
+                </div>
+                <div class="form-group">
+                    <label>Number B</label>
+                    <input type="number" id="numB" value="5">
+                </div>
+                <button onclick="callCalculate()">Calculate</button>
+                <div class="result" id="calculateResult"></div>
+            </div>
+
+            <div class="card">
+                <h2>Trigger Events</h2>
+                <div class="form-group">
+                    <label>Chat Message</label>
+                    <input type="text" id="chatMessage" value="Hello everyone!">
+                </div>
+                <button onclick="sendChatMessage()">Send Chat Message</button>
+                <button onclick="sendStatusUpdate()">Send Status Update</button>
+                <div class="result" id="eventResult"></div>
+            </div>
+        </div>
+
+        <div class="log-container">
+            <h2>Real-time Log</h2>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script src="../WsRpcClient.js"></script>
+
+    <script>
+        let client = null;
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateUI(connected) {
+            document.getElementById('status').textContent = connected ? 'Connected' : 'Disconnected';
+            document.getElementById('status').className = `status ${connected ? 'connected' : 'disconnected'}`;
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+        }
+
+        async function handleConnect() {
+            const url = document.getElementById('serverUrl').value;
+
+            try {
+                addLog(`Connecting to ${url}...`, 'info');
+
+                client = new WsRpcClient(url, {
+                    debug: true,
+                    reconnect: true,
+                    maxReconnectAttempts: 5
+                });
+
+                client.onConnected = () => {
+                    addLog('Connected successfully!', 'success');
+                    document.getElementById('clientId').textContent = `Client ID: ${client.clientId}`;
+                    updateUI(true);
+                };
+
+                client.onDisconnected = () => {
+                    addLog('Connection closed', 'warning');
+                    updateUI(false);
+                };
+
+                client.onError = (error) => {
+                    addLog(`Error: ${error.message}`, 'error');
+                };
+
+                client.route('getStatus', (params) => {
+                    addLog('Server requesting status', 'info');
+                    return {
+                        online: true,
+                        userAgent: navigator.userAgent,
+                        timestamp: Date.now()
+                    };
+                });
+
+                client.on('welcome:message', (data) => {
+                    addLog(`Welcome message: ${data.message}`, 'success');
+                });
+
+                client.on('chat:message', (data) => {
+                    if (data.from !== client.clientId) {
+                        addLog(`[Chat] ${data.from}: ${data.message}`, 'info');
+                    }
+                });
+
+                await client.connect();
+
+            } catch (error) {
+                addLog(`Connection failed: ${error.message}`, 'error');
+                updateUI(false);
+            }
+        }
+
+        function handleDisconnect() {
+            if (client) {
+                client.disconnect();
+                client = null;
+                updateUI(false);
+            }
+        }
+
+        async function callHello() {
+            if (!client || !client.connected) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            try {
+                const name = document.getElementById('nameInput').value;
+                addLog(`Calling hello(${name})...`, 'info');
+
+                const result = await client.call('hello', { name });
+
+                addLog(`hello returned: ${JSON.stringify(result)}`, 'success');
+                document.getElementById('routeResult').textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                addLog(`hello error: ${error.message}`, 'error');
+                document.getElementById('routeResult').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function callGetUserData() {
+            if (!client || !client.connected) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            try {
+                addLog('Calling getUserData...', 'info');
+
+                const result = await client.call('getUserData', { userId: 123 });
+
+                addLog(`getUserData returned: ${JSON.stringify(result)}`, 'success');
+                document.getElementById('routeResult').textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                addLog(`getUserData error: ${error.message}`, 'error');
+                document.getElementById('routeResult').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function callCalculate() {
+            if (!client || !client.connected) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            try {
+                const operation = document.getElementById('operation').value;
+                const a = parseFloat(document.getElementById('numA').value);
+                const b = parseFloat(document.getElementById('numB').value);
+
+                addLog(`Calling calculate(${operation}, ${a}, ${b})...`, 'info');
+
+                const result = await client.call('calculate', { operation, a, b });
+
+                addLog(`calculate returned: ${result.result}`, 'success');
+                document.getElementById('calculateResult').textContent = `Result: ${result.result}`;
+            } catch (error) {
+                addLog(`calculate error: ${error.message}`, 'error');
+                document.getElementById('calculateResult').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function sendChatMessage() {
+            if (!client || !client.connected) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            const message = document.getElementById('chatMessage').value;
+            client.emit('chat:message', { message });
+            addLog(`Sent chat message: ${message}`, 'info');
+        }
+
+        function sendStatusUpdate() {
+            if (!client || !client.connected) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            client.emit('client:status', {
+                status: 'active',
+                page: window.location.pathname,
+                timestamp: Date.now()
+            });
+            addLog('Sent status update', 'info');
+        }
+
+        window.addEventListener('load', () => {
+            addLog('Page loaded, ready', 'success');
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (client) {
+                client.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>

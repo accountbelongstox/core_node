@@ -40,10 +40,10 @@ function Load-WindowsDebugVariables {
     Write-Host "[INFO] Loading variables for Windows debug..." -ForegroundColor Cyan
 
     # Load essential variables with sensible defaults
-    $selectedApp = Get-FileVariable -Name "SELECTED_APP" -DefaultValue "app_main"
-    $entryFile = Get-FileVariable -Name "SELECTED_ENTRY_FILE" -DefaultValue "lib/apps/$selectedApp/main_app_$($selectedApp.Replace('app_', '')).dart"
-    $appIndex = Get-FileVariable -Name "APP_INDEX" -DefaultValue "0"
-    $debugPort = Get-FileVariable -Name "DEBUG_PORT" -DefaultValue "10000"
+    $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue "app_main"
+    $entryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue "lib/apps/$selectedApp/main_app_$($selectedApp.Replace('app_', '')).dart"
+    $appIndex = Get-FileVariable -Name $Global:KEY_APP_INDEX -DefaultValue "0"
+    $debugPort = Get-FileVariable -Name $Global:KEY_DEBUG_PORT -DefaultValue "10000"
 
     # Display loaded configuration
     Write-Host "[INFO] Windows Debug Configuration:" -ForegroundColor Green

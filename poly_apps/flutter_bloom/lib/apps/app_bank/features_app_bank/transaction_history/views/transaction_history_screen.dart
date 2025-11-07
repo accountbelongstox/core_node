@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
-import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 
 class BankTransactionHistoryScreen extends StatelessWidget {
   const BankTransactionHistoryScreen({super.key});

@@ -9,10 +9,10 @@
 #   ./120_install_desktop_applications.sh --cleanup code    # Force cleanup "code" from all package managers
 #
 # Parameter Rules:
-#   â€?Single parameter: UPPERCASE = group match, lowercase = app name match
-#   â€?Two parameters: first = group, second = app name within that group
-#   â€?All matching is case-insensitive internally
-#   â€?Any parameters will show rules and wait for confirmation
+#   Single parameter: UPPERCASE = group match, lowercase = app name match
+#   Two parameters: first = group, second = app name within that group
+#   All matching is case-insensitive internally
+#   Any parameters will show rules and wait for confirmation
 #
 # Test mode ignores installation flag files and installs matching packages directly
 # Cleanup mode removes packages from snap, apt, flatpak and cleans up binaries
@@ -41,22 +41,32 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/linux_applications_list.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_1/debian_com/super_launch_helper.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "120_install_desktop_applications")
 LOG_FILE="$SCRIPT_TEMP_DIR/desktop_apps_install_$(date +%Y%m%d_%H%M%S).log"
 
-# Package group installation flags
-INSTALL_BASE_PACKAGES=$(get_var "INSTALL_BASE_PACKAGES" "true")
-INSTALL_DEV_PACKAGES=$(get_var "INSTALL_DEV_PACKAGES" "false")
-INSTALL_APP_PACKAGES=$(get_var "INSTALL_APP_PACKAGES" "false")
-INSTALL_AI_PACKAGES=$(get_var "INSTALL_AI_PACKAGES" "false")
-INSTALL_MCP_PACKAGES=$(get_var "INSTALL_MCP_PACKAGES" "false")
+# Track installation results globally
+declare -A INSTALLATION_RESULTS  # app_name -> status (success/failed/skipped/unavailable)
+SKIPPED_APPS=()                   # Apps not installed due to missing packages
+FAILED_APPS=()                    # Apps that failed installation
+UNAVAILABLE_APPS=()               # Apps with package_id not found in registry
+
+# Determine environment type and get packages to install
+if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
+    ENVIRONMENT_TYPE="desktop"
+elif [ "$IS_WSL" = true ]; then
+    ENVIRONMENT_TYPE="wsl"
+elif [ "$IS_PRODUCTION" = true ]; then
+    ENVIRONMENT_TYPE="server"
+else
+    ENVIRONMENT_TYPE="desktop"
+fi
 
 # Logging function
 log_message() {
@@ -67,9 +77,6 @@ log_message() {
 # Get AI tools installation flag
 INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS" "false")
 
-log_message "Starting desktop applications installation for Linux..."
-log_message "Install mode: $INSTALL_MODE"
-
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -79,7 +86,8 @@ command_exists() {
 install_via_snap() {
     local package_id="$1"
     local app_name="$2"
-    
+    local confinement="${3:-}"
+
     if ! command_exists snap; then
         log_message "Snap is not installed. Installing snapd..."
         log_message "Updating package lists with timeout..."
@@ -88,15 +96,15 @@ install_via_snap() {
         else
             log_message "Warning: Package update timed out or failed, continuing anyway"
         fi
-        
+
         log_message "Installing snapd..."
-        if timeout 600 $USE_SUDO apt install -y snapd; then
+        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" snapd; then
             log_message "snapd installed successfully"
         else
             log_message "Error: Failed to install snapd"
             return 1
         fi
-        
+
         # Enable snap services
         log_message "Enabling snap services..."
         $USE_SUDO systemctl enable --now snapd.socket || {
@@ -104,9 +112,17 @@ install_via_snap() {
         }
         $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
     fi
-    
-    log_message "Installing $app_name via snap: $package_id"
-    if $USE_SUDO snap install $package_id; then
+
+    # Build snap install command with confinement option if specified
+    local snap_install_cmd="$USE_SUDO snap install"
+    if [ -n "$confinement" ] && [ "$confinement" = "classic" ]; then
+        snap_install_cmd="$snap_install_cmd --classic"
+        log_message "Installing $app_name via snap (classic confinement): $package_id"
+    else
+        log_message "Installing $app_name via snap: $package_id"
+    fi
+
+    if $snap_install_cmd $package_id; then
         log_message "Successfully installed $app_name via snap"
         return 0
     else
@@ -129,7 +145,7 @@ install_via_apt() {
     fi
     
     log_message "Installing package with timeout..."
-    if timeout 600 $USE_SUDO apt install -y "$package_id"; then
+    if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$package_id"; then
         log_message "Successfully installed $app_name via apt"
         return 0
     else
@@ -151,9 +167,9 @@ install_via_flatpak() {
         else
             log_message "Warning: Package update timed out or failed, continuing anyway"
         fi
-        
+
         log_message "Installing flatpak..."
-        if timeout 600 $USE_SUDO apt install -y flatpak; then
+        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" flatpak; then
             log_message "flatpak installed successfully"
         else
             log_message "Error: Failed to install flatpak"
@@ -162,20 +178,32 @@ install_via_flatpak() {
         
         # Add flathub repository
         log_message "Adding flathub repository..."
-        if timeout 120 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+        if timeout 120 $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
             log_message "Flathub repository added successfully"
         else
-            log_message "Warning: Failed to add flathub repository"
+            log_message "Warning: Failed to add flathub repository, trying alternative method..."
+            if timeout 120 $USE_SUDO flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+                log_message "Flathub repository added successfully (user mode)"
+            else
+                log_message "Error: Failed to add flathub repository"
+                return 1
+            fi
         fi
     fi
     
     log_message "Installing $app_name via flatpak: $package_id"
-    if flatpak install -y flathub "$package_id"; then
+    if $USE_SUDO flatpak install -y flathub "$package_id"; then
         log_message "Successfully installed $app_name via flatpak"
         return 0
     else
-        log_message "Failed to install $app_name via flatpak"
-        return 1
+        log_message "Failed to install $app_name via flatpak (system), trying user mode..."
+        if flatpak install --user -y flathub "$package_id"; then
+            log_message "Successfully installed $app_name via flatpak (user mode)"
+            return 0
+        else
+            log_message "Failed to install $app_name via flatpak"
+            return 1
+        fi
     fi
 }
 
@@ -184,29 +212,181 @@ install_via_appimage() {
     local download_url="$1"
     local app_name="$2"
     local exec_name="$3"
-    
-    local appimage_dir="/opt/appimages"
-    local appimage_file="$appimage_dir/${exec_name}.AppImage"
-    
+    local app_id="${4:-${exec_name}}"
+
+    local appimage_dir=$(map_web_path "compile_dir" "applications/appimages")
+    local install_dir="$appimage_dir/$exec_name"
+    local appimage_file="$install_dir/${exec_name}.AppImage"
+    local extracted_dir="$install_dir/extracted"
+    local apprun_path="$extracted_dir/squashfs-root/AppRun"
+
     log_message "Installing $app_name via AppImage from: $download_url"
-    
-    # Create AppImage directory
-    $USE_SUDO mkdir -p "$appimage_dir"
-    
+
+    # Install libfuse2 dependency (required for AppImage)
+    if ! dpkg -l | grep -q "^ii.*libfuse2"; then
+        log_message "Installing libfuse2 (required for AppImage)..."
+        $USE_SUDO apt-get update -qq
+        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" libfuse2 2>&1 | tee -a "$LOG_FILE" || log_message "Warning: Failed to install libfuse2"
+    fi
+
+    # Create AppImage directory structure
+    $USE_SUDO mkdir -p "$install_dir"
+    $USE_SUDO mkdir -p "$extracted_dir"
+
     # Download AppImage
-    if $USE_SUDO wget -O "$appimage_file" "$download_url"; then
-        # Make executable
-        $USE_SUDO chmod +x "$appimage_file"
-        
-        # Create symlink in /usr/local/bin
-        $USE_SUDO ln -sf "$appimage_file" "/usr/local/bin/$exec_name" 2>/dev/null || true
-        
-        log_message "Successfully installed $app_name AppImage"
-        return 0
+    if $USE_SUDO wget --progress=bar:force -O "$appimage_file" "$download_url" 2>&1 | tee -a "$LOG_FILE"; then
+        log_message "AppImage downloaded successfully"
     else
         log_message "Failed to download $app_name AppImage"
         return 1
     fi
+
+    # Make executable
+    $USE_SUDO chmod +x "$appimage_file"
+
+    # Extract AppImage to get icon, desktop file and AppRun
+    log_message "Extracting AppImage..."
+    cd "$extracted_dir"
+    if $USE_SUDO "$appimage_file" --appimage-extract >/dev/null 2>&1; then
+        log_message "AppImage extracted successfully"
+    else
+        log_message "Warning: AppImage extraction failed, will use AppImage directly"
+        # Fall back to using AppImage directly if extraction fails
+        apprun_path="$appimage_file"
+    fi
+    cd - >/dev/null
+
+    # Fix chrome-sandbox permissions if it exists (critical for Electron apps)
+    if [ -d "$extracted_dir/squashfs-root" ]; then
+        local chrome_sandbox_paths=(
+            "$extracted_dir/squashfs-root/chrome-sandbox"
+            "$extracted_dir/squashfs-root/usr/lib/chrome-sandbox"
+        )
+
+        for sandbox_pattern in "$extracted_dir/squashfs-root/opt/"*"/chrome-sandbox"; do
+            chrome_sandbox_paths+=("$sandbox_pattern")
+        done
+
+        for sandbox_path in "${chrome_sandbox_paths[@]}"; do
+            if [ -f "$sandbox_path" ]; then
+                log_message "Fixing chrome-sandbox permissions: $sandbox_path"
+                $USE_SUDO chown root:root "$sandbox_path" 2>/dev/null || true
+                $USE_SUDO chmod 4755 "$sandbox_path" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    # Get app configuration from linux_applications_list.sh
+    local desktop_name="${app_id}_desktop_name"
+    local desktop_comment="${app_id}_desktop_comment"
+    local desktop_categories="${app_id}_desktop_categories"
+    local startup_wm_class="${app_id}_startup_wm_class"
+    local need_super="${app_id}_super"
+
+    # Create wrapper script
+    local wrapper_script="/usr/local/super_scripts/${exec_name}.sh"
+    log_message "Creating wrapper script: $wrapper_script"
+
+    $USE_SUDO mkdir -p "/usr/local/super_scripts"
+
+    # Determine which executable to use (AppRun or AppImage)
+    local exec_target=""
+    if [ -f "$apprun_path" ] && [ "$apprun_path" != "$appimage_file" ]; then
+        exec_target="$apprun_path"
+        log_message "Using extracted AppRun: $exec_target"
+    else
+        exec_target="$appimage_file"
+        log_message "Using AppImage directly: $exec_target"
+    fi
+
+    if [[ "${!need_super}" == "true" ]]; then
+        # Create wrapper with --no-sandbox flag (for apps needing root or sandbox bypass)
+        cat << WRAPPER_EOF | $USE_SUDO tee "$wrapper_script" > /dev/null
+#!/bin/bash
+# ${app_name} Launcher Script (AppImage Installation)
+# This script launches the app with --no-sandbox flag
+
+EXEC_PATH="$exec_target"
+
+if [[ ! -f "\$EXEC_PATH" ]]; then
+    echo "Error: Executable not found at \$EXEC_PATH"
+    echo "Please reinstall ${app_name}"
+    exit 1
+fi
+
+# Launch with --no-sandbox (required for certain execution contexts)
+exec "\$EXEC_PATH" --no-sandbox "\$@"
+WRAPPER_EOF
+    else
+        # Create simple wrapper without --no-sandbox
+        cat << WRAPPER_EOF | $USE_SUDO tee "$wrapper_script" > /dev/null
+#!/bin/bash
+# ${app_name} Launcher Script (AppImage Installation)
+
+EXEC_PATH="$exec_target"
+
+if [[ ! -f "\$EXEC_PATH" ]]; then
+    echo "Error: Executable not found at \$EXEC_PATH"
+    echo "Please reinstall ${app_name}"
+    exit 1
+fi
+
+# Launch application
+exec "\$EXEC_PATH" "\$@"
+WRAPPER_EOF
+    fi
+
+    $USE_SUDO chmod +x "$wrapper_script"
+
+    # Create symlink in /usr/local/bin
+    $USE_SUDO ln -sf "$wrapper_script" "/usr/local/bin/$exec_name"
+
+    # Find icon
+    local icon_path="$exec_name"
+    if [ -d "$extracted_dir/squashfs-root" ]; then
+        # Try to find icon in multiple common locations
+        local found_icon=$(find "$extracted_dir/squashfs-root" \( -name "${exec_name}.png" -o -name "${exec_name}.svg" -o -name "icon.png" -o -name "*.png" \) -type f 2>/dev/null | head -1)
+        if [ -n "$found_icon" ]; then
+            icon_path="$found_icon"
+            log_message "Using icon: $icon_path"
+        fi
+    fi
+
+    # Create desktop entry
+    local desktop_file="/usr/share/applications/${exec_name}.desktop"
+    log_message "Creating desktop entry: $desktop_file"
+
+    # For desktop launcher, use direct AppImage path instead of wrapper script
+    # This avoids issues with sudo in desktop environment (no terminal for password)
+    local desktop_exec_path="$exec_target"
+
+    local desktop_entry="[Desktop Entry]
+Name=${!desktop_name:-$app_name}
+Comment=${!desktop_comment:-$app_name}
+GenericName=${!desktop_name:-$app_name}
+Exec=$desktop_exec_path
+Icon=$icon_path
+Type=Application
+Terminal=false
+Categories=${!desktop_categories:-Utility;}
+StartupNotify=false
+StartupWMClass=${!startup_wm_class:-$app_name}
+Keywords=${exec_name};
+"
+
+    echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
+    $USE_SUDO chmod 644 "$desktop_file"
+
+    # Update desktop database
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+    fi
+
+    log_message "Successfully installed $app_name"
+    log_message "Launcher: /usr/local/super_scripts/${exec_name}.sh"
+    log_message "Command: $exec_name"
+
+    return 0
 }
 
 # Function to install via web download (deb packages)
@@ -223,12 +403,12 @@ install_via_web() {
         if $USE_SUDO dpkg -i "$temp_file"; then
             log_message "Successfully installed $app_name from web"
             # Fix any dependency issues
-            $USE_SUDO apt-get install -f -y 2>/dev/null || true
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" 2>/dev/null || true
             return 0
         else
             log_message "Failed to install $app_name deb package"
             # Try to fix dependencies and retry
-            $USE_SUDO apt-get install -f -y
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             if $USE_SUDO dpkg -i "$temp_file"; then
                 log_message "Successfully installed $app_name after fixing dependencies"
                 return 0
@@ -245,6 +425,30 @@ install_via_web() {
 
 
 
+# Function to fix npm global binary permissions
+fix_npm_permissions() {
+    log_message "Fixing npm global binary permissions..."
+    
+    # Get npm global bin directory
+    local npm_global_bin
+    npm_global_bin=$(npm config get prefix 2>/dev/null)
+    
+    if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+        # Set executable permissions for all binaries in npm global bin directory
+        $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
+        log_message "Fixed executable permissions for all binaries in: $npm_global_bin/bin"
+        
+        # Count how many binaries were fixed
+        local binary_count=$(find "$npm_global_bin/bin" -type f -name "*" 2>/dev/null | wc -l)
+        log_message "Fixed permissions for $binary_count npm global binaries"
+        
+        return 0
+    else
+        log_message "Warning: Could not determine npm global bin directory"
+        return 1
+    fi
+}
+
 # Function to install via npm
 install_via_npm() {
     local package_id="$1"
@@ -258,6 +462,10 @@ install_via_npm() {
     log_message "Installing $app_name via npm: $package_id"
     if timeout 300 npm install -g "$package_id"; then
         log_message "Successfully installed $app_name via npm"
+        
+        # Fix permissions for npm global binaries
+        fix_npm_permissions
+        
         return 0
     else
         log_message "Failed to install $app_name via npm"
@@ -313,7 +521,7 @@ install_via_curl() {
 
     if ! command_exists curl; then
         log_message "curl is not installed. Installing curl..."
-        if ! $USE_SUDO apt update && $USE_SUDO apt install -y curl; then
+        if ! $USE_SUDO apt update && $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl; then
             log_message "Failed to install curl. Cannot install $app_name"
             return 1
         fi
@@ -419,19 +627,9 @@ create_symlink_usr_local_bin() {
 verify_installation() {
     local exec_name="$1"
     local app_name="$2"
-    local verify_command="$3"
     
     if command_exists "$exec_name"; then
         log_message "$app_name is installed and available in PATH"
-        
-        if [ -n "$verify_command" ]; then
-            log_message "Verifying $app_name with: $verify_command"
-            if $exec_name $verify_command >/dev/null 2>&1; then
-                log_message "$app_name verification successful"
-            else
-                log_message "$app_name verification failed but executable exists"
-            fi
-        fi
         return 0
     else
         log_message "$app_name is not available in PATH"
@@ -439,63 +637,33 @@ verify_installation() {
     fi
 }
 
-# Function to prompt user for package group installation confirmation
-prompt_package_group_installation() {
-    local group_name="$1"
-    local group_description="$2"
-    local install_flag="$3"
-
-    log_message "=========================================="
-    log_message "Package Group Installation: $group_name"
-    log_message "=========================================="
-    log_message "Description: $group_description"
-    log_message "Install Flag: $install_flag"
-    log_message ""
-
-    if [ "$install_flag" = "false" ]; then
-        log_message "$group_name installation is disabled by configuration"
-        log_message "Skipping $group_name installation..."
-        return 1
-    fi
-
-    log_message "Do you want to proceed with $group_name installation? (Y/n)"
-    log_message "You have 60 seconds to decide (default: Yes)..."
-
-    local response=""
-    if read -t 60 -r response; then
-        if [[ "$response" =~ ^[Nn]$ ]]; then
-            log_message "$group_name installation cancelled by user"
-            return 1
-        else
-            log_message "Proceeding with $group_name installation..."
-            return 0
-        fi
-    else
-        echo ""
-        log_message "Timeout reached, defaulting to: Yes"
-        log_message "Proceeding with $group_name installation..."
-        return 0
-    fi
-}
-
 # Function to install single application
 install_application() {
     local app_name="$1"
+    local package_group="$2"
     local display_name=""
     local exec_name=""
     local install_method=""
     local package_id=""
-    local verify_command=""
     local launch_command=""
+    local super_command=""
+    local snap_confinement=""
+
+    # Handle MCP apps (remove mcp_ prefix for property lookup)
+    local lookup_app="$app_name"
+    if [[ "$app_name" == mcp_* ]]; then
+        lookup_app="${app_name#mcp_}"
+    fi
 
     # Get application properties using the unified structure
-    display_name=$(get_app_property "$app_name" "name")
-    exec_name=$(get_app_property "$app_name" "exec")
-    install_method=$(get_install_method "$app_name")
-    package_id=$(get_package_id "$app_name")
-    verify_command=$(get_app_property "$app_name" "verify_command")
-    launch_command=$(get_launch_command "$app_name")
-    
+    display_name=$(get_app_property "$lookup_app" "name")
+    exec_name=$(get_app_property "$lookup_app" "exec")
+    install_method=$(get_install_method "$lookup_app")
+    package_id=$(get_package_id "$lookup_app")
+    launch_command=$(get_launch_command "$lookup_app")
+    super_command=$(get_app_property "$lookup_app" "super")
+    snap_confinement=$(get_snap_confinement "$lookup_app")
+
     # Skip if no package ID or install method
     if [ -z "$package_id" ] || [ -z "$install_method" ]; then
         log_message "Skipping $app_name - no package ID or install method"
@@ -507,26 +675,89 @@ install_application() {
     log_message "  Package ID: $package_id"
     log_message "  Executable: $exec_name"
 
+    # Determine if super launch should be used
+    local should_use_super=false
+    if [ "$package_group" = "DEV" ]; then
+        # DEV_PACKAGES with _super="true" use auto-generated command
+        if [ "$super_command" = "true" ]; then
+            # Auto-generate: sudo $exec_name
+            super_command="sudo $exec_name"
+            should_use_super=true
+        elif [ -n "$super_command" ] && [ "$super_command" != "" ]; then
+            # If super_command has a specific value, use it
+            should_use_super=true
+        fi
+    else
+        # Other groups only use super if explicitly set (non-empty, non-null)
+        if [ -n "$super_command" ] && [ "$super_command" != "" ] && [ "$super_command" != "null" ]; then
+            should_use_super=true
+        fi
+    fi
+
     # Check if already installed
-    if verify_installation "$exec_name" "$display_name" "$verify_command"; then
+    if verify_installation "$exec_name" "$display_name"; then
         log_message "$display_name is already installed, skipping"
+
+        # Setup super launch if applicable
+        if [ "$should_use_super" = true ]; then
+            log_message "Setting up super launch for $exec_name"
+            setup_super_launch "$exec_name" "$super_command" "log_message"
+        fi
+
         return 0
     fi
 
-    # Use universal install function from installation library
-    universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
-    
-    local install_result=$?
+    # Handle snap packages with special confinement requirements
+    if [ "$install_method" = "snap" ] && [ -n "$snap_confinement" ]; then
+        log_message "  Snap Confinement: $snap_confinement"
+        # Pass snap_confinement to snap installer via direct call
+        if install_via_snap "$package_id" "$display_name" "$snap_confinement"; then
+            local install_result=0
+        else
+            local install_result=$?
+        fi
+    # Handle AppImage packages with custom installation
+    elif [ "$install_method" = "appimage" ]; then
+        log_message "  Installing AppImage from: $package_id"
+        # Get app configuration for desktop entry creation
+        local app_id="${lookup_app}"
+        if install_via_appimage "$package_id" "$display_name" "$exec_name" "$app_id"; then
+            local install_result=0
+            # AppImage creates its own wrapper, skip setup_super_launch
+            should_use_super=false
+        else
+            local install_result=$?
+        fi
+    else
+        # Use universal install function from installation library
+        universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
+        local install_result=$?
+    fi
+
+    # Handle return codes:
+    # 0 = success
+    # 1 = installation failed (transient error)
+    # 2 = package not found (skip permanently)
+    if [ $install_result -eq 2 ]; then
+        log_message "Skipping $display_name - package not found in registry"
+        return 0
+    fi
 
     # Create launch script if installation was successful and launch command exists
     if [ $install_result -eq 0 ] && [ -n "$launch_command" ]; then
         log_message "Creating launch script for $display_name"
-        create_launch_script "$app_name"
+        create_launch_script "$lookup_app"
     fi
-    
+
+    # Setup super launch if applicable
+    if [ $install_result -eq 0 ] && [ "$should_use_super" = true ]; then
+        log_message "Setting up super launch for $exec_name"
+        setup_super_launch "$exec_name" "$super_command" "log_message"
+    fi
+
     # Verify installation
     if [ $install_result -eq 0 ]; then
-        if verify_installation "$exec_name" "$display_name" "$verify_command"; then
+        if verify_installation "$exec_name" "$display_name"; then
             log_message "Successfully installed and verified $display_name"
             return 0
         else
@@ -558,16 +789,41 @@ install_applications_by_package_group() {
 
     local installed_count=0
     local failed_count=0
+    local skipped_count=0
 
     for app in "${apps_to_install[@]}"; do
-        if install_application "$app"; then
+        local lookup_app="$app"
+        if [[ "$app" == mcp_* ]]; then
+            lookup_app="${app#mcp_}"
+        fi
+        local display_name=$(get_app_property "$lookup_app" "name")
+        
+        # Ensure display_name is valid for array subscript
+        if [[ -z "$display_name" ]]; then
+            display_name="$lookup_app"
+        fi
+        # Remove any problematic characters for array subscript
+        display_name=$(echo "$display_name" | sed 's/[^a-zA-Z0-9_-]/_/g')
+
+        if install_application "$app" "$package_group"; then
             ((installed_count++))
+            INSTALLATION_RESULTS["$display_name"]="success"
         else
-            ((failed_count++))
+            # Check if it was skipped (package not found) or failed
+            if command -v "$lookup_app" >/dev/null 2>&1; then
+                ((failed_count++))
+                INSTALLATION_RESULTS["$display_name"]="failed"
+                FAILED_APPS+=("$display_name")
+            else
+                # If command doesn't exist and install returned false, it was likely a unavailable package
+                ((skipped_count++))
+                INSTALLATION_RESULTS["$display_name"]="skipped"
+                SKIPPED_APPS+=("$display_name")
+            fi
         fi
     done
 
-    log_message "Package group $package_group installation complete: $installed_count successful, $failed_count failed"
+    log_message "Package group $package_group installation complete: $installed_count successful, $failed_count failed, $skipped_count skipped"
 }
 
 # Function to install applications by group (legacy compatibility)
@@ -613,6 +869,233 @@ install_all_applications() {
 
 
 
+
+# Function to print installation statistics and super launch report
+print_installation_report() {
+    local total_apps=0
+    local installed_apps=0
+    local skipped_apps=()
+    local super_enabled_apps=()
+
+    log_message ""
+    log_message "=========================================="
+    log_message "INSTALLATION SUMMARY REPORT"
+    log_message "=========================================="
+
+    # Iterate through all package groups to collect statistics
+    for group in "BASE" "DEV" "APP" "AI" "MCP"; do
+        local apps_in_group
+        mapfile -t apps_in_group < <(get_apps_by_package_group "$group")
+
+        for app in "${apps_in_group[@]}"; do
+            local lookup_app="$app"
+            if [[ "$app" == mcp_* ]]; then
+                lookup_app="${app#mcp_}"
+            fi
+
+            local exec_name=$(get_app_property "$lookup_app" "exec")
+            local app_name=$(get_app_property "$lookup_app" "name")
+            local super_cmd=$(get_app_property "$lookup_app" "super")
+
+            ((total_apps++))
+
+            # Check if app is installed
+            if command -v "$exec_name" >/dev/null 2>&1; then
+                ((installed_apps++))
+            else
+                skipped_apps+=("$app_name ($exec_name)")
+            fi
+
+            # Check if super is enabled for DEV group
+            if [ "$group" = "DEV" ] && [ -n "$super_cmd" ] && [ "$super_cmd" != "" ]; then
+                super_enabled_apps+=("$app_name ($exec_name)")
+            fi
+        done
+    done
+
+    # Print statistics
+    log_message "Total Applications: $total_apps"
+    log_message "Installed: $installed_apps"
+    log_message "Skipped/Not Installed: $((total_apps - installed_apps))"
+
+    # Print skipped applications
+    if [ ${#skipped_apps[@]} -gt 0 ]; then
+        log_message ""
+        log_message "Skipped Applications (Not Installed):"
+        for app in "${skipped_apps[@]}"; do
+            log_message "  - $app"
+        done
+    fi
+
+    # Print failed applications (attempted but installation failed)
+    if [ ${#FAILED_APPS[@]} -gt 0 ]; then
+        log_message ""
+        log_message "Failed Installations (Error Occurred):"
+        for app in "${FAILED_APPS[@]}"; do
+            log_message "  - $app"
+        done
+    fi
+
+    # Print unavailable packages (not found in registry)
+    if [ ${#SKIPPED_APPS[@]} -gt 0 ]; then
+        log_message ""
+        log_message "Unavailable Packages (Not Found in Registry):"
+        for app in "${SKIPPED_APPS[@]}"; do
+            log_message "  - $app"
+        done
+    fi
+
+    # Print DEV applications with super launch enabled
+    log_message ""
+    log_message "DEV Applications with Super Launch Support:"
+    log_message "  Total with super: ${#super_enabled_apps[@]}"
+    for app in "${super_enabled_apps[@]}"; do
+        log_message "  - $app"
+    done
+
+    # Print actual super launch implementations
+    log_message ""
+    log_message "Actual Super Launch Implementations:"
+
+    if [ -d "/usr/local/super_bin" ]; then
+        local super_bin_files=($(ls -1 /usr/local/super_bin 2>/dev/null || echo ""))
+        if [ ${#super_bin_files[@]} -gt 0 ]; then
+            log_message "  Files in /usr/local/super_bin (${#super_bin_files[@]}):"
+            for file in "${super_bin_files[@]}"; do
+                log_message "    - $file"
+            done
+        else
+            log_message "  /usr/local/super_bin is empty"
+        fi
+    else
+        log_message "  /usr/local/super_bin does not exist"
+    fi
+
+    log_message ""
+    if [ -d "/usr/local/super_scripts" ]; then
+        local super_script_files=($(ls -1 /usr/local/super_scripts 2>/dev/null || echo ""))
+        if [ ${#super_script_files[@]} -gt 0 ]; then
+            log_message "  Scripts in /usr/local/super_scripts (${#super_script_files[@]}):"
+            for file in "${super_script_files[@]}"; do
+                log_message "    - $file"
+            done
+        else
+            log_message "  /usr/local/super_scripts is empty"
+        fi
+    else
+        log_message "  /usr/local/super_scripts does not exist"
+    fi
+
+    log_message ""
+    log_message "=========================================="
+    
+    # Refresh environment variables and shell configuration
+    log_message "Refreshing environment variables..."
+    refresh_environment
+}
+
+# Function to refresh environment variables and shell configuration
+refresh_environment() {
+    log_message ""
+    log_message "=========================================="
+    log_message "REFRESHING NPM BINARIES AND LAUNCH SCRIPTS"
+    log_message "=========================================="
+    
+    # Create super_scripts directory if it doesn't exist
+    if [ ! -d "/usr/local/super_scripts" ]; then
+        log_message "Creating /usr/local/super_scripts directory..."
+        $USE_SUDO mkdir -p "/usr/local/super_scripts"
+        $USE_SUDO chmod 755 "/usr/local/super_scripts"
+    fi
+    
+    # Get npm global bin directory
+    local npm_global_bin=$(npm config get prefix 2>/dev/null)
+    if [ -z "$npm_global_bin" ] || [ ! -d "$npm_global_bin/bin" ]; then
+        log_message "Warning: Could not determine npm global bin directory"
+        return 1
+    fi
+    
+    log_message "NPM global bin directory: $npm_global_bin/bin"
+    
+    # Process all AI packages that use npm installation method
+    local npm_packages=("gemini" "claude" "codex" "auggie")
+    
+    for package in "${npm_packages[@]}"; do
+        local exec_name=$(get_app_property "$package" "exec")
+        local launch_command=$(get_app_property "$package" "launch_command")
+        local package_id=$(get_app_property "$package" "package_id")
+        
+        if [ -n "$exec_name" ] && [ -n "$launch_command" ]; then
+            log_message ""
+            log_message "Processing $package ($exec_name)..."
+            
+            # Check if the binary exists in npm global bin
+            local binary_path="$npm_global_bin/bin/$exec_name"
+            if [ -f "$binary_path" ]; then
+                log_message "Found binary: $binary_path"
+                
+                # Create launch script in super_scripts
+                local script_path="/usr/local/super_scripts/$exec_name"
+                log_message "Creating launch script: $script_path"
+                
+                # Extract the actual command from launch_command (remove "which exec && $USE_SUDO")
+                local actual_command=$(echo "$launch_command" | sed 's/which [^&]* && \$USE_SUDO //')
+
+                # For npm packages, replace relative paths with absolute paths
+                local processed_command="$actual_command"
+                if [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
+                    # Extract the executable name after "node"
+                    local node_exec=$(echo "$actual_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
+                    if [ -n "$node_exec" ]; then
+                        # Use absolute path to the npm binary
+                        processed_command="node $binary_path \"\$@\""
+                    fi
+                fi
+
+                # Create the script content
+                cat > "/tmp/$exec_name" << EOF
+#!/bin/bash
+# Launch script for $package
+# Generated by 120_install_desktop_applications.sh
+# Package: $package_id
+
+# Add npm global bin to PATH
+export PATH="\$PATH:$npm_global_bin/bin"
+
+# Execute the launch command
+$processed_command "\$@"
+EOF
+                
+                # Move script to super_scripts and make executable
+                $USE_SUDO mv "/tmp/$exec_name" "$script_path"
+                $USE_SUDO chmod +x "$script_path"
+                log_message "Created script: $script_path"
+                
+                # Create symbolic link in /usr/local/bin
+                local link_path="/usr/local/bin/$exec_name"
+                
+                # Remove existing link if it exists
+                if [ -L "$link_path" ] || [ -f "$link_path" ]; then
+                    $USE_SUDO rm -f "$link_path"
+                    log_message "Removed existing link: $link_path"
+                fi
+                
+                # Create new symbolic link
+                $USE_SUDO ln -s "$script_path" "$link_path"
+                log_message "Created symbolic link: $link_path -> $script_path"
+                
+            else
+                log_message "Binary not found: $binary_path"
+            fi
+        else
+            log_message "Skipping $package: missing exec_name or launch_command"
+        fi
+    done
+    
+    log_message ""
+    log_message "NPM binaries refresh completed!"
+    log_message "=========================================="
+}
 
 # Function to test specific package group
 test_package_group() {
@@ -735,8 +1218,22 @@ test_applications_by_name() {
     local installed_count=0
     local failed_count=0
 
+    # Need to track which app belongs to which group for proper super launch handling
     for app in "${found_apps[@]}"; do
-        if install_application "$app"; then
+        local app_group=""
+        # Find which group this app belongs to
+        for group in "${search_groups[@]}"; do
+            local group_apps
+            mapfile -t group_apps < <(get_apps_by_package_group "$group")
+            for g_app in "${group_apps[@]}"; do
+                if [ "$g_app" = "$app" ]; then
+                    app_group="$group"
+                    break 2
+                fi
+            done
+        done
+
+        if install_application "$app" "$app_group"; then
             ((installed_count++))
         else
             ((failed_count++))
@@ -759,13 +1256,13 @@ show_help() {
     echo "  $0 --help                # Show this help message"
     echo ""
     echo "Parameter Rules:"
-    echo "  â€?Single parameter:"
+    echo "  Single parameter:"
     echo "    - UPPERCASE: Match package group (e.g., DEV, BASE, APP)"
     echo "    - lowercase: Match application name (e.g., code, firefox)"
-    echo "  â€?Two parameters:"
+    echo "  Two parameters:"
     echo "    - First: Package group name"
     echo "    - Second: Application name within that group"
-    echo "  â€?All matching is case-insensitive internally"
+    echo "  All matching is case-insensitive internally"
     echo ""
     echo "Package Groups:"
     echo "  BASE - Essential base applications"
@@ -787,13 +1284,13 @@ show_parameter_rules_and_confirm() {
     echo "=========================================="
     echo "PARAMETER MATCHING RULES"
     echo "=========================================="
-    echo "â€?Single parameter:"
+    echo "Single parameter:"
     echo "  - UPPERCASE: Match package group (e.g., DEV, BASE, APP)"
     echo "  - lowercase: Match application name (e.g., code, firefox)"
-    echo "â€?Two parameters:"
+    echo "Two parameters:"
     echo "  - First: Package group name"
     echo "  - Second: Application name within that group"
-    echo "â€?All matching is case-insensitive internally"
+    echo "All matching is case-insensitive internally"
     echo ""
 
     if [ -n "$param2" ]; then
@@ -851,6 +1348,12 @@ main() {
     local param1="$1"
     local param2="$2"
 
+    # Always fix npm permissions first (regardless of what the script does)
+    log_message "=========================================="
+    log_message "Checking and fixing npm global binary permissions..."
+    log_message "=========================================="
+    fix_npm_permissions
+
     # Check for help request
     if [ "$param1" = "--help" ] || [ "$param1" = "-h" ]; then
         show_help
@@ -869,48 +1372,75 @@ main() {
 
     # Check if we're in test mode (any parameters provided)
     if [ -n "$param1" ]; then
-        # Show parameter rules and wait for confirmation
-        if ! show_parameter_rules_and_confirm "$param1" "$param2"; then
-            log_message "Installation cancelled by user"
-            return 1
-        fi
-
-        log_message "Test Mode Parameters: '$param1' '$param2'"
-        log_message "Ignoring installation flag files"
+        # Test mode: use parameters to control flow
+        log_message "Test Mode: Using parameters to control installation"
+        log_message "Parameter: $param1 $param2"
         log_message "=========================================="
 
-        # Handle two parameters: group + app name
-        if [ -n "$param2" ]; then
-            log_message "Two parameter mode: Group='$param1', App='$param2'"
-            if test_applications_by_name "$param2" "$param1"; then
-                return 0
-            fi
-            log_message "No matches found for app '$param2' in group '$param1'"
-            return 1
+        # Determine which package group to install based on param1
+        local target_group=""
+        local param_upper=$(echo "$param1" | tr '[:lower:]' '[:upper:]')
+
+        case "$param_upper" in
+            *BASE*)
+                target_group="BASE"
+                ;;
+            *DEV*)
+                target_group="DEV"
+                ;;
+            *APP*)
+                target_group="APP"
+                ;;
+            *AI*)
+                target_group="AI"
+                ;;
+            *MCP*)
+                target_group="MCP"
+                ;;
+            *)
+                log_message "Error: Unknown package group parameter: $param1"
+                log_message "Valid parameters: BASE, DEV, APP, AI, MCP"
+                return 1
+                ;;
+        esac
+
+        log_message "Matched package group: $target_group"
+        log_message "=========================================="
+
+        # Ensure system is up to date
+        log_message "Updating package lists with timeout..."
+        if timeout 300 $USE_SUDO apt update; then
+            log_message "Package lists updated successfully"
+        else
+            log_message "Warning: Package update timed out or failed, continuing anyway"
         fi
 
-        # Handle single parameter: determine if it's group or app based on case
-        if [[ "$param1" =~ ^[A-Z]+$ ]]; then
-            # All uppercase - treat as package group
-            log_message "Single parameter (UPPERCASE): treating '$param1' as package group"
-            if test_package_group "$param1"; then
-                return 0
-            fi
-            log_message "No package group found matching: $param1"
-            return 1
+        # Install essential packages first
+        log_message "Installing essential system packages with timeout..."
+        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
+            log_message "Essential packages installed successfully"
         else
-            # Contains lowercase - treat as application name
-            log_message "Single parameter (contains lowercase): treating '$param1' as application name"
-            if test_applications_by_name "$param1"; then
-                return 0
-            fi
-            log_message "No applications found matching: $param1"
-            return 1
+            log_message "Warning: Some essential packages failed to install, continuing anyway"
         fi
+
+        log_message ""
+        log_message "Installing $target_group package group..."
+        log_message "=========================================="
+        install_applications_by_package_group "$target_group"
+
+        log_message ""
+        log_message "=========================================="
+        log_message "$target_group Package Group Installation Complete"
+        log_message "Log file: $LOG_FILE"
+        log_message "=========================================="
+
+        # Print detailed installation report
+        print_installation_report
+        return 0
     fi
 
     log_message "=========================================="
-    
+
     # Ensure system is up to date
     log_message "Updating package lists with timeout..."
     if timeout 300 $USE_SUDO apt update; then
@@ -918,53 +1448,78 @@ main() {
     else
         log_message "Warning: Package update timed out or failed, continuing anyway"
     fi
-    
+
     # Install essential packages first
     log_message "Installing essential system packages with timeout..."
-    if timeout 600 $USE_SUDO apt install -y curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
+    if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
         log_message "Essential packages installed successfully"
     else
         log_message "Warning: Some essential packages failed to install, continuing anyway"
     fi
-    
-    # Install package groups based on configuration flags
-    log_message "Package group installation flags:"
-    log_message "  BASE_PACKAGES: $INSTALL_BASE_PACKAGES"
-    log_message "  DEV_PACKAGES: $INSTALL_DEV_PACKAGES"
-    log_message "  APP_PACKAGES: $INSTALL_APP_PACKAGES"
-    log_message "  AI_PACKAGES: $INSTALL_AI_PACKAGES"
-    log_message "  MCP_PACKAGES: $INSTALL_MCP_PACKAGES"
+
+    # Determine which package groups to install based on environment type
+    log_message "=========================================="
+    log_message "Environment Detection Results:"
+    log_message "  Environment Type: $ENVIRONMENT_TYPE"
+    log_message "  IS_WSL: $IS_WSL"
+    log_message "  IS_PRODUCTION: $IS_PRODUCTION"
+    log_message "  HAS_DESKTOP_ENVIRONMENT: $HAS_DESKTOP_ENVIRONMENT"
+    log_message "=========================================="
     log_message ""
 
-    # Install Base Packages
-    if prompt_package_group_installation "BASE_PACKAGES" "Essential base applications" "$INSTALL_BASE_PACKAGES"; then
-        install_applications_by_package_group "BASE"
-    fi
+    # Determine which package groups to install
+    local packages_to_install=()
+    case "$ENVIRONMENT_TYPE" in
+        desktop)
+            log_message "Detected: Desktop Environment"
+            log_message "Will install: BASE, DEV, APP, AI, and MCP packages"
+            packages_to_install=("BASE" "DEV" "APP" "AI" "MCP")
+            ;;
+        wsl)
+            log_message "Detected: WSL Environment"
+            log_message "Will install: BASE, DEV, AI, and MCP packages (skipping APP)"
+            packages_to_install=("BASE" "DEV" "AI" "MCP")
+            ;;
+        server)
+            log_message "Detected: Server Environment"
+            log_message "Will install: BASE, AI, and MCP packages (skipping DEV and APP)"
+            packages_to_install=("BASE" "AI" "MCP")
+            ;;
+    esac
 
-    # Install Development Packages
-    if prompt_package_group_installation "DEV_PACKAGES" "Development tools and IDEs" "$INSTALL_DEV_PACKAGES"; then
-        install_applications_by_package_group "DEV"
-    fi
+    log_message ""
+    log_message "Installation Plan:"
+    printf '  - %s\n' "${packages_to_install[@]}"
+    log_message ""
+    log_message "Press Enter to continue with installation..."
+    read -r
+    log_message "Starting package installation..."
+    log_message "=========================================="
+    log_message ""
 
-    # Install Application Packages
-    if prompt_package_group_installation "APP_PACKAGES" "Desktop applications and productivity tools" "$INSTALL_APP_PACKAGES"; then
-        install_applications_by_package_group "APP"
-    fi
+    # Install each package group
+    for package_group in "${packages_to_install[@]}"; do
+        log_message ""
+        log_message "=========================================="
+        log_message "Installing $package_group packages..."
+        log_message "=========================================="
+        install_applications_by_package_group "$package_group"
+    done
 
-    # Install AI Packages
-    if prompt_package_group_installation "AI_PACKAGES" "AI development tools and assistants" "$INSTALL_AI_PACKAGES"; then
-        install_applications_by_package_group "AI"
-    fi
-
-    # Install MCP Packages
-    if prompt_package_group_installation "MCP_PACKAGES" "MCP service packages" "$INSTALL_MCP_PACKAGES"; then
-        install_applications_by_package_group "MCP"
-    fi
-    
     log_message "=========================================="
     log_message "Desktop Applications Installation Complete"
     log_message "Log file: $LOG_FILE"
     log_message "=========================================="
+
+    # Fix npm permissions after all installations
+    log_message ""
+    log_message "=========================================="
+    log_message "Fixing npm global binary permissions..."
+    log_message "=========================================="
+    fix_npm_permissions
+
+    # Print detailed installation report
+    print_installation_report
 }
 
 # Check if running as root (not recommended for desktop applications)

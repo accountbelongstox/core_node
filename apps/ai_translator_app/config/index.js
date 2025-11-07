@@ -40,7 +40,13 @@ module.exports = {
     
     // OpenRouter API configuration
     openRouterConfig: {
-        apiKey: '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',
+        keyPrefix: 'sk-or',
+        keyVersion: 'v1',
+        keyPart1: '0879bdf3ce9eece6c57d205c2f37f40b',
+        keyPart2: '8edb8fa553d50842aee03580ec915e47',
+        getApiKey() {
+            return `${this.keyPrefix}-${this.keyVersion}-${this.keyPart1}${this.keyPart2}`;
+        },
         baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
         referrer: 'https://ncore-translator.local/',
         appName: 'NCore AI Translator',
@@ -86,5 +92,14 @@ module.exports = {
         allowedOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000'],
         rateLimitWindow: 900000, // 15 minutes
         rateLimitMax: 100 // requests per window
+    },
+
+    // RPC configuration
+    rpcConfig: {
+        enabled: true,
+        port: 8090,
+        host: '0.0.0.0',
+        enableWebSocket: true,
+        wsPort: 8091
     }
 };

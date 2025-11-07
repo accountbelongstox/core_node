@@ -1,0 +1,106 @@
+===========================================
+HTTP RPC Module Integration Complete
+===========================================
+
+This module now integrates functionality from both:
+1. Original http_rpc (RPC Server/Client)
+2. express_utils (Express Server Management)
+
+STRUCTURE:
+----------
+http_rpc/
+├── HttpRpcServer.js         - RPC server with auth, rate limiting, middleware
+├── HttpRpcClient.js         - RPC client
+├── ExpressServer.js         - Express server wrapper with full functionality
+├── libs/
+│   ├── RouterManager.js     - Route management (GET/POST/PUT/DELETE/API/Download)
+│   ├── StaticServer.js      - Static file serving
+│   ├── WsManager.js         - WebSocket management
+│   ├── UploadTools.js       - File upload handling
+│   ├── file_query.js        - File query and download utilities
+│   ├── res_helper.js        - Response helpers
+│   └── MiddlewareUtil.js    - Middleware utilities
+├── config/                  - Configuration management
+├── provider/                - Express provider
+└── tool/                    - Tool utilities
+
+USAGE EXAMPLES:
+--------------
+
+1. RPC Server (Original functionality):
+   const { createServer } = require('#@ncore/utils/http_rpc');
+   const express = require('express');
+   const app = express();
+
+   const rpcServer = createServer(app, {
+       basePath: '/rpc',
+       auth: { enabled: true, secret: 'your-secret' }
+   });
+
+   rpcServer.route('sayHello', async (params) => {
+       return { message: `Hello ${params.name}!` };
+   });
+
+   rpcServer.start();
+
+2. Express Server (New integrated functionality):
+   const { createExpressServer } = require('#@ncore/utils/http_rpc');
+
+   const server = createExpressServer({
+       HTTP_PORT: 3000,
+       HTTP_HOST: '0.0.0.0'
+   });
+
+   // Add routes
+   server.getRouterManager().get('/api/users', (req, res) => {
+       res.json({ users: [] });
+   });
+
+   // Start server with WebSocket support
+   await server.start();
+
+3. Using Both Together:
+   const { createExpressServer, createServer } = require('#@ncore/utils/http_rpc');
+
+   // Start Express server
+   const expressServer = createExpressServer({ HTTP_PORT: 3000 });
+   await expressServer.start();
+
+   // Add RPC server on top
+   const app = expressServer.getApp();
+   const rpcServer = createServer(app);
+   rpcServer.route('getData', async () => ({ data: 'test' }));
+   rpcServer.start();
+
+4. WebSocket Broadcasting:
+   const { broadcastWs } = require('#@ncore/utils/http_rpc');
+
+   broadcastWs({ event: 'update', data: { status: 'online' } });
+
+5. File Upload:
+   const { UploadTools } = require('#@ncore/utils/http_rpc');
+
+   router.post('/upload', async (req, res) => {
+       const result = await UploadTools.checkAndRecordUpload(req);
+       res.json(result);
+   });
+
+MIGRATION FROM express_utils:
+-----------------------------
+Old:  const { startExpressServer } = require('#@ncore/foundation/express_utils');
+New:  const { startExpressServer } = require('#@ncore/utils/http_rpc');
+
+All APIs remain compatible. Simply update import paths.
+
+FEATURES:
+---------
+✓ HTTP RPC with auth, rate limiting, performance monitoring
+✓ Express server management with auto IP detection
+✓ Dynamic routing (GET/POST/PUT/DELETE/HEAD/API/Download)
+✓ Static file serving with multiple path support
+✓ WebSocket server with broadcasting
+✓ File upload with deduplication
+✓ Middleware chain support
+✓ Request/Response interceptors
+✓ Configuration management
+✓ Comprehensive logging

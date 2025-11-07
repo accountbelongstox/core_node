@@ -131,15 +131,15 @@ class User extends BaseModel {
   bool isActive;
 
   User({
-    int? id,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    super.id,
+    super.createdAt,
+    super.updatedAt,
     this.username,
     this.email,
     this.firstName,
     this.lastName,
     this.isActive = true,
-  }) : super(id: id, createdAt: createdAt, updatedAt: updatedAt);
+  });
 
   @override
   String get tableName => 'users';
@@ -217,14 +217,14 @@ class Post extends BaseModel {
   bool isPublished;
 
   Post({
-    int? id,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    super.id,
+    super.createdAt,
+    super.updatedAt,
     this.title,
     this.content,
     this.authorId,
     this.isPublished = false,
-  }) : super(id: id, createdAt: createdAt, updatedAt: updatedAt);
+  });
 
   @override
   String get tableName => 'posts';

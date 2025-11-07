@@ -1,0 +1,741 @@
+{
+  "file_info": {
+    "filename": "image_001.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\image_001.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\image_001.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "Every word\ncounts here\n千语单词\n记住单词，记录改变\n手机号登录\n微信登录\n登录注册代表同意 用户使用协议 和 隐私政策",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 12,
+    "processing_time": 2.5686261653900146,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "Every word",
+        "bbox": {
+          "left": 0,
+          "top": 540.0,
+          "width": 0,
+          "height": 183.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Every",
+            "confidence": 0,
+            "bbox": {
+              "left": 115.0,
+              "top": 540.0,
+              "width": 480.0,
+              "height": 179.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "word",
+            "confidence": 0,
+            "bbox": {
+              "left": 610.0,
+              "top": 545.0,
+              "width": 399.0,
+              "height": 178.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "counts here",
+        "bbox": {
+          "left": 0,
+          "top": 719.0,
+          "width": 0,
+          "height": 126.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "counts",
+            "confidence": 0,
+            "bbox": {
+              "left": 117.0,
+              "top": 719.0,
+              "width": 537.0,
+              "height": 126.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "here",
+            "confidence": 0,
+            "bbox": {
+              "left": 666.0,
+              "top": 719.0,
+              "width": 347.0,
+              "height": 126.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "千语单词",
+        "bbox": {
+          "left": 0,
+          "top": 970.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "千语",
+            "confidence": 0,
+            "bbox": {
+              "left": 121.0,
+              "top": 970.0,
+              "width": 161.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 283.0,
+              "top": 970.0,
+              "width": 137.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "记住单词，记录改变",
+        "bbox": {
+          "left": 0,
+          "top": 1079.0,
+          "width": 0,
+          "height": 93.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "记住",
+            "confidence": 0,
+            "bbox": {
+              "left": 121.0,
+              "top": 1079.0,
+              "width": 163.0,
+              "height": 93.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 284.0,
+              "top": 1079.0,
+              "width": 151.0,
+              "height": 93.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "，",
+            "confidence": 0,
+            "bbox": {
+              "left": 435.0,
+              "top": 1079.0,
+              "width": 81.0,
+              "height": 93.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "记录",
+            "confidence": 0,
+            "bbox": {
+              "left": 516.0,
+              "top": 1079.0,
+              "width": 151.0,
+              "height": 93.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "改变",
+            "confidence": 0,
+            "bbox": {
+              "left": 667.0,
+              "top": 1079.0,
+              "width": 136.0,
+              "height": 93.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "手机号登录",
+        "bbox": {
+          "left": 0,
+          "top": 1855.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "手机号",
+            "confidence": 0,
+            "bbox": {
+              "left": 549.0,
+              "top": 1855.0,
+              "width": 161.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "登录",
+            "confidence": 0,
+            "bbox": {
+              "left": 710.0,
+              "top": 1855.0,
+              "width": 102.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "微信登录",
+        "bbox": {
+          "left": 0,
+          "top": 2052.0,
+          "width": 0,
+          "height": 58.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "微信",
+            "confidence": 0,
+            "bbox": {
+              "left": 573.0,
+              "top": 2053.0,
+              "width": 112.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "登",
+            "confidence": 0,
+            "bbox": {
+              "left": 685.0,
+              "top": 2052.0,
+              "width": 49.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "录",
+            "confidence": 0,
+            "bbox": {
+              "left": 734.0,
+              "top": 2052.0,
+              "width": 53.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "登录注册代表同意 用户使用协议 和 隐私政策",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 2626.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "登录",
+            "confidence": 0,
+            "bbox": {
+              "left": 279.0,
+              "top": 2578.0,
+              "width": 84.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "注册",
+            "confidence": 0,
+            "bbox": {
+              "left": 363.0,
+              "top": 2578.0,
+              "width": 78.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "代表",
+            "confidence": 0,
+            "bbox": {
+              "left": 441.0,
+              "top": 2578.0,
+              "width": 78.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "同意",
+            "confidence": 0,
+            "bbox": {
+              "left": 519.0,
+              "top": 2578.0,
+              "width": 80.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "用户",
+            "confidence": 0,
+            "bbox": {
+              "left": 601.0,
+              "top": 2578.0,
+              "width": 86.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "使用",
+            "confidence": 0,
+            "bbox": {
+              "left": 687.0,
+              "top": 2578.0,
+              "width": 72.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "协议",
+            "confidence": 0,
+            "bbox": {
+              "left": 759.0,
+              "top": 2578.0,
+              "width": 86.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "和",
+            "confidence": 0,
+            "bbox": {
+              "left": 847.0,
+              "top": 2578.0,
+              "width": 46.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 11,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 12,
+            "text": "隐私",
+            "confidence": 0,
+            "bbox": {
+              "left": 895.0,
+              "top": 2578.0,
+              "width": 80.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 13,
+            "text": "政策",
+            "confidence": 0,
+            "bbox": {
+              "left": 975.0,
+              "top": 2578.0,
+              "width": 79.0,
+              "height": 48.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "Every",
+        "confidence": 0,
+        "bbox": {
+          "left": 115.0,
+          "top": 540.0,
+          "width": 480.0,
+          "height": 179.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "word",
+        "confidence": 0,
+        "bbox": {
+          "left": 610.0,
+          "top": 545.0,
+          "width": 399.0,
+          "height": 178.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "counts",
+        "confidence": 0,
+        "bbox": {
+          "left": 117.0,
+          "top": 719.0,
+          "width": 537.0,
+          "height": 126.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "here",
+        "confidence": 0,
+        "bbox": {
+          "left": 666.0,
+          "top": 719.0,
+          "width": 347.0,
+          "height": 126.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "千语",
+        "confidence": 0,
+        "bbox": {
+          "left": 121.0,
+          "top": 970.0,
+          "width": 161.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 283.0,
+          "top": 970.0,
+          "width": 137.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "记住",
+        "confidence": 0,
+        "bbox": {
+          "left": 121.0,
+          "top": 1079.0,
+          "width": 163.0,
+          "height": 93.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 284.0,
+          "top": 1079.0,
+          "width": 151.0,
+          "height": 93.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "，",
+        "confidence": 0,
+        "bbox": {
+          "left": 435.0,
+          "top": 1079.0,
+          "width": 81.0,
+          "height": 93.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "记录",
+        "confidence": 0,
+        "bbox": {
+          "left": 516.0,
+          "top": 1079.0,
+          "width": 151.0,
+          "height": 93.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "改变",
+        "confidence": 0,
+        "bbox": {
+          "left": 667.0,
+          "top": 1079.0,
+          "width": 136.0,
+          "height": 93.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "手机号",
+        "confidence": 0,
+        "bbox": {
+          "left": 549.0,
+          "top": 1855.0,
+          "width": 161.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "登录",
+        "confidence": 0,
+        "bbox": {
+          "left": 710.0,
+          "top": 1855.0,
+          "width": 102.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "微信",
+        "confidence": 0,
+        "bbox": {
+          "left": 573.0,
+          "top": 2053.0,
+          "width": 112.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "登",
+        "confidence": 0,
+        "bbox": {
+          "left": 685.0,
+          "top": 2052.0,
+          "width": 49.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "录",
+        "confidence": 0,
+        "bbox": {
+          "left": 734.0,
+          "top": 2052.0,
+          "width": 53.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "登录",
+        "confidence": 0,
+        "bbox": {
+          "left": 279.0,
+          "top": 2578.0,
+          "width": 84.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "注册",
+        "confidence": 0,
+        "bbox": {
+          "left": 363.0,
+          "top": 2578.0,
+          "width": 78.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "代表",
+        "confidence": 0,
+        "bbox": {
+          "left": 441.0,
+          "top": 2578.0,
+          "width": 78.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "同意",
+        "confidence": 0,
+        "bbox": {
+          "left": 519.0,
+          "top": 2578.0,
+          "width": 80.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "用户",
+        "confidence": 0,
+        "bbox": {
+          "left": 601.0,
+          "top": 2578.0,
+          "width": 86.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "使用",
+        "confidence": 0,
+        "bbox": {
+          "left": 687.0,
+          "top": 2578.0,
+          "width": 72.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "协议",
+        "confidence": 0,
+        "bbox": {
+          "left": 759.0,
+          "top": 2578.0,
+          "width": 86.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "和",
+        "confidence": 0,
+        "bbox": {
+          "left": 847.0,
+          "top": 2578.0,
+          "width": 46.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 11,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 12,
+        "text": "隐私",
+        "confidence": 0,
+        "bbox": {
+          "left": 895.0,
+          "top": 2578.0,
+          "width": 80.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 13,
+        "text": "政策",
+        "confidence": 0,
+        "bbox": {
+          "left": 975.0,
+          "top": 2578.0,
+          "width": 79.0,
+          "height": 48.0
+        }
+      }
+    ]
+  }
+}

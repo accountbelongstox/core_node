@@ -36,6 +36,9 @@ class ApiEndpointsAppWuy {
   /// Change password endpoint
   static const String authChangePassword = '/api/v1/auth/password/change';
   
+  /// Send verification code endpoint
+  static const String authSendCode = '/api/v1/auth/send-code';
+  
   
   /// User profile endpoint
   static const String userProfile = '/api/v1/user/profile';

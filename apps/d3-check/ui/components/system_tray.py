@@ -9,11 +9,15 @@ import tkinter as tk
 from tkinter import messagebox
 import sys
 import os
+import time
 import threading
 from typing import Optional, Callable
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint
+
+# Import i18n manager (global singleton instance)
+from d3utils.i18n_manager import i18n_manager
 
 try:
     import pystray
@@ -40,7 +44,6 @@ class SystemTray:
         
         # Callbacks
         self.on_show_window: Optional[Callable] = None
-        self.on_hide_window: Optional[Callable] = None
         self.on_exit: Optional[Callable] = None
         
         if TRAY_AVAILABLE:
@@ -53,25 +56,29 @@ class SystemTray:
         try:
             # Create a simple icon
             icon_image = self._create_icon_image()
-            
-            # Create menu items
+
+            # Create menu items (only 2 items: Show Software and Exit)
             menu = pystray.Menu(
-                pystray.MenuItem("显示窗口", self._show_window),
-                pystray.MenuItem("隐藏窗口", self._hide_window),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("退出", self._exit_application)
+                pystray.MenuItem(
+                    i18n_manager.get_ui_text("system_tray.show_software"),
+                    self._show_window
+                ),
+                pystray.MenuItem(
+                    i18n_manager.get_ui_text("system_tray.exit"),
+                    self._exit_application
+                )
             )
-            
+
             # Create tray icon
             self.tray_icon = pystray.Icon(
                 "D3Check",
                 icon_image,
-                "D3Check - Diablo III Bot",
+                i18n_manager.get_ui_text("main_window.title"),
                 menu
             )
-            
+
             ColorPrint.blue("[TRAY] System tray icon created")
-            
+
         except Exception as e:
             ColorPrint.red(f"[TRAY] Failed to create tray icon: {e}")
             self.tray_icon = None
@@ -139,7 +146,6 @@ class SystemTray:
                     # Stop the tray icon
                     self.tray_icon.stop()
                     # Wait a bit for the tray to stop
-                    import time
                     time.sleep(0.1)
                     # Remove the icon reference
                     self.tray_icon = None
@@ -170,19 +176,6 @@ class SystemTray:
         except Exception as e:
             ColorPrint.red(f"[TRAY] Error showing window: {e}")
     
-    def _hide_window(self, icon=None, item=None):
-        """Hide the main window"""
-        try:
-            if self.on_hide_window:
-                self.on_hide_window()
-            else:
-                # Default behavior
-                if hasattr(self.parent_ui, 'root'):
-                    self.parent_ui.root.withdraw()
-            ColorPrint.blue("[TRAY] Hide window requested")
-        except Exception as e:
-            ColorPrint.red(f"[TRAY] Error hiding window: {e}")
-    
     def _exit_application(self, icon=None, item=None):
         """Exit the application"""
         try:
@@ -199,11 +192,7 @@ class SystemTray:
     def set_show_callback(self, callback: Callable):
         """Set callback for show window action"""
         self.on_show_window = callback
-    
-    def set_hide_callback(self, callback: Callable):
-        """Set callback for hide window action"""
-        self.on_hide_window = callback
-    
+
     def set_exit_callback(self, callback: Callable):
         """Set callback for exit action"""
         self.on_exit = callback

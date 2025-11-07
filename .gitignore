@@ -59,6 +59,7 @@ app.*.symbols
 **/*.logs
 **/logs/
 **/log/
+**/.runtime_cache/
 
 #  Cache 
 **/cache/
@@ -176,6 +177,9 @@ app.*.symbols
 **/*.iso
 **/*.seed
 
+# Malformed directory names from scripts
+**/Creating directory*
+
 # Development tool specific files
 **/*.suo
 **/*.ntvs*
@@ -190,10 +194,13 @@ app.*.symbols
 **/.settings/
 
 # Package manager files
+# Note: Root pnpm-lock.yaml should be tracked for consistency
 **/yarn.lock
 **/package-lock.json
-**/pnpm-lock.yaml
 **/*.lock
+# Ignore lock files in subprojects only
+poly_apps/**/pnpm-lock.yaml
+apps/**/pnpm-lock.yaml
 
 # Runtime and process files
 **/*.pid
@@ -319,3 +326,16 @@ app.*.symbols
 **/*.p7c
 **/*.p8
 **/*.pfx
+
+# QT Build Temp Dir
+**/output_*
+**/output/
+
+[nN][uU][lL]
+[cC][oO][nN]
+[pP][rR][nN]
+[aA][uU][xX]
+[cC][oO][mM]1
+[cC][oO][mM]2
+# pyMatrix runtime configuration storage
+poly_apps/pyMatrix/storage/

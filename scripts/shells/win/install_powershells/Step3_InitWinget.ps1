@@ -15,7 +15,7 @@ $STEP_NUMBER = 3
 
 # Import variable management functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 function Test-AndInstallWinGet {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking WinGet installation..." -Type "Info"
@@ -84,12 +84,40 @@ function Test-AndInstallWinGet {
     return $false
 }
 
+function Test-WingetAuthorization {
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Testing winget authorization status..." -Type "Info"
+    
+    try {
+        # Test if winget can run basic commands without prompting
+        $null = & winget --version 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            # Test source list command which often triggers authorization prompts
+            $null = & winget source list 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget is properly authorized and working" -Type "Success"
+                return $true
+            }
+        }
+    } catch {
+        # Ignore errors, we'll handle them below
+    }
+    
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget may need authorization" -Type "Warning"
+    return $false
+}
+
 function Test-WingetFirstTimeUse {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking if this is winget's first use on Windows 10..." -Type "Info"
     
     # Only check on Windows 10
     if (-not $Global:isWin10) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Not Windows 10, skipping first-time use check" -Type "Info"
+        return $false
+    }
+    
+    # First test if winget is already properly authorized
+    if (Test-WingetAuthorization) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget is already properly authorized, skipping first-time authorization" -Type "Success"
         return $false
     }
     
@@ -111,7 +139,7 @@ function Handle-WingetFirstTimeAuthorization {
     
     $tempScriptDir = Join-Path $Global:USER_CACHE_DIR "winget_first_run"
     $tempScriptBat = Join-Path $tempScriptDir "winget_first_run_test.bat"
-    $chromeDriverDir = Join-Path $Global:LANG_COMPILER_DIR "chromedriver"
+    $confirmationFlag = Join-Path $Global:USER_CACHE_DIR "winget_user_confirmation.flag"
     
     if (-not (Test-Path $tempScriptDir)) {
         New-Item -ItemType Directory -Path $tempScriptDir -Force | Out-Null
@@ -122,18 +150,22 @@ function Handle-WingetFirstTimeAuthorization {
 @echo off
 echo Winget First Time Authorization Test
 echo.
-echo This script will test winget installation to trigger first-time authorization.
+echo This script will test winget to trigger first-time authorization if needed.
 echo When prompted, please type 'Y' and press Enter to accept the terms.
 echo.
-echo Installing Chromium.ChromeDriver to test directory...
-echo Target directory: $chromeDriverDir
+echo Testing winget command...
 echo.
 
-winget install Chromium.ChromeDriver --location "$chromeDriverDir" --accept-package-agreements --accept-source-agreements
+winget --version
 
 echo.
-echo Installation attempt completed.
-echo Please check the output above for any prompts or errors.
+echo Testing winget source list...
+echo.
+
+winget source list
+
+echo.
+echo Testing completed. If you saw any authorization prompts above, please complete them.
 echo.
 echo IMPORTANT: Please confirm that you have completed the winget authorization
 echo by typing 'Y' and pressing Enter below. This will create a confirmation flag.
@@ -142,8 +174,8 @@ set /p user_confirmation="Have you completed winget authorization? (Y/N): "
 
 if /i "%user_confirmation%"=="Y" (
     echo Creating user confirmation flag...
-    echo %date% %time% - User confirmed winget authorization > "$($Global:USER_CACHE_DIR)\winget_user_confirmation.flag"
-    echo User confirmation flag created successfully.
+    echo %date% %time% - User confirmed winget authorization > "$confirmationFlag"
+    echo User confirmation flag created successfully at: $confirmationFlag
 ) else (
     echo No confirmation provided. Please run this script again when ready.
 )
@@ -162,26 +194,34 @@ pause > nul
     & explorer $tempScriptDir
     
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Launching winget authorization test script..." -Type "Info"
-    & explorer $tempScriptBat
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$tempScriptBat`"" -WindowStyle Normal
     
     Write-ColorMessage -Message "[Step $STEP_NUMBER] WINGET FIRST-TIME AUTHORIZATION:" -Type "Warning"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] 1. A Command Prompt window has been opened automatically" -Type "Warning"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] 2. When prompted by winget, type 'Y' and press Enter" -Type "Warning"
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] 3. Wait for the installation to complete" -Type "Warning"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] 3. Wait for the test to complete" -Type "Warning"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] 4. Press any key in that window to close it when done" -Type "Warning"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] 5. Explorer folder is also open for reference" -Type "Warning"
     
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Waiting 10 minutes for manual winget authorization..." -Type "Info"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Waiting for manual winget authorization..." -Type "Info"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Press 'Y' to skip waiting at any time, or wait for auto-skip after timeout" -Type "Info"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Current time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -Type "Info"
     
-    $endTime = (Get-Date).AddMinutes(10)
-    $timeRemaining = 600
+    $endTime = (Get-Date).AddMinutes(5)  # Reduced to 5 minutes
+    $timeRemaining = 300
+    $checkInterval = 5  # Check every 5 seconds
     
     while ($timeRemaining -gt 0 -and (Get-Date) -lt $endTime) {
         $minutes = [int][math]::Floor($timeRemaining / 60)
         $seconds = [int]($timeRemaining % 60)
         Write-Host "`r[Step $STEP_NUMBER] Time remaining: $($minutes.ToString('D2')):$($seconds.ToString('D2')) - Press 'Y' to skip..." -ForegroundColor Yellow -NoNewline
+        
+        # Check if confirmation flag was created
+        if (Test-Path $confirmationFlag) {
+            Write-Host ""
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] User confirmation flag detected - authorization completed!" -Type "Success"
+            break
+        }
         
         # Check for user input without blocking
         if ([Console]::KeyAvailable) {
@@ -193,15 +233,28 @@ pause > nul
             }
         }
         
-        Start-Sleep -Seconds 1
-        $timeRemaining--
+        Start-Sleep -Seconds $checkInterval
+        $timeRemaining -= $checkInterval
     }
     
     Write-Host ""
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Manual authorization time completed" -Type "Info"
     
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Note: User confirmation flag will be created by temporary script after manual input" -Type "Info"
+    # Final check for confirmation flag
+    if (Test-Path $confirmationFlag) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget authorization completed successfully" -Type "Success"
+    } else {
+        # Test if winget is working now (user might have completed authorization manually)
+        if (Test-WingetAuthorization) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget is working properly - creating confirmation flag automatically" -Type "Success"
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Set-Content -Path $confirmationFlag -Value "$timestamp - Winget authorization completed automatically" -Force
+        } else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: No confirmation flag found. Winget may still need authorization." -Type "Warning"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] You can manually run winget commands to complete authorization if needed." -Type "Info"
+        }
+    }
     
+    # Clean up temporary directory
     try {
         Remove-Item -Path $tempScriptDir -Recurse -Force -ErrorAction SilentlyContinue
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Cleaned up temporary script directory" -Type "Info"

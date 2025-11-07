@@ -166,6 +166,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         // Add domain to database with all associated domains
         $domainResult = ServerManagerV1DomainManager::addDomain($baseDomain, [
             'type' => $type,
+            'www_dir' => $domainDir,
             'nginx_enabled' => true,
             'ssl_enabled' => $sslEnabled,
             'ssl_certificate_id' => $certificate ? $certificate['id'] : null,

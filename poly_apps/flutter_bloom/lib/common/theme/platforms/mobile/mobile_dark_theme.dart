@@ -50,7 +50,6 @@ ThemeData getMobileDarkTheme() {
     hoverColor: const Color(0x1AB15EFF),
     splashColor: const Color(0x33D9BAFF),
     highlightColor: const Color(0x40D9BAFF),
-    indicatorColor: const Color(0xFFD9BAFF),
     secondaryHeaderColor: const Color(0xFF382D5E),
     unselectedWidgetColor: const Color(0xFF7A6A99),
     dividerColor: const Color(0xFF3F3152),
@@ -181,6 +180,6 @@ ThemeData getMobileDarkTheme() {
       backgroundColor: Color(0xFF2A2040),
       contentTextStyle: TextStyle(color: Color(0xFFE9DDFF)),
       actionTextColor: Color(0xFFB15EFF),
-    ),
+    ), tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFFD9BAFF)),
   );
 }

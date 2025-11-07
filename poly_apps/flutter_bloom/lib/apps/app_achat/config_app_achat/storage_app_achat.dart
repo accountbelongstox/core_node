@@ -13,19 +13,24 @@
 import 'package:qyflutter/common/storage/app_storage_base.dart';
 
 /// AChat app specific storage implementation
-/// Extends AppStorageBase with AChat-specific functionality
-class StorageAppAChat extends AppStorageBase {
+/// Extends AppStorageBaseImpl with AChat-specific functionality
+class StorageAppAChat extends AppStorageBaseImpl {
   static final StorageAppAChat _instance = StorageAppAChat._internal();
   static StorageAppAChat get instance => _instance;
-  
+
   StorageAppAChat._internal();
 
   @override
   String get appBox => 'achat_storage';
-  
+
   @override
   String get cacheNamespace => 'achat';
 
+  @override
+  Future<void> initAppStorage() async {
+    // AChat-specific initialization
+    // Base class handles UnifiedStorage.init()
+  }
 
   /// Chat history management
   Future<List<Map<String, dynamic>>> getChatHistory() async {
@@ -82,8 +87,8 @@ class StorageAppAChat extends AppStorageBase {
   }
 
   Future<String> getAISystemPrompt() async {
-    return await getApp<String>('ai_system_prompt') ?? 
-           'You are a helpful AI assistant. Be concise and accurate.';
+    return await getApp<String>('ai_system_prompt') ??
+        'You are a helpful AI assistant. Be concise and accurate.';
   }
 
   Future<void> setAISystemPrompt(String prompt) async {
@@ -164,7 +169,8 @@ class StorageAppAChat extends AppStorageBase {
     await setApp<List<Map<String, dynamic>>>('chat_sessions', sessions);
   }
 
-  Future<void> updateChatSession(String sessionId, Map<String, dynamic> updates) async {
+  Future<void> updateChatSession(
+      String sessionId, Map<String, dynamic> updates) async {
     final sessions = await getChatSessions();
     final index = sessions.indexWhere((session) => session['id'] == sessionId);
     if (index != -1) {
@@ -226,20 +232,20 @@ class StorageAppAChat extends AppStorageBase {
   Future<bool> importChatData(Map<String, dynamic> data) async {
     try {
       if (data['chat_history'] != null) {
-        await setApp<List<Map<String, dynamic>>>('chat_history', 
+        await setApp<List<Map<String, dynamic>>>('chat_history',
             List<Map<String, dynamic>>.from(data['chat_history']));
       }
-      
+
       if (data['chat_sessions'] != null) {
-        await setApp<List<Map<String, dynamic>>>('chat_sessions', 
+        await setApp<List<Map<String, dynamic>>>('chat_sessions',
             List<Map<String, dynamic>>.from(data['chat_sessions']));
       }
-      
+
       if (data['favorite_messages'] != null) {
-        await setApp<List<String>>('favorite_messages', 
-            List<String>.from(data['favorite_messages']));
+        await setApp<List<String>>(
+            'favorite_messages', List<String>.from(data['favorite_messages']));
       }
-      
+
       if (data['ai_settings'] != null) {
         final aiSettings = data['ai_settings'] as Map<String, dynamic>;
         if (aiSettings['personality'] != null) {
@@ -258,17 +264,19 @@ class StorageAppAChat extends AppStorageBase {
           await setAISystemPrompt(aiSettings['system_prompt']);
         }
         if (aiSettings['custom_instructions'] != null) {
-          await setAICustomInstructions(List<String>.from(aiSettings['custom_instructions']));
+          await setAICustomInstructions(
+              List<String>.from(aiSettings['custom_instructions']));
         }
       }
-      
+
       if (data['preferences'] != null) {
         final preferences = data['preferences'] as Map<String, dynamic>;
         if (preferences['voice_input_enabled'] != null) {
           await setVoiceInputEnabled(preferences['voice_input_enabled']);
         }
         if (preferences['image_recognition_enabled'] != null) {
-          await setImageRecognitionEnabled(preferences['image_recognition_enabled']);
+          await setImageRecognitionEnabled(
+              preferences['image_recognition_enabled']);
         }
         if (preferences['translation_enabled'] != null) {
           await setTranslationEnabled(preferences['translation_enabled']);
@@ -283,7 +291,7 @@ class StorageAppAChat extends AppStorageBase {
           await setLearningModeEnabled(preferences['learning_mode_enabled']);
         }
       }
-      
+
       return true;
     } catch (e) {
       return false;
@@ -295,15 +303,16 @@ class StorageAppAChat extends AppStorageBase {
     await clearChatHistory();
     await setApp<List<Map<String, dynamic>>>('chat_sessions', []);
     await setApp<List<String>>('favorite_messages', []);
-    
+
     // Reset AI settings to defaults
     await setAIPersonality('helpful');
     await setAIResponseStyle('conversational');
     await setAITemperature(0.7);
     await setAIMaxTokens(2048);
-    await setAISystemPrompt('You are a helpful AI assistant. Be concise and accurate.');
+    await setAISystemPrompt(
+        'You are a helpful AI assistant. Be concise and accurate.');
     await setAICustomInstructions([]);
-    
+
     // Reset preferences to defaults
     await setVoiceInputEnabled(true);
     await setImageRecognitionEnabled(true);
@@ -334,7 +343,6 @@ class StorageAppAChat extends AppStorageBase {
     };
   }
 
-
   /// Notification settings
   Future<bool> isNotificationEnabled() async {
     return await getApp<bool>('notification_enabled') ?? true;
@@ -363,14 +371,30 @@ class StorageAppAChat extends AppStorageBase {
   }
 
   /// Analytics and crash reporting
+  Future<bool> isAnalyticsEnabled() async {
+    return await getApp<bool>('analytics_enabled') ?? true;
+  }
+
+  Future<void> setAnalyticsEnabled(bool enabled) async {
+    await setApp<bool>('analytics_enabled', enabled);
+  }
+
   Future<void> toggleAnalytics() async {
-    final current = isAnalyticsEnabled();
-    setAnalyticsEnabled(!current);
+    final current = await isAnalyticsEnabled();
+    await setAnalyticsEnabled(!current);
+  }
+
+  Future<bool> isCrashReportingEnabled() async {
+    return await getApp<bool>('crash_reporting_enabled') ?? true;
+  }
+
+  Future<void> setCrashReportingEnabled(bool enabled) async {
+    await setApp<bool>('crash_reporting_enabled', enabled);
   }
 
   Future<void> toggleCrashReporting() async {
-    final current = isCrashReportingEnabled();
-    setCrashReportingEnabled(!current);
+    final current = await isCrashReportingEnabled();
+    await setCrashReportingEnabled(!current);
   }
 
   /// Locale settings
@@ -385,6 +409,4 @@ class StorageAppAChat extends AppStorageBase {
   // Note: Common methods like isDarkMode(), getLocale(), isAnalyticsEnabled(),
   // and isCrashReportingEnabled() are inherited from AppStorageBase
   // and use the common storage with sync access for better performance
-
-
 }

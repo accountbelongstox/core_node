@@ -27,7 +27,7 @@ export default defineNuxtRouteMiddleware((to) => {
   } else {
     // Fallback to query parameter or environment
     const queryApp = to.query.app as string;
-    if (queryApp && ['example', 'codemart', 'dev', 'admin', 'dashboard'].includes(queryApp)) {
+    if (queryApp && ['example', 'codemart', 'dev', 'admin', 'dashboard', 'ittools', 'pymatrix'].includes(queryApp)) {
       currentEntry = queryApp;
     } else {
       currentEntry = getCurrentAppEntry();

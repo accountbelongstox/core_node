@@ -1,249 +1,336 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-D3 Check Training Script
-Handles YOLO model training for UI detection
+Unified Training Entry Point
+Interactive menu or CLI for training classification or detection models
 """
 
 import os
 import sys
+import argparse
 from pathlib import Path
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = current_dir
+sys.path.insert(0, current_dir)
 
-sys.path.insert(0, project_root)
+from providor.common_imports import ColorPrint
+from controller.training import D3CheckTrainingController
 
-from providor.common_imports import ColorPrint, UltralyticsTrainer, TrainingConfig
 
-def train_d3_ui_detector(
-    config_path: str = "config/training/d3_ui_training.yaml",
-    device: str = "cpu",
-    epochs: int = None,
-    batch: int = None,
-    resume: bool = False
-):
-    """
-    Train D3 UI detector model
-
-    Args:
-        config_path: Path to training config file
-        device: Device to use ('cpu', 'cuda', '0', '0,1,2,3')
-        epochs: Override epochs from config
-        batch: Override batch size from config
-        resume: Resume from last checkpoint
-    """
+def train_classification(**kwargs):
+    """Train unified classification model (ALL projects in ONE model)"""
     ColorPrint.blue("\n" + "=" * 80)
-    ColorPrint.blue("🎮 D3 UI Detector Training")
+    ColorPrint.blue("Training Unified Classification Model")
     ColorPrint.blue("=" * 80)
 
-    config_path = Path(project_root) / config_path
-
-    if not config_path.exists():
-        ColorPrint.red(f"❌ Config file not found: {config_path}")
-        ColorPrint.yellow("📝 Creating default config...")
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        ColorPrint.green(f"✅ Config created: {config_path}")
-
-    # Load trainer
     try:
-        trainer = UltralyticsTrainer(config_path)
+        controller = D3CheckTrainingController()
+        results = controller.train_unified_classification(**kwargs)
 
-        # Override parameters if provided
-        if device:
-            trainer.config.device = device
-        if epochs is not None:
-            trainer.config.epochs = epochs
-        if batch is not None:
-            trainer.config.batch = batch
-        if resume:
-            trainer.config.resume = resume
+        if results:
+            ColorPrint.green("\nSUCCESS: Unified classification model trained")
+            return 0
+        else:
+            ColorPrint.red("\nFAILED: Classification training failed")
+            return 1
 
-        # Update data path to absolute
-        dataset_path = Path(project_root) / "config" / "datasets" / "d3_ui"
-        data_yaml = dataset_path / "data.yaml"
+    except Exception as e:
+        ColorPrint.red(f"\nERROR: Classification training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
 
-        if not data_yaml.exists():
-            ColorPrint.red(f"❌ Dataset config not found: {data_yaml}")
-            ColorPrint.yellow("📝 Please prepare your dataset first")
-            ColorPrint.yellow(f"   Dataset should be at: {dataset_path}")
-            return None
 
-        trainer.config.data = str(data_yaml)
+def train_detection(**kwargs):
+    """Train unified detection model (ALL projects as different classes in ONE model)"""
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("Training Unified Detection Model")
+    ColorPrint.blue("=" * 80)
 
-        # Set project path relative to d3-check
-        trainer.config.project = str(Path(project_root) / "training" / "runs")
+    try:
+        controller = D3CheckTrainingController()
+        results = controller.train_unified_detection(**kwargs)
+
+        if results:
+            ColorPrint.green("\nSUCCESS: Unified detection model trained")
+            return 0
+        else:
+            ColorPrint.red("\nFAILED: Detection training failed")
+            return 1
+
+    except Exception as e:
+        ColorPrint.red(f"\nERROR: Detection training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
+def train_both(**kwargs):
+    """Train both unified classification and detection models"""
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("Training All Unified Models")
+    ColorPrint.blue("=" * 80)
+
+    # Train classification
+    ColorPrint.blue("\nStep 1/2: Training Unified Classification Model")
+    ColorPrint.blue("=" * 80)
+
+    result1 = train_classification(**kwargs)
+
+    if result1 != 0:
+        ColorPrint.red("\nERROR: Classification training failed, stopping")
+        return 1
+
+    ColorPrint.green("\nOK: Unified classification model completed")
+
+    # Train detection
+    ColorPrint.blue("\nStep 2/2: Training Unified Detection Model")
+    ColorPrint.blue("=" * 80)
+
+    result2 = train_detection(**kwargs)
+
+    if result2 != 0:
+        ColorPrint.yellow("\nWARNING: Detection training failed, but classification succeeded")
+        return 1
+
+    ColorPrint.green("\nSUCCESS: All unified models trained")
+    return 0
+
+
+def show_menu():
+    """Display training menu"""
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("D3-Check Training System")
+    ColorPrint.blue("=" * 80)
+
+    ColorPrint.green("\nSelect training mode:")
+    ColorPrint.green("\n1. Train Classification Model (small images)")
+    ColorPrint.green("   - Train on cropped patches (yes/no binary classification)")
+    ColorPrint.green("   - Works with both coordinate mode and direct patch mode")
+    ColorPrint.green("   - Good for fixed-size UI elements")
+
+    ColorPrint.green("\n2. Train Detection Model (large images)")
+    ColorPrint.green("   - Multi-class object detection")
+    ColorPrint.green("   - Requires projects with coordinates (skips direct patch mode)")
+    ColorPrint.green("   - Good for multi-scale, real-time detection")
+
+    ColorPrint.green("\n3. Train Both Models")
+
+    ColorPrint.green("\n0. Exit")
+
+    ColorPrint.blue("\n" + "=" * 80)
+
+
+def interactive_mode():
+    """Interactive menu mode"""
+    controller = D3CheckTrainingController()
+    projects = controller.list_projects()
+
+    if not projects:
+        ColorPrint.red("ERROR: No projects found in source directory")
+        ColorPrint.yellow(f"Expected: {controller.source_base_dir}")
+        return 1
+
+    ColorPrint.green(f"\nAvailable projects: {', '.join(projects)}")
+    ColorPrint.green(f"Will train ONE unified model with ALL {len(projects)} projects")
+
+    while True:
+        show_menu()
+
+        try:
+            choice = input("\nEnter option (0-3): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            ColorPrint.yellow("\nSee you every day!")
+            return 0
+
+        if choice == '0':
+            ColorPrint.yellow("\nSee you every day!")
+            return 0
+
+        elif choice == '1':
+            result = train_classification()
+            if result == 0:
+                ColorPrint.green("\nOK: Unified classification model trained")
+            else:
+                ColorPrint.red("\nFAILED: Classification training failed")
+            input("\nPress Enter to continue...")
+
+        elif choice == '2':
+            result = train_detection()
+            if result == 0:
+                ColorPrint.green("\nOK: Unified detection model trained")
+            else:
+                ColorPrint.red("\nFAILED: Detection training failed")
+            input("\nPress Enter to continue...")
+
+        elif choice == '3':
+            result = train_both()
+            if result == 0:
+                ColorPrint.green("\nOK: All unified models trained")
+            else:
+                ColorPrint.yellow("\nWARNING: Some models failed")
+            input("\nPress Enter to continue...")
+            ColorPrint.green(f"\n{'='*80}")
+            ColorPrint.green(f"[SUCCESS] Training completed: {project['name']}")
+            ColorPrint.green(f"{'='*80}")
+            ColorPrint.green(f"[MODEL] Model saved: {best_model_dst.relative_to(self.controller.project_root)}")
+            ColorPrint.green(f"[METADATA] Metadata saved: {metadata_file.relative_to(self.controller.project_root)}")
+            return True
+        return False
+
+def run(self):
+    """Run complete automatic training workflow"""
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("[TRAINING] Automatic Training System")
+    ColorPrint.blue("=" * 80)
+    ColorPrint.green(f"Training data location: {self.controller.training_data_dir}")
+
+    # 1. Check environment
+    if not self.check_environment():
+        ColorPrint.red("\n[ERROR] Environment check failed!")
+        return 1
+
+    # 2. Scan for projects
+    self.projects = self.scan_projects()
+
+    if not self.projects:
+        ColorPrint.red("\n[ERROR] No training projects found!")
+        return 1
+
+    # 3. Print summary
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("[SUMMARY] Training Summary")
+    ColorPrint.blue("=" * 80)
+    ColorPrint.green(f"\n[DEVICE] Device: {self.device.upper()}")
+    if self.device == "cuda" and self.gpu_info.get('gpu_names'):
+        for i, name in enumerate(self.gpu_info['gpu_names']):
+            ColorPrint.green(f"   GPU {i}: {name}")
+
+    ColorPrint.green(f"\n[PROJECTS] Projects to train: {len(self.projects)}")
+    for i, proj in enumerate(self.projects, 1):
+        ColorPrint.green(f"\n   {i}. {proj['name']}")
+        ColorPrint.green(f"      Samples: {proj['yes_count']} yes, {proj['no_count']} no")
+        ColorPrint.green(f"      Total: {proj['total_count']} samples")
+        ColorPrint.green(f"      Image size: {proj['img_size'][0]}x{proj['img_size'][1]}")
+
+    # Ask for confirmation
+    ColorPrint.blue(f"\n{'='*80}")
+    ColorPrint.yellow(f"⚡ Ready to start training {len(self.projects)} project(s)")
+    ColorPrint.yellow("   This may take a while depending on your hardware")
+    ColorPrint.blue(f"{'='*80}")
+
+    # Train each project
+    success_count = 0
+    for i, project in enumerate(self.projects, 1):
+        ColorPrint.blue(f"\n\n{'='*80}")
+        ColorPrint.blue(f"📦 Project {i}/{len(self.projects)}: {project['name']}")
+        ColorPrint.blue(f"{'='*80}")
+
+        # Prepare
+        if not self.prepare_project(project):
+            ColorPrint.red(f"❌ Failed to prepare project: {project['name']}")
+            continue
 
         # Train
-        results = trainer.train(verbose=True)
+        if self.train_project(project):
+            success_count += 1
 
-        # Print results
-        ColorPrint.green("\n" + "=" * 80)
-        ColorPrint.green("✅ Training completed!")
-        ColorPrint.green("=" * 80)
+    # Final summary
+    ColorPrint.blue(f"\n\n{'='*80}")
+    ColorPrint.blue("🎉 Training Complete!")
+    ColorPrint.blue(f"{'='*80}")
+    ColorPrint.green(f"\n📊 Results:")
+    ColorPrint.green(f"   Total projects: {len(self.projects)}")
+    ColorPrint.green(f"   Successful: {success_count}")
+    ColorPrint.green(f"   Failed: {len(self.projects) - success_count}")
 
-        # Print model location
-        best_model = Path(trainer.config.project) / trainer.config.name / "weights" / "best.pt"
-        if best_model.exists():
-            ColorPrint.green(f"\n📦 Best model saved to:")
-            ColorPrint.green(f"   {best_model}")
+    if success_count > 0:
+        ColorPrint.green(f"\n📦 Trained models saved to:")
+        d4_modules_dir = self.controller.project_root / "d4_modules"
+        ColorPrint.green(f"   {d4_modules_dir}")
 
-            # Copy to models directory for easy access
-            models_dir = Path(project_root) / "config" / "models"
-            models_dir.mkdir(parents=True, exist_ok=True)
-            import shutil
-            shutil.copy(best_model, models_dir / "d3_ui_detector.pt")
-            ColorPrint.green(f"\n📋 Model copied to:")
-            ColorPrint.green(f"   {models_dir / 'd3_ui_detector.pt'}")
+        # Create model registry
+        import json
+        import datetime
+        registry = {
+            "registry_version": "1.0",
+            "created_at": datetime.datetime.now().isoformat(),
+            "models": []
+        }
 
-        return results
+        for project in self.projects:
+            model_file = d4_modules_dir / f"{project['name']}_detector.pt"
+            metadata_file = d4_modules_dir / f"{project['name']}_detector.json"
 
-    except Exception as e:
-        ColorPrint.red(f"\n❌ Training failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+            if model_file.exists():
+                ColorPrint.green(f"   ✓ {model_file.name}")
 
-def validate_d3_ui_detector(
-    model_path: str = "config/models/d3_ui_detector.pt",
-    data_path: str = "config/datasets/d3_ui/data.yaml",
-    split: str = "val"
-):
-    """
-    Validate trained model
+                # Read individual metadata
+                if metadata_file.exists():
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                        model_metadata = json.load(f)
+                        registry["models"].append(model_metadata)
 
-    Args:
-        model_path: Path to trained model
-        data_path: Path to dataset config
-        split: Dataset split ('val', 'test')
-    """
-    ColorPrint.blue("\n" + "=" * 80)
-    ColorPrint.blue("🔍 Validating D3 UI Detector")
-    ColorPrint.blue("=" * 80)
+        # Save model registry
+        registry_file = d4_modules_dir / "model_registry.json"
+        with open(registry_file, 'w', encoding='utf-8') as f:
+            json.dump(registry, f, indent=2, ensure_ascii=False)
 
-    model_path = Path(project_root) / model_path
-    data_path = Path(project_root) / data_path
+        ColorPrint.green(f"\n📋 Model registry created:")
+        ColorPrint.green(f"   {registry_file.relative_to(self.controller.project_root)}")
+        ColorPrint.green(f"   Total models: {len(registry['models'])}")
 
-    if not model_path.exists():
-        ColorPrint.red(f"❌ Model not found: {model_path}")
-        return None
+    return 0 if success_count == len(self.projects) else 1
 
-    if not data_path.exists():
-        ColorPrint.red(f"❌ Dataset config not found: {data_path}")
-        return None
-
-    try:
-        # Create trainer with dummy config (just to load model)
-        config = TrainingConfig(
-            data=str(data_path),
-            model=str(model_path)
-        )
-        trainer = UltralyticsTrainer(config)
-        trainer.load_checkpoint(model_path)
-
-        # Validate
-        results = trainer.validate(data=str(data_path), split=split)
-
-        ColorPrint.green("\n✅ Validation completed")
-        return results
-
-    except Exception as e:
-        ColorPrint.red(f"\n❌ Validation failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-def export_d3_ui_detector(
-    model_path: str = "config/models/d3_ui_detector.pt",
-    format: str = "onnx"
-):
-    """
-    Export trained model
-
-    Args:
-        model_path: Path to trained model
-        format: Export format ('onnx', 'torchscript', 'tflite', etc.)
-    """
-    ColorPrint.blue(f"\n📤 Exporting model to {format.upper()}...")
-
-    model_path = Path(project_root) / model_path
-
-    if not model_path.exists():
-        ColorPrint.red(f"❌ Model not found: {model_path}")
-        return None
-
-    try:
-        config = TrainingConfig(
-            data="dummy.yaml",  # Not used for export
-            model=str(model_path)
-        )
-        trainer = UltralyticsTrainer(config)
-        trainer.load_checkpoint(model_path)
-
-        export_path = trainer.export(format=format)
-
-        ColorPrint.green(f"\n✅ Model exported: {export_path}")
-        return export_path
-
-    except Exception as e:
-        ColorPrint.red(f"\n❌ Export failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
 
 def main():
-    """Main entry point for training script"""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="D3 UI Detector Training",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python train.py --action train                       # Train model
-  python train.py --action train --device cuda         # Train on GPU
-  python train.py --action train --epochs 200          # Train with 200 epochs
-  python train.py --action validate                    # Validate model
-  python train.py --action export --format onnx        # Export to ONNX
-        """
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description="D3-Check Training System")
+    parser.add_argument(
+        '--mode',
+        choices=['classification', 'detection', 'both'],
+        help='Training mode (bypasses menu)'
     )
-
-    parser.add_argument("--action", type=str, default="train", choices=["train", "validate", "export"],
-                        help="Action to perform")
-    parser.add_argument("--config", type=str, default="config/training/d3_ui_training.yaml",
-                        help="Path to training config")
-    parser.add_argument("--model", type=str, default="config/models/d3_ui_detector.pt",
-                        help="Path to model (for validate/export)")
-    parser.add_argument("--device", type=str, default="cpu",
-                        help="Device to use (cpu, cuda, 0, 0,1,2,3)")
-    parser.add_argument("--epochs", type=int, default=None,
-                        help="Number of epochs (override config)")
-    parser.add_argument("--batch", type=int, default=None,
-                        help="Batch size (override config)")
-    parser.add_argument("--resume", action="store_true",
-                        help="Resume from last checkpoint")
-    parser.add_argument("--format", type=str, default="onnx",
-                        help="Export format (for export action)")
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=100,
+        help='Number of training epochs (default: 100)'
+    )
+    parser.add_argument(
+        '--batch',
+        type=int,
+        help='Batch size (default: 8 for classification, 16 for detection)'
+    )
+    parser.add_argument(
+        '--device',
+        default='cpu',
+        help='Device to use (default: cpu)'
+    )
 
     args = parser.parse_args()
 
-    if args.action == "train":
-        result = train_d3_ui_detector(
-            config_path=args.config,
-            device=args.device,
-            epochs=args.epochs,
-            batch=args.batch,
-            resume=args.resume
-        )
-        return 0 if result else 1
-    elif args.action == "validate":
-        result = validate_d3_ui_detector(model_path=args.model)
-        return 0 if result else 1
-    elif args.action == "export":
-        result = export_d3_ui_detector(model_path=args.model, format=args.format)
-        return 0 if result else 1
+    # Build training kwargs
+    train_kwargs = {
+        'epochs': args.epochs,
+        'device': args.device,
+    }
+    if args.batch:
+        train_kwargs['batch_size'] = args.batch
+
+    # CLI mode - bypass menu
+    if args.mode:
+        if args.mode == 'classification':
+            return train_classification(**train_kwargs)
+        elif args.mode == 'detection':
+            return train_detection(**train_kwargs)
+        elif args.mode == 'both':
+            return train_both(**train_kwargs)
+
+    # Interactive mode
+    return interactive_mode()
+
 
 if __name__ == "__main__":
     sys.exit(main())
-

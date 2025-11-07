@@ -23,7 +23,7 @@ NC='\033[0m' # No Color
 # Script identification
 SCRIPT_INDEX="[INSTALL_LIB]"
 
-# Source required files
+# Source required files - use dynamic relative path
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -48,6 +48,54 @@ log_error() {
 log_warning() {
     local message="$1"
     echo -e "${YELLOW}$SCRIPT_INDEX $message${NC}"
+}
+
+# Validate package existence before installation
+validate_package_exists() {
+    local method="$1"
+    local package_id="$2"
+    local app_name="$3"
+
+    case "$method" in
+        "npm")
+            # Check if npm package exists in registry
+            log_install "Validating NPM package: $package_id"
+            if npm info "$package_id" >/dev/null 2>&1; then
+                log_success "NPM package $package_id exists"
+                return 0
+            else
+                log_error "NPM package $package_id not found in registry"
+                return 1
+            fi
+            ;;
+        "apt")
+            # Check if apt package exists
+            log_install "Validating APT package: $package_id"
+            if apt-cache search "^$package_id\$" | grep -q "$package_id"; then
+                log_success "APT package $package_id exists"
+                return 0
+            else
+                log_error "APT package $package_id not found"
+                return 1
+            fi
+            ;;
+        "snap")
+            # Check if snap package exists
+            log_install "Validating Snap package: $package_id"
+            if snap info "$package_id" >/dev/null 2>&1; then
+                log_success "Snap package $package_id exists"
+                return 0
+            else
+                log_error "Snap package $package_id not found in snap store"
+                return 1
+            fi
+            ;;
+        *)
+            # For other methods, we can't easily validate before installation
+            log_warning "Skipping validation for method: $method"
+            return 0
+            ;;
+    esac
 }
 
 # Check if command exists
@@ -206,9 +254,10 @@ install_via_apt() {
 install_via_snap() {
     local package_id="$1"
     local app_name="$2"
-    
+    local snap_confinement="$3"  # Optional: strict or classic
+
     log_install "Installing $app_name via SNAP: $package_id"
-    
+
     # Check if snapd is installed
     if ! command_exists snap; then
         log_install "Installing snapd first..."
@@ -223,14 +272,41 @@ install_via_snap() {
             return 1
         fi
     fi
-    
+
+    # Build snap install command with confinement if needed
+    local snap_install_cmd="$USE_SUDO snap install \"$package_id\""
+
+    # Add confinement flag if specified
+    if [ -n "$snap_confinement" ] && [ "$snap_confinement" != "strict" ]; then
+        snap_install_cmd="$snap_install_cmd --$snap_confinement"
+        log_install "Installing with $snap_confinement confinement mode"
+    fi
+
     # Install snap package
-    if $USE_SUDO snap install "$package_id"; then
+    if eval "$snap_install_cmd" 2>/dev/null; then
         log_success "Successfully installed $app_name via SNAP"
         return 0
     else
-        log_error "Failed to install $app_name via SNAP"
-        return 1
+        # Capture error output for analysis
+        local snap_error_output
+        snap_error_output=$(eval "$snap_install_cmd" 2>&1 || true)
+        
+        # Check if error is due to confinement requirement
+        if [[ "$snap_error_output" == *"classic"* ]] && [[ "$snap_error_output" == *"confinement"* ]]; then
+            log_warning "Snap package requires classic confinement, retrying with --classic flag"
+            if $USE_SUDO snap install "$package_id" --classic 2>/dev/null; then
+                log_success "Successfully installed $app_name via SNAP with classic confinement"
+                return 0
+            else
+                log_error "Failed to install $app_name via SNAP even with classic confinement"
+                log_error "Error: $snap_error_output"
+                return 1
+            fi
+        else
+            log_error "Failed to install $app_name via SNAP"
+            log_error "Error: $snap_error_output"
+            return 1
+        fi
     fi
 }
 
@@ -330,9 +406,9 @@ install_via_web() {
 install_via_npm() {
     local package_id="$1"
     local app_name="$2"
-    
+
     log_install "Installing $app_name via NPM: $package_id"
-    
+
     # Check if npm is installed
     if ! command_exists npm; then
         log_install "Installing Node.js and npm first..."
@@ -344,15 +420,53 @@ install_via_npm() {
             return 1
         fi
     fi
-    
-    # Install npm package globally
-    if $USE_SUDO npm install -g "$package_id"; then
-        log_success "Successfully installed $app_name via NPM"
-        return 0
-    else
-        log_error "Failed to install $app_name via NPM"
-        return 1
+
+    # Validate package exists before attempting installation
+    if ! validate_package_exists "npm" "$package_id" "$app_name"; then
+        log_error "Skipping $app_name - package not found in NPM registry"
+        return 2
     fi
+
+    # Install npm package globally with timeout and retry logic
+    local max_retries=2
+    local retry_count=0
+
+    while [ $retry_count -lt $max_retries ]; do
+        if timeout 300 $USE_SUDO npm install -g "$package_id"; then
+            log_success "Successfully installed $app_name via NPM"
+            
+            # Fix permissions for npm global binaries
+            log_install "Setting executable permissions for npm global binaries..."
+            local npm_global_bin
+            npm_global_bin=$($USE_SUDO npm config get prefix 2>/dev/null)
+            if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+                # Set executable permissions for all binaries in npm global bin directory
+                $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
+                log_success "Set executable permissions for binaries in: $npm_global_bin/bin"
+                
+                # Also check for the specific package binary
+                local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
+                local binary_path="$npm_global_bin/bin/$package_name"
+                if [ -f "$binary_path" ]; then
+                    $USE_SUDO chmod +x "$binary_path"
+                    log_success "Set executable permission for: $binary_path"
+                fi
+            else
+                log_warning "Could not determine npm global bin directory"
+            fi
+            
+            return 0
+        else
+            ((retry_count++))
+            if [ $retry_count -lt $max_retries ]; then
+                log_warning "NPM installation failed, retry $retry_count/$max_retries..."
+                sleep 2
+            fi
+        fi
+    done
+
+    log_error "Failed to install $app_name via NPM after $max_retries retries"
+    return 1
 }
 
 # Install via PIPX
@@ -529,25 +643,40 @@ install_via_microsoft_apt() {
     # Install required dependencies
     log_install "Installing required dependencies..."
     $USE_SUDO apt update
-    $USE_SUDO apt install -y software-properties-common apt-transport-https wget
+    $USE_SUDO apt install -y software-properties-common apt-transport-https wget curl gnupg
 
-    # Add Microsoft GPG key
+    # Add Microsoft GPG key with fallback options
     log_install "Adding Microsoft GPG key..."
-    if ! wget -qO- https://packages.microsoft.com/keys/microsoft.asc | $USE_SUDO apt-key add -; then
-        log_error "Failed to add Microsoft GPG key"
-        return 1
-    fi
+    local gpg_key_url="https://packages.microsoft.com/keys/microsoft.asc"
+    local gpg_key_file="/etc/apt/keyrings/packages.microsoft.gpg"
 
-    # Add Microsoft repository
-    log_install "Adding Microsoft repository..."
-    if ! echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list; then
-        log_error "Failed to add Microsoft repository"
-        return 1
+    # Try method 1: Using apt-key add (older systems)
+    if wget -qO- "$gpg_key_url" | $USE_SUDO apt-key add -; then
+        log_success "Microsoft GPG key added successfully"
+    else
+        log_warning "apt-key method failed, trying keyring method..."
+
+        # Try method 2: Using gpg with keyrings directory
+        if wget -qO- "$gpg_key_url" | $USE_SUDO gpg --dearmor | $USE_SUDO tee "$gpg_key_file" > /dev/null; then
+            log_success "Microsoft GPG key installed to keyring"
+
+            # Create sources list entry with keyring reference
+            log_install "Adding Microsoft repository with keyring..."
+            if ! echo "deb [arch=amd64,arm64,armhf signed-by=$gpg_key_file] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list > /dev/null; then
+                log_error "Failed to add Microsoft repository"
+                return 1
+            fi
+        else
+            log_error "Failed to install Microsoft GPG key using both methods"
+            return 1
+        fi
     fi
 
     # Update package list
     log_install "Updating package list..."
-    $USE_SUDO apt update
+    if ! $USE_SUDO apt update 2>&1; then
+        log_warning "apt update had issues, but continuing with installation attempt"
+    fi
 
     # Install the package
     log_install "Installing $package_id..."
@@ -623,5 +752,5 @@ universal_install() {
 export -f install_via_apt install_via_snap install_via_flatpak install_via_web
 export -f install_via_npm install_via_pipx install_via_uv install_via_uv_tool
 export -f install_via_uvx install_via_curl install_via_microsoft_apt universal_install
-export -f log_install log_success log_error log_warning command_exists
+export -f log_install log_success log_error log_warning command_exists validate_package_exists
 export -f is_snap_package is_command_from_snap force_cleanup_package needs_cleanup_before_install

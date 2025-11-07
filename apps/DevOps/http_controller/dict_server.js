@@ -14,7 +14,8 @@ const { APP_TMP_DIR, APP_DATA_CACHE_DIR } = require('#@global_dir');
 const logger = require('#@logger');
 const { replaceSpaceToDash } = require('#@ncore/foundation/utilities/strtool.js');
 const { ITEM_TYPE } = require('../provider/types/data_types.js');
-const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/foundation/express_utils/libs/UploadTools.js');
+const rpc = require('#@ncore/utils/rpc');
+const { uploadAndKeepOriginName, wrapFileDetails } = rpc.UploadTools;
 const { fcopy } = require('#@ftools');
 const { copyFileToDir } = fcopy;
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR,

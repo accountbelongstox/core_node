@@ -24,32 +24,28 @@ TIMEOUT_SECONDS=120
 SSH_PUB_PATH=""
 SSH_KEY_PATH=""
 NODE_PATH=""
-# Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "19_install_git_ssh")
-SSH_INSTALLED_FLAG="$SCRIPT_TEMP_DIR/ssh_keys_installed_step19.flag"
 
-# Source common functions and variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+# Source common functions and variables FIRST
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
-# Check if Node.js installation is enabled (Git SSH is often used with Node.js development)
-INSTALL_NODE=$(get_var "INSTALL_NODE")
-if [ "$INSTALL_NODE" != "true" ]; then
-    echo "[19] Skipping Git SSH configuration (INSTALL_NODE: $INSTALL_NODE)"
-    exit 0
-fi
+# Use global temporary directory structure (AFTER sourcing common functions)
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "19_install_git_ssh")
 
 # Local SSH key files (using corrected PROJECT_ROOT)
 LOCAL_SSH_PUB_JS="$PROJECT_ROOT/scripts/git/git.ssh.id.ed.pub.js"
 LOCAL_SSH_KEY_JS="$PROJECT_ROOT/scripts/git/git.ssh.id.ed.js"
 
-# Multiple SSH installation locations
+# Multiple SSH installation locations (deduplicated)
 SSH_LOCATIONS=(
     "$HOME/.ssh"
     "/etc/ssh/keys"
-    "/root/.ssh"
 )
+
+# Add /root/.ssh only if different from $HOME/.ssh
+if [[ "$HOME/.ssh" != "/root/.ssh" && -d "/root" ]]; then
+    SSH_LOCATIONS+=("/root/.ssh")
+fi
 
 # SSH key filenames
 SSH_KEY_NAME="id_ed25519"
@@ -94,39 +90,114 @@ setup_git_environment() {
     fi
 }
 
-# Function to test if SSH key pair exists and is valid in any location
-test_ssh_key_pair_exists() {
-    # Check if installation flag exists
-    if [[ ! -f "$SSH_INSTALLED_FLAG" ]]; then
+# Function to validate SSH key file content
+validate_ssh_key_content() {
+    local pub_file="$1"
+    local priv_file="$2"
+    local location="$3"
+
+    print_step_from_common_functions "Validating SSH keys in $location:"
+
+    # Check public key
+    print_step_from_common_functions "  Public key: $pub_file"
+    if [[ ! -f "$pub_file" ]]; then
+        print_error_from_common_functions "    âœ?File does not exist"
         return 1
     fi
 
+    if [[ ! -s "$pub_file" ]]; then
+        print_error_from_common_functions "    âœ?File is empty"
+        return 1
+    fi
+
+    local pub_content=$(head -n 1 "$pub_file" 2>/dev/null)
+    if [[ "$pub_content" =~ ^ssh-(rsa|dss|ed25519|ecdsa) ]]; then
+        local key_type=$(echo "$pub_content" | awk '{print $1}')
+        local key_comment=$(echo "$pub_content" | awk '{print $3}')
+        print_success_from_common_functions "    âœ?Valid format: $key_type"
+        if [[ -n "$key_comment" ]]; then
+            print_step_from_common_functions "    Comment: $key_comment"
+        fi
+        print_step_from_common_functions "    Preview: ${pub_content:0:50}..."
+    else
+        print_error_from_common_functions "    âœ?Invalid SSH public key format"
+        return 1
+    fi
+
+    # Check private key
+    print_step_from_common_functions "  Private key: $priv_file"
+    if [[ ! -f "$priv_file" ]]; then
+        print_error_from_common_functions "    âœ?File does not exist"
+        return 1
+    fi
+
+    if [[ ! -s "$priv_file" ]]; then
+        print_error_from_common_functions "    âœ?File is empty"
+        return 1
+    fi
+
+    local priv_header=$(head -n 1 "$priv_file" 2>/dev/null)
+    if [[ "$priv_header" =~ ^-----BEGIN.*PRIVATE\ KEY----- ]]; then
+        print_success_from_common_functions "    âœ?Valid format: $priv_header"
+    else
+        print_error_from_common_functions "    âœ?Invalid private key format"
+        print_step_from_common_functions "    Header: $priv_header"
+        return 1
+    fi
+
+    # Check permissions
+    local pub_perms=$(stat -c "%a" "$pub_file" 2>/dev/null)
+    local priv_perms=$(stat -c "%a" "$priv_file" 2>/dev/null)
+
+    print_step_from_common_functions "  Permissions:"
+    print_step_from_common_functions "    Public key: $pub_perms (should be 644 or 600)"
+    print_step_from_common_functions "    Private key: $priv_perms (should be 600)"
+
+    if [[ "$priv_perms" != "600" && "$priv_perms" != "400" ]]; then
+        print_error_from_common_functions "    âœ?Private key permissions too open (should be 600)"
+    fi
+
+    return 0
+}
+
+# Function to test if SSH key pair exists and is valid in any location
+# Matches PowerShell Test-SSHKeyPairExists logic
+test_ssh_key_pair_exists() {
     local found_valid_pair=false
 
     # Check all SSH locations
     for ssh_location in "${SSH_LOCATIONS[@]}"; do
-        if [[ -d "$ssh_location" ]]; then
-            local pub_file="$ssh_location/$SSH_PUB_NAME"
-            local priv_file="$ssh_location/$SSH_KEY_NAME"
+        if [[ ! -d "$ssh_location" ]]; then
+            continue
+        fi
 
-            if [[ -f "$pub_file" && -f "$priv_file" ]]; then
-                # Validate that the .pub file is not empty and contains valid SSH key format
-                if [[ -s "$pub_file" ]] && grep -q "^ssh-" "$pub_file" 2>/dev/null; then
-                    # Validate that the private key is not empty
-                    if [[ -s "$priv_file" ]]; then
-                        print_success_from_common_functions "Found valid SSH key pair in $ssh_location: $SSH_PUB_NAME / $SSH_KEY_NAME"
-                        found_valid_pair=true
-                    fi
+        # Find all .pub files in the directory
+        local pub_files=($(find "$ssh_location" -maxdepth 1 -name "*.pub" -type f 2>/dev/null))
+
+        for pub_file in "${pub_files[@]}"; do
+            # Get the private key path by removing .pub extension
+            local priv_file="${pub_file%.pub}"
+
+            # Check if both files exist and are not empty
+            if [[ -f "$priv_file" && -s "$pub_file" && -s "$priv_file" ]]; then
+                # Validate that the .pub file contains valid SSH key format
+                if grep -q "^ssh-" "$pub_file" 2>/dev/null; then
+                    local pub_name=$(basename "$pub_file")
+                    local priv_name=$(basename "$priv_file")
+                    print_success_from_common_functions "Found SSH key pair: $pub_name / $priv_name in $ssh_location"
+
+                    # Validate and show key content
+                    validate_ssh_key_content "$pub_file" "$priv_file" "$ssh_location"
+
+                    found_valid_pair=true
                 fi
             fi
-        fi
+        done
     done
 
     if [[ "$found_valid_pair" == true ]]; then
         return 0
     else
-        # Remove invalid flag if no valid pair found
-        rm -f "$SSH_INSTALLED_FLAG" 2>/dev/null
         return 1
     fi
 }
@@ -410,28 +481,25 @@ step19_install_git_ssh() {
     # Update authorized_keys files
     update_authorized_keys
 
-    # Create installation flag file
-    if ! touch "$SSH_INSTALLED_FLAG"; then
-        print_error_from_common_functions "Failed to create installation flag file"
-        return 1
-    fi
-
     print_success_from_common_functions "SSH key installation completed successfully!"
-    print_step_from_common_functions "SSH keys are now available in multiple locations:"
+    print_step_from_common_functions "SSH keys are now available at:"
 
+    # Show all installed SSH key locations
     for ssh_location in "${SSH_LOCATIONS[@]}"; do
         if [[ -d "$ssh_location" ]]; then
-            local pub_file="$ssh_location/$SSH_PUB_NAME"
-            local priv_file="$ssh_location/$SSH_KEY_NAME"
-            if [[ -f "$pub_file" && -f "$priv_file" ]]; then
-                print_step_from_common_functions "  Location: $ssh_location"
-                print_step_from_common_functions "    Public key: $pub_file"
-                print_step_from_common_functions "    Private key: $priv_file"
-            fi
+            # Find all .pub files in the directory
+            local pub_files=($(find "$ssh_location" -maxdepth 1 -name "*.pub" -type f 2>/dev/null))
+
+            for pub_file in "${pub_files[@]}"; do
+                local priv_file="${pub_file%.pub}"
+                if [[ -f "$priv_file" ]]; then
+                    print_step_from_common_functions "  Location: $ssh_location"
+                    print_step_from_common_functions "    Public key: $pub_file"
+                    print_step_from_common_functions "    Private key: $priv_file"
+                fi
+            done
         fi
     done
-
-    print_step_from_common_functions "Installation flag: $SSH_INSTALLED_FLAG"
 
     return 0
 }

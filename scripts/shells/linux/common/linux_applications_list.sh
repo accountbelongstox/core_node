@@ -40,6 +40,15 @@ readonly METHOD_PIPX="pipx"
 readonly METHOD_UV_TOOL="uv_tool"
 readonly METHOD_CURL="curl"
 readonly METHOD_MICROSOFT_APT="microsoft_apt"
+readonly METHOD_APPIMAGE="appimage"
+
+# Snap confinement modes
+readonly SNAP_CONFINEMENT_STRICT="strict"
+readonly SNAP_CONFINEMENT_CLASSIC="classic"
+
+# Repository type for special repositories
+readonly REPO_TYPE_MICROSOFT="microsoft"
+readonly REPO_TYPE_UBUNTU_PPA="ubuntu_ppa"
 
 # Installation groups - controls which applications are installed based on use case
 readonly GROUP_ESSENTIAL="essential"        # Essential desktop applications
@@ -52,17 +61,6 @@ readonly GROUP_ALL="all"                  # All applications
 
 # Base Packages - Essential system tools and basic applications
 declare -gA BASE_PACKAGES=(
-    # Firefox Browser
-    ["firefox_name"]="Firefox"
-    ["firefox_exec"]="firefox"
-    ["firefox_package_id"]="firefox"
-    ["firefox_install_method"]="$METHOD_SNAP"
-    ["firefox_category"]="$CATEGORY_BROWSERS"
-    ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
-    ["firefox_description"]="Mozilla Firefox web browser"
-    ["firefox_verify_command"]="--version"
-    ["firefox_launch_command"]="which firefox && $USE_SUDO firefox"
-
     # Chrome Browser
     ["chrome_name"]="Google Chrome"
     ["chrome_exec"]="google-chrome"
@@ -85,43 +83,31 @@ declare -gA BASE_PACKAGES=(
     ["vim_verify_command"]="--version"
     ["vim_launch_command"]=""
 
-    # RustDesk Remote Desktop
-    ["rustdesk_name"]="RustDesk"
-    ["rustdesk_exec"]="rustdesk"
-    ["rustdesk_package_id"]="rustdesk"
-    ["rustdesk_install_method"]="$METHOD_SNAP"
-    ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
-    ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
-    ["rustdesk_description"]="Remote desktop application"
-    ["rustdesk_verify_command"]="--version"
-    ["rustdesk_launch_command"]="which rustdesk && $USE_SUDO rustdesk"
-
-
+    # CMake Build System
+    ["cmake_name"]="CMake"
+    ["cmake_exec"]="cmake"
+    ["cmake_package_id"]="cmake"
+    ["cmake_install_method"]="$METHOD_APT"
+    ["cmake_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
+    ["cmake_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
+    ["cmake_description"]="Cross-platform build system"
+    ["cmake_verify_command"]="--version"
+    ["cmake_launch_command"]=""
 )
 
 # Development Tools - Programming environments and development utilities
 declare -gA DEV_PACKAGES=(
-    # VSCode
-    ["vscode_name"]="Visual Studio Code"
-    ["vscode_exec"]="code"
-    ["vscode_package_id"]="code"
-    ["vscode_install_method"]="$METHOD_MICROSOFT_APT"
-    ["vscode_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["vscode_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["vscode_description"]="Popular code editor by Microsoft"
-    ["vscode_verify_command"]="--version"
-    ["vscode_launch_command"]="which code && $USE_SUDO code --no-sandbox --user-data-dir"
-
-    # Cursor AI Editor
-    ["cursor_name"]="Cursor AI Editor"
-    ["cursor_exec"]="cursor"
-    ["cursor_package_id"]="cursor"
-    ["cursor_install_method"]="$METHOD_SNAP"
-    ["cursor_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["cursor_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["cursor_description"]="AI-powered code editor"
-    ["cursor_verify_command"]="--version"
-    ["cursor_launch_command"]="which cursor && $USE_SUDO cursor --no-sandbox"
+    # PowerShell
+    ["powershell_name"]="PowerShell"
+    ["powershell_exec"]="pwsh"
+    ["powershell_package_id"]="powershell"
+    ["powershell_install_method"]="$METHOD_SNAP"
+    ["powershell_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    ["powershell_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
+    ["powershell_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
+    ["powershell_description"]="PowerShell cross-platform shell and scripting language"
+    ["powershell_verify_command"]="--version"
+    ["powershell_launch_command"]="which pwsh && $USE_SUDO pwsh"
 
     # Postman API Testing
     ["postman_name"]="Postman"
@@ -133,6 +119,7 @@ declare -gA DEV_PACKAGES=(
     ["postman_description"]="API development and testing tool"
     ["postman_verify_command"]=""
     ["postman_launch_command"]="which postman && $USE_SUDO postman"
+    ["postman_super"]="true"
     
     # Termius SSH Client
     ["termius_name"]="Termius"
@@ -144,61 +131,72 @@ declare -gA DEV_PACKAGES=(
     ["termius_description"]="SSH client and terminal"
     ["termius_verify_command"]=""
     ["termius_launch_command"]="which termius-app && $USE_SUDO termius-app"
+    ["termius_super"]="true"
 
     # Android Studio
     ["android_studio_name"]="Android Studio"
     ["android_studio_exec"]="android-studio"
     ["android_studio_package_id"]="android-studio"
     ["android_studio_install_method"]="$METHOD_SNAP"
+    ["android_studio_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["android_studio_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["android_studio_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["android_studio_description"]="Android development IDE"
     ["android_studio_verify_command"]=""
     ["android_studio_launch_command"]="which android-studio && $USE_SUDO android-studio"
+    ["android_studio_super"]="true"
 
     # IntelliJ IDEA Community
     ["intellij_name"]="IntelliJ IDEA Community"
     ["intellij_exec"]="intellij-idea-community"
     ["intellij_package_id"]="intellij-idea-community"
     ["intellij_install_method"]="$METHOD_SNAP"
+    ["intellij_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["intellij_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["intellij_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["intellij_description"]="Java IDE by JetBrains"
     ["intellij_verify_command"]=""
     ["intellij_launch_command"]="which intellij-idea-community && $USE_SUDO intellij-idea-community"
+    ["intellij_super"]="true"
     
     # PyCharm Community
     ["pycharm_name"]="PyCharm Community"
     ["pycharm_exec"]="pycharm-community"
     ["pycharm_package_id"]="pycharm-community"
     ["pycharm_install_method"]="$METHOD_SNAP"
+    ["pycharm_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["pycharm_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["pycharm_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["pycharm_description"]="Python IDE by JetBrains"
     ["pycharm_verify_command"]=""
     ["pycharm_launch_command"]="which pycharm-community && $USE_SUDO pycharm-community"
+    ["pycharm_super"]="true"
 
     # CLion C++ IDE
     ["clion_name"]="CLion"
     ["clion_exec"]="clion"
     ["clion_package_id"]="clion"
     ["clion_install_method"]="$METHOD_SNAP"
+    ["clion_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["clion_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["clion_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["clion_description"]="C/C++ IDE by JetBrains"
     ["clion_verify_command"]=""
     ["clion_launch_command"]="which clion && $USE_SUDO clion"
+    ["clion_super"]="true"
 
     # Sublime Text
     ["sublime_name"]="Sublime Text"
     ["sublime_exec"]="subl"
     ["sublime_package_id"]="sublime-text"
     ["sublime_install_method"]="$METHOD_SNAP"
+    ["sublime_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["sublime_category"]="$CATEGORY_TEXT_EDITORS"
     ["sublime_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["sublime_description"]="Sophisticated text editor"
     ["sublime_verify_command"]="--version"
     ["sublime_launch_command"]="which subl && $USE_SUDO subl"
+    ["sublime_super"]="true"
     
     # Insomnia API Client
     ["insomnia_name"]="Insomnia"
@@ -210,6 +208,7 @@ declare -gA DEV_PACKAGES=(
     ["insomnia_description"]="REST API testing tool"
     ["insomnia_verify_command"]=""
     ["insomnia_launch_command"]="which insomnia && $USE_SUDO insomnia"
+    ["insomnia_super"]="true"
 
     # Beekeeper Studio Database Manager
     ["beekeeper_name"]="Beekeeper Studio"
@@ -221,28 +220,21 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_description"]="SQL editor and database manager"
     ["beekeeper_verify_command"]=""
     ["beekeeper_launch_command"]="which beekeeper-studio && $USE_SUDO beekeeper-studio"
+    ["beekeeper_super"]="true"
 
-    # CMake Build System
-    ["cmake_name"]="CMake"
-    ["cmake_exec"]="cmake"
-    ["cmake_package_id"]="cmake"
-    ["cmake_install_method"]="$METHOD_APT"
-    ["cmake_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["cmake_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["cmake_description"]="Cross-platform build system"
-    ["cmake_verify_command"]="--version"
-    ["cmake_launch_command"]=""
 
     # VSCode Insiders
     ["code_insiders_name"]="Visual Studio Code Insiders"
     ["code_insiders_exec"]="code-insiders"
     ["code_insiders_package_id"]="code-insiders"
     ["code_insiders_install_method"]="$METHOD_SNAP"
+    ["code_insiders_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["code_insiders_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["code_insiders_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["code_insiders_description"]="VSCode Insiders preview version"
     ["code_insiders_verify_command"]="--version"
     ["code_insiders_launch_command"]="which code-insiders && $USE_SUDO code-insiders --no-sandbox --user-data-dir"
+    ["code_insiders_super"]="code-insiders --no-sandbox --user-data-dir"
 
     # Text Editor (generic)
     ["text_editor_name"]="Text Editor"
@@ -254,10 +246,34 @@ declare -gA DEV_PACKAGES=(
     ["text_editor_description"]="Simple text editor"
     ["text_editor_verify_command"]="--version"
     ["text_editor_launch_command"]="which gedit && $USE_SUDO gedit"
+    ["text_editor_super"]="true"
 )
 
 # Application Software - End-user applications (can be skipped via variable)
 declare -gA APP_PACKAGES=(
+    # RustDesk Remote Desktop
+    ["rustdesk_name"]="RustDesk"
+    ["rustdesk_exec"]="rustdesk"
+    ["rustdesk_package_id"]="rustdesk"
+    ["rustdesk_install_method"]="$METHOD_FLATPAK"
+    ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
+    ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
+    ["rustdesk_description"]="Remote desktop application"
+    ["rustdesk_verify_command"]="--version"
+    ["rustdesk_launch_command"]="which rustdesk && $USE_SUDO rustdesk"
+    ["rustdesk_requires_desktop"]="true"
+
+    # Firefox Browser
+    ["firefox_name"]="Firefox"
+    ["firefox_exec"]="firefox"
+    ["firefox_package_id"]="firefox"
+    ["firefox_install_method"]="$METHOD_SNAP"
+    ["firefox_category"]="$CATEGORY_BROWSERS"
+    ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
+    ["firefox_description"]="Mozilla Firefox web browser"
+    ["firefox_verify_command"]="--version"
+    ["firefox_launch_command"]="which firefox && $USE_SUDO firefox"
+
     # LibreOffice Office Suite
     ["libreoffice_name"]="LibreOffice"
     ["libreoffice_exec"]="libreoffice"
@@ -272,40 +288,19 @@ declare -gA APP_PACKAGES=(
     # Opera Browser
     ["opera_name"]="Opera"
     ["opera_exec"]="opera"
-    ["opera_package_id"]="opera-stable"
-    ["opera_install_method"]="$METHOD_APT"
+    ["opera_package_id"]="opera-browser-stable"
+    ["opera_install_method"]="$METHOD_SNAP"
     ["opera_category"]="$CATEGORY_BROWSERS"
     ["opera_groups"]="$GROUP_ALL"
     ["opera_description"]="Opera web browser"
     ["opera_verify_command"]="--version"
     ["opera_launch_command"]="which opera && $USE_SUDO opera --no-sandbox"
 
-    # WhatsApp Messaging
-    ["whatsapp_name"]="WhatsApp"
-    ["whatsapp_exec"]="whatsapp-for-linux"
-    ["whatsapp_package_id"]="whatsapp-for-linux"
-    ["whatsapp_install_method"]="$METHOD_SNAP"
-    ["whatsapp_category"]="$CATEGORY_COMMUNICATION"
-    ["whatsapp_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["whatsapp_description"]="WhatsApp messaging"
-    ["whatsapp_verify_command"]=""
-    ["whatsapp_launch_command"]="which whatsapp-for-linux && $USE_SUDO whatsapp-for-linux"
-    
-    # WeChat Messaging
-    ["wechat_name"]="WeChat"
-    ["wechat_exec"]="wechat"
-    ["wechat_package_id"]="wechat-uos"
-    ["wechat_install_method"]="$METHOD_SNAP"
-    ["wechat_category"]="$CATEGORY_COMMUNICATION"
-    ["wechat_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["wechat_description"]="WeChat messaging"
-    ["wechat_verify_command"]=""
-    ["wechat_launch_command"]="which wechat && $USE_SUDO wechat"
 
     # Hey Mail
     ["hey_mail_name"]="Hey Mail"
     ["hey_mail_exec"]="hey"
-    ["hey_mail_package_id"]="https://hey.com/download"
+    ["hey_mail_package_id"]="https://download.hey.com/Hey-latest-amd64.deb"
     ["hey_mail_install_method"]="$METHOD_WEB"
     ["hey_mail_category"]="$CATEGORY_COMMUNICATION"
     ["hey_mail_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
@@ -324,27 +319,22 @@ declare -gA APP_PACKAGES=(
     ["gemini_desktop_verify_command"]=""
     ["gemini_desktop_launch_command"]="which gemini && $USE_SUDO gemini"
 
-    # Copilot Desktop
-    ["copilot_desktop_name"]="GitHub Copilot Desktop"
-    ["copilot_desktop_exec"]="copilot"
-    ["copilot_desktop_package_id"]=""
-    ["copilot_desktop_install_method"]=""
-    ["copilot_desktop_category"]="$CATEGORY_AI_TOOLS"
-    ["copilot_desktop_groups"]="$GROUP_ALL"
-    ["copilot_desktop_description"]="GitHub Copilot desktop app"
-    ["copilot_desktop_verify_command"]=""
-    ["copilot_desktop_launch_command"]=""
+    # WeChat
+    ["wechat_name"]="WeChat"
+    ["wechat_exec"]="wechat"
+    ["wechat_package_id"]="https://dldir1v6.qq.com/weixin/Universal/Linux/WeChatLinux_x86_64.AppImage"
+    ["wechat_install_method"]="$METHOD_APPIMAGE"
+    ["wechat_category"]="$CATEGORY_COMMUNICATION"
+    ["wechat_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
+    ["wechat_description"]="WeChat messaging and social media app"
+    ["wechat_verify_command"]="--version"
+    ["wechat_launch_command"]="which wechat && wechat"
+    ["wechat_super"]="false"
+    ["wechat_desktop_name"]="WeChat"
+    ["wechat_desktop_comment"]="WeChat for Linux"
+    ["wechat_desktop_categories"]="Network;InstantMessaging;"
+    ["wechat_startup_wm_class"]="WeChat"
 
-    # DeepSeek Desktop
-    ["deepseek_desktop_name"]="DeepSeek Desktop"
-    ["deepseek_desktop_exec"]="deepseek"
-    ["deepseek_desktop_package_id"]=""
-    ["deepseek_desktop_install_method"]=""
-    ["deepseek_desktop_category"]="$CATEGORY_AI_TOOLS"
-    ["deepseek_desktop_groups"]="$GROUP_ALL"
-    ["deepseek_desktop_description"]="DeepSeek AI desktop app"
-    ["deepseek_desktop_verify_command"]=""
-    ["deepseek_desktop_launch_command"]=""
 )
 
 # AI Tools definitions (moved from 36_install_ai_tools.sh)
@@ -358,7 +348,7 @@ declare -gA AI_PACKAGES=(
     ["gemini_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
     ["gemini_verify_command"]="--version"
-    ["gemini_launch_command"]="which gemini && $USE_SUDO gemini"
+    ["gemini_launch_command"]="which gemini && $USE_SUDO node gemini"
 
     # Claude Code
     ["claude_name"]="Anthropic Claude Code"
@@ -369,7 +359,7 @@ declare -gA AI_PACKAGES=(
     ["claude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["claude_description"]="Anthropic Claude Code - AI-powered coding assistant with advanced reasoning"
     ["claude_verify_command"]="--version"
-    ["claude_launch_command"]="which claude && $USE_SUDO claude"
+    ["claude_launch_command"]="which claude && $USE_SUDO node claude"
 
     # OpenAI Codex
     ["codex_name"]="OpenAI Codex"
@@ -380,7 +370,7 @@ declare -gA AI_PACKAGES=(
     ["codex_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
     ["codex_verify_command"]="--version"
-    ["codex_launch_command"]="which codex && $USE_SUDO codex"
+    ["codex_launch_command"]="which codex && $USE_SUDO node codex"
 
     # Cursor Agent
     ["cursor_agent_name"]="Cursor Agent"
@@ -392,17 +382,6 @@ declare -gA AI_PACKAGES=(
     ["cursor_agent_description"]="Cursor Agent - AI-first code editor with intelligent code completion"
     ["cursor_agent_verify_command"]="--version"
     ["cursor_agent_launch_command"]="which cursor && $USE_SUDO cursor"
-
-    # LangChain CLI
-    ["langchain_name"]="LangChain CLI"
-    ["langchain_exec"]="langchain"
-    ["langchain_package_id"]="langchain-cli"
-    ["langchain_install_method"]="$METHOD_PIPX"
-    ["langchain_category"]="$CATEGORY_AI_TOOLS"
-    ["langchain_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["langchain_description"]="LangChain CLI - Framework for developing applications with language models"
-    ["langchain_verify_command"]="--version"
-    ["langchain_launch_command"]="which langchain && $USE_SUDO langchain"
 
     # SuperClaude
     ["superclaude_name"]="SuperClaude Framework"
@@ -435,32 +414,47 @@ declare -gA AI_PACKAGES=(
     ["auggie_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
     ["auggie_verify_command"]="--version"
-    ["auggie_launch_command"]="which auggie && $USE_SUDO auggie"
+    ["auggie_launch_command"]="which auggie && $USE_SUDO node auggie"
+
+    # Droid AI Assistant
+    ["droid_name"]="Droid AI Assistant"
+    ["droid_exec"]="droid"
+    ["droid_package_id"]="https://app.factory.ai/cli"
+    ["droid_install_method"]="$METHOD_CURL"
+    ["droid_category"]="$CATEGORY_AI_TOOLS"
+    ["droid_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["droid_description"]="Droid AI Assistant - AI-powered development assistant from Factory.ai"
+    ["droid_verify_command"]="--version"
+    ["droid_launch_command"]="which droid && $USE_SUDO droid"
+)
+
+# MCP Services - Model Context Protocol services and tools
+declare -gA MCP_PACKAGES=(
 )
 
 # Package group lists for iteration
 BASE_PACKAGE_LIST=(
-    "firefox" "chrome" "vim" "rustdesk" "rust" "ruby" "go" "dotnet" "powershell"
+    "chrome" "vim" "cmake"
 )
 
 DEV_PACKAGE_LIST=(
-    "vscode" "cursor" "postman" "termius" "android_studio"
+    "powershell" "postman" "termius" "android_studio"
     "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
-    "flutter" "cmake" "code_insiders" "text_editor"
+    "code_insiders" "text_editor"
 )
 
 APP_PACKAGE_LIST=(
-    "libreoffice" "opera" "whatsapp" "wechat" "hey_mail"
-    "gemini_desktop" "copilot_desktop" "deepseek_desktop"
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop" "wechat" "rustdesk"
 )
 
 AI_PACKAGE_LIST=(
-    "gemini" "claude" "codex" "cursor_agent" "langchain" "superclaude" "opencode" "auggie"
+    "gemini" "claude" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(
-    "cunzhi" "alibaba_dataworks" "feedback_enhanced"
 )
+
+
 
 # Function to get application property from specific package group
 get_package_property() {
@@ -519,6 +513,13 @@ get_app_property() {
 
     # Try AI packages
     result=$(get_package_property "AI" "$app_name" "$property")
+    if [ -n "$result" ]; then
+        echo "$result"
+        return 0
+    fi
+
+    # Try MCP packages
+    result=$(get_package_property "MCP" "$app_name" "$property")
     if [ -n "$result" ]; then
         echo "$result"
         return 0
@@ -658,13 +659,54 @@ create_launch_script() {
         return 0
     fi
 
-    # Create the launch script
+    # Get npm global bin directory for npm-based applications
+    local install_method=$(get_install_method "$app_name")
+    local npm_global_bin=""
+    if [ "$install_method" = "$METHOD_NPM" ]; then
+        npm_global_bin=$(npm config get prefix 2>/dev/null)
+        if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+            npm_global_bin="$npm_global_bin/bin"
+        fi
+    fi
+
+    # Create the launch script with absolute paths
     cat > "/tmp/$script_name" << EOF
 #!/bin/bash
-# Auto-generated launch script for $app_name
-# Generated by linux_applications_list.sh
+# Launch script for $app_name
+# Generated by 120_install_desktop_applications.sh
+# Package: $(get_package_id "$app_name")
 
-$launch_command
+EOF
+
+    # Add npm global bin to PATH if this is an npm package
+    if [ -n "$npm_global_bin" ]; then
+        cat >> "/tmp/$script_name" << EOF
+# Add npm global bin to PATH
+export PATH="\$PATH:$npm_global_bin"
+EOF
+    fi
+
+    # Process the launch command to use absolute paths
+    local processed_command="$launch_command"
+
+    # For npm packages with node commands, ensure proper path resolution
+    if [ -n "$npm_global_bin" ] && [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
+        # Extract the executable name after "node"
+        local exec_name=$(echo "$launch_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
+        if [ -n "$exec_name" ]; then
+            local actual_binary="$npm_global_bin/$exec_name"
+            if [ -f "$actual_binary" ] || [ -L "$actual_binary" ]; then
+                # Replace "node exec" with "node /absolute/path/exec" and remove which part
+                processed_command=$(echo "$launch_command" | sed "s|which [^&]* && ||g" | sed "s|node[[:space:]]\+$exec_name|node $actual_binary|g")
+            fi
+        fi
+    fi
+
+    # Add the processed launch command
+    cat >> "/tmp/$script_name" << EOF
+
+# Execute the launch command
+$processed_command "\$@"
 EOF
 
     # Move to /usr/local/bin and make executable
@@ -674,8 +716,43 @@ EOF
     echo "Created launch script: $script_path"
 }
 
+# Function to get snap confinement mode for an application
+get_snap_confinement() {
+    local app_name="$1"
+    get_app_property "$app_name" "snap_confinement"
+}
+
+# Function to check if snap fallback is enabled for an application
+is_snap_fallback_enabled() {
+    local app_name="$1"
+    local fallback=$(get_app_property "$app_name" "snap_fallback")
+    if [ "$fallback" = "true" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to get repository type for an application (microsoft, ubuntu_ppa, etc.)
+get_repo_type() {
+    local app_name="$1"
+    get_app_property "$app_name" "repo_type"
+}
+
+# Function to check if application has special repository requirements
+has_special_repo() {
+    local app_name="$1"
+    local repo_type=$(get_repo_type "$app_name")
+    if [ -n "$repo_type" ] && [ "$repo_type" != "" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Export functions for use by installer scripts
 export -f get_package_property get_app_property get_mcp_property
 export -f app_in_group mcp_in_group get_apps_by_package_group
 export -f get_apps_by_group get_install_method get_package_id
 export -f get_launch_command create_launch_script
+export -f get_snap_confinement is_snap_fallback_enabled get_repo_type has_special_repo

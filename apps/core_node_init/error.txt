@@ -1,0 +1,208 @@
+wnloadVSCodeEnhanced (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:221:36)
+    at async CoreNodeInitPlugin.downloadApplication (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:69:24)
+    at async executeDownload (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:137:24)
+    at async Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:256:31)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T18:45:46.766Z] INFO: CoreNodeInitPlugin cleaned up
+[2025-10-28T18:45:46.767Z] INFO: Closing session: session_1_1761677117667
+[2025-10-28T18:45:46.883Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T18:45:46.883Z] INFO: ContentPlugin cleaned up
+[2025-10-28T18:45:46.883Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T18:45:47.670Z] INFO: Edge browser closed
+[2025-10-28T18:45:47.670Z] INFO: Session closed: session_1_1761677117667
+[2025-10-28T18:45:47.671Z] INFO: Session closed: session_1_1761677117667
+[2025-10-28T18:45:47.671Z] INFO: Shutting down SpiderEngine...
+[2025-10-28T18:45:47.671Z] INFO: All sessions closed
+[2025-10-28T18:45:47.672Z] INFO: Cleaning up PluginManager...
+[2025-10-28T18:45:47.672Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T18:45:47.672Z] INFO: ContentPlugin cleaned up
+[2025-10-28T18:45:47.672Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T18:45:47.672Z] INFO: PluginManager cleanup completed
+[2025-10-28T18:45:47.672Z] INFO: Cleaning up ResourcePool...
+[2025-10-28T18:45:47.672Z] INFO: ResourcePool cleanup completed
+[2025-10-28T18:45:47.672Z] INFO: SpiderEngine shutdown completed
+[2025-10-28T18:45:47.672Z] INFO: Core Node Init application completed successfully
+[2025-10-28T18:45:47.672Z] INFO: [ExitOn] Process exited RunTime: 30s
+PS /mnt/dev_sdb3/programing/core_node> node main.js apps=core_node_initnode -e "const parser = require('./apps/core_node_init/controller/CommandLineParser.js'); const p = new parser(); console.log(JSON.stringify(p.parseArguments(), null, 2));" -- apps=core_node_init
+Available applications:
+  [1] DevOps
+  [2] DocumentOffline
+  [3] GetDocFromUrlByPuppeteer
+  [4] VideoCompression
+  [5] VoiceClientAndCaddy
+  [6] WebLocalAreaNetwork
+  [7] ai_translator_app
+  [8] core_node_init
+  [9] d3-check
+  [10] flutter_icon_manager
+Select an application by number or name: 
+Selection cancelled.
+No application selected. Exiting.
+PS /mnt/dev_sdb3/programing/core_node> ^C
+PS /mnt/dev_sdb3/programing/core_node> cd /mnt/dev_sdb3/programing/core_node/apps/core_node_init && node -e "const parser = require('./controller/CommandLineParser.js'); const p = new parser(); console.log(JSON.stringify(p.parseArguments(), null, 2));" apps=core_node_init
+node:internal/errors:540
+      throw error;
+      ^
+
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string. Received null
+    at Object.join (node:path:1354:7)
+    at Object.<anonymous> (/mnt/dev_sdb3/programing/core_node/ncore/global_vars/tool/gconfig.js:26:22)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.require (node:internal/modules/cjs/loader:1463:12)
+    at require (node:internal/modules/helpers:147:16) {
+  code: 'ERR_INVALID_ARG_TYPE'
+}
+
+Node.js v22.21.0
+PS /mnt/dev_sdb3/programing/core_node/apps/core_node_init> cd /mnt/dev_sdb3/programing/core_node && node main.js apps=core_node_init                                                                                      
+[GLOBAL_DIR] Cannot create /usr/.core_node, using fallback: /home/ubuntu/.core_node
+[2025-10-28T18:46:27.071Z] INFO: Searching for executable files in app directory: /mnt/dev_sdb3/programing/core_node/apps/core_node_init
+[2025-10-28T18:46:27.072Z] INFO: Skipping launcher discovery: automatic explorer start is only available on Windows environments.
+[WARN] Cannot create /usr/core_node/global_var, using fallback: /home/ubuntu/.core_node/global_var
+[DEBUG] Config updated: PUPPETEERCONFIG = {"browser":"edge","headless":false,"devtools":false,"timeout":120000,"waitForComplete":true,"showImages":false,"showStyle":true,"disableGpu":true,"mute":true,"random_user_agent":true,"args":["--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage","--disable-accelerated-2d-canvas","--no-first-run","--no-zygote","--disable-gpu","--disable-web-security","--disable-features=VizDisplayCompositor","--user-data-dir=/mnt/dev_sdb3/programing/core_node/public/core_node_init/.runtime_cache/chrome-user-data-1761677187167"]}
+[2025-10-28T18:46:27.468Z] INFO: Starting Core Node Init application (v2)...
+Processing argument 0: "apps=core_node_init"
+Skipping app parameter: "apps=core_node_init"
+[2025-10-28T18:46:27.468Z] INFO: Initializing Core Node Init application (v2)...
+[2025-10-28T18:46:27.469Z] INFO: Required directories ensured
+[2025-10-28T18:46:27.470Z] INFO: Initializing SpiderEngine...
+[2025-10-28T18:46:27.470Z] INFO: Loading configuration...
+[2025-10-28T18:46:27.472Z] INFO: Configuration loaded successfully
+[2025-10-28T18:46:27.473Z] INFO: Initializing ResourcePool...
+[2025-10-28T18:46:27.473Z] INFO: ResourcePool initialized
+[2025-10-28T18:46:27.474Z] INFO: Loading built-in plugins...
+[2025-10-28T18:46:27.616Z] INFO: HttpDownloader initialized: /home/ubuntu/Downloads/spider_downloads
+[2025-10-28T18:46:27.617Z] INFO: DownloadPlugin initialized for spider: undefined
+[2025-10-28T18:46:27.617Z] INFO: Plugin loaded: download v1.0.0
+[2025-10-28T18:46:27.617Z] INFO: ContentPlugin initialized for spider: undefined
+[2025-10-28T18:46:27.617Z] INFO: Plugin loaded: content v1.0.0
+[2025-10-28T18:46:27.617Z] INFO: AutomationPlugin initialized for spider: undefined
+[2025-10-28T18:46:27.617Z] INFO: Plugin loaded: automation v1.0.0
+[2025-10-28T18:46:27.617Z] INFO: Built-in plugins loaded successfully
+[2025-10-28T18:46:27.618Z] INFO: SpiderEngine initialized successfully
+[2025-10-28T18:46:27.618Z] INFO: Initializing session: session_1_1761677187618
+[2025-10-28T18:46:27.619Z] INFO: Creating browser: edge
+[2025-10-28T18:46:27.621Z] INFO: Searching for Microsoft Edge executable...
+[2025-10-28T18:46:27.637Z] INFO: Found Edge via which command: /usr/local/bin/microsoft-edge
+[2025-10-28T18:46:31.816Z] INFO: Edge browser launched: Edg/141.0.3537.99
+[2025-10-28T18:46:31.816Z] INFO: Session initialized: session_1_1761677187618
+[2025-10-28T18:46:31.817Z] INFO: HttpDownloader initialized: /home/ubuntu/Downloads/spider_downloads
+[2025-10-28T18:46:31.817Z] INFO: DownloadPlugin initialized for spider: session_1_1761677187618
+[2025-10-28T18:46:31.817Z] INFO: Plugin download loaded in session session_1_1761677187618
+[2025-10-28T18:46:31.818Z] INFO: ContentPlugin initialized for spider: session_1_1761677187618
+[2025-10-28T18:46:31.818Z] INFO: Plugin content loaded in session session_1_1761677187618
+[2025-10-28T18:46:31.818Z] INFO: AutomationPlugin initialized for spider: session_1_1761677187618
+[2025-10-28T18:46:31.818Z] INFO: Plugin automation loaded in session session_1_1761677187618
+[2025-10-28T18:46:31.818Z] INFO: Session created: session_1_1761677187618
+[2025-10-28T18:46:31.991Z] INFO: CoreNodeInitPlugin initialized
+[2025-10-28T18:46:31.991Z] INFO: Core Node Init application initialized successfully
+[2025-10-28T18:46:31.991Z] INFO: Command: download, Target: none
+[2025-10-28T18:46:31.991Z] INFO: No target specified, downloading both VSCode and Cursor...
+[2025-10-28T18:46:31.991Z] INFO: Starting download for Visual Studio Code...
+[2025-10-28T18:46:31.992Z] INFO: Using enhanced VSCode download with button clicking...
+[2025-10-28T18:46:32.857Z] INFO: Page created in session session_1_1761677187618: b89c8536-6b22-4d66-9a19-ef0ba0f82ed2
+[2025-10-28T18:46:44.597Z] INFO: Found 2 Linux-specific download buttons
+[2025-10-28T18:46:44.597Z] INFO: Found 7 total download elements
+[2025-10-28T18:46:44.597Z] INFO: Download element 1: "Download" - https://code.visualstudio.com/Download
+[2025-10-28T18:46:44.597Z] INFO: Download element 2: "Download for macOS" - 
+[2025-10-28T18:46:44.597Z] INFO: Download element 3: "Download for Windows" - 
+[2025-10-28T18:46:44.597Z] INFO: Download element 4: "Download for Linux (.deb)" - 
+[2025-10-28T18:46:44.598Z] INFO: Download element 5: "Download for Linux (.rpm)" - 
+[2025-10-28T18:46:44.598Z] INFO: Download element 6: "Download Visual Studio Code" - https://code.visualstudio.com/Download
+[2025-10-28T18:46:44.598Z] INFO: Download element 7: "other platforms" - https://code.visualstudio.com/Download
+[2025-10-28T18:46:44.598Z] INFO: Found 2 VSCode download buttons
+[2025-10-28T18:46:44.598Z] INFO: Clicking VSCode download button: Download for Linux (.deb)
+[2025-10-28T18:46:46.153Z] INFO: Clicked VSCode button by CSS selector: button#download-linux64_deb.link-button.dlink.deb-btn
+[2025-10-28T18:46:46.154Z] INFO: Waiting for download... 0s / 300s
+[2025-10-28T18:46:52.157Z] INFO: File download completed: /home/ubuntu/Downloads/code_1.105.1-1760482543_amd64.deb
+[2025-10-28T18:46:55.292Z] INFO: Found 54 potential download links
+[2025-10-28T18:46:55.292Z] INFO: Clicking download link: Download
+[2025-10-28T18:46:55.395Z] ERROR: Download failed: Error: No element found for selector: a[href="https://code.visualstudio.com/Download"]
+    at assert (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/util/assert.js:18:15)
+    at CdpFrame.click (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:731:40)
+    at async CoreNodeInitPlugin.clickDownloadAndWait (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:611:13)
+    at async CoreNodeInitPlugin.findAndClickDownloadLink (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:593:20)
+    at async CoreNodeInitPlugin.downloadVSCodeEnhanced (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:208:31)
+    at async CoreNodeInitPlugin.downloadApplication (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:69:24)
+    at async executeDownload (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:137:24)
+    at async Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:245:43)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T18:46:57.509Z] INFO: Found 33 potential download links
+[2025-10-28T18:46:57.509Z] INFO: Clicking download link: Setup
+[2025-10-28T18:46:57.611Z] ERROR: Download failed: Error: No element found for selector: a[href="https://code.visualstudio.com/docs/?dv=linux64_deb#setup-articles"]
+    at assert (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/util/assert.js:18:15)
+    at CdpFrame.click (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:731:40)
+    at async CoreNodeInitPlugin.clickDownloadAndWait (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:611:13)
+    at async CoreNodeInitPlugin.findAndClickDownloadLink (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:593:20)
+    at async CoreNodeInitPlugin.downloadVSCodeEnhanced (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:221:36)
+    at async CoreNodeInitPlugin.downloadApplication (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:69:24)
+    at async executeDownload (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:137:24)
+    at async Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:245:43)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T18:46:57.611Z] INFO: Starting download for Cursor IDE...
+[2025-10-28T18:46:57.612Z] INFO: Using enhanced Cursor download with button clicking...
+[2025-10-28T18:47:06.301Z] INFO: Found 10 potential download links
+[2025-10-28T18:47:06.301Z] INFO: Clicking download link: Download for Linux⤓
+
+[2025-10-28T18:47:09.485Z] INFO: Clicked download link: a[href="https://api2.cursor.sh/updates/download/golden/linux-x64-deb/cursor/1.7"]
+
+
+
+
+
+
+
+
+
+[2025-10-28T18:47:15.489Z] INFO: File download completed: /home/ubuntu/Downloads/cursor_1.7.54_amd64.deb
+[2025-10-28T18:47:15.489Z] INFO: Cursor AppImage download completed: /home/ubuntu/Downloads/cursor_1.7.54_amd64.deb
+[2025-10-28T18:47:15.489Z] INFO: Both VSCode and Cursor downloads completed successfully
+[2025-10-28T18:47:15.489Z] INFO: CoreNodeInitPlugin cleaned up
+[2025-10-28T18:47:15.489Z] INFO: Closing session: session_1_1761677187618
+[2025-10-28T18:47:15.490Z] ERROR: Failed to close StandardPage: Error: Protocol error: Connection closed. Most likely the page has been closed.
+    at assert (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/util/assert.js:18:15)
+    at CdpPage.close (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/Page.js:814:36)
+    at async StandardPage.close (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/implementations/pages/StandardPage.js:410:17)
+    at async Session.close (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/core/SessionManager.js:144:21)
+    at async SessionManager.close (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/core/SessionManager.js:223:13)
+    at async SpiderEngine.closeSession (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/core/SpiderEngine.js:82:29)
+    at async Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:288:13)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T18:47:15.490Z] WARNING: Failed to close page b89c8536-6b22-4d66-9a19-ef0ba0f82ed2: Error: Protocol error: Connection closed. Most likely the page has been closed.
+    at assert (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/util/assert.js:18:15)
+    at CdpPage.close (/mnt/dev_sdb3/programing/core_node/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/Page.js:814:36)
+    at async StandardPage.close (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/implementations/pages/StandardPage.js:410:17)
+    at async Session.close (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/core/SessionManager.js:144:21)
+    at async SessionManager.close (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/core/SessionManager.js:223:13)
+    at async SpiderEngine.closeSession (/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/src/core/SpiderEngine.js:82:29)
+    at async Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:288:13)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T18:47:15.490Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T18:47:15.490Z] INFO: ContentPlugin cleaned up
+[2025-10-28T18:47:15.490Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T18:47:16.656Z] INFO: Edge browser closed
+[2025-10-28T18:47:16.656Z] INFO: Session closed: session_1_1761677187618
+[2025-10-28T18:47:16.656Z] INFO: Session closed: session_1_1761677187618
+[2025-10-28T18:47:16.656Z] INFO: Shutting down SpiderEngine...
+[2025-10-28T18:47:16.656Z] INFO: All sessions closed
+[2025-10-28T18:47:16.656Z] INFO: Cleaning up PluginManager...
+[2025-10-28T18:47:16.656Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T18:47:16.656Z] INFO: ContentPlugin cleaned up
+[2025-10-28T18:47:16.657Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T18:47:16.657Z] INFO: PluginManager cleanup completed
+[2025-10-28T18:47:16.657Z] INFO: Cleaning up ResourcePool...
+[2025-10-28T18:47:16.657Z] INFO: ResourcePool cleanup completed
+[2025-10-28T18:47:16.657Z] INFO: SpiderEngine shutdown completed
+[2025-10-28T18:47:16.657Z] INFO: Core Node Init application completed successfully
+[2025-10-28T18:47:16.657Z] INFO: [ExitOn] Process exited RunTime: 49s
+PS /mnt/dev_sdb3/programing/core_node> ls -la /home/ubuntu/Downloads/ | grep -E "(cursor|code|vscode)" | tail -5
+-rw-rw-r--  1 ubuntu ubuntu 113598926 Oct 29 01:47 code_1.105.1-1760482543_amd64 (1).deb
+-rw-rw-r--  1 ubuntu ubuntu 113598926 Oct 29 01:44 code_1.105.1-1760482543_amd64.deb
+-rw-rw-r--  1 ubuntu ubuntu 108329072 Oct 29 01:28 cursor_1.7.54_amd64 (1).deb
+-rw-rw-r--  1 ubuntu ubuntu 108329072 Oct 29 00:58 cursor_1.7.54_amd64.deb
+PS /mnt/dev_sdb3/programing/core_node> 

@@ -1,0 +1,637 @@
+
+[INFO] Starting Flutter for Android debugging...
+[INFO] No physical device detected, checking for emulator...
+[MODE] Running in Debug mode
+[DEBUG] Hot reload: press 'r'
+[DEBUG] Hot restart: press 'R'
+[DEBUG] Quit: press 'q'
+[INFO] Entry file: lib/apps/app_wuy/main_app_wuy.dart
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Launching lib/apps/app_wuy/main_app_wuy.dart on PKR110 in debug mode...
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Running Gradle task 'assembleDebug'...                             11.3s
+✓ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...           6.5s
+D/FlutterJNI(32370): Beginning load of flutter...
+D/FlutterJNI(32370): flutter (null) was loaded normally!
+I/flutter (32370): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+I/flutter (32370): Initializing Wuy App...
+I/flutter (32370): App Name: Wuy App
+I/flutter (32370): App Version: 1.0.0
+I/flutter (32370): Package Name: com.example.wuy
+I/flutter (32370): Debug Mode: true
+I/flutter (32370): Error loading auth state: Bad state: UnifiedStorage not initialized. Call UnifiedStorage.init() first.
+I/flutter (32370): WuyAuthStateManager initialized - isAuthenticated: false
+I/flutter (32370): UnifiedSQLiteStorageAdapter initialized successfully: /data/user/0/com.ddsj.qyapp/app_flutter/storage_unified/Wuy App_unified.db
+I/flutter (32370): Starting Hive to SQLite migration...
+I/flutter (32370): Starting storage system cleanup...
+I/flutter (32370): Cleaned up 0 expired entries
+I/flutter (32370): Database optimization completed. Stats: {total_entries: 0, box_stats: {}, database_size: 45056}
+I/flutter (32370): Cleaned up 0 expired entries
+I/flutter (32370): Storage cleanup completed: Cleanup completed: Optimized current database
+I/flutter (32370): Total cleaned items: 0
+I/flutter (32370): SharedPreferences initialized successfully and ready for use
+I/flutter (32370): ✅ wuy initialized
+I/flutter (32370): WuyUnifiedService initialized (storage handled by runCommonApp)
+I/flutter (32370): No authenticated user found, creating test user for development
+I/flutter (32370): User data saved to storage
+I/flutter (32370): User authenticated: Test User
+I/flutter (32370): Auth state manager: isAuthenticated = true
+I/flutter (32370): Test user created and authenticated
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+D/ViewRootImplExtImpl(32370): wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=361, residentWS=false, scenario=0, bounds=Rect(0, 0 - 1264, 2780), relayoutAsync=false, flags=0, newFlags=1457532192, title=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity
+D/VRI[MainActivity](32370): relayoutWindow result, sizeChanged:false, surfaceControlChanged:false, transformHintChanged:false, mSurfaceSize:Point(1264, 2780), mLastSurfaceSize:Point(1264, 2780), mWidth:1264, mHeight:2780, requestedWidth:1264, requestedHeight:2780, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1264,2780] display=[0,0][1264,2780] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+W/VRI[MainActivity](32370): updateBlastSurfaceIfNeeded, surfaceSize:Point(1264, 2780), lastSurfaceSize:Point(1264, 2780), format:-3, blastBufferQueue:android.graphics.BLASTBufferQueue@b6f6c8b
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/BLASTBufferQueue(32370): [SurfaceView[com.ddsj.qyapp/com.ddsj.qyapp.MainActivity]#1](f:0,a:1) acquireNextBufferLocked size=1264x2780 mFrameNumber=1 applyTransaction=true mTimestamp=48470524241196(auto) mPendingTransactions.size=0 graphicBufferId=139028091371530 transform=0
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+D/SurfaceView(32370): 243141013 finishedDrawing
+D/SurfaceView(32370): 243141013 performDrawFinished mAttachedToWindow true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+I/SurfaceControl(32370):  setExtendedRangeBrightness sc=Surface(name=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity)/@0x1d13981,currentBufferRatio=1.0,desiredRatio=1.0
+D/SurfaceView(32370): 243141013 dispatchDraw mDrawFinished true isAboveParent false (mPrivateFlags & PFLAG_SKIP_DRAW) 128
+D/SurfaceView(32370): 243141013 clearSurfaceViewPort mCornerRadius 0.0
+D/BLASTBufferQueue(32370): [VRI[MainActivity]#0](f:0,a:1) acquireNextBufferLocked size=1264x2780 mFrameNumber=1 applyTransaction=true mTimestamp=48470556982289(auto) mPendingTransactions.size=0 graphicBufferId=139028091371535 transform=0
+D/VRI[MainActivity](32370): Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+D/ExtensionsLoader(32370): createInstance(64bit) : createExtendedFactory
+D/ExtensionsLoader(32370): Opened libSchedAssistExtImpl.so
+D/VRI[MainActivity](32370): draw finished. seqId=0
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/VRI[MainActivity](32370): onFocusEvent true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+Syncing files to device PKR110...                                  134ms
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on PKR110 is available at: http://127.0.0.1:52139/k637E9lDsko=/
+The Flutter DevTools debugger and profiler on PKR110 is available at:
+http://127.0.0.1:9101?uri=http://127.0.0.1:52139/k637E9lDsko=/
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/OplusScrollToTopManager(32370): com.ddsj.qyapp/com.ddsj.qyapp.MainActivity,This com.android.internal.policy.DecorView{5c80cb5 V.E...... R....... 0,0-1264,2780 aid=0 alpha=1.0 viewInfo = }[MainActivity] change focus to true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+I/flutter (32370): Auth state manager: User authenticated, returning home route
+I/flutter (32370): Splash: Navigating to initial route: /wuy/friends
+I/flutter (32370): AuthGuard: Checking authentication state...
+I/flutter (32370): AuthGuard: isAuthenticated = true
+I/flutter (32370): AuthGuard: currentUser = Test User
+I/flutter (32370): WuUserProvider: Synced with auth state manager - user: Test User
+I/flutter (32370): AuthGuard: Final authentication check result = true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+I/flutter (32370): WuyUnifiedService: wuy.debug.using_fake_data for Get friends list
+
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 4.0 pixels on the bottom.
+
+The relevant error-causing widget was:
+  Column
+  Column:file:///D:/programing/core_node/poly_apps/flutter_bloom/lib/apps/app_wuy/widgets_app_wuy/wuy_bottom_navigation.d
+  art:128:20
+
+To inspect this widget in Flutter DevTools, visit:
+http://127.0.0.1:9101/#/inspector?uri=http%3A%2F%2F127.0.0.1%3A52139%2Fk637E9lDsko%3D%2F&inspectorRef=inspector-0
+
+The overflowing RenderFlex has an orientation of Axis.vertical.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#07e98 relayoutBoundary=up8 OVERFLOWING:
+  creator: Column ← Padding ← Listener ← RawGestureDetector ← GestureDetector ← Semantics ←
+    DefaultSelectionStyle ← Builder ← MouseRegion ← Semantics ← _FocusInheritedScope ← Focus ← ⋯
+  parentData: offset=Offset(0.0, 8.0) (can use size)
+  constraints: BoxConstraints(w=82.3, 0.0<=h<=38.0)
+  size: Size(82.3, 38.0)
+  direction: vertical
+  mainAxisAlignment: start
+  mainAxisSize: min
+  crossAxisAlignment: center
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Another exception was thrown: A RenderFlex overflowed by 4.0 pixels on the bottom.
+Another exception was thrown: A RenderFlex overflowed by 4.0 pixels on the bottom.
+Another exception was thrown: A RenderFlex overflowed by 4.0 pixels on the bottom.
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+W/WindowOnBackDispatcher(32370): OnBackInvokedCallback is not enabled for the application.
+W/WindowOnBackDispatcher(32370): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+I/flutter (32370): Cache PUT: user_provider_enhanced:user_profile (TTL: 43200s)
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/ViewRootImplExtImpl(32370): wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=361, residentWS=false, scenario=0, bounds=Rect(0, 0 - 1264, 2780), relayoutAsync=true, flags=0, newFlags=1457532192, title=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity
+D/VRI[MainActivity](32370): relayoutWindow result, sizeChanged:false, surfaceControlChanged:false, transformHintChanged:false, mSurfaceSize:Point(1264, 2780), mLastSurfaceSize:Point(1264, 2780), mWidth:1264, mHeight:2780, requestedWidth:1264, requestedHeight:2780, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1264,2780] display=[0,0][1264,2780] parentFrame=[0,0][1264,2780]}, relayoutAsync:true, mSyncSeqId:0
+W/VRI[MainActivity](32370): updateBlastSurfaceIfNeeded, surfaceSize:Point(1264, 2780), lastSurfaceSize:Point(1264, 2780), format:-3, blastBufferQueue:android.graphics.BLASTBufferQueue@b6f6c8b
+I/SurfaceControl(32370):  setExtendedRangeBrightness sc=Surface(name=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity)/@0x1d13981,currentBufferRatio=1.0,desiredRatio=1.0
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/ProfileInstaller(32370): Installing profile for com.ddsj.qyapp

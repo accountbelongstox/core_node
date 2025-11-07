@@ -90,18 +90,16 @@ class BankNetworkService extends AdvancedNetworkService {
       final loginResponse = LoginResponseAppBank.fromJson(response.data!);
 
       // Update user provider with authentication data
-      if (_userProvider != null && loginResponse.token != null) {
+      if (_userProvider != null) {
         await NetworkUserIntegration.instance.setJwtAuth(
-          token: loginResponse.token!,
+          token: loginResponse.token,
           refreshToken: loginResponse.refreshToken,
           expiresAt: loginResponse.expiresAt,
         );
 
         // Update user data if available
-        if (loginResponse.user != null) {
-          debugPrint('User logged in successfully: ${loginResponse.user!.username}');
-        }
-      }
+        debugPrint('User logged in successfully: ${loginResponse.user.username}');
+            }
 
       return NetworkResponse<LoginResponseAppBank>(
         data: loginResponse,

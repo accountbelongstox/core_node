@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -21,11 +21,6 @@ SCRIPT_INDEX="38"
 SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
-INSTALL_MODE=""
-INSTALL_FLUTTER=""
-SCRIPT_TEMP_DIR=""
-LOG_FILE=""
-SELECTED_REGION=""
 
 # Paths setup
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,15 +28,19 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source globals
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
-# Init globals
+# Initialize variables after sourcing gvar_common.sh
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-INSTALL_FLUTTER=$(get_var "INSTALL_FLUTTER" "auto")
-SELECTED_REGION=$(get_var "SELECTED_REGION" "Global")
+INSTALL_FLUTTER=$(get_var "INSTALL_FLUTTER" "")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "38_install_flutter")
 LOG_FILE="$SCRIPT_TEMP_DIR/flutter_install_$(date +%Y%m%d_%H%M%S).log"
+SELECTED_REGION=$(get_var "SELECTED_REGION" "Global")
+
+# Flutter configuration
+FLUTTER_VERSION="3.35.0"
+FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+FLUTTER_INSTALL_DIR=$(map_web_path "compile_dir" "applications/flutter")
 
 # Logging
 log_message() {
@@ -59,12 +58,8 @@ should_install_flutter() {
         "false") return 1;;
         "remove") return 2;;
         *)
-            # auto: install in desktop/full modes
-            if [[ "$INSTALL_MODE" == "desktop" || "$INSTALL_MODE" == "full" ]]; then
-                return 0
-            else
-                return 1
-            fi
+            # auto: install by default (changed from desktop/full only)
+            return 0
             ;;
     esac
 }

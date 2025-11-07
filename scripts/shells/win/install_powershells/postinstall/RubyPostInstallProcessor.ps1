@@ -16,7 +16,7 @@
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommanFunc.ps1"
+. "$parentDir\win_common\CommonFunc.ps1"
 
 # Note: Environment variables (RUBY_HOME, PATH) are handled by
 # Set-MultipleEnvironmentVariablesForPackage in Step12_InstallApplications.ps1
@@ -30,23 +30,41 @@ function Configure-GemSettings {
         [hashtable]$RubyCallback = @{},
         [string]$LogPrefix = "[Ruby-Gem]"
     )
-    
+
     Write-Host "$LogPrefix Configuring Gem settings..." -ForegroundColor Cyan
-    
-    # Get gem command path
-    $gemPath = Join-Path (Split-Path $RubyPath -Parent) "gem.exe"
+    Write-Host "$LogPrefix Ruby executable: $RubyPath" -ForegroundColor Cyan
+
+    # Get gem command path - try multiple locations
+    $rubyBinDir = Split-Path $RubyPath -Parent
+    Write-Host "$LogPrefix Ruby bin directory: $rubyBinDir" -ForegroundColor Cyan
+
+    $gemPath = Join-Path $rubyBinDir "gem.exe"
     if (-not (Test-Path $gemPath)) {
-        $gemPath = Join-Path (Split-Path $RubyPath -Parent) "gem.cmd"
+        Write-Host "$LogPrefix gem.exe not found, trying gem.cmd..." -ForegroundColor Yellow
+        $gemPath = Join-Path $rubyBinDir "gem.cmd"
     }
-    
     if (-not (Test-Path $gemPath)) {
-        Write-Host "$LogPrefix Gem command not found, skipping gem configuration" -ForegroundColor Yellow
+        Write-Host "$LogPrefix gem.cmd not found, trying gem.bat..." -ForegroundColor Yellow
+        $gemPath = Join-Path $rubyBinDir "gem.bat"
+    }
+
+    if (-not (Test-Path $gemPath)) {
+        Write-Host "$LogPrefix ERROR: Gem command not found in: $rubyBinDir" -ForegroundColor Red
+        Write-Host "$LogPrefix Attempted paths: gem.exe, gem.cmd, gem.bat" -ForegroundColor Red
         return $false
     }
+
+    Write-Host "$LogPrefix Using gem command: $gemPath" -ForegroundColor Green
     
     try {
         # Check for region-specific configuration
-        $shouldConfigureMirrors = -not $Global:RegionIsGlobal
+        Write-Host "$LogPrefix Checking region configuration..." -ForegroundColor Cyan
+        $regionIsGlobal = if ($null -eq $Global:RegionIsGlobal) { $true } else { $Global:RegionIsGlobal }
+        $selectedRegion = if ($null -eq $Global:SELECTED_REGION) { "Global" } else { $Global:SELECTED_REGION }
+
+        Write-Host "$LogPrefix Region: $selectedRegion (RegionIsGlobal=$regionIsGlobal)" -ForegroundColor Cyan
+
+        $shouldConfigureMirrors = -not $regionIsGlobal
         $gemSource = "https://rubygems.org/"
 
         if ($shouldConfigureMirrors) {
@@ -55,35 +73,56 @@ function Configure-GemSettings {
         } else {
             Write-Host "$LogPrefix Using default Gem source (Global region)" -ForegroundColor Cyan
         }
-        
+
         if ($shouldConfigureMirrors) {
             # Remove default source and add mirror
-            Write-Host "$LogPrefix Configuring Gem mirror..." -ForegroundColor Yellow
-            & $gemPath sources --remove https://rubygems.org/ 2>&1 | Out-Null
-            & $gemPath sources --add $gemSource 2>&1 | Out-Null
-            
+            Write-Host "$LogPrefix Configuring Gem mirror for China region..." -ForegroundColor Yellow
+
+            # Try to remove default source (may not exist, ignore errors)
+            Write-Host "$LogPrefix Removing default rubygems.org source..." -ForegroundColor Cyan
+            $removeOutput = & $gemPath sources --remove https://rubygems.org/ 2>&1
+            Write-Host "$LogPrefix Remove output: $removeOutput" -ForegroundColor Gray
+
+            # Add new source
+            Write-Host "$LogPrefix Adding gem source: $gemSource..." -ForegroundColor Cyan
+            $addOutput = & $gemPath sources --add $gemSource 2>&1
+            Write-Host "$LogPrefix Add output: $addOutput" -ForegroundColor Gray
+
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "$LogPrefix Gem mirror configured successfully" -ForegroundColor Green
             } else {
-                Write-Host "$LogPrefix Failed to configure Gem mirror" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Warning: Gem mirror configuration may have issues (exit code: $LASTEXITCODE)" -ForegroundColor Yellow
             }
+
+            # List current sources for verification
+            Write-Host "$LogPrefix Current gem sources:" -ForegroundColor Cyan
+            & $gemPath sources --list
         }
         
         # Configure gem to not install documentation by default (faster installs)
-        $gemrcPath = Join-Path $env:USERPROFILE ".gemrc"
-        $gemrcContent = @"
+        try {
+            $gemrcPath = Join-Path $env:USERPROFILE ".gemrc"
+            $gemrcContent = @"
 gem: --no-document
 install: --no-document
 update: --no-document
 "@
-        
-        Set-Content -Path $gemrcPath -Value $gemrcContent -Encoding UTF8
-        Write-Host "$LogPrefix Created .gemrc configuration: $gemrcPath" -ForegroundColor Green
-        
+
+            Set-Content -Path $gemrcPath -Value $gemrcContent -Encoding UTF8 -ErrorAction Stop
+            Write-Host "$LogPrefix Created .gemrc configuration: $gemrcPath" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "$LogPrefix Warning: Failed to create .gemrc: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "$LogPrefix This is non-critical, continuing..." -ForegroundColor Yellow
+        }
+
+        Write-Host "$LogPrefix Gem configuration completed successfully" -ForegroundColor Green
         return $true
     }
     catch {
-        Write-Host "$LogPrefix Failed to configure Gem settings: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "$LogPrefix ERROR: Failed to configure Gem settings" -ForegroundColor Red
+        Write-Host "$LogPrefix Exception: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "$LogPrefix Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Gray
         return $false
     }
 }
@@ -128,7 +167,7 @@ function Install-EssentialGems {
                 }
             }
             catch {
-                Write-Host "$LogPrefix Error installing $gem: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Error installing ${gem}: $($_.Exception.Message)" -ForegroundColor Yellow
             }
         }
         
@@ -270,14 +309,24 @@ function Invoke-RubyPostInstallProcessor {
             Write-Host "$LogPrefix Performing Ruby configuration (Gem + Gems + Bundler + Test)..." -ForegroundColor Yellow
             Write-Host "$LogPrefix Note: Environment variables handled by Step12" -ForegroundColor Cyan
 
-            # Step 1: Configure Gem
+            # Step 1: Configure Gem (CRITICAL - must succeed)
             $gemSuccess = Configure-GemSettings -RubyPath $ExecutablePath -InstallDir $InstallDir -RubyCallback $RubyCallback -LogPrefix $LogPrefix
+            if (-not $gemSuccess) {
+                Write-Host "$LogPrefix Critical: Gem configuration failed, skipping optional steps" -ForegroundColor Red
+                return $false
+            }
 
-            # Step 2: Install essential gems
+            # Step 2: Install essential gems (OPTIONAL - failure is non-critical)
             $gemsSuccess = Install-EssentialGems -RubyPath $ExecutablePath -LogPrefix $LogPrefix
+            if (-not $gemsSuccess) {
+                Write-Host "$LogPrefix Warning: Essential gems installation failed, but continuing..." -ForegroundColor Yellow
+            }
 
-            # Step 3: Setup Bundler
+            # Step 3: Setup Bundler (OPTIONAL - failure is non-critical)
             $bundlerSuccess = Setup-BundlerConfig -RubyPath $ExecutablePath -InstallDir $InstallDir -LogPrefix $LogPrefix
+            if (-not $bundlerSuccess) {
+                Write-Host "$LogPrefix Warning: Bundler configuration failed, but continuing..." -ForegroundColor Yellow
+            }
 
             # Step 4: Test installation
             $testSuccess = Test-RubyInstallation -RubyPath $ExecutablePath -LogPrefix $LogPrefix
@@ -285,7 +334,11 @@ function Invoke-RubyPostInstallProcessor {
                 Write-Host "$LogPrefix Warning: Ruby installation test failed, but configuration completed" -ForegroundColor Yellow
             }
 
-            $success = $gemSuccess -and $gemsSuccess -and $bundlerSuccess
+            # Success if gem configuration succeeded (other steps are optional)
+            $success = $gemSuccess
+            Write-Host "$LogPrefix Gem configuration: $(if ($gemSuccess) {'SUCCESS'} else {'FAILED'})" -ForegroundColor $(if ($gemSuccess) {'Green'} else {'Red'})
+            Write-Host "$LogPrefix Essential gems: $(if ($gemsSuccess) {'SUCCESS'} else {'SKIPPED/FAILED'})" -ForegroundColor $(if ($gemsSuccess) {'Green'} else {'Yellow'})
+            Write-Host "$LogPrefix Bundler config: $(if ($bundlerSuccess) {'SUCCESS'} else {'SKIPPED/FAILED'})" -ForegroundColor $(if ($bundlerSuccess) {'Green'} else {'Yellow'})
         }
         default {
             Write-Host "$LogPrefix Error: Unknown Ruby operation: $rubyOperation" -ForegroundColor Red

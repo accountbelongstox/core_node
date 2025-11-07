@@ -15,7 +15,6 @@ import 'package:qyflutter/apps/app_example/features_app_example/home/domain/mode
 import 'package:qyflutter/apps/app_example/features_app_example/home/widget/urgent_fund_rising_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
 class SearchScreenView extends StatelessWidget {

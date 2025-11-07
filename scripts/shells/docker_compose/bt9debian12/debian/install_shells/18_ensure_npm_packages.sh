@@ -14,19 +14,29 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+SCRIPT_INDEX="18"
+
 # Source global variables
-source "$PARENT_DIR_LEVEL_2$PARENT_DIR_LEVEL_2/linux/LGar.sh"
-source "$COMMON_SHELLS_DIR/gvar_common.sh"
-if [ -n "$ENV_LOCAL" ]; then
-    ENV_LOCAL="$ENV_LOCAL"
-else
-    ENV_LOCAL=$(get_var "ENV_LOCAL")
-    if [ -z "$ENV_LOCAL" ]; then
-        ENV_LOCAL="cn"
-    fi
+source "$PARENT_DIR_LEVEL_2/linux/LGar.sh"
+source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
+
+# Get region information
+SELECTED_REGION=$(get_var "SELECTED_REGION")
+
+# Get USE_SUDO variable
+USE_SUDO=$(get_var "USE_SUDO")
+if [ -z "$USE_SUDO" ]; then
+    USE_SUDO="sudo"
 fi
 
-CHECK_PACKAGES_SCRIPT="$SHELLS_SCRIPTS_DIR/check_global_packages.js"
+# Get ENV_LOCAL variable
+ENV_LOCAL=$(get_var "ENV_LOCAL")
+if [ -z "$ENV_LOCAL" ]; then
+    ENV_LOCAL="cn"
+fi
+
+# Correct path to check_global_packages.js
+CHECK_PACKAGES_SCRIPT="$PARENT_DIR_LEVEL_2/scripts/check_global_packages.js"
 
 # Function to extract package names from npm list output
 get_installed_packages() {
@@ -44,74 +54,168 @@ get_installed_packages() {
 # Function to check if a package is installed
 is_package_installed() {
     local package_name=$1
-    if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
-        node "$CHECK_PACKAGES_SCRIPT" check "$package_name" > /dev/null 2>&1
-        return $?
-    else
-        echo "$INSTALLED_PACKAGES" | grep -q "^${package_name}$"
-        return $?
+    
+    # Use npm list to check if package is installed globally
+    if npm list -g "$package_name" >/dev/null 2>&1; then
+        return 0
     fi
+    
+    # Also check if the binary exists in PATH (fallback check)
+    if command -v "$package_name" >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    return 1
 }
 
 # Function to install package if not already installed
 ensure_package() {
     local package=$1
-    if ! is_package_installed "$package"; then
-        echo "Installing $package..."
-        if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
-            node "$CHECK_PACKAGES_SCRIPT" install "$package"
+    
+    if is_package_installed "$package"; then
+        echo "[$SCRIPT_INDEX] $package is already installed, skipping..."
+        return 0
+    fi
+    
+    echo "[$SCRIPT_INDEX] Installing $package..."
+    
+    # Special handling for puppeteer
+    if [ "$package" = "puppeteer" ]; then
+        # Install chromium first
+        $USE_SUDO apt-get install chromium -y
+        
+        # Install puppeteer with skip download
+        if PUPPETEER_SKIP_DOWNLOAD=true npm install -g "$package"; then
+            echo "[$SCRIPT_INDEX] $package installed successfully"
+            return 0
         else
-            if [ "$package" = "puppeteer" ]; then
-                ${USE_SUDO} apt-get install chromium -y
-                PUPPETEER_SKIP_DOWNLOAD=true \
-                PUPPETEER_DOWNLOAD_BASE_URL=https://npmmirror.com/mirrors/puppeteer \
-                npm install -g "$package"
-            else
-                npm install -g "$package"
-            fi
-        fi
-        if [ $? -eq 0 ]; then
-            echo "$package installed successfully"
-        else
-            echo "Failed to install $package"
-            exit 1
+            echo "[$SCRIPT_INDEX] Failed to install $package"
+            return 1
         fi
     else
-        echo "$package is already installed"
+        # Install regular package
+        if npm install -g "$package"; then
+            echo "[$SCRIPT_INDEX] $package installed successfully"
+            return 0
+        else
+            echo "[$SCRIPT_INDEX] Failed to install $package"
+            return 1
+        fi
     fi
 }
 
-# Cache the global packages list
-echo "Caching global packages list..."
+# Get currently installed packages
 INSTALLED_PACKAGES=$(get_installed_packages)
 
-echo "Currently installed global packages:"
+echo "[$SCRIPT_INDEX] Currently installed global packages:"
 echo "$INSTALLED_PACKAGES"
-echo "----------------------------------------"
+echo "[$SCRIPT_INDEX] ----------------------------------------"
 
-# List of packages to install
-PACKAGES=(
-    "js-yaml"
-    "pm2"
-    "typescript"
-    "ts-node"
-    "nodemon"
-    "yarn"
-    "pnpm"
-    "http-server"
-    "serve"
-    "npm-check-updates"
-    "node-gyp"
+# Package mapping: install_name:import_name
+declare -A PACKAGES=(
+    ["js-yaml"]="js-yaml"
+    ["pm2"]="pm2"
+    ["typescript"]="typescript"
+    ["ts-node"]="ts-node"
+    ["nodemon"]="nodemon"
+    ["yarn"]="yarn"
+    ["pnpm"]="pnpm"
+    ["http-server"]="http-server"
+    ["puppeteer"]="puppeteer"
+    ["serve"]="serve"
+    ["npm-check-updates"]="npm-check-updates"
+    ["node-gyp"]="node-gyp"
 )
 
-# Install packages
-echo "Checking and installing required packages..."
-for package in "${PACKAGES[@]}"; do
-    ensure_package "$package"
+# Convert PACKAGES array to JSON format for Node.js script
+PACKAGES_JSON="{"
+first=true
+for install_name in "${!PACKAGES[@]}"; do
+    import_name="${PACKAGES[$install_name]}"
+    if [ "$first" = true ]; then
+        first=false
+    else
+        PACKAGES_JSON+=","
+    fi
+    PACKAGES_JSON+="\"$install_name\":\"$import_name\""
 done
+PACKAGES_JSON+="}"
+
+echo "[$SCRIPT_INDEX] Checking packages using Node.js script..."
+echo "[$SCRIPT_INDEX] Package mapping: $PACKAGES_JSON"
+
+# Use Node.js script to check which packages are missing
+if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
+    echo "[$SCRIPT_INDEX] Using Node.js script for package detection..."
+    MISSING_PACKAGES=$(node "$CHECK_PACKAGES_SCRIPT" check "$PACKAGES_JSON")
+    
+    if [ -n "$MISSING_PACKAGES" ] && [ "$MISSING_PACKAGES" != "[]" ]; then
+        echo "[$SCRIPT_INDEX] Missing packages detected: $MISSING_PACKAGES"
+        
+        # Parse missing packages and install them
+        echo "$MISSING_PACKAGES" | jq -r '.[]' | while read -r package; do
+            if [ -n "$package" ]; then
+                echo "[$SCRIPT_INDEX] Installing missing package: $package"
+                if ! ensure_package "$package"; then
+                    echo "[$SCRIPT_INDEX] Failed to install $package"
+                fi
+            fi
+        done
+    else
+        echo "[$SCRIPT_INDEX] All required packages are already installed"
+    fi
+else
+    echo "[$SCRIPT_INDEX] Warning: check_global_packages.js not found, falling back to individual package checking..."
+    failed_packages=()
+    
+    for install_name in "${!PACKAGES[@]}"; do
+        if ! ensure_package "$install_name"; then
+            failed_packages+=("$install_name")
+        fi
+    done
+    
+    if [ ${#failed_packages[@]} -gt 0 ]; then
+        echo "[$SCRIPT_INDEX] Failed to install packages: ${failed_packages[*]}"
+    else
+        echo "[$SCRIPT_INDEX] All packages installed successfully"
+    fi
+fi
+
+echo "[$SCRIPT_INDEX] Package installation process completed"
+
+# Function to handle Node.js binary links
+handle_node_binaries() {
+    echo "[$SCRIPT_INDEX] Creating symlinks for npm global packages..."
+    
+    # Get actual Node.js path
+    NODE_PATH=$(which node)
+    if [ -z "$NODE_PATH" ]; then
+        echo "[$SCRIPT_INDEX] Node.js not found in PATH"
+        return 1
+    fi
+    
+    # Get Node.js directory
+    NODE_DIR=$(dirname "$NODE_PATH")
+    
+    # Create symlinks for common packages
+    local packages=("pm2" "typescript" "ts-node" "nodemon" "yarn" "pnpm" "http-server" "serve")
+    
+    for package in "${packages[@]}"; do
+        local global_bin="/usr/local/bin/$package"
+        local npm_bin="$NODE_DIR/$package"
+        
+        if [ -f "$npm_bin" ] && [ ! -L "$global_bin" ]; then
+            echo "[$SCRIPT_INDEX] Creating symlink for $package"
+            $USE_SUDO ln -s "$npm_bin" "$global_bin"
+        fi
+    done
+}
+
+# Handle Node.js binaries
+handle_node_binaries
 
 # Verify installations
-echo -e "\nVerifying installations..."
+echo "[$SCRIPT_INDEX] Verifying installations..."
 if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
     node "$CHECK_PACKAGES_SCRIPT" list
 else
@@ -119,57 +223,7 @@ else
 fi
 
 # Display npm configuration
-echo -e "\nNPM Configuration:"
+echo "[$SCRIPT_INDEX] NPM Configuration:"
 npm config list
 
-echo -e "\nPackage installation completed successfully"
-
-# Function to handle Node.js binary links
-handle_node_binaries() {
-    echo -e "\033[0;34mHandling Node.js binary links...\033[0m"
-
-    # Get actual Node.js path
-    NODE_PATH=$(which node)
-    if [ -z "$NODE_PATH" ]; then
-        echo -e "\033[0;31mNode.js not found in PATH\033[0m"
-        return 1
-    fi
-
-    # Get real path if it's a symlink
-    REAL_NODE_DIR=$(readlink -f "$NODE_PATH")
-    BINARY_DIR=$(dirname "$REAL_NODE_DIR")
-
-    echo -e "\033[0;34mNode.js binary directory: $BINARY_DIR\033[0m"
-
-    # Create links for all binaries in the directory
-    for binary in "$BINARY_DIR"/*; do
-        binary_name=$(basename "$binary")
-        target_link="/usr/local/bin/$binary_name"
-
-        # Skip if it's the node binary itself
-        if [ "$binary_name" = "node" ]; then
-            continue
-        fi
-
-        # Remove existing link if it exists
-        if [ -e "$target_link" ]; then
-            echo -e "\033[0;34mRemoving existing link: $target_link\033[0m"
-            rm -f "$target_link"
-        fi
-
-        # Create new link
-        echo -e "\033[0;34mCreating link for $binary_name\033[0m"
-        ln -sf "$binary" "$target_link"
-        # SECURITY FIX: Do NOT chmod symlinks - this affects the target files
-        # Symlinks inherit permissions from their targets
-    done
-
-    echo -e "\033[0;32mNode.js binary links have been updated successfully\033[0m"
-}
-
-# Add this to the end of your script
-echo -e "\033[0;34mVerifying Node.js installation...\033[0m"
-handle_node_binaries || {
-    echo -e "\033[0;31mFailed to handle Node.js binary links\033[0m"
-    exit 1
-}
+echo "[$SCRIPT_INDEX] Package installation process completed successfully"

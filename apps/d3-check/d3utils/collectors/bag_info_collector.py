@@ -23,7 +23,7 @@ sys.path.insert(0, project_root)
 
 # Project imports
 from providor.common_imports import ColorPrint, ImageAnnotator
-from d3utils.share import get_game_interface_data, BagCoordinates, BagLayout, DetectionResult, get_scaled_bag_region, get_global_scale
+from share import get_game_interface_data, BagCoordinates, BagLayout, DetectionResult, get_scaled_bag_region, get_global_scale
 from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
 from d3utils.d3u_common import draw_match_result
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
