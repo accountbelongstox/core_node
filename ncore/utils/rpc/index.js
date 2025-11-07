@@ -3,6 +3,7 @@ const httpRpc = require('./http_rpc');
 const common = require('./common');
 const client = require('./client');
 const staticPathResolver = require('./http_rpc/libs/StaticPathResolver');
+const SingletonRpcLauncher = require('./SingletonRpcLauncher');
 
 module.exports = {
     ws: wsRpc,
@@ -55,5 +56,7 @@ module.exports = {
     MSG_TYPES: common.MSG_TYPES,
     ERROR_CODES: common.ERROR_CODES,
     EVENTS: common.EVENTS,
-    DEFAULTS: common.DEFAULTS
+    DEFAULTS: common.DEFAULTS,
+
+    SingletonRpcLauncher
 };

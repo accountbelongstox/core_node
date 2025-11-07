@@ -54,69 +54,29 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 MCP_TEMPLATE_DIR = PROJECT_ROOT / "_prompt"
 
-def print_same_line(message: str, end_with_newline: bool = False) -> None:
-    """
-    Print message on the same line (overwriting previous content).
+# Add current directory to path for imports
+sys.path.insert(0, str(SCRIPT_DIR))
 
-    Args:
-        message: The message to print
-        end_with_newline: If True, ends with newline; if False, stays on same line for next update
-
-    Usage:
-        print_same_line("Processing... 1/10")  # Updates same line
-        print_same_line("Processing... 2/10")  # Overwrites previous
-        print_same_line("Completed!", True)     # Final message with newline
-    """
-    padded_message = message.ljust(80)
-
-    if end_with_newline:
-        print(f"\r{padded_message}")
-    else:
-        print(f"\r{padded_message}", end='', flush=True)
-
-def detect_os_environment() -> str:
-    """
-    Detect the OS environment and return appropriate MCP template filename.
-
-    Returns:
-        Template filename: mcpCodexWindowsTemplate.toml, mcpCodexWSLTemplate.toml,
-                          mcpCodexUbuntoDesktopTemplate.toml, or mcpCodexLinuxTemplate.toml
-    """
-    if sys.platform == "win32":
-        return "mcpCodexWindowsTemplate.toml"
-
-    if sys.platform == "linux":
-        wsl_indicator = Path("/mnt/c/Users")
-        if wsl_indicator.exists():
-            return "mcpCodexWSLTemplate.toml"
-
-        has_display = os.environ.get("DISPLAY") is not None
-        has_xdg_session = os.environ.get("XDG_SESSION_TYPE") is not None
-        has_desktop_session = os.environ.get("DESKTOP_SESSION") is not None
-
-        if has_display or has_xdg_session or has_desktop_session:
-            return "mcpCodexUbuntoDesktopTemplate.toml"
-
-        return "mcpCodexLinuxTemplate.toml"
-
-    return "mcpCodexWindowsTemplate.toml"
+# Import common utilities
+from ai_tools_common import (
+    get_user_home_directory,
+    print_same_line,
+    detect_os_environment,
+    cleanup_old_backups,
+    merge_mcp_servers,
+    replace_project_name_in_template
+)
 
 def get_codex_config_path() -> Path:
     """Get the path to user's Codex config.toml file."""
-    if sys.platform == "win32":
-        config_dir = Path(os.environ.get('USERPROFILE', '.')) / '.codex'
-    else:
-        config_dir = Path.home() / '.codex'
-
+    user_home = get_user_home_directory()
+    config_dir = user_home / '.codex'
     return config_dir / 'config.toml'
 
 def get_backup_directory() -> Path:
     """Get the backup directory for Codex configurations."""
-    if sys.platform == "win32":
-        base_dir = Path(os.environ.get('USERPROFILE', '.')) / '.codex'
-    else:
-        base_dir = Path.home() / '.codex'
-
+    user_home = get_user_home_directory()
+    base_dir = user_home / '.codex'
     backup_dir = base_dir / '.backups'
     return backup_dir
 
@@ -146,33 +106,13 @@ def save_toml_file(file_path: Path, data: Dict[str, Any], backup: bool = True) -
         shutil.copy2(file_path, backup_path)
         print(f"[INFO] Created backup: {backup_path.name}")
 
-        cleanup_old_backups(backup_dir, keep_count=5)
+        cleanup_old_backups(backup_dir, keep_count=5, backup_pattern="config.backup.*.toml")
 
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(file_path, 'wb') as f:
         tomli_w.dump(data, f)
 
-def cleanup_old_backups(backup_dir: Path, keep_count: int = 5) -> None:
-    """Clean up old backup files, keeping only the most recent ones."""
-    if not backup_dir.exists():
-        return
-
-    backup_files = []
-    for file_path in backup_dir.glob("config.backup.*.toml"):
-        if file_path.is_file():
-            backup_files.append(file_path)
-
-    backup_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-
-    if len(backup_files) > keep_count:
-        files_to_remove = backup_files[keep_count:]
-        for file_path in files_to_remove:
-            try:
-                file_path.unlink()
-                print(f"[CLEANUP] Removed old backup: {file_path.name}")
-            except Exception as e:
-                print(f"[WARNING] Failed to remove old backup {file_path.name}: {e}")
 
 def load_mcp_template() -> Dict[str, Any]:
     """
@@ -181,7 +121,7 @@ def load_mcp_template() -> Dict[str, Any]:
     Returns:
         Dictionary containing mcp_servers configuration from the template
     """
-    template_filename = detect_os_environment()
+    template_filename = detect_os_environment("Codex", ".toml")
     template_path = MCP_TEMPLATE_DIR / template_filename
 
     print(f"[INFO] Detected OS environment: {template_filename.replace('mcpCodexTemplate.toml', '').replace('mcpCodex', '')}")
@@ -203,45 +143,6 @@ def load_mcp_template() -> Dict[str, Any]:
         mcp_servers = template_data["mcp_servers"]
 
     return mcp_servers
-
-def merge_mcp_servers(
-    target_servers: Dict[str, Any],
-    template_servers: Dict[str, Any]
-) -> tuple[Dict[str, Any], Set[str]]:
-    """
-    Merge template servers into target servers, adding missing ones.
-
-    Returns (merged_servers, added_server_names)
-    """
-    merged = target_servers.copy()
-    added = set()
-
-    for server_name, server_config in template_servers.items():
-        if server_name not in merged:
-            merged[server_name] = server_config
-            added.add(server_name)
-
-    return merged, added
-
-def replace_project_name_in_template(
-    template_data: Dict[str, Any],
-    working_dir: str
-) -> Dict[str, Any]:
-    """Replace $PROJECT_NAME$ placeholder in template with working directory."""
-    import copy
-    result = copy.deepcopy(template_data)
-
-    def replace_in_value(value: Any) -> Any:
-        if isinstance(value, str):
-            return value.replace("$PROJECT_NAME$", working_dir)
-        elif isinstance(value, dict):
-            return {k: replace_in_value(v) for k, v in value.items()}
-        elif isinstance(value, list):
-            return [replace_in_value(item) for item in value]
-        else:
-            return value
-
-    return replace_in_value(result)
 
 def extract_mcp_servers_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -281,7 +182,7 @@ def sync_codex_configuration(working_dir: Optional[str] = None) -> int:
     print_same_line("[0/4] Cleaning up old backups...")
     try:
         backup_dir = get_backup_directory()
-        cleanup_old_backups(backup_dir, keep_count=5)
+        cleanup_old_backups(backup_dir, keep_count=5, backup_pattern="config.backup.*.toml")
         print_same_line("[0/4] Backup cleanup completed", True)
     except Exception as e:
         print_same_line(f"[0/4] Backup cleanup warning: {e}", True)
@@ -599,6 +500,23 @@ def toggle_mcp_server(name: str, enable: bool) -> int:
 
 def main() -> int:
     """Entry point."""
+    # Default to sync with auto-detected working directory
+    working_dir = os.getcwd()
+    print(f"[INFO] Auto-detected working directory: {working_dir}")
+
+    try:
+        return sync_codex_configuration(working_dir)
+    except KeyboardInterrupt:
+        print("\n[INFO] Interrupted by user")
+        return 130
+    except Exception as e:
+        print(f"\n[ERROR] Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+def main_with_commands() -> int:
+    """Entry point with full command support (legacy)."""
     parser = argparse.ArgumentParser(
         description="Codex MCP Servers Configuration Manager",
         formatter_class=argparse.RawDescriptionHelpFormatter,

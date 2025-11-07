@@ -47,69 +47,64 @@ async def video_stream_endpoint(websocket: WebSocket, serial: str):
     """
     await websocket.accept()
 
-    try:
-        # Register connection
-        await video_manager.connect(serial, websocket)
+    # ✅ REMOVED outer try-except for debugging - let errors surface
+    # Register connection
+    await video_manager.connect(serial, websocket)
 
-        # Send connection confirmation
-        await websocket.send_text(create_wsrpc_message("video.connected", {
-            "serial": serial,
-            "message": "Video stream connected"
+    # Send connection confirmation
+    await websocket.send_text(create_wsrpc_message("video.connected", {
+        "serial": serial,
+        "message": "Video stream connected"
+    }))
+
+    # Get device service
+    device_service = DeviceService.instance()
+    video_service = VideoStreamService.instance()
+
+    # Check if device is connected
+    if not device_service.is_connected(serial):
+        print(f"[ws_routes] ✗ Device {serial} not connected - closing WebSocket")
+        await websocket.send_text(create_wsrpc_message("error", {
+            "message": f"Device {serial} not connected"
         }))
+        await video_manager.disconnect(serial, websocket)
+        await websocket.close()
+        return
 
-        # Get device service
-        device_service = DeviceService.instance()
-        video_service = VideoStreamService.instance()
+    print(f"[ws_routes] ✓ Device {serial} is connected - starting video stream")
 
-        # Check if device is connected
-        if not device_service.is_connected(serial):
-            await websocket.send_text(create_wsrpc_message("error", {
-                "message": f"Device {serial} not connected"
-            }))
-            await websocket.close()
-            return
+    # Start video streaming task
+    stream_task = asyncio.create_task(
+        video_service.stream_to_websocket(serial, websocket)
+    )
 
-        # Start video streaming task
-        stream_task = asyncio.create_task(
-            video_service.stream_to_websocket(serial, websocket)
-        )
+    # Listen for control messages
+    try:
+        while True:
+            data = await websocket.receive()
 
-        # Listen for control messages
-        try:
-            while True:
-                data = await websocket.receive()
+            if "text" in data:
+                # ✅ REMOVED try-except for JSON parsing - let errors surface
+                message = json.loads(data["text"])
+                msg_type = message.get("type")
+                msg_data = message.get("data", {})
 
-                if "text" in data:
-                    # Handle JSON control messages
-                    try:
-                        message = json.loads(data["text"])
-                        msg_type = message.get("type")
-                        msg_data = message.get("data", {})
+                if msg_type == "video.quality":
+                    await video_service.set_quality(serial, msg_data)
+                elif msg_type == "video.pause":
+                    await video_service.pause(serial)
+                elif msg_type == "video.resume":
+                    await video_service.resume(serial)
 
-                        if msg_type == "video.quality":
-                            # Change video quality
-                            await video_service.set_quality(serial, msg_data)
-                        elif msg_type == "video.pause":
-                            await video_service.pause(serial)
-                        elif msg_type == "video.resume":
-                            await video_service.resume(serial)
-
-                    except json.JSONDecodeError:
-                        pass
-
-        except WebSocketDisconnect:
-            pass
-        finally:
-            # Cancel streaming task
-            stream_task.cancel()
-            try:
-                await stream_task
-            except asyncio.CancelledError:
-                pass
-
-    except Exception as e:
-        print(f"Video stream error for {serial}: {e}")
+    except WebSocketDisconnect:
+        print(f"[ws_routes] WebSocket disconnected for {serial}")
     finally:
+        # Cancel streaming task
+        stream_task.cancel()
+        try:
+            await stream_task
+        except asyncio.CancelledError:
+            pass
         await video_manager.disconnect(serial, websocket)
 
 

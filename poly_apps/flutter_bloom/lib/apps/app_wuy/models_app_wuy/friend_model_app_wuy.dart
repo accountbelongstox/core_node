@@ -32,6 +32,9 @@ class FriendModelAppWuy {
   final Map<String, dynamic>? healthData;
   final Map<String, dynamic>? phoneReport;
   final Map<String, dynamic>? metadata;
+  final int unreadMessageCount;
+  final DateTime? lastLocationTime;
+  final Map<String, dynamic>? lastLocation;
 
   const FriendModelAppWuy({
     required this.id,
@@ -55,6 +58,9 @@ class FriendModelAppWuy {
     this.healthData,
     this.phoneReport,
     this.metadata,
+    this.unreadMessageCount = 0,
+    this.lastLocationTime,
+    this.lastLocation,
   });
 
   factory FriendModelAppWuy.fromJson(Map<String, dynamic> json) {
@@ -101,6 +107,13 @@ class FriendModelAppWuy {
       healthData: json['health_data'] as Map<String, dynamic>? ?? json['healthData'] as Map<String, dynamic>?,
       phoneReport: json['phone_report'] as Map<String, dynamic>? ?? json['phoneReport'] as Map<String, dynamic>?,
       metadata: json['metadata'] as Map<String, dynamic>?,
+      unreadMessageCount: json['unread_message_count'] as int? ?? json['unreadMessageCount'] as int? ?? 0,
+      lastLocationTime: json['last_location_time'] != null
+          ? DateTime.parse(json['last_location_time'] as String)
+          : json['lastLocationTime'] != null
+              ? DateTime.parse(json['lastLocationTime'] as String)
+              : null,
+      lastLocation: json['last_location'] as Map<String, dynamic>? ?? json['lastLocation'] as Map<String, dynamic>?,
     );
   }
 
@@ -127,6 +140,9 @@ class FriendModelAppWuy {
       'health_data': healthData,
       'phone_report': phoneReport,
       'metadata': metadata,
+      'unread_message_count': unreadMessageCount,
+      'last_location_time': lastLocationTime?.toIso8601String(),
+      'last_location': lastLocation,
     };
   }
 
@@ -152,6 +168,9 @@ class FriendModelAppWuy {
     Map<String, dynamic>? healthData,
     Map<String, dynamic>? phoneReport,
     Map<String, dynamic>? metadata,
+    int? unreadMessageCount,
+    DateTime? lastLocationTime,
+    Map<String, dynamic>? lastLocation,
   }) {
     return FriendModelAppWuy(
       id: id ?? this.id,
@@ -175,6 +194,9 @@ class FriendModelAppWuy {
       healthData: healthData ?? this.healthData,
       phoneReport: phoneReport ?? this.phoneReport,
       metadata: metadata ?? this.metadata,
+      unreadMessageCount: unreadMessageCount ?? this.unreadMessageCount,
+      lastLocationTime: lastLocationTime ?? this.lastLocationTime,
+      lastLocation: lastLocation ?? this.lastLocation,
     );
   }
 

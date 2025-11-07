@@ -1,74 +1,826 @@
-/// Home screen with study features and navigation
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+/// Refactored Home Screen following best practices
 library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../provider_app_qy/user_provider_app_qy.dart';
-import '../widgets/study_progress_card.dart';
-import '../widgets/feature_grid.dart';
-import '../widgets/study_stats_card.dart';
+import '../../../../../../common/theme/base/theme_colors.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../models_app_qy/user_model_app_qy.dart';
+import '../controllers/home_controller_app_qy.dart';
+import '../../dictionary_recommend/data/mock_dictionaries.dart';
+import '../../dictionary_recommend/widgets/dictionary_card.dart';
+import '../../dictionary_recommend/views/dictionary_recommend_screen.dart';
 
-class HomeScreenAppQy extends StatefulWidget {
-  const HomeScreenAppQy({super.key});
+class HomeScreenRefactoredAppQy extends StatefulWidget {
+  const HomeScreenRefactoredAppQy({super.key});
 
   @override
-  State<HomeScreenAppQy> createState() => _HomeScreenAppQyState();
+  State<HomeScreenRefactoredAppQy> createState() =>
+      _HomeScreenRefactoredAppQyState();
 }
 
-class _HomeScreenAppQyState extends State<HomeScreenAppQy> {
-  int _currentIndex = 0;
+class _HomeScreenRefactoredAppQyState
+    extends State<HomeScreenRefactoredAppQy> {
+  late HomeControllerAppQy _controller;
 
-  final List<Widget> _screens = [
-    const StudyTabView(),
-    const CourseTabView(),
-    const AIStudyTabView(),
-    const DiscoverTabView(),
-    const ProfileTabView(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _controller = HomeControllerAppQy(
+      user: UserModelAppQy.empty().copyWith(
+        displayName: 'User',
+        totalWords: 16952,
+        learnedWords: 27,
+        todayNewWords: 200,
+        todayReviewWords: 27,
+        studyDays: 0,
+        badges: 0,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _controller,
+      child: Scaffold(
+        body: Consumer<HomeControllerAppQy>(
+          builder: (context, controller, child) {
+            return IndexedStack(
+              index: controller.currentTabIndex,
+              children: const [
+                StudyTabViewRefactored(),
+                CourseTabViewRefactored(),
+                AIStudyTabViewRefactored(),
+                DiscoverTabViewRefactored(),
+                ProfileTabViewRefactored(),
+              ],
+            );
+          },
+        ),
+        bottomNavigationBar: Consumer<HomeControllerAppQy>(
+          builder: (context, controller, child) {
+            return _buildBottomNavigation(context, controller);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigation(
+    BuildContext context,
+    HomeControllerAppQy controller,
+  ) {
+    return BottomNavigationBar(
+      currentIndex: controller.currentTabIndex,
+      onTap: controller.setCurrentTab,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: ThemeColors.primary,
+      unselectedItemColor: ThemeColors.textSecondary,
+      selectedFontSize: ThemeDimensions.fontSize12,
+      unselectedFontSize: ThemeDimensions.fontSize12,
+      elevation: 0,
+      items: [
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.book_outlined),
+          activeIcon: const Icon(Icons.book),
+          label: QyAppLocalizationKeys.qyHomeStudy.tr(context),
+        ),
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.school_outlined),
+          activeIcon: const Icon(Icons.school),
+          label: QyAppLocalizationKeys.qyHomeCourse.tr(context),
+        ),
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.psychology_outlined),
+          activeIcon: const Icon(Icons.psychology),
+          label: QyAppLocalizationKeys.qyHomeAi.tr(context),
+        ),
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.explore_outlined),
+          activeIcon: const Icon(Icons.explore),
+          label: QyAppLocalizationKeys.qyHomeDiscover.tr(context),
+        ),
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.person_outline),
+          activeIcon: const Icon(Icons.person),
+          label: QyAppLocalizationKeys.qyHomeProfile.tr(context),
+        ),
+      ],
+    );
+  }
+}
+
+class StudyTabViewRefactored extends StatelessWidget {
+  const StudyTabViewRefactored({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<HomeControllerAppQy>();
+    final user = controller.currentUser;
+
+    final popularDictionaries = MockDictionaries.getPopularDictionaries(limit: 6);
+
+    return Scaffold(
+      backgroundColor: ThemeColors.background,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(context),
+            SliverPadding(
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _buildMoreFeaturesButton(context),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  _buildStudyProgressCard(context, user),
+                  SizedBox(height: ThemeDimensions.spacingLarge),
+                  _buildQuickAccessGrid(context),
+                  SizedBox(height: ThemeDimensions.spacingXLarge),
+                ]),
+              ),
+            ),
+            // Recommended Dictionaries Section
+            _buildDictionarySectionHeader(context),
+            _buildDictionaryWaterfallGrid(context, popularDictionaries),
+            SliverToBoxAdapter(
+              child: SizedBox(height: ThemeDimensions.spacingXLarge),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      floating: true,
+      pinned: false,
+      backgroundColor: ThemeColors.background,
+      elevation: 0,
+      leading: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
+        child: CircleAvatar(
+          backgroundColor: ThemeColors.primary.withOpacity(0.1),
+          child: Icon(
+            Icons.person,
+            color: ThemeColors.primary,
+            size: ThemeDimensions.iconSizeMedium,
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            Icons.search,
+            color: ThemeColors.textPrimary,
+            size: ThemeDimensions.iconSizeMedium,
+          ),
+          onPressed: () {},
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.close,
+            color: ThemeColors.textPrimary,
+            size: ThemeDimensions.iconSizeMedium,
+          ),
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoreFeaturesButton(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.shadow.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+          onTap: () {},
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.paddingMedium,
+              vertical: ThemeDimensions.paddingSmall,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  QyAppLocalizationKeys.qyHomeMoreFeatures.tr(context),
+                  style: ThemeTextStyles.body1.copyWith(
+                    color: ThemeColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  color: ThemeColors.textSecondary,
+                  size: ThemeDimensions.iconSizeSmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudyProgressCard(BuildContext context, UserModelAppQy user) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ThemeColors.primary.withOpacity(0.1),
+            ThemeColors.secondary.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        border: Border.all(
+          color: ThemeColors.primary.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    QyAppLocalizationKeys.qyHomeLearnSettings.tr(context),
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: ThemeColors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    QyAppLocalizationKeys.qyHomeLearnData.tr(context),
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: ThemeColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(height: ThemeDimensions.spacingMedium),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                QyAppLocalizationKeys.qyHomeLearned.tr(context),
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ThemeColors.textSecondary,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.spacingSmall),
+              Text(
+                user.progressPercentage,
+                style: ThemeTextStyles.h2.copyWith(
+                  color: ThemeColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '%',
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ThemeColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: ThemeDimensions.spacingXSmall),
+          Text(
+            '${user.learnedWords}/${user.totalWords}${QyAppLocalizationKeys.qyHomeWordsTotal.tr(context)}',
+            style: ThemeTextStyles.body2.copyWith(
+              color: ThemeColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  context,
+                  QyAppLocalizationKeys.qyHomeNewWords.tr(context),
+                  '${user.todayNewWords ?? 0}/${user.todayNewWords ?? 200}',
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.spacingMedium),
+              Expanded(
+                child: _buildStatItem(
+                  context,
+                  QyAppLocalizationKeys.qyHomeReviewWords.tr(context),
+                  '${user.todayReviewWords ?? 0}/${user.learnedWords ?? 27}',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                context.read<HomeControllerAppQy>().startLearning();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ThemeColors.primary,
+                foregroundColor: ThemeColors.onPrimary,
+                padding: EdgeInsets.symmetric(
+                  vertical: ThemeDimensions.paddingMedium,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                ),
+                elevation: 2,
+              ),
+              child: Text(
+                QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
+                style: ThemeTextStyles.button.copyWith(
+                  color: ThemeColors.onPrimary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: ThemeTextStyles.caption.copyWith(
+            color: ThemeColors.textSecondary,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingXSmall),
+        Text(
+          value,
+          style: ThemeTextStyles.body1.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickAccessGrid(BuildContext context) {
+    final features = [
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomeConsolidate.tr(context),
+        icon: Icons.repeat,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomeWordTest.tr(context),
+        icon: Icons.quiz,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomePortableListening.tr(context),
+        icon: Icons.headphones,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomePhrase.tr(context),
+        icon: Icons.short_text,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomeSpeedReview.tr(context),
+        icon: Icons.speed,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomeExtension.tr(context),
+        icon: Icons.extension,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomeReading.tr(context),
+        icon: Icons.auto_stories,
+        onTap: () {},
+      ),
+      _FeatureItem(
+        label: QyAppLocalizationKeys.qyHomeListeningSpeaking.tr(context),
+        icon: Icons.record_voice_over,
+        onTap: () {},
+      ),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: features.length,
+      itemBuilder: (context, index) {
+        final feature = features[index];
+        return _buildFeatureItem(context, feature);
+      },
+    );
+  }
+
+  Widget _buildFeatureItem(BuildContext context, _FeatureItem feature) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: feature.onTap,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: ThemeColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+              ),
+              child: Icon(
+                feature.icon,
+                color: ThemeColors.primary,
+                size: ThemeDimensions.iconSizeMedium,
+              ),
+            ),
+            SizedBox(height: ThemeDimensions.spacingSmall),
+            Text(
+              feature.label,
+              style: ThemeTextStyles.caption.copyWith(
+                color: ThemeColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDictionarySectionHeader(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: ThemeDimensions.paddingMedium,
+          vertical: ThemeDimensions.paddingSmall,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recommended Dictionaries',
+                  style: ThemeTextStyles.h2.copyWith(
+                    color: ThemeColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: ThemeDimensions.spacingXSmall),
+                Text(
+                  'Curated word collections for you',
+                  style: ThemeTextStyles.caption.copyWith(
+                    color: ThemeColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DictionaryRecommendScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: const Text('See All'),
+              style: TextButton.styleFrom(
+                foregroundColor: ThemeColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDictionaryWaterfallGrid(
+    BuildContext context,
+    List<DictionaryModel> dictionaries,
+  ) {
+    return SliverPadding(
+      padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingMedium),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.65,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final dictionary = dictionaries[index];
+            return DictionaryCard(
+              dictionary: dictionary,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DictionaryRecommendScreen(),
+                  ),
+                );
+              },
+              onLike: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('❤️ Liked!'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+              onToggleAdd: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      dictionary.isAdded
+                          ? 'Removed from library'
+                          : 'Added to library',
+                    ),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+            );
+          },
+          childCount: dictionaries.length,
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureItem {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _FeatureItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+}
+
+class CourseTabViewRefactored extends StatelessWidget {
+  const CourseTabViewRefactored({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: _buildBottomNavigation(),
+      appBar: AppBar(
+        title: Text(QyAppLocalizationKeys.qyHomeCourse.tr(context)),
+        backgroundColor: ThemeColors.surface,
+      ),
+      body: Center(
+        child: Text(
+          'Course - Coming Soon',
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+        ),
+      ),
     );
   }
+}
 
-  Widget _buildBottomNavigation() {
-    return Container(
-      decoration: ComponentStyles.bottomNavigationDecoration,
-      child: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primaryGreen,
-        unselectedItemColor: Colors.grey,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
+class AIStudyTabViewRefactored extends StatelessWidget {
+  const AIStudyTabViewRefactored({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(QyAppLocalizationKeys.qyHomeAi.tr(context)),
+        backgroundColor: ThemeColors.surface,
+      ),
+      body: Center(
+        child: Text(
+          'AI Study - Coming Soon',
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+class DiscoverTabViewRefactored extends StatelessWidget {
+  const DiscoverTabViewRefactored({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final popularDictionaries = MockDictionaries.getPopularDictionaries(limit: 6);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(QyAppLocalizationKeys.qyHomeDiscover.tr(context)),
+        backgroundColor: ThemeColors.surface,
         elevation: 0,
-        backgroundColor: Colors.transparent,
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.book),
-            label: 'home.study'.tr,
+      ),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Section Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Recommended Dictionaries',
+                            style: ThemeTextStyles.h2.copyWith(
+                              color: ThemeColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: ThemeDimensions.spacingSmall),
+                          Text(
+                            'Discover curated word collections',
+                            style: ThemeTextStyles.caption.copyWith(
+                              color: ThemeColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DictionaryRecommendScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.arrow_forward, size: 16),
+                        label: const Text('See All'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: ThemeColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                ],
+              ),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.school),
-            label: 'home.course'.tr,
+          // Dictionary Cards Grid
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingMedium),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.65,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final dictionary = popularDictionaries[index];
+                  return DictionaryCard(
+                    dictionary: dictionary,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DictionaryRecommendScreen(),
+                        ),
+                      );
+                    },
+                    onLike: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('❤️ Liked!'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    onToggleAdd: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            dictionary.isAdded
+                                ? 'Removed from library'
+                                : 'Added to library',
+                          ),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  );
+                },
+                childCount: popularDictionaries.length,
+              ),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.psychology),
-            label: 'home.ai'.tr,
+          SliverToBoxAdapter(
+            child: SizedBox(height: ThemeDimensions.spacingLarge),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.explore),
-            label: 'home.discover'.tr,
+          // Browse by Category Section
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Browse by Category',
+                    style: ThemeTextStyles.h3.copyWith(
+                      color: ThemeColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: MockDictionaries.getAllCategories().map((category) {
+                      return ActionChip(
+                        label: Text(category),
+                        backgroundColor: ThemeColors.primary.withOpacity(0.1),
+                        side: BorderSide(color: ThemeColors.primary.withOpacity(0.3)),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DictionaryRecommendScreen(),
+                            ),
+                          );
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.person),
-            label: 'home.profile'.tr,
+          SliverToBoxAdapter(
+            child: SizedBox(height: ThemeDimensions.spacingXLarge),
           ),
         ],
       ),
@@ -76,211 +828,21 @@ class _HomeScreenAppQyState extends State<HomeScreenAppQy> {
   }
 }
 
-/// Study tab - main learning screen
-class StudyTabView extends StatelessWidget {
-  const StudyTabView({super.key});
+class ProfileTabViewRefactored extends StatelessWidget {
+  const ProfileTabViewRefactored({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppTheme.primaryGreen.withOpacity(0.1),
-            Colors.white,
-          ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(QyAppLocalizationKeys.qyHomeProfile.tr(context)),
+        backgroundColor: ThemeColors.surface,
+      ),
+      body: Center(
+        child: Text(
+          'Profile - Coming Soon',
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
         ),
-      ),
-      child: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              expandedHeight: 120,
-              floating: false,
-              pinned: true,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              flexibleSpace: FlexibleSpaceBar(
-                title: Text(
-                  'app.name'.tr,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                centerTitle: false,
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.search, color: AppTheme.textPrimary),
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: AppTheme.textPrimary),
-                  onPressed: () {},
-                ),
-              ],
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.all(16),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  const StudyProgressCard(),
-                  const SizedBox(height: 16),
-                  const StudyStatsCard(),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle(context, 'home.moreFeatures'.tr),
-                  const SizedBox(height: 12),
-                  const FeatureGrid(),
-                  const SizedBox(height: 80),
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
-      ),
-    );
-  }
-}
-
-/// Course tab - course list
-class CourseTabView extends StatelessWidget {
-  const CourseTabView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('home.course'.tr),
-      ),
-      body: const Center(
-        child: Text('Course List - Coming Soon'),
-      ),
-    );
-  }
-}
-
-/// AI Study tab
-class AIStudyTabView extends StatelessWidget {
-  const AIStudyTabView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('home.ai'.tr),
-      ),
-      body: const Center(
-        child: Text('AI Study - Coming Soon'),
-      ),
-    );
-  }
-}
-
-/// Discover tab
-class DiscoverTabView extends StatelessWidget {
-  const DiscoverTabView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('home.discover'.tr),
-      ),
-      body: const Center(
-        child: Text('Discover - Coming Soon'),
-      ),
-    );
-  }
-}
-
-/// Profile tab
-class ProfileTabView extends StatelessWidget {
-  const ProfileTabView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('home.profile'.tr),
-      ),
-      body: Consumer<UserProviderAppQy>(
-        builder: (context, userProvider, child) {
-          final user = userProvider.currentUser;
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundColor: AppTheme.primaryGreen,
-                        child: Text(
-                          user?.displayName?.substring(0, 1) ?? 'U',
-                          style: const TextStyle(
-                            fontSize: 32,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        user?.displayName ?? 'User',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (user?.phone != null)
-                        Text(
-                          user!.phone!,
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: Text('settings.title'.tr),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: Text('auth.logout'.tr),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
-                  await userProvider.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).pushReplacementNamed('/login');
-                  }
-                },
-              ),
-            ],
-          );
-        },
       ),
     );
   }

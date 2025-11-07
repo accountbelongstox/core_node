@@ -16,6 +16,10 @@ from shared.data_exchange.unified_variable_system import unified_vars
 from utils.file_operations import FileOperations
 from utils.factory_analyzer import FactoryAnalyzer
 
+# Import build constants
+sys.path.insert(0, str(Path(__file__).parent.parent / "core" / "constants"))
+from build_constants import COMPILE_FACTORY_DIR
+
 class Step1ProjectCopyController:
     """Controller for Step 1: Project Copy and Directory Management"""
 
@@ -91,7 +95,7 @@ class Step1ProjectCopyController:
 
     def _find_existing_temp_dirs(self, app_name: str) -> List[Path]:
         """Find existing temporary directories for the app"""
-        build_factory = Path("D:/programing/.build_dir/compile_factory")
+        build_factory = Path(COMPILE_FACTORY_DIR)
         if not build_factory.exists():
             return []
 
@@ -148,7 +152,7 @@ class Step1ProjectCopyController:
             # Create new temporary directory
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             temp_dir_name = f"{app_name}_{timestamp}"
-            target_dir = Path("D:/programing/.build_dir/compile_factory") / temp_dir_name
+            target_dir = Path(COMPILE_FACTORY_DIR) / temp_dir_name
             print(f"[STEP-1] Creating new temporary directory: {target_dir}")
         else:
             print(f"[STEP-1] Selected existing directory: {target_dir}")
@@ -331,7 +335,7 @@ class Step1ProjectCopyController:
             validation_results['errors'].append("App name is empty or invalid")
 
         # Check build factory directory
-        build_factory = Path("D:/programing/.build_dir/compile_factory")
+        build_factory = Path(COMPILE_FACTORY_DIR)
         try:
             build_factory.mkdir(parents=True, exist_ok=True)
         except Exception as e:

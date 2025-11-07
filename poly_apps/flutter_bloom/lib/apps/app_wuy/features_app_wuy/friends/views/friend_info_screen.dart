@@ -97,7 +97,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeHome),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SingleChildScrollView(

@@ -156,29 +156,29 @@ class VideoStreamHandler:
 
         while self._running:
             try:
-                # Read H.264 frame from device
-                frame_data = await asyncio.to_thread(self.device.read_video_frame)
+                # Read H.264 frame from device (returns dict with metadata)
+                frame = await asyncio.to_thread(self.device.read_video_frame)
 
-                if not frame_data:
+                if not frame:
                     # Connection closed
                     break
 
-                # Parse NAL unit type
-                nal_type = self._get_nal_type(frame_data)
-                is_keyframe = (nal_type == 5)  # IDR frame
+                # Extract frame data and metadata (scrcpy provides these)
+                frame_data = frame['data']
+                pts = frame['pts']
+                is_config = frame['is_config']
+                is_keyframe = frame['is_keyframe']
 
-                # Generate fMP4 media segment
+                # Generate fMP4 media segment using scrcpy's PTS and keyframe flag
                 media_segment = self.encoder.generate_media_segment(
                     frame_data,
-                    self._timestamp,
-                    is_keyframe
+                    pts,  # Use scrcpy's PTS instead of calculating
+                    is_keyframe  # Use scrcpy's keyframe flag
                 )
 
-                # Update timestamp (assume 60 FPS = 16.67ms per frame)
-                self._timestamp += int(1000 / 60)
                 self._frame_count += 1
 
-                # Callback
+                # Callback with frame data
                 if self._on_frame:
                     self._on_frame(frame_data)
 
@@ -207,16 +207,19 @@ class VideoStreamHandler:
 
         while self._running:
             try:
-                # Read H.264 frame from device
-                frame_data = await asyncio.to_thread(self.device.read_video_frame)
+                # Read H.264 frame from device (returns dict with metadata)
+                frame = await asyncio.to_thread(self.device.read_video_frame)
 
-                if not frame_data:
+                if not frame:
                     # Connection closed
                     break
 
+                # Extract frame data
+                frame_data = frame['data']
+
                 self._frame_count += 1
 
-                # Callback
+                # Callback with frame data
                 if self._on_frame:
                     self._on_frame(frame_data)
 

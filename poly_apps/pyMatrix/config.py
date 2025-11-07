@@ -53,9 +53,9 @@ class Config:
         # 3. Fallback
         return "adb"
 
-    # scrcpy-server 配置
+    # scrcpy-server configuration (must match scrcpy_source version)
     SCRCPY_SERVER_JAR = RESOURCES_DIR / "scrcpy-server.jar"
-    SCRCPY_SERVER_VERSION = "2.1"
+    SCRCPY_SERVER_VERSION = "3.3.3"
 
     # ==================== Web 服务配置 ====================
     WEB_HOST = "0.0.0.0"

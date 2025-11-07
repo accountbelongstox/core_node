@@ -1,0 +1,608 @@
+{
+  "timestamp": "2025-11-07T21:27:50.601716",
+  "dry_run": false,
+  "actions": [
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_book_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_book_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_book_screen_app_qy.dart",
+        "已重命名: word_book_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_1_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_1_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_1_screen_app_qy.dart",
+        "已重命名: word_listening_1_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_ai_explain_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_ai_explain_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_ai_explain_screen_app_qy.dart",
+        "已重命名: word_listening_ai_explain_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_dictation_1_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_dictation_1_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_dictation_1_screen_app_qy.dart",
+        "已重命名: word_listening_dictation_1_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_dictation_2_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_dictation_2_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_dictation_2_screen_app_qy.dart",
+        "已重命名: word_listening_dictation_2_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_dictation_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_dictation_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_dictation_screen_app_qy.dart",
+        "已重命名: word_listening_dictation_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_free_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_free_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_free_screen_app_qy.dart",
+        "已重命名: word_listening_free_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_screen_app_qy.dart",
+        "已重命名: word_listening_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_sleep_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_listening_sleep_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: word_listening_sleep_screen_app_qy.dart",
+        "已重命名: word_listening_sleep_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\social\\views\\checkin_challenge_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\social\\views\\checkin_challenge_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: checkin_challenge_screen_app_qy.dart",
+        "已重命名: checkin_challenge_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\social\\views\\message_center_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\social\\views\\message_center_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: message_center_screen_app_qy.dart",
+        "已重命名: message_center_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\account_settings_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\account_settings_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: account_settings_screen_app_qy.dart",
+        "已重命名: account_settings_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\display_mode_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\display_mode_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: display_mode_screen_app_qy.dart",
+        "已重命名: display_mode_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\recommend_settings_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\recommend_settings_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: recommend_settings_screen_app_qy.dart",
+        "已重命名: recommend_settings_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\reminder_settings_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\reminder_settings_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: reminder_settings_screen_app_qy.dart",
+        "已重命名: reminder_settings_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\settings_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\settings_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: settings_screen_app_qy.dart",
+        "已重命名: settings_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\about_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\about_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: about_screen_app_qy.dart",
+        "已重命名: about_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\certificate_center_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\certificate_center_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: certificate_center_screen_app_qy.dart",
+        "已重命名: certificate_center_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\more_features_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\more_features_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: more_features_screen_app_qy.dart",
+        "已重命名: more_features_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\other\\views\\image_001_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\other\\views\\image_001_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: image_001_screen_app_qy.dart",
+        "已重命名: image_001_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: home_screen_app_qy.dart",
+        "已重命名: home_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_search_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_search_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: home_search_screen_app_qy.dart",
+        "已重命名: home_search_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_study_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_study_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: home_study_screen_app_qy.dart",
+        "已重命名: home_study_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_ielts_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_ielts_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: course_ielts_screen_app_qy.dart",
+        "已重命名: course_ielts_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_plans_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_plans_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: course_plans_screen_app_qy.dart",
+        "已重命名: course_plans_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_with_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\auth\\views\\login_phone_screen_refactored_app_qy.dart",
+      "original": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\auth\\views\\login_phone_screen_app_qy.dart",
+      "steps": [
+        "已删除原始文件: login_phone_screen_app_qy.dart",
+        "已重命名: login_phone_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_dictation_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: word_dictation_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_flashcard_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: word_flashcard_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_review_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: word_review_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_spelling_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: word_spelling_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\word\\views\\word_test_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: word_test_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\social\\views\\social_ranking_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: social_ranking_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\social\\views\\social_study_group_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: social_study_group_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\about_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: about_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\help_center_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: help_center_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\learning_preferences_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: learning_preferences_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\settings\\views\\notifications_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: notifications_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\profile_achievements_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: profile_achievements_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\profile\\views\\profile_stats_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: profile_stats_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_daily_task_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: home_daily_task_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\home\\views\\home_streak_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: home_streak_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\discover\\views\\discover_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: discover_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_certificate_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: course_certificate_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_detail_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: course_detail_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_lesson_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: course_lesson_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_progress_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: course_progress_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_review_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: course_review_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\course\\views\\course_search_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: course_search_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "refactored_without_original",
+      "refactored": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\features_app_qy\\ai_study\\views\\ai_study_screen_refactored_app_qy.dart",
+      "steps": [
+        "已重命名: ai_study_screen_app_qy.dart"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\icons\\ic_launcher.backup.png",
+      "steps": [
+        "已删除备份: ic_launcher.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\icons\\logo.backup.png",
+      "steps": [
+        "已删除备份: logo.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\icons\\raw-logo.backup.png",
+      "steps": [
+        "已删除备份: raw-logo.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\icons\\splash_logo.backup.png",
+      "steps": [
+        "已删除备份: splash_logo.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\launch\\background.backup.jpg",
+      "steps": [
+        "已删除备份: background.backup.jpg"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\launch\\dark_launch.backup.png",
+      "steps": [
+        "已删除备份: dark_launch.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\launch\\light_launch.backup.png",
+      "steps": [
+        "已删除备份: light_launch.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_qy\\launch\\light_launch_1.backup.jpg",
+      "steps": [
+        "已删除备份: light_launch_1.backup.jpg"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\ic_launcher.backup.png",
+      "steps": [
+        "已删除备份: ic_launcher.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\logo.backup.png",
+      "steps": [
+        "已删除备份: logo.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\maintenance.backup.png",
+      "steps": [
+        "已删除备份: maintenance.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\one_bg.backup.jpg",
+      "steps": [
+        "已删除备份: one_bg.backup.jpg"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\raw-logo.backup.png",
+      "steps": [
+        "已删除备份: raw-logo.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\registry_logo_1.backup.png",
+      "steps": [
+        "已删除备份: registry_logo_1.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\registry_logo_2.backup.png",
+      "steps": [
+        "已删除备份: registry_logo_2.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\splash_logo.backup.png",
+      "steps": [
+        "已删除备份: splash_logo.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\icons\\welcom.backup.png",
+      "steps": [
+        "已删除备份: welcom.backup.png"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\launch\\dark_launch.backup.jpg",
+      "steps": [
+        "已删除备份: dark_launch.backup.jpg"
+      ],
+      "status": "success"
+    },
+    {
+      "type": "backup_file",
+      "backup": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\common\\launch\\light_launch.backup.jpg",
+      "steps": [
+        "已删除备份: light_launch.backup.jpg"
+      ],
+      "status": "success"
+    }
+  ],
+  "summary": {
+    "refactored_renamed": 49,
+    "originals_deleted": 26,
+    "backups_deleted": 19,
+    "errors": 0
+  }
+}

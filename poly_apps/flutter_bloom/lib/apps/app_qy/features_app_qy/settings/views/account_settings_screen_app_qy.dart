@@ -5,137 +5,251 @@
 // 3. Never create or update documentation (*.md).
 // 4. Never write summaries during development or thinking process.
 // 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Account Settings Screen for QY App
 library;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../models_app_qy/user_model_app_qy.dart';
 
-class AccountSettingsScreenAppQy extends StatefulWidget {
-  const AccountSettingsScreenAppQy({super.key});
+class AccountSettingsScreenRefactoredAppQy extends StatefulWidget {
+  const AccountSettingsScreenRefactoredAppQy({super.key});
 
   @override
-  State<AccountSettingsScreenAppQy> createState() => _AccountSettingsScreenAppQyState();
+  State<AccountSettingsScreenRefactoredAppQy> createState() =>
+      _AccountSettingsScreenRefactoredAppQyState();
 }
 
-class _AccountSettingsScreenAppQyState extends State<AccountSettingsScreenAppQy> {
-  final List<Map<String, String>> _accountInfo;
-  final List<Map<String, dynamic>> _bindingOptions;
-  final List<String> _deletionWarnings;
+class _AccountSettingsScreenRefactoredAppQyState
+    extends State<AccountSettingsScreenRefactoredAppQy> {
+  final TextEditingController _nicknameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
-  _AccountSettingsScreenAppQyState()
-      : _accountInfo = [
-          {
-            'label': QyAppLocalizationKeys.qyUsername,
-            'value': 'Phone_b426ae24afe51855',
-            'action': QyAppLocalizationKeys.qySettingsModify,
-          },
-          {
-            'label': QyAppLocalizationKeys.qyPassword,
-            'value': '••••••••',
-            'action': QyAppLocalizationKeys.qySettingsChangePasswordTitle,
-          },
-        ],
-        _bindingOptions = [
-          {
-            'label': QyAppLocalizationKeys.qySettingsPhone,
-            'value': '181****7523',
-            'action': QyAppLocalizationKeys.qySettingsRebind,
-            'isBound': true,
-            'icon': Icons.phone_android,
-            'localizedValue': false,
-          },
-          {
-            'label': QyAppLocalizationKeys.qySettingsWechat,
-            'value': '蓦然回首',
-            'action': QyAppLocalizationKeys.qySettingsRebind,
-            'isBound': true,
-            'icon': Icons.wechat,
-            'localizedValue': false,
-          },
-          {
-            'label': QyAppLocalizationKeys.qySettingsWeibo,
-            'value': QyAppLocalizationKeys.qySettingsNotBound,
-            'action': QyAppLocalizationKeys.qySettingsBind,
-            'isBound': false,
-            'icon': Icons.alternate_email,
-            'localizedValue': true,
-          },
-          {
-            'label': QyAppLocalizationKeys.qySettingsQQ,
-            'value': QyAppLocalizationKeys.qySettingsNotBound,
-            'action': QyAppLocalizationKeys.qySettingsBind,
-            'isBound': false,
-            'icon': Icons.chat_bubble_outline,
-            'localizedValue': true,
-          },
-        ],
-        _deletionWarnings = [
-          QyAppLocalizationKeys.qySettingsDeletionDataLoss,
-          QyAppLocalizationKeys.qySettingsDeletionCourseLoss,
-          QyAppLocalizationKeys.qySettingsDeletionAccountClear,
-        ];
-
-  void _handleAccountAction(Map<String, String> field) {
-    final String labelKey = field['label']!;
-    final String actionKey = field['action']!;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${labelKey.tr(context)} ${actionKey.tr(context)}'),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
   }
 
-  void _handleBindingAction(Map<String, dynamic> binding) {
-    final String labelKey = binding['label'] as String;
-    final String actionKey = binding['action'] as String;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${labelKey.tr(context)} ${actionKey.tr(context)}'),
-      ),
-    );
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 
-  Future<void> _handleDeleteAccount() async {
-    final bool? confirmed = await showDialog<bool>(
+  void _loadUserData() {
+    _nicknameController.text = 'QY User';
+    _phoneController.text = '138****8888';
+    _emailController.text = 'user@example.com';
+  }
+
+  void _showEditDialog({
+    required String title,
+    required TextEditingController controller,
+    required VoidCallback onSave,
+  }) {
+    showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(QyAppLocalizationKeys.qySettingsFinalConfirmation.tr(context)),
-          content: Text(QyAppLocalizationKeys.qySettingsFinalConfirmationMessage.tr(context)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(QyAppLocalizationKeys.qySettingsLetMeThink.tr(context)),
+      builder: (context) => AlertDialog(
+        backgroundColor: ThemeColors.surface,
+        title: Text(
+          title,
+          style: ThemeTextStyles.h4.copyWith(color: ThemeColors.textPrimary),
+        ),
+        content: TextField(
+          controller: controller,
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textPrimary),
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+              borderSide: BorderSide(color: ThemeColors.border),
             ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: ThemeColors.error,
-              ),
-              child: Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+              borderSide: BorderSide(color: ThemeColors.primary, width: 2),
+            ),
+            contentPadding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              QyAppLocalizationKeys.qyCommonCancel.tr(context),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              onSave();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    QyAppLocalizationKeys.qySettingsAccountUpdateSuccess.tr(context),
+                  ),
+                ),
+              );
+            },
+            child: Text(
+              QyAppLocalizationKeys.qyCommonSave.tr(context),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ThemeColors.surface,
+        title: Text(
+          QyAppLocalizationKeys.qySettingsAccountChangePassword.tr(context),
+          style: ThemeTextStyles.h4.copyWith(color: ThemeColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildPasswordField(
+              controller: oldPasswordController,
+              label: QyAppLocalizationKeys.qySettingsAccountOldPassword.tr(context),
+            ),
+            SizedBox(height: ThemeDimensions.spacingMedium),
+            _buildPasswordField(
+              controller: newPasswordController,
+              label: QyAppLocalizationKeys.qySettingsAccountNewPassword.tr(context),
+            ),
+            SizedBox(height: ThemeDimensions.spacingMedium),
+            _buildPasswordField(
+              controller: confirmPasswordController,
+              label: QyAppLocalizationKeys.qySettingsAccountConfirmPassword.tr(context),
             ),
           ],
-        );
-      },
-    );
-
-    if (confirmed == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(QyAppLocalizationKeys.qySettingsAccountDeletionInProgress.tr(context)),
         ),
-      );
-    }
+        actions: [
+          TextButton(
+            onPressed: () {
+              oldPasswordController.dispose();
+              newPasswordController.dispose();
+              confirmPasswordController.dispose();
+              Navigator.pop(context);
+            },
+            child: Text(
+              QyAppLocalizationKeys.qyCommonCancel.tr(context),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              if (newPasswordController.text == confirmPasswordController.text) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      QyAppLocalizationKeys.qySettingsAccountPasswordChanged.tr(context),
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      QyAppLocalizationKeys.qySettingsAccountPasswordMismatch.tr(context),
+                    ),
+                    backgroundColor: ThemeColors.error,
+                  ),
+                );
+              }
+              oldPasswordController.dispose();
+              newPasswordController.dispose();
+              confirmPasswordController.dispose();
+            },
+            child: Text(
+              QyAppLocalizationKeys.qyCommonSave.tr(context),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String label,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: true,
+      style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: ThemeTextStyles.body2.copyWith(color: ThemeColors.textSecondary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+          borderSide: BorderSide(color: ThemeColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
+        ),
+        contentPadding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ThemeColors.surface,
+        title: Text(
+          QyAppLocalizationKeys.qySettingsAccountDeleteTitle.tr(context),
+          style: ThemeTextStyles.h4.copyWith(color: ThemeColors.error),
+        ),
+        content: Text(
+          QyAppLocalizationKeys.qySettingsAccountDeleteWarning.tr(context),
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              QyAppLocalizationKeys.qyCommonCancel.tr(context),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: Text(
+              QyAppLocalizationKeys.qyCommonDelete.tr(context),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -144,287 +258,287 @@ class _AccountSettingsScreenAppQyState extends State<AccountSettingsScreenAppQy>
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
         title: Text(
-          QyAppLocalizationKeys.qyAccountSettings.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          QyAppLocalizationKeys.qySettingsAccount.tr(context),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildAccountInfoSection(),
-              SizedBox(height: Dimensions.spacingMedium),
-              _buildBindingSection(),
-              SizedBox(height: Dimensions.spacingMedium),
-              _buildDeletionSection(),
-            ],
-          ),
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
         ),
       ),
-    );
-  }
-
-  Widget _buildAccountInfoSection() {
-    return _buildSectionCard(
-      title: QyAppLocalizationKeys.qyPersonalInfo.tr(context),
-      subtitle: QyAppLocalizationKeys.qyAccountSettings.tr(context),
-      child: Column(
-        children: List.generate(_accountInfo.length, (index) {
-          final field = _accountInfo[index];
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          field['label']!.tr(context),
-                          style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
-                        ),
-                        SizedBox(height: Dimensions.spacingXSmall),
-                        Text(
-                          field['value']!,
-                          style: TextStyles.body1.copyWith(
-                            color: ThemeColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => _handleAccountAction(field),
-                    child: Text(
-                      field['action']!.tr(context),
-                      style: TextStyles.button.copyWith(color: ThemeColors.primary),
-                    ),
-                  ),
-                ],
-              ),
-              if (index != _accountInfo.length - 1)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: Dimensions.spacingSmall),
-                  child: Divider(color: ThemeColors.border),
-                ),
-            ],
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildBindingSection() {
-    return _buildSectionCard(
-      title: QyAppLocalizationKeys.qySettingsAccountBinding.tr(context),
-      subtitle: QyAppLocalizationKeys.qySettingsPhoneBindingInProgress.tr(context),
-      child: Column(
-        children: List.generate(_bindingOptions.length, (index) {
-          final binding = _bindingOptions[index];
-          final bool isBound = binding['isBound'] as bool;
-          return Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(Dimensions.paddingSmall),
-                    decoration: BoxDecoration(
-                      color: ThemeColors.primary.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                    ),
-                    child: Icon(
-                      binding['icon'] as IconData,
-                      color: ThemeColors.primary,
-                    ),
-                  ),
-                  SizedBox(width: Dimensions.spacingMedium),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                (binding['label'] as String).tr(context),
-                                style: TextStyles.body1.copyWith(
-                                  color: ThemeColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: Dimensions.paddingSmall,
-                                vertical: Dimensions.paddingSizeExtraSmall,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isBound
-                                    ? ThemeColors.primary.withOpacity(0.1)
-                                    : ThemeColors.surface,
-                                borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-                                border: Border.all(
-                                  color: isBound ? ThemeColors.primary : ThemeColors.border,
-                                ),
-                              ),
-                              child: Text(
-                                isBound ? '已绑定' : QyAppLocalizationKeys.qySettingsNotBound.tr(context),
-                                style: TextStyles.caption.copyWith(
-                                  color: isBound ? ThemeColors.primary : ThemeColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: Dimensions.spacingXSmall),
-                        Text(
-                          ((binding['localizedValue'] as bool?) ?? false)
-                              ? (binding['value'] as String).tr(context)
-                              : binding['value'] as String,
-                          style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => _handleBindingAction(binding),
-                    child: Text(
-                      (binding['action'] as String).tr(context),
-                      style: TextStyles.button.copyWith(color: ThemeColors.primary),
-                    ),
-                  ),
-                ],
-              ),
-              if (index != _bindingOptions.length - 1)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: Dimensions.spacingSmall),
-                  child: Divider(color: ThemeColors.border),
-                ),
-            ],
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildDeletionSection() {
-    return _buildSectionCard(
-      title: QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context),
-      subtitle: QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle.tr(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
         children: [
-          ..._deletionWarnings.map(
-            (warning) => Padding(
-              padding: EdgeInsets.only(bottom: Dimensions.spacingXSmall),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.warning_amber_outlined, size: 20, color: ThemeColors.warning),
-                  SizedBox(width: Dimensions.spacingSmall),
-                  Expanded(
-                    child: Text(
-                      warning.tr(context),
-                      style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-                    ),
-                  ),
-                ],
+          _buildProfileHeader(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildInfoSection(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildSecuritySection(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildDangerZone(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    return Container(
+      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ThemeColors.primary,
+            ThemeColors.primary.withOpacity(0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.primary.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: ThemeColors.surface,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: ThemeColors.surface,
+                width: 3,
               ),
+            ),
+            child: Icon(
+              Icons.person,
+              size: 48,
+              color: ThemeColors.primary,
             ),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
-          Container(
-            padding: EdgeInsets.all(Dimensions.paddingMedium),
-            decoration: BoxDecoration(
-              color: ThemeColors.error.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-              border: Border.all(color: ThemeColors.error.withOpacity(0.4)),
-            ),
+          SizedBox(width: ThemeDimensions.spacingMedium),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  QyAppLocalizationKeys.qySettingsDeletionWarning.tr(context),
-                  style: TextStyles.body1.copyWith(
-                    color: ThemeColors.error,
-                    fontWeight: FontWeight.w600,
+                  _nicknameController.text,
+                  style: ThemeTextStyles.h3.copyWith(
+                    color: ThemeColors.surface,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: Dimensions.spacingSmall),
+                SizedBox(height: ThemeDimensions.spacingXSmall),
                 Text(
-                  QyAppLocalizationKeys.qySettingsConfirmDeletion.tr(context),
-                  style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
+                  'ID: 123456789',
+                  style: ThemeTextStyles.body2.copyWith(
+                    color: ThemeColors.surface.withOpacity(0.9),
+                  ),
                 ),
               ],
             ),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(QyAppLocalizationKeys.qySettingsLetMeThink.tr(context)),
-                    ),
-                  ),
-                  child: Text(QyAppLocalizationKeys.qySettingsLetMeThink.tr(context)),
-                ),
-              ),
-              SizedBox(width: Dimensions.spacingSmall),
-              Expanded(
-                child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: ThemeColors.error),
-                  onPressed: _handleDeleteAccount,
-                  child: Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
-                ),
-              ),
-            ],
+          IconButton(
+            onPressed: () {},
+            icon: Icon(
+              Icons.edit,
+              color: ThemeColors.surface,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionCard({
-    required String title,
-    String? subtitle,
-    required Widget child,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyles.subtitle1.copyWith(
-              color: ThemeColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+  Widget _buildInfoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          QyAppLocalizationKeys.qySettingsAccountInfo.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
           ),
-          if (subtitle != null) ...[
-            SizedBox(height: Dimensions.spacingXSmall),
-            Text(
-              subtitle,
-              style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Container(
+          decoration: BoxDecoration(
+            color: ThemeColors.surface,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(color: ThemeColors.border),
+          ),
+          child: Column(
+            children: [
+              _buildInfoTile(
+                icon: Icons.person,
+                title: QyAppLocalizationKeys.qySettingsAccountNickname.tr(context),
+                value: _nicknameController.text,
+                onTap: () => _showEditDialog(
+                  title: QyAppLocalizationKeys.qySettingsAccountNickname.tr(context),
+                  controller: _nicknameController,
+                  onSave: () {},
+                ),
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildInfoTile(
+                icon: Icons.phone,
+                title: QyAppLocalizationKeys.qySettingsAccountPhone.tr(context),
+                value: _phoneController.text,
+                onTap: () => _showEditDialog(
+                  title: QyAppLocalizationKeys.qySettingsAccountPhone.tr(context),
+                  controller: _phoneController,
+                  onSave: () {},
+                ),
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildInfoTile(
+                icon: Icons.email,
+                title: QyAppLocalizationKeys.qySettingsAccountEmail.tr(context),
+                value: _emailController.text,
+                onTap: () => _showEditDialog(
+                  title: QyAppLocalizationKeys.qySettingsAccountEmail.tr(context),
+                  controller: _emailController,
+                  onSave: () {},
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecuritySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          QyAppLocalizationKeys.qySettingsAccountSecurity.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Container(
+          decoration: BoxDecoration(
+            color: ThemeColors.surface,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(color: ThemeColors.border),
+          ),
+          child: Column(
+            children: [
+              _buildInfoTile(
+                icon: Icons.lock,
+                title: QyAppLocalizationKeys.qySettingsAccountChangePassword.tr(context),
+                value: '••••••••',
+                onTap: _showChangePasswordDialog,
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildInfoTile(
+                icon: Icons.security,
+                title: QyAppLocalizationKeys.qySettingsAccountTwoFactor.tr(context),
+                value: QyAppLocalizationKeys.qySettingsAccountTwoFactorDisabled.tr(context),
+                onTap: () {},
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDangerZone() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          QyAppLocalizationKeys.qySettingsAccountDangerZone.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.error,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Container(
+          decoration: BoxDecoration(
+            color: ThemeColors.surface,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(color: ThemeColors.error.withOpacity(0.3)),
+          ),
+          child: _buildInfoTile(
+            icon: Icons.delete_forever,
+            title: QyAppLocalizationKeys.qySettingsAccountDelete.tr(context),
+            value: QyAppLocalizationKeys.qySettingsAccountDeleteDescription.tr(context),
+            onTap: _showDeleteAccountDialog,
+            textColor: ThemeColors.error,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    required VoidCallback onTap,
+    Color? textColor,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
+              decoration: BoxDecoration(
+                color: (textColor ?? ThemeColors.primary).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: textColor ?? ThemeColors.primary,
+              ),
+            ),
+            SizedBox(width: ThemeDimensions.spacingMedium),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: textColor ?? ThemeColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: ThemeDimensions.spacingXSmall),
+                  Text(
+                    value,
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: ThemeColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: ThemeColors.textTertiary,
             ),
           ],
-          SizedBox(height: Dimensions.spacingMedium),
-          child,
-        ],
+        ),
       ),
     );
   }

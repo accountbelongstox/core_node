@@ -616,4 +616,11 @@ class ThemeDimensions {
 
   /// Legacy alias for backward compatibility
   static const double menuIconSize = iconSizeL;
+
+  // Backward compatibility aliases for app_qy
+  static const double radiusMedium = radiusM;
+  static const double spacingXSmall = spacing4;
+  static const double paddingXSmall = spacing4;
+  static const double paddingXLarge = spacing32;
+  static const double radiusXLarge = radiusXL;
 }

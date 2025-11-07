@@ -4,10 +4,17 @@ Image Resource Manager
 General image resource management for Flutter build system
 """
 
+import sys
+from pathlib import Path
+
 from shared.image_patterns import ImagePatterns
 
+# Import build constants
+sys.path.insert(0, str(Path(__file__).parent.parent / "core" / "constants"))
+from build_constants import EXTERNAL_RESOURCES_DIR
+
 # Build directory constants
-BUILD_APPS_STATIC_RESOURCES_ROOT = "D:/programing/.build_dir/build_apps_static_resources"
+BUILD_APPS_STATIC_RESOURCES_ROOT = EXTERNAL_RESOURCES_DIR
 
 class ImageResourceManager:
     """General image resource manager for Flutter build system"""

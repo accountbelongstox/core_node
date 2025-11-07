@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-05 16:46:19
+Generated: 2025-11-07 21:15:31
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -171,6 +171,7 @@ app_wuy [code_assets]
 │   │   ├── network_record_model_app_wuy.dart
 │   │   ├── phone_report_model_app_wuy.dart
 │   │   ├── search_filter_model_app_wuy.dart
+│   │   ├── search_history_model_app_wuy.dart
 │   │   └── user_model_app_wuy.dart
 │   ├── providers_app_wuy
 │   │   ├── app_prefs_app_wuy.dart
@@ -222,7 +223,6 @@ app_wuy [code_assets]
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
-│   ├── auth
 │   ├── auth_v2
 │   │   ├── README.md
 │   │   ├── auth_config.dart
@@ -263,6 +263,7 @@ app_wuy [code_assets]
 │   ├── localization
 │   │   ├── common_en.dart
 │   │   ├── common_zh.dart
+│   │   ├── localization.dart
 │   │   ├── localization_keys.dart
 │   │   ├── localization_manager.dart
 │   │   └── map_locales.dart
@@ -320,6 +321,7 @@ app_wuy [code_assets]
 │   │   ├── models
 │   │   │   ├── api_config.dart
 │   │   │   └── api_response.dart
+│   │   ├── network.dart
 │   │   ├── network_framework.dart
 │   │   ├── parsers
 │   │   │   └── adaptive_data_parser.dart
@@ -731,7 +733,9 @@ app_wuy [code_assets]
     │   ├── welcome.jpg
     │   └── youtube.png
     ├── images
-    │   └── .gitkeep
+    │   ├── .gitkeep
+    │   ├── splash.png
+    │   └── user.png
     └── launch
         ├── .gitkeep
         ├── dark_launch.backup.jpg

@@ -1,0 +1,1220 @@
+INFO] Caching variables for cross-process exchange...
+[SUCCESS] App selected - app_codemart [Debug/Web]
+[INFO] Variables saved for cross-process exchange
+[INFO] Debug script to execute: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1
+[SUCCESS] Debug mode configured - script path saved
+[INFO] Python launcher completed - passing control to PowerShell
+[DEBUG] Python script exit code: 0
+[DEBUG] Python script completed successfully, continuing to PowerShell execution...
+[DEBUG] Selected action from Python: 'Debug'
+[DEBUG] Routing to appropriate mode...
+[DEBUG] Calling Invoke-DebugMode
+[DEBUG] Loaded variables from Python:
+[DEBUG]   Selected App: 'app_codemart'
+[DEBUG]   Selected Action: 'Debug'
+[DEBUG]   Selected Platform: 'Web'
+[DEBUG]   Entry File: 'lib/apps/app_codemart/main_app_codemart.dart'
+[DEBUG]   App Index: '3'
+[DEBUG]   Debug Port: '10003'
+[DEBUG]   Script Path: 'D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1'
+[INFO] app_codemart [Debug/Web]
+[DEBUG] Debug mode detected, checking script path...
+[DEBUG] Script path exists check: True
+[DEBUG] Script path value: 'D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1'
+[INFO] Starting debug mode...
+[DEBUG] Script directory: 'D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug'
+[DEBUG] Script name: 'startDebugByWeb.ps1'
+[DEBUG] Switching to project root: 'D:\programing\core_node\poly_apps\flutter_bloom'
+[DEBUG] Current working directory: D:\programing\core_node\poly_apps\flutter_bloom
+[DEBUG] Loading SplashManager for pre-debug splash update
+[INFO] SplashManager library loaded successfully
+[INFO] Running pre-debug splash update...
+[SPLASH] Pre-debug splash update for app: app_codemart
+[SPLASH] Starting complete splash update process for app: app_codemart
+[SPLASH-PY] Starting Python splash update for app: app_codemart
+[SPLASH-PY] Executing: python "D:\programing\core_node\poly_apps\flutter_bloom\scripts\build_scripts\utils\splash_manager.py"
+[SPLASH-PY] Python will read app from file variables (KEY_SELECTED_APP = app_codemart)
+[SPLASH-PY] Python splash update completed successfully
+[SPLASH-FLUTTER] Running flutter_native_splash generate...
+[PUBSPEC-CACHE] pubspec.yaml unchanged, skipping pub get
+[SPLASH-FLUTTER] Skipping flutter pub get (pubspec.yaml unchanged, packages already downloaded)
+[SPLASH-FLUTTER] Skipping flutter_native_splash generate (splash already generated)
+[SPLASH-FLUTTER] flutter_native_splash completed successfully
+[SPLASH] Complete splash update process finished for app: app_codemart
+[SPLASH] Splash update completed successfully
+[SUCCESS] Pre-debug splash update completed
+[DEBUG] About to execute: powershell -File D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1
+[INFO] SplashManager library loaded successfully
+[DEBUG] Script location: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug
+[DEBUG] Switching to project root: D:\programing\core_node\poly_apps\flutter_bloom
+[DEBUG] Current working directory: D:\programing\core_node\poly_apps\flutter_bloom
+========================================
+Flutter Bloom Web Debug Launcher
+========================================
+[INFO] Loading variables for Web debug...
+[INFO] Web Debug Configuration:
+  App: app_codemart
+  Entry File: lib/apps/app_codemart/main_app_codemart.dart
+  App Index: 3
+  Debug Port: 10003
+  Action: Debug (hardcoded)
+  Platform: Web (hardcoded)
+[DEBUG] Config object type: PSCustomObject
+[DEBUG] Config has EntryFile property: True
+[DEBUG] Received config type: PSCustomObject
+[DEBUG] Config properties: App, Action, Platform, EntryFile, AppIndex, DebugPort
+[INFO] Starting Flutter Web Debug...
+========================================
+[INFO] Project Root: D:\programing\core_node\poly_apps\flutter_bloom
+[INFO] Entry File: lib/apps/app_codemart/main_app_codemart.dart
+[INFO] Debug Port: 10003
+[PUBSPEC-CACHE] pubspec.yaml unchanged, skipping pub get
+[INFO] pubspec.yaml unchanged, using cached packages
+[INFO] Executing: flutter run -d web-server --web-port 10003 --web-hostname 0.0.0.0 -t lib/apps/app_codemart/main_app_codemart.dart
+[INFO] Web server will be available at: http://localhost:10003
+[INFO] Press Ctrl+C to stop the debug server
+========================================
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Launching lib/apps/app_codemart/main_app_codemart.dart on Web Server in debug mode...
+Waiting for connection from debug service on Web Server...         19.1s
+lib/apps/app_codemart/main_app_codemart.dart is being served at http://0.0.0.0:10003
+The web-server device requires the Dart Debug Chrome extension for debugging. Consider using the Chrome or Edge devices
+for an improved development workflow.
+
+Flutter run key commands.
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+
+Recompile complete. Page requires refresh.
+Performing hot restart...                                          915ms
+Restarted application in 923ms.
+
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:19:29: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartAppName)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:40:31: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      context.tr(LocalizationKeysAppCodemart.codemartWelcome),
+                              ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:45:66: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      userModel.userProfile?.username ?? context.tr(LocalizationKeysAppCodemart.codemartUser),
+                                                                 ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:56:23: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              context.tr(LocalizationKeysAppCodemart.codemartQuickActions),
+                      ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:71:36: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    title: context.tr(LocalizationKeysAppCodemart.codemartTaskHall),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:77:36: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    title: context.tr(LocalizationKeysAppCodemart.codemartTasks),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:83:36: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    title: context.tr(LocalizationKeysAppCodemart.codemartCreateProject),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:88:34: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  title: context.tr(LocalizationKeysAppCodemart.codemartProjects),
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/home_view_app_codemart.dart:93:34: Error: The method 'tr' isn't defined for the
+class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  title: context.tr(LocalizationKeysAppCodemart.codemartWallet),
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:80:29: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartLogin)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:100:29: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    context.tr(LocalizationKeysAppCodemart.codemartAppName),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:111:42: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      labelText: context.tr(LocalizationKeysAppCodemart.codemartEmail),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:116:40: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterEmail);
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:119:40: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterValidEmail);
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:131:42: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      labelText: context.tr(LocalizationKeysAppCodemart.codemartPassword),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:144:40: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterPassword);
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:147:40: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        return context.tr(LocalizationKeysAppCodemart.codemartPasswordMinLength);
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:163:40: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        : Text(context.tr(LocalizationKeysAppCodemart.codemartLogin)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:171:36: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      Text(context.tr(LocalizationKeysAppCodemart.codemartDontHaveAccount)),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart:175:35: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          context.tr(LocalizationKeysAppCodemart.codemartRegister),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:88:29: Error: The method 'tr' isn't defined for
+the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartRegister)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:118:42: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          title: context.tr(LocalizationKeysAppCodemart.codemartDeveloper),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:127:42: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          title: context.tr(LocalizationKeysAppCodemart.codemartClient),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:140:42: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      labelText: context.tr(LocalizationKeysAppCodemart.codemartUsername),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:160:42: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      labelText: context.tr(LocalizationKeysAppCodemart.codemartEmail),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:180:42: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      labelText: context.tr(LocalizationKeysAppCodemart.codemartPassword),
+                                         ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:232:40: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        : Text(context.tr(LocalizationKeysAppCodemart.codemartRegister)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/register_view_app_codemart.dart:243:45: Error: The method 'tr' isn't defined
+for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartLogin)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:52:25: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              ? context.tr(LocalizationKeysAppCodemart.codemartRegisterAsDeveloper)
+                        ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:53:25: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              : context.tr(LocalizationKeysAppCodemart.codemartRegisterAsClient),
+                        ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:89:33: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        context.tr(_steps[index]),
+                                ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:121:43: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      child: Text(context.tr(LocalizationKeysAppCodemart.codemartPrevious)),
+                                          ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:136:43: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                                ? context.tr(LocalizationKeysAppCodemart.codemartNext)
+                                          ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:137:43: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                                : context.tr(LocalizationKeysAppCodemart.codemartFinish),
+                                          ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:175:23: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              context.tr(LocalizationKeysAppCodemart.codemartEmailVerification),
+                      ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:204:23: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              context.tr(LocalizationKeysAppCodemart.codemartPhoneVerification),
+                      ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:233:23: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              context.tr(LocalizationKeysAppCodemart.codemartKycVerification),
+                      ^^
+lib/apps/app_codemart/views_app_codemart/registration_flow/registration_flow_view_app_codemart.dart:261:23: Error: The
+method 'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              context.tr(LocalizationKeysAppCodemart.codemartPaymentDeposit),
+                      ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_hall_view_app_codemart.dart:64:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartTaskHall)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_hall_view_app_codemart.dart:87:45: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartRetry)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_hall_view_app_codemart.dart:94:43: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+                                          ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:76:35: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:105:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartTaskTitle)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:139:44: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            label: context.tr(LocalizationKeysAppCodemart.codemartTaskStatus),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:144:44: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            label: context.tr(LocalizationKeysAppCodemart.codemartTaskPriority),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:149:44: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:154:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            context.tr(LocalizationKeysAppCodemart.codemartTaskDescription),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/tasks/task_details_view_app_codemart.dart:165:53: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                                child: Text(context.tr(LocalizationKeysAppCodemart.codemartAcceptTask)),
+                                                    ^^
+lib/apps/app_codemart/views_app_codemart/tasks/my_tasks_view_app_codemart.dart:79:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartTasks)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/tasks/my_tasks_view_app_codemart.dart:121:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:45:57: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            _errorMessage = response.message ?? context.tr(LocalizationKeysAppCodemart.codemartFailedLoadProjects);
+                                                        ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:64:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjects)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:87:45: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartRetry)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:94:43: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+                                          ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:110:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        label: Text(context.tr(LocalizationKeysAppCodemart.codemartCreateProject)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:156:35: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  Text('${context.tr(LocalizationKeysAppCodemart.codemartBudget)}:
+                  \$${project.budget.toStringAsFixed(2)}'),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/projects_view_app_codemart.dart:160:35: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  Text('${context.tr(LocalizationKeysAppCodemart.codemartComplexity)}: ${project.complexity.name}'),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/project_details_view_app_codemart.dart:68:29: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectTitle)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/project_details_view_app_codemart.dart:130:44: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/projects/project_details_view_app_codemart.dart:137:44: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectStartDate),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/projects/project_details_view_app_codemart.dart:142:44: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectEndDate),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/projects/project_details_view_app_codemart.dart:150:37: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            context.tr(LocalizationKeysAppCodemart.codemartProjectDescription),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/projects/project_details_view_app_codemart.dart:160:37: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            context.tr(LocalizationKeysAppCodemart.codemartProjectSkills),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:43:26: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+      _showError(context.tr(LocalizationKeysAppCodemart.codemartSelectStartEndDates));
+                         ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:47:26: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+      _showError(context.tr(LocalizationKeysAppCodemart.codemartAddAtLeastOneSkill));
+                         ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:81:35: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:87:48: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        _showError(response.message ?? context.tr(LocalizationKeysAppCodemart.codemartFailedCreateProject));
+                                               ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:131:29: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartAddSkill)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:135:32: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            labelText: context.tr(LocalizationKeysAppCodemart.codemartSkillName),
+                               ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:136:31: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            hintText: context.tr(LocalizationKeysAppCodemart.codemartSkillPlaceholder),
+                              ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:142:33: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            child: Text(context.tr(LocalizationKeysAppCodemart.codemartCancel)),
+                                ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:153:33: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            child: Text(context.tr(LocalizationKeysAppCodemart.codemartAdd)),
+                                ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:174:26: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+      _showError(context.tr(LocalizationKeysAppCodemart.codemartErrorPickingFiles));
+                         ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:212:29: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartCreateProject)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:223:36: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectTitle),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:228:34: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterProjectTitle);
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:240:36: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectDescription),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:246:34: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterProjectDescription);
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:258:36: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:263:34: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterBudget);
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:266:34: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterValidNumber);
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:277:36: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                labelText: context.tr(LocalizationKeysAppCodemart.codemartBudgetType),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:298:36: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectComplexity),
+                                   ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:318:35: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectStartDate)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:319:78: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              subtitle: Text(_startDate?.toString().split(' ')[0] ??
+              context.tr(LocalizationKeysAppCodemart.codemartNotSelected)),
+                                                                             ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:331:35: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectEndDate)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:332:76: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              subtitle: Text(_endDate?.toString().split(' ')[0] ??
+              context.tr(LocalizationKeysAppCodemart.codemartNotSelected)),
+                                                                           ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:346:27: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  context.tr(LocalizationKeysAppCodemart.codemartProjectSkills),
+                          ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:352:39: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  label: Text(context.tr(LocalizationKeysAppCodemart.codemartAddSkill)),
+                                      ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:358:28: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+              Text(context.tr(LocalizationKeysAppCodemart.codemartNoSkillsAdded), style: const TextStyle(color:
+              Colors.grey))
+                           ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:379:27: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  context.tr(LocalizationKeysAppCodemart.codemartAttachmentsOptional),
+                          ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:385:39: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  label: Text(context.tr(LocalizationKeysAppCodemart.codemartAddFiles)),
+                                      ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:392:25: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                context.tr(LocalizationKeysAppCodemart.codemartAttachDocumentsHint),
+                        ^^
+lib/apps/app_codemart/views_app_codemart/projects/create_project_view_app_codemart.dart:428:34: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  : Text(context.tr(LocalizationKeysAppCodemart.codemartSubmit)),
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:20:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartProfile)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:31:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+          ? Center(child: Text(context.tr(LocalizationKeysAppCodemart.codemartUserNotLoggedIn)))
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:76:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    context.tr(LocalizationKeysAppCodemart.codemartDeveloper),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:121:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    context.tr(LocalizationKeysAppCodemart.codemartClient),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:155:27: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  context.tr(LocalizationKeysAppCodemart.codemartSettings),
+                          ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:164:45: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartWallet)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:171:45: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartNotifications)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:180:45: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartLanguage)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/profile/profile_view_app_codemart.dart:190:35: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          context.tr(LocalizationKeysAppCodemart.codemartLogout),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/wallet/wallet_view_app_codemart.dart:59:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartWallet)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/wallet/wallet_view_app_codemart.dart:63:31: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            Tab(text: context.tr(LocalizationKeysAppCodemart.codemartBalance)),
+                              ^^
+lib/apps/app_codemart/views_app_codemart/wallet/wallet_view_app_codemart.dart:64:31: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            Tab(text: context.tr(LocalizationKeysAppCodemart.codemartTransactions)),
+                              ^^
+lib/apps/app_codemart/views_app_codemart/wallet/wallet_view_app_codemart.dart:92:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    context.tr(LocalizationKeysAppCodemart.codemartBalance),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/wallet/wallet_view_app_codemart.dart:119:33: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                        context.tr(LocalizationKeysAppCodemart.codemartEarnings),
+                                ^^
+lib/apps/app_codemart/views_app_codemart/wallet/wallet_view_app_codemart.dart:171:33: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+                                ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:106:35: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:136:29: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartEdit)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:174:46: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectTitle),
+                                             ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:191:46: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectDescription),
+                                             ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:209:46: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                                             ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:229:48: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectStatus),
+                                               ^^
+lib/apps/app_codemart/views_app_codemart/projects/edit_project_view_app_codemart.dart:255:44: Error: The method 'tr'
+isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                            : Text(context.tr(LocalizationKeysAppCodemart.codemartSave)),
+                                           ^^
+lib/apps/app_codemart/views_app_codemart/tasks/submit_task_view_app_codemart.dart:95:35: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/tasks/submit_task_view_app_codemart.dart:125:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartSubmitTask)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/tasks/submit_task_view_app_codemart.dart:206:50: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                              labelText: context.tr(LocalizationKeysAppCodemart.codemartTaskDescription),
+                                                 ^^
+lib/apps/app_codemart/views_app_codemart/tasks/submit_task_view_app_codemart.dart:265:48: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                                : Text(context.tr(LocalizationKeysAppCodemart.codemartSubmit)),
+                                               ^^
+lib/apps/app_codemart/views_app_codemart/projects/proposal_view_app_codemart.dart:78:35: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+                                  ^^
+lib/apps/app_codemart/views_app_codemart/projects/proposal_view_app_codemart.dart:277:59: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                                                  context.tr(LocalizationKeysAppCodemart.codemartCancel),
+                                                          ^^
+lib/apps/app_codemart/views_app_codemart/projects/proposal_view_app_codemart.dart:286:59: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                                                  context.tr(LocalizationKeysAppCodemart.codemartConfirm),
+                                                          ^^
+lib/apps/app_codemart/views_app_codemart/notifications/notifications_view_app_codemart.dart:139:29: Error: The method
+'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                    context.tr(LocalizationKeysAppCodemart.codemartNoData),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:13:29: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartSettings)),
+                            ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:18:28: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            title: context.tr(LocalizationKeysAppCodemart.codemartAccount),
+                           ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:22:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartProfile)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:23:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartEditProfileInfo)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:29:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartWallet)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:30:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartManagePaymentsTransactions)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:38:28: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            title: context.tr(LocalizationKeysAppCodemart.codemartPreferences),
+                           ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:42:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartNotifications)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:43:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartManageNotificationPreferences)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:49:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartLanguage)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:50:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartChangeAppLanguage)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:56:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartTheme)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:57:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartLightDarkSystem)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:67:28: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            title: context.tr(LocalizationKeysAppCodemart.codemartPrivacySecurity),
+                           ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:71:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartPrivacy)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:72:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartManagePrivacySettings)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:78:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartSecurity)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:79:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartPasswordAuthentication)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:89:28: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            title: context.tr(LocalizationKeysAppCodemart.codemartSupport),
+                           ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:93:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartHelpSupport)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:94:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartFaqsContactSupport)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:100:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartAbout)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:101:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartAppVersionInfo)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:107:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartTermsConditions)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:117:28: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+            title: context.tr(LocalizationKeysAppCodemart.codemartApp),
+                           ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:121:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartClearCache)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:122:40: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                subtitle: Text(context.tr(LocalizationKeysAppCodemart.codemartFreeUpStorage)),
+                                       ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:127:43: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      title: Text(context.tr(LocalizationKeysAppCodemart.codemartClearCache)),
+                                          ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:128:45: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                      content: Text(context.tr(LocalizationKeysAppCodemart.codemartClearCacheConfirm)),
+                                            ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:132:47: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          child: Text(context.tr(LocalizationKeysAppCodemart.codemartCancel)),
+                                              ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:141:47: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                          child: Text(context.tr(LocalizationKeysAppCodemart.codemartConfirm)),
+                                              ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:138:62: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                              SnackBar(content: Text(context.tr(LocalizationKeysAppCodemart.codemartCacheCleared))),
+                                                             ^^
+lib/apps/app_codemart/views_app_codemart/settings/settings_view_app_codemart.dart:150:37: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                title: Text(context.tr(LocalizationKeysAppCodemart.codemartReportBug)),
+                                    ^^
+lib/apps/app_codemart/views_app_codemart/reviews/review_view_app_codemart.dart:51:31: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+                              ^^
+lib/apps/app_codemart/views_app_codemart/reviews/review_view_app_codemart.dart:243:34: Error: The method 'tr' isn't
+defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+                  : Text(context.tr(LocalizationKeysAppCodemart.codemartSubmit)),
+                                 ^^
+lib/apps/app_codemart/views_app_codemart/architect/architect_dashboard_view_app_codemart.dart:53:29: Error: The method
+'tr' isn't defined for the class 'BuildContext'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win11/flutter/packages/flutter/lib/src/widgets/framework.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'tr'.
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartArchitect)),
+                            ^^
+Bad state: Could not find summary for library "library package:qyflutter/common/localization/map_locales.dart".

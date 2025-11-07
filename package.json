@@ -32,7 +32,9 @@
     "#@frontend_launcher": "./ncore/utils/frontend_launcher/main.js",
     "#@mcp_server": "./ncore/utils/mcp_server/index.js",
     "#@singleton_browser": "./ncore/utils/singleton_browser/main.js",
-    "#@ittools": "./ncore/utils/ittools/index.js"
+    "#@ittools": "./ncore/utils/ittools/index.js",
+    "#@python_bridge": "./ncore/utils/python_bridge/index.js",
+    "#@singleton_rpc_launcher": "./ncore/utils/rpc/SingletonRpcLauncher.js"
   },
   "private": true,
   "description": "ncore is a collection of core modules for Electron application development. This module set provides foundational infrastructure and common functionalities, including plugin management, logging, and core feature extensions. By using ncore, developers can efficiently build and manage complex Electron applications, enhancing maintainability and scalability throughout the development process.",

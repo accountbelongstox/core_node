@@ -193,21 +193,35 @@ class DeviceManager:
                 # Create and start scrcpy device
                 device = ScrcpyDevice(serial, params, adb_path)
 
-                # Start scrcpy-server (this may fail if scrcpy-server.jar not found)
+                # Start scrcpy-server (CRITICAL: must succeed for video streaming)
                 try:
+                    print(f"[DeviceManager] Starting scrcpy-server for {serial}...")
                     await asyncio.to_thread(device.start_server)
+                    print(f"[DeviceManager] ✓ scrcpy-server started successfully for {serial}")
                 except Exception as e:
-                    print(f"Warning: Failed to start scrcpy-server for {serial}: {e}")
-                    print("Device will be tracked but video streaming won't work yet")
-                    # Continue anyway - device state will be tracked
+                    error_msg = f"Failed to start scrcpy-server for {serial}: {e}"
+                    print(f"[DeviceManager] ✗ {error_msg}")
+                    print(f"[DeviceManager] Possible causes:")
+                    print(f"  1. scrcpy-server.jar not pushed to /data/local/tmp/")
+                    print(f"  2. ADB connection unstable")
+                    print(f"  3. Device permissions issue")
+                    # ✅ CRITICAL: Return None instead of continuing
+                    # This ensures frontend knows the connection failed
+                    raise RuntimeError(error_msg)
+
+                # Verify device is truly connected (has active sockets)
+                if not device.is_connected():
+                    error_msg = f"Device {serial} scrcpy-server started but sockets not connected"
+                    print(f"[DeviceManager] ✗ {error_msg}")
+                    raise RuntimeError(error_msg)
 
                 # Create device state
                 state = DeviceState(
                     serial=serial,
                     info=info,
                     connected=True,
-                    streaming=device.is_connected(),  # True if scrcpy started successfully
-                    controllable=device.is_connected()
+                    streaming=True,  # scrcpy-server is running
+                    controllable=True
                 )
 
                 self.device_states[serial] = state
@@ -220,7 +234,7 @@ class DeviceManager:
                 # Emit connected event
                 await self._emit_connected(serial, info)
 
-                print(f"Device {serial} connected successfully")
+                print(f"[DeviceManager] ✓ Device {serial} fully connected and ready for streaming")
                 return device
 
             except Exception as e:

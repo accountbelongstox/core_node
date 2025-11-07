@@ -114,7 +114,7 @@ def display_extraction_results(result: SmartRecognitionResult):
     Args:
         result: SmartRecognitionResult to display
     """
-    from .common_utils import ColorMessage
+    from common_utils import ColorMessage
 
     ColorMessage.write("Extraction Results:", 'info')
     ColorMessage.write(f"Total segments: {result.total_segments}", 'info')
@@ -149,7 +149,7 @@ def prompt_token_fill_strategy(token_variables: List[Dict]) -> Tuple[str, Option
         - strategy: "all" or "single"
         - target_variable: The selected variable (only if strategy is "single")
     """
-    from .common_utils import ColorMessage
+    from common_utils import ColorMessage
 
     if len(token_variables) <= 1:
         return "all", None
@@ -195,7 +195,7 @@ def get_value_for_input_type(input_type: str, extracted_data: SmartRecognitionRe
     Returns:
         The selected value
     """
-    from .common_utils import ColorMessage
+    from common_utils import ColorMessage
 
     if input_type == "Url" and extracted_data.api_urls:
         value = extracted_data.api_urls[0]

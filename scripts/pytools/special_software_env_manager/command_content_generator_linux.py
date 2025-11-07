@@ -44,8 +44,16 @@ class LinuxCommandContentGenerator:
         return self.ai_tools_dir / f'{tool_type}_update.sh'
 
     def generate_mcp_section(self, tool_type: str, tool_display_name: str,
-                           target_name: str, support_upgrade: bool = True) -> str:
-        """Generate MCP synchronization section for any AI tool (Linux version)"""
+                           target_name: str, support_upgrade: bool = True, support_npm_update: bool = False) -> str:
+        """Generate MCP synchronization section for any AI tool (Linux version)
+
+        Args:
+            tool_type: Type of AI tool (e.g., 'claude', 'codex')
+            tool_display_name: Display name for the tool (e.g., 'Claude Code')
+            target_name: Target name for MCP sync (e.g., 'claude')
+            support_upgrade: Whether to include upgrade option
+            support_npm_update: Whether to include npm/npx update option
+        """
         update_script_path = self.get_update_script_path(tool_type)
         sync_script_path = self.get_mcp_sync_script_path(tool_type)
         pre_launch_script_path = self.get_pre_launch_script_path(tool_type)
@@ -91,6 +99,33 @@ fi
 
 """
 
+        npm_update_section = ""
+        if support_npm_update:
+            npm_update_section = """
+echo ""
+read -p "Do you want to update npm global packages? (y/N): " npm_update_choice
+if [ "$npm_update_choice" = "y" ] || [ "$npm_update_choice" = "Y" ]; then
+    echo ""
+    echo "[INFO] Updating npm global packages..."
+    echo ""
+
+    # Check if npm is available
+    if command -v npm &> /dev/null; then
+        echo "[INFO] Checking for npm updates..."
+        npm update -g
+        echo ""
+        echo "[SUCCESS] npm global packages updated"
+    else
+        echo "[WARNING] npm command not found"
+    fi
+    echo ""
+else
+    echo "[INFO] Skipping npm update"
+    echo ""
+fi
+
+"""
+
         sync_section = f"""current_working_dir="$(pwd)"
 echo ""
 echo "Syncing MCP Server Configurations..."
@@ -127,8 +162,96 @@ read -p "Press Enter to continue"
 echo ""
 
 {pre_launch_section}
-{upgrade_section}
+{upgrade_section}{npm_update_section}
 {sync_section}
+"""
+
+    def generate_custom_user_directory_section(self) -> str:
+        """Generate custom user directory configuration section for Linux"""
+        return """
+#region Initialize Path Variables
+scriptCurrentPath="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scriptsDirPath="$(dirname "$scriptCurrentPath")"
+shellsDirPath="$scriptsDirPath/shells"
+linuxDirPath="$shellsDirPath/linux"
+linuxCommonDirPath="$linuxDirPath/linux_common"
+pytoolsDirPath="$scriptsDirPath/pytools"
+aiToolsDirPath="$pytoolsDirPath/ai_tools"
+
+#region Custom User Directory Configuration
+# ============================================================================
+# CUSTOM USER DIRECTORY SETTING
+# ============================================================================
+# Automatically generates user directory at /tmp/Users/时间戳
+# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# ============================================================================
+
+# Generate timestamp for directory name
+timestamp=$(date +"%Y%m%d_%H%M%S")
+baseTempDir="/tmp/Users"
+CustomUserDirectory="$baseTempDir/$timestamp"
+
+# Create the directory if it doesn't exist
+if [ ! -d "$baseTempDir" ]; then
+    echo "[INFO] Creating base directory: $baseTempDir"
+    mkdir -p "$baseTempDir"
+fi
+
+if [ ! -d "$CustomUserDirectory" ]; then
+    echo "[INFO] Creating custom user directory: $CustomUserDirectory"
+    mkdir -p "$CustomUserDirectory"
+fi
+
+# Verify directory was created successfully
+if [ -d "$CustomUserDirectory" ]; then
+    userProfilePath="$CustomUserDirectory"
+    echo "[SUCCESS] Using auto-generated custom user directory: $userProfilePath"
+else
+    echo "[WARNING] Failed to create custom directory, falling back to system default"
+    userProfilePath="$HOME"
+    echo "[INFO] Using system default user directory: $userProfilePath"
+fi
+
+userHomePath="$userProfilePath"
+usersDirectoryPath="$(dirname "$userProfilePath")"
+
+# Set environment variables for Node.js, React, Python, and other applications
+# ============================================================================
+# These environment variables will be available to all child processes
+# including Node.js, React, Python, and other applications launched from this script
+#
+# Python usage examples:
+#   import os
+#   user_home = os.path.expanduser("~")  # Uses HOME
+#   user_home = os.getenv("HOME")
+#   from pathlib import Path
+#   user_home = Path.home()  # Uses HOME
+# ============================================================================
+export HOME="$userProfilePath"
+export USER_HOME="$userProfilePath"
+export USER_DIR="$userProfilePath"
+
+echo "[INFO] Environment variables set for Node.js/React/Python applications:"
+echo "  HOME = $HOME"
+echo "  USER_HOME = $USER_HOME"
+echo "  USER_DIR = $USER_DIR"
+echo ""
+#endregion
+
+# Test path resolution (can be removed in production)
+echo "[DEBUG] Path Resolution Test:"
+echo "  Script Path: $scriptCurrentPath"
+echo "  Scripts Dir: $scriptsDirPath"
+echo "  Shells Dir: $shellsDirPath"
+echo "  Linux Dir: $linuxDirPath"
+echo "  Linux Common Dir: $linuxCommonDirPath"
+echo "  PyTools Dir: $pytoolsDirPath"
+echo "  AI Tools Dir: $aiToolsDirPath"
+echo "  User Profile: $userProfilePath"
+echo "  User Home: $userHomePath"
+echo "  Users Directory: $usersDirectoryPath"
+echo ""
+#endregion
 """
 
     def _generate_python_secret_loader(self, variables: List[Dict[str, Any]], file_number: int) -> str:
@@ -407,6 +530,7 @@ echo ""
         # Generate all sections using helper methods
         header = self._generate_header(config_name, command_prefix, ps_command, file_number, file_name)
         file_display = self._generate_file_display(file_name)
+        custom_user_dir_section = self.generate_custom_user_directory_section()
         env_loading = self._generate_env_loading_section(variables, file_number)
 
         # Add MCP section if provided
@@ -428,7 +552,7 @@ echo ""
         launch = self._generate_launch_section(config_name, ps_command, variables)
 
         # Combine all sections
-        return f"{header}{file_display}{env_loading}{mcp_section_content}{launch}"
+        return f"{header}{file_display}{custom_user_dir_section}{env_loading}{mcp_section_content}{launch}"
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

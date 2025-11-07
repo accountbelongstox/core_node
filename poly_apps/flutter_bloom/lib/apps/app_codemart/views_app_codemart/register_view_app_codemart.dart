@@ -5,6 +5,7 @@ import '../main_app_codemart.dart';
 import '../models_app_codemart/codemart_enums.dart';
 import '../router_app_codemart/router_app_codemart.dart';
 import '../services_app_codemart/auth_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class RegisterViewAppCodemart extends StatefulWidget {
   const RegisterViewAppCodemart({super.key});
@@ -85,7 +86,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartRegister)),
+        title: Text(LocalizationKeysAppCodemart.codemartRegister.tr(context)),
       ),
       body: SafeArea(
         child: Center(
@@ -115,7 +116,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                       Expanded(
                         child: _RoleCard(
                           icon: Icons.code,
-                          title: context.tr(LocalizationKeysAppCodemart.codemartDeveloper),
+                          title: LocalizationKeysAppCodemart.codemartDeveloper.tr(context),
                           isSelected: _selectedRole == UserRoleType.developer,
                           onTap: () => setState(() => _selectedRole = UserRoleType.developer),
                         ),
@@ -124,7 +125,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                       Expanded(
                         child: _RoleCard(
                           icon: Icons.business,
-                          title: context.tr(LocalizationKeysAppCodemart.codemartClient),
+                          title: LocalizationKeysAppCodemart.codemartClient.tr(context),
                           isSelected: _selectedRole == UserRoleType.client,
                           onTap: () => setState(() => _selectedRole = UserRoleType.client),
                         ),
@@ -137,7 +138,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                   TextFormField(
                     controller: _usernameController,
                     decoration: InputDecoration(
-                      labelText: context.tr(LocalizationKeysAppCodemart.codemartUsername),
+                      labelText: LocalizationKeysAppCodemart.codemartUsername.tr(context),
                       prefixIcon: const Icon(Icons.person),
                     ),
                     validator: (value) {
@@ -157,7 +158,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: context.tr(LocalizationKeysAppCodemart.codemartEmail),
+                      labelText: LocalizationKeysAppCodemart.codemartEmail.tr(context),
                       prefixIcon: const Icon(Icons.email),
                     ),
                     validator: (value) {
@@ -177,7 +178,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: context.tr(LocalizationKeysAppCodemart.codemartPassword),
+                      labelText: LocalizationKeysAppCodemart.codemartPassword.tr(context),
                       prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
                         icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
@@ -229,7 +230,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Text(context.tr(LocalizationKeysAppCodemart.codemartRegister)),
+                        : Text(LocalizationKeysAppCodemart.codemartRegister.tr(context)),
                   ),
                   const SizedBox(height: 16),
 
@@ -240,7 +241,7 @@ class _RegisterViewAppCodemartState extends State<RegisterViewAppCodemart> {
                       const Text('Already have an account? '),
                       TextButton(
                         onPressed: () => RouterAppCodemart.goToLogin(context),
-                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartLogin)),
+                        child: Text(LocalizationKeysAppCodemart.codemartLogin.tr(context)),
                       ),
                     ],
                   ),

@@ -101,6 +101,10 @@ Future<void> runCommonApp({
       scopedProvidersBuilder,
   // Storage configuration - control whether to initialize UnifiedStorage
   bool initializeUnifiedStorage = true, // Default to true for backward compatibility
+  ThemeData? lightTheme,
+  ThemeData? darkTheme,
+  List<ThemeExtension<dynamic>>? lightThemeExtensions,
+  List<ThemeExtension<dynamic>>? darkThemeExtensions,
 }) async {
   // Prevent multiple initializations
   if (_appInitialized) {
@@ -235,7 +239,14 @@ Future<void> runCommonApp({
   runApp(
     MultiProvider(
       providers: providerList,
-      child: customApp ?? FlutterBloomMainApp(routerConfig: routerConfig),
+      child: customApp ??
+          FlutterBloomMainApp(
+            routerConfig: routerConfig,
+            lightTheme: lightTheme,
+            darkTheme: darkTheme,
+            lightThemeExtensions: lightThemeExtensions,
+            darkThemeExtensions: darkThemeExtensions,
+          ),
     ),
   );
 
@@ -265,7 +276,19 @@ Future<void> runCommonApp({
 class FlutterBloomMainApp extends StatefulWidget {
   final GoRouter? routerConfig;
 
-  const FlutterBloomMainApp({super.key, this.routerConfig});
+  final ThemeData? lightTheme;
+  final ThemeData? darkTheme;
+  final List<ThemeExtension<dynamic>>? lightThemeExtensions;
+  final List<ThemeExtension<dynamic>>? darkThemeExtensions;
+
+  const FlutterBloomMainApp({
+    super.key,
+    this.routerConfig,
+    this.lightTheme,
+    this.darkTheme,
+    this.lightThemeExtensions,
+    this.darkThemeExtensions,
+  });
 
   @override
   State<FlutterBloomMainApp> createState() => _FlutterBloomMainAppState();
@@ -298,21 +321,38 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
       screenSizeProvider.updateScreenSize(context);
     });
 
+    final ThemeData resolvedLightTheme = _mergeThemeExtensions(
+      widget.lightTheme ?? getAppLightTheme(),
+      widget.lightThemeExtensions ?? const <ThemeExtension<dynamic>>[GradientLight()],
+    );
+
+    final ThemeData resolvedDarkTheme = _mergeThemeExtensions(
+      widget.darkTheme ?? getAppDarkTheme(),
+      widget.darkThemeExtensions ?? const <ThemeExtension<dynamic>>[GradientDark()],
+    );
+
     return MaterialApp.router(
       title: appName,
       debugShowCheckedModeBanner: false,
-      theme: getAppLightTheme().copyWith(
-        extensions: <ThemeExtension<dynamic>>[const GradientLight()],
-      ),
-      darkTheme: getAppDarkTheme().copyWith(
-        extensions: <ThemeExtension<dynamic>>[const GradientDark()],
-      ),
+      theme: resolvedLightTheme,
+      darkTheme: resolvedDarkTheme,
       themeMode: settingsController.themeMode,
       supportedLocales: _localization.supportedLocales,
       localizationsDelegates: _localization.localizationsDelegates,
       routerConfig: widget.routerConfig,
     );
   }
+}
+
+ThemeData _mergeThemeExtensions(
+  ThemeData baseTheme,
+  List<ThemeExtension<dynamic>> extensions,
+) {
+  final mergedExtensions = [
+    ...baseTheme.extensions.values.cast<ThemeExtension<dynamic>>(),
+    ...extensions,
+  ];
+  return baseTheme.copyWith(extensions: mergedExtensions);
 }
 
 class FlutterBloomHttpOverrides extends HttpOverrides {

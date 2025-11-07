@@ -60,101 +60,94 @@ class VideoStreamService:
             4. Stream fMP4 media segments
         """
         handler = None
-        try:
-            # Mark as not paused
-            self.paused[serial] = False
+        # ✅ REMOVED outer try-except for debugging - let errors surface
 
-            # Get device from centralized DeviceManager
-            device = self.device_manager.get_device(serial)
-            if not device:
-                error_msg = {
-                    "type": "video.error",
-                    "timestamp": 0,
-                    "data": {"error": f"Device {serial} not connected"}
-                }
-                await websocket.send_json(error_msg)
-                print(f"[VideoStreamService] ERROR: Device {serial} not found in DeviceManager")
-                return
+        # Mark as not paused
+        self.paused[serial] = False
 
-            # ✅ CRITICAL: Verify device is connected and ready for streaming
-            if not device.is_connected():
-                error_msg = {
-                    "type": "video.error",
-                    "timestamp": 0,
-                    "data": {"error": f"Device {serial} not connected. scrcpy-server may have failed to start."}
-                }
-                await websocket.send_json(error_msg)
-                print(f"[VideoStreamService] ERROR: Device {serial} is not connected")
-                print(f"[VideoStreamService] Device: {device}")
-                return
-
-            print(f"[VideoStreamService] Starting video stream for {serial}")
-            print(f"[VideoStreamService] Device: {device}")
-            try:
-                video_socket = device.get_video_socket()
-                print(f"[VideoStreamService] Video socket: {video_socket}")
-            except Exception as e:
-                error_msg = {
-                    "type": "video.error",
-                    "timestamp": 0,
-                    "data": {"error": f"Failed to get video socket: {str(e)}"}
-                }
-                await websocket.send_json(error_msg)
-                print(f"[VideoStreamService] ERROR: Failed to get video socket: {e}")
-                return
-
-            # Create and start video stream handler
-            handler = VideoStreamHandler(device)
-            self.handlers[serial] = handler
-
-            # Start handler (parses H.264 config)
-            print(f"[VideoStreamService] Starting VideoStreamHandler...")
-            try:
-                await handler.start()
-                print(f"[VideoStreamService] VideoStreamHandler started successfully")
-            except Exception as e:
-                error_msg = {
-                    "type": "video.error",
-                    "timestamp": 0,
-                    "data": {"error": f"Failed to start video handler: {str(e)}"}
-                }
-                await websocket.send_json(error_msg)
-                print(f"[VideoStreamService] ERROR: Failed to start VideoStreamHandler: {e}")
-                import traceback
-                traceback.print_exc()
-                return
-
-            # Get device info
-            device_info = device.get_device_info()
-
-            # Send video init message
-            init_message = {
-                "type": "video.init",
+        # Get device from centralized DeviceManager
+        device = self.device_manager.get_device(serial)
+        if not device:
+            error_msg = {
+                "type": "video.error",
                 "timestamp": 0,
-                "data": {
-                    "serial": serial,
-                    "codec": "h264",
-                    "width": device_info.resolution.width,
-                    "height": device_info.resolution.height,
-                    "fps": 60,
-                    "bitrate": device.params.bit_rate
-                }
+                "data": {"error": f"Device {serial} not connected"}
             }
-            await websocket.send_json(init_message)
+            await websocket.send_json(error_msg)
+            print(f"[VideoStreamService] ERROR: Device {serial} not found in DeviceManager")
+            return
 
-            # Send fMP4 init segment
-            init_segment = handler.get_init_segment()
-            if init_segment:
-                await websocket.send_bytes(init_segment)
-                print(f"[VideoStreamService] Sent init segment ({len(init_segment)} bytes)")
+        # ✅ CRITICAL: Verify device is connected and ready for streaming
+        if not device.is_connected():
+            error_msg = {
+                "type": "video.error",
+                "timestamp": 0,
+                "data": {"error": f"Device {serial} not connected. scrcpy-server may have failed to start."}
+            }
+            await websocket.send_json(error_msg)
+            print(f"[VideoStreamService] ERROR: Device {serial} is not connected")
+            print(f"[VideoStreamService] Device info: {device}")
+            print(f"[VideoStreamService] Video socket: {device._video_socket}")
+            print(f"[VideoStreamService] Control socket: {device._control_socket}")
+            print(f"[VideoStreamService] Troubleshooting:")
+            print(f"  1. Check if scrcpy-server.jar is pushed to /data/local/tmp/")
+            print(f"  2. Check if device allows USB debugging")
+            print(f"  3. Try reconnecting the device")
+            return
 
-            # Streaming loop
-            frame_count = 0
-            start_time = asyncio.get_event_loop().time()
+        print(f"\n{'='*60}")
+        print(f"[VideoStreamService] Starting video stream for {serial}")
+        print(f"[VideoStreamService] Device: {device}")
+        print(f"[VideoStreamService] Device connected: {device.is_connected()}")
 
-            # Initialize latency tracking
-            self.frame_timestamps[serial] = []
+        # ✅ REMOVED try-except - let errors surface
+        video_socket = device.get_video_socket()
+        print(f"[VideoStreamService] Video socket: {video_socket}")
+        print(f"[VideoStreamService] Socket type: {type(video_socket)}")
 
+        # Create and start video stream handler
+        handler = VideoStreamHandler(device)
+        self.handlers[serial] = handler
+
+        # Start handler (parses H.264 config)
+        print(f"[VideoStreamService] Starting VideoStreamHandler...")
+        # ✅ REMOVED try-except - let errors surface
+        await handler.start()
+        print(f"[VideoStreamService] VideoStreamHandler started successfully")
+
+        # Get device info
+        device_info = device.get_device_info()
+
+        # Send video init message
+        init_message = {
+            "type": "video.init",
+            "timestamp": 0,
+            "data": {
+                "serial": serial,
+                "codec": "h264",
+                "width": device_info.resolution.width,
+                "height": device_info.resolution.height,
+                "fps": 60,
+                "bitrate": device.params.bit_rate
+            }
+        }
+        await websocket.send_json(init_message)
+
+        # Send fMP4 init segment
+        init_segment = handler.get_init_segment()
+        if init_segment:
+            await websocket.send_bytes(init_segment)
+            print(f"[VideoStreamService] Sent init segment ({len(init_segment)} bytes)")
+
+        # Streaming loop
+        frame_count = 0
+        start_time = asyncio.get_event_loop().time()
+
+        # Initialize latency tracking
+        self.frame_timestamps[serial] = []
+
+        # ✅ REMOVED try-except - let errors surface, but keep asyncio.CancelledError handling
+        try:
             async for fmp4_chunk in handler.stream_fmp4():
                 # Check if paused
                 if self.paused.get(serial, False):
@@ -205,22 +198,6 @@ class VideoStreamService:
 
         except asyncio.CancelledError:
             print(f"[VideoStreamService] Stream cancelled for {serial}")
-        except Exception as e:
-            print(f"[VideoStreamService] Video streaming error for {serial}: {e}")
-            import traceback
-            traceback.print_exc()
-
-            # Send error to client
-            error_msg = {
-                "type": "video.error",
-                "timestamp": 0,
-                "data": {"error": str(e)}
-            }
-            try:
-                await websocket.send_json(error_msg)
-            except:
-                pass
-
         finally:
             # Cleanup
             if handler:
