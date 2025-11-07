@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-06 02:22:49
+Generated: 2025-11-07 21:12:20
 App: app_qy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -10,15 +10,24 @@ Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 
 app_qy [code_assets]
 ├── lib/apps/app_qy/
+│   ├── ARCHITECTURE_GUIDE.md
 │   ├── DEVELOPMENT_ROADMAP.md
+│   ├── IMPLEMENTATION_STATUS.md
 │   ├── IMPLEMENTATION_SUMMARY.md
+│   ├── PAGES_PROGRESS.md
 │   ├── PROJECT_SUMMARY.md
+│   ├── PROVIDER_SETUP_EXAMPLE.dart
+│   ├── QUICK_START.md
 │   ├── README.MD
 │   ├── README_AUTHENTICATION.md
+│   ├── SESSION_SUMMARY.md
 │   ├── TECHNICAL_ARCHITECTURE.md
 │   ├── _prompts
 │   │   ├── AI_COLLABORATION_BRIDGE_QY.json
+│   │   ├── a.txt
+│   │   ├── build_log.txt
 │   │   ├── flutter_error_ament.txt
+│   │   ├── page_promt_process.txt
 │   │   ├── prompts.md
 │   │   ├── qy_bankend.txt
 │   │   ├── qy_frontend.txt
@@ -122,6 +131,20 @@ app_qy [code_assets]
 │   │   │   │   └── .gitkeep
 │   │   │   └── views
 │   │   │       └── about_screen.dart
+│   │   ├── ai_study
+│   │   │   └── views
+│   │   │       └── ai_study_screen_refactored_app_qy.dart
+│   │   ├── auth
+│   │   │   ├── controllers
+│   │   │   │   └── auth_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── auth_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── auth_service.dart
+│   │   │   └── views
+│   │   │       ├── login_phone_screen_app_qy.dart
+│   │   │       └── login_phone_screen_refactored_app_qy.dart
 │   │   ├── authentication
 │   │   │   ├── actions
 │   │   │   │   ├── .gitkeep
@@ -175,6 +198,31 @@ app_qy [code_assets]
 │   │   │       ├── settings_dropdown_item.dart
 │   │   │       ├── settings_group.dart
 │   │   │       └── settings_switch_item.dart
+│   │   ├── course
+│   │   │   ├── controllers
+│   │   │   │   └── course_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── course_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── course_service.dart
+│   │   │   └── views
+│   │   │       ├── course_certificate_screen_refactored_app_qy.dart
+│   │   │       ├── course_detail_screen_refactored_app_qy.dart
+│   │   │       ├── course_ielts_1_screen_app_qy.dart
+│   │   │       ├── course_ielts_2_screen_app_qy.dart
+│   │   │       ├── course_ielts_3_screen_app_qy.dart
+│   │   │       ├── course_ielts_4_screen_app_qy.dart
+│   │   │       ├── course_ielts_screen_app_qy.dart
+│   │   │       ├── course_ielts_screen_refactored_app_qy.dart
+│   │   │       ├── course_lesson_screen_refactored_app_qy.dart
+│   │   │       ├── course_plans_screen_app_qy.dart
+│   │   │       ├── course_plans_screen_refactored_app_qy.dart
+│   │   │       ├── course_progress_screen_refactored_app_qy.dart
+│   │   │       ├── course_python_1_screen_app_qy.dart
+│   │   │       ├── course_python_screen_app_qy.dart
+│   │   │       ├── course_review_screen_refactored_app_qy.dart
+│   │   │       └── course_search_screen_refactored_app_qy.dart
 │   │   ├── courses
 │   │   │   ├── domain
 │   │   │   │   ├── models
@@ -196,6 +244,9 @@ app_qy [code_assets]
 │   │   │   │   └── inbox_screen.dart
 │   │   │   └── widgets
 │   │   │       └── appbar.dart
+│   │   ├── discover
+│   │   │   └── views
+│   │   │       └── discover_screen_refactored_app_qy.dart
 │   │   ├── donation
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -240,12 +291,16 @@ app_qy [code_assets]
 │   │   ├── home
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
+│   │   │   ├── controllers
+│   │   │   │   ├── home_controller_app_qy.dart
+│   │   │   │   └── learning_controller_app_qy.dart
 │   │   │   ├── domain
 │   │   │   │   ├── model
 │   │   │   │   │   ├── all_screen_model.dart
 │   │   │   │   │   ├── banner_model.dart
 │   │   │   │   │   ├── comingto_model.dart
 │   │   │   │   │   ├── fund_rising_model.dart
+│   │   │   │   │   ├── learning_stats_model.dart
 │   │   │   │   │   ├── medical_model.dart
 │   │   │   │   │   ├── notification_model.dart
 │   │   │   │   │   ├── prayer_model.dart
@@ -254,10 +309,18 @@ app_qy [code_assets]
 │   │   │   │   └── service
 │   │   │   │       ├── banner_service.dart
 │   │   │   │       ├── home_service_interface.dart
+│   │   │   │       ├── learning_service.dart
 │   │   │   │       └── product_service.dart
 │   │   │   ├── views
+│   │   │   │   ├── home_daily_task_screen_refactored_app_qy.dart
 │   │   │   │   ├── home_screen.dart
 │   │   │   │   ├── home_screen_app_qy.dart
+│   │   │   │   ├── home_screen_refactored_app_qy.dart
+│   │   │   │   ├── home_search_screen_app_qy.dart
+│   │   │   │   ├── home_search_screen_refactored_app_qy.dart
+│   │   │   │   ├── home_streak_screen_refactored_app_qy.dart
+│   │   │   │   ├── home_study_screen_app_qy.dart
+│   │   │   │   ├── home_study_screen_refactored_app_qy.dart
 │   │   │   │   ├── play_video_screen.dart
 │   │   │   │   ├── prayer_screen.dart
 │   │   │   │   ├── urgent_fundraising.dart
@@ -330,6 +393,10 @@ app_qy [code_assets]
 │   │   │   │   └── on_boarding_model.dart
 │   │   │   └── views
 │   │   │       └── onbording_screen.dart
+│   │   ├── other
+│   │   │   └── views
+│   │   │       ├── image_001_screen_app_qy.dart
+│   │   │       └── image_001_screen_refactored_app_qy.dart
 │   │   ├── prayer
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -340,14 +407,26 @@ app_qy [code_assets]
 │   │   │   ├── controllers
 │   │   │   │   └── profile_controller_app_qy.dart
 │   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       ├── about_model.dart
-│   │   │   │       └── select_insterest_model.dart
+│   │   │   │   ├── model
+│   │   │   │   │   ├── about_model.dart
+│   │   │   │   │   ├── profile_model.dart
+│   │   │   │   │   └── select_insterest_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── profile_service.dart
 │   │   │   ├── models
 │   │   │   │   └── profile_model_app_qy.dart
 │   │   │   └── views
+│   │   │       ├── about_screen_app_qy.dart
+│   │   │       ├── about_screen_refactored_app_qy.dart
+│   │   │       ├── certificate_center_screen_app_qy.dart
+│   │   │       ├── certificate_center_screen_refactored_app_qy.dart
 │   │   │       ├── edit_profile.dart
+│   │   │       ├── more_features_1_screen_app_qy.dart
+│   │   │       ├── more_features_screen_app_qy.dart
+│   │   │       ├── more_features_screen_refactored_app_qy.dart
+│   │   │       ├── profile_achievements_screen_refactored_app_qy.dart
 │   │   │       ├── profile_screen.dart
+│   │   │       ├── profile_stats_screen_refactored_app_qy.dart
 │   │   │       └── profile_view_screen.dart
 │   │   ├── profile_two
 │   │   │   ├── actions
@@ -383,15 +462,52 @@ app_qy [code_assets]
 │   │   │       ├── card_widget.dart
 │   │   │       └── notification_setting_widget.dart
 │   │   ├── settings
+│   │   │   ├── controllers
+│   │   │   │   └── settings_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── settings_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── settings_service.dart
 │   │   │   ├── views
+│   │   │   │   ├── about_screen_refactored_app_qy.dart
+│   │   │   │   ├── account_settings_1_screen_app_qy.dart
 │   │   │   │   ├── account_settings_screen.dart
+│   │   │   │   ├── account_settings_screen_app_qy.dart
+│   │   │   │   ├── account_settings_screen_refactored_app_qy.dart
+│   │   │   │   ├── display_mode_screen_app_qy.dart
+│   │   │   │   ├── display_mode_screen_refactored_app_qy.dart
 │   │   │   │   ├── display_settings_screen.dart
+│   │   │   │   ├── help_center_screen_refactored_app_qy.dart
+│   │   │   │   ├── learning_preferences_screen_refactored_app_qy.dart
+│   │   │   │   ├── notifications_screen_refactored_app_qy.dart
 │   │   │   │   ├── recommend_settings_screen.dart
+│   │   │   │   ├── recommend_settings_screen_app_qy.dart
+│   │   │   │   ├── recommend_settings_screen_refactored_app_qy.dart
 │   │   │   │   ├── reminder_settings_screen.dart
-│   │   │   │   └── settings_screen.dart
+│   │   │   │   ├── reminder_settings_screen_app_qy.dart
+│   │   │   │   ├── reminder_settings_screen_refactored_app_qy.dart
+│   │   │   │   ├── settings_screen.dart
+│   │   │   │   ├── settings_screen_app_qy.dart
+│   │   │   │   └── settings_screen_refactored_app_qy.dart
 │   │   │   └── widgets
 │   │   │       ├── settings_section.dart
 │   │   │       └── settings_tile.dart
+│   │   ├── social
+│   │   │   ├── controllers
+│   │   │   │   └── social_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── social_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── social_service.dart
+│   │   │   └── views
+│   │   │       ├── checkin_challenge_screen_app_qy.dart
+│   │   │       ├── checkin_challenge_screen_refactored_app_qy.dart
+│   │   │       ├── message_center_screen_app_qy.dart
+│   │   │       ├── message_center_screen_refactored_app_qy.dart
+│   │   │       ├── social_ranking_screen_refactored_app_qy.dart
+│   │   │       └── social_study_group_screen_refactored_app_qy.dart
 │   │   ├── social_feed
 │   │   │   ├── model
 │   │   │   │   └── post_model.dart
@@ -420,6 +536,39 @@ app_qy [code_assets]
 │   │   │   └── widgets
 │   │   │       ├── custom_icon_label.dart
 │   │   │       └── custom_icon_label_group.dart
+│   │   ├── word
+│   │   │   ├── controllers
+│   │   │   │   └── word_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── word_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── word_service.dart
+│   │   │   └── views
+│   │   │       ├── word_book_screen_app_qy.dart
+│   │   │       ├── word_book_screen_refactored_app_qy.dart
+│   │   │       ├── word_dictation_screen_refactored_app_qy.dart
+│   │   │       ├── word_flashcard_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_1_screen_app_qy.dart
+│   │   │       ├── word_listening_1_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_ai_explain_screen_app_qy.dart
+│   │   │       ├── word_listening_ai_explain_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_dictation_1_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_1_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_dictation_2_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_2_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_dictation_3_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_free_screen_app_qy.dart
+│   │   │       ├── word_listening_free_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_screen_app_qy.dart
+│   │   │       ├── word_listening_screen_refactored_app_qy.dart
+│   │   │       ├── word_listening_sleep_screen_app_qy.dart
+│   │   │       ├── word_listening_sleep_screen_refactored_app_qy.dart
+│   │   │       ├── word_review_screen_refactored_app_qy.dart
+│   │   │       ├── word_spelling_screen_refactored_app_qy.dart
+│   │   │       └── word_test_screen_refactored_app_qy.dart
 │   │   ├── word_book
 │   │   │   ├── models
 │   │   │   │   └── word_models.dart
@@ -476,8 +625,12 @@ app_qy [code_assets]
 │   │   ├── localization_keys_app_qy.dart
 │   │   └── zh_app_qy.dart
 │   ├── main_app_qy.dart
+│   ├── missing_keys.txt
 │   ├── model_app_qy
 │   │   └── user_model.dart
+│   ├── models_app_qy
+│   │   └── user_model_app_qy.dart
+│   ├── noerror.txt
 │   ├── provider_app_qy
 │   │   └── user_provider_app_qy.dart
 │   ├── providers_app_qy
@@ -495,6 +648,7 @@ app_qy [code_assets]
 │   │   ├── router_legacy_qy.dart
 │   │   └── routes_provider_app_qy.dart
 │   ├── services_app_qy
+│   │   ├── api_service_app_qy.dart
 │   │   ├── app_qy_service_manager.dart
 │   │   ├── auth_api_app_qy_service.dart
 │   │   ├── cache_service_app_qy.dart
@@ -504,8 +658,10 @@ app_qy [code_assets]
 │   │   └── user_api_app_qy_service.dart
 │   ├── settings_app_qy
 │   │   └── settings_app_qy.dart
-│   └── utils_app_qy
-│       └── utils_app_qy.dart
+│   ├── utils_app_qy
+│   │   └── utils_app_qy.dart
+│   └── widgets_app_qy
+│       └── bottom_navigation_app_qy.dart
 ├── lib/common/
 │   ├── README.md
 │   ├── app
@@ -554,6 +710,7 @@ app_qy [code_assets]
 │   ├── localization
 │   │   ├── common_en.dart
 │   │   ├── common_zh.dart
+│   │   ├── localization.dart
 │   │   ├── localization_keys.dart
 │   │   ├── localization_manager.dart
 │   │   └── map_locales.dart
@@ -611,6 +768,7 @@ app_qy [code_assets]
 │   │   ├── models
 │   │   │   ├── api_config.dart
 │   │   │   └── api_response.dart
+│   │   ├── network.dart
 │   │   ├── network_framework.dart
 │   │   ├── parsers
 │   │   │   └── adaptive_data_parser.dart

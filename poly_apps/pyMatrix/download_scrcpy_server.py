@@ -1,7 +1,8 @@
 """
 下载 scrcpy-server.jar
 
-这个脚本会自动下载scrcpy-server v2.1并放置到正确的位置
+这个脚本会自动下载scrcpy-server v3.3.3并放置到正确的位置
+与 scrcpy_source 版本保持一致
 """
 
 import requests
@@ -9,7 +10,7 @@ from pathlib import Path
 import sys
 
 def download_scrcpy_server():
-    """下载scrcpy-server.jar"""
+    """下载scrcpy-server.jar v3.3.3"""
 
     # 目标路径
     target_dir = Path(__file__).parent / "resources"
@@ -18,11 +19,11 @@ def download_scrcpy_server():
     # 确保目录存在
     target_dir.mkdir(exist_ok=True)
 
-    # scrcpy-server v2.1下载链接
-    url = "https://github.com/Genymobile/scrcpy/releases/download/v2.1/scrcpy-server-v2.1"
+    # scrcpy-server v3.3.3下载链接（与 scrcpy_source 版本一致）
+    url = "https://github.com/Genymobile/scrcpy/releases/download/v3.3.3/scrcpy-server-v3.3.3"
 
     print("=" * 60)
-    print("下载 scrcpy-server v2.1")
+    print("下载 scrcpy-server v3.3.3")
     print("=" * 60)
     print(f"下载地址: {url}")
     print(f"保存位置: {target_file}")
@@ -36,7 +37,7 @@ def download_scrcpy_server():
                 print("取消下载")
                 return
 
-        print("正在下载... (文件大小约 8.5 MB)")
+        print("正在下载... (文件大小约 72 KB)")
 
         # 下载文件
         response = requests.get(url, stream=True)

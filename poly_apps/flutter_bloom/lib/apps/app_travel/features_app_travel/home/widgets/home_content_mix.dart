@@ -1,228 +1,149 @@
 import 'package:flutter/material.dart';
+import '../../../models_app_travel/travel_map_model.dart';
+import '../../../testdata/travel_map_data.dart';
 
 class HomeContentMix extends StatelessWidget {
   const HomeContentMix({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final leftWidth = screenWidth * 0.48;
-    final rightWidth = screenWidth * 0.48;
-    final itemHeight = screenWidth * 0.48;
-
+  Widget _buildTravelCard(TravelMapModel card) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12.0),
-      height: itemHeight,
-      child: Row(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4.0,
+            offset: const Offset(0, 2.0),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: leftWidth,
-            height: itemHeight,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4.0,
-                  offset: const Offset(0, 2.0),
-                ),
-              ],
-            ),
+          Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    'assets/apps/app_travel/images/content_video.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: const Color(0xFF2C5F2D),
-                        child: const Center(
-                          child: Icon(
-                            Icons.image,
-                            color: Colors.white,
-                            size: 48.0,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  Center(
-                    child: Container(
-                      width: 48.0,
-                      height: 48.0,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow,
-                        color: Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8.0)),
+              child: Image.asset(
+                card.imagePath,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: Icon(
+                        Icons.image_not_supported,
+                        color: Colors.grey,
                         size: 32.0,
                       ),
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),
-          const SizedBox(width: 8.0),
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.all(8.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4.0,
-                          offset: const Offset(0, 2.0),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.asset(
-                            'assets/apps/app_travel/images/content_map_top.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: const Color(0xFF4A9F7C),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.map,
-                                    color: Colors.white,
-                                    size: 32.0,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          Positioned(
-                            top: 8.0,
-                            left: 8.0,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  '趣玩地图',
-                                  style: TextStyle(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.black38,
-                                        blurRadius: 4.0,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            top: 8.0,
-                            right: 8.0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 4.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00D0D8),
-                                borderRadius: BorderRadius.circular(10.0),
-                              ),
-                              child: const Text(
-                                '出行必备',
-                                style: TextStyle(
-                                  fontSize: 11.0,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                Text(
+                  card.title,
+                  style: const TextStyle(
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                    height: 1.2,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4.0),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4.0,
-                          offset: const Offset(0, 2.0),
-                        ),
-                      ],
+                if (card.subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2.0),
+                  Text(
+                    card.subtitle,
+                    style: TextStyle(
+                      fontSize: 11.0,
+                      color: Colors.grey[600],
+                      height: 1.2,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.asset(
-                            'assets/apps/app_travel/images/content_map_bottom.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: const Color(0xFF6AB593),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.drive_eta,
-                                    color: Colors.white,
-                                    size: 32.0,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          Positioned(
-                            bottom: 8.0,
-                            left: 8.0,
-                            right: 8.0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 4.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(4.0),
-                              ),
-                              child: const Text(
-                                '全国自驾地图',
-                                style: TextStyle(
-                                  fontSize: 13.0,
-                                  color: Colors.black87,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 6.0),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 10.0,
+                      backgroundColor: Colors.grey[300],
+                      child: Icon(
+                        Icons.person,
+                        size: 12.0,
+                        color: Colors.grey[600],
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 6.0),
+                    Expanded(
+                      child: Text(
+                        card.userName,
+                        style: TextStyle(
+                          fontSize: 10.0,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = (screenWidth - 40.0) / 2;
+    final cardHeight = cardWidth * 1.35;
+
+    final travelCards = TravelMapData.getTravelMaps();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.0),
+          child: Text(
+            '趣玩地图',
+            style: TextStyle(
+              fontSize: 18.0,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12.0),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            children: travelCards.map((card) {
+              return SizedBox(
+                width: cardWidth,
+                height: cardHeight,
+                child: _buildTravelCard(card),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 }

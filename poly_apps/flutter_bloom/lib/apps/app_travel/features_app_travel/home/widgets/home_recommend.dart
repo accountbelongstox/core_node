@@ -48,7 +48,7 @@ class HomeRecommend extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
+            padding: const EdgeInsets.only(bottom: 0.0),
             child: AspectRatio(
               aspectRatio: 1.0,
               child: ClipRRect(
@@ -79,7 +79,7 @@ class HomeRecommend extends StatelessWidget {
     final recommendCards = _getRecommendCards(context);
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      margin: const EdgeInsets.symmetric(horizontal: 0.0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12.0),
         child: Container(
@@ -100,7 +100,7 @@ class HomeRecommend extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Row(
                   children: [
                     Expanded(child: _buildRecommendCard(context, recommendCards[0])),

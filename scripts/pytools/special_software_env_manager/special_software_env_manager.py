@@ -13,6 +13,9 @@ import os
 import sys
 import platform
 import json
+import stat
+import subprocess
+import traceback
 from pathlib import Path
 from datetime import datetime
 
@@ -28,17 +31,28 @@ if _pycore_path.exists():
 
 from common_utils import (ColorMessage, show_menu, is_admin, clear_screen, get_key_press,
                           get_platform_type, is_wsl, is_desktop, is_server,
-                          get_winenvs_dir, get_linuxenvs_dir, ensure_directory_exists)
+                          get_winenvs_dir, get_linuxenvs_dir, ensure_directory_exists,
+                          get_project_root)
 from config_manager import ConfigManager
 from command_content_generator_windows import WindowsCommandContentGenerator
 from command_content_generator_linux import LinuxCommandContentGenerator
+from smart_recognition import (
+    has_whitespace_in_middle,
+    extract_api_url_and_token,
+    display_extraction_results,
+    prompt_token_fill_strategy,
+    get_token_variables,
+    get_value_for_input_type
+)
 
 # Import secret manager from pycore
 try:
     from pyfoundations import get_secret_key, set_secret_key, get_all_secret_keys
+    from pyfoundations.secret_manager import _get_password
     SECRET_MANAGER_AVAILABLE = True
 except ImportError:
     SECRET_MANAGER_AVAILABLE = False
+    _get_password = None
     ColorMessage.write("WARNING: Secret manager not available from pycore", 'warning')
 
 
@@ -59,9 +73,98 @@ class SpecialSoftwareEnvManager:
         }
 
         # Configuration backup directory
-        from common_utils import get_project_root
         self.backup_dir = get_project_root() / 'scripts' / 'pytools' / 'special_software_env_manager' / 'backups'
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+
+    def _prepare_config_info_for_display(self, config: dict, file_number: int = None) -> dict:
+        """
+        Prepare configuration information for display in menu
+        
+        Extracts relevant keys from config to show in menu details.
+        Includes: Variables, SmartRecognition, MCPSupport, and other relevant keys.
+        If file_number is provided, attempts to load encrypted values from storage.
+        
+        Args:
+            config: Configuration dictionary
+            file_number: Optional file number to load encrypted values for existing scripts
+            
+        Returns:
+            Dictionary with configuration details formatted for display
+        """
+        display_info = {}
+        
+        # Always include Variables if present
+        if 'Variables' in config and config['Variables']:
+            variables = []
+            for var in config['Variables']:
+                var_info = var.copy()
+                
+                # If file_number is provided, try to load encrypted value
+                if file_number is not None and SECRET_MANAGER_AVAILABLE:
+                    var_name = var.get('Name', '')
+                    secret_key_name = f"{var_name}_{file_number}"
+                    
+                    try:
+                        # Try to get the secret key (this may require password, so we catch exceptions)
+                        encrypted_value = get_secret_key(secret_key_name)
+                        if encrypted_value:
+                            # Value exists in encrypted storage
+                            var_info['EncryptedValue'] = True
+                            # Show partial value for display (first 8 chars + ...)
+                            if len(encrypted_value) > 8:
+                                var_info['ValuePreview'] = encrypted_value[:8] + "..."
+                            else:
+                                var_info['ValuePreview'] = "***"
+                        else:
+                            var_info['EncryptedValue'] = False
+                    except Exception as e:
+                        # Failed to load - could be password required or doesn't exist
+                        # Check if it's a password-related error
+                        error_msg = str(e).lower()
+                        if 'password' in error_msg or 'decrypt' in error_msg or 'key' in error_msg:
+                            var_info['EncryptedValue'] = True  # Exists but needs password
+                            var_info['ValuePreview'] = "[Password Required]"
+                        else:
+                            var_info['EncryptedValue'] = False
+                else:
+                    var_info['EncryptedValue'] = False
+                
+                variables.append(var_info)
+            
+            display_info['Variables'] = variables
+        
+        # Include SmartRecognition if present and enabled
+        if 'SmartRecognition' in config:
+            smart_rec = config['SmartRecognition']
+            if smart_rec and smart_rec.get('Enabled', False):
+                display_info['SmartRecognition'] = {
+                    'Enabled': smart_rec.get('Enabled', False),
+                    'AllowedTypes': smart_rec.get('AllowedTypes', [])
+                }
+        
+        # Include MCPSupport if present and enabled
+        if 'MCPSupport' in config:
+            mcp_support = config['MCPSupport']
+            if mcp_support and mcp_support.get('Enabled', False):
+                mcp_info = {'Enabled': True}
+                # Include script paths if available
+                if 'PreLaunchScript' in mcp_support:
+                    mcp_info['PreLaunchScript'] = mcp_support['PreLaunchScript']
+                if 'UpgradeScript' in mcp_support:
+                    mcp_info['UpgradeScript'] = mcp_support['UpgradeScript']
+                if 'MCPSyncScript' in mcp_support:
+                    mcp_info['MCPSyncScript'] = mcp_support['MCPSyncScript']
+                display_info['MCPSupport'] = mcp_info
+        
+        # Include other relevant keys (CommandPrefix, WindowsCommand, LinuxCommand)
+        if 'CommandPrefix' in config:
+            display_info['CommandPrefix'] = config['CommandPrefix']
+        if 'WindowsCommand' in config:
+            display_info['WindowsCommand'] = config['WindowsCommand']
+        if 'LinuxCommand' in config:
+            display_info['LinuxCommand'] = config['LinuxCommand']
+        
+        return display_info
 
     def get_full_config_name(self, action: str) -> str:
         """Get full configuration name from action"""
@@ -164,6 +267,99 @@ class SpecialSoftwareEnvManager:
 
         return scripts
 
+    def list_all_existing_scripts(self, command_prefix: str) -> list:
+        """
+        List all existing scripts for a command prefix from current platform
+
+        Returns scripts that exist on the current platform, regardless of whether
+        they exist on the other platform. This allows users to see and manage
+        all scripts on their current platform.
+
+        Returns:
+            List of script info dictionaries with file numbers that exist on current platform
+        """
+        scripts = []
+        platform_type = get_platform_type()
+        is_windows_platform = platform_type in ('windows', 'wsl')
+
+        # Get directories
+        winenvs_dir = get_winenvs_dir()
+        linuxenvs_dir = get_linuxenvs_dir()
+
+        # Collect file numbers and script info
+        file_numbers = set()
+        script_info = {}  # file_num -> {windows_exists, linux_exists, windows_path, linux_path}
+
+        # Check Windows scripts
+        if winenvs_dir.exists():
+            for file_path in winenvs_dir.iterdir():
+                if file_path.is_file() and file_path.suffix == '.ps1':
+                    name = file_path.stem
+                    if name.startswith(command_prefix):
+                        try:
+                            number_part = name.replace(command_prefix, '')
+                            file_num = int(number_part)
+                            file_numbers.add(file_num)
+                            if file_num not in script_info:
+                                script_info[file_num] = {
+                                    'windows_exists': False,
+                                    'linux_exists': False,
+                                    'windows_path': None,
+                                    'linux_path': None
+                                }
+                            script_info[file_num]['windows_exists'] = True
+                            script_info[file_num]['windows_path'] = file_path
+                        except ValueError:
+                            continue
+
+        # Check Linux scripts
+        if linuxenvs_dir.exists():
+            for file_path in linuxenvs_dir.iterdir():
+                if file_path.is_file() and file_path.suffix == '.sh':
+                    name = file_path.stem
+                    if name.startswith(command_prefix):
+                        try:
+                            number_part = name.replace(command_prefix, '')
+                            file_num = int(number_part)
+                            file_numbers.add(file_num)
+                            if file_num not in script_info:
+                                script_info[file_num] = {
+                                    'windows_exists': False,
+                                    'linux_exists': False,
+                                    'windows_path': None,
+                                    'linux_path': None
+                                }
+                            script_info[file_num]['linux_exists'] = True
+                            script_info[file_num]['linux_path'] = file_path
+                        except ValueError:
+                            continue
+
+        # Build script list - only include scripts that exist on current platform
+        for file_num in sorted(file_numbers):
+            info = script_info[file_num]
+            
+            # Only include if script exists on current platform
+            if is_windows_platform and not info['windows_exists']:
+                continue
+            if not is_windows_platform and not info['linux_exists']:
+                continue
+            
+            win_script_name = f"{command_prefix}{file_num}.ps1"
+            linux_script_name = f"{command_prefix}{file_num}.sh"
+
+            scripts.append({
+                'file_number': file_num,
+                'windows_name': win_script_name,
+                'linux_name': linux_script_name,
+                'windows_path': info['windows_path'] or (winenvs_dir / win_script_name),
+                'linux_path': info['linux_path'] or (linuxenvs_dir / linux_script_name),
+                'windows_exists': info['windows_exists'],
+                'linux_exists': info['linux_exists'],
+                'exists_on_both': info['windows_exists'] and info['linux_exists']
+            })
+
+        return scripts
+
     def save_configuration_backup(self, config_name: str, env_vars: dict) -> Path:
         """Save configuration as backup file"""
         command_prefix = self.config_manager.get_command_prefix(config_name)
@@ -212,6 +408,17 @@ class SpecialSoftwareEnvManager:
     def show_main_menu(self):
         """Display the main menu"""
         while True:
+            # Display script path information at the top
+            clear_screen()
+            script_path = Path(__file__).resolve()
+            ColorMessage.write("=" * 80, 'info')
+            ColorMessage.write("Special Software Environment Variables Manager", 'success')
+            ColorMessage.write("=" * 80, 'info')
+            ColorMessage.write(f"Script Location: {script_path}", 'info')
+            ColorMessage.write(f"Working Directory: {Path.cwd()}", 'info')
+            ColorMessage.write("=" * 80, 'info')
+            print()
+
             menu_items = []
 
             # Add configuration items
@@ -225,6 +432,7 @@ class SpecialSoftwareEnvManager:
 
             # Add utility items
             menu_items.extend([
+                {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
                 {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
                 {'Text': 'Back to Main Menu', 'Action': 'back', 'HasSubMenu': False},
@@ -234,7 +442,9 @@ class SpecialSoftwareEnvManager:
             action = show_menu("Special Software Environment Variables Manager", menu_items)
 
             # Handle actions
-            if action == 'viewall':
+            if action == 'addpath':
+                self.add_scripts_to_path()
+            elif action == 'viewall':
                 self.show_all_environment_variables()
             elif action == 'refresh':
                 self.refresh_current_terminal_environment()
@@ -316,7 +526,7 @@ class SpecialSoftwareEnvManager:
 
         # Get command prefix and list existing scripts
         command_prefix = config.get('CommandPrefix', config.get('Common', ''))
-        existing_scripts = self.list_existing_scripts(command_prefix)
+        existing_scripts = self.list_all_existing_scripts(command_prefix)
         next_file_number = self.get_next_file_number(command_prefix)
 
         # Build selection menu
@@ -325,21 +535,43 @@ class SpecialSoftwareEnvManager:
         print()
 
         menu_items = []
-        # First option: Create new
+        menu_index = 1
+        
+        # First option: Create new (no file_number, so no encrypted values)
+        config_info_new = self._prepare_config_info_for_display(config, file_number=None)
         menu_items.append({
             'Text': f"Create New {config['DisplayName']} #{next_file_number}",
             'Action': f'create_{next_file_number}',
-            'HasSubMenu': False
+            'HasSubMenu': False,
+            'ConfigInfo': config_info_new
         })
+        menu_index += 1
 
-        # Other options: Replace existing (only show scripts that exist on both platforms)
-        for script in existing_scripts:
+        # Other options: Replace existing (show all scripts with platform info)
+        # Sort existing scripts by file number (descending) to show newest first
+        sorted_scripts = sorted(existing_scripts, key=lambda x: x['file_number'], reverse=True)
+        for script in sorted_scripts:
             file_num = script['file_number']
+            # Build platform indicator
+            if script.get('exists_on_both', False):
+                platform_info = f"{script['windows_name']} / {script['linux_name']}"
+            elif script.get('windows_exists', False):
+                platform_info = f"{script['windows_name']} (Windows only)"
+            elif script.get('linux_exists', False):
+                platform_info = f"{script['linux_name']} (Linux only)"
+            else:
+                platform_info = f"{script['windows_name']} / {script['linux_name']}"
+            
+            # Prepare config info with file_number to load encrypted values
+            config_info_existing = self._prepare_config_info_for_display(config, file_number=file_num)
+            
             menu_items.append({
-                'Text': f"Replace existing {config['DisplayName']} #{file_num} ({script['windows_name']} / {script['linux_name']})",
+                'Text': f"Replace existing {config['DisplayName']} #{file_num} ({platform_info})",
                 'Action': f'replace_{file_num}',
-                'HasSubMenu': False
+                'HasSubMenu': False,
+                'ConfigInfo': config_info_existing
             })
+            menu_index += 1
 
         if not menu_items:
             # Fallback if no menu items (shouldn't happen since we always have "create new")
@@ -375,17 +607,10 @@ class SpecialSoftwareEnvManager:
 
         # Get environment variable values from user with smart recognition
         ColorMessage.write("Enter values for environment variables:", 'info')
-        ColorMessage.write("(Press Enter to skip a variable)", 'info')
-
-        # Import smart recognition module
-        from .smart_recognition import (
-            has_whitespace_in_middle,
-            extract_api_url_and_token,
-            display_extraction_results,
-            prompt_token_fill_strategy,
-            get_token_variables,
-            get_value_for_input_type
-        )
+        if mode == 'replace':
+            ColorMessage.write("(Press Enter to keep current value)", 'info')
+        else:
+            ColorMessage.write("(Press Enter to skip a variable)", 'info')
 
         # Check if smart recognition is enabled
         smart_recognition_enabled = config.get('SmartRecognition', {}).get('Enabled', False)
@@ -399,6 +624,44 @@ class SpecialSoftwareEnvManager:
 
         print()
 
+        # In replace mode, first load and display all existing values
+        existing_values = {}  # Store existing values for all variables
+        if mode == 'replace' and file_number is not None:
+            ColorMessage.write("Current values:", 'info')
+            ColorMessage.write("-" * 60, 'info')
+            
+            for var in config['Variables']:
+                var_name = var['Name']
+                display_name = var['DisplayName']
+                existing_value = None
+                
+                # Try to load from encrypted storage
+                if SECRET_MANAGER_AVAILABLE:
+                    secret_key_name = f"{var_name}_{file_number}"
+                    try:
+                        existing_value = get_secret_key(secret_key_name)
+                    except Exception:
+                        existing_value = None
+                
+                # Fallback to environment variable
+                if not existing_value:
+                    existing_value = os.environ.get(var_name, '')
+                
+                # Store the value
+                if existing_value:
+                    existing_values[var_name] = existing_value
+                    # Display the value (truncate if too long)
+                    display_value = existing_value
+                    if len(display_value) > 70:
+                        display_value = display_value[:67] + "..."
+                    ColorMessage.write(f"  {display_name}: {display_value}", 'info')
+                else:
+                    ColorMessage.write(f"  {display_name}: [Not set]", 'warning')
+            
+            print()
+            ColorMessage.write("Enter new values (press Enter to keep current value):", 'info')
+            print()
+
         user_inputs = {}
         extracted_data = None
         token_fill_strategy = None
@@ -410,10 +673,16 @@ class SpecialSoftwareEnvManager:
             description = var.get('Description', '')
             current_value = os.environ.get(var['Name'], '')
             input_type = var.get('InputType', '')
+            var_name = var['Name']
 
             if description:
                 ColorMessage.write(f"{display_name}:", 'info')
                 ColorMessage.write(f"  {description}", 'info')
+
+            # Get existing value (from pre-loaded values in replace mode, or current env)
+            existing_value = existing_values.get(var_name) if mode == 'replace' else None
+            if not existing_value:
+                existing_value = current_value if current_value else None
 
             # Check if this variable should be auto-filled from extracted data
             if extracted_data and extracted_data.has_data():
@@ -451,8 +720,9 @@ class SpecialSoftwareEnvManager:
                         print()
                         continue
 
-            if current_value:
-                prompt = f"  Value (current: ***hidden***): "
+            # Build prompt based on whether we have existing value
+            if existing_value:
+                prompt = f"  Value (press Enter to keep current): "
             else:
                 prompt = f"  Value: "
 
@@ -486,16 +756,17 @@ class SpecialSoftwareEnvManager:
 
                             # Use extracted value for current variable
                             value = get_value_for_input_type(input_type, extracted_data, user_input)
-                            user_inputs[var['Name']] = value
+                            user_inputs[var_name] = value
                             ColorMessage.write(f"  [OK] Will set {display_name}", 'success')
                             print()
                             continue
 
-                user_inputs[var['Name']] = user_input
+                user_inputs[var_name] = user_input
                 ColorMessage.write(f"  [OK] Will set {display_name}", 'success')
-            elif current_value:
-                user_inputs[var['Name']] = current_value
-                ColorMessage.write(f"  [OK] Using current value", 'info')
+            elif existing_value:
+                # If input is empty and we have existing value, use it
+                user_inputs[var_name] = existing_value
+                ColorMessage.write(f"  [OK] Keeping current value", 'success')
             else:
                 ColorMessage.write(f"  [SKIP] Skipped", 'warning')
 
@@ -514,11 +785,42 @@ class SpecialSoftwareEnvManager:
             ColorMessage.write("Saving secrets to encrypted storage...", 'info')
             print()
 
-            # Get password once for all secrets
-            from pyfoundations.secret_manager import _get_password
-            ColorMessage.write("Enter encryption password for all secrets:", 'info')
-            encryption_password = _get_password("[SECRET_MANAGER] Password: ")
-
+            # Get password once for all secrets (with confirmation)
+            if not SECRET_MANAGER_AVAILABLE or _get_password is None:
+                raise ImportError("Secret manager not available")
+            
+            encryption_password = None
+            max_attempts = 3
+            attempts = 0
+            
+            while attempts < max_attempts:
+                ColorMessage.write("Enter encryption password for all secrets:", 'info')
+                password1 = _get_password("[SECRET_MANAGER] Password: ")
+                
+                if not password1:
+                    ColorMessage.write("No password provided, skipping encryption", 'warning')
+                    break
+                
+                # Confirm password
+                password2 = _get_password("[SECRET_MANAGER] Confirm Password: ")
+                
+                if password1 == password2:
+                    encryption_password = password1
+                    ColorMessage.write("Password confirmed.", 'success')
+                    print()
+                    break
+                else:
+                    attempts += 1
+                    remaining = max_attempts - attempts
+                    if remaining > 0:
+                        ColorMessage.write("Passwords do not match. Please try again.", 'error')
+                        ColorMessage.write(f"Remaining attempts: {remaining}", 'warning')
+                        print()
+                    else:
+                        ColorMessage.write("Maximum attempts reached. Skipping encryption.", 'error')
+                        print()
+                        break
+            
             if not encryption_password:
                 ColorMessage.write("No password provided, skipping encryption", 'warning')
             else:
@@ -620,7 +922,6 @@ class SpecialSoftwareEnvManager:
 
             # Make script executable on Linux
             if platform.system() != 'Windows':
-                import stat
                 os.chmod(linux_script_path, os.stat(linux_script_path).st_mode | stat.S_IEXEC)
 
             ColorMessage.write(f"[OK] Linux script: {linux_script_path}", 'success')
@@ -682,8 +983,6 @@ class SpecialSoftwareEnvManager:
             print()
 
             for i, script in enumerate(scripts, 1):
-                from datetime import datetime
-
                 ColorMessage.write(f"{i}. Script #{script['file_number']}", 'info')
                 print()
 
@@ -826,7 +1125,6 @@ class SpecialSoftwareEnvManager:
 
         except Exception as e:
             ColorMessage.write(f"Error restoring configuration: {e}", 'error')
-            import traceback
             traceback.print_exc()
 
         print()
@@ -985,6 +1283,135 @@ class SpecialSoftwareEnvManager:
         print()
         input("Press Enter to continue...")
 
+    def add_scripts_to_path(self):
+        """Add winenvs/liunenvs directories to system PATH"""
+        clear_screen()
+        ColorMessage.write("Add Scripts Directory to PATH", 'info')
+        ColorMessage.write("=" * 80, 'info')
+        print()
+
+        if platform.system() == 'Windows':
+            winenvs_dir = get_winenvs_dir()
+            ColorMessage.write(f"Target directory: {winenvs_dir}", 'info')
+            print()
+
+            # Check if already in PATH
+            current_path = os.environ.get('PATH', '')
+            if str(winenvs_dir) in current_path:
+                ColorMessage.write("winenvs directory is already in your PATH!", 'success')
+                print()
+                input("Press Enter to continue...")
+                return
+
+            ColorMessage.write("This will add the winenvs directory to your USER PATH.", 'info')
+            ColorMessage.write("Note: Administrator privileges are NOT required for user PATH.", 'info')
+            print()
+
+            choice = input("Do you want to proceed? (y/N): ")
+            if choice.lower() != 'y':
+                ColorMessage.write("Operation cancelled", 'warning')
+                print()
+                input("Press Enter to continue...")
+                return
+
+            print()
+            ColorMessage.write("Adding to PATH...", 'info')
+
+            try:
+                # Use PowerShell to modify user PATH
+                ps_script = f"""
+$currentUserPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+$newPath = '{winenvs_dir}'
+
+if ($currentUserPath -notlike "*$newPath*") {{
+    $updatedPath = $currentUserPath + ';' + $newPath
+    [Environment]::SetEnvironmentVariable('PATH', $updatedPath, 'User')
+    Write-Host '[SUCCESS] Added to PATH' -ForegroundColor Green
+    Write-Host '[INFO] Please restart your terminal for changes to take effect' -ForegroundColor Yellow
+}} else {{
+    Write-Host '[INFO] Path already exists in PATH' -ForegroundColor Yellow
+}}
+"""
+                result = subprocess.run(
+                    ['powershell', '-Command', ps_script],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode == 0:
+                    ColorMessage.write(result.stdout, 'success')
+                    ColorMessage.write("\nPATH updated successfully!", 'success')
+                    ColorMessage.write("Please restart your terminal for changes to take effect.", 'warning')
+                else:
+                    ColorMessage.write(f"Error: {result.stderr}", 'error')
+
+            except Exception as e:
+                ColorMessage.write(f"Failed to update PATH: {e}", 'error')
+
+        else:  # Linux
+            linuxenvs_dir = get_linuxenvs_dir()
+            ColorMessage.write(f"Target directory: {linuxenvs_dir}", 'info')
+            print()
+
+            # Check if scripts directory exists
+            if not linuxenvs_dir.exists():
+                ColorMessage.write(f"Scripts directory does not exist: {linuxenvs_dir}", 'error')
+                print()
+                input("Press Enter to continue...")
+                return
+
+            ColorMessage.write("This will create symbolic links in /usr/local/bin (requires sudo)", 'info')
+            ColorMessage.write("This allows you to run scripts from anywhere without modifying PATH.", 'info')
+            print()
+
+            choice = input("Do you want to proceed? (y/N): ")
+            if choice.lower() != 'y':
+                ColorMessage.write("Operation cancelled", 'warning')
+                print()
+                input("Press Enter to continue...")
+                return
+
+            # Create symbolic links
+            print()
+            ColorMessage.write("Creating symbolic links...", 'info')
+            success_count = 0
+            failed_count = 0
+
+            try:
+                # Check if /usr/local/bin exists
+                usr_local_bin = Path('/usr/local/bin')
+                if not usr_local_bin.exists():
+                    ColorMessage.write("/usr/local/bin does not exist, creating it...", 'warning')
+                    subprocess.run(['sudo', 'mkdir', '-p', str(usr_local_bin)], check=True)
+
+                # Create symbolic links for all shell scripts
+                for script_file in linuxenvs_dir.iterdir():
+                    if script_file.is_file() and script_file.suffix == '.sh':
+                        link_name = script_file.stem
+                        link_path = usr_local_bin / link_name
+
+                        try:
+                            ColorMessage.write(f"  {link_name} -> {script_file}", 'info')
+                            subprocess.run(['sudo', 'ln', '-sf', str(script_file), str(link_path)], check=True)
+                            # Make sure the original script is executable
+                            subprocess.run(['sudo', 'chmod', '+x', str(script_file)], check=True)
+                            success_count += 1
+                        except Exception as e:
+                            ColorMessage.write(f"  Failed: {link_name} - {e}", 'error')
+                            failed_count += 1
+
+                print()
+                if success_count > 0:
+                    ColorMessage.write(f"Successfully created {success_count} symbolic link(s)", 'success')
+                if failed_count > 0:
+                    ColorMessage.write(f"Failed to create {failed_count} symbolic link(s)", 'error')
+
+            except Exception as e:
+                ColorMessage.write(f"Failed to create symbolic links: {e}", 'error')
+
+        print()
+        input("Press Enter to continue...")
+
 
 def main():
     """Main entry point"""
@@ -1010,7 +1437,6 @@ if __name__ == '__main__':
         sys.exit(0)
     except Exception as e:
         ColorMessage.write(f"An error occurred: {e}", 'error')
-        import traceback
         traceback.print_exc()
         input("Press Enter to exit...")
         sys.exit(1)

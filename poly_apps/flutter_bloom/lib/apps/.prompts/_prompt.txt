@@ -1,0 +1,1 @@
+我们来修改一下搜索页面，注意style/model中心化，同时优先调用lib/common中的库， 你可以参考：D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md

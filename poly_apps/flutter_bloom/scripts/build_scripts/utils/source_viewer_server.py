@@ -854,6 +854,7 @@ class SourceViewerServer:
                 <div class="main-tab-buttons">
                     <button class="main-tab-button active" onclick="switchMainTab('images')">📷 Images</button>
                     <button class="main-tab-button" onclick="switchMainTab('files')">📁 All Files</button>
+                    <button class="main-tab-button" onclick="switchMainTab('appnames')">🏷️ App Names</button>
                     <button class="main-tab-button" onclick="switchMainTab('identifiers')">🔗 Package IDs</button>
                 </div>
             </div>
@@ -974,10 +975,53 @@ class SourceViewerServer:
                 </div>
             </div>
 
+            <!-- App Names panel -->
+            <div id="appnames-main-panel" class="main-tab-panel">
+                <div class="tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" onclick="switchTab('android', 'appnames')">Android</button>
+                        <button class="tab-button" onclick="switchTab('ios', 'appnames')">iOS</button>
+                        <button class="tab-button" onclick="switchTab('web', 'appnames')">Web</button>
+                        <button class="tab-button" onclick="switchTab('macos', 'appnames')">macOS</button>
+                        <button class="tab-button" onclick="switchTab('linux', 'appnames')">Linux</button>
+                        <button class="tab-button" onclick="switchTab('windows', 'appnames')">Windows</button>
+                    </div>
+
+                    <div class="tab-content">
+                        <div id="android-appnames-panel" class="tab-panel active">
+                            <table id="android-appnames-table" class="identifier-table"></table>
+                        </div>
+                        <div id="ios-appnames-panel" class="tab-panel">
+                            <table id="ios-appnames-table" class="identifier-table"></table>
+                        </div>
+                        <div id="web-appnames-panel" class="tab-panel">
+                            <table id="web-appnames-table" class="identifier-table"></table>
+                        </div>
+                        <div id="macos-appnames-panel" class="tab-panel">
+                            <table id="macos-appnames-table" class="identifier-table"></table>
+                        </div>
+                        <div id="linux-appnames-panel" class="tab-panel">
+                            <table id="linux-appnames-table" class="identifier-table"></table>
+                        </div>
+                        <div id="windows-appnames-panel" class="tab-panel">
+                            <table id="windows-appnames-table" class="identifier-table"></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Package IDs panel -->
             <div id="identifiers-main-panel" class="main-tab-panel">
                 <div class="tabs">
                     <div class="tab-content" style="padding: 1.5rem;">
+                        <!-- Filter buttons -->
+                        <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
+                            <span style="font-weight: 600; color: #475569;">Filter by Type:</span>
+                            <button class="view-toggle-button active" onclick="filterPackages('all')">All Packages</button>
+                            <button class="view-toggle-button" onclick="filterPackages('application')">Application Only</button>
+                            <button class="view-toggle-button" onclick="filterPackages('system')">System Only</button>
+                            <span id="package-count" style="margin-left: auto; color: #64748b; font-size: 0.9rem;"></span>
+                        </div>
                         <table id="identifiers-table" class="identifier-table"></table>
                     </div>
                 </div>
@@ -1019,6 +1063,7 @@ class SourceViewerServer:
             displayFileTables();
             displayImageTrees();
             displayFileTrees();
+            displayAppNames();
             displayIdentifiers();
             document.getElementById('statsSection').style.display = 'block';
             document.getElementById('resultsSection').style.display = 'block';
@@ -1031,12 +1076,12 @@ class SourceViewerServer:
             const statItems = [
                 { label: 'Total Images', value: stats.total_images },
                 { label: 'Total Files', value: stats.total_files },
+                { label: 'App Names', value: stats.total_app_names || 0 },
+                { label: 'Package IDs', value: stats.total_identifiers },
                 { label: 'Images Size', value: stats.total_images_size_text || stats.total_size_text },
                 { label: 'Total Size', value: stats.total_size_text },
-                { label: 'Package IDs', value: stats.total_identifiers },
                 { label: 'Icons', value: stats.images_by_type.icon || 0 },
-                { label: 'Code Files', value: stats.files_by_type.code || 0 },
-                { label: 'Config Files', value: stats.files_by_type.config || 0 }
+                { label: 'Code Files', value: stats.files_by_type.code || 0 }
             ];
 
             statsGrid.innerHTML = statItems.map(item => `
@@ -1102,40 +1147,216 @@ class SourceViewerServer:
             });
         }
 
+        function displayAppNames() {
+            const platforms = ['android', 'ios', 'web', 'macos', 'linux', 'windows'];
+            const appNames = scanResults.app_names || {};
+
+            platforms.forEach(platform => {
+                const table = document.getElementById(platform + '-appnames-table');
+                const names = appNames[platform] || [];
+
+                if (names.length === 0) {
+                    table.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No application names found for this platform</td></tr>';
+                    return;
+                }
+
+                // Group by app name and locale for better display
+                const grouped = {};
+                names.forEach(item => {
+                    const key = item.app_name;
+                    if (!grouped[key]) {
+                        grouped[key] = [];
+                    }
+                    grouped[key].push(item);
+                });
+
+                let tableRows = '';
+                Object.keys(grouped).forEach(appName => {
+                    const items = grouped[appName];
+                    const defaultItem = items.find(i => i.locale === 'default') || items[0];
+
+                    // Create language badges
+                    const languageBadges = items.map(item => {
+                        const badgeColor = item.locale === 'default' ? '#667eea' : '#10b981';
+                        return `<span style="display: inline-block; padding: 2px 8px; margin: 2px; background: ${badgeColor}; color: white; border-radius: 12px; font-size: 0.75rem;">${item.locale_name}</span>`;
+                    }).join('');
+
+                    tableRows += `
+                        <tr>
+                            <td><strong style="font-size: 1.1rem; color: #667eea;">${appName}</strong></td>
+                            <td>${languageBadges}</td>
+                            <td><span class="file-type-badge file-type-config">${defaultItem.source_type}</span></td>
+                            <td><div class="path-display" title="${defaultItem.source_file_abs}">${defaultItem.source_file}</div></td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-btn" data-file-path="${defaultItem.source_file_abs}" onclick="openDirectoryFromData(this)">Open Dir</button>
+                                    <button class="action-btn" data-file-path="${defaultItem.source_file_abs}" onclick="copyPathFromData(this)">Copy Path</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+
+                    // Add detail rows for each language version
+                    items.forEach((item, index) => {
+                        if (index === 0) return; // Skip first one as it's shown in main row
+                        tableRows += `
+                            <tr style="background: #f8fafc;">
+                                <td style="padding-left: 2rem; color: #64748b;">└─ ${item.locale_name}</td>
+                                <td colspan="2"><code style="font-size: 0.85rem; color: #64748b;">${item.app_name}</code></td>
+                                <td><div class="path-display" title="${item.source_file_abs}" style="font-size: 0.85rem;">${item.source_file}</div></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="action-btn" data-file-path="${item.source_file_abs}" onclick="openDirectoryFromData(this)">Open Dir</button>
+                                        <button class="action-btn" data-file-path="${item.source_file_abs}" onclick="copyPathFromData(this)">Copy Path</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                });
+
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">App Name</th>
+                            <th style="width: 25%;">Languages</th>
+                            <th style="width: 12%;">Source Type</th>
+                            <th style="width: 30%;">Source File</th>
+                            <th style="width: 13%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                `;
+            });
+        }
+
+        let currentPackageFilter = 'all'; // Global filter state
+
         function displayIdentifiers() {
             const table = document.getElementById('identifiers-table');
             const identifiers = scanResults.package_identifiers || [];
 
             if (identifiers.length === 0) {
-                table.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #64748b;">No package identifiers found</td></tr>';
+                table.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No package identifiers found</td></tr>';
                 return;
             }
+
+            // Apply filter
+            const filteredIdentifiers = identifiers.filter(id => {
+                if (currentPackageFilter === 'all') return true;
+                if (currentPackageFilter === 'application') return !id.is_system;
+                if (currentPackageFilter === 'system') return id.is_system;
+                return true;
+            });
+
+            // Update count display
+            const countDisplay = document.getElementById('package-count');
+            const appCount = identifiers.filter(id => !id.is_system).length;
+            const sysCount = identifiers.filter(id => id.is_system).length;
+            countDisplay.textContent = `Showing ${filteredIdentifiers.length} of ${identifiers.length} (${appCount} app, ${sysCount} system)`;
+
+            if (filteredIdentifiers.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No packages match the current filter</td></tr>';
+                return;
+            }
+
+            // Generate table rows with classification
+            const rows = filteredIdentifiers.map(id => {
+                // Determine badge color and style based on package type
+                let badgeColor, badgeText, badgeIcon, rowStyle;
+
+                if (!id.is_system) {
+                    // Application package - highlight with green
+                    badgeColor = '#10b981';
+                    badgeText = 'APPLICATION';
+                    badgeIcon = '📱';
+                    rowStyle = 'background: linear-gradient(90deg, #ecfdf5 0%, #ffffff 100%); border-left: 4px solid #10b981;';
+                } else {
+                    // System package - gray
+                    badgeColor = '#64748b';
+                    badgeText = id.category.toUpperCase();
+                    badgeIcon = getCategoryIcon(id.category);
+                    rowStyle = '';
+                }
+
+                return `
+                    <tr style="${rowStyle}">
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1.2rem;">${badgeIcon}</span>
+                                <code class="identifier-code" style="${!id.is_system ? 'font-weight: bold; color: #059669;' : ''}">${id.identifier}</code>
+                            </div>
+                        </td>
+                        <td>
+                            <span style="display: inline-block; padding: 4px 10px; background: ${badgeColor}; color: white; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">
+                                ${badgeText}
+                            </span>
+                        </td>
+                        <td><div class="path-display" title="${id.display_name}">${id.display_name}</div></td>
+                        <td>${id.platform}</td>
+                        <td><div class="path-display" title="${id.file_path}">${id.relative_path}</div></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" data-file-path="${id.file_path}" onclick="openDirectoryFromData(this)">Open Dir</button>
+                                <button class="action-btn" data-file-path="${id.file_path}" onclick="copyPathFromData(this)">Copy Path</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
 
             table.innerHTML = `
                 <thead>
                     <tr>
-                        <th>Package Identifier</th>
-                        <th>Platform</th>
-                        <th>File Path</th>
-                        <th>Actions</th>
+                        <th style="width: 30%;">Package Identifier</th>
+                        <th style="width: 12%;">Type</th>
+                        <th style="width: 20%;">Category</th>
+                        <th style="width: 8%;">Platform</th>
+                        <th style="width: 20%;">File Path</th>
+                        <th style="width: 10%;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${identifiers.map(id => `
-                        <tr>
-                            <td><code class="identifier-code">${id.identifier}</code></td>
-                            <td>${id.platform}</td>
-                            <td><div class="path-display" title="${id.file_path}">${id.relative_path}</div></td>
-                            <td>
-                                <div class="action-buttons">
-                                    <button class="action-btn" data-file-path="${id.file_path}" onclick="openDirectoryFromData(this)">Open Dir</button>
-                                    <button class="action-btn" data-file-path="${id.file_path}" onclick="copyPathFromData(this)">Copy Path</button>
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('')}
+                    ${rows}
                 </tbody>
             `;
+        }
+
+        function getCategoryIcon(category) {
+            const icons = {
+                'application': '📱',
+                'build_tool': '🔧',
+                'plugin': '🔌',
+                'language': '📝',
+                'framework': '🏗️',
+                'service': '☁️',
+                'permission': '🔐',
+                'hardware': '⚙️',
+                'system': '🖥️',
+                'config': '⚙️',
+                'schema': '📋',
+                'theme': '🎨',
+                'documentation': '📖',
+                'url': '🔗',
+                'library': '📚',
+                'testing': '🧪',
+                'standard': '📐'
+            };
+            return icons[category] || '📦';
+        }
+
+        function filterPackages(filterType) {
+            currentPackageFilter = filterType;
+
+            // Update button states
+            const buttons = document.querySelectorAll('#identifiers-main-panel .view-toggle-button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Re-render table with filter
+            displayIdentifiers();
         }
 
         function switchTab(tabName) {

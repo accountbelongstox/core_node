@@ -4,6 +4,7 @@ import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../services_app_codemart/task_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class TaskDetailsViewAppCodemart extends StatefulWidget {
   final int taskId;
@@ -73,7 +74,7 @@ class _TaskDetailsViewAppCodemartState extends State<TaskDetailsViewAppCodemart>
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+            content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
             backgroundColor: Colors.green,
           ),
         );
@@ -102,7 +103,7 @@ class _TaskDetailsViewAppCodemartState extends State<TaskDetailsViewAppCodemart>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartTaskTitle)),
+        title: Text(LocalizationKeysAppCodemart.codemartTaskTitle.tr(context)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -136,22 +137,22 @@ class _TaskDetailsViewAppCodemartState extends State<TaskDetailsViewAppCodemart>
                           const SizedBox(height: 16),
                           _InfoRow(
                             icon: Icons.info,
-                            label: context.tr(LocalizationKeysAppCodemart.codemartTaskStatus),
+                            label: LocalizationKeysAppCodemart.codemartTaskStatus.tr(context),
                             value: _task!.status.name,
                           ),
                           _InfoRow(
                             icon: Icons.priority_high,
-                            label: context.tr(LocalizationKeysAppCodemart.codemartTaskPriority),
+                            label: LocalizationKeysAppCodemart.codemartTaskPriority.tr(context),
                             value: _task!.priority.name,
                           ),
                           _InfoRow(
                             icon: Icons.attach_money,
-                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                            label: LocalizationKeysAppCodemart.codemartProjectBudget.tr(context),
                             value: '\$${_task!.budget.toStringAsFixed(2)}',
                           ),
                           const SizedBox(height: 24),
                           Text(
-                            context.tr(LocalizationKeysAppCodemart.codemartTaskDescription),
+                            LocalizationKeysAppCodemart.codemartTaskDescription.tr(context),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
@@ -162,7 +163,7 @@ class _TaskDetailsViewAppCodemartState extends State<TaskDetailsViewAppCodemart>
                               width: double.infinity,
                               child: FilledButton(
                                 onPressed: _handleAcceptTask,
-                                child: Text(context.tr(LocalizationKeysAppCodemart.codemartAcceptTask)),
+                                child: Text(LocalizationKeysAppCodemart.codemartAcceptTask.tr(context)),
                               ),
                             ),
                         ],

@@ -422,36 +422,31 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 }
 
 async function handleConnect(payload: { serial: string; deviceName?: string; config: DeviceConfig }) {
-  try {
-    await connectDevice(payload);
-    showConnectDialog.value = false;
-    toast.success('Device connected successfully', 'Connection Success');
-  } catch (error) {
-    console.error('Connection error:', error);
-    toast.error('Failed to connect to device', 'Connection Error');
-  }
+  // ✅ REMOVED try-catch for debugging - let errors surface
+  await connectDevice(payload);
+  showConnectDialog.value = false;
+  toast.success('Device connected successfully', 'Connection Success');
 }
 
 async function handleQuickConnect(device: { serial: string; deviceName: string; lastConfig?: any }) {
-  try {
-    const config: DeviceConfig = device.lastConfig || {
-      maxFps: 30,
-      bitrate: 8000000,
-      maxSize: 1920
-    };
+  // ✅ REMOVED try-catch for debugging - let errors surface
+  const config: DeviceConfig = device.lastConfig || {
+    max_fps: 30,
+    bit_rate: 8000000,
+    max_size: 1920,
+    codec: 'h264',
+    control: true,
+    locked_video_orientation: -1
+  };
 
-    await handleConnect({
-      serial: device.serial,
-      deviceName: device.deviceName,
-      config
-    });
+  await handleConnect({
+    serial: device.serial,
+    deviceName: device.deviceName,
+    config
+  });
 
-    showConnectionHistory.value = false;
-    toast.success(`Quick connect to ${device.deviceName}`, 'Quick Connect');
-  } catch (error) {
-    console.error('Quick connect error:', error);
-    toast.error(`Failed to quick connect to ${device.deviceName}`, 'Quick Connect Error');
-  }
+  showConnectionHistory.value = false;
+  toast.success(`Quick connect to ${device.deviceName}`, 'Quick Connect');
 }
 
 function toggleGroupControl() {

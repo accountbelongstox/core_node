@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class WalletViewAppCodemart extends StatefulWidget {
   const WalletViewAppCodemart({super.key});
@@ -56,12 +57,12 @@ class _WalletViewAppCodemartState extends State<WalletViewAppCodemart>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartWallet)),
+        title: Text(LocalizationKeysAppCodemart.codemartWallet.tr(context)),
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: context.tr(LocalizationKeysAppCodemart.codemartBalance)),
-            Tab(text: context.tr(LocalizationKeysAppCodemart.codemartTransactions)),
+            Tab(text: LocalizationKeysAppCodemart.codemartBalance.tr(context)),
+            Tab(text: LocalizationKeysAppCodemart.codemartTransactions.tr(context)),
           ],
         ),
       ),
@@ -89,7 +90,7 @@ class _WalletViewAppCodemartState extends State<WalletViewAppCodemart>
               child: Column(
                 children: [
                   Text(
-                    context.tr(LocalizationKeysAppCodemart.codemartBalance),
+                    LocalizationKeysAppCodemart.codemartBalance.tr(context),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
@@ -116,7 +117,7 @@ class _WalletViewAppCodemartState extends State<WalletViewAppCodemart>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.tr(LocalizationKeysAppCodemart.codemartEarnings),
+                        LocalizationKeysAppCodemart.codemartEarnings.tr(context),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 4),
@@ -168,7 +169,7 @@ class _WalletViewAppCodemartState extends State<WalletViewAppCodemart>
   Widget _buildTransactionsTab() {
     return _transactions.isEmpty
         ? Center(
-            child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+            child: Text(LocalizationKeysAppCodemart.codemartNoData.tr(context)),
           )
         : ListView.builder(
             padding: const EdgeInsets.all(16),

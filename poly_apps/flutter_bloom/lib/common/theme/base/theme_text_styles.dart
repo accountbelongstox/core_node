@@ -679,4 +679,12 @@ class ThemeTextStyles {
     fontSize: 14,
     color: ThemeColors.secondaryLabel,
   );
+
+  // Backward compatibility aliases for app_qy
+  static const TextStyle display1 = largeTitle;
+  static const TextStyle h2 = title2;
+  static const TextStyle h3 = title3;
+  static const TextStyle h4 = headline;
+  static const TextStyle body1 = body;
+  static const TextStyle body2 = callout;
 }

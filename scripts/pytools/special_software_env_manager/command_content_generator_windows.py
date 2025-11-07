@@ -41,8 +41,16 @@ class WindowsCommandContentGenerator:
         return self.scripts_dir / 'pytools' / 'ai_tools' / f'{tool_type}_update.bat'
 
     def generate_mcp_section(self, tool_type: str, tool_display_name: str,
-                           target_name: str, support_upgrade: bool = True) -> str:
-        """Generate MCP synchronization section for any AI tool"""
+                           target_name: str, support_upgrade: bool = True, support_npm_update: bool = False) -> str:
+        """Generate MCP synchronization section for any AI tool
+
+        Args:
+            tool_type: Type of AI tool (e.g., 'claude', 'codex')
+            tool_display_name: Display name for the tool (e.g., 'Claude Code')
+            target_name: Target name for MCP sync (e.g., 'claude')
+            support_upgrade: Whether to include upgrade option
+            support_npm_update: Whether to include npm/npx update option
+        """
         update_script_path = self.get_update_script_path(tool_type)
         sync_script_path = self.get_mcp_sync_script_path(tool_type)
         pre_launch_script_path = self.get_pre_launch_script_path(tool_type)
@@ -78,6 +86,34 @@ if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {{
 
 """
 
+        npm_update_section = ""
+        if support_npm_update:
+            npm_update_section = """
+Write-Host ""
+$npmUpdateChoice = Read-Host "Do you want to update npm global packages? (y/N)"
+if ($npmUpdateChoice -eq "y" -or $npmUpdateChoice -eq "Y") {
+    Write-Host ""
+    Write-Host "[INFO] Updating npm global packages..." -ForegroundColor Yellow
+    Write-Host ""
+
+    # Check if npm is available
+    $npmAvailable = Get-Command npm -ErrorAction SilentlyContinue
+    if ($npmAvailable) {
+        Write-Host "[INFO] Checking for npm updates..." -ForegroundColor Cyan
+        npm update -g
+        Write-Host ""
+        Write-Host "[SUCCESS] npm global packages updated" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] npm command not found" -ForegroundColor Yellow
+    }
+    Write-Host ""
+} else {
+    Write-Host "[INFO] Skipping npm update" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+"""
+
         sync_section = f"""$currentWorkingDir = Get-Location
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
@@ -99,8 +135,116 @@ $null = Read-Host "Press Enter to continue"
 Write-Host ""
 
 {pre_launch_section}
-{upgrade_section}
+{upgrade_section}{npm_update_section}
 {sync_section}
+"""
+
+    def generate_custom_user_directory_section(self) -> str:
+        """Generate custom user directory configuration section"""
+        return """
+#region Initialize Path Variables
+$scriptCurrentPath = $PSScriptRoot
+if (-not $scriptCurrentPath) {
+    $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+$scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$shellsDirPath = Join-Path $scriptsDirPath "shells"
+$winDirPath = Join-Path $shellsDirPath "win"
+$winCommonDirPath = Join-Path $winDirPath "win_common"
+$pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
+$aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
+
+#region Custom User Directory Configuration
+# ============================================================================
+# CUSTOM USER DIRECTORY SETTING
+# ============================================================================
+# Automatically generates user directory at D:\\.tmp\\Users\\时间戳
+# Format: D:\\.tmp\\Users\\YYYYMMDD_HHMMSS
+# ============================================================================
+
+# Generate timestamp for directory name
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$baseTempDir = "D:\\.tmp\\Users"
+$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+
+# Create the directory if it doesn't exist
+try {
+    if (-not (Test-Path $baseTempDir)) {
+        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
+    }
+
+    if (-not (Test-Path $CustomUserDirectory)) {
+        Write-Host "[INFO] Creating custom user directory: $CustomUserDirectory" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $CustomUserDirectory -Force | Out-Null
+    }
+
+    # Verify directory was created successfully
+    if (Test-Path $CustomUserDirectory) {
+        $userProfilePath = $CustomUserDirectory
+        Write-Host "[SUCCESS] Using auto-generated custom user directory: $userProfilePath" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Failed to create custom directory, falling back to system default" -ForegroundColor Yellow
+        $userProfilePath = $env:USERPROFILE
+        if (-not $userProfilePath) {
+            $userProfilePath = [Environment]::GetFolderPath("UserProfile")
+        }
+        Write-Host "[INFO] Using system default user directory: $userProfilePath" -ForegroundColor Cyan
+    }
+} catch {
+    Write-Host "[ERROR] Failed to create custom user directory: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[INFO] Falling back to system default..." -ForegroundColor Yellow
+    $userProfilePath = $env:USERPROFILE
+    if (-not $userProfilePath) {
+        $userProfilePath = [Environment]::GetFolderPath("UserProfile")
+    }
+    Write-Host "[INFO] Using system default user directory: $userProfilePath" -ForegroundColor Cyan
+}
+
+$userHomePath = $userProfilePath
+$usersDirectoryPath = Split-Path $userProfilePath -Parent
+
+# Set environment variables for Node.js, React, Python, and other applications
+# ============================================================================
+# These environment variables will be available to all child processes
+# including Node.js, React, Python, and other applications launched from this script
+#
+# Python usage examples:
+#   import os
+#   user_home = os.path.expanduser("~")  # Uses HOME or USERPROFILE
+#   user_home = os.getenv("USERPROFILE") or os.getenv("HOME")
+#   from pathlib import Path
+#   user_home = Path.home()  # Uses HOME or USERPROFILE
+# ============================================================================
+$env:USERPROFILE = $userProfilePath
+$env:HOME = $userProfilePath
+$env:USER_HOME = $userProfilePath
+$env:HOMEPATH = $userProfilePath
+$env:USER_DIR = $userProfilePath
+
+Write-Host "[INFO] Environment variables set for Node.js/React/Python applications:" -ForegroundColor Cyan
+Write-Host "  USERPROFILE = $env:USERPROFILE" -ForegroundColor Gray
+Write-Host "  HOME = $env:HOME" -ForegroundColor Gray
+Write-Host "  USER_HOME = $env:USER_HOME" -ForegroundColor Gray
+Write-Host "  HOMEPATH = $env:HOMEPATH" -ForegroundColor Gray
+Write-Host "  USER_DIR = $env:USER_DIR" -ForegroundColor Gray
+Write-Host ""
+#endregion
+
+# Test path resolution (can be removed in production)
+Write-Host "[DEBUG] Path Resolution Test:" -ForegroundColor Magenta
+Write-Host "  Script Path: $scriptCurrentPath" -ForegroundColor Gray
+Write-Host "  Scripts Dir: $scriptsDirPath" -ForegroundColor Gray
+Write-Host "  Shells Dir: $shellsDirPath" -ForegroundColor Gray
+Write-Host "  Win Dir: $winDirPath" -ForegroundColor Gray
+Write-Host "  Win Common Dir: $winCommonDirPath" -ForegroundColor Gray
+Write-Host "  PyTools Dir: $pytoolsDirPath" -ForegroundColor Gray
+Write-Host "  AI Tools Dir: $aiToolsDirPath" -ForegroundColor Gray
+Write-Host "  User Profile: $userProfilePath" -ForegroundColor Gray
+Write-Host "  User Home: $userHomePath" -ForegroundColor Gray
+Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
+Write-Host ""
+#endregion
 """
 
     def generate_command_content(self, config_name: str, command_prefix: str,
@@ -246,7 +390,10 @@ pause
 #endregion
 """
 
-        return f"""{header}{file_name_display}{env_section}{mcp_section_content}{launch_section}"""
+        # Generate custom user directory section
+        custom_user_dir_section = self.generate_custom_user_directory_section()
+
+        return f"""{header}{file_name_display}{custom_user_dir_section}{env_section}{mcp_section_content}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

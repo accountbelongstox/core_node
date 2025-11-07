@@ -24,44 +24,36 @@ export function useWSRPC(options: UseWSRPCOptions) {
     connecting.value = true;
     lastError.value = null;
 
-    try {
-      ws.value = new WebSocket(options.url);
-      ws.value.binaryType = 'arraybuffer';
+    // ✅ REMOVED outer try-catch for debugging - let errors surface
+    ws.value = new WebSocket(options.url);
+    ws.value.binaryType = 'arraybuffer';
 
-      ws.value.onopen = () => {
-        connected.value = true;
-        connecting.value = false;
-        options.onConnect?.();
-      };
-
-      ws.value.onmessage = (event) => {
-        if (event.data instanceof ArrayBuffer) {
-          options.onBinaryMessage?.(event.data);
-        } else if (typeof event.data === 'string') {
-          try {
-            const message: WSRPCMessage = JSON.parse(event.data);
-            options.onMessage?.(message);
-          } catch (e) {
-            console.error('Failed to parse WebSocket message:', e);
-          }
-        }
-      };
-
-      ws.value.onerror = (error) => {
-        lastError.value = 'WebSocket error occurred';
-        options.onError?.(error);
-      };
-
-      ws.value.onclose = () => {
-        connected.value = false;
-        connecting.value = false;
-        options.onDisconnect?.();
-      };
-    } catch (error) {
+    ws.value.onopen = () => {
+      connected.value = true;
       connecting.value = false;
-      lastError.value = error instanceof Error ? error.message : 'Connection failed';
-      console.error('Failed to create WebSocket:', error);
-    }
+      options.onConnect?.();
+    };
+
+    ws.value.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        options.onBinaryMessage?.(event.data);
+      } else if (typeof event.data === 'string') {
+        // ✅ REMOVED try-catch for debugging - let errors surface
+        const message: WSRPCMessage = JSON.parse(event.data);
+        options.onMessage?.(message);
+      }
+    };
+
+    ws.value.onerror = (error) => {
+      lastError.value = 'WebSocket error occurred';
+      options.onError?.(error);
+    };
+
+    ws.value.onclose = () => {
+      connected.value = false;
+      connecting.value = false;
+      options.onDisconnect?.();
+    };
   };
 
   const disconnect = () => {
@@ -79,13 +71,9 @@ export function useWSRPC(options: UseWSRPCOptions) {
       return false;
     }
 
-    try {
-      ws.value.send(JSON.stringify(message));
-      return true;
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      return false;
-    }
+    // ✅ REMOVED try-catch for debugging - let errors surface
+    ws.value.send(JSON.stringify(message));
+    return true;
   };
 
   const sendBinary = (data: ArrayBuffer) => {
@@ -94,13 +82,9 @@ export function useWSRPC(options: UseWSRPCOptions) {
       return false;
     }
 
-    try {
-      ws.value.send(data);
-      return true;
-    } catch (error) {
-      console.error('Failed to send binary data:', error);
-      return false;
-    }
+    // ✅ REMOVED try-catch for debugging - let errors surface
+    ws.value.send(data);
+    return true;
   };
 
   onUnmounted(() => {

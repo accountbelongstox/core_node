@@ -18,6 +18,7 @@ class ConfigManager:
     def _initialize_configs(self):
         """Initialize all tool configurations"""
         self.configs['Claude AI'] = self.get_claude_config()
+        self.configs['Codex CLI'] = self.get_codex_config()
         self.configs['OpenAI'] = self.get_openai_config()
         self.configs['Factory AI Droid'] = self.get_droid_config()
         self.configs['SSH Connection'] = self.get_ssh_config()
@@ -75,6 +76,51 @@ class ConfigManager:
         }
 
     @staticmethod
+    def get_codex_config() -> Dict[str, Any]:
+        """Get Codex CLI configuration"""
+        return {
+            'Title': 'Codex CLI Environment Variables',
+            'Description': 'Set up Codex CLI environment variables for API access',
+            'Common': 'codex',
+            'CommandPrefix': 'codex',
+            'DisplayName': 'Codex CLI',
+            'WindowsCommand': 'codex',
+            'LinuxCommand': 'codex',
+            'SmartRecognition': {
+                'Enabled': True,
+                'AllowedTypes': ['token', 'url']
+            },
+            'MCPSupport': {
+                'Enabled': True,
+                'PreLaunchScript': {
+                    'Windows': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\codex_pre_launch.ps1',
+                    'Linux': '/d/programing/core_node/scripts/pytools/ai_tools/codex_pre_launch.sh'
+                },
+                'UpgradeScript': {
+                    'Windows': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\codex_update.bat',
+                    'Linux': '/d/programing/core_node/scripts/pytools/ai_tools/codex_update.sh'
+                },
+                'MCPSyncScript': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\codex_sync_mcp_servers.py'
+            },
+            'Variables': [
+                {
+                    'Name': 'OPENAI_API_KEY',
+                    'DisplayName': 'OPENAI_API_KEY',
+                    'Description': 'OpenAI API key for Codex',
+                    'IsSecret': True,
+                    'InputType': 'Token'
+                },
+                {
+                    'Name': 'OPENAI_BASE_URL',
+                    'DisplayName': 'OPENAI_BASE_URL',
+                    'Description': 'OpenAI API base URL',
+                    'IsSecret': False,
+                    'InputType': 'Url'
+                }
+            ]
+        }
+
+    @staticmethod
     def get_openai_config() -> Dict[str, Any]:
         """Get OpenAI configuration"""
         return {
@@ -126,7 +172,16 @@ class ConfigManager:
                 'AllowedTypes': ['token', 'url']
             },
             'MCPSupport': {
-                'Enabled': False
+                'Enabled': True,
+                'PreLaunchScript': {
+                    'Windows': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\droid_pre_launch.ps1',
+                    'Linux': '/d/programing/core_node/scripts/pytools/ai_tools/droid_pre_launch.sh'
+                },
+                'UpgradeScript': {
+                    'Windows': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\droid_update.bat',
+                    'Linux': '/d/programing/core_node/scripts/pytools/ai_tools/droid_update.sh'
+                },
+                'MCPSyncScript': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\claude_sync_mcp_servers.py'
             },
             'Variables': [
                 {

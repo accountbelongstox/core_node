@@ -375,6 +375,68 @@ class FlutterPrinter:
     def __init__(self):
         self.printer = DirectoryTreePrinter(base_dir=FLUTTER_DIR)
         self.guide_doc = FLUTTER_DIR / "development-guides" / "FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md"
+        self.ensure_guide_header()
+
+    def ensure_guide_header(self):
+        """Ensure the guide document has the architecture prompt at the beginning"""
+        if not self.guide_doc.exists():
+            return
+        
+        # Read current content
+        try:
+            with open(self.guide_doc, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            print(f"Warning: Could not read guide document: {e}")
+            return
+        
+        # Check if header already exists
+        header_marker = "<!-- ### FLUTTER ARCHITECTURE PROMPT START ### -->"
+        if header_marker in content:
+            return  # Header already exists
+        
+        # Prepare the header prompt
+        header_prompt = """<!-- ### FLUTTER ARCHITECTURE PROMPT START ### -->
+<!-- 
+⚠️ IMPORTANT: AI MUST READ THIS DOCUMENT FIRST ⚠️
+
+This document contains the ARCHITECTURE and REFERENCE documentation for this Flutter project.
+
+🔑 KEY ARCHITECTURE INFORMATION:
+- This is a MULTI-APP (Multi-Entry) Flutter framework
+- Multiple apps coexist in a single codebase with separate entry points
+- Each app has its own entry file: lib/apps/app_{name}/main_app_{name}.dart
+- Common code is shared in lib/common/
+- Main entry (lib/main.dart) is a lightweight proxy that routes to specific apps
+
+📋 FRAMEWORK STRUCTURE:
+- Multi-entry pattern: Each app has independent entry point
+- Shared common code: lib/common/ contains shared utilities, widgets, etc.
+- App-specific code: lib/apps/{app_name}/ contains app-specific implementation
+- Unified routing: All apps share routing, localization, and static resources
+
+🎯 FOR AI ASSISTANTS:
+- ALWAYS check this document before making architectural decisions
+- Understand the multi-app structure before modifying code
+- Respect the separation between common and app-specific code
+- Follow the entry point patterns when creating new apps
+
+This is a critical reference document - please review it thoroughly before proceeding.
+-->
+<!-- ### FLUTTER ARCHITECTURE PROMPT END ### -->
+
+"""
+        
+        # Insert header at the beginning
+        new_content = header_prompt + content
+        
+        # Write back to file
+        try:
+            with open(self.guide_doc, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            print(f"[OK] Architecture prompt added to guide document")
+        except Exception as e:
+            print(f"Warning: Could not write to guide document: {e}")
 
     def generate_header(self, app_name, mode):
         """Generate header information"""
@@ -471,8 +533,10 @@ class FlutterPrinter:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(tree_content)
 
-        print(f"\n[OK] Tree printed to: {output_file}")
-        print(f"  Total lines: {len(tree_content.splitlines())}")
+        # Output path in a copy-friendly format
+        output_path_str = str(output_file.resolve())
+        print(f"\n[OK] Tree printed to:")
+        print(output_path_str)
 
         return output_file
 

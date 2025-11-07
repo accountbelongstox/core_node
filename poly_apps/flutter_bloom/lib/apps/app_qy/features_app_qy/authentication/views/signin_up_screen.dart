@@ -10,6 +10,15 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+// ============================================================================
+// [DEPRECATED - MS] This screen is deprecated and should not be used
+// ============================================================================
+// This old screen has been replaced by refactored MVC architecture screens.
+// Please use the refactored screens located in:
+//   - features_app_qy/auth/views/login_phone_screen_refactored_app_qy.dart
+// This file is kept for reference only and is not connected to the app routes.
+// ============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_text_field.dart';
 import 'package:qyflutter/common/widgets/custom_gradient_text.dart';

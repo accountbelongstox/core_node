@@ -10,136 +10,189 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Home Study Screen for QY App
+/// Refactored Home Study Screen for QY App - with proper architecture
 library;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../widgets_app_qy/bottom_navigation_app_qy.dart';
+import '../../../models_app_qy/user_model_app_qy.dart';
+import '../controllers/learning_controller_app_qy.dart';
 
-class HomeStudyScreenAppQy extends StatefulWidget {
-  const HomeStudyScreenAppQy({super.key});
+class HomeStudyScreenRefactoredAppQy extends StatefulWidget {
+  const HomeStudyScreenRefactoredAppQy({super.key});
 
   @override
-  State<HomeStudyScreenAppQy> createState() => _HomeStudyScreenAppQyState();
+  State<HomeStudyScreenRefactoredAppQy> createState() =>
+      _HomeStudyScreenRefactoredAppQyState();
 }
 
-class _HomeStudyScreenAppQyState extends State<HomeStudyScreenAppQy> {
-  final String _username;
-  final int _learnedWords;
-  final int _totalWords;
-  final double _learnedPercentage;
-  final int _newWordsProgress;
-  final int _newWordsTotal;
-  final int _reviewWordsProgress;
-  final int _reviewWordsTotal;
-  bool _showMoreFeatures;
-
-  _HomeStudyScreenAppQyState()
-      : _username = '小留8',
-        _learnedWords = 27,
-        _totalWords = 16952,
-        _learnedPercentage = 0.1,
-        _newWordsProgress = 0,
-        _newWordsTotal = 200,
-        _reviewWordsProgress = 0,
-        _reviewWordsTotal = 27,
-        _showMoreFeatures = true;
-
-  void _toggleMoreFeatures() {
-    setState(() {
-      _showMoreFeatures = !_showMoreFeatures;
+class _HomeStudyScreenRefactoredAppQyState
+    extends State<HomeStudyScreenRefactoredAppQy> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LearningControllerAppQy>().loadLearningStats();
     });
   }
 
   void _handleStartLearning() {
-    // TODO: Navigate to learning session
+    context.read<LearningControllerAppQy>().startLearning();
   }
 
   void _handleFeatureTap(String feature) {
-    // TODO: Handle feature navigation
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(feature)),
+    );
   }
 
-  void _handleSettingsTap() {
-    // TODO: Navigate to settings
-  }
-
-  void _handleLearningSettings() {
-    // TODO: Navigate to learning settings
-  }
-
-  void _handleLearningData() {
-    // TODO: Navigate to learning data/statistics
+  void _handleSettingsTap(String setting) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(setting)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ThemeColors.background,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            _buildMainContent(),
-            if (_showMoreFeatures) _buildMoreFeaturesDrawer(),
-          ],
-        ),
+      body: Consumer<LearningControllerAppQy>(
+        builder: (context, controller, child) {
+          return SafeArea(
+            child: Stack(
+              children: [
+                _buildMainContent(controller),
+                if (controller.showMoreFeatures)
+                  _buildMoreFeaturesDrawer(controller),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildMainContent() {
+  Widget _buildMainContent(LearningControllerAppQy controller) {
+    final stats = controller.learningStats;
+    final user = context.watch<UserModelAppQy>();
+
     return Column(
       children: [
-        _buildHeader(),
+        _buildHeader(user),
         Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(Dimensions.paddingMedium),
-            child: Column(
-              children: [
-                SizedBox(height: Dimensions.spacingLarge),
-                _buildProgressSection(),
-                SizedBox(height: Dimensions.spacingXLarge),
-                _buildLearningStats(),
-                SizedBox(height: Dimensions.spacingXLarge),
-                _buildStartButton(),
-              ],
-            ),
-          ),
+          child: controller.isLoading
+              ? Center(
+                  child: CircularProgressIndicator(
+                    color: ThemeColors.primary,
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: controller.refreshStats,
+                  color: ThemeColors.primary,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      left: ThemeDimensions.paddingMedium,
+                      right: ThemeDimensions.paddingMedium,
+                      top: ThemeDimensions.paddingMedium,
+                      bottom: ThemeDimensions.paddingSmall,
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(height: ThemeDimensions.spacingLarge),
+                        _buildProgressSection(stats),
+                        SizedBox(height: ThemeDimensions.spacingXLarge),
+                        _buildLearningStats(stats),
+                        SizedBox(height: ThemeDimensions.spacingXLarge),
+                        _buildStartButton(controller),
+                      ],
+                    ),
+                  ),
+                ),
         ),
-        _buildBottomNavigation(),
+        const BottomNavigationAppQy(currentIndex: 0),
       ],
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(UserModelAppQy user) {
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      color: ThemeColors.surface,
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.shadow.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            '04:00',
-            style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () {
+                  context.read<LearningControllerAppQy>().toggleMoreFeatures();
+                },
+                icon: Icon(
+                  Icons.menu,
+                  color: ThemeColors.textPrimary,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.spacingSmall),
+              Text(
+                DateTime.now().hour.toString().padLeft(2, '0') +
+                    ':' +
+                    DateTime.now().minute.toString().padLeft(2, '0'),
+                style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+              ),
+            ],
           ),
-          Text(
-            _username,
-            style: TextStyles.body1.copyWith(color: ThemeColors.textPrimary),
+          Row(
+            children: [
+              Text(
+                user.displayName ?? QyAppLocalizationKeys.qyGuest.tr(context),
+                style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textPrimary),
+              ),
+              SizedBox(width: ThemeDimensions.spacingSmall),
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: ThemeColors.primary.withOpacity(0.1),
+                child: Icon(
+                  Icons.person,
+                  size: 18,
+                  color: ThemeColors.primary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProgressSection() {
+  Widget _buildProgressSection(dynamic stats) {
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
+      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
       decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        gradient: LinearGradient(
+          colors: [
+            ThemeColors.primary.withOpacity(0.1),
+            ThemeColors.secondary.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         border: Border.all(color: ThemeColors.border),
       ),
       child: Column(
@@ -148,69 +201,76 @@ class _HomeStudyScreenAppQyState extends State<HomeStudyScreenAppQy> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${QyAppLocalizationKeys.qyHomeLearned.tr(context)} ${_learnedPercentage}%',
-                style: TextStyles.body1.copyWith(
+                '${QyAppLocalizationKeys.qyHomeLearned.tr(context)} ${stats.learnedPercentage}%',
+                style: ThemeTextStyles.body1.copyWith(
                   color: ThemeColors.textSecondary,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               Text(
-                '$_learnedWords/$_totalWords${QyAppLocalizationKeys.qyWords.tr(context)}',
-                style: TextStyles.body1.copyWith(
+                '${stats.learnedWords}/${stats.totalWords}${QyAppLocalizationKeys.qyWords.tr(context)}',
+                style: ThemeTextStyles.body1.copyWith(
                   color: ThemeColors.textSecondary,
                 ),
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingSmall),
-          LinearProgressIndicator(
-            value: _learnedPercentage / 100,
-            backgroundColor: ThemeColors.border,
-            valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
+          SizedBox(height: ThemeDimensions.spacingMedium),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+            child: LinearProgressIndicator(
+              value: stats.learnedPercentage / 100,
+              minHeight: 8,
+              backgroundColor: ThemeColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLearningStats() {
+  Widget _buildLearningStats(dynamic stats) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             QyAppLocalizationKeys.qyHomeNewWords.tr(context),
-            '$_newWordsProgress/$_newWordsTotal',
+            '${stats.newWordsToday}/${stats.newWordsTarget}',
+            ThemeColors.primary,
           ),
         ),
-        SizedBox(width: Dimensions.spacingMedium),
+        SizedBox(width: ThemeDimensions.spacingMedium),
         Expanded(
           child: _buildStatCard(
             QyAppLocalizationKeys.qyHomeReviewWords.tr(context),
-            '$_reviewWordsProgress/$_reviewWordsTotal',
+            '${stats.reviewWordsToday}/${stats.reviewWordsTarget}',
+            ThemeColors.secondary,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(String title, String value) {
+  Widget _buildStatCard(String title, String value, Color color) {
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
         color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(color: ThemeColors.border),
       ),
       child: Column(
         children: [
           Text(
             title,
-            style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
+            style: ThemeTextStyles.body2.copyWith(color: ThemeColors.textSecondary),
           ),
-          SizedBox(height: Dimensions.spacingSmall),
+          SizedBox(height: ThemeDimensions.spacingSmall),
           Text(
             value,
-            style: TextStyles.h3.copyWith(
-              color: ThemeColors.textPrimary,
+            style: ThemeTextStyles.h3.copyWith(
+              color: color,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -219,21 +279,23 @@ class _HomeStudyScreenAppQyState extends State<HomeStudyScreenAppQy> {
     );
   }
 
-  Widget _buildStartButton() {
+  Widget _buildStartButton(LearningControllerAppQy controller) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _handleStartLearning,
+        onPressed: controller.isLoading ? null : _handleStartLearning,
         style: ElevatedButton.styleFrom(
           backgroundColor: ThemeColors.primary,
-          padding: EdgeInsets.symmetric(vertical: Dimensions.paddingMedium),
+          disabledBackgroundColor: ThemeColors.primary.withOpacity(0.5),
+          padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingLarge),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
           ),
+          elevation: 2,
         ),
         child: Text(
           QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
-          style: TextStyles.h3.copyWith(
+          style: ThemeTextStyles.h3.copyWith(
             color: ThemeColors.surface,
             fontWeight: FontWeight.bold,
           ),
@@ -242,102 +304,106 @@ class _HomeStudyScreenAppQyState extends State<HomeStudyScreenAppQy> {
     );
   }
 
-  Widget _buildBottomNavigation() {
-    final items = [
-      {'icon': Icons.book, 'label': QyAppLocalizationKeys.qyWords.tr(context)},
-      {'icon': Icons.school, 'label': QyAppLocalizationKeys.qyHomeCourse.tr(context)},
-      {'icon': Icons.psychology, 'label': QyAppLocalizationKeys.qyHomeAi.tr(context)},
-      {'icon': Icons.explore, 'label': QyAppLocalizationKeys.qyHomeDiscover.tr(context)},
-      {'icon': Icons.person, 'label': QyAppLocalizationKeys.qyHomeProfile.tr(context)},
-    ];
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: Dimensions.paddingSmall,
-        horizontal: Dimensions.paddingMedium,
-      ),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        border: Border(top: BorderSide(color: ThemeColors.border)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: items.map((item) {
-          return InkWell(
-            onTap: () {},
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  item['icon'] as IconData,
-                  color: ThemeColors.textSecondary,
-                  size: 24,
-                ),
-                SizedBox(height: Dimensions.spacingXSmall),
-                Text(
-                  item['label'] as String,
-                  style: TextStyles.caption.copyWith(
-                    color: ThemeColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildMoreFeaturesDrawer() {
+  Widget _buildMoreFeaturesDrawer(LearningControllerAppQy controller) {
     return Positioned.fill(
-      child: Container(
-        color: Colors.black.withOpacity(0.5),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.75,
-            decoration: BoxDecoration(
-              color: ThemeColors.surface,
-              borderRadius: BorderRadius.only(
-                topRight: Radius.circular(Dimensions.radiusLarge),
-                bottomRight: Radius.circular(Dimensions.radiusLarge),
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDrawerHeader(),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.all(Dimensions.paddingMedium),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildFeatureSection(
-                            QyAppLocalizationKeys.qyHomeConsolidate.tr(context),
-                            [
-                              QyAppLocalizationKeys.qyHomeWordTest.tr(context),
-                              QyAppLocalizationKeys.qyHomePortableListening.tr(context),
-                              QyAppLocalizationKeys.qyHomePhrase.tr(context),
-                              QyAppLocalizationKeys.qyHomeSpeedReview.tr(context),
-                            ],
-                          ),
-                          SizedBox(height: Dimensions.spacingLarge),
-                          _buildFeatureSection(
-                            QyAppLocalizationKeys.qyHomeExtension.tr(context),
-                            [
-                              QyAppLocalizationKeys.qyHomeReading.tr(context),
-                              QyAppLocalizationKeys.qyHomeListeningSpeaking.tr(context),
-                            ],
-                          ),
-                          SizedBox(height: Dimensions.spacingLarge),
-                          _buildSettingsSection(),
-                        ],
-                      ),
-                    ),
+      child: GestureDetector(
+        onTap: controller.closeMoreFeatures,
+        child: Container(
+          color: Colors.black.withOpacity(0.5),
+          child: GestureDetector(
+            onTap: () {},
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.85,
+                height: MediaQuery.of(context).size.height,
+                decoration: BoxDecoration(
+                  color: ThemeColors.surface,
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(ThemeDimensions.radiusLarge),
+                    bottomRight: Radius.circular(ThemeDimensions.radiusLarge),
                   ),
-                ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDrawerHeader(controller),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ThemeDimensions.paddingLarge,
+                            vertical: ThemeDimensions.paddingMedium,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFeatureGridSection(
+                                QyAppLocalizationKeys.qyHomeConsolidate
+                                    .tr(context),
+                                [
+                                  {
+                                    'label': QyAppLocalizationKeys.qyHomeWordTest
+                                        .tr(context),
+                                    'icon': Icons.assignment,
+                                    'color': Colors.amber.shade100,
+                                    'iconColor': Colors.amber.shade700,
+                                  },
+                                  {
+                                    'label': QyAppLocalizationKeys
+                                        .qyHomePortableListening
+                                        .tr(context),
+                                    'icon': Icons.headphones,
+                                    'color': Colors.purple.shade100,
+                                    'iconColor': Colors.purple.shade700,
+                                  },
+                                  {
+                                    'label': QyAppLocalizationKeys.qyHomePhrase
+                                        .tr(context),
+                                    'icon': Icons.message,
+                                    'color': Colors.pink.shade100,
+                                    'iconColor': Colors.pink.shade700,
+                                  },
+                                  {
+                                    'label': QyAppLocalizationKeys.qyHomeSpeedReview
+                                        .tr(context),
+                                    'icon': Icons.speed,
+                                    'color': Colors.cyan.shade100,
+                                    'iconColor': Colors.cyan.shade700,
+                                  },
+                                ],
+                              ),
+                              SizedBox(height: ThemeDimensions.spacingXLarge),
+                              _buildFeatureGridSection(
+                                QyAppLocalizationKeys.qyHomeExtension
+                                    .tr(context),
+                                [
+                                  {
+                                    'label': QyAppLocalizationKeys.qyHomeReading
+                                        .tr(context),
+                                    'icon': Icons.menu_book,
+                                    'color': Colors.green.shade100,
+                                    'iconColor': Colors.green.shade700,
+                                  },
+                                  {
+                                    'label': QyAppLocalizationKeys
+                                        .qyHomeListeningSpeaking
+                                        .tr(context),
+                                    'icon': Icons.headset,
+                                    'color': Colors.teal.shade100,
+                                    'iconColor': Colors.teal.shade700,
+                                  },
+                                ],
+                              ),
+                              SizedBox(height: ThemeDimensions.spacingXLarge),
+                              _buildSettingsSection(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -346,125 +412,151 @@ class _HomeStudyScreenAppQyState extends State<HomeStudyScreenAppQy> {
     );
   }
 
-  Widget _buildDrawerHeader() {
+  Widget _buildDrawerHeader(LearningControllerAppQy controller) {
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.paddingLarge,
+        vertical: ThemeDimensions.paddingMedium,
+      ),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: ThemeColors.border)),
+        border: Border(
+          bottom: BorderSide(color: ThemeColors.border.withOpacity(0.3)),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             QyAppLocalizationKeys.qyHomeMoreFeatures.tr(context),
-            style: TextStyles.h3.copyWith(
+            style: ThemeTextStyles.h3.copyWith(
               color: ThemeColors.textPrimary,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
           IconButton(
-            onPressed: _toggleMoreFeatures,
-            icon: Icon(Icons.close, color: ThemeColors.textPrimary),
+            onPressed: controller.closeMoreFeatures,
+            icon: Icon(Icons.close, color: ThemeColors.textSecondary, size: 28),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFeatureSection(String title, List<String> features) {
+  Widget _buildFeatureGridSection(
+      String title, List<Map<String, dynamic>> features) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyles.body1.copyWith(
-            color: ThemeColors.textSecondary,
-            fontWeight: FontWeight.w500,
+        Padding(
+          padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
+          child: Text(
+            title,
+            style: ThemeTextStyles.body2.copyWith(
+              color: ThemeColors.textTertiary,
+              fontSize: 13,
+            ),
           ),
         ),
-        SizedBox(height: Dimensions.spacingMedium),
-        Wrap(
-          spacing: Dimensions.spacingSmall,
-          runSpacing: Dimensions.spacingSmall,
-          children: features.map((feature) {
-            return InkWell(
-              onTap: () => _handleFeatureTap(feature),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingMedium,
-                  vertical: Dimensions.paddingSmall,
-                ),
-                decoration: BoxDecoration(
-                  color: ThemeColors.background,
-                  borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-                  border: Border.all(color: ThemeColors.border),
-                ),
-                child: Text(
-                  feature,
-                  style: TextStyles.body2.copyWith(
-                    color: ThemeColors.textPrimary,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: ThemeDimensions.spacingMedium,
+            mainAxisSpacing: ThemeDimensions.spacingMedium,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: features.length,
+          itemBuilder: (context, index) {
+            return _buildFeatureGridItem(features[index]);
+          },
         ),
       ],
+    );
+  }
+
+  Widget _buildFeatureGridItem(Map<String, dynamic> feature) {
+    return InkWell(
+      onTap: () => _handleFeatureTap(feature['label'] as String),
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: feature['color'] as Color,
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            ),
+            child: Icon(
+              feature['icon'] as IconData,
+              color: feature['iconColor'] as Color,
+              size: 28,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacingSmall),
+          Text(
+            feature['label'] as String,
+            style: ThemeTextStyles.caption.copyWith(
+              color: ThemeColors.textPrimary,
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildSettingsSection() {
+    final settings = [
+      {
+        'label': QyAppLocalizationKeys.qyHomeLearnSettings.tr(context),
+        'icon': Icons.settings_applications,
+        'color': Colors.blue.shade100,
+        'iconColor': Colors.blue.shade700,
+      },
+      {
+        'label': QyAppLocalizationKeys.qyHomeLearnData.tr(context),
+        'icon': Icons.analytics,
+        'color': Colors.orange.shade100,
+        'iconColor': Colors.orange.shade700,
+      },
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          QyAppLocalizationKeys.qySettings.tr(context),
-          style: TextStyles.body1.copyWith(
-            color: ThemeColors.textSecondary,
-            fontWeight: FontWeight.w500,
+        Padding(
+          padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
+          child: Text(
+            QyAppLocalizationKeys.qySettings.tr(context),
+            style: ThemeTextStyles.body2.copyWith(
+              color: ThemeColors.textTertiary,
+              fontSize: 13,
+            ),
           ),
         ),
-        SizedBox(height: Dimensions.spacingMedium),
-        _buildSettingsItem(
-          QyAppLocalizationKeys.qyHomeLearnSettings.tr(context),
-          _handleLearningSettings,
-        ),
-        SizedBox(height: Dimensions.spacingSmall),
-        _buildSettingsItem(
-          QyAppLocalizationKeys.qyHomeLearnData.tr(context),
-          _handleLearningData,
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: ThemeDimensions.spacingMedium,
+            mainAxisSpacing: ThemeDimensions.spacingMedium,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: settings.length,
+          itemBuilder: (context, index) {
+            return _buildFeatureGridItem(settings[index]);
+          },
         ),
       ],
-    );
-  }
-
-  Widget _buildSettingsItem(String title, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
-        decoration: BoxDecoration(
-          color: ThemeColors.background,
-          borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-          border: Border.all(color: ThemeColors.border),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              title,
-              style: TextStyles.body2.copyWith(
-                color: ThemeColors.textPrimary,
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: ThemeColors.textTertiary,
-              size: 16,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

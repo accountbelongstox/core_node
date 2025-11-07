@@ -13,29 +13,31 @@
 /// User model for QY App
 library;
 
-class UserModelAppQy {
-  final String? id;
-  final String? username;
-  final String? email;
-  final String? phoneNumber;
-  final String? avatar;
-  final String? displayName;
-  final int? totalWords;
-  final int? learnedWords;
-  final int? todayNewWords;
-  final int? todayReviewWords;
-  final double? learningProgress;
-  final int? studyDays;
-  final int? consecutiveCheckInDays;
-  final int? badges;
-  final bool? isVip;
-  final DateTime? vipExpireDate;
-  final DateTime? createdAt;
-  final DateTime? lastLoginAt;
-  final Map<String, dynamic>? settings;
-  final Map<String, dynamic>? stats;
+import 'package:flutter/foundation.dart';
 
-  const UserModelAppQy({
+class UserModelAppQy extends ChangeNotifier {
+  String? id;
+  String? username;
+  String? email;
+  String? phoneNumber;
+  String? avatar;
+  String? displayName;
+  int? totalWords;
+  int? learnedWords;
+  int? todayNewWords;
+  int? todayReviewWords;
+  double? learningProgress;
+  int? studyDays;
+  int? consecutiveCheckInDays;
+  int? badges;
+  bool? isVip;
+  DateTime? vipExpireDate;
+  DateTime? createdAt;
+  DateTime? lastLoginAt;
+  Map<String, dynamic>? settings;
+  Map<String, dynamic>? stats;
+
+  UserModelAppQy({
     this.id,
     this.username,
     this.email,
@@ -162,7 +164,7 @@ class UserModelAppQy {
   }
 
   static UserModelAppQy empty() {
-    return const UserModelAppQy(
+    return UserModelAppQy(
       id: null,
       username: null,
       email: null,
@@ -179,6 +181,31 @@ class UserModelAppQy {
       badges: 0,
       isVip: false,
     );
+  }
+
+  /// Update user data from another UserModelAppQy instance
+  void updateFrom(UserModelAppQy other) {
+    id = other.id;
+    username = other.username;
+    email = other.email;
+    phoneNumber = other.phoneNumber;
+    avatar = other.avatar;
+    displayName = other.displayName;
+    totalWords = other.totalWords;
+    learnedWords = other.learnedWords;
+    todayNewWords = other.todayNewWords;
+    todayReviewWords = other.todayReviewWords;
+    learningProgress = other.learningProgress;
+    studyDays = other.studyDays;
+    consecutiveCheckInDays = other.consecutiveCheckInDays;
+    badges = other.badges;
+    isVip = other.isVip;
+    vipExpireDate = other.vipExpireDate;
+    createdAt = other.createdAt;
+    lastLoginAt = other.lastLoginAt;
+    settings = other.settings;
+    stats = other.stats;
+    notifyListeners();
   }
 
   bool get isLoggedIn => id != null && id!.isNotEmpty;

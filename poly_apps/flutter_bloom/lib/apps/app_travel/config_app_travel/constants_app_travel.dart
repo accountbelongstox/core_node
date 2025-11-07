@@ -122,7 +122,8 @@ class TravelAppConstants {
   static const String timeFormat = 'HH:mm';
 
   // Default Values
-  static const String defaultCityName = 'Luoyang';
+  static const String defaultCityName = '塞班';
+  static const String defaultTemperature = '32';
   static const String defaultLanguage = 'en';
   static const String defaultTheme = 'light';
   static const String defaultCurrency = 'CNY';

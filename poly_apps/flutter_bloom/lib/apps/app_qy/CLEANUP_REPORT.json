@@ -1,0 +1,849 @@
+{
+  "timestamp": "2025-11-07T21:24:52.368622",
+  "refactored_files": [
+    {
+      "refactored": "features_app_qy\\word\\views\\word_book_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_book_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 11.66
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_dictation_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 20.98
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_flashcard_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 14.98
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_1_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_1_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 10.92
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_ai_explain_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_ai_explain_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 17.89
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_dictation_1_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_dictation_1_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 8.33
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_dictation_2_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_dictation_2_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 7.0
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_dictation_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_dictation_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 21.49
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_free_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_free_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 8.11
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 11.39
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_listening_sleep_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\word\\views\\word_listening_sleep_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 8.32
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_review_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 18.53
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_spelling_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 20.5
+    },
+    {
+      "refactored": "features_app_qy\\word\\views\\word_test_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 18.76
+    },
+    {
+      "refactored": "features_app_qy\\social\\views\\checkin_challenge_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\social\\views\\checkin_challenge_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 20.41
+    },
+    {
+      "refactored": "features_app_qy\\social\\views\\message_center_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\social\\views\\message_center_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 16.79
+    },
+    {
+      "refactored": "features_app_qy\\social\\views\\social_ranking_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 14.26
+    },
+    {
+      "refactored": "features_app_qy\\social\\views\\social_study_group_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 18.41
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\about_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 9.34
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\account_settings_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\settings\\views\\account_settings_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 18.45
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\display_mode_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\settings\\views\\display_mode_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 10.7
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\help_center_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 11.4
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\learning_preferences_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 15.08
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\notifications_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 12.75
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\recommend_settings_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\settings\\views\\recommend_settings_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 11.16
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\reminder_settings_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\settings\\views\\reminder_settings_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 12.66
+    },
+    {
+      "refactored": "features_app_qy\\settings\\views\\settings_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\settings\\views\\settings_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 20.4
+    },
+    {
+      "refactored": "features_app_qy\\profile\\views\\about_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\profile\\views\\about_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 16.56
+    },
+    {
+      "refactored": "features_app_qy\\profile\\views\\certificate_center_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\profile\\views\\certificate_center_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 18.13
+    },
+    {
+      "refactored": "features_app_qy\\profile\\views\\more_features_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\profile\\views\\more_features_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 9.02
+    },
+    {
+      "refactored": "features_app_qy\\profile\\views\\profile_achievements_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 20.52
+    },
+    {
+      "refactored": "features_app_qy\\profile\\views\\profile_stats_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 15.36
+    },
+    {
+      "refactored": "features_app_qy\\other\\views\\image_001_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\other\\views\\image_001_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 3.26
+    },
+    {
+      "refactored": "features_app_qy\\home\\views\\home_daily_task_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 13.4
+    },
+    {
+      "refactored": "features_app_qy\\home\\views\\home_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\home\\views\\home_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 18.06
+    },
+    {
+      "refactored": "features_app_qy\\home\\views\\home_search_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\home\\views\\home_search_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 12.81
+    },
+    {
+      "refactored": "features_app_qy\\home\\views\\home_streak_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 13.39
+    },
+    {
+      "refactored": "features_app_qy\\home\\views\\home_study_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\home\\views\\home_study_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 19.79
+    },
+    {
+      "refactored": "features_app_qy\\discover\\views\\discover_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 9.19
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_certificate_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 14.34
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_detail_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 21.38
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_ielts_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\course\\views\\course_ielts_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 16.93
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_lesson_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 16.79
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_plans_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\course\\views\\course_plans_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 13.42
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_progress_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 15.7
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_review_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 12.27
+    },
+    {
+      "refactored": "features_app_qy\\course\\views\\course_search_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 16.22
+    },
+    {
+      "refactored": "features_app_qy\\auth\\views\\login_phone_screen_refactored_app_qy.dart",
+      "original": "features_app_qy\\auth\\views\\login_phone_screen_app_qy.dart",
+      "has_original": true,
+      "size_kb": 13.95
+    },
+    {
+      "refactored": "features_app_qy\\ai_study\\views\\ai_study_screen_refactored_app_qy.dart",
+      "original": null,
+      "has_original": false,
+      "size_kb": 12.78
+    }
+  ],
+  "backup_files": [
+    {
+      "backup": "app_qy\\icons\\ic_launcher.backup.png",
+      "original": "app_qy\\icons\\ic_launcher.png",
+      "has_original": true,
+      "size_kb": 412.9
+    },
+    {
+      "backup": "app_qy\\icons\\logo.backup.png",
+      "original": "app_qy\\icons\\logo.png",
+      "has_original": true,
+      "size_kb": 412.9
+    },
+    {
+      "backup": "app_qy\\icons\\raw-logo.backup.png",
+      "original": "app_qy\\icons\\raw-logo.png",
+      "has_original": true,
+      "size_kb": 304.68
+    },
+    {
+      "backup": "app_qy\\icons\\splash_logo.backup.png",
+      "original": "app_qy\\icons\\splash_logo.png",
+      "has_original": true,
+      "size_kb": 304.68
+    },
+    {
+      "backup": "app_qy\\launch\\background.backup.jpg",
+      "original": "app_qy\\launch\\background.jpg",
+      "has_original": true,
+      "size_kb": 159.19
+    },
+    {
+      "backup": "app_qy\\launch\\dark_launch.backup.png",
+      "original": "app_qy\\launch\\dark_launch.png",
+      "has_original": true,
+      "size_kb": 648.12
+    },
+    {
+      "backup": "app_qy\\launch\\light_launch.backup.png",
+      "original": "app_qy\\launch\\light_launch.png",
+      "has_original": true,
+      "size_kb": 2107.08
+    },
+    {
+      "backup": "app_qy\\launch\\light_launch_1.backup.jpg",
+      "original": "app_qy\\launch\\light_launch_1.jpg",
+      "has_original": true,
+      "size_kb": 167.44
+    },
+    {
+      "backup": "common\\icons\\ic_launcher.backup.png",
+      "original": "common\\icons\\ic_launcher.png",
+      "has_original": true,
+      "size_kb": 412.9
+    },
+    {
+      "backup": "common\\icons\\logo.backup.png",
+      "original": "common\\icons\\logo.png",
+      "has_original": true,
+      "size_kb": 412.9
+    },
+    {
+      "backup": "common\\icons\\maintenance.backup.png",
+      "original": "common\\icons\\maintenance.png",
+      "has_original": true,
+      "size_kb": 150.16
+    },
+    {
+      "backup": "common\\icons\\one_bg.backup.jpg",
+      "original": "common\\icons\\one_bg.jpg",
+      "has_original": true,
+      "size_kb": 103.85
+    },
+    {
+      "backup": "common\\icons\\raw-logo.backup.png",
+      "original": "common\\icons\\raw-logo.png",
+      "has_original": true,
+      "size_kb": 304.68
+    },
+    {
+      "backup": "common\\icons\\registry_logo_1.backup.png",
+      "original": "common\\icons\\registry_logo_1.png",
+      "has_original": true,
+      "size_kb": 311.73
+    },
+    {
+      "backup": "common\\icons\\registry_logo_2.backup.png",
+      "original": "common\\icons\\registry_logo_2.png",
+      "has_original": true,
+      "size_kb": 307.74
+    },
+    {
+      "backup": "common\\icons\\splash_logo.backup.png",
+      "original": "common\\icons\\splash_logo.png",
+      "has_original": true,
+      "size_kb": 304.68
+    },
+    {
+      "backup": "common\\icons\\welcom.backup.png",
+      "original": "common\\icons\\welcom.png",
+      "has_original": true,
+      "size_kb": 127.14
+    },
+    {
+      "backup": "common\\launch\\dark_launch.backup.jpg",
+      "original": "common\\launch\\dark_launch.jpg",
+      "has_original": true,
+      "size_kb": 111.45
+    },
+    {
+      "backup": "common\\launch\\light_launch.backup.jpg",
+      "original": "common\\launch\\light_launch.jpg",
+      "has_original": true,
+      "size_kb": 111.45
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "refactored_with_original",
+      "count": 26,
+      "action": "删除旧的原始文件，将 refactored 版本重命名为原始名称",
+      "reason": "refactored 版本是新的改进版本，应该替代旧版本",
+      "files": [
+        {
+          "refactored": "features_app_qy\\word\\views\\word_book_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_book_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 11.66
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_1_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_1_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 10.92
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_ai_explain_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_ai_explain_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 17.89
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_dictation_1_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_dictation_1_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 8.33
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_dictation_2_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_dictation_2_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 7.0
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_dictation_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_dictation_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 21.49
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_free_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_free_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 8.11
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 11.39
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_listening_sleep_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\word\\views\\word_listening_sleep_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 8.32
+        },
+        {
+          "refactored": "features_app_qy\\social\\views\\checkin_challenge_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\social\\views\\checkin_challenge_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 20.41
+        },
+        {
+          "refactored": "features_app_qy\\social\\views\\message_center_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\social\\views\\message_center_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 16.79
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\account_settings_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\settings\\views\\account_settings_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 18.45
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\display_mode_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\settings\\views\\display_mode_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 10.7
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\recommend_settings_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\settings\\views\\recommend_settings_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 11.16
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\reminder_settings_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\settings\\views\\reminder_settings_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 12.66
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\settings_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\settings\\views\\settings_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 20.4
+        },
+        {
+          "refactored": "features_app_qy\\profile\\views\\about_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\profile\\views\\about_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 16.56
+        },
+        {
+          "refactored": "features_app_qy\\profile\\views\\certificate_center_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\profile\\views\\certificate_center_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 18.13
+        },
+        {
+          "refactored": "features_app_qy\\profile\\views\\more_features_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\profile\\views\\more_features_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 9.02
+        },
+        {
+          "refactored": "features_app_qy\\other\\views\\image_001_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\other\\views\\image_001_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 3.26
+        },
+        {
+          "refactored": "features_app_qy\\home\\views\\home_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\home\\views\\home_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 18.06
+        },
+        {
+          "refactored": "features_app_qy\\home\\views\\home_search_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\home\\views\\home_search_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 12.81
+        },
+        {
+          "refactored": "features_app_qy\\home\\views\\home_study_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\home\\views\\home_study_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 19.79
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_ielts_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\course\\views\\course_ielts_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 16.93
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_plans_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\course\\views\\course_plans_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 13.42
+        },
+        {
+          "refactored": "features_app_qy\\auth\\views\\login_phone_screen_refactored_app_qy.dart",
+          "original": "features_app_qy\\auth\\views\\login_phone_screen_app_qy.dart",
+          "has_original": true,
+          "size_kb": 13.95
+        }
+      ]
+    },
+    {
+      "type": "refactored_without_original",
+      "count": 23,
+      "action": "将 refactored 文件重命名为标准名称（移除 _refactored 后缀）",
+      "reason": "这些文件没有对应的旧版本，可以直接使用标准命名",
+      "files": [
+        {
+          "refactored": "features_app_qy\\word\\views\\word_dictation_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 20.98
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_flashcard_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 14.98
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_review_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 18.53
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_spelling_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 20.5
+        },
+        {
+          "refactored": "features_app_qy\\word\\views\\word_test_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 18.76
+        },
+        {
+          "refactored": "features_app_qy\\social\\views\\social_ranking_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 14.26
+        },
+        {
+          "refactored": "features_app_qy\\social\\views\\social_study_group_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 18.41
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\about_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 9.34
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\help_center_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 11.4
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\learning_preferences_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 15.08
+        },
+        {
+          "refactored": "features_app_qy\\settings\\views\\notifications_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 12.75
+        },
+        {
+          "refactored": "features_app_qy\\profile\\views\\profile_achievements_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 20.52
+        },
+        {
+          "refactored": "features_app_qy\\profile\\views\\profile_stats_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 15.36
+        },
+        {
+          "refactored": "features_app_qy\\home\\views\\home_daily_task_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 13.4
+        },
+        {
+          "refactored": "features_app_qy\\home\\views\\home_streak_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 13.39
+        },
+        {
+          "refactored": "features_app_qy\\discover\\views\\discover_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 9.19
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_certificate_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 14.34
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_detail_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 21.38
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_lesson_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 16.79
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_progress_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 15.7
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_review_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 12.27
+        },
+        {
+          "refactored": "features_app_qy\\course\\views\\course_search_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 16.22
+        },
+        {
+          "refactored": "features_app_qy\\ai_study\\views\\ai_study_screen_refactored_app_qy.dart",
+          "original": null,
+          "has_original": false,
+          "size_kb": 12.78
+        }
+      ]
+    },
+    {
+      "type": "backup_with_original",
+      "count": 19,
+      "action": "删除备份文件（原始文件存在）",
+      "reason": "原始文件已存在，备份文件可以安全删除",
+      "files": [
+        {
+          "backup": "app_qy\\icons\\ic_launcher.backup.png",
+          "original": "app_qy\\icons\\ic_launcher.png",
+          "has_original": true,
+          "size_kb": 412.9
+        },
+        {
+          "backup": "app_qy\\icons\\logo.backup.png",
+          "original": "app_qy\\icons\\logo.png",
+          "has_original": true,
+          "size_kb": 412.9
+        },
+        {
+          "backup": "app_qy\\icons\\raw-logo.backup.png",
+          "original": "app_qy\\icons\\raw-logo.png",
+          "has_original": true,
+          "size_kb": 304.68
+        },
+        {
+          "backup": "app_qy\\icons\\splash_logo.backup.png",
+          "original": "app_qy\\icons\\splash_logo.png",
+          "has_original": true,
+          "size_kb": 304.68
+        },
+        {
+          "backup": "app_qy\\launch\\background.backup.jpg",
+          "original": "app_qy\\launch\\background.jpg",
+          "has_original": true,
+          "size_kb": 159.19
+        },
+        {
+          "backup": "app_qy\\launch\\dark_launch.backup.png",
+          "original": "app_qy\\launch\\dark_launch.png",
+          "has_original": true,
+          "size_kb": 648.12
+        },
+        {
+          "backup": "app_qy\\launch\\light_launch.backup.png",
+          "original": "app_qy\\launch\\light_launch.png",
+          "has_original": true,
+          "size_kb": 2107.08
+        },
+        {
+          "backup": "app_qy\\launch\\light_launch_1.backup.jpg",
+          "original": "app_qy\\launch\\light_launch_1.jpg",
+          "has_original": true,
+          "size_kb": 167.44
+        },
+        {
+          "backup": "common\\icons\\ic_launcher.backup.png",
+          "original": "common\\icons\\ic_launcher.png",
+          "has_original": true,
+          "size_kb": 412.9
+        },
+        {
+          "backup": "common\\icons\\logo.backup.png",
+          "original": "common\\icons\\logo.png",
+          "has_original": true,
+          "size_kb": 412.9
+        },
+        {
+          "backup": "common\\icons\\maintenance.backup.png",
+          "original": "common\\icons\\maintenance.png",
+          "has_original": true,
+          "size_kb": 150.16
+        },
+        {
+          "backup": "common\\icons\\one_bg.backup.jpg",
+          "original": "common\\icons\\one_bg.jpg",
+          "has_original": true,
+          "size_kb": 103.85
+        },
+        {
+          "backup": "common\\icons\\raw-logo.backup.png",
+          "original": "common\\icons\\raw-logo.png",
+          "has_original": true,
+          "size_kb": 304.68
+        },
+        {
+          "backup": "common\\icons\\registry_logo_1.backup.png",
+          "original": "common\\icons\\registry_logo_1.png",
+          "has_original": true,
+          "size_kb": 311.73
+        },
+        {
+          "backup": "common\\icons\\registry_logo_2.backup.png",
+          "original": "common\\icons\\registry_logo_2.png",
+          "has_original": true,
+          "size_kb": 307.74
+        },
+        {
+          "backup": "common\\icons\\splash_logo.backup.png",
+          "original": "common\\icons\\splash_logo.png",
+          "has_original": true,
+          "size_kb": 304.68
+        },
+        {
+          "backup": "common\\icons\\welcom.backup.png",
+          "original": "common\\icons\\welcom.png",
+          "has_original": true,
+          "size_kb": 127.14
+        },
+        {
+          "backup": "common\\launch\\dark_launch.backup.jpg",
+          "original": "common\\launch\\dark_launch.jpg",
+          "has_original": true,
+          "size_kb": 111.45
+        },
+        {
+          "backup": "common\\launch\\light_launch.backup.jpg",
+          "original": "common\\launch\\light_launch.jpg",
+          "has_original": true,
+          "size_kb": 111.45
+        }
+      ]
+    }
+  ]
+}

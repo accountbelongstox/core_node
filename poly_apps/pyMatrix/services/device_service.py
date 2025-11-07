@@ -163,11 +163,27 @@ class DeviceService:
             # Use centralized device manager to connect
             device = await self.device_manager.connect_device(serial, server_params, self.adb_path)
 
+            # ✅ CRITICAL FIX: Strictly validate device connection
             if device is None:
-                # Even if device instance is not ready, connection is tracked
-                # Check if device state shows connected
-                state = self.device_manager.get_device_state(serial)
-                return state is not None and state.connected
+                print(f"[DeviceService] ✗ Failed to create device instance for {serial}")
+                return False
+
+            # ✅ CRITICAL FIX: Verify device sockets are connected (not just device object exists)
+            if not device.is_connected():
+                print(f"[DeviceService] ✗ Device {serial} created but sockets not connected")
+                print(f"[DeviceService]   Video socket: {device._video_socket}")
+                print(f"[DeviceService]   Control socket: {device._control_socket}")
+                print(f"[DeviceService]   This usually means scrcpy-server failed to start properly")
+
+                # Cleanup incomplete device connection
+                try:
+                    await self.device_manager.disconnect_device(serial)
+                except Exception as cleanup_error:
+                    print(f"[DeviceService] Error during cleanup: {cleanup_error}")
+
+                return False
+
+            print(f"[DeviceService] ✓ Device {serial} fully connected and verified")
 
             # Emit app-specific event
             await self.event_bus.emit(
@@ -179,7 +195,16 @@ class DeviceService:
             return True
 
         except Exception as e:
-            print(f"Failed to connect device [{serial}]: {e}")
+            print(f"[DeviceService] ✗ Failed to connect device [{serial}]: {e}")
+            import traceback
+            traceback.print_exc()
+
+            # ✅ CRITICAL FIX: Ensure cleanup on failure
+            try:
+                await self.device_manager.disconnect_device(serial)
+            except Exception as cleanup_error:
+                print(f"[DeviceService] Error during cleanup: {cleanup_error}")
+
             return False
 
     async def disconnect_device(self, serial: str) -> bool:

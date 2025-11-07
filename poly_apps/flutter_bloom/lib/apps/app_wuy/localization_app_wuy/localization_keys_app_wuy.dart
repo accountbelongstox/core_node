@@ -32,6 +32,8 @@ class LocalizationKeysAppWuy {
   static const String wuyStatusSuccess = "wuy.status.success";
   static const String wuyStatusError = "wuy.status.error";
   static const String wuyStatusNoData = "wuy.status.no_data";
+  static const String wuyStatusOnline = "wuy.status.online";
+  static const String wuyStatusOffline = "wuy.status.offline";
   static const String wuyValidationRequired = "wuy.validation.required";
   static const String wuyValidationInvalidEmail =
       "wuy.validation.invalid_email";
@@ -47,6 +49,10 @@ class LocalizationKeysAppWuy {
   static const String wuyFriendsAddFriend = "wuy.friends.add_friend";
   static const String wuyFriendsOnline = "wuy.friends.online";
   static const String wuyFriendsOffline = "wuy.friends.offline";
+  static const String wuyMonitoringEnabled = "wuy.monitoring.enabled";
+  static const String wuyMonitoringDisabled = "wuy.monitoring.disabled";
+  static const String wuyMonitoringError = "wuy.monitoring.error";
+  static const String wuyLastLocation = "wuy.location.last";
 
   // Chat related
   static const String wuyChatTitle = "wuy.chat.title";
@@ -677,6 +683,13 @@ class LocalizationKeysAppWuy {
 
   // Search screen specific
   static const String wuySearchPlaceholder = "wuy.search.placeholder";
+  static const String wuySearchHistory = "wuy.search.history";
+  static const String wuySearchRecentlyViewed = "wuy.search.recently_viewed";
+  static const String wuySearchRecommended = "wuy.search.recommended";
+  static const String wuySearchClearHistory = "wuy.search.clear_history";
+  static const String wuySearchAllGender = "wuy.search.all_gender";
+  static const String wuySearchShareIcon = "wuy.search.share_icon";
+  static const String wuySearchNotificationIcon = "wuy.search.notification_icon";
 
   // Map screen specific
   static const String wuyMapNoLocation = "wuy.map.no_location";

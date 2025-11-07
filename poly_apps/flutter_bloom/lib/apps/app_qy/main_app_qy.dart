@@ -22,6 +22,12 @@ import 'localization_app_qy/en_app_qy.dart';
 import 'localization_app_qy/zh_app_qy.dart';
 import 'providers_app_qy/qy_user_provider.dart';
 import 'controller_app_qy/settings_controller_app_qy.dart';
+import 'services_app_qy/api_service_app_qy.dart';
+import 'features_app_qy/home/domain/service/learning_service.dart';
+import 'features_app_qy/home/controllers/learning_controller_app_qy.dart';
+import 'features_app_qy/course/domain/service/course_service.dart';
+import 'features_app_qy/course/controllers/course_controller_app_qy.dart';
+import 'models_app_qy/user_model_app_qy.dart';
 
 /// QY App specific widget
 /// This can be customized for QY app specific needs
@@ -53,6 +59,11 @@ Future<void> main() async {
   final QyUserProvider qyUserProvider = QyUserProvider();
   final GoRouter routerConfig = QyAppRoutesProvider.createRouter();
 
+  // Create singleton instances
+  final ApiServiceAppQy apiService = ApiServiceAppQy();
+  final LearningService learningService = LearningService(apiService: apiService);
+  final CourseService courseService = CourseService(apiService: apiService);
+
   await runCommonApp(
     appName: QyAppConfig.appName,
     appId: QyAppConfig.appId, // Specific app ID for app-specific routing
@@ -68,6 +79,22 @@ Future<void> main() async {
     scopedProvidersBuilder: (commonSettingsController) => [
       ChangeNotifierProvider<SettingsControllerAppQy>(
         create: (_) => SettingsControllerAppQy(commonSettingsController),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<UserModelAppQy>(
+        create: (_) => UserModelAppQy.empty(),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<LearningControllerAppQy>(
+        create: (_) => LearningControllerAppQy(
+          learningService: learningService,
+        ),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<CourseControllerAppQy>(
+        create: (_) => CourseControllerAppQy(
+          courseService: courseService,
+        ),
         lazy: false,
       ),
     ],

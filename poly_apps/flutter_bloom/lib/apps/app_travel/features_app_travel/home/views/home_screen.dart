@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import '../../../provider_app_travel/home_provider_app_travel.dart';
 import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
+import '../../../config_app_travel/constants_app_travel.dart';
 import '../widgets/home_swiper.dart';
 import '../widgets/home_header.dart';
 import '../widgets/home_local_nav.dart';
@@ -116,71 +117,79 @@ class _HomeScreenState extends State<HomeScreen> {
           else if (homeProvider.hasData)
             SliverList(
               delegate: SliverChildListDelegate([
-                HomeSwiper(
-                  swiperItems: homeProvider.homeData!.data.swipeImages,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    HomeSwiper(
+                      swiperItems: homeProvider.homeData!.data.swipeImages,
+                    ),
+                    Positioned(
+                      top: 30,
+                      left: 0,
+                      right: 0,
+                      child: HomeHeader(
+                        scrollTop: _scrollTop,
+                        currentCity: userProvider.user.currentCity ?? TravelAppConstants.defaultCityName,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: HomeLocalNav(
-                    localNavs: homeProvider.homeData!.data.localNavs,
+                const SizedBox(height: 46),
+                HomeLocalNav(
+                  localNavs: homeProvider.homeData!.data.localNavs,
+                ),
+                Transform.translate(
+                  offset: const Offset(0, -15.0),
+                  child: Column(
+                    children: [
+                      HomeGridNavSection(
+                        gridNavs: homeProvider.homeData!.data.gridNavs,
+                      ),
+                      const SizedBox(height: 12),
+                      HomeRecommend(
+                        recommend: homeProvider.homeData!.data.recommend,
+                      ),
+                      const SizedBox(height: 12),
+                      HomeSubnav(
+                        subnavs: homeProvider.homeData!.data.subnavs,
+                      ),
+                      const SizedBox(height: 12),
+                      HomeWelcome(
+                        cityName: userProvider.user.currentCity ?? TravelAppConstants.defaultCityName,
+                        temperature: TravelAppConstants.defaultTemperature,
+                      ),
+                      const SizedBox(height: 12),
+                      const HomeContentMix(),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: HomePopular(
+                          popularItems: homeProvider.homeData!.data.popularList,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: HomeLocalHot(
+                          localHot: homeProvider.homeData!.data.localHot,
+                          hideTitle: false,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (homeProvider.homeData!.data.sights != null &&
+                          homeProvider.homeData!.data.sights!.isNotEmpty)
+                        HomeWaterfall(
+                          sights: homeProvider.homeData!.data.sights!,
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                HomeGridNavSection(
-                  gridNavs: homeProvider.homeData!.data.gridNavs,
-                ),
-                const SizedBox(height: 4),
-                HomeRecommend(
-                  recommend: homeProvider.homeData!.data.recommend,
-                ),
-                HomeSubnav(
-                  subnavs: homeProvider.homeData!.data.subnavs,
-                ),
-                const SizedBox(height: 4),
-                HomeWelcome(
-                  cityName: userProvider.user.currentCity ?? 'Luoyang',
-                  temperature: '35',
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: HomePopular(
-                    popularItems: homeProvider.homeData!.data.popularList,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const HomeContentMix(),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: HomeLocalHot(
-                    localHot: homeProvider.homeData!.data.localHot,
-                    hideTitle: false,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (homeProvider.homeData!.data.sights != null &&
-                    homeProvider.homeData!.data.sights!.isNotEmpty)
-                  HomeWaterfall(
-                    sights: homeProvider.homeData!.data.sights!,
-                  ),
                 SizedBox(height: widget.isInScaffold ? 10 : 40),
               ]),
             ),
           ],
         ),
       ),
-      Positioned(
-        top: MediaQuery.of(context).size.width * 0.512 * 0.3 - 30,
-        left: 0,
-        right: 0,
-        child: HomeHeader(
-          scrollTop: _scrollTop,
-          currentCity: userProvider.user.currentCity ?? 'Luoyang',
-        ),
-      ),
-      const HomeLocationPrompt(),
     ],
   );
 

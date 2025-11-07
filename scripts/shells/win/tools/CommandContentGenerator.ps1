@@ -437,15 +437,13 @@ if (`$upgradeChoice -eq "y" -or `$upgradeChoice -eq "Y") {
     }
 
     $syncSection = @"
-`$currentWorkingDir = Get-Location
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u ```"${syncScriptPath}```" --target ${TargetName} --working-dir ```"`$currentWorkingDir```"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: `$currentWorkingDir" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python ${ToolType}_sync_mcp_servers.py" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "${syncScriptPath}" --target ${TargetName} --working-dir "`$currentWorkingDir"
+python "${syncScriptPath}"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -532,6 +530,11 @@ function Get-ToolConfiguration {
         "claude" = @{
             DisplayName = "Claude Code"
             TargetName = "claude"
+            SupportUpgrade = $true
+        }
+        "codex" = @{
+            DisplayName = "Codex CLI"
+            TargetName = "codex"
             SupportUpgrade = $true
         }
         "droid" = @{

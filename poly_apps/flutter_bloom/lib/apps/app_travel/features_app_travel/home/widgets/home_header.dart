@@ -17,7 +17,7 @@ class HomeHeader extends StatelessWidget {
   const HomeHeader({
     super.key,
     this.scrollTop = 0,
-    this.currentCity = 'Luoyang',
+    this.currentCity = '塞班',
     this.onCityTap,
     this.onMenuTap,
   });
@@ -58,20 +58,20 @@ class HomeHeader extends StatelessWidget {
     final boxShadow = _calculateBoxShadow();
 
     return Container(
-      height: 60.0,
+      height: 48.0,
       decoration: BoxDecoration(
         color: Colors.transparent,
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 8.0),
+        padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 6.0),
         child: Row(
           children: [
             Expanded(
               child: Container(
-                height: 44.0,
+                height: 36.0,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(22.0),
+                  borderRadius: BorderRadius.circular(18.0),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.15),
@@ -88,12 +88,12 @@ class HomeHeader extends StatelessWidget {
                           context.push(TravelAppRoutesProvider.routeSearch);
                         },
                         child: Container(
-                          padding: const EdgeInsets.only(left: 18.0),
+                          padding: const EdgeInsets.only(left: 14.0),
                           alignment: Alignment.centerLeft,
                           child: Text(
                             TravelLocalizationKeys.travelNewUserGift.tr(context),
                             style: TextStyle(
-                              fontSize: 14.0,
+                              fontSize: 11.0,
                               color: Colors.grey[600],
                             ),
                           ),
@@ -105,19 +105,19 @@ class HomeHeader extends StatelessWidget {
                         context.push(TravelAppRoutesProvider.routeSearch);
                       },
                       child: Container(
-                        margin: const EdgeInsets.all(6.0),
+                        margin: const EdgeInsets.all(5.0),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20.0,
-                          vertical: 8.0,
+                          horizontal: 16.0,
+                          vertical: 6.0,
                         ),
                         decoration: BoxDecoration(
                           color: TravelColors.travelPrimary,
-                          borderRadius: BorderRadius.circular(16.0),
+                          borderRadius: BorderRadius.circular(13.0),
                         ),
                         child: Text(
                           TravelLocalizationKeys.travelSearch.tr(context),
                           style: const TextStyle(
-                            fontSize: 13.0,
+                            fontSize: 10.0,
                             color: Colors.white,
                             fontWeight: FontWeight.w500,
                           ),
@@ -128,8 +128,51 @@ class HomeHeader extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 10.0),
-            _buildUserAvatar(context),
+            const SizedBox(width: 8.0),
+            _buildHotelLogo(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHotelLogo(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        debugPrint('Hotel logo tapped');
+      },
+      child: SizedBox(
+        height: 36.0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 26.0,
+              height: 26.0,
+              child: Image.asset(
+                AssetsImagesAppTravel.travelHotelTitleLogo,
+                fit: BoxFit.contain,
+                color: Colors.white,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.hotel,
+                    size: 20.0,
+                    color: Colors.white,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 1.5),
+            Text(
+              '酒店比价',
+              style: const TextStyle(
+                fontSize: 7.0,
+                color: Colors.white,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+              ),
+            ),
           ],
         ),
       ),

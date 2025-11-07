@@ -111,7 +111,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
               avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
               displayName: user?.displayName ?? '',
               subtitle: user?.about ?? '',
-              onBackTap: () => context.go(WuyAppRouter.getProfileRoute()),
+              onBackTap: () => context.pop(),
               onAvatarTap: () => _handleAvatarTap(),
               showBackButton: true,
               backgroundHeight: 180.0,

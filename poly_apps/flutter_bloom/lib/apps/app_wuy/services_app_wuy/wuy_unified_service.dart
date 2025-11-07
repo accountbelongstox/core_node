@@ -631,6 +631,19 @@ class WuyUnifiedService extends AdvancedNetworkService {
     );
   }
 
+  /// Update friend monitoring status
+  Future<models.NetworkResponse<bool>> updateFriendMonitoringStatus(
+    String friendId,
+    bool isMonitoring,
+  ) async {
+    return _postApiCall<bool>(
+      endpoint: 'friend/$friendId/monitoring',
+      data: {'is_monitoring': isMonitoring},
+      offlineDataProvider: () => true,
+      operationName: 'Update friend monitoring status',
+    );
+  }
+
   // ==================== CHAT API METHODS ====================
 
   /// Get chat history

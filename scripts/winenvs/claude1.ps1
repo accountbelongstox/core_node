@@ -128,15 +128,13 @@ if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
 }
 
-$currentWorkingDir = Get-Location
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python claude_sync_mcp_servers.py" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py" --target claude --working-dir "$currentWorkingDir"
+python "D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
