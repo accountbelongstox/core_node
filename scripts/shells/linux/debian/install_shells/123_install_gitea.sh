@@ -233,7 +233,7 @@ create_gitea_user() {
 
 # Download Gitea binary
 download_gitea() {
-    print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
+    print_step_from_common_functions "Checking Gitea binary..."
 
     # Detect architecture
     GITEA_ARCH=$(detect_architecture)
@@ -243,11 +243,33 @@ download_gitea() {
 
     GITEA_BINARY_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-${GITEA_ARCH}"
 
+    # Check if binary already exists and matches target version
+    if [[ -f "$GITEA_BINARY" ]]; then
+        local current_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+        print_info_from_common_functions "DEBUG: Existing binary found, version: $current_version"
+        print_info_from_common_functions "DEBUG: Target version: $GITEA_VERSION"
+
+        if [[ "$current_version" == "$GITEA_VERSION" ]]; then
+            print_success_from_common_functions "Gitea binary already exists with correct version ($GITEA_VERSION)"
+            print_info_from_common_functions "DEBUG: Skipping download, using existing binary at $GITEA_BINARY"
+            return 0
+        else
+            print_warning_from_common_functions "Existing binary version ($current_version) differs from target ($GITEA_VERSION)"
+            print_info_from_common_functions "DEBUG: Will download new version..."
+        fi
+    else
+        print_info_from_common_functions "DEBUG: Binary not found at $GITEA_BINARY, will download..."
+    fi
+
+    # Download binary
+    print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
+    print_info_from_common_functions "DEBUG: Download URL: $GITEA_BINARY_URL"
+
     # Create temp download directory
     local temp_dir=$(mktemp -d)
     local temp_binary="$temp_dir/gitea"
+    print_info_from_common_functions "DEBUG: Temp directory: $temp_dir"
 
-    # Download binary
     if wget -O "$temp_binary" "$GITEA_BINARY_URL"; then
         print_success_from_common_functions "Gitea binary downloaded"
 
@@ -258,17 +280,23 @@ download_gitea() {
             return 1
         fi
 
+        local binary_size=$(stat -c%s "$temp_binary" 2>/dev/null || stat -f%z "$temp_binary" 2>/dev/null)
+        print_info_from_common_functions "DEBUG: Downloaded binary size: $binary_size bytes"
+
         # Install binary
+        print_info_from_common_functions "DEBUG: Installing binary to $GITEA_BINARY"
         $USE_SUDO mv "$temp_binary" "$GITEA_BINARY"
         $USE_SUDO chmod +x "$GITEA_BINARY"
 
         # Cleanup
         rm -rf "$temp_dir"
+        print_info_from_common_functions "DEBUG: Cleaned up temp directory"
 
         print_success_from_common_functions "Gitea binary installed to $GITEA_BINARY"
         return 0
     else
         print_error_from_common_functions "Failed to download Gitea binary"
+        print_error_from_common_functions "DEBUG: wget failed for URL: $GITEA_BINARY_URL"
         rm -rf "$temp_dir"
         return 1
     fi
@@ -277,6 +305,11 @@ download_gitea() {
 # Create directories
 create_directories() {
     print_step_from_common_functions "Creating Gitea directories..."
+    print_info_from_common_functions "DEBUG: Base directory: $GITEA_BASE_DIR"
+    print_info_from_common_functions "DEBUG: Data directory: $GITEA_DATA_DIR"
+    print_info_from_common_functions "DEBUG: Config directory: $GITEA_CONFIG_DIR"
+    print_info_from_common_functions "DEBUG: Custom directory: $GITEA_CUSTOM_DIR"
+    print_info_from_common_functions "DEBUG: Log directory: $GITEA_LOG_DIR"
 
     # Create base directory structure
     $USE_SUDO mkdir -p "$GITEA_BASE_DIR"
@@ -284,11 +317,14 @@ create_directories() {
     $USE_SUDO mkdir -p "$GITEA_CONFIG_DIR"
     $USE_SUDO mkdir -p "$GITEA_CUSTOM_DIR"
     $USE_SUDO mkdir -p "$GITEA_LOG_DIR"
+    print_info_from_common_functions "DEBUG: All directories created successfully"
 
     # Set ownership and permissions
+    print_info_from_common_functions "DEBUG: Setting ownership to $GITEA_USER:$GITEA_USER"
     $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
     $USE_SUDO chmod -R 750 "$GITEA_BASE_DIR"
     $USE_SUDO chmod 770 "$GITEA_CONFIG_DIR"
+    print_info_from_common_functions "DEBUG: Ownership and permissions set"
 
     print_success_from_common_functions "Gitea directories created at $GITEA_BASE_DIR"
     return 0
@@ -403,14 +439,18 @@ EOF
 # Configure firewall for Gitea
 configure_firewall() {
     print_step_from_common_functions "Configuring firewall for Gitea..."
+    print_info_from_common_functions "DEBUG: Port to open: $GITEA_PORT/tcp"
+    print_info_from_common_functions "DEBUG: Calling firewall_allow_port from firewall_manager.sh"
 
     # Use firewall_manager.sh library to handle firewall configuration
     # This automatically detects and configures UFW, firewalld, or iptables
     # If no firewall is active, it does nothing (never installs a firewall)
     if firewall_allow_port "$GITEA_PORT" "tcp" "Gitea Web Service"; then
         print_success_from_common_functions "Firewall configured successfully for port $GITEA_PORT/tcp"
+        print_info_from_common_functions "DEBUG: Firewall rule added successfully"
     else
         print_warning_from_common_functions "Firewall configuration may have issues, but port may still be accessible"
+        print_info_from_common_functions "DEBUG: Firewall configuration returned error or no firewall detected"
     fi
 
     return 0
