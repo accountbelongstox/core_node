@@ -79,13 +79,106 @@ parse_arguments() {
                 CLEANUP_MODE=true
                 shift
                 ;;
+            --diagnose)
+                diagnose_xrdp
+                exit 0
+                ;;
             *)
                 echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup]"
+                echo "Usage: $0 [--force] [--cleanup] [--diagnose]"
                 exit 1
                 ;;
         esac
     done
+}
+
+# Diagnose XRDP connection issues
+diagnose_xrdp() {
+    print_header_from_common_functions "XRDP Diagnostic Tool"
+
+    echo ""
+    print_step_from_common_functions "Checking XRDP service status..."
+    $USE_SUDO systemctl status xrdp --no-pager || echo "Service not running"
+
+    echo ""
+    print_step_from_common_functions "Checking recent XRDP logs..."
+    echo "=== Last 50 lines of syslog (xrdp related) ==="
+    $USE_SUDO grep -i "xrdp\|xorgxrdp" /var/log/syslog 2>/dev/null | tail -50 || echo "No syslog entries found"
+
+    echo ""
+    echo "=== Last 30 lines of xrdp.log ==="
+    $USE_SUDO tail -30 /var/log/xrdp.log 2>/dev/null || echo "/var/log/xrdp.log not found"
+
+    echo ""
+    echo "=== Last 30 lines of xrdp-sesman.log ==="
+    $USE_SUDO tail -30 /var/log/xrdp-sesman.log 2>/dev/null || echo "/var/log/xrdp-sesman.log not found"
+
+    echo ""
+    print_step_from_common_functions "Checking X11 wrapper configuration..."
+    if [[ -f "/etc/X11/Xwrapper.config" ]]; then
+        echo "=== /etc/X11/Xwrapper.config ==="
+        cat /etc/X11/Xwrapper.config
+    else
+        echo "WARNING: /etc/X11/Xwrapper.config not found!"
+    fi
+
+    echo ""
+    print_step_from_common_functions "Checking user session files..."
+    for user_home in /root /home/*; do
+        if [[ -d "$user_home" ]]; then
+            local username=$(basename "$user_home")
+            if [[ "$user_home" == "/root" ]]; then
+                username="root"
+            fi
+
+            echo "--- User: $username ($user_home) ---"
+
+            if [[ -f "$user_home/.xsession" ]]; then
+                echo ".xsession exists:"
+                head -5 "$user_home/.xsession"
+            else
+                echo "WARNING: .xsession NOT found"
+            fi
+
+            if [[ -f "$user_home/.xsessionrc" ]]; then
+                echo ".xsessionrc exists: YES"
+            else
+                echo "WARNING: .xsessionrc NOT found"
+            fi
+            echo ""
+        fi
+    done
+
+    echo ""
+    print_step_from_common_functions "Checking PolicyKit configuration..."
+    if [[ -f "/etc/polkit-1/localauthority/50-local.d/45-allow-colord.pkla" ]]; then
+        echo "PolicyKit colord rule: EXISTS"
+    else
+        echo "WARNING: PolicyKit colord rule NOT found"
+    fi
+
+    echo ""
+    print_step_from_common_functions "Checking desktop session availability..."
+    for cmd in gnome-session startxfce4 startkde startlxde mate-session; do
+        if command -v $cmd >/dev/null 2>&1; then
+            echo "✓ $cmd found"
+        else
+            echo "✗ $cmd not found"
+        fi
+    done
+
+    echo ""
+    print_success_from_common_functions "Diagnostic complete!"
+    echo ""
+    print_info_from_common_functions "Common issues and solutions:"
+    echo "  1. 'connection closed' after login → Check .xsession and desktop session"
+    echo "  2. 'authentication required' popup → Check PolicyKit rules"
+    echo "  3. 'could not start X server' → Check Xwrapper.config permissions"
+    echo "  4. Black screen → Check desktop environment installation"
+    echo ""
+    echo "To see full logs, run:"
+    echo "  sudo tail -f /var/log/xrdp-sesman.log"
+    echo ""
 }
 
 # Get installed version
@@ -250,44 +343,66 @@ install_dependencies() {
 # Configure XRDP
 configure_xrdp() {
     print_step_from_common_functions "Configuring XRDP..."
+    print_info_from_common_functions "DEBUG: XRDP config file: $XRDP_CONFIG_FILE"
+    print_info_from_common_functions "DEBUG: XRDP sesman config: $XRDP_SESMAN_CONFIG"
+    print_info_from_common_functions "DEBUG: XRDP port: $XRDP_PORT"
 
     # Backup original configuration
     if [[ -f "$XRDP_CONFIG_FILE" ]] && [[ ! -f "${XRDP_CONFIG_FILE}.backup" ]]; then
         $USE_SUDO cp "$XRDP_CONFIG_FILE" "${XRDP_CONFIG_FILE}.backup"
-        print_info_from_common_functions "Backed up original configuration"
+        print_info_from_common_functions "DEBUG: Backed up original configuration to ${XRDP_CONFIG_FILE}.backup"
+    else
+        print_info_from_common_functions "DEBUG: Backup already exists or config file not found"
     fi
 
     # Set port in xrdp.ini
+    print_info_from_common_functions "DEBUG: Setting port to $XRDP_PORT in xrdp.ini"
     $USE_SUDO sed -i "s/^port=.*/port=$XRDP_PORT/" "$XRDP_CONFIG_FILE"
 
     # Enable certificate-based encryption
+    print_info_from_common_functions "DEBUG: Configuring security settings"
     $USE_SUDO sed -i 's/^security_layer=.*/security_layer=negotiate/' "$XRDP_CONFIG_FILE"
     $USE_SUDO sed -i 's/^crypt_level=.*/crypt_level=high/' "$XRDP_CONFIG_FILE"
 
     # Fix color depth issues (set to 24-bit for compatibility)
+    print_info_from_common_functions "DEBUG: Setting color depth to 24-bit"
     if grep -q "^\[Xorg\]" "$XRDP_CONFIG_FILE"; then
         $USE_SUDO sed -i '/^\[Xorg\]/,/^\[/s/^param=.*/param=-depth\nparam=24\nparam=-dpi\nparam=96/' "$XRDP_CONFIG_FILE" 2>/dev/null || true
+        print_info_from_common_functions "DEBUG: Color depth configured in [Xorg] section"
+    else
+        print_info_from_common_functions "DEBUG: [Xorg] section not found in config"
     fi
 
     # Configure session manager
     if [[ -f "$XRDP_SESMAN_CONFIG" ]]; then
+        print_info_from_common_functions "DEBUG: Configuring sesman.ini settings"
         # Allow root login (user can disable this manually for security)
         $USE_SUDO sed -i 's/^AllowRootLogin=.*/AllowRootLogin=true/' "$XRDP_SESMAN_CONFIG" 2>/dev/null || true
+        print_info_from_common_functions "DEBUG: AllowRootLogin set to true"
         # Allow multiple sessions per user
         $USE_SUDO sed -i 's/^MaxSessions=.*/MaxSessions=10/' "$XRDP_SESMAN_CONFIG" 2>/dev/null || true
+        print_info_from_common_functions "DEBUG: MaxSessions set to 10"
+    else
+        print_info_from_common_functions "DEBUG: sesman.ini not found at $XRDP_SESMAN_CONFIG"
     fi
 
     # Add xrdp user to ssl-cert group for certificate access
+    print_info_from_common_functions "DEBUG: Adding xrdp user to ssl-cert group"
     $USE_SUDO adduser xrdp ssl-cert 2>/dev/null || true
 
     # Fix X11 wrapper permissions (critical for XORG mode)
     print_step_from_common_functions "Configuring X11 permissions..."
     local xwrapper_config="/etc/X11/Xwrapper.config"
+    print_info_from_common_functions "DEBUG: X11 wrapper config: $xwrapper_config"
     if [[ -f "$xwrapper_config" ]]; then
         $USE_SUDO cp "$xwrapper_config" "${xwrapper_config}.backup" 2>/dev/null || true
+        print_info_from_common_functions "DEBUG: Backed up existing X11 wrapper config"
+    else
+        print_info_from_common_functions "DEBUG: X11 wrapper config does not exist, will create new"
     fi
 
     # Allow anybody to start X server (required for xrdp user)
+    print_info_from_common_functions "DEBUG: Setting allowed_users=anybody in X11 wrapper"
     $USE_SUDO bash -c "cat > $xwrapper_config" <<'EOF'
 # Xwrapper.config - Allow xrdp to start X server
 # This is required for XRDP to work properly
@@ -295,13 +410,17 @@ allowed_users=anybody
 needs_root_rights=yes
 EOF
     print_success_from_common_functions "X11 permissions configured"
+    print_info_from_common_functions "DEBUG: X11 wrapper configuration complete"
 
     # Create PolicyKit rule for colord (prevents authentication popup/disconnect)
     print_step_from_common_functions "Configuring PolicyKit permissions..."
     local polkit_dir="/etc/polkit-1/localauthority/50-local.d"
     local polkit_rule="$polkit_dir/45-allow-colord.pkla"
+    print_info_from_common_functions "DEBUG: PolicyKit directory: $polkit_dir"
+    print_info_from_common_functions "DEBUG: PolicyKit rule file: $polkit_rule"
 
     $USE_SUDO mkdir -p "$polkit_dir"
+    print_info_from_common_functions "DEBUG: Created PolicyKit directory"
     $USE_SUDO bash -c "cat > $polkit_rule" <<'EOF'
 [Allow Colord All Users]
 Identity=unix-user:*
@@ -311,42 +430,129 @@ ResultInactive=no
 ResultActive=yes
 EOF
     print_success_from_common_functions "PolicyKit permissions configured"
+    print_info_from_common_functions "DEBUG: PolicyKit colord rule created"
 
-    # Create .xsession file for users if not exists
-    local xsession_file="$HOME/.xsession"
-    if [[ ! -f "$xsession_file" ]]; then
-        # Detect available desktop sessions
-        local desktop_session=""
-        if command -v gnome-session >/dev/null 2>&1; then
-            desktop_session="gnome-session"
-        elif command -v startxfce4 >/dev/null 2>&1; then
-            desktop_session="startxfce4"
-        elif command -v startkde >/dev/null 2>&1; then
-            desktop_session="startkde"
-        elif command -v startlxde >/dev/null 2>&1; then
-            desktop_session="startlxde"
-        fi
-
-        if [[ -n "$desktop_session" ]]; then
-            echo "$desktop_session" > "$xsession_file"
-            chmod +x "$xsession_file"
-            print_info_from_common_functions "Created .xsession file with: $desktop_session"
-        fi
+    # Detect available desktop session
+    print_step_from_common_functions "Detecting desktop session..."
+    local desktop_session=""
+    print_info_from_common_functions "DEBUG: Checking for desktop session commands..."
+    if command -v gnome-session >/dev/null 2>&1; then
+        desktop_session="gnome-session"
+        print_info_from_common_functions "DEBUG: Found gnome-session"
+    elif command -v startxfce4 >/dev/null 2>&1; then
+        desktop_session="startxfce4"
+        print_info_from_common_functions "DEBUG: Found startxfce4"
+    elif command -v startkde >/dev/null 2>&1; then
+        desktop_session="startkde"
+        print_info_from_common_functions "DEBUG: Found startkde"
+    elif command -v startlxde >/dev/null 2>&1; then
+        desktop_session="startlxde"
+        print_info_from_common_functions "DEBUG: Found startlxde"
+    elif command -v mate-session >/dev/null 2>&1; then
+        desktop_session="mate-session"
+        print_info_from_common_functions "DEBUG: Found mate-session"
     fi
 
-    # Create .xsessionrc for environment variables (helps with session stability)
-    local xsessionrc_file="$HOME/.xsessionrc"
-    if [[ ! -f "$xsessionrc_file" ]]; then
-        cat > "$xsessionrc_file" <<'EOF'
+    if [[ -z "$desktop_session" ]]; then
+        print_warning_from_common_functions "No desktop session command detected"
+        print_info_from_common_functions "DEBUG: No desktop session commands found in PATH"
+    else
+        print_info_from_common_functions "Detected desktop session: $desktop_session"
+        print_info_from_common_functions "DEBUG: Will use $desktop_session for user sessions"
+    fi
+
+    # Create session configuration for ALL existing users (including root)
+    print_step_from_common_functions "Creating session files for all users..."
+    print_info_from_common_functions "DEBUG: Scanning /etc/passwd for users to configure"
+
+    # Get list of real users (UID >= 1000 or root)
+    local users_to_configure=("root")
+    while IFS=: read -r username _ uid _ _ homedir _; do
+        if [[ $uid -ge 1000 ]] && [[ -d "$homedir" ]]; then
+            users_to_configure+=("$username")
+            print_info_from_common_functions "DEBUG: Found user: $username (UID: $uid, home: $homedir)"
+        fi
+    done < /etc/passwd
+
+    print_info_from_common_functions "DEBUG: Total users to configure: ${#users_to_configure[@]}"
+    print_info_from_common_functions "DEBUG: Users list: ${users_to_configure[*]}"
+
+    for user in "${users_to_configure[@]}"; do
+        local user_home=$(eval echo ~$user)
+        print_info_from_common_functions "DEBUG: Processing user: $user (home: $user_home)"
+
+        # Skip if home directory doesn't exist
+        if [[ ! -d "$user_home" ]]; then
+            print_info_from_common_functions "DEBUG: Skipping $user - home directory does not exist"
+            continue
+        fi
+
+        print_info_from_common_functions "Configuring session for user: $user"
+
+        # Create .xsession
+        local xsession_file="$user_home/.xsession"
+        print_info_from_common_functions "DEBUG: Creating .xsession: $xsession_file"
+        if [[ -n "$desktop_session" ]]; then
+            $USE_SUDO bash -c "cat > $xsession_file" <<EOF
+#!/bin/bash
+# XRDP session startup
+$desktop_session
+EOF
+            $USE_SUDO chmod +x "$xsession_file"
+            $USE_SUDO chown $user:$user "$xsession_file" 2>/dev/null || true
+            print_info_from_common_functions "DEBUG: Created .xsession with command: $desktop_session"
+        else
+            print_info_from_common_functions "DEBUG: Skipped .xsession creation - no desktop session detected"
+        fi
+
+        # Create .xsessionrc with comprehensive environment
+        local xsessionrc_file="$user_home/.xsessionrc"
+        print_info_from_common_functions "DEBUG: Creating .xsessionrc: $xsessionrc_file"
+        $USE_SUDO bash -c "cat > $xsessionrc_file" <<'EOF'
+#!/bin/bash
 # XRDP session environment
 export XDG_SESSION_TYPE=x11
 export XDG_SESSION_CLASS=user
+export XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-GNOME}
+export DESKTOP_SESSION=${DESKTOP_SESSION:-gnome}
+
+# Runtime directory
+if [ ! -d "/run/user/$(id -u)" ]; then
+    mkdir -p "/run/user/$(id -u)" 2>/dev/null || true
+fi
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
+
+# D-Bus session
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+
+# Disable problematic features
+export GNOME_SHELL_SESSION_MODE=classic
+export QT_QPA_PLATFORMTHEME=qt5ct
 EOF
-        chmod +x "$xsessionrc_file"
-        print_info_from_common_functions "Created .xsessionrc with session environment"
-    fi
+        $USE_SUDO chmod +x "$xsessionrc_file"
+        $USE_SUDO chown $user:$user "$xsessionrc_file" 2>/dev/null || true
+        print_info_from_common_functions "DEBUG: Created .xsessionrc with environment variables"
+
+        # Create .xinitrc as fallback
+        local xinitrc_file="$user_home/.xinitrc"
+        print_info_from_common_functions "DEBUG: Creating .xinitrc: $xinitrc_file"
+        if [[ -n "$desktop_session" ]]; then
+            $USE_SUDO bash -c "cat > $xinitrc_file" <<EOF
+#!/bin/bash
+# XRDP X session
+exec $desktop_session
+EOF
+            $USE_SUDO chmod +x "$xinitrc_file"
+            $USE_SUDO chown $user:$user "$xinitrc_file" 2>/dev/null || true
+            print_info_from_common_functions "DEBUG: Created .xinitrc with exec $desktop_session"
+        else
+            print_info_from_common_functions "DEBUG: Skipped .xinitrc creation - no desktop session detected"
+        fi
+        print_info_from_common_functions "DEBUG: Completed session file creation for user: $user"
+    done
+
+    print_success_from_common_functions "Session files created for all users"
+    print_info_from_common_functions "DEBUG: All users configured successfully"
 
     print_success_from_common_functions "XRDP configured successfully"
     return 0
@@ -355,14 +561,18 @@ EOF
 # Configure firewall for XRDP
 configure_firewall() {
     print_step_from_common_functions "Configuring firewall for XRDP..."
+    print_info_from_common_functions "DEBUG: Port to open: $XRDP_PORT/tcp"
+    print_info_from_common_functions "DEBUG: Calling firewall_allow_port from firewall_manager.sh"
 
     # Use firewall_manager.sh library to handle firewall configuration
     # This automatically detects and configures UFW, firewalld, or iptables
     # If no firewall is active, it does nothing (never installs a firewall)
     if firewall_allow_port "$XRDP_PORT" "tcp" "XRDP Remote Desktop"; then
         print_success_from_common_functions "Firewall configured successfully for port $XRDP_PORT/tcp"
+        print_info_from_common_functions "DEBUG: Firewall rule added successfully"
     else
         print_warning_from_common_functions "Firewall configuration may have issues, but port may still be accessible"
+        print_info_from_common_functions "DEBUG: Firewall configuration returned error or no firewall detected"
     fi
 
     return 0
@@ -522,8 +732,35 @@ install_xrdp() {
         return 1
     fi
 
-    # Get XRDP version
-    local xrdp_version=$(xrdp --version 2>&1 | grep -oP 'xrdp version \K[0-9.]+' || echo "unknown")
+    # Get XRDP version (try multiple methods)
+    local xrdp_version="unknown"
+
+    # Method 1: Try xrdp --version
+    if command -v xrdp >/dev/null 2>&1; then
+        xrdp_version=$(xrdp --version 2>&1 | grep -oP 'xrdp version \K[0-9.]+' 2>/dev/null || echo "")
+    fi
+
+    # Method 2: Try xrdp -v
+    if [[ -z "$xrdp_version" ]] || [[ "$xrdp_version" == "unknown" ]]; then
+        xrdp_version=$(xrdp -v 2>&1 | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' 2>/dev/null | head -n1 || echo "")
+    fi
+
+    # Method 3: Check package version with dpkg
+    if [[ -z "$xrdp_version" ]] || [[ "$xrdp_version" == "unknown" ]]; then
+        xrdp_version=$(dpkg -l xrdp 2>/dev/null | grep "^ii" | awk '{print $3}' | grep -oP '^[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+    fi
+
+    # Method 4: Check with apt-cache policy
+    if [[ -z "$xrdp_version" ]] || [[ "$xrdp_version" == "unknown" ]]; then
+        xrdp_version=$(apt-cache policy xrdp 2>/dev/null | grep "Installed:" | awk '{print $2}' | grep -oP '^[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+    fi
+
+    # Fallback: Use package version without regex
+    if [[ -z "$xrdp_version" ]] || [[ "$xrdp_version" == "unknown" ]]; then
+        xrdp_version=$(dpkg -l xrdp 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "unknown")
+    fi
+
+    print_info_from_common_functions "Detected XRDP version: $xrdp_version"
 
     # Save installation info
     save_installation_info "$xrdp_version"
@@ -531,6 +768,44 @@ install_xrdp() {
     print_success_from_common_functions "XRDP installation completed successfully!"
 
     # Display RDP access information
+    display_rdp_access_info
+
+    return 0
+}
+
+# Repair XRDP configuration without reinstalling
+repair_xrdp_configuration() {
+    print_header_from_common_functions "Repairing XRDP Configuration"
+    print_info_from_common_functions "This will update all configuration files to fix XORG mode issues"
+    echo ""
+
+    # Reconfigure XRDP (all configurations are idempotent)
+    print_step_from_common_functions "Updating XRDP configuration..."
+    configure_xrdp
+
+    # Reconfigure firewall
+    print_step_from_common_functions "Verifying firewall rules..."
+    configure_firewall
+
+    # Restart service to apply changes
+    print_step_from_common_functions "Restarting XRDP service..."
+    $USE_SUDO systemctl restart xrdp 2>/dev/null || start_xrdp_service
+
+    # Re-detect and save version
+    local xrdp_version="unknown"
+    if command -v xrdp >/dev/null 2>&1; then
+        xrdp_version=$(xrdp --version 2>&1 | grep -oP 'xrdp version \K[0-9.]+' 2>/dev/null || echo "")
+    fi
+    if [[ -z "$xrdp_version" ]] || [[ "$xrdp_version" == "unknown" ]]; then
+        xrdp_version=$(dpkg -l xrdp 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "unknown")
+    fi
+    save_installation_info "$xrdp_version"
+
+    print_success_from_common_functions "XRDP configuration repaired successfully!"
+    print_info_from_common_functions "All XORG mode fixes have been applied"
+    echo ""
+
+    # Display access info
     display_rdp_access_info
 
     return 0
@@ -548,16 +823,23 @@ prompt_cleanup_reinstall() {
             print_info_from_common_functions "Version information not available"
         fi
 
-        echo -n "Reinstall XRDP? (y/N): "
+        echo ""
+        print_info_from_common_functions "Available actions:"
+        echo "  1) Repair configuration (recommended - fixes XORG mode issues)"
+        echo "  2) Full reinstall (removes and reinstalls XRDP)"
+        echo "  3) Keep current installation and exit"
+        echo ""
+        echo -n "Select action (1/2/3) [1]: "
         read -r response
+
         case "$response" in
-            [yY]|[yY][eE][sS])
-                print_info_from_common_functions "Reinstalling XRDP..."
+            2)
+                print_info_from_common_functions "Performing full reinstall..."
                 cleanup_xrdp
                 return 0
                 ;;
-            *)
-                print_info_from_common_functions "Keeping existing installation"
+            3|[nN]|[nN][oO])
+                print_info_from_common_functions "Keeping current installation"
 
                 # Check if service is running
                 if ! $USE_SUDO systemctl is-active --quiet xrdp; then
@@ -575,6 +857,15 @@ prompt_cleanup_reinstall() {
                     display_rdp_access_info
                 fi
 
+                return 1
+                ;;
+            1|""|[yY]|[yY][eE][sS])
+                print_info_from_common_functions "Repairing configuration..."
+                repair_xrdp_configuration
+                return 1
+                ;;
+            *)
+                print_info_from_common_functions "Invalid choice, exiting"
                 return 1
                 ;;
         esac
