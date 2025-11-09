@@ -233,7 +233,7 @@ create_gitea_user() {
 
 # Download Gitea binary
 download_gitea() {
-    print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
+    print_step_from_common_functions "Checking Gitea binary..."
 
     # Detect architecture
     GITEA_ARCH=$(detect_architecture)
@@ -243,11 +243,33 @@ download_gitea() {
 
     GITEA_BINARY_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-${GITEA_ARCH}"
 
+    # Check if binary already exists and matches target version
+    if [[ -f "$GITEA_BINARY" ]]; then
+        local current_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+        print_info_from_common_functions "DEBUG: Existing binary found, version: $current_version"
+        print_info_from_common_functions "DEBUG: Target version: $GITEA_VERSION"
+
+        if [[ "$current_version" == "$GITEA_VERSION" ]]; then
+            print_success_from_common_functions "Gitea binary already exists with correct version ($GITEA_VERSION)"
+            print_info_from_common_functions "DEBUG: Skipping download, using existing binary at $GITEA_BINARY"
+            return 0
+        else
+            print_warning_from_common_functions "Existing binary version ($current_version) differs from target ($GITEA_VERSION)"
+            print_info_from_common_functions "DEBUG: Will download new version..."
+        fi
+    else
+        print_info_from_common_functions "DEBUG: Binary not found at $GITEA_BINARY, will download..."
+    fi
+
+    # Download binary
+    print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
+    print_info_from_common_functions "DEBUG: Download URL: $GITEA_BINARY_URL"
+
     # Create temp download directory
     local temp_dir=$(mktemp -d)
     local temp_binary="$temp_dir/gitea"
+    print_info_from_common_functions "DEBUG: Temp directory: $temp_dir"
 
-    # Download binary
     if wget -O "$temp_binary" "$GITEA_BINARY_URL"; then
         print_success_from_common_functions "Gitea binary downloaded"
 
@@ -258,17 +280,23 @@ download_gitea() {
             return 1
         fi
 
+        local binary_size=$(stat -c%s "$temp_binary" 2>/dev/null || stat -f%z "$temp_binary" 2>/dev/null)
+        print_info_from_common_functions "DEBUG: Downloaded binary size: $binary_size bytes"
+
         # Install binary
+        print_info_from_common_functions "DEBUG: Installing binary to $GITEA_BINARY"
         $USE_SUDO mv "$temp_binary" "$GITEA_BINARY"
         $USE_SUDO chmod +x "$GITEA_BINARY"
 
         # Cleanup
         rm -rf "$temp_dir"
+        print_info_from_common_functions "DEBUG: Cleaned up temp directory"
 
         print_success_from_common_functions "Gitea binary installed to $GITEA_BINARY"
         return 0
     else
         print_error_from_common_functions "Failed to download Gitea binary"
+        print_error_from_common_functions "DEBUG: wget failed for URL: $GITEA_BINARY_URL"
         rm -rf "$temp_dir"
         return 1
     fi
@@ -277,6 +305,11 @@ download_gitea() {
 # Create directories
 create_directories() {
     print_step_from_common_functions "Creating Gitea directories..."
+    print_info_from_common_functions "DEBUG: Base directory: $GITEA_BASE_DIR"
+    print_info_from_common_functions "DEBUG: Data directory: $GITEA_DATA_DIR"
+    print_info_from_common_functions "DEBUG: Config directory: $GITEA_CONFIG_DIR"
+    print_info_from_common_functions "DEBUG: Custom directory: $GITEA_CUSTOM_DIR"
+    print_info_from_common_functions "DEBUG: Log directory: $GITEA_LOG_DIR"
 
     # Create base directory structure
     $USE_SUDO mkdir -p "$GITEA_BASE_DIR"
@@ -284,11 +317,14 @@ create_directories() {
     $USE_SUDO mkdir -p "$GITEA_CONFIG_DIR"
     $USE_SUDO mkdir -p "$GITEA_CUSTOM_DIR"
     $USE_SUDO mkdir -p "$GITEA_LOG_DIR"
+    print_info_from_common_functions "DEBUG: All directories created successfully"
 
     # Set ownership and permissions
+    print_info_from_common_functions "DEBUG: Setting ownership to $GITEA_USER:$GITEA_USER"
     $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
     $USE_SUDO chmod -R 750 "$GITEA_BASE_DIR"
     $USE_SUDO chmod 770 "$GITEA_CONFIG_DIR"
+    print_info_from_common_functions "DEBUG: Ownership and permissions set"
 
     print_success_from_common_functions "Gitea directories created at $GITEA_BASE_DIR"
     return 0
@@ -403,14 +439,18 @@ EOF
 # Configure firewall for Gitea
 configure_firewall() {
     print_step_from_common_functions "Configuring firewall for Gitea..."
+    print_info_from_common_functions "DEBUG: Port to open: $GITEA_PORT/tcp"
+    print_info_from_common_functions "DEBUG: Calling firewall_allow_port from firewall_manager.sh"
 
     # Use firewall_manager.sh library to handle firewall configuration
     # This automatically detects and configures UFW, firewalld, or iptables
     # If no firewall is active, it does nothing (never installs a firewall)
     if firewall_allow_port "$GITEA_PORT" "tcp" "Gitea Web Service"; then
         print_success_from_common_functions "Firewall configured successfully for port $GITEA_PORT/tcp"
+        print_info_from_common_functions "DEBUG: Firewall rule added successfully"
     else
         print_warning_from_common_functions "Firewall configuration may have issues, but port may still be accessible"
+        print_info_from_common_functions "DEBUG: Firewall configuration returned error or no firewall detected"
     fi
 
     return 0
@@ -604,6 +644,60 @@ install_gitea() {
 }
 
 # Interactive cleanup prompt with version check
+# Repair Gitea configuration without removing data
+repair_gitea_configuration() {
+    print_header_from_common_functions "Repairing Gitea Configuration"
+    print_info_from_common_functions "This will update configuration and service files without touching your data"
+    echo ""
+
+    # Download/update binary if version mismatch
+    local current_binary_version=""
+    if [[ -f "$GITEA_BINARY" ]]; then
+        current_binary_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+    fi
+
+    if [[ "$current_binary_version" != "$GITEA_VERSION" ]]; then
+        print_step_from_common_functions "Updating Gitea binary from $current_binary_version to $GITEA_VERSION..."
+        if ! download_gitea; then
+            print_warning_from_common_functions "Failed to update binary, keeping current version"
+        fi
+    else
+        print_info_from_common_functions "Gitea binary is already up-to-date (version $GITEA_VERSION)"
+    fi
+
+    # Ensure directories exist with correct permissions
+    print_step_from_common_functions "Verifying directory structure..."
+    create_directories
+
+    # Update configuration file (preserves existing config, only updates paths)
+    print_step_from_common_functions "Updating configuration file..."
+    create_gitea_config
+
+    # Recreate systemd service (idempotent)
+    print_step_from_common_functions "Updating systemd service..."
+    create_systemd_service
+
+    # Ensure firewall rules are in place
+    print_step_from_common_functions "Verifying firewall rules..."
+    configure_firewall
+
+    # Restart service to apply changes
+    print_step_from_common_functions "Restarting Gitea service..."
+    $USE_SUDO systemctl restart gitea 2>/dev/null || start_gitea_service
+
+    # Update installation info
+    save_installation_info "$GITEA_VERSION"
+
+    print_success_from_common_functions "Gitea configuration repaired successfully!"
+    print_info_from_common_functions "All your repositories and data are preserved"
+    echo ""
+
+    # Display access info
+    display_web_access_info
+
+    return 0
+}
+
 prompt_cleanup_reinstall() {
     if is_gitea_installed; then
         print_warning_from_common_functions "Gitea is already installed"
@@ -611,39 +705,48 @@ prompt_cleanup_reinstall() {
         local installed_version=$(get_installed_version)
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
+            print_info_from_common_functions "Target version: $GITEA_VERSION"
         else
             print_info_from_common_functions "No version metadata found for current installation"
         fi
 
-        if [[ -n "$installed_version" ]] && [[ "$installed_version" != "$GITEA_VERSION" ]]; then
-            echo -n "Upgrade to version $GITEA_VERSION? (Y/n): "
-            read -r response
-            case "$response" in
-                [nN]|[nN][oO])
-                    print_info_from_common_functions "Keeping current installation"
-                    return 1
-                    ;;
-                *)
-                    print_info_from_common_functions "Upgrading Gitea..."
+        echo ""
+        print_info_from_common_functions "Available actions:"
+        echo "  1) Repair configuration (recommended - preserves all data)"
+        echo "  2) Full reinstall (WARNING: deletes all repositories and data)"
+        echo "  3) Keep current installation and exit"
+        echo ""
+        echo -n "Select action (1/2/3) [1]: "
+        read -r response
+
+        case "$response" in
+            2)
+                print_warning_from_common_functions "Full reinstall will DELETE all repositories and data!"
+                echo -n "Are you sure? Type 'yes' to confirm: "
+                read -r confirm
+                if [[ "$confirm" == "yes" ]]; then
+                    print_info_from_common_functions "Performing full reinstall..."
                     cleanup_gitea
                     return 0
-                    ;;
-            esac
-        else
-            echo -n "Reinstall Gitea? (y/N): "
-            read -r response
-            case "$response" in
-                [yY]|[yY][eE][sS])
-                    print_info_from_common_functions "Reinstalling Gitea..."
-                    cleanup_gitea
-                    return 0
-                    ;;
-                *)
-                    print_info_from_common_functions "Keeping existing installation"
+                else
+                    print_info_from_common_functions "Reinstall cancelled"
                     return 1
-                    ;;
-            esac
-        fi
+                fi
+                ;;
+            3|[nN]|[nN][oO])
+                print_info_from_common_functions "Keeping current installation"
+                return 1
+                ;;
+            1|""|[yY]|[yY][eE][sS])
+                print_info_from_common_functions "Repairing configuration..."
+                repair_gitea_configuration
+                return 1
+                ;;
+            *)
+                print_info_from_common_functions "Invalid choice, exiting"
+                return 1
+                ;;
+        esac
     fi
     return 0
 }
