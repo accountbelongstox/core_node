@@ -25,7 +25,7 @@ import threading
 import tkinter as tk
 import time
 import queue
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 from dataclasses import dataclass, field
 
 from pycore import ColorPrint
@@ -33,6 +33,7 @@ from pycore import ColorPrint
 from pycore.pyutils.native_ui.config import UIConfig, WindowState
 from pycore.pyutils.native_ui.signals import SignalManager, SignalType, Signal, TaskTimer, MainThreadExecutor
 from pycore.pyutils.native_ui.title_bar import CustomTitleBar
+from pycore.pyutils.native_ui.system_tray import SystemTray, TrayMenuItem
 
 
 @dataclass
@@ -57,6 +58,12 @@ class NativeUIThreadConfig:
 
     # WebView settings (if ui_source is provided, webview is used instead of on_create_content)
     ui_source: Optional[str] = None  # URL or file path for webview
+
+    # System Tray settings
+    enable_tray: bool = False  # Enable system tray
+    tray_menu_items: Optional[List] = None  # List of TrayMenuItem objects
+    tray_icon_path: Optional[str] = None  # Path to tray icon image
+    tray_tooltip: Optional[str] = None  # Tray icon tooltip
 
     # Callbacks
     on_ready: Optional[Callable] = None
@@ -154,6 +161,7 @@ class NativeUIThread(threading.Thread):
         self.root: Optional[tk.Tk] = None
         self.title_bar: Optional[CustomTitleBar] = None
         self.content_frame: Optional[tk.Frame] = None
+        self.system_tray: Optional[SystemTray] = None
 
         # Framework components
         self.signal_manager = SignalManager(debug=config.debug)
@@ -202,6 +210,10 @@ class NativeUIThread(threading.Thread):
 
             # Start internal threads
             self._start_internal_threads()
+
+            # Start system tray if enabled
+            if self.config.enable_tray:
+                self._start_system_tray()
 
             # Run main UI loop
             self._run_mainloop()
@@ -478,6 +490,48 @@ class NativeUIThread(threading.Thread):
 
         ColorPrint.red(f"[{self.name}] Webview error: {error_message}")
 
+    def _start_system_tray(self):
+        """Start system tray with configured menu items"""
+        ColorPrint.blue(f"[{self.name}] Starting system tray...")
+
+        # Use provided tooltip or default to app name
+        tooltip = self.config.tray_tooltip or self.config.app_name
+
+        # Create default menu items if none provided
+        menu_items = self.config.tray_menu_items
+        if not menu_items:
+            # Create default menu
+            menu_items = [
+                TrayMenuItem(
+                    text="Show Window",
+                    callback=lambda: self.show_window(),
+                    default=True
+                ),
+                TrayMenuItem(
+                    text="Hide Window",
+                    callback=lambda: self.hide_window()
+                ),
+                TrayMenuItem.SEPARATOR,
+                TrayMenuItem(
+                    text="Exit",
+                    callback=lambda: self.stop()
+                )
+            ]
+
+        # Create system tray
+        self.system_tray = SystemTray(
+            app_name=self.config.app_name,
+            menu_items=menu_items,
+            icon_path=self.config.tray_icon_path,
+            tooltip=tooltip,
+            on_left_click=lambda: self.show_window()
+        )
+
+        # Start tray in background
+        self.system_tray.start_async()
+
+        ColorPrint.green(f"[{self.name}] System tray started")
+
     def _start_internal_threads(self):
         """Start internal threads (signal processor, task timer)"""
         # Start signal processing thread
@@ -566,6 +620,10 @@ class NativeUIThread(threading.Thread):
     def _cleanup(self):
         """Cleanup resources"""
         ColorPrint.blue(f"[{self.name}] Cleaning up...")
+
+        # Stop system tray
+        if self.system_tray and self.system_tray.is_running():
+            self.system_tray.stop()
 
         # Stop task timer
         self.task_timer.stop()

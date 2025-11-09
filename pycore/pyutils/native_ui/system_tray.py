@@ -75,18 +75,8 @@ class TrayMenuItem:
     default: bool = False
     submenu: Optional[List['TrayMenuItem']] = None
 
-    # Separator constant
-    SEPARATOR = None
-
-    def __post_init__(self):
-        """Initialize separator constant"""
-        if TrayMenuItem.SEPARATOR is None:
-            # Create sentinel object for separator
-            TrayMenuItem.SEPARATOR = TrayMenuItem(
-                text="---",
-                callback=None,
-                enabled=False
-            )
+    # Separator constant (will be set after class definition)
+    SEPARATOR: Optional['TrayMenuItem'] = None
 
     def is_separator(self) -> bool:
         """Check if this item is a separator"""
@@ -99,7 +89,7 @@ class TrayMenuItem:
 
         # Handle separator
         if self.is_separator():
-            return PystrayMenuItem.SEPARATOR
+            return pystray.Menu.SEPARATOR
 
         # Handle submenu
         if self.submenu:
@@ -118,6 +108,14 @@ class TrayMenuItem:
             checked=lambda item: self.checked,
             default=self.default
         )
+
+
+# Initialize SEPARATOR constant after class definition
+TrayMenuItem.SEPARATOR = TrayMenuItem(
+    text="---",
+    callback=None,
+    enabled=False
+)
 
 
 class SystemTray:
@@ -168,7 +166,7 @@ class SystemTray:
             on_left_click: Callback for left click on icon
         """
         if not _PYSTRAY_AVAILABLE:
-            ColorPrint.print_warn("pystray not available, system tray disabled")
+            ColorPrint.yellow("pystray not available, system tray disabled")
             self.available = False
             return
 
@@ -204,7 +202,7 @@ class SystemTray:
             try:
                 return Image.open(icon_path)
             except Exception as e:
-                ColorPrint.print_warn(f"[SystemTray] Failed to load icon: {e}")
+                ColorPrint.yellow(f"[SystemTray] Failed to load icon: {e}")
 
         # Create default icon (simple circle)
         size = 64
@@ -258,7 +256,7 @@ class SystemTray:
             ColorPrint.green(f"[SystemTray] Tray icon created")
 
         except Exception as e:
-            ColorPrint.print_error(f"[SystemTray] Failed to setup tray: {e}")
+            ColorPrint.red(f"[SystemTray] Failed to setup tray: {e}")
             import traceback
             traceback.print_exc()
 
@@ -290,7 +288,7 @@ class SystemTray:
                 # Run tray (blocking)
                 self._icon.run()
             except Exception as e:
-                ColorPrint.print_error(f"[SystemTray] Tray error: {e}")
+                ColorPrint.red(f"[SystemTray] Tray error: {e}")
                 import traceback
                 traceback.print_exc()
             finally:
@@ -325,7 +323,7 @@ class SystemTray:
         if self._ready.wait(timeout=5):
             ColorPrint.green("[SystemTray] Tray thread started")
         else:
-            ColorPrint.print_warn("[SystemTray] Tray thread start timeout")
+            ColorPrint.yellow("[SystemTray] Tray thread start timeout")
 
     def stop(self):
         """Stop system tray"""
@@ -333,7 +331,7 @@ class SystemTray:
             return
 
         if not self._running:
-            ColorPrint.print_warn("[SystemTray] Not running")
+            ColorPrint.yellow("[SystemTray] Not running")
             return
 
         ColorPrint.yellow("[SystemTray] Stopping tray...")
@@ -342,7 +340,7 @@ class SystemTray:
             try:
                 self._icon.stop()
             except Exception as e:
-                ColorPrint.print_warn(f"[SystemTray] Error stopping tray: {e}")
+                ColorPrint.yellow(f"[SystemTray] Error stopping tray: {e}")
 
         self._running = False
         self._ready.clear()
@@ -373,7 +371,7 @@ class SystemTray:
             self._icon.icon = new_image
             ColorPrint.blue(f"[SystemTray] Icon updated: {icon_path}")
         except Exception as e:
-            ColorPrint.print_warn(f"[SystemTray] Failed to update icon: {e}")
+            ColorPrint.yellow(f"[SystemTray] Failed to update icon: {e}")
 
     def update_tooltip(self, tooltip: str):
         """
@@ -390,7 +388,7 @@ class SystemTray:
             self._icon.title = tooltip
             ColorPrint.blue(f"[SystemTray] Tooltip updated: {tooltip}")
         except Exception as e:
-            ColorPrint.print_warn(f"[SystemTray] Failed to update tooltip: {e}")
+            ColorPrint.yellow(f"[SystemTray] Failed to update tooltip: {e}")
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """
@@ -408,7 +406,7 @@ class SystemTray:
             self._icon.menu = new_menu
             ColorPrint.blue("[SystemTray] Menu updated")
         except Exception as e:
-            ColorPrint.print_warn(f"[SystemTray] Failed to update menu: {e}")
+            ColorPrint.yellow(f"[SystemTray] Failed to update menu: {e}")
 
     def notify(self, title: str, message: str):
         """
@@ -425,7 +423,7 @@ class SystemTray:
             self._icon.notify(message, title)
             ColorPrint.blue(f"[SystemTray] Notification: {title}")
         except Exception as e:
-            ColorPrint.print_warn(f"[SystemTray] Failed to show notification: {e}")
+            ColorPrint.yellow(f"[SystemTray] Failed to show notification: {e}")
 
 
 # Convenience function
