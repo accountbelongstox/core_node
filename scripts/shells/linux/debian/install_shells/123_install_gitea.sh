@@ -37,6 +37,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
 
 # Initialize global variables
 init_global_vars
@@ -52,12 +53,14 @@ GITEA_ARCH="linux-amd64"
 GITEA_BINARY_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-${GITEA_ARCH}"
 
 # Set up Gitea directories
-APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
-GITEA_INSTALL_DIR="$APPLICATIONS_DIR/gitea"
+WWWROOT_DIR=$(map_web_path "wwwroot")
+GITEA_BASE_DIR="$WWWROOT_DIR/data/gitea"
 GITEA_BINARY="/usr/local/bin/gitea"
-GITEA_DATA_DIR="/var/lib/gitea"
-GITEA_CONFIG_DIR="/etc/gitea"
-GITEA_INSTALLED_FLAG="$GITEA_INSTALL_DIR/.installed"
+GITEA_DATA_DIR="$GITEA_BASE_DIR/data"
+GITEA_CONFIG_DIR="$GITEA_BASE_DIR/config"
+GITEA_CUSTOM_DIR="$GITEA_BASE_DIR/custom"
+GITEA_LOG_DIR="$GITEA_BASE_DIR/log"
+GITEA_INSTALLED_FLAG="$GITEA_BASE_DIR/.installed"
 GITEA_USER="git"
 GITEA_PORT="3000"
 
@@ -275,18 +278,93 @@ download_gitea() {
 create_directories() {
     print_step_from_common_functions "Creating Gitea directories..."
 
-    # Create directories
-    $USE_SUDO mkdir -p "$GITEA_INSTALL_DIR"
-    $USE_SUDO mkdir -p "$GITEA_DATA_DIR"/{custom,data,log}
+    # Create base directory structure
+    $USE_SUDO mkdir -p "$GITEA_BASE_DIR"
+    $USE_SUDO mkdir -p "$GITEA_DATA_DIR"
     $USE_SUDO mkdir -p "$GITEA_CONFIG_DIR"
+    $USE_SUDO mkdir -p "$GITEA_CUSTOM_DIR"
+    $USE_SUDO mkdir -p "$GITEA_LOG_DIR"
 
-    # Set ownership
-    $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_DATA_DIR"
-    $USE_SUDO chown -R root:$GITEA_USER "$GITEA_CONFIG_DIR"
-    $USE_SUDO chmod -R 750 "$GITEA_DATA_DIR"
+    # Set ownership and permissions
+    $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
+    $USE_SUDO chmod -R 750 "$GITEA_BASE_DIR"
     $USE_SUDO chmod 770 "$GITEA_CONFIG_DIR"
 
-    print_success_from_common_functions "Gitea directories created"
+    print_success_from_common_functions "Gitea directories created at $GITEA_BASE_DIR"
+    return 0
+}
+
+# Create Gitea configuration file
+create_gitea_config() {
+    print_step_from_common_functions "Creating Gitea configuration..."
+
+    local config_file="$GITEA_CONFIG_DIR/app.ini"
+
+    # Check if configuration already exists
+    if [[ -f "$config_file" ]]; then
+        print_info_from_common_functions "Configuration file already exists, updating paths only..."
+
+        # Update directory paths in existing config (idempotent)
+        $USE_SUDO sed -i "s|^HTTP_PORT.*=.*|HTTP_PORT = $GITEA_PORT|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^PATH.*=.*gitea\.db|PATH = $GITEA_DATA_DIR/gitea.db|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^ROOT.*=.*repositories|ROOT = $GITEA_DATA_DIR/repositories|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^ROOT_PATH.*=.*|ROOT_PATH = $GITEA_LOG_DIR|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^AVATAR_UPLOAD_PATH.*=.*|AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/avatars|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^REPOSITORY_AVATAR_UPLOAD_PATH.*=.*|REPOSITORY_AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/repo-avatars|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^PATH.*=.*attachments|PATH = $GITEA_DATA_DIR/attachments|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^PROVIDER_CONFIG.*=.*|PROVIDER_CONFIG = $GITEA_DATA_DIR/sessions|" "$config_file" 2>/dev/null || true
+
+        print_success_from_common_functions "Gitea configuration updated with current paths"
+        return 0
+    fi
+
+    # Generate SECRET_KEY only once
+    local secret_key=$(openssl rand -base64 32 2>/dev/null || echo "CHANGE_THIS_SECRET_KEY_$(date +%s)")
+
+    # Create new configuration file
+    cat <<EOF | $USE_SUDO tee "$config_file" > /dev/null
+[server]
+HTTP_PORT = $GITEA_PORT
+ROOT_URL = http://localhost:$GITEA_PORT/
+DOMAIN = localhost
+
+[database]
+DB_TYPE = sqlite3
+PATH = $GITEA_DATA_DIR/gitea.db
+
+[repository]
+ROOT = $GITEA_DATA_DIR/repositories
+
+[log]
+ROOT_PATH = $GITEA_LOG_DIR
+MODE = console, file
+LEVEL = info
+
+[security]
+INSTALL_LOCK = false
+SECRET_KEY = $secret_key
+
+[service]
+DISABLE_REGISTRATION = false
+REQUIRE_SIGNIN_VIEW = false
+
+[picture]
+AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/avatars
+REPOSITORY_AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/repo-avatars
+
+[attachment]
+PATH = $GITEA_DATA_DIR/attachments
+
+[session]
+PROVIDER = file
+PROVIDER_CONFIG = $GITEA_DATA_DIR/sessions
+EOF
+
+    # Set ownership and permissions
+    $USE_SUDO chown $GITEA_USER:$GITEA_USER "$config_file"
+    $USE_SUDO chmod 640 "$config_file"
+
+    print_success_from_common_functions "Gitea configuration created"
     return 0
 }
 
@@ -307,7 +385,7 @@ Type=simple
 User=$GITEA_USER
 Group=$GITEA_USER
 WorkingDirectory=$GITEA_DATA_DIR
-ExecStart=$GITEA_BINARY web --config $GITEA_CONFIG_DIR/app.ini
+ExecStart=$GITEA_BINARY web --config $GITEA_CONFIG_DIR/app.ini --work-path $GITEA_DATA_DIR --custom-path $GITEA_CUSTOM_DIR
 Restart=always
 Environment=USER=$GITEA_USER HOME=/home/$GITEA_USER GITEA_WORK_DIR=$GITEA_DATA_DIR
 
@@ -319,6 +397,22 @@ EOF
     $USE_SUDO systemctl daemon-reload
 
     print_success_from_common_functions "Systemd service created"
+    return 0
+}
+
+# Configure firewall for Gitea
+configure_firewall() {
+    print_step_from_common_functions "Configuring firewall for Gitea..."
+
+    # Use firewall_manager.sh library to handle firewall configuration
+    # This automatically detects and configures UFW, firewalld, or iptables
+    # If no firewall is active, it does nothing (never installs a firewall)
+    if firewall_allow_port "$GITEA_PORT" "tcp" "Gitea Web Service"; then
+        print_success_from_common_functions "Firewall configured successfully for port $GITEA_PORT/tcp"
+    else
+        print_warning_from_common_functions "Firewall configuration may have issues, but port may still be accessible"
+    fi
+
     return 0
 }
 
@@ -364,13 +458,20 @@ display_web_access_info() {
     echo ""
     print_info_from_common_functions "Default configuration:"
     echo "  - Port: $GITEA_PORT"
+    echo "  - Base directory: $GITEA_BASE_DIR"
     echo "  - Data directory: $GITEA_DATA_DIR"
-    echo "  - Config directory: $GITEA_CONFIG_DIR"
+    echo "  - Config file: $GITEA_CONFIG_DIR/app.ini"
+    echo "  - Log directory: $GITEA_LOG_DIR"
     echo ""
     print_info_from_common_functions "First-time setup:"
     echo "  1. Open any of the URLs above in your browser"
     echo "  2. Complete the initial configuration wizard"
     echo "  3. Create your administrator account"
+    echo ""
+    print_warning_from_common_functions "Important notes:"
+    echo "  - Ensure firewall allows port $GITEA_PORT"
+    echo "  - Configuration is stored in: $GITEA_CONFIG_DIR/app.ini"
+    echo "  - All data is stored under: $GITEA_BASE_DIR"
     echo ""
 }
 
@@ -426,26 +527,14 @@ cleanup_gitea() {
         $USE_SUDO rm -f "$GITEA_BINARY"
     fi
 
-    # Remove directories
-    if [[ -d "$GITEA_DATA_DIR" ]]; then
-        print_step_from_common_functions "Removing data directory: $GITEA_DATA_DIR"
-        $USE_SUDO rm -rf "$GITEA_DATA_DIR"
-    fi
+    # Remove firewall rule using firewall_manager.sh
+    print_step_from_common_functions "Removing firewall rule..."
+    firewall_remove_port "$GITEA_PORT" "tcp" 2>/dev/null || true
 
-    if [[ -d "$GITEA_CONFIG_DIR" ]]; then
-        print_step_from_common_functions "Removing config directory: $GITEA_CONFIG_DIR"
-        $USE_SUDO rm -rf "$GITEA_CONFIG_DIR"
-    fi
-
-    if [[ -d "$GITEA_INSTALL_DIR" ]]; then
-        print_step_from_common_functions "Removing installation directory: $GITEA_INSTALL_DIR"
-        robust_remove_directory "$GITEA_INSTALL_DIR"
-    fi
-
-    # Remove installation flag
-    if [[ -f "$GITEA_INSTALLED_FLAG" ]]; then
-        print_step_from_common_functions "Removing installation flag: $GITEA_INSTALLED_FLAG"
-        $USE_SUDO rm -f "$GITEA_INSTALLED_FLAG"
+    # Remove base directory (contains data, config, custom, and log)
+    if [[ -d "$GITEA_BASE_DIR" ]]; then
+        print_step_from_common_functions "Removing Gitea base directory: $GITEA_BASE_DIR"
+        $USE_SUDO rm -rf "$GITEA_BASE_DIR"
     fi
 
     # Note: We don't remove the git user as it may be used by other services
@@ -485,10 +574,18 @@ install_gitea() {
         return 1
     fi
 
+    # Create Gitea configuration
+    if ! create_gitea_config; then
+        return 1
+    fi
+
     # Create systemd service
     if ! create_systemd_service; then
         return 1
     fi
+
+    # Configure firewall
+    configure_firewall
 
     # Start service
     if ! start_gitea_service; then
