@@ -166,9 +166,9 @@ diagnose_xrdp() {
     print_step_from_common_functions "Checking desktop session availability..."
     for cmd in gnome-session startxfce4 startkde startlxde mate-session; do
         if command -v $cmd >/dev/null 2>&1; then
-            echo "âœ“ $cmd found"
+            echo "âœ?$cmd found"
         else
-            echo "âœ— $cmd not found"
+            echo "âœ?$cmd not found"
         fi
     done
 
@@ -176,10 +176,10 @@ diagnose_xrdp() {
     print_success_from_common_functions "Diagnostic complete!"
     echo ""
     print_info_from_common_functions "Common issues and solutions:"
-    echo "  1. 'connection closed' after login â†’ Check .xsession and desktop session"
-    echo "  2. 'authentication required' popup â†’ Check PolicyKit rules"
-    echo "  3. 'could not start X server' â†’ Check Xwrapper.config permissions"
-    echo "  4. Black screen â†’ Check desktop environment installation"
+    echo "  1. 'connection closed' after login â†?Check .xsession and desktop session"
+    echo "  2. 'authentication required' popup â†?Check PolicyKit rules"
+    echo "  3. 'could not start X server' â†?Check Xwrapper.config permissions"
+    echo "  4. Black screen â†?Check desktop environment installation"
     echo ""
     echo "To see full logs, run:"
     echo "  sudo tail -f /var/log/xrdp-sesman.log"
