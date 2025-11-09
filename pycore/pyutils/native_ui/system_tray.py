@@ -199,10 +199,7 @@ class SystemTray:
             PIL Image object
         """
         if icon_path and Path(icon_path).exists():
-            try:
-                return Image.open(icon_path)
-            except Exception as e:
-                ColorPrint.yellow(f"[SystemTray] Failed to load icon: {e}")
+            return Image.open(icon_path)
 
         # Create default icon (simple circle)
         size = 64
@@ -262,11 +259,11 @@ class SystemTray:
         Use start_async() to run in background thread.
         """
         if not self.available:
-            ColorPrint.print_warn("[SystemTray] Not available, skipping")
+            ColorPrint.yellow("[SystemTray] Not available, skipping")
             return
 
         if self._running:
-            ColorPrint.print_warn("[SystemTray] Already running")
+            ColorPrint.yellow("[SystemTray] Already running")
             return
 
         ColorPrint.blue("[SystemTray] Starting tray (blocking)...")
@@ -278,16 +275,11 @@ class SystemTray:
             self._ready.set()
             ColorPrint.green("[SystemTray] Tray started")
 
-            try:
-                # Run tray (blocking)
-                self._icon.run()
-            except Exception as e:
-                ColorPrint.red(f"[SystemTray] Tray error: {e}")
-                import traceback
-                traceback.print_exc()
-            finally:
-                self._running = False
-                ColorPrint.yellow("[SystemTray] Tray stopped")
+            # Run tray (blocking)
+            self._icon.run()
+
+            self._running = False
+            ColorPrint.yellow("[SystemTray] Tray stopped")
 
     def start_async(self):
         """
@@ -296,11 +288,11 @@ class SystemTray:
         Returns immediately after starting the tray thread.
         """
         if not self.available:
-            ColorPrint.print_warn("[SystemTray] Not available, skipping")
+            ColorPrint.yellow("[SystemTray] Not available, skipping")
             return
 
         if self._running:
-            ColorPrint.print_warn("[SystemTray] Already running")
+            ColorPrint.yellow("[SystemTray] Already running")
             return
 
         ColorPrint.blue("[SystemTray] Starting tray (async)...")
@@ -331,10 +323,7 @@ class SystemTray:
         ColorPrint.yellow("[SystemTray] Stopping tray...")
 
         if self._icon:
-            try:
-                self._icon.stop()
-            except Exception as e:
-                ColorPrint.yellow(f"[SystemTray] Error stopping tray: {e}")
+            self._icon.stop()
 
         self._running = False
         self._ready.clear()
@@ -359,13 +348,10 @@ class SystemTray:
         if not self.available or not self._icon:
             return
 
-        try:
-            new_image = self._load_icon(icon_path)
-            self._image = new_image
-            self._icon.icon = new_image
-            ColorPrint.blue(f"[SystemTray] Icon updated: {icon_path}")
-        except Exception as e:
-            ColorPrint.yellow(f"[SystemTray] Failed to update icon: {e}")
+        new_image = self._load_icon(icon_path)
+        self._image = new_image
+        self._icon.icon = new_image
+        ColorPrint.blue(f"[SystemTray] Icon updated: {icon_path}")
 
     def update_tooltip(self, tooltip: str):
         """
@@ -377,12 +363,9 @@ class SystemTray:
         if not self.available or not self._icon:
             return
 
-        try:
-            self.tooltip = tooltip
-            self._icon.title = tooltip
-            ColorPrint.blue(f"[SystemTray] Tooltip updated: {tooltip}")
-        except Exception as e:
-            ColorPrint.yellow(f"[SystemTray] Failed to update tooltip: {e}")
+        self.tooltip = tooltip
+        self._icon.title = tooltip
+        ColorPrint.blue(f"[SystemTray] Tooltip updated: {tooltip}")
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """
@@ -394,13 +377,10 @@ class SystemTray:
         if not self.available or not self._icon:
             return
 
-        try:
-            self.menu_items = menu_items
-            new_menu = self._build_menu()
-            self._icon.menu = new_menu
-            ColorPrint.blue("[SystemTray] Menu updated")
-        except Exception as e:
-            ColorPrint.yellow(f"[SystemTray] Failed to update menu: {e}")
+        self.menu_items = menu_items
+        new_menu = self._build_menu()
+        self._icon.menu = new_menu
+        ColorPrint.blue("[SystemTray] Menu updated")
 
     def notify(self, title: str, message: str):
         """
@@ -413,11 +393,8 @@ class SystemTray:
         if not self.available or not self._icon:
             return
 
-        try:
-            self._icon.notify(message, title)
-            ColorPrint.blue(f"[SystemTray] Notification: {title}")
-        except Exception as e:
-            ColorPrint.yellow(f"[SystemTray] Failed to show notification: {e}")
+        self._icon.notify(message, title)
+        ColorPrint.blue(f"[SystemTray] Notification: {title}")
 
 
 # Convenience function
