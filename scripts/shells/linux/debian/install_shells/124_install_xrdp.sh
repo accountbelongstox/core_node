@@ -52,6 +52,11 @@ XRDP_PORT="3389"
 XRDP_CONFIG_FILE="/etc/xrdp/xrdp.ini"
 XRDP_SESMAN_CONFIG="/etc/xrdp/sesman.ini"
 XRDP_INSTALLED_FLAG="/var/lib/xrdp/.installed"
+XRDP_LOG_ARCHIVE_DIR="/var/_core_node/xorg"
+XRDP_LOG_SERVICE_SCRIPT="/usr/local/bin/core_node_xrdp_log_collector.sh"
+XRDP_LOG_SERVICE_NAME="xrdp-log-sync"
+XRDP_LOG_SERVICE_DESCRIPTION="CoreNode XRDP Log Collector"
+DEBIAN_SERVICE_MANAGER="$PARENT_DIR_LEVEL_2/common/debian_service_manager.sh"
 
 # Ensure sudo is available and set USE_SUDO
 if command -v sudo >/dev/null 2>&1; then
@@ -340,6 +345,225 @@ install_dependencies() {
     return 0
 }
 
+create_log_collector_script() {
+    $USE_SUDO mkdir -p "$XRDP_LOG_ARCHIVE_DIR"
+    $USE_SUDO chmod 750 "$XRDP_LOG_ARCHIVE_DIR" 2>/dev/null || true
+
+    $USE_SUDO bash -c "cat > '$XRDP_LOG_SERVICE_SCRIPT'" <<'EOF'
+#!/bin/bash
+set -uo pipefail
+umask 027
+
+LOG_DIR="/var/_core_node/xorg"
+SOURCE_FILES=("/var/log/xrdp.log" "/var/log/xrdp-sesman.log")
+SOURCE_DIR="/var/log/xrdp"
+SYNC_INTERVAL=5
+
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR" 2>/dev/null || true
+
+log_message() {
+    local message="$1"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" >> "$LOG_DIR/collector.log"
+}
+
+copy_file() {
+    local src="$1"
+    local dest="$2"
+
+    if [[ -f "$src" ]]; then
+        if cp "$src" "${dest}.tmp" 2>/dev/null; then
+            mv "${dest}.tmp" "$dest"
+            chmod 640 "$dest" 2>/dev/null || true
+        fi
+    fi
+}
+
+while true; do
+    for src in "${SOURCE_FILES[@]}"; do
+        dest="$LOG_DIR/$(basename "$src")"
+        copy_file "$src" "$dest"
+    done
+
+    if [[ -d "$SOURCE_DIR" ]]; then
+        for src in "$SOURCE_DIR"/*.log; do
+            [[ -f "$src" ]] || continue
+            dest="$LOG_DIR/$(basename "$src")"
+            copy_file "$src" "$dest"
+        done
+    fi
+
+    log_message "XRDP logs synchronized"
+    sleep "$SYNC_INTERVAL"
+done
+EOF
+
+    if [[ $? -ne 0 ]]; then
+        print_error_from_common_functions "Failed to create log collector script"
+        return 1
+    fi
+
+    $USE_SUDO chmod +x "$XRDP_LOG_SERVICE_SCRIPT"
+    return 0
+}
+
+setup_xrdp_log_service() {
+    print_step_from_common_functions "Setting up XRDP log collector service..."
+
+    if [[ ! -f "$DEBIAN_SERVICE_MANAGER" ]]; then
+        print_warning_from_common_functions "debian_service_manager.sh not found at $DEBIAN_SERVICE_MANAGER"
+        return 1
+    fi
+
+    if ! create_log_collector_script; then
+        return 1
+    fi
+
+    local cpu_limit="5%"
+    local memory_limit="150M"
+
+    if $USE_SUDO bash "$DEBIAN_SERVICE_MANAGER" create "$XRDP_LOG_SERVICE_SCRIPT" "$XRDP_LOG_SERVICE_NAME" "$XRDP_LOG_SERVICE_DESCRIPTION" "$cpu_limit" "$memory_limit"; then
+        print_success_from_common_functions "XRDP log collector service installed"
+        print_info_from_common_functions "Logs mirrored to: $XRDP_LOG_ARCHIVE_DIR"
+        return 0
+    else
+        print_warning_from_common_functions "Failed to configure XRDP log collector service"
+        return 1
+    fi
+}
+
+remove_xrdp_log_service() {
+    print_step_from_common_functions "Removing XRDP log collector service..."
+
+    if [[ -f "$DEBIAN_SERVICE_MANAGER" ]]; then
+        $USE_SUDO bash "$DEBIAN_SERVICE_MANAGER" remove "$XRDP_LOG_SERVICE_NAME" 2>/dev/null || true
+    fi
+
+    $USE_SUDO rm -f "$XRDP_LOG_SERVICE_SCRIPT" 2>/dev/null || true
+    print_success_from_common_functions "XRDP log collector service removal complete"
+}
+
+restore_xorg_section_if_needed() {
+    local backup_file="${XRDP_CONFIG_FILE}.backup"
+    local template_source=""
+    local needs_restore=0
+
+    if [[ ! -f "$XRDP_CONFIG_FILE" ]]; then
+        return 0
+    fi
+
+    if ! grep -q '^param=-config' "$XRDP_CONFIG_FILE" 2>/dev/null; then
+        needs_restore=1
+    fi
+
+    if ! grep -q '^param=xrdp/xorg.conf' "$XRDP_CONFIG_FILE" 2>/dev/null; then
+        needs_restore=1
+    fi
+
+    if [[ $needs_restore -eq 0 ]]; then
+        print_info_from_common_functions "DEBUG: [Xorg] section already contains required parameters"
+        return 0
+    fi
+
+    if [[ -f "$backup_file" ]]; then
+        template_source="$backup_file"
+    elif [[ -f "/usr/share/doc/xrdp/examples/xrdp.ini" ]]; then
+        template_source="/usr/share/doc/xrdp/examples/xrdp.ini"
+    elif [[ -f "/usr/share/xrdp/xrdp.ini" ]]; then
+        template_source="/usr/share/xrdp/xrdp.ini"
+    fi
+
+    if [[ -z "$template_source" ]]; then
+        print_warning_from_common_functions "Unable to restore [Xorg] section: no template file available"
+        return 1
+    fi
+
+    print_step_from_common_functions "Restoring [Xorg] section in xrdp.ini..."
+
+    if $USE_SUDO python3 - "$XRDP_CONFIG_FILE" "$template_source" <<'PY'; then
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+source_path = Path(sys.argv[2])
+section_name = 'xorg'
+
+def normalize(lines):
+    normalized = []
+    for line in lines:
+        if not line.endswith('\n'):
+            normalized.append(line + '\n')
+        else:
+            normalized.append(line)
+    return normalized
+
+def extract_section(lines):
+    result = []
+    inside = False
+    header = f'[{section_name}]'
+    header_lower = header.lower()
+    for line in lines:
+        stripped = line.strip().lower()
+        if stripped == header_lower:
+            inside = True
+        if inside:
+            if stripped.startswith('[') and stripped != '' and stripped != header_lower and result:
+                break
+            result.append(line)
+    return result
+
+def replace_section(lines, new_section):
+    result = []
+    inside = False
+    replaced = False
+    header = f'[{section_name}]'
+    header_lower = header.lower()
+
+    for line in lines:
+        stripped = line.strip().lower()
+        if stripped == header_lower:
+            if not replaced:
+                result.extend(new_section)
+                replaced = True
+            inside = True
+            continue
+        if inside:
+            if stripped.startswith('[') and stripped != '':
+                inside = False
+                result.append(line)
+            continue
+        result.append(line)
+
+    if not replaced:
+        if result and result[-1].strip() != '':
+            result.append('\n')
+        result.extend(new_section)
+
+    return result
+
+config_lines = normalize(config_path.read_text().splitlines())
+source_lines = normalize(source_path.read_text().splitlines())
+
+joined_config = ''.join(config_lines)
+if 'param=-config' in joined_config and 'param=xrdp/xorg.conf' in joined_config:
+    sys.exit(0)
+
+new_section = extract_section(source_lines)
+if not new_section:
+    sys.exit(1)
+
+updated_lines = replace_section(config_lines, new_section)
+config_path.write_text(''.join(updated_lines))
+PY
+        print_success_from_common_functions "[Xorg] section restored"
+    else
+        print_error_from_common_functions "Failed to restore [Xorg] section"
+        return 1
+    fi
+
+    return 0
+}
+
 # Configure XRDP
 configure_xrdp() {
     print_step_from_common_functions "Configuring XRDP..."
@@ -355,6 +579,11 @@ configure_xrdp() {
         print_info_from_common_functions "DEBUG: Backup already exists or config file not found"
     fi
 
+    # Restore a healthy [Xorg] section if previous runs corrupted it
+    if ! restore_xorg_section_if_needed; then
+        return 1
+    fi
+
     # Set port in xrdp.ini
     print_info_from_common_functions "DEBUG: Setting port to $XRDP_PORT in xrdp.ini"
     $USE_SUDO sed -i "s/^port=.*/port=$XRDP_PORT/" "$XRDP_CONFIG_FILE"
@@ -363,15 +592,6 @@ configure_xrdp() {
     print_info_from_common_functions "DEBUG: Configuring security settings"
     $USE_SUDO sed -i 's/^security_layer=.*/security_layer=negotiate/' "$XRDP_CONFIG_FILE"
     $USE_SUDO sed -i 's/^crypt_level=.*/crypt_level=high/' "$XRDP_CONFIG_FILE"
-
-    # Fix color depth issues (set to 24-bit for compatibility)
-    print_info_from_common_functions "DEBUG: Setting color depth to 24-bit"
-    if grep -q "^\[Xorg\]" "$XRDP_CONFIG_FILE"; then
-        $USE_SUDO sed -i '/^\[Xorg\]/,/^\[/s/^param=.*/param=-depth\nparam=24\nparam=-dpi\nparam=96/' "$XRDP_CONFIG_FILE" 2>/dev/null || true
-        print_info_from_common_functions "DEBUG: Color depth configured in [Xorg] section"
-    else
-        print_info_from_common_functions "DEBUG: [Xorg] section not found in config"
-    fi
 
     # Configure session manager
     if [[ -f "$XRDP_SESMAN_CONFIG" ]]; then
@@ -690,6 +910,9 @@ cleanup_xrdp() {
     print_step_from_common_functions "Removing firewall rule..."
     firewall_remove_port "$XRDP_PORT" "tcp" 2>/dev/null || true
 
+    # Remove log collection service
+    remove_xrdp_log_service
+
     # Remove installation flag
     if [[ -f "$XRDP_INSTALLED_FLAG" ]]; then
         print_step_from_common_functions "Removing installation flag..."
@@ -731,6 +954,9 @@ install_xrdp() {
     if ! start_xrdp_service; then
         return 1
     fi
+
+    # Setup log collection service
+    setup_xrdp_log_service
 
     # Get XRDP version (try multiple methods)
     local xrdp_version="unknown"
@@ -790,6 +1016,9 @@ repair_xrdp_configuration() {
     # Restart service to apply changes
     print_step_from_common_functions "Restarting XRDP service..."
     $USE_SUDO systemctl restart xrdp 2>/dev/null || start_xrdp_service
+
+    # Ensure log collection service is present
+    setup_xrdp_log_service
 
     # Re-detect and save version
     local xrdp_version="unknown"

@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Codex CLI Global File #1
+# Codex CLI Global File #4
 # =============================================================================
 #
 # Synopsis:
@@ -26,8 +26,8 @@
 #     - Tool Name: Codex CLI
 #     - Command Prefix: codex
 #     - Command: codex
-#     - File Number: 1
-#     - File Name: codex1.sh
+#     - File Number: 4
+#     - File Name: codex4.sh
 #     - Generation Time: 2025-11-10 06:27:55
 #
 # Environment Variables:
@@ -38,7 +38,7 @@ set -e
 
 echo ""
 echo "============================================================"
-echo "Running: codex1.sh"
+echo "Running: codex4.sh"
 echo "============================================================"
 echo ""
 
@@ -177,8 +177,8 @@ load_secret_value() {
     return 1
 }
 
-load_secret_value "OPENAI_API_KEY_1" "OPENAI_API_KEY" "OPENAI_API_KEY"
-load_secret_value "OPENAI_BASE_URL_1" "OPENAI_BASE_URL" "OPENAI_BASE_URL"
+load_secret_value "OPENAI_API_KEY_4" "OPENAI_API_KEY" "OPENAI_API_KEY"
+load_secret_value "OPENAI_BASE_URL_4" "OPENAI_BASE_URL" "OPENAI_BASE_URL"
 
 echo ""
 
