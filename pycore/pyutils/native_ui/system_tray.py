@@ -101,13 +101,22 @@ class TrayMenuItem:
             )
 
         # Regular menu item
-        return PystrayMenuItem(
-            self.text,
-            self.callback,
-            enabled=self.enabled,
-            checked=lambda item: self.checked,
-            default=self.default
-        )
+        # Only add checked parameter if actually using checkmark feature
+        if self.checked:
+            return PystrayMenuItem(
+                self.text,
+                self.callback,
+                enabled=self.enabled,
+                checked=lambda item: True,
+                default=self.default
+            )
+        else:
+            return PystrayMenuItem(
+                self.text,
+                self.callback,
+                enabled=self.enabled,
+                default=self.default
+            )
 
 
 # Initialize SEPARATOR constant after class definition

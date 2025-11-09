@@ -20,7 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pylauncher import UnifiedLauncher, LauncherConfig, UIServiceConfig
-from pycore.pyutils.native_ui import NativeUIThread, NativeUIThreadConfig, TrayMenuItem
+from pycore.pyutils.native_ui import NativeUIThread, NativeUIThreadConfig, TrayMenuItem, ActionType, ActionContext
 
 # Import matrix controllers
 from pyapps.matrix.controller import (
@@ -120,107 +120,95 @@ def start():
         ColorPrint.yellow("Waiting for Matrix service to initialize...")
         time.sleep(5)
 
-        # Register custom UI service with webview
-        ColorPrint.blue("\nRegistering custom UI service with webview...")
+        # Create UI in main thread (not as a service)
+        ColorPrint.blue("\nStarting native UI in main thread...")
 
-        def custom_ui_entry(ui_config):
-            """Custom UI service entry point"""
-            ColorPrint.green("[MatrixUI] Starting UI thread with webview")
+        # Reference to UI thread for tray menu callbacks
+        ui_thread_ref = [None]  # Use list to allow mutation in closures
 
-            # Reference to UI thread for tray menu callbacks
-            ui_thread_ref = [None]  # Use list to allow mutation in closures
+        # Helper function for opening browser
+        def _open_browser(url):
+            """Open URL in default browser"""
+            import webbrowser
+            webbrowser.open(url)
+            ColorPrint.blue(f"[MatrixUI] Opened in browser: {url}")
 
-            # Helper function for opening browser
-            def _open_browser(url):
-                """Open URL in default browser"""
-                import webbrowser
-                webbrowser.open(url)
-                ColorPrint.blue(f"[MatrixUI] Opened in browser: {url}")
+        # Helper functions for custom tray menu (executed in tray thread)
+        def _tray_open_frontend():
+            """Open frontend in browser (safe cross-thread call)"""
+            _open_browser(f"http://localhost:{matrix_config.frontend_port}")
 
-            # Create tray menu items
-            tray_menu_items = [
-                TrayMenuItem(
-                    text="显示主窗口",
-                    callback=lambda: ui_thread_ref[0].show_window() if ui_thread_ref[0] else None,
-                    default=True  # Default action on double-click
-                ),
-                TrayMenuItem(
-                    text="隐藏主窗口",
-                    callback=lambda: ui_thread_ref[0].hide_window() if ui_thread_ref[0] else None
-                ),
-                TrayMenuItem.SEPARATOR,
-                TrayMenuItem(
-                    text="打开前端页面",
-                    callback=lambda: _open_browser(f"http://localhost:{matrix_config.frontend_port}")
-                ),
-                TrayMenuItem(
-                    text="打开API文档",
-                    callback=lambda: _open_browser(f"http://{matrix_config.backend_host}:{matrix_config.backend_port}/docs")
-                ),
-                TrayMenuItem.SEPARATOR,
-                TrayMenuItem(
-                    text="退出",
-                    callback=lambda: ui_thread_ref[0].stop() if ui_thread_ref[0] else None
-                )
-            ]
+        def _tray_open_api_docs():
+            """Open API docs in browser (safe cross-thread call)"""
+            _open_browser(f"http://{matrix_config.backend_host}:{matrix_config.backend_port}/docs")
 
-            # Create UI thread configuration with ui_source (URL for webview)
-            ui_thread_config = NativeUIThreadConfig(
-                app_name="Matrix - Android Device Control",
-                width=1280,
-                height=900,
-                show_on_start=True,
-                resizable=True,
-                frameless=True,
-                theme="dark",
-                debug=False,
-                # Pass frontend URL to native_ui for webview creation
-                ui_source=f"http://localhost:{matrix_config.frontend_port}",
-                # Enable system tray with menu items
-                enable_tray=True,
-                tray_menu_items=tray_menu_items,
-                tray_tooltip="Matrix - Android Device Control",
-                on_ready=lambda: ColorPrint.green("[MatrixUI] UI is ready!"),
-                on_close=lambda: ColorPrint.yellow("[MatrixUI] UI is closing...")
-            )
+        # Create custom tray menu items for Matrix
+        # Note: Do NOT set default=True here, as the native "Show Window" is already default
+        tray_menu_items = [
+            TrayMenuItem(
+                text="打开前端页面",
+                callback=_tray_open_frontend  # Direct call OK for browser opening
+            ),
+            TrayMenuItem(
+                text="打开API文档",
+                callback=_tray_open_api_docs  # Direct call OK for browser opening
+            ),
+        ]
 
-            def _open_browser(url):
-                """Open URL in default browser"""
-                import webbrowser
-                webbrowser.open(url)
-                ColorPrint.blue(f"[MatrixUI] Opened in browser: {url}")
-
-            # Create and start UI thread
-            ui_thread = NativeUIThread(
-                config=ui_thread_config,
-                thread_name="MatrixUIThread"
-            )
-
-            # Store reference for tray menu callbacks
-            ui_thread_ref[0] = ui_thread
-
-            ui_thread.start()
-            ui_thread.wait_until_ready()
-
-            ColorPrint.green("[MatrixUI] UI thread ready")
-
-            # Keep thread running
-            while ui_thread.is_running():
-                time.sleep(0.1)
-
-            return ui_thread
-
-        # Register custom UI service
-        launcher.register_custom_service(
-            service_name='matrix_ui',
-            entry_point=custom_ui_entry,
-            config=UIServiceConfig(),  # Pass empty config (we use NativeUIThreadConfig instead)
-            daemon=True
+        # Create UI thread configuration with ui_source (URL for webview)
+        ui_thread_config = NativeUIThreadConfig(
+            app_name="Matrix - Android Device Control",
+            width=1280,
+            height=900,
+            show_on_start=True,
+            resizable=True,
+            frameless=True,
+            theme="dark",
+            debug=False,
+            # Pass frontend URL to native_ui for webview creation
+            ui_source=f"http://localhost:{matrix_config.frontend_port}",
+            # Enable system tray with menu items
+            enable_tray=True,
+            tray_menu_items=tray_menu_items,
+            tray_tooltip="Matrix - Android Device Control",
+            on_ready=lambda: ColorPrint.green("[MatrixUI] UI is ready!"),
+            on_close=lambda: ColorPrint.yellow("[MatrixUI] UI is closing...")
         )
 
-        # Start UI service
-        ColorPrint.blue("Starting native UI with webview...")
-        launcher.start_service('matrix_ui')
+        # Create UI thread (will run in main thread)
+        ui_thread = NativeUIThread(
+            config=ui_thread_config,
+            thread_name="MatrixUIThread"
+        )
+
+        # Store reference for tray menu callbacks
+        ui_thread_ref[0] = ui_thread
+
+        # Register action callbacks
+        ColorPrint.blue("[MatrixUI] Registering action callbacks...")
+
+        def cleanup_matrix_services(context: ActionContext):
+            """
+            Cleanup Matrix services before UI closes
+
+            Args:
+                context: ActionContext providing access to native implementation
+            """
+            ColorPrint.yellow("[MatrixUI] Cleanup callback: Stopping all Matrix services...")
+            launcher.stop_all()
+
+            # Call native close implementation (stop UI thread, destroy window, cleanup)
+            ColorPrint.yellow("[MatrixUI] Calling native close implementation...")
+            context.call_native()
+
+        # Register cleanup callback for close action
+        # When close is triggered:
+        # 1. cleanup_matrix_services() is called
+        # 2. Inside callback, we stop services
+        # 3. Then we call context.call_native() to execute native close
+        ui_thread.register_action_callback(ActionType.CLOSE, cleanup_matrix_services)
+
+        ColorPrint.green("[MatrixUI] Action callbacks registered")
 
         ColorPrint.white("")
         ColorPrint.green("=" * 70)
@@ -229,17 +217,22 @@ def start():
         ColorPrint.white("")
         ColorPrint.green("Services:")
         ColorPrint.white(f"  - Matrix Service: Running")
-        ColorPrint.white(f"  - Native UI: Running")
+        ColorPrint.white(f"  - Native UI: Starting in main thread...")
         ColorPrint.white(f"  - Frontend: http://localhost:{matrix_config.frontend_port}")
         ColorPrint.white(f"  - Backend API: http://{matrix_config.backend_host}:{matrix_config.backend_port}")
         ColorPrint.white("")
-        ColorPrint.yellow("Press Ctrl+C to stop all services")
+        ColorPrint.yellow("Press Ctrl+C or close window to stop")
         ColorPrint.white("")
         ColorPrint.green("=" * 70)
         ColorPrint.white("")
 
-        # Wait for services
-        launcher.wait()
+        # Run UI directly in main thread (blocking)
+        # Note: Calling run() instead of start() to run in current thread
+        # When UI closes:
+        # 1. cleanup_matrix_services() is called (stops all services)
+        # 2. Native close implementation is called (destroys UI, stops threads)
+        ColorPrint.green("[MatrixUI] Starting UI in main thread (blocking)...")
+        ui_thread.run()  # This will block until UI is closed
 
     except KeyboardInterrupt:
         ColorPrint.yellow("\nKeyboard interrupt received, shutting down...")

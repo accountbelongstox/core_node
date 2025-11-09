@@ -118,7 +118,7 @@ try:
     from pycore.pyutils.native_ui.webview_framework import WebViewFramework
 
     # New Thread Mode (SeleniumThread-like pattern)
-    from pycore.pyutils.native_ui.thread_framework import NativeUIThread, NativeUIThreadConfig
+    from pycore.pyutils.native_ui.thread_framework import NativeUIThread, NativeUIThreadConfig, ActionType, ActionQueue, ActionContext
 
     _FRAMEWORK_AVAILABLE = True
 except ImportError:
@@ -190,4 +190,7 @@ if _FRAMEWORK_AVAILABLE:
         # Thread Mode (new, SeleniumThread-like)
         'NativeUIThread',
         'NativeUIThreadConfig',
+        'ActionType',
+        'ActionQueue',
+        'ActionContext',
     ])
