@@ -27,14 +27,19 @@ function Initialize-StateDirectory {
 
 function Get-MenuState {
     Initialize-StateDirectory
+    $validModes = @("debug", "build")
 
     if (Test-Path $script:StateFile) {
         try {
             $stateContent = Get-Content -Path $script:StateFile -Raw -ErrorAction Stop
             $state = $stateContent | ConvertFrom-Json
+            $modeValue = $state.Mode
+            if ($validModes -notcontains $modeValue) {
+                $modeValue = "debug"
+            }
             return @{
                 SelectedIndex = [int]$state.SelectedIndex
-                Mode = $state.Mode
+                Mode = $modeValue
             }
         }
         catch {
@@ -61,9 +66,12 @@ function Save-MenuState {
 
     Initialize-StateDirectory
 
+    $validModes = @("debug", "build")
+    $modeValue = if ($validModes -contains $Mode) { $Mode } else { "debug" }
+
     $state = @{
         SelectedIndex = $SelectedIndex
-        Mode = $Mode
+        Mode = $modeValue
         LastUpdated = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     }
 

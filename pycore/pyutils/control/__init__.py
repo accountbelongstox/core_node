@@ -38,10 +38,10 @@ Example:
     )
 """
 
-from .touch_event import TouchEvent, TouchAction
-from .key_event import KeyEvent, KeyAction, AndroidKeyCode
-from .coordinate_mapper import CoordinateMapper
-from .message_builder import MessageBuilder
+from pycore.pyutils.control.touch_event import TouchEvent, TouchAction
+from pycore.pyutils.control.key_event import KeyEvent, KeyAction, AndroidKeyCode
+from pycore.pyutils.control.coordinate_mapper import CoordinateMapper
+from pycore.pyutils.control.message_builder import MessageBuilder
 
 __all__ = [
     'TouchEvent',

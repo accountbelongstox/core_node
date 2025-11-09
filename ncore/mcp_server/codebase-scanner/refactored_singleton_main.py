@@ -40,7 +40,7 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 # Import our singleton RPC framework
-from pycore.pyutils.wsrpc.singleton_rpc_example import SingletonRpcBackend
+from pycore.pyutils.wsrpc import SingletonRpcBackend
 
 # Import constants
 from constants import CodebaseScannerConstants

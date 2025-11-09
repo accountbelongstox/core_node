@@ -535,8 +535,15 @@ This is a critical reference document - please review it thoroughly before proce
 
         # Output path in a copy-friendly format
         output_path_str = str(output_file.resolve())
-        print(f"\n[OK] Tree printed to:")
+        try:
+            relative_path_str = str(output_file.resolve().relative_to(ROOT_DIR))
+        except ValueError:
+            relative_path_str = output_path_str
+
+        print("\n[OK] Tree printed.")
+        print("Windows clients copy the absolute path; Linux clients copy the relative path below:")
         print(output_path_str)
+        print(relative_path_str)
 
         return output_file
 

@@ -12,6 +12,7 @@ import shutil
 import time
 import hashlib
 import re
+import inspect
 from typing import List, Callable, Optional
 
 columns = shutil.get_terminal_size().columns
@@ -40,16 +41,16 @@ class ColorPrintCallback:
     def notify(self, message: str, color_type: str = "white", log_level: str = None):
         """Notify all registered callbacks"""
         for callback in self._callbacks:
-            try:
-                # Support both old and new callback signatures
-                import inspect
-                sig = inspect.signature(callback)
-                if len(sig.parameters) >= 3:
-                    callback(message, color_type, log_level)
-                else:
-                    callback(message, color_type)
-            except Exception:
-                pass  # Ignore callback errors
+            # Verify callback is callable
+            if not callable(callback):
+                continue
+
+            # Check callback signature - let errors expose naturally
+            sig = inspect.signature(callback)
+            if len(sig.parameters) >= 3:
+                callback(message, color_type, log_level)
+            else:
+                callback(message, color_type)
     
     def get_callback_count(self) -> int:
         """Get number of registered callbacks"""

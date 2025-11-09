@@ -132,13 +132,15 @@ class EventBus:
         # Notify subscribers
         if event_type in self._subscribers:
             for callback in self._subscribers[event_type].copy():
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(event)
-                    else:
-                        callback(event)
-                except Exception as e:
-                    print(f"Error in event callback for {event_type}: {e}")
+                # Verify callback is callable
+                if not callable(callback):
+                    continue
+
+                # Call callback - let errors expose naturally
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(event)
+                else:
+                    callback(event)
 
     def get_history(self, event_type: Optional[str] = None, limit: int = 100) -> list[Event]:
         """

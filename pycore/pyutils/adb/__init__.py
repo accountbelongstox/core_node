@@ -1,25 +1,25 @@
 """
-pyutils.adb - ADB 通信模块
+pyutils.adb - ADB Communication Module
 
-功能：
-- ADB 设备管理
-- 文件推送/拉取
-- Shell 命令执行
-- 端口转发
+Features:
+- ADB device management
+- File push/pull
+- Shell command execution
+- Port forwarding
 
-依赖：
-- 标准库：subprocess, pathlib, typing
-- 外部工具：adb（需在 PATH 或指定路径）
+Dependencies:
+- Standard library: subprocess, pathlib, typing
+- External tool: adb (must be in PATH or specify path)
 
-示例：
+Example:
     from pycore.pyutils.adb import ADBManager, ADBDevice
 
-    # 列出设备
+    # List devices
     devices = ADBManager.list_devices()
     for device in devices:
         print(device.serial, device.state)
 
-    # 推送文件
+    # Push file
     from pathlib import Path
     ADBManager.push_file(
         "ABC123",
@@ -27,13 +27,13 @@ pyutils.adb - ADB 通信模块
         "/data/local/tmp/scrcpy-server.jar"
     )
 
-    # 端口转发
+    # Port forwarding
     ADBManager.forward_port("ABC123", 27183, 27183)
 """
 
-from .adb_manager import ADBManager
-from .adb_device import ADBDevice, DeviceState
-from .adb_exceptions import (
+from pycore.pyutils.adb.adb_manager import ADBManager
+from pycore.pyutils.adb.adb_device import ADBDevice, DeviceState
+from pycore.pyutils.adb.adb_exceptions import (
     ADBException,
     DeviceNotFoundException,
     ADBCommandFailedException

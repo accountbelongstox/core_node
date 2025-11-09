@@ -37,7 +37,7 @@ Example:
             await ws_manager.disconnect(device_id, websocket)
 """
 
-from .websocket_manager import WebSocketManager
+from pycore.pyutils.api.websocket_manager import WebSocketManager
 
 __all__ = [
     'WebSocketManager'

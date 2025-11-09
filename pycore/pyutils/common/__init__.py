@@ -5,6 +5,6 @@ Common Utilities Package
 Shared utilities used across multiple pytools modules
 """
 
-from .window_finder import WindowFinder
+from pycore.pyutils.common.window_finder import WindowFinder
 
 __all__ = ['WindowFinder']

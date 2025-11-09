@@ -40,11 +40,13 @@ class GlobalVarManager:
                     return self._ensure_directory(candidate)
 
         default_dir = Path("/usr/.core_node/global_var")
-        try:
+        # Check if we can write to /usr directory
+        if default_dir.parent.exists() and default_dir.parent.stat().st_mode & 0o200:
             return self._ensure_directory(default_dir)
-        except PermissionError:
-            fallback = home / ".core_node" / "global_var"
-            return self._ensure_directory(fallback)
+
+        # Use home directory fallback
+        fallback = _home / ".core_node" / "global_var"
+        return self._ensure_directory(fallback)
 
     @staticmethod
     def _ensure_directory(path: Path) -> Path:
@@ -96,7 +98,13 @@ class GlobalVarManager:
         raw = self.get(key)
         if not raw:
             return default
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
+
+        # Check if raw data looks like JSON
+        raw_stripped = raw.strip()
+        if not raw_stripped:
             return default
+        if not (raw_stripped.startswith('{') or raw_stripped.startswith('[')):
+            return default
+
+        # Parse JSON - let errors expose naturally
+        return json.loads(raw)

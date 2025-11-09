@@ -26,14 +26,8 @@ export 'theme/theme.dart';
 // Network Layer v2 (Recommended - Centralized API)
 export 'network_v2/network_v2.dart';
 
-// Network Layer v1 (Legacy)
-export 'network/network.dart';
-
 // Localization (Centralized)
 export 'localization/localization.dart';
-
-// Widgets (Centralized)
-export 'widgets/widgets.dart';
 
 // Utils (Centralized)
 export 'utils/utils.dart';
@@ -72,7 +66,6 @@ export 'map/location_service.dart';
 export 'media/audio/audio_player.dart';
 export 'media/audio/audio_recorder.dart';
 export 'media/video/video_player.dart';
-export 'media/video/video_recorder.dart';
 
 // Constants
 export 'constants/app_constants.dart';

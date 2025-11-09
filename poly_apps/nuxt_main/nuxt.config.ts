@@ -152,6 +152,11 @@ export default defineNuxtConfig({
             include: ['quill'],
             exclude: ['vue3-easymde', 'vue-json-excel3', 'easymde', 'vue3-quill']
         },
+        server: {
+            watch: {
+                ignored: ['**/pages/index.vue']
+            }
+        },
         ssr: {
             noExternal: ['vue3-quill']
         },

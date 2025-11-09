@@ -93,7 +93,7 @@ class _ItineraryTimelineViewState extends State<ItineraryTimelineView> {
             padding: const EdgeInsets.all(16.0),
             child: Center(
               child: TextButton(
-                onTap: () {},
+                onPressed: () {},
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF00D0D8),
                 ),

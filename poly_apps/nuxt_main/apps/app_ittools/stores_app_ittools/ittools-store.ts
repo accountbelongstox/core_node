@@ -19,6 +19,7 @@ export interface ItToolsState {
 
   // User preferences
   favorites: string[];
+  recentToolVisits: string[];
   history: Array<{
     toolId: string;
     timestamp: number;
@@ -36,6 +37,9 @@ export interface ItToolsState {
   // Loading and error state
   loading: boolean;
   error: string | null;
+
+  // Last used tool
+  lastToolId: string | null;
 }
 
 export const useItToolsStore = defineStore('ittools', {
@@ -53,6 +57,7 @@ export const useItToolsStore = defineStore('ittools', {
 
     // User preferences
     favorites: [],
+    recentToolVisits: [],
     history: [],
 
     // UI state
@@ -64,7 +69,9 @@ export const useItToolsStore = defineStore('ittools', {
 
     // Loading and error state
     loading: false,
-    error: null
+    error: null,
+
+    lastToolId: null
   }),
 
   getters: {
@@ -113,6 +120,19 @@ export const useItToolsStore = defineStore('ittools', {
         .slice(0, 10)
         .map(item => state.allTools.find(tool => tool.id === item.toolId))
         .filter(Boolean) as Tool[];
+    },
+
+    recentlyOpenedTools: (state) => {
+      return state.recentToolVisits
+        .map(id => state.allTools.find(tool => tool.id === id))
+        .filter(Boolean) as Tool[];
+    },
+
+    lastUsedTool: (state) => {
+      if (!state.lastToolId) {
+        return null;
+      }
+      return state.allTools.find(tool => tool.id === state.lastToolId) || null;
     },
 
     /**
@@ -251,6 +271,12 @@ export const useItToolsStore = defineStore('ittools', {
       const tool = this.allTools.find(t => t.id === toolId) || null;
       this.selectedTool = tool;
       this.activeToolId = tool ? tool.id : null;
+
+      if (toolId) {
+        this.recordToolVisit(toolId);
+        this.lastToolId = toolId;
+        this.saveLastUsedTool();
+      }
     },
 
     /**
@@ -302,6 +328,18 @@ export const useItToolsStore = defineStore('ittools', {
       }
 
       this.saveHistory();
+    },
+
+    recordToolVisit(toolId: string): void {
+      const existingIndex = this.recentToolVisits.indexOf(toolId);
+      if (existingIndex > -1) {
+        this.recentToolVisits.splice(existingIndex, 1);
+      }
+      this.recentToolVisits.unshift(toolId);
+      if (this.recentToolVisits.length > 10) {
+        this.recentToolVisits = this.recentToolVisits.slice(0, 10);
+      }
+      this.saveRecentToolVisits();
     },
 
     /**
@@ -364,6 +402,11 @@ export const useItToolsStore = defineStore('ittools', {
           this.history = JSON.parse(savedHistory);
         }
 
+        const savedRecentVisits = localStorage.getItem('ittools_recent_tool_visits');
+        if (savedRecentVisits) {
+          this.recentToolVisits = JSON.parse(savedRecentVisits);
+        }
+
         const savedApiUrl = localStorage.getItem('ittools_api_base_url');
         if (savedApiUrl) {
           this.apiBaseUrl = savedApiUrl;
@@ -372,6 +415,11 @@ export const useItToolsStore = defineStore('ittools', {
         const savedTheme = localStorage.getItem('ittools_theme') as 'light' | 'dark';
         if (savedTheme) {
           this.theme = savedTheme;
+        }
+
+        const savedLastTool = localStorage.getItem('ittools_last_tool_id');
+        if (savedLastTool) {
+          this.lastToolId = savedLastTool;
         }
       } catch (error) {
         console.error('Error loading preferences:', error);
@@ -397,6 +445,26 @@ export const useItToolsStore = defineStore('ittools', {
         localStorage.setItem('ittools_history', JSON.stringify(this.history));
       } catch (error) {
         console.error('Error saving history:', error);
+      }
+    },
+
+    saveRecentToolVisits(): void {
+      try {
+        localStorage.setItem('ittools_recent_tool_visits', JSON.stringify(this.recentToolVisits));
+      } catch (error) {
+        console.error('Error saving recent tools:', error);
+      }
+    },
+
+    saveLastUsedTool(): void {
+      try {
+        if (this.lastToolId) {
+          localStorage.setItem('ittools_last_tool_id', this.lastToolId);
+        } else {
+          localStorage.removeItem('ittools_last_tool_id');
+        }
+      } catch (error) {
+        console.error('Error saving last used tool:', error);
       }
     },
 
