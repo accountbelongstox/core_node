@@ -604,6 +604,60 @@ install_gitea() {
 }
 
 # Interactive cleanup prompt with version check
+# Repair Gitea configuration without removing data
+repair_gitea_configuration() {
+    print_header_from_common_functions "Repairing Gitea Configuration"
+    print_info_from_common_functions "This will update configuration and service files without touching your data"
+    echo ""
+
+    # Download/update binary if version mismatch
+    local current_binary_version=""
+    if [[ -f "$GITEA_BINARY" ]]; then
+        current_binary_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+    fi
+
+    if [[ "$current_binary_version" != "$GITEA_VERSION" ]]; then
+        print_step_from_common_functions "Updating Gitea binary from $current_binary_version to $GITEA_VERSION..."
+        if ! download_gitea; then
+            print_warning_from_common_functions "Failed to update binary, keeping current version"
+        fi
+    else
+        print_info_from_common_functions "Gitea binary is already up-to-date (version $GITEA_VERSION)"
+    fi
+
+    # Ensure directories exist with correct permissions
+    print_step_from_common_functions "Verifying directory structure..."
+    create_directories
+
+    # Update configuration file (preserves existing config, only updates paths)
+    print_step_from_common_functions "Updating configuration file..."
+    create_gitea_config
+
+    # Recreate systemd service (idempotent)
+    print_step_from_common_functions "Updating systemd service..."
+    create_systemd_service
+
+    # Ensure firewall rules are in place
+    print_step_from_common_functions "Verifying firewall rules..."
+    configure_firewall
+
+    # Restart service to apply changes
+    print_step_from_common_functions "Restarting Gitea service..."
+    $USE_SUDO systemctl restart gitea 2>/dev/null || start_gitea_service
+
+    # Update installation info
+    save_installation_info "$GITEA_VERSION"
+
+    print_success_from_common_functions "Gitea configuration repaired successfully!"
+    print_info_from_common_functions "All your repositories and data are preserved"
+    echo ""
+
+    # Display access info
+    display_web_access_info
+
+    return 0
+}
+
 prompt_cleanup_reinstall() {
     if is_gitea_installed; then
         print_warning_from_common_functions "Gitea is already installed"
@@ -611,39 +665,48 @@ prompt_cleanup_reinstall() {
         local installed_version=$(get_installed_version)
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
+            print_info_from_common_functions "Target version: $GITEA_VERSION"
         else
             print_info_from_common_functions "No version metadata found for current installation"
         fi
 
-        if [[ -n "$installed_version" ]] && [[ "$installed_version" != "$GITEA_VERSION" ]]; then
-            echo -n "Upgrade to version $GITEA_VERSION? (Y/n): "
-            read -r response
-            case "$response" in
-                [nN]|[nN][oO])
-                    print_info_from_common_functions "Keeping current installation"
-                    return 1
-                    ;;
-                *)
-                    print_info_from_common_functions "Upgrading Gitea..."
+        echo ""
+        print_info_from_common_functions "Available actions:"
+        echo "  1) Repair configuration (recommended - preserves all data)"
+        echo "  2) Full reinstall (WARNING: deletes all repositories and data)"
+        echo "  3) Keep current installation and exit"
+        echo ""
+        echo -n "Select action (1/2/3) [1]: "
+        read -r response
+
+        case "$response" in
+            2)
+                print_warning_from_common_functions "Full reinstall will DELETE all repositories and data!"
+                echo -n "Are you sure? Type 'yes' to confirm: "
+                read -r confirm
+                if [[ "$confirm" == "yes" ]]; then
+                    print_info_from_common_functions "Performing full reinstall..."
                     cleanup_gitea
                     return 0
-                    ;;
-            esac
-        else
-            echo -n "Reinstall Gitea? (y/N): "
-            read -r response
-            case "$response" in
-                [yY]|[yY][eE][sS])
-                    print_info_from_common_functions "Reinstalling Gitea..."
-                    cleanup_gitea
-                    return 0
-                    ;;
-                *)
-                    print_info_from_common_functions "Keeping existing installation"
+                else
+                    print_info_from_common_functions "Reinstall cancelled"
                     return 1
-                    ;;
-            esac
-        fi
+                fi
+                ;;
+            3|[nN]|[nN][oO])
+                print_info_from_common_functions "Keeping current installation"
+                return 1
+                ;;
+            1|""|[yY]|[yY][eE][sS])
+                print_info_from_common_functions "Repairing configuration..."
+                repair_gitea_configuration
+                return 1
+                ;;
+            *)
+                print_info_from_common_functions "Invalid choice, exiting"
+                return 1
+                ;;
+        esac
     fi
     return 0
 }
