@@ -394,10 +394,12 @@ class UnifiedLauncher:
         if config.no_sandbox:
             browser_config.setdefault('args', []).append('--no-sandbox')
 
-        # Add driver path if specified
-        if config.driver_path:
+        # Add driver configuration if specified
+        if hasattr(config, 'driver_mode') and config.driver_mode:
+            browser_config['driver_mode'] = config.driver_mode
+        if hasattr(config, 'driver_path') and config.driver_path:
             browser_config['driver_path'] = config.driver_path
-        if config.binary_path:
+        if hasattr(config, 'binary_path') and config.binary_path:
             browser_config['binary_path'] = config.binary_path
 
         # Create browser instance (as thread)
