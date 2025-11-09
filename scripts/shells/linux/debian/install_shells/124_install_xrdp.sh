@@ -37,6 +37,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
 
 # Initialize global variables
 init_global_vars
@@ -263,15 +264,53 @@ configure_xrdp() {
     $USE_SUDO sed -i 's/^security_layer=.*/security_layer=negotiate/' "$XRDP_CONFIG_FILE"
     $USE_SUDO sed -i 's/^crypt_level=.*/crypt_level=high/' "$XRDP_CONFIG_FILE"
 
+    # Fix color depth issues (set to 24-bit for compatibility)
+    if grep -q "^\[Xorg\]" "$XRDP_CONFIG_FILE"; then
+        $USE_SUDO sed -i '/^\[Xorg\]/,/^\[/s/^param=.*/param=-depth\nparam=24\nparam=-dpi\nparam=96/' "$XRDP_CONFIG_FILE" 2>/dev/null || true
+    fi
+
     # Configure session manager
     if [[ -f "$XRDP_SESMAN_CONFIG" ]]; then
+        # Allow root login (user can disable this manually for security)
+        $USE_SUDO sed -i 's/^AllowRootLogin=.*/AllowRootLogin=true/' "$XRDP_SESMAN_CONFIG" 2>/dev/null || true
         # Allow multiple sessions per user
-        $USE_SUDO sed -i 's/^AllowRootLogin=.*/AllowRootLogin=false/' "$XRDP_SESMAN_CONFIG" 2>/dev/null || true
         $USE_SUDO sed -i 's/^MaxSessions=.*/MaxSessions=10/' "$XRDP_SESMAN_CONFIG" 2>/dev/null || true
     fi
 
     # Add xrdp user to ssl-cert group for certificate access
     $USE_SUDO adduser xrdp ssl-cert 2>/dev/null || true
+
+    # Fix X11 wrapper permissions (critical for XORG mode)
+    print_step_from_common_functions "Configuring X11 permissions..."
+    local xwrapper_config="/etc/X11/Xwrapper.config"
+    if [[ -f "$xwrapper_config" ]]; then
+        $USE_SUDO cp "$xwrapper_config" "${xwrapper_config}.backup" 2>/dev/null || true
+    fi
+
+    # Allow anybody to start X server (required for xrdp user)
+    $USE_SUDO bash -c "cat > $xwrapper_config" <<'EOF'
+# Xwrapper.config - Allow xrdp to start X server
+# This is required for XRDP to work properly
+allowed_users=anybody
+needs_root_rights=yes
+EOF
+    print_success_from_common_functions "X11 permissions configured"
+
+    # Create PolicyKit rule for colord (prevents authentication popup/disconnect)
+    print_step_from_common_functions "Configuring PolicyKit permissions..."
+    local polkit_dir="/etc/polkit-1/localauthority/50-local.d"
+    local polkit_rule="$polkit_dir/45-allow-colord.pkla"
+
+    $USE_SUDO mkdir -p "$polkit_dir"
+    $USE_SUDO bash -c "cat > $polkit_rule" <<'EOF'
+[Allow Colord All Users]
+Identity=unix-user:*
+Action=org.freedesktop.color-manager.create-device;org.freedesktop.color-manager.create-profile;org.freedesktop.color-manager.delete-device;org.freedesktop.color-manager.delete-profile;org.freedesktop.color-manager.modify-device;org.freedesktop.color-manager.modify-profile
+ResultAny=no
+ResultInactive=no
+ResultActive=yes
+EOF
+    print_success_from_common_functions "PolicyKit permissions configured"
 
     # Create .xsession file for users if not exists
     local xsession_file="$HOME/.xsession"
@@ -295,25 +334,35 @@ configure_xrdp() {
         fi
     fi
 
+    # Create .xsessionrc for environment variables (helps with session stability)
+    local xsessionrc_file="$HOME/.xsessionrc"
+    if [[ ! -f "$xsessionrc_file" ]]; then
+        cat > "$xsessionrc_file" <<'EOF'
+# XRDP session environment
+export XDG_SESSION_TYPE=x11
+export XDG_SESSION_CLASS=user
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+EOF
+        chmod +x "$xsessionrc_file"
+        print_info_from_common_functions "Created .xsessionrc with session environment"
+    fi
+
     print_success_from_common_functions "XRDP configured successfully"
     return 0
 }
 
 # Configure firewall for XRDP
 configure_firewall() {
-    print_step_from_common_functions "Configuring firewall..."
+    print_step_from_common_functions "Configuring firewall for XRDP..."
 
-    # Check if ufw is installed and active
-    if command -v ufw >/dev/null 2>&1; then
-        if $USE_SUDO ufw status | grep -q "Status: active"; then
-            print_info_from_common_functions "UFW firewall is active, adding XRDP rule..."
-            $USE_SUDO ufw allow $XRDP_PORT/tcp
-            print_success_from_common_functions "Firewall rule added for port $XRDP_PORT"
-        else
-            print_info_from_common_functions "UFW firewall is not active, skipping firewall configuration"
-        fi
+    # Use firewall_manager.sh library to handle firewall configuration
+    # This automatically detects and configures UFW, firewalld, or iptables
+    # If no firewall is active, it does nothing (never installs a firewall)
+    if firewall_allow_port "$XRDP_PORT" "tcp" "XRDP Remote Desktop"; then
+        print_success_from_common_functions "Firewall configured successfully for port $XRDP_PORT/tcp"
     else
-        print_info_from_common_functions "UFW firewall not installed, skipping firewall configuration"
+        print_warning_from_common_functions "Firewall configuration may have issues, but port may still be accessible"
     fi
 
     return 0
@@ -427,13 +476,9 @@ cleanup_xrdp() {
         $USE_SUDO rm -rf /etc/xrdp
     fi
 
-    # Remove firewall rule
-    if command -v ufw >/dev/null 2>&1; then
-        if $USE_SUDO ufw status | grep -q "$XRDP_PORT"; then
-            print_step_from_common_functions "Removing firewall rule..."
-            $USE_SUDO ufw delete allow $XRDP_PORT/tcp 2>/dev/null || true
-        fi
-    fi
+    # Remove firewall rule using firewall_manager.sh
+    print_step_from_common_functions "Removing firewall rule..."
+    firewall_remove_port "$XRDP_PORT" "tcp" 2>/dev/null || true
 
     # Remove installation flag
     if [[ -f "$XRDP_INSTALLED_FLAG" ]]; then
