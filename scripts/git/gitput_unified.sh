@@ -798,19 +798,15 @@ invoke_git_operations() {
                     local global_password=""
                     
                     while true; do
-                        echo -n "Enter encryption password: "
-                        read -s password1
-                        echo ""
-                        
+                        password1=$(read_masked_password "Enter encryption password: ")
+
                         if [ -z "$password1" ]; then
                             write_color_text "ERROR: Password cannot be empty. Please try again." "Red"
                             continue
                         fi
-                        
-                        echo -n "Confirm encryption password: "
-                        read -s password2
-                        echo ""
-                        
+
+                        password2=$(read_masked_password "Confirm encryption password: ")
+
                         if [ "$password1" = "$password2" ]; then
                             global_password="$password1"
                             break
