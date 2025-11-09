@@ -371,6 +371,7 @@ declare -gA AI_PACKAGES=(
     ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
     ["codex_verify_command"]="--version"
     ["codex_launch_command"]="which codex && $USE_SUDO node codex"
+    ["codex_itemkey"]="--yolo"
 
     # Cursor Agent
     ["cursor_agent_name"]="Cursor Agent"
@@ -647,6 +648,12 @@ get_launch_command() {
     get_app_property "$app_name" "launch_command"
 }
 
+# Function to get itemkey for an application (optional command argument)
+get_itemkey() {
+    local app_name="$1"
+    get_app_property "$app_name" "itemkey"
+}
+
 # Function to create launch script in /usr/local/bin
 create_launch_script() {
     local app_name="$1"
@@ -702,11 +709,21 @@ EOF
         fi
     fi
 
+    # Get itemkey if it exists (optional command argument)
+    local itemkey=$(get_itemkey "$app_name")
+    local final_command="$processed_command"
+    
+    # If itemkey exists, prepend it before user arguments
+    if [ -n "$itemkey" ]; then
+        # Add itemkey before user arguments ($@)
+        final_command="$processed_command $itemkey"
+    fi
+    
     # Add the processed launch command
     cat >> "/tmp/$script_name" << EOF
 
 # Execute the launch command
-$processed_command "\$@"
+$final_command "\$@"
 EOF
 
     # Move to /usr/local/bin and make executable
@@ -754,5 +771,5 @@ has_special_repo() {
 export -f get_package_property get_app_property get_mcp_property
 export -f app_in_group mcp_in_group get_apps_by_package_group
 export -f get_apps_by_group get_install_method get_package_id
-export -f get_launch_command create_launch_script
+export -f get_launch_command get_itemkey create_launch_script
 export -f get_snap_confinement is_snap_fallback_enabled get_repo_type has_special_repo

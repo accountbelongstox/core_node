@@ -187,6 +187,14 @@ configure_ssh_server() {
 
 # Function to start and enable SSH service
 start_ssh_service() {
+    # Skip SSH service management in WSL environment
+    if [ "${IS_WSL:-false}" = "true" ]; then
+        print_warning_from_common_functions "WSL environment detected - skipping SSH service start"
+        print_info_from_common_functions "SSH service management is not supported in WSL"
+        print_info_from_common_functions "You can manually start SSH daemon with: sudo /usr/sbin/sshd"
+        return 0
+    fi
+
     print_step_from_common_functions "Starting SSH service..."
 
     detect_ssh_service_name
@@ -215,6 +223,14 @@ start_ssh_service() {
 
 # Function to restart SSH service
 restart_ssh_service() {
+    # Skip SSH service management in WSL environment
+    if [ "${IS_WSL:-false}" = "true" ]; then
+        print_warning_from_common_functions "WSL environment detected - skipping SSH service restart"
+        print_info_from_common_functions "SSH service management is not supported in WSL"
+        print_info_from_common_functions "Configuration changes will take effect when SSH daemon is manually restarted"
+        return 0
+    fi
+
     print_step_from_common_functions "Restarting SSH service to apply changes..."
 
     detect_ssh_service_name
@@ -579,6 +595,24 @@ generate_connection_commands() {
 
 # Function to verify SSH service status
 verify_ssh_status() {
+    # Skip SSH service verification in WSL environment
+    if [ "${IS_WSL:-false}" = "true" ]; then
+        print_warning_from_common_functions "WSL environment detected - skipping SSH service verification"
+        print_info_from_common_functions "In WSL, SSH daemon can be started manually with: sudo /usr/sbin/sshd"
+        print_info_from_common_functions "To verify SSH is running, check if port $SSH_PORT is listening"
+        
+        # Try to check if SSH is listening on the port (without systemctl)
+        if $USE_SUDO netstat -tuln 2>/dev/null | grep -q ":$SSH_PORT "; then
+            print_success_from_common_functions "SSH appears to be listening on port $SSH_PORT"
+        elif $USE_SUDO ss -tuln 2>/dev/null | grep -q ":$SSH_PORT "; then
+            print_success_from_common_functions "SSH appears to be listening on port $SSH_PORT (via ss)"
+        else
+            print_warning_from_common_functions "SSH does not appear to be listening on port $SSH_PORT"
+            print_info_from_common_functions "Start SSH daemon manually if needed: sudo /usr/sbin/sshd"
+        fi
+        return 0
+    fi
+
     print_step_from_common_functions "Verifying SSH service status..."
 
     detect_ssh_service_name
