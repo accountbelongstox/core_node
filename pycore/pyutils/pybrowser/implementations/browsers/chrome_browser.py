@@ -49,6 +49,8 @@ class ChromeBrowser(ThreadedBrowser):
                 - user_data_dir: Chrome profile directory
                 - download_dir: Download directory
                 - window_size: tuple (width, height)
+                - driver_mode: str (auto, local, system_path, auto_download)
+                - driver_path: str (path to chromedriver)
             thread_name: Custom thread name (default: auto-generated)
         """
         super().__init__(config, thread_name or 'ChromeBrowser', daemon=True)
@@ -60,18 +62,42 @@ class ChromeBrowser(ThreadedBrowser):
         Get ChromeDriver service with fallback chain
 
         Priority:
-            1. Local path (if configured)
-            2. System PATH
-            3. Auto-download (requires internet)
+            1. Auto mode: Try local paths -> download
+            2. Local path (if configured)
+            3. System PATH
+            4. Auto-download (requires internet)
 
         Returns:
             Service instance
 
-        Raises:
-            RuntimeError: If no driver found
+        Note:
+            Errors propagate naturally for easier debugging.
+            If offline and no local driver, will fail with clear message.
         """
-        driver_mode = self.config.get('driver_mode', 'auto_download')
+        driver_mode = self.config.get('driver_mode', 'auto')
         driver_path = self.config.get('driver_path')
+
+        # Mode 0: Auto mode (智能查找)
+        if driver_mode == 'auto':
+            ColorPrint.blue(f"{self.name}: Auto-detecting ChromeDriver...")
+
+            # Try find_driver utility
+            from pycore.pyutils.pybrowser.utils.browser_finder import find_driver
+            found_driver = find_driver('chrome')
+            if found_driver:
+                ColorPrint.green(f"{self.name}: Auto-found driver: {found_driver}")
+                return Service(found_driver)
+
+            # Fallback to auto-download
+            ColorPrint.yellow(f"{self.name}: Driver not found locally, attempting download...")
+            ColorPrint.yellow(f"{self.name}: Note: This requires internet connection")
+
+            from webdriver_manager.chrome import ChromeDriverManager
+
+            # Let download errors propagate naturally
+            downloaded_path = ChromeDriverManager().install()
+            ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
+            return Service(downloaded_path)
 
         # Mode 1: Local driver path
         if driver_mode == 'local' and driver_path:
@@ -79,7 +105,7 @@ class ChromeBrowser(ThreadedBrowser):
                 ColorPrint.green(f"{self.name}: Using local driver: {driver_path}")
                 return Service(driver_path)
             else:
-                ColorPrint.yellow(f"{self.name}: Local driver not found: {driver_path}")
+                ColorPrint.red(f"{self.name}: Local driver not found: {driver_path}")
                 ColorPrint.yellow(f"{self.name}: Falling back to system PATH...")
 
         # Mode 2: System PATH
@@ -89,7 +115,7 @@ class ChromeBrowser(ThreadedBrowser):
                 ColorPrint.green(f"{self.name}: Using system PATH driver: {system_driver}")
                 return Service(system_driver)
             else:
-                ColorPrint.yellow(f"{self.name}: ChromeDriver not found in system PATH")
+                ColorPrint.red(f"{self.name}: ChromeDriver not found in system PATH")
 
         # Mode 3: Auto-download (requires internet)
         if driver_mode == 'auto_download':
@@ -99,17 +125,42 @@ class ChromeBrowser(ThreadedBrowser):
             ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
             return Service(downloaded_path)
 
-        # All methods failed
+        # All methods failed - provide clear guidance
         error_msg = (
-            f"Cannot find ChromeDriver. Tried:\n"
+            f"\n"
+            f"=================================================================\n"
+            f" ChromeDriver Not Found - Configuration Required\n"
+            f"=================================================================\n"
+            f"\n"
+            f"Attempted methods:\n"
             f"  1. Local path: {driver_path if driver_path else 'Not configured'}\n"
             f"  2. System PATH: Not found\n"
             f"  3. Auto-download: Not attempted (driver_mode={driver_mode})\n"
-            f"\nSolutions:\n"
-            f"  - Set driver_mode='local' and driver_path='D:/drivers/chromedriver.exe'\n"
-            f"  - Add chromedriver to system PATH and use driver_mode='system_path'\n"
-            f"  - Use driver_mode='auto_download' (requires internet)"
+            f"\n"
+            f"SOLUTIONS:\n"
+            f"\n"
+            f"Option 1 (Recommended): Use 'auto' mode\n"
+            f"  Config: {{\"driver_mode\": \"auto\"}}\n"
+            f"  - First run requires internet to download driver\n"
+            f"  - Subsequent runs use cached driver (offline)\n"
+            f"\n"
+            f"Option 2 (Offline): Manual driver installation\n"
+            f"  1. Download ChromeDriver from:\n"
+            f"     https://googlechromelabs.github.io/chrome-for-testing/\n"
+            f"     or https://registry.npmmirror.com/binary.html?path=chromedriver/\n"
+            f"  2. Place at: D:\\drivers\\chromedriver.exe (Windows)\n"
+            f"  3. Config: {{\"driver_mode\": \"local\", \"driver_path\": \"D:/drivers/chromedriver.exe\"}}\n"
+            f"\n"
+            f"Option 3: System PATH\n"
+            f"  1. Download driver and add to system PATH\n"
+            f"  2. Config: {{\"driver_mode\": \"system_path\"}}\n"
+            f"\n"
+            f"For diagnostic help, run:\n"
+            f"  python pyapps/selenium_test/diagnose_v2.py\n"
+            f"\n"
+            f"================================================================="
         )
+        ColorPrint.red(error_msg)
         raise RuntimeError(error_msg)
 
     def _launch_browser(self):
@@ -117,6 +168,9 @@ class ChromeBrowser(ThreadedBrowser):
         Launch Chrome browser (runs in thread context)
 
         This is called automatically when thread starts via start()
+
+        Note:
+            All errors propagate naturally for debugging.
         """
         ColorPrint.blue(f"{self.name}: Launching Chrome browser...")
 
@@ -155,10 +209,10 @@ class ChromeBrowser(ThreadedBrowser):
             width, height = window_size
             chrome_options.add_argument(f'--window-size={width},{height}')
 
-        # Get driver service with fallback chain
+        # Get driver service with fallback chain (errors propagate)
         service = self._get_driver_service()
 
-        # Launch Chrome
+        # Launch Chrome (errors propagate)
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
         # Mark as launched
@@ -192,17 +246,14 @@ class ChromeBrowser(ThreadedBrowser):
             driver.switch_to.window(driver.window_handles[-1])
             return True
 
-        try:
-            return self.execute(_open_tab, url)
-        except:
-            return False
+        return self.execute(_open_tab, url)
 
     def close_current_tab(self) -> bool:
         """
         Close current tab (thread-safe)
 
         Returns:
-            True if successful
+            True if successful, False if only one tab
         """
         def _close_tab(driver):
             if len(driver.window_handles) > 1:
@@ -212,10 +263,7 @@ class ChromeBrowser(ThreadedBrowser):
                 return True
             return False
 
-        try:
-            return self.execute(_close_tab)
-        except:
-            return False
+        return self.execute(_close_tab)
 
     def switch_to_tab(self, index: int) -> bool:
         """
@@ -225,7 +273,7 @@ class ChromeBrowser(ThreadedBrowser):
             index: Tab index (0-based)
 
         Returns:
-            True if successful
+            True if successful, False if index out of range
         """
         def _switch_tab(driver, tab_index):
             handles = driver.window_handles
@@ -234,10 +282,7 @@ class ChromeBrowser(ThreadedBrowser):
                 return True
             return False
 
-        try:
-            return self.execute(_switch_tab, index)
-        except:
-            return False
+        return self.execute(_switch_tab, index)
 
     def get_tab_count(self) -> int:
         """
@@ -249,10 +294,7 @@ class ChromeBrowser(ThreadedBrowser):
         def _count_tabs(driver):
             return len(driver.window_handles)
 
-        try:
-            return self.execute(_count_tabs)
-        except:
-            return 0
+        return self.execute(_count_tabs)
 
     def screenshot(self, filepath: str) -> bool:
         """
@@ -267,10 +309,7 @@ class ChromeBrowser(ThreadedBrowser):
         def _take_screenshot(driver, path):
             return driver.save_screenshot(path)
 
-        try:
-            return self.execute(_take_screenshot, filepath)
-        except:
-            return False
+        return self.execute(_take_screenshot, filepath)
 
     def execute_script(self, script: str, *args) -> Any:
         """
@@ -297,7 +336,7 @@ class ChromeBrowser(ThreadedBrowser):
             value: Locator value
 
         Returns:
-            WebElement or None
+            WebElement or None if not found
         """
         def _find_elem(driver, locator_by, locator_value):
             by_mapping = {
@@ -311,15 +350,14 @@ class ChromeBrowser(ThreadedBrowser):
                 'partial_link_text': By.PARTIAL_LINK_TEXT
             }
             by_method = by_mapping.get(locator_by.lower(), By.CSS_SELECTOR)
-            try:
-                return driver.find_element(by_method, locator_value)
-            except:
-                return None
 
-        try:
-            return self.execute(_find_elem, by, value)
-        except:
+            # Check if element exists before finding
+            elements = driver.find_elements(by_method, locator_value)
+            if elements:
+                return elements[0]
             return None
+
+        return self.execute(_find_elem, by, value)
 
     def find_elements(self, by: str, value: str) -> list:
         """
@@ -330,7 +368,7 @@ class ChromeBrowser(ThreadedBrowser):
             value: Locator value
 
         Returns:
-            List of WebElements
+            List of WebElements (empty list if none found)
         """
         def _find_elems(driver, locator_by, locator_value):
             by_mapping = {
@@ -344,15 +382,9 @@ class ChromeBrowser(ThreadedBrowser):
                 'partial_link_text': By.PARTIAL_LINK_TEXT
             }
             by_method = by_mapping.get(locator_by.lower(), By.CSS_SELECTOR)
-            try:
-                return driver.find_elements(by_method, locator_value)
-            except:
-                return []
+            return driver.find_elements(by_method, locator_value)
 
-        try:
-            return self.execute(_find_elems, by, value)
-        except:
-            return []
+        return self.execute(_find_elems, by, value)
 
     def set_window_size(self, width: int, height: int) -> bool:
         """
@@ -369,10 +401,7 @@ class ChromeBrowser(ThreadedBrowser):
             driver.set_window_size(w, h)
             return True
 
-        try:
-            return self.execute(_set_size, width, height)
-        except:
-            return False
+        return self.execute(_set_size, width, height)
 
     def maximize_window(self) -> bool:
         """
@@ -385,10 +414,7 @@ class ChromeBrowser(ThreadedBrowser):
             driver.maximize_window()
             return True
 
-        try:
-            return self.execute(_maximize)
-        except:
-            return False
+        return self.execute(_maximize)
 
     def get_cookies(self) -> list:
         """
@@ -400,10 +426,7 @@ class ChromeBrowser(ThreadedBrowser):
         def _get_cookies(driver):
             return driver.get_cookies()
 
-        try:
-            return self.execute(_get_cookies)
-        except:
-            return []
+        return self.execute(_get_cookies)
 
     def add_cookie(self, cookie_dict: Dict[str, Any]) -> bool:
         """
@@ -419,10 +442,7 @@ class ChromeBrowser(ThreadedBrowser):
             driver.add_cookie(cookie)
             return True
 
-        try:
-            return self.execute(_add_cookie, cookie_dict)
-        except:
-            return False
+        return self.execute(_add_cookie, cookie_dict)
 
     def delete_all_cookies(self) -> bool:
         """
@@ -435,10 +455,7 @@ class ChromeBrowser(ThreadedBrowser):
             driver.delete_all_cookies()
             return True
 
-        try:
-            return self.execute(_delete_cookies)
-        except:
-            return False
+        return self.execute(_delete_cookies)
 
     def __repr__(self) -> str:
         """String representation"""

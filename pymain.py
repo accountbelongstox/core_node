@@ -12,6 +12,13 @@ Usage:
     python pymain.py
 """
 
+# Usage documentation notice
+print('\n' + '=' * 70)
+print('Usage Documentation: development-guides\\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md')
+print('=' * 70)
+print('The following output is debug/test information:')
+print('=' * 70 + '\n')
+
 import sys
 from pathlib import Path
 
@@ -23,12 +30,6 @@ from pycore.pyfoundations.app_launcher import AppLauncher
 
 
 if __name__ == '__main__':
-    # Usage documentation notice
-    print('\n' + '=' * 70)
-    print('Usage Documentation: development-guides\\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md')
-    print('=' * 70)
-    print('The following output is debug/test information:')
-    print('=' * 70 + '\n')
     
     # Print startup banner immediately
     print('\n' + '=' * 70)

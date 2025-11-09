@@ -80,69 +80,136 @@ class FrontendLauncher:
 
     def launch_frontend(self) -> Optional[Path]:
         """
-        Launch frontend using temporary batch script in new console window
+        Launch frontend by directly calling Node.js scripts
 
-        On Windows, creates a temporary .bat script with the frontend launch command,
-        then opens it in a new console window using subprocess without threading.
+        Executes:
+        1. switch-app-entry.js - Switch entry point (index.vue)
+        2. switch-app-entry-plus.js - Factory sync and dev server
 
         Returns:
-            Path to temporary batch script or None
+            Path to switch-app-entry-plus.js script or None
         """
         try:
             if not self.validate_paths():
                 return None
 
-            # Get start.ps1 script path
-            start_script = self.get_start_script_path()
-            if not start_script:
+            # Calculate script paths
+            scripts_dir = self.nuxt_main_dir / "scripts"
+            switch_entry_script = scripts_dir / "switch-app-entry.js"
+            switch_plus_script = scripts_dir / "switch-app-entry-plus.js"
+
+            # Validate scripts exist
+            if not switch_entry_script.exists():
+                ColorPrint.red(f"Script not found: {switch_entry_script}")
+                return None
+            if not switch_plus_script.exists():
+                ColorPrint.red(f"Script not found: {switch_plus_script}")
                 return None
 
-            # Create temporary batch script
-            fd, temp_script_path = tempfile.mkstemp(suffix='.bat', text=True)
-            temp_script = Path(temp_script_path)
+            # Print detailed startup flow
+            ColorPrint.blue("=" * 70)
+            ColorPrint.blue(" MATRIX FRONTEND STARTUP FLOW")
+            ColorPrint.blue("=" * 70)
+            ColorPrint.white("")
 
-            # Write PowerShell command to batch script
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                f.write('@echo off\n')
-                f.write('title pyMatrix Frontend\n')
-                f.write(f'cd /d "{self.nuxt_main_dir}"\n')
-                f.write(f'powershell.exe -ExecutionPolicy Bypass -File "{start_script}" pymatrix debug\n')
-                f.write('echo.\n')
-                f.write('echo Frontend process ended. Press any key to close this window...\n')
-                f.write('pause > nul\n')
+            ColorPrint.yellow("Step 1: Switch app entry point")
+            ColorPrint.white("  Script: switch-app-entry.js pymatrix")
+            ColorPrint.white("  Action: Copy index.pymatrix.vue -> index.vue")
+            ColorPrint.white("")
 
-            ColorPrint.blue("Starting frontend with temporary batch script in new window...")
-            ColorPrint.blue(f"Temporary script: {temp_script}")
+            ColorPrint.yellow("Step 2: Factory sync and dev server")
+            ColorPrint.white("  Script: switch-app-entry-plus.js pymatrix --mode dev")
+            ColorPrint.white("  Actions:")
+            ColorPrint.white("    - Mirror project to .build_dir/nuxt_factory/_app_pymatrix")
+            ColorPrint.white("    - Start file watcher (sync every 2 seconds)")
+            ColorPrint.white("    - Execute: pnpm dev:pymatrix")
+            ColorPrint.white("")
 
-            # ============================================================
-            # IMPORTANT: DO NOT MODIFY THIS PLATFORM-SPECIFIC LOGIC
-            #
-            # Windows: Launch .bat script in new console window using CREATE_NEW_CONSOLE
-            # Linux:   This code path is not used (see main.py for Linux threading approach)
-            #
-            # This ensures frontend runs in separate process without blocking main thread
-            # ============================================================
+            ColorPrint.yellow("Step 3: Nuxt dev server starts")
+            ColorPrint.white("  Host: 0.0.0.0 (network accessible)")
+            ColorPrint.white("  Port: 3007")
+            ColorPrint.white("  URL:  http://localhost:3007")
+            ColorPrint.white("")
+            ColorPrint.blue("=" * 70)
+            ColorPrint.white("")
+
+            # Execute Step 1: Switch app entry point
+            ColorPrint.green("[EXECUTING] Step 1: Switching app entry point...")
+            ColorPrint.gray(f"Command: node \"{switch_entry_script}\" pymatrix")
+            ColorPrint.white("")
+
+            result = subprocess.run(
+                ["node", str(switch_entry_script), "pymatrix"],
+                cwd=str(self.nuxt_main_dir),
+                capture_output=True,
+                text=True,
+                encoding='utf-8'
+            )
+
+            if result.returncode != 0:
+                ColorPrint.red(f"[ERROR] Failed to switch entry point:")
+                ColorPrint.red(result.stderr)
+                return None
+
+            # Print output from switch-app-entry.js
+            if result.stdout:
+                for line in result.stdout.strip().split('\n'):
+                    ColorPrint.white(f"  {line}")
+
+            ColorPrint.green("[SUCCESS] Entry point switched successfully")
+            ColorPrint.white("")
+            ColorPrint.blue("=" * 70)
+            ColorPrint.white("")
+
+            # Execute Step 2: Launch factory sync and dev server in new console
+            ColorPrint.green("[EXECUTING] Step 2: Starting factory sync and dev server...")
+            ColorPrint.gray(f"Command: node \"{switch_plus_script}\" pymatrix --mode dev")
+            ColorPrint.white("")
+
             import platform
             if platform.system() == 'Windows':
-                # Windows: Launch in new console window
+                # Create temporary batch script for console window
+                fd, temp_script_path = tempfile.mkstemp(suffix='.bat', text=True)
+                temp_script = Path(temp_script_path)
+
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    f.write('@echo off\n')
+                    f.write('title Matrix Frontend - Factory Sync\n')
+                    f.write(f'cd /d "{self.nuxt_main_dir}"\n')
+                    f.write(f'node "{switch_plus_script}" pymatrix --mode dev\n')
+                    f.write('echo.\n')
+                    f.write('echo Frontend process ended. Press any key to close...\n')
+                    f.write('pause > nul\n')
+
+                # Launch in new console window
                 subprocess.Popen(
                     str(temp_script),
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                     shell=True
                 )
-            else:
-                # Fallback for non-Windows systems (if needed)
-                subprocess.Popen(
-                    ['bash', str(temp_script)],
-                    shell=False
-                )
 
-            ColorPrint.green("Frontend launched in new console window")
-            self.batch_script = temp_script
-            return temp_script
+                self.batch_script = temp_script
+            else:
+                # Linux: Launch in background
+                subprocess.Popen(
+                    ["node", str(switch_plus_script), "pymatrix", "--mode", "dev"],
+                    cwd=str(self.nuxt_main_dir),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                self.batch_script = None
+
+            ColorPrint.green("[SUCCESS] Frontend factory sync launched in new console window")
+            ColorPrint.white("")
+            ColorPrint.blue("=" * 70)
+            ColorPrint.blue(" WAITING FOR FRONTEND TO BECOME READY")
+            ColorPrint.blue("=" * 70)
+            ColorPrint.white("")
+
+            return switch_plus_script
 
         except Exception as e:
-            ColorPrint.red(f"Failed to launch frontend: {e}")
+            ColorPrint.red(f"[ERROR] Failed to launch frontend: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -166,8 +233,16 @@ class FrontendLauncher:
         """
         import requests
 
-        ColorPrint.blue(f"Waiting for frontend to start at {frontend_url}...")
-        ColorPrint.blue(f"Timeout: {timeout}s, checking every {check_interval}s")
+        ColorPrint.yellow(f"Checking frontend availability: {frontend_url}")
+        ColorPrint.white(f"Timeout: {timeout}s | Check interval: {check_interval}s")
+        ColorPrint.white("")
+        ColorPrint.white("This process includes:")
+        ColorPrint.gray("  1. Switching entry point (index.vue)")
+        ColorPrint.gray("  2. Mirroring project to factory directory")
+        ColorPrint.gray("  3. Installing dependencies")
+        ColorPrint.gray("  4. Starting Nuxt dev server")
+        ColorPrint.gray("  5. Compiling Vue components")
+        ColorPrint.white("")
 
         elapsed = 0
         dots = 0
@@ -180,7 +255,12 @@ class FrontendLauncher:
                     timeout=2
                 )
                 if response.status_code == 200:
-                    ColorPrint.green(f"\n✓ Frontend connected successfully at {frontend_url}")
+                    ColorPrint.white("")
+                    ColorPrint.green("=" * 70)
+                    ColorPrint.green(" FRONTEND READY")
+                    ColorPrint.green("=" * 70)
+                    ColorPrint.green(f"[SUCCESS] Frontend is now available at {frontend_url}")
+                    ColorPrint.white("")
                     return True
 
             except (requests.RequestException, Exception):
@@ -189,15 +269,21 @@ class FrontendLauncher:
 
             # Print progress dots
             dots = (dots + 1) % 4
-            print(f"\rWaiting{'.' * dots}{' ' * (3 - dots)}", end='', flush=True)
+            print(f"\r[WAITING] Connecting{'.' * dots}{' ' * (3 - dots)}", end='', flush=True)
 
             await asyncio.sleep(check_interval)
             elapsed += check_interval
 
-        ColorPrint.red(f"\n✗ Frontend did not start within {timeout} seconds")
-        ColorPrint.yellow("You can manually start the frontend:")
-        ColorPrint.yellow(f"  cd {self.nuxt_main_dir}\\scripts")
-        ColorPrint.yellow("  .\\start.ps1 pymatrix")
+        ColorPrint.white("")
+        ColorPrint.red("=" * 70)
+        ColorPrint.red(" FRONTEND TIMEOUT")
+        ColorPrint.red("=" * 70)
+        ColorPrint.red(f"[ERROR] Frontend did not start within {timeout} seconds")
+        ColorPrint.white("")
+        ColorPrint.yellow("Manual startup instructions:")
+        ColorPrint.white(f"  cd {self.nuxt_main_dir}\\scripts")
+        ColorPrint.white("  .\\start.ps1 pymatrix")
+        ColorPrint.white("")
         return False
 
     def cleanup(self):
@@ -224,32 +310,16 @@ class FrontendLauncher:
         Returns:
             True if frontend launched and connected successfully
         """
-        print("=" * 60)
-        ColorPrint.blue("pyMatrix Frontend Launcher")
-        print("=" * 60)
-
         # Launch frontend (returns temporary script path)
         script_path = self.launch_frontend()
         if not script_path:
             return False
-
-        print()
 
         # Wait for connection
         connected = await self.wait_for_frontend_connection(
             frontend_url=frontend_url,
             timeout=timeout
         )
-
-        if connected:
-            print()
-            print("=" * 60)
-            ColorPrint.green("Frontend and Backend are ready!")
-            print("=" * 60)
-            ColorPrint.blue(f"Frontend: {frontend_url}")
-            ColorPrint.blue("Backend:  http://0.0.0.0:8000/api")
-            ColorPrint.blue("API Docs: http://0.0.0.0:8000/docs")
-            print("=" * 60)
 
         return connected
 

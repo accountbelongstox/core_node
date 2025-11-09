@@ -17,6 +17,10 @@ Usage:
     ui_thread.stop()   # Stops the UI thread
 """
 
+# Check and install dependencies before importing
+from pycore import check_and_install_dependencies
+check_and_install_dependencies()
+
 import threading
 import tkinter as tk
 import time
@@ -50,6 +54,9 @@ class NativeUIThreadConfig:
     # UI settings
     theme: str = "dark"
     background_color: str = "#1e1e1e"
+
+    # WebView settings (if ui_source is provided, webview is used instead of on_create_content)
+    ui_source: Optional[str] = None  # URL or file path for webview
 
     # Callbacks
     on_ready: Optional[Callable] = None
@@ -242,8 +249,13 @@ class NativeUIThread(threading.Thread):
         self.content_frame = tk.Frame(self.root, bg=self.config.background_color)
         self.content_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Call user's create_content callback
-        if self.config.on_create_content:
+        # Create content: webview if ui_source provided, otherwise call on_create_content
+        if self.config.ui_source:
+            try:
+                self._create_webview(self.content_frame, self.config.ui_source)
+            except Exception as e:
+                ColorPrint.red(f"[{self.name}] webview creation error: {e}")
+        elif self.config.on_create_content:
             try:
                 self.config.on_create_content(self.content_frame)
             except Exception as e:
@@ -257,6 +269,214 @@ class NativeUIThread(threading.Thread):
             self.root.withdraw()
 
         ColorPrint.green(f"[{self.name}] UI created")
+
+    def _create_webview(self, parent: tk.Frame, url: str):
+        """
+        Create webview widget with fallback chain
+
+        Tries in order:
+        1. pywebview (best support, full browser engine)
+        2. tkinterweb (good HTML5 support)
+        3. tkhtmlview (basic HTML support)
+
+        Args:
+            parent: Parent frame
+            url: URL or file path to display
+        """
+        ColorPrint.blue(f"[{self.name}] Creating webview for: {url}")
+
+        # Try pywebview first (best support, already installed)
+        try:
+            import webview as pywebview
+
+            ColorPrint.blue(f"[{self.name}] Using pywebview for webview")
+
+            # Create pywebview window with parent window
+            # Note: pywebview creates its own window, we need to embed it
+            # For now, create standalone window
+            self.webview_widget = pywebview.create_window(
+                self.config.app_name,
+                url,
+                width=self.config.width,
+                height=self.config.height
+            )
+
+            # Start pywebview in background thread
+            def start_pywebview():
+                """Start pywebview in separate thread"""
+                try:
+                    pywebview.start()
+                except Exception as e:
+                    ColorPrint.red(f"[{self.name}] pywebview start error: {e}")
+
+            webview_thread = threading.Thread(target=start_pywebview, daemon=True)
+            webview_thread.start()
+
+            ColorPrint.green(f"[{self.name}] Pywebview started: {url}")
+            return
+
+        except ImportError:
+            ColorPrint.yellow(f"[{self.name}] pywebview not available, trying alternative...")
+        except Exception as e:
+            ColorPrint.yellow(f"[{self.name}] pywebview error: {e}, trying alternative...")
+
+        # Try tkinterweb second (better HTML5 support)
+        try:
+            from tkinterweb import HtmlFrame
+
+            ColorPrint.blue(f"[{self.name}] Using tkinterweb for webview")
+
+            self.webview_widget = HtmlFrame(parent)
+            self.webview_widget.pack(fill=tk.BOTH, expand=True)
+
+            # Load URL
+            if url.startswith('http://') or url.startswith('https://'):
+                self.webview_widget.load_website(url)
+            else:
+                # Load from file
+                with open(url, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                self.webview_widget.load_html(html_content)
+
+            ColorPrint.green(f"[{self.name}] Webview loaded successfully: {url}")
+            return
+
+        except ImportError:
+            ColorPrint.yellow(f"[{self.name}] tkinterweb not available, trying alternative...")
+        except Exception as e:
+            ColorPrint.yellow(f"[{self.name}] tkinterweb error: {e}, trying alternative...")
+
+        # Try tkhtmlview as fallback
+        try:
+            from tkhtmlview import HTMLScrolledText
+            import requests
+
+            ColorPrint.blue(f"[{self.name}] Using tkhtmlview for webview")
+
+            self.webview_widget = HTMLScrolledText(parent)
+            self.webview_widget.pack(fill=tk.BOTH, expand=True)
+
+            # Fetch and display HTML
+            if url.startswith('http://') or url.startswith('https://'):
+                try:
+                    response = requests.get(url, timeout=5)
+                    if response.status_code == 200:
+                        self.webview_widget.set_html(response.text)
+                        ColorPrint.green(f"[{self.name}] HTML loaded: {url}")
+                    else:
+                        self._show_webview_error(parent, f"Failed to load: {url} (Status: {response.status_code})")
+                except Exception as e:
+                    self._show_webview_error(parent, f"Failed to fetch URL: {e}")
+            else:
+                # Load from file
+                with open(url, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                self.webview_widget.set_html(html_content)
+                ColorPrint.green(f"[{self.name}] HTML loaded from file: {url}")
+
+            return
+
+        except ImportError:
+            ColorPrint.yellow(f"[{self.name}] tkhtmlview not available")
+        except Exception as e:
+            ColorPrint.yellow(f"[{self.name}] tkhtmlview error: {e}")
+
+        # No webview available - show info message
+        self._show_webview_unavailable(parent, url)
+
+    def _show_webview_unavailable(self, parent: tk.Frame, url: str):
+        """
+        Show message when webview is not available
+
+        Args:
+            parent: Parent frame
+            url: Target URL
+        """
+        info_frame = tk.Frame(parent, bg="#1e1e1e")
+        info_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Title
+        title_label = tk.Label(
+            info_frame,
+            text="WebView Not Available",
+            font=("Arial", 24, "bold"),
+            bg="#1e1e1e",
+            fg="white"
+        )
+        title_label.pack(pady=30)
+
+        # Info message
+        info_lines = [
+            "WebView library not available",
+            "",
+            "To use embedded webview, install one of:",
+            "  pip install pywebview",
+            "  pip install tkinterweb",
+            "  pip install tkhtmlview",
+            "",
+            f"Target URL: {url}",
+            "",
+            "You can access the URL directly in your browser:"
+        ]
+
+        for line in info_lines:
+            label = tk.Label(
+                info_frame,
+                text=line,
+                font=("Courier New", 11),
+                bg="#1e1e1e",
+                fg="#00ff00" if line.startswith("  pip") else "white",
+                justify=tk.LEFT
+            )
+            label.pack(pady=2)
+
+        # URL button
+        def open_in_browser():
+            """Open URL in default browser"""
+            import webbrowser
+            webbrowser.open(url)
+            ColorPrint.blue(f"[{self.name}] Opened in browser: {url}")
+
+        url_button = tk.Button(
+            info_frame,
+            text=f"Open {url} in Browser",
+            command=open_in_browser,
+            font=("Arial", 14, "bold"),
+            bg="#0078d4",
+            fg="white",
+            activebackground="#005a9e",
+            activeforeground="white",
+            relief=tk.FLAT,
+            padx=30,
+            pady=15,
+            cursor="hand2"
+        )
+        url_button.pack(pady=20)
+
+        ColorPrint.yellow(f"[{self.name}] Showing webview unavailable message")
+
+    def _show_webview_error(self, parent: tk.Frame, error_message: str):
+        """
+        Show error message
+
+        Args:
+            parent: Parent frame
+            error_message: Error message to display
+        """
+        error_frame = tk.Frame(parent, bg="#1e1e1e")
+        error_frame.pack(fill=tk.BOTH, expand=True)
+
+        error_label = tk.Label(
+            error_frame,
+            text=f"Error loading webview:\n\n{error_message}",
+            font=("Arial", 12),
+            bg="#1e1e1e",
+            fg="red",
+            justify=tk.CENTER
+        )
+        error_label.pack(expand=True)
+
+        ColorPrint.red(f"[{self.name}] Webview error: {error_message}")
 
     def _start_internal_threads(self):
         """Start internal threads (signal processor, task timer)"""

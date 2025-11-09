@@ -1,266 +1,212 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Matrix Application - Standard Entry Point
+Matrix Application - Standard Entry Point (Refactored with pylauncher)
 
 Entry point for pymain.py launcher system.
-Launches the FastAPI backend server for Android device management and control.
+Uses pylauncher for unified service management with native UI and system tray.
 
 Usage:
     python pymain.py app=matrix
-    python pymain.py app=matrix --host=0.0.0.0 --port=8000
 """
 
 import sys
+import time
 from pathlib import Path
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import argparse
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pylauncher import UnifiedLauncher, LauncherConfig, UIServiceConfig
+from pycore.pyutils.native_ui import NativeUIThread, NativeUIThreadConfig
 
-from pycore import ColorPrint
-
-# Configuration
-from pyapps.matrix.config import Config
-
-# API Routes
-from pyapps.matrix.api import (
-    config_router,
-    device_router,
-    health_router,
-    ws_router,
-    recording_router,
-    screen_router,
-    group_router,
-    file_router
+# Import matrix controllers
+from pyapps.matrix.controller import (
+    MatrixService,
+    MatrixServiceConfig
 )
 
-# Middleware
-from pyapps.matrix.middleware import APILoggingMiddleware, PerformanceMonitoringMiddleware
 
-
-def create_app() -> FastAPI:
+def create_launcher_config() -> LauncherConfig:
     """
-    Create and configure FastAPI application
+    Create launcher configuration for Matrix application
 
     Returns:
-        Configured FastAPI application instance
+        Configured LauncherConfig instance
     """
-    app = FastAPI(
-        title="Matrix API",
-        description="Android Device Mirroring and Group Control System",
-        version="1.0.0",
-        docs_url="/docs",
-        redoc_url="/redoc"
+    # Create launcher configuration with all default services disabled
+    config = LauncherConfig(
+        project_root=PROJECT_ROOT,
+        auto_start_all=False,  # We'll start services manually
+        startup_delay=0.5
     )
 
-    # Configure CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=Config.CORS_ALLOW_ORIGINS,
-        allow_credentials=Config.CORS_ALLOW_CREDENTIALS,
-        allow_methods=Config.CORS_ALLOW_METHODS,
-        allow_headers=Config.CORS_ALLOW_HEADERS,
+    # Disable all default services (we're using custom services)
+    config.web_service.enabled = False
+    config.mcp_service.enabled = False
+    config.ui_service.enabled = False  # Don't use default UI service
+    config.selenium_service.enabled = False
+
+    return config
+
+
+def create_matrix_service_config() -> MatrixServiceConfig:
+    """
+    Create Matrix service configuration
+
+    Returns:
+        Configured MatrixServiceConfig instance
+    """
+    from pyapps.matrix.config import Config
+
+    return MatrixServiceConfig(
+        project_root=PROJECT_ROOT,
+        frontend_port=Config.FRONTEND_PORT,
+        frontend_timeout=120,
+        backend_host=Config.WEB_HOST,
+        backend_port=Config.WEB_PORT,
+        backend_mode=Config.MODE,
+        enable_ui=True,
+        enable_tray=True,
+        enabled=True
     )
-
-    # Add logging and performance monitoring middleware
-    app.add_middleware(APILoggingMiddleware)
-    app.add_middleware(PerformanceMonitoringMiddleware)
-
-    # Register routes
-    app.include_router(health_router, prefix=Config.API_PREFIX)
-    app.include_router(config_router, prefix=Config.API_PREFIX)
-    app.include_router(device_router, prefix=Config.API_PREFIX)
-    app.include_router(recording_router, prefix=Config.API_PREFIX)
-    app.include_router(screen_router, prefix=Config.API_PREFIX)
-    app.include_router(group_router, prefix=Config.API_PREFIX)
-    app.include_router(file_router, prefix=Config.API_PREFIX)
-    app.include_router(ws_router)  # WebSocket routes (no prefix)
-
-    @app.on_event("startup")
-    async def startup_event():
-        """Startup initialization"""
-        ColorPrint.blue("=" * 70)
-        ColorPrint.blue(" Matrix API Server - Starting")
-        ColorPrint.blue("=" * 70)
-        ColorPrint.green(f"  Mode: {Config.MODE}")
-        ColorPrint.green(f"  Host: {Config.WEB_HOST}:{Config.WEB_PORT}")
-        ColorPrint.green(f"  API Docs: http://{Config.WEB_HOST}:{Config.WEB_PORT}/docs")
-        ColorPrint.green(f"  Frontend: {Config.FRONTEND_URL}")
-        ColorPrint.blue("=" * 70)
-
-        # ADB Auto Setup
-        ColorPrint.yellow("\nChecking ADB availability...")
-
-        from pyapps.matrix.adb_manager import ADBManager
-
-        # Try auto setup
-        manager = ADBManager(Config.RESOURCES_DIR)
-        success, message, adb_path = manager.auto_setup_adb()
-
-        if success and adb_path:
-            # ADB available, check for devices
-            devices = ADBManager.list_devices(adb_path)
-            ColorPrint.green(f"\n✓ ADB is ready: {adb_path}")
-            ColorPrint.green(f"✓ Connected devices: {len(devices)}")
-            if devices:
-                for i, device in enumerate(devices, 1):
-                    ColorPrint.white(f"  {i}. {device}")
-        else:
-            ColorPrint.red(f"\n✗ ADB is not available: {message}")
-            ColorPrint.yellow("⚠ Matrix will start but device features will be unavailable")
-            ColorPrint.yellow("⚠ Please install ADB manually and restart")
-
-        ColorPrint.green("\n✓ Matrix API Server startup complete")
-        ColorPrint.blue("=" * 70)
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """Shutdown cleanup"""
-        ColorPrint.yellow("\nShutting down Matrix API Server...")
-
-    return app
 
 
 def start():
     """
     Standard entry point for pymain.py launcher
 
-    Starts both frontend (Nuxt) and backend (FastAPI) servers
+    Starts Matrix application with:
+    - Frontend (Nuxt dev server)
+    - Backend (FastAPI server)
+    - Native UI (webview showing frontend)
+    - System tray menu
     """
-    import asyncio
-    import platform
-    import threading
-    import time
-
-    from pyapps.matrix.frontend_launcher import launch_frontend_with_wait
-
-    # Filter out app=xxx arguments from sys.argv (added by pymain.py launcher)
+    # Filter out app=xxx arguments
     original_argv = sys.argv.copy()
     sys.argv = [arg for arg in sys.argv if not arg.startswith('app=')]
 
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" Matrix - Full Stack Launcher")
+    ColorPrint.blue(" MATRIX APPLICATION - UNIFIED LAUNCHER")
     ColorPrint.blue("=" * 70)
+    ColorPrint.white("")
 
-    parser = argparse.ArgumentParser(description="Matrix - Android Device Control")
-    parser.add_argument(
-        "--host",
-        default=Config.WEB_HOST,
-        help="Server host address"
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=Config.WEB_PORT,
-        help="Server port"
-    )
-    parser.add_argument(
-        "--reload",
-        action="store_true",
-        help="Development mode (auto-reload)"
-    )
-    parser.add_argument(
-        "--backend-only",
-        action="store_true",
-        help="Start backend only (no frontend)"
-    )
+    try:
+        # Create launcher configuration
+        launcher_config = create_launcher_config()
+        launcher = UnifiedLauncher(launcher_config)
 
-    args = parser.parse_args()
+        # Create Matrix service configuration
+        matrix_config = create_matrix_service_config()
 
-    # Backend-only mode
-    if args.backend_only:
-        ColorPrint.green(f"\nStarting backend server on {args.host}:{args.port}")
-        ColorPrint.white(f"API Documentation: http://{args.host}:{args.port}/docs")
-        ColorPrint.blue("=" * 70)
+        # Register Matrix service
+        from pyapps.matrix.controller.matrix_service import matrix_service_entry
 
-        uvicorn.run(
-            "pyapps.matrix.matrix_main:create_app",
-            factory=True,
-            host=args.host,
-            port=args.port,
-            reload=args.reload
-        )
-        return
-
-    # Full stack mode: Start both frontend and backend
-    if platform.system() == 'Windows':
-        # Windows: Launch frontend in separate console, then run backend in main thread
-        ColorPrint.yellow("\n[Windows Mode] Starting frontend in separate console window...")
-
-        # Launch frontend first (in separate console via temp script)
-        async def launch():
-            frontend_url = "http://localhost:3007"
-            await launch_frontend_with_wait(
-                project_root=PROJECT_ROOT,
-                frontend_url=frontend_url,
-                timeout=120
-            )
-
-        asyncio.run(launch())
-
-        # Now run backend in main thread (blocking)
-        ColorPrint.green("\n[Windows Mode] Starting backend in main thread...")
-        ColorPrint.white(f"Backend API: http://{args.host}:{args.port}")
-        ColorPrint.white(f"API Docs: http://{args.host}:{args.port}/docs")
-        ColorPrint.white("Frontend: http://localhost:3007")
-        ColorPrint.blue("=" * 70)
-
-        uvicorn.run(
-            "pyapps.matrix.matrix_main:create_app",
-            factory=True,
-            host=args.host,
-            port=args.port,
-            reload=args.reload
+        ColorPrint.blue("Registering Matrix service...")
+        launcher.register_custom_service(
+            service_name='matrix_service',
+            entry_point=matrix_service_entry,
+            config=matrix_config,
+            daemon=True
         )
 
-    else:
-        # Linux/Other: Use threading (original behavior)
-        ColorPrint.yellow("\n[Linux Mode] Using threading for backend and frontend...")
+        # Start Matrix service
+        ColorPrint.blue("Starting Matrix service (Frontend + Backend)...")
+        launcher.start_service('matrix_service')
 
-        # Start backend server in a separate thread
-        def start_backend():
-            uvicorn.run(
-                "pyapps.matrix.matrix_main:create_app",
-                factory=True,
-                host=args.host,
-                port=args.port,
-                reload=args.reload
+        # Wait a moment for Matrix service to initialize
+        ColorPrint.yellow("Waiting for Matrix service to initialize...")
+        time.sleep(5)
+
+        # Register custom UI service with webview
+        ColorPrint.blue("\nRegistering custom UI service with webview...")
+
+        def custom_ui_entry(ui_config):
+            """Custom UI service entry point"""
+            ColorPrint.green("[MatrixUI] Starting UI thread with webview")
+
+            # Create UI thread configuration with ui_source (URL for webview)
+            ui_thread_config = NativeUIThreadConfig(
+                app_name="Matrix - Android Device Control",
+                width=1280,
+                height=900,
+                show_on_start=True,
+                resizable=True,
+                frameless=True,
+                theme="dark",
+                debug=False,
+                # Pass frontend URL to native_ui for webview creation
+                ui_source=f"http://localhost:{matrix_config.frontend_port}",
+                on_ready=lambda: ColorPrint.green("[MatrixUI] UI is ready!"),
+                on_close=lambda: ColorPrint.yellow("[MatrixUI] UI is closing...")
             )
 
-        backend_thread = threading.Thread(target=start_backend, daemon=False)
-        backend_thread.start()
-
-        # Give backend a moment to start
-        time.sleep(2)
-
-        # Launch frontend and wait for connection
-        async def launch():
-            frontend_url = "http://localhost:3007"
-            await launch_frontend_with_wait(
-                project_root=PROJECT_ROOT,
-                frontend_url=frontend_url,
-                timeout=120
+            # Create and start UI thread
+            ui_thread = NativeUIThread(
+                config=ui_thread_config,
+                thread_name="MatrixUIThread"
             )
 
-        ColorPrint.green("\n[Linux Mode] Starting frontend...")
-        ColorPrint.white(f"Backend API: http://{args.host}:{args.port}")
-        ColorPrint.white(f"API Docs: http://{args.host}:{args.port}/docs")
-        ColorPrint.white("Frontend: http://localhost:3007")
-        ColorPrint.blue("=" * 70)
+            ui_thread.start()
+            ui_thread.wait_until_ready()
 
-        asyncio.run(launch())
+            ColorPrint.green("[MatrixUI] UI thread ready")
 
-        # Keep backend running
-        backend_thread.join()
+            # Keep thread running
+            try:
+                while ui_thread.is_running():
+                    time.sleep(0.1)
+            except Exception as e:
+                ColorPrint.red(f"[MatrixUI] Thread error: {e}")
 
-    # Restore original argv
-    sys.argv = original_argv
+            return ui_thread
+
+        # Register custom UI service
+        launcher.register_custom_service(
+            service_name='matrix_ui',
+            entry_point=custom_ui_entry,
+            config=UIServiceConfig(),  # Pass empty config (we use NativeUIThreadConfig instead)
+            daemon=True
+        )
+
+        # Start UI service
+        ColorPrint.blue("Starting native UI with webview...")
+        launcher.start_service('matrix_ui')
+
+        ColorPrint.white("")
+        ColorPrint.green("=" * 70)
+        ColorPrint.green(" MATRIX APPLICATION FULLY INITIALIZED")
+        ColorPrint.green("=" * 70)
+        ColorPrint.white("")
+        ColorPrint.green("Services:")
+        ColorPrint.white(f"  - Matrix Service: Running")
+        ColorPrint.white(f"  - Native UI: Running")
+        ColorPrint.white(f"  - Frontend: http://localhost:{matrix_config.frontend_port}")
+        ColorPrint.white(f"  - Backend API: http://{matrix_config.backend_host}:{matrix_config.backend_port}")
+        ColorPrint.white("")
+        ColorPrint.yellow("Press Ctrl+C to stop all services")
+        ColorPrint.white("")
+        ColorPrint.green("=" * 70)
+        ColorPrint.white("")
+
+        # Wait for services
+        launcher.wait()
+
+    except KeyboardInterrupt:
+        ColorPrint.yellow("\nKeyboard interrupt received, shutting down...")
+        if 'launcher' in locals():
+            launcher.stop_all()
+    except Exception as e:
+        ColorPrint.red(f"\n[ERROR] Application error: {e}")
+        import traceback
+        traceback.print_exc()
+        if 'launcher' in locals():
+            launcher.stop_all()
+    finally:
+        # Restore original argv
+        sys.argv = original_argv
 
 
 def main():

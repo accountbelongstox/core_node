@@ -66,8 +66,8 @@ class Config:
 
     # Frontend configuration
     FRONTEND_DIR = PROJECT_ROOT.parent.parent / "poly_apps" / "nuxt_main"
-    FRONTEND_PORT = 3000  # Nuxt dev server port
-    FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}/pymatrix"
+    FRONTEND_PORT = 3007  # Matrix frontend port (from app-config.json)
+    FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
     # Static files directory (production mode)
     STATIC_DIR = PROJECT_ROOT / "static"
@@ -117,13 +117,11 @@ class Config:
 
     # ==================== CORS Configuration ====================
     # Matrix frontend runs on port 3007 (defined in app-config.json)
-    # Also allow default Nuxt ports for compatibility
     CORS_ALLOW_ORIGINS = [
-        f"http://localhost:{FRONTEND_PORT}",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3007",  # Matrix app port
-        "http://127.0.0.1:3007",
+        f"http://localhost:{FRONTEND_PORT}",  # 3007
+        f"http://127.0.0.1:{FRONTEND_PORT}",  # 3007
+        "http://localhost:3000",  # Fallback for other Nuxt apps
+        "http://127.0.0.1:3000",  # Fallback for other Nuxt apps
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOW_METHODS = ["*"]

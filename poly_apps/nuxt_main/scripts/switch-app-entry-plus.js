@@ -259,6 +259,28 @@ async function runSwitchScript(targetDir, app) {
     });
 }
 
+async function syncAppIndexFiles(runtime) {
+    const pagesDir = path.join(runtime.targetDir, 'pages');
+    const appEntryFile = path.join(pagesDir, `index.${runtime.app}.vue`);
+    const indexFile = path.join(pagesDir, 'index.vue');
+
+    try {
+        const exists = await fsExtra.pathExists(appEntryFile);
+        if (!exists) {
+            console.warn(`[EntrySync] Missing ${appEntryFile}, skipping index sync`);
+            return;
+        }
+
+        await fsExtra.ensureDir(pagesDir);
+        await fsExtra.copy(appEntryFile, indexFile);
+        const stats = await fsp.stat(appEntryFile);
+        await fsp.utimes(indexFile, stats.atime, stats.mtime).catch(() => {});
+        console.log(`[EntrySync] Synced ${appEntryFile} -> ${indexFile}`);
+    } catch (err) {
+        console.error(`[EntrySync] Failed to sync index for ${runtime.app}: ${err.message}`);
+    }
+}
+
 function shouldPathBeIgnored(srcDir, targetPath) {
     const rel = path.relative(srcDir, targetPath);
     if (!rel || rel.startsWith('..')) {
@@ -295,6 +317,7 @@ function startWatcher(srcDir, runtimes) {
                     console.log(`[Watcher] Syncing app ${runtime.app}`);
                     await mirrorDirectory(srcDir, runtime.targetDir);
                     await runSwitchScript(runtime.targetDir, runtime.app);
+                    await syncAppIndexFiles(runtime);
                 }
                 console.log('[Watcher] Sync complete');
             } catch (err) {
@@ -401,6 +424,7 @@ async function main() {
         console.log(`[Prep] Preparing runtime for ${runtime.app}`);
         await mirrorDirectory(SOURCE_ROOT, runtime.targetDir);
         await runSwitchScript(runtime.targetDir, runtime.app);
+        await syncAppIndexFiles(runtime);
         console.log(`[Switch+] Entry file synced for ${runtime.app}`);
     }
 
