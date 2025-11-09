@@ -325,7 +325,8 @@ show_service_management_menu() {
     echo "  2) MySQL/MariaDB"
     echo "  3) Redis"
     echo "  4) Gitea"
-    echo "  5) Return to main menu"
+    echo "  5) XRDP (Remote Desktop)"
+    echo "  6) Return to main menu"
     echo ""
     echo "Enter your choice (1-5): "
 
@@ -335,7 +336,8 @@ show_service_management_menu() {
         2) manage_mysql_service ;;
         3) manage_redis_service ;;
         4) manage_gitea_service ;;
-        5) return ;;
+        5) manage_xrdp_service ;;
+        6) return ;;
         *) echo "Invalid choice. Press any key to continue..."; read -n 1 ;;
     esac
 }
@@ -475,6 +477,36 @@ manage_gitea_service() {
         echo "To re-enable, set INSTALL_GITEA=true and run the installation script."
     else
         echo "Gitea is not installed."
+    fi
+
+    echo ""
+    echo "Press any key to continue..."
+    read -n 1
+}
+
+# Function to manage XRDP service
+manage_xrdp_service() {
+    echo ""
+    echo "Managing XRDP service..."
+
+    if systemctl list-units --full -all | grep -Fq "xrdp.service"; then
+        echo "XRDP is installed."
+
+        if systemctl is-active --quiet xrdp; then
+            echo "XRDP is currently running."
+            echo "Stopping XRDP service..."
+            sudo systemctl stop xrdp
+        fi
+
+        if systemctl is-enabled --quiet xrdp; then
+            echo "Disabling XRDP service from auto-start..."
+            sudo systemctl disable xrdp
+        fi
+
+        echo "XRDP service has been stopped and disabled."
+        echo "To re-enable, set INSTALL_XRDP=true and run the installation script."
+    else
+        echo "XRDP is not installed."
     fi
 
     echo ""
