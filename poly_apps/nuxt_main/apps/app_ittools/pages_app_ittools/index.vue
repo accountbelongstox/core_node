@@ -355,6 +355,8 @@ definePageMeta({
   middleware: []
 });
 
+const DEFAULT_TOOL_ID = 'hash_text';
+
 const itToolsStore = useItToolsStore();
 const selectedCategory = ref('all');
 const expandedCategories = ref<string[]>([]);
@@ -378,10 +380,25 @@ const categoryTree = computed(() => {
   };
 });
 
+const initializeDefaultTool = () => {
+  if (itToolsStore.activeTool) {
+    return;
+  }
+
+  const defaultTool = itToolsStore.allTools.find(tool => tool.id === DEFAULT_TOOL_ID);
+  if (defaultTool) {
+    itToolsStore.setActiveTool(defaultTool.id);
+    if (!expandedCategories.value.includes(defaultTool.category)) {
+      expandedCategories.value.push(defaultTool.category);
+    }
+  }
+};
+
 onMounted(() => {
   itToolsStore.loadPreferences();
   itToolsStore.filterTools();
   expandedRootCategories.value = ['all'];
+  initializeDefaultTool();
 });
 
 const toggleRootCategory = (categoryId: string) => {

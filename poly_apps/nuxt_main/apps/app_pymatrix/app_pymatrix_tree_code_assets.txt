@@ -1,0 +1,638 @@
+<!-- ### NUXT MULTI-APP PROMPT START ### -->
+<!--
+⚠️ IMPORTANT: This Nuxt workspace uses a multi-app namespace architecture.
+- Each namespace lives under apps/app_{name} with its own layouts, routes, and configs.
+- Shared utilities live in common/, components/, services/, stores/, and theme/.
+- Read development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md before editing.
+- Keep AI responses aligned with namespace isolation rules and routing prefixes.
+- Always prefer reusing/expanding common/ libraries & components before touching app-specific code.
+- When common/ must be extended, keep the design generic enough for every namespace.
+-->
+<!-- ### NUXT MULTI-APP PROMPT END ### -->
+
+================================================================================
+Nuxt App Directory Snapshot
+================================================================================
+Generated: 2025-11-09 01:59:54
+App: pymatrix
+Mode: code_assets
+Nuxt Root: D:/programing/core_node/poly_apps/nuxt_main
+Architecture Guide: development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
+================================================================================
+
+pymatrix [code_assets]
+├── apps/app_pymatrix/
+│   ├── IMPLEMENTATION_PROGRESS.json
+│   ├── IMPLEMENTATION_TRACKING_V2.json
+│   ├── README.md
+│   ├── app-config.json
+│   ├── app_pymatrix_tree_code_assets.txt
+│   ├── assets
+│   │   └── css
+│   │       └── dialog.css
+│   ├── components_app_pymatrix
+│   │   ├── ApkInstallPanel.vue
+│   │   ├── AudioStreamingPanel.vue
+│   │   ├── BatchConfigPanel.vue
+│   │   ├── ClipboardSyncPanel.vue
+│   │   ├── ConnectionHistoryPanel.vue
+│   │   ├── ConnectionPresetsPanel.vue
+│   │   ├── DeviceContextMenu.vue
+│   │   ├── DeviceFilterPanel.vue
+│   │   ├── DeviceInfoPanel.vue
+│   │   ├── DeviceSearchBar.vue
+│   │   ├── DeviceTagManager.vue
+│   │   ├── FilePushPanel.vue
+│   │   ├── GridLayoutControl.vue
+│   │   ├── GroupBatchOperations.vue
+│   │   ├── GroupControlPanel.vue
+│   │   ├── GroupRoleIndicator.vue
+│   │   ├── GroupTreeNode.vue
+│   │   ├── GroupTreeView.vue
+│   │   ├── KeyboardShortcutsHelp.vue
+│   │   ├── MouseControlPanel.vue
+│   │   ├── PackageListPanel.vue
+│   │   ├── PyMatrixConnectDialog.vue
+│   │   ├── PyMatrixDeviceGrid.vue
+│   │   ├── PyMatrixEmptyState.vue
+│   │   ├── PyMatrixFullscreenPlayer.vue
+│   │   ├── PyMatrixLeftPanel.vue
+│   │   ├── PyMatrixRightPanel.vue
+│   │   ├── PyMatrixScriptManager.vue
+│   │   ├── PyMatrixScriptStepEditor.vue
+│   │   ├── PyMatrixSettingsDialog.vue
+│   │   ├── PyMatrixTopBar.vue
+│   │   ├── RecordingControlPanel.vue
+│   │   ├── ScreenControlPanel.vue
+│   │   ├── SystemHealthMonitor.vue
+│   │   ├── SystemKeyPanel.vue
+│   │   ├── TextInputPanel.vue
+│   │   ├── VideoControlPanel.vue
+│   │   ├── VideoPlayer.vue
+│   │   ├── check_all_vue.py
+│   │   └── check_tags.py
+│   ├── composables_app_pymatrix
+│   │   ├── useAudioStream.ts
+│   │   ├── useConnectDevice.ts
+│   │   ├── useDeviceControl.ts
+│   │   ├── useDeviceList.ts
+│   │   ├── useDeviceRole.ts
+│   │   ├── useGroupControl.ts
+│   │   ├── useKeyboardShortcuts.ts
+│   │   ├── useRecordableDeviceControl.ts
+│   │   ├── useScriptExecutor.ts
+│   │   ├── useScriptRecorder.ts
+│   │   ├── useToast.ts
+│   │   └── useVideoStream.ts
+│   ├── config_app_pymatrix
+│   │   ├── deviceConfigFields.ts
+│   │   └── index.ts
+│   ├── docs
+│   │   ├── func_screenshot
+│   │   │   ├── FEATURE_LIST.md
+│   │   │   ├── func1.png
+│   │   │   ├── func2.png
+│   │   │   ├── func3.png
+│   │   │   └── func4.png
+│   │   ├── p63sk15716
+│   │   │   ├── active-bids.html
+│   │   │   ├── chat-messages.html
+│   │   │   ├── css
+│   │   │   │   ├── bootstrap.min.css
+│   │   │   │   ├── charts.min.css
+│   │   │   │   ├── font-awesome-all.min.css
+│   │   │   │   ├── reset.css
+│   │   │   │   └── slickslider.min.css
+│   │   │   ├── history.html
+│   │   │   ├── img
+│   │   │   │   ├── active-bids-img.png
+│   │   │   │   ├── author-pic.png
+│   │   │   │   ├── badge.png
+│   │   │   │   ├── bag-icon.svg
+│   │   │   │   ├── btc-icon.png
+│   │   │   │   ├── charts-middle.png
+│   │   │   │   ├── chat-author1.png
+│   │   │   │   ├── chat-author10.png
+│   │   │   │   ├── chat-author11.png
+│   │   │   │   ├── chat-author2.png
+│   │   │   │   ├── chat-author3.png
+│   │   │   │   ├── chat-author4.png
+│   │   │   │   ├── chat-author5.png
+│   │   │   │   ├── chat-author6.png
+│   │   │   │   ├── chat-author7.png
+│   │   │   │   ├── chat-author8.png
+│   │   │   │   ├── chat-author9.png
+│   │   │   │   ├── chat-top-ms.png
+│   │   │   │   ├── close.png
+│   │   │   │   ├── col-1.png
+│   │   │   │   ├── col-10.png
+│   │   │   │   ├── col-11.png
+│   │   │   │   ├── col-12.png
+│   │   │   │   ├── col-13.png
+│   │   │   │   ├── col-14.png
+│   │   │   │   ├── col-15.png
+│   │   │   │   ├── col-16.png
+│   │   │   │   ├── col-17.png
+│   │   │   │   ├── col-18.png
+│   │   │   │   ├── col-19.png
+│   │   │   │   ├── col-2.png
+│   │   │   │   ├── col-20.png
+│   │   │   │   ├── col-21.png
+│   │   │   │   ├── col-22.png
+│   │   │   │   ├── col-23.png
+│   │   │   │   ├── col-24.png
+│   │   │   │   ├── col-25.png
+│   │   │   │   ├── col-26.png
+│   │   │   │   ├── col-27.png
+│   │   │   │   ├── col-3.png
+│   │   │   │   ├── col-4.png
+│   │   │   │   ├── col-5.png
+│   │   │   │   ├── col-6.png
+│   │   │   │   ├── col-7.png
+│   │   │   │   ├── col-8.png
+│   │   │   │   ├── col-9.png
+│   │   │   │   ├── creator-1.png
+│   │   │   │   ├── creator-2.png
+│   │   │   │   ├── creator-3.png
+│   │   │   │   ├── creator-4.png
+│   │   │   │   ├── creator-5.png
+│   │   │   │   ├── dashboard-slider-1.png
+│   │   │   │   ├── diamond-icon.png
+│   │   │   │   ├── dots.png
+│   │   │   │   ├── eth-icon.png
+│   │   │   │   ├── fire.png
+│   │   │   │   ├── flag-1.png
+│   │   │   │   ├── flag-2.png
+│   │   │   │   ├── flag-3.png
+│   │   │   │   ├── follower.png
+│   │   │   │   ├── funfact-icon-2.png
+│   │   │   │   ├── funfact-icon-3.png
+│   │   │   │   ├── funfact-icon-4.png
+│   │   │   │   ├── funfact-icon.png
+│   │   │   │   ├── history-icon-1.png
+│   │   │   │   ├── history-icon-2.png
+│   │   │   │   ├── history-icon-3.png
+│   │   │   │   ├── history-icon-4.png
+│   │   │   │   ├── imoji.png
+│   │   │   │   ├── lite-icon.png
+│   │   │   │   ├── logo-white.png
+│   │   │   │   ├── logout.png
+│   │   │   │   ├── market-author-1.png
+│   │   │   │   ├── market-author-2.png
+│   │   │   │   ├── marketplace-1.png
+│   │   │   │   ├── marketplace-2.png
+│   │   │   │   ├── marketplace-3.png
+│   │   │   │   ├── marketplace-4.png
+│   │   │   │   ├── marketplace-5.png
+│   │   │   │   ├── marketplace-6.png
+│   │   │   │   ├── marketplace-7.png
+│   │   │   │   ├── marketplace-8.png
+│   │   │   │   ├── marketplace-9.png
+│   │   │   │   ├── menu-toggle.svg
+│   │   │   │   ├── nft-table-img1.png
+│   │   │   │   ├── nft-table-img2.png
+│   │   │   │   ├── nft-table-img3.png
+│   │   │   │   ├── nft-table-img4.png
+│   │   │   │   ├── notify-1.png
+│   │   │   │   ├── notify-2.png
+│   │   │   │   ├── notify-3.png
+│   │   │   │   ├── notify-4.png
+│   │   │   │   ├── order-icon.png
+│   │   │   │   ├── password-reset.png
+│   │   │   │   ├── payment-1.png
+│   │   │   │   ├── payment-2.png
+│   │   │   │   ├── payment-3.png
+│   │   │   │   ├── payment-4.png
+│   │   │   │   ├── platform-1.png
+│   │   │   │   ├── platform-2.png
+│   │   │   │   ├── platform-3.png
+│   │   │   │   ├── platform-4.png
+│   │   │   │   ├── plus-icon.svg
+│   │   │   │   ├── profile-1.png
+│   │   │   │   ├── profile-2.png
+│   │   │   │   ├── profile-3.png
+│   │   │   │   ├── profile-4.png
+│   │   │   │   ├── profile-5.png
+│   │   │   │   ├── profile-cover.png
+│   │   │   │   ├── profile-pic-2.png
+│   │   │   │   ├── profile-pic.png
+│   │   │   │   ├── profile-side.png
+│   │   │   │   ├── profile-thumb.png
+│   │   │   │   ├── search.png
+│   │   │   │   ├── seller-1.png
+│   │   │   │   ├── seller-2.png
+│   │   │   │   ├── seller-3.png
+│   │   │   │   ├── seller-4.png
+│   │   │   │   ├── side-cover.png
+│   │   │   │   ├── slide_2.jpg
+│   │   │   │   ├── slide_3.jpg
+│   │   │   │   ├── trending-img-1.png
+│   │   │   │   ├── trending-img-2.png
+│   │   │   │   ├── trending-img-3.png
+│   │   │   │   ├── trending-img-4.png
+│   │   │   │   ├── usd-icon.png
+│   │   │   │   ├── verfify-sign.png
+│   │   │   │   ├── wallet-1.png
+│   │   │   │   ├── wallet-2.png
+│   │   │   │   ├── wallet-3.png
+│   │   │   │   └── wallet-4.png
+│   │   │   ├── index.html
+│   │   │   ├── js
+│   │   │   │   ├── bootstrap.min.js
+│   │   │   │   ├── charts.js
+│   │   │   │   ├── circle-progress.min.js
+│   │   │   │   ├── countdown.min.js
+│   │   │   │   ├── final-countdown.min.js
+│   │   │   │   ├── jquery-migrate.js
+│   │   │   │   ├── jquery.min.js
+│   │   │   │   ├── main.js
+│   │   │   │   ├── popper.min.js
+│   │   │   │   └── slickslider.min.js
+│   │   │   ├── marketplace.html
+│   │   │   ├── my-collection.html
+│   │   │   ├── my-wallet.html
+│   │   │   ├── profile.html
+│   │   │   ├── saved.html
+│   │   │   ├── sell.html
+│   │   │   ├── settings.html
+│   │   │   └── style.css
+│   │   └── task.txt
+│   ├── layouts_app_pymatrix
+│   │   └── default.vue
+│   ├── services
+│   │   ├── api
+│   │   │   └── pymatrix
+│   │   │       └── pymatrix-config-api.ts
+│   │   └── api-client.ts
+│   ├── stores_app_pymatrix
+│   │   ├── audioStore.ts
+│   │   ├── clipboardStore.ts
+│   │   ├── configStore.ts
+│   │   ├── connectionHistoryStore.ts
+│   │   ├── connectionPresetsStore.ts
+│   │   ├── deviceStore.ts
+│   │   ├── fileTransferStore.ts
+│   │   ├── groupStore.ts
+│   │   ├── groupTreeStore.ts
+│   │   ├── recordingStore.ts
+│   │   ├── scriptStore.ts
+│   │   ├── tagsStore.ts
+│   │   ├── toastStore.ts
+│   │   └── uiPreferencesStore.ts
+│   └── utils_app_pymatrix
+│       └── api-urls.ts
+├── common/
+│   ├── components
+│   │   ├── dashboard
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout
+│   │   │   └── MainHeader.vue
+│   │   └── ui
+│   │       ├── BaseButton.vue
+│   │       ├── BaseContextMenu.vue
+│   │       ├── BaseModal.vue
+│   │       ├── BasePanel.vue
+│   │       ├── BaseSlider.vue
+│   │       ├── BaseToast.vue
+│   │       ├── BaseToggle.vue
+│   │       ├── DataTable.vue
+│   │       ├── DeviceTagBadge.vue
+│   │       └── ToastContainer.vue
+│   ├── composables
+│   │   └── useAppTheme.ts
+│   ├── constants
+│   │   └── base-constants.ts
+│   ├── layouts
+│   │   ├── auth.vue
+│   │   └── default.vue
+│   ├── middleware
+│   │   └── .gitkeep
+│   ├── pages
+│   │   ├── boxed-lockscreen.vue
+│   │   ├── boxed-password-reset.vue
+│   │   ├── boxed-signin.vue
+│   │   ├── boxed-signup.vue
+│   │   ├── cover-lockscreen.vue
+│   │   ├── cover-login.vue
+│   │   ├── cover-password-reset.vue
+│   │   ├── cover-register.vue
+│   │   └── users
+│   │       ├── profile.vue
+│   │       └── user-account-settings.vue
+│   ├── plugins
+│   │   └── theme.client.ts
+│   ├── services
+│   │   └── .gitkeep
+│   ├── stores
+│   │   └── base-store.ts
+│   ├── styles
+│   │   └── theme-base.css
+│   ├── theme
+│   │   └── base-theme.config.ts
+│   ├── types
+│   │   └── .gitkeep
+│   └── utils
+│       └── .gitkeep
+├── components/
+│   ├── ThemeCustomizer.vue
+│   ├── codemart
+│   │   ├── CodemartSidebar.vue
+│   │   └── home
+│   │       ├── CodemartFooter.vue
+│   │       ├── CodemartHeader.vue
+│   │       ├── CustomerServiceButton.vue
+│   │       ├── HeroCarousel.vue
+│   │       ├── ServiceFlowSection.vue
+│   │       ├── StatisticsSection.vue
+│   │       └── TestimonialsCarousel.vue
+│   ├── layout
+│   │   ├── Footer.vue
+│   │   ├── Header.vue
+│   │   └── Sidebar.vue
+│   ├── plugins
+│   │   ├── QuillEditor.vue
+│   │   └── highlight.vue
+│   ├── shared
+│   │   ├── dashboard
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout
+│   │   │   └── MainHeader.vue
+│   │   └── ui
+│   │       └── DataTable.vue
+│   └── subsite-admin
+│       └── AdminSidebar.vue
+├── composables/
+│   ├── codePreview.ts
+│   ├── useAppTheme.ts
+│   ├── useAuth.ts
+│   ├── useCharts.ts
+│   ├── useDashboard.ts
+│   ├── useDataSource.ts
+│   ├── useNuxtApi.ts
+│   ├── useRoles.ts
+│   ├── useRouteNamespace.ts
+│   ├── useTables.ts
+│   ├── useVueQuery.ts
+│   └── useWSRPC.ts
+├── configs/
+│   ├── codemart-menu.ts
+│   ├── codemart.config.ts
+│   ├── dashboard.config.ts
+│   ├── dev.config.ts
+│   ├── example.config.ts
+│   ├── mainsite.config.ts
+│   ├── pymatrix.config.ts
+│   └── subsite-admin.config.ts
+├── constants/
+│   ├── apps
+│   │   ├── admin-constants.ts
+│   │   └── codemart-constants.ts
+│   └── base-constants.ts
+├── services/
+│   ├── api
+│   │   ├── admin
+│   │   │   ├── admin-datasource-api.ts
+│   │   │   └── users
+│   │   │       └── admin-users-api.ts
+│   │   ├── charts.ts
+│   │   ├── codemart
+│   │   │   └── codemart-projects-api.ts
+│   │   ├── dashboard
+│   │   │   └── dashboard-analytics-api.ts
+│   │   ├── dashboard.ts
+│   │   ├── dev
+│   │   │   ├── dev-devops-api.ts
+│   │   │   ├── dev-devops-integration-api.ts
+│   │   │   └── dev-tools-api.ts
+│   │   ├── enhanced-dashboard.ts
+│   │   ├── example
+│   │   │   └── example-datasource-api.ts
+│   │   ├── finance.ts
+│   │   ├── main
+│   │   │   ├── analytics
+│   │   │   │   └── main-analytics-api.ts
+│   │   │   └── main-datasource-api.ts
+│   │   ├── nuxt-fetch.ts
+│   │   ├── pymatrix
+│   │   │   ├── pymatrix-config-api.ts
+│   │   │   ├── pymatrix-device-api.ts
+│   │   │   ├── pymatrix-file-api.ts
+│   │   │   ├── pymatrix-group-api.ts
+│   │   │   ├── pymatrix-health-api.ts
+│   │   │   └── pymatrix-recording-api.ts
+│   │   └── tables.ts
+│   ├── config
+│   │   ├── api-config-manager.ts
+│   │   └── endpoints.ts
+│   └── datasource
+│       └── manager.ts
+├── stores/
+│   ├── app-datasource.ts
+│   ├── apps
+│   │   ├── admin-store.ts
+│   │   └── codemart-store.ts
+│   ├── base
+│   │   └── base-store.ts
+│   ├── datasource.ts
+│   └── index.ts
+├── theme/
+│   ├── apps
+│   │   ├── admin-theme.ts
+│   │   ├── codemart-theme.ts
+│   │   ├── dashboard-theme.ts
+│   │   ├── dev-theme.ts
+│   │   └── example-theme.ts
+│   └── base-theme.config.ts
+├── types/
+│   ├── api.ts
+│   ├── datasource.ts
+│   ├── devops.ts
+│   └── pymatrix.ts
+├── utils/
+│   ├── apiHelpers.ts
+│   └── namespace-registry.ts
+├── layouts/
+│   ├── admin.vue
+│   ├── auth-layout.vue
+│   ├── base.vue
+│   ├── codemart-layout.vue
+│   ├── dashboard.vue
+│   ├── default-with-nav.vue
+│   └── pymatrix.vue
+├── plugins/
+│   ├── datasource.client.ts
+│   ├── maska.ts
+│   ├── perfect-scrollbar.ts
+│   ├── theme.client.ts
+│   ├── tippy.ts
+│   ├── vue-easymde.ts
+│   ├── vue3-apexcharts.ts
+│   ├── vue3-json-excel.ts
+│   └── vue3-popper.ts
+├── middleware/
+│   └── app-entry.global.ts
+├── i18n/
+│   └── locales
+│       ├── da.json
+│       ├── de.json
+│       ├── el.json
+│       ├── en.json
+│       ├── es.json
+│       ├── fr.json
+│       ├── hu.json
+│       ├── it.json
+│       ├── ja.json
+│       ├── pl.json
+│       ├── pt.json
+│       ├── ru.json
+│       ├── sv.json
+│       ├── tr.json
+│       └── zh.json
+├── app-entry.ts
+├── app-setting.ts
+├── nuxt.config.ts
+├── package.json
+├── tsconfig.json
+├── assets/
+│   └── css
+│       ├── animate.css
+│       ├── app.css
+│       ├── apps
+│       │   ├── app_pymatrix_theme.css
+│       │   └── pymatrix
+│       │       ├── components
+│       │       │   ├── badges.css
+│       │       │   ├── buttons.css
+│       │       │   ├── forms.css
+│       │       │   ├── panels.css
+│       │       │   ├── tree.css
+│       │       │   └── video.css
+│       │       ├── layout
+│       │       │   ├── grid.css
+│       │       │   ├── sidebar.css
+│       │       │   └── topbar.css
+│       │       └── pymatrix-theme.css
+│       ├── datatable.css
+│       ├── dragndrop.css
+│       ├── file-upload-preview.css
+│       ├── file-upload-with-preview.min.css
+│       ├── flatpickr.css
+│       ├── form-elements.css
+│       ├── fullcalendar.css
+│       ├── lightbox.css
+│       ├── markdown-editor.css
+│       ├── quill-editor.css
+│       ├── range-slider.css
+│       ├── scrumboard.css
+│       ├── select2.css
+│       ├── sweetalert.css
+│       ├── sweetalert2.css
+│       ├── swiper.css
+│       ├── tailwind.css
+│       ├── theme
+│       │   ├── animations.css
+│       │   └── variables.css
+│       ├── tippy.css
+│       └── wizard.css
+├── public/
+│   ├── assets
+│   │   └── images
+│   │       ├── auth-cover.svg
+│   │       ├── card-americanexpress.svg
+│   │       ├── card-mastercard.svg
+│   │       ├── card-visa.svg
+│   │       ├── carousel1.jpeg
+│   │       ├── carousel2.jpeg
+│   │       ├── carousel3.jpeg
+│   │       ├── checked.svg
+│   │       ├── close.svg
+│   │       ├── coming-soon.svg
+│   │       ├── custom-swal.svg
+│   │       ├── drag-1.jpeg
+│   │       ├── drag-2.jpeg
+│   │       ├── drag-4.jpg
+│   │       ├── features_overview.svg
+│   │       ├── file-preview.svg
+│   │       ├── flags
+│   │       │   ├── AC.svg
+│   │       │   ├── AD.svg
+│   │       │   └── ... some more flag assets hidden ...
+│   │       ├── g-8.png
+│   │       ├── lightbox1.jpg
+│   │       ├── lightbox2.jpeg
+│   │       ├── lightbox3.jpeg
+│   │       ├── lightbox4.jpeg
+│   │       ├── lightbox5.jpeg
+│   │       ├── lightbox6.jpeg
+│   │       ├── litecoin.svg
+│   │       ├── logo.svg
+│   │       ├── map-dark.svg
+│   │       ├── map.svg
+│   │       ├── menu-heade.jpg
+│   │       ├── notification-bg.png
+│   │       ├── product-camera.jpg
+│   │       ├── product-headphones.jpg
+│   │       ├── product-laptop.jpg
+│   │       ├── product-shoes.jpg
+│   │       ├── product-watch.jpg
+│   │       ├── profile-1.jpeg
+│   │       ├── profile-10.jpeg
+│   │       ├── profile-11.jpeg
+│   │       ├── profile-12.jpeg
+│   │       ├── profile-13.jpeg
+│   │       ├── profile-14.jpeg
+│   │       ├── profile-15.jpeg
+│   │       ├── profile-16.jpeg
+│   │       ├── profile-17.jpeg
+│   │       ├── profile-18.jpeg
+│   │       ├── profile-19.jpeg
+│   │       ├── profile-2.jpeg
+│   │       ├── profile-20.jpeg
+│   │       ├── profile-21.jpeg
+│   │       ├── profile-22.jpeg
+│   │       ├── profile-23.jpeg
+│   │       ├── profile-24.jpeg
+│   │       ├── profile-25.jpeg
+│   │       ├── profile-26.jpeg
+│   │       ├── profile-27.jpeg
+│   │       ├── profile-28.jpeg
+│   │       ├── profile-29.jpeg
+│   │       ├── profile-3.jpeg
+│   │       ├── profile-30.jpeg
+│   │       ├── profile-30.png
+│   │       ├── profile-31.jpeg
+│   │       ├── profile-32.jpeg
+│   │       ├── profile-33.jpeg
+│   │       ├── profile-34.jpeg
+│   │       ├── profile-35.png
+│   │       ├── profile-4.jpeg
+│   │       ├── profile-5.jpeg
+│   │       ├── profile-6.jpeg
+│   │       ├── profile-7.jpeg
+│   │       ├── profile-8.jpeg
+│   │       ├── profile-9.jpeg
+│   │       ├── settings-dark.svg
+│   │       ├── settings-light.svg
+│   │       ├── sweet-bg.jpg
+│   │       └── user-profile.jpeg
+│   ├── demo-prepare.html
+│   ├── favicon.png
+│   └── vite.svg
+└── docs/
+    ├── ARCHITECTURE_ANALYSIS_MULTI_LAYER_ISSUES.md
+    ├── ARCHITECTURE_ANALYSIS_REPORT.md
+    ├── ARCHITECTURE_COMPLETE.txt
+    ├── ARCHITECTURE_FIXES_SUMMARY.txt
+    ├── ARCHITECTURE_REFACTORING_PROPOSAL.md
+    ├── COMMAND_TRACE_EXPLANATION.md
+    ├── CSS_ARCHITECTURE_PLAN.md
+    ├── DATASOURCE_ARCHITECTURE.md
+    ├── IMPLEMENTATION_COMPLETE.md
+    ├── IMPLEMENTATION_GUIDE.md
+    ├── IMPLEMENTATION_PHASES.txt
+    ├── MIGRATION_FINAL_REPORT.txt
+    └── SCRIPT_AUTO_DISCOVERY_DESIGN.md

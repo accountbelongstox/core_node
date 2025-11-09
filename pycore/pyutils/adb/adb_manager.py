@@ -1,12 +1,12 @@
-"""ADB 管理器 - 无状态工具类"""
+"""ADB Manager - Stateless utility class"""
 
 import subprocess
 import re
 from pathlib import Path
 from typing import List, Optional
 
-from .adb_device import ADBDevice, DeviceState
-from .adb_exceptions import (
+from pycore.pyutils.adb.adb_device import ADBDevice, DeviceState
+from pycore.pyutils.adb.adb_exceptions import (
     ADBException,
     DeviceNotFoundException,
     ADBCommandFailedException
@@ -15,12 +15,12 @@ from .adb_exceptions import (
 
 class ADBManager:
     """
-    ADB 管理器（无状态，纯静态方法）
+    ADB Manager (stateless, pure static methods)
 
-    设计原则：
-    1. 不保存状态，每次调用都是独立的
-    2. adb 路径通过参数传递（默认使用 PATH 中的 adb）
-    3. 所有方法都是类方法或静态方法
+    Design principles:
+    1. No state saved, each call is independent
+    2. adb path passed through parameters (default uses adb in PATH)
+    3. All methods are class methods or static methods
     """
 
     @staticmethod
@@ -30,52 +30,48 @@ class ADBManager:
         timeout: Optional[int] = None
     ) -> subprocess.CompletedProcess:
         """
-        执行 ADB 命令
+        Execute ADB command
 
         Args:
-            command: 命令列表，如 ['adb', 'devices']
-            check: 是否检查返回码
-            timeout: 超时时间（秒）
+            command: Command list, e.g., ['adb', 'devices']
+            check: Whether to check return code
+            timeout: Timeout in seconds
 
         Returns:
             subprocess.CompletedProcess
 
         Raises:
-            ADBCommandFailedException: 命令执行失败
+            ADBCommandFailedException: Command execution failed
         """
-        try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=timeout
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout
+        )
+
+        if check and result.returncode != 0:
+            raise ADBCommandFailedException(
+                command=' '.join(command),
+                return_code=result.returncode,
+                stderr=result.stderr
             )
 
-            if check and result.returncode != 0:
-                raise ADBCommandFailedException(
-                    command=' '.join(command),
-                    return_code=result.returncode,
-                    stderr=result.stderr
-                )
-
-            return result
-
-        except subprocess.TimeoutExpired as e:
-            raise ADBException(f"Command timeout: {' '.join(command)}") from e
+        return result
 
     @classmethod
     def list_devices(cls, adb_path: str = "adb") -> List[ADBDevice]:
         """
-        列出所有 ADB 设备
+        List all ADB devices
 
         Args:
-            adb_path: adb 可执行文件路径
+            adb_path: adb executable file path
 
         Returns:
-            设备列表
+            Device list
 
-        示例输出（adb devices）：
+        Example output (adb devices):
             List of devices attached
             ABC123DEF456    device
             XYZ789GHI012    offline
@@ -85,22 +81,25 @@ class ADBManager:
 
     @staticmethod
     def _parse_devices(output: str) -> List[ADBDevice]:
-        """解析 adb devices 输出"""
+        """Parse adb devices output"""
         devices = []
         lines = output.strip().split('\n')
 
-        for line in lines[1:]:  # 跳过第一行 "List of devices attached"
+        for line in lines[1:]:  # Skip first line "List of devices attached"
             line = line.strip()
             if not line:
                 continue
 
-            # 格式：serial\tstate
+            # Format: serial\tstate
             match = re.match(r'^(\S+)\s+(\S+)$', line)
             if match:
                 serial, state_str = match.groups()
-                try:
+
+                # Check if state_str is valid DeviceState value
+                valid_states = [s.value for s in DeviceState]
+                if state_str in valid_states:
                     state = DeviceState(state_str)
-                except ValueError:
+                else:
                     state = DeviceState.UNKNOWN
 
                 devices.append(ADBDevice(serial=serial, state=state))
@@ -110,23 +109,23 @@ class ADBManager:
     @classmethod
     def get_device_info(cls, serial: str, adb_path: str = "adb") -> ADBDevice:
         """
-        获取设备详细信息
+        Get device detailed information
 
         Args:
-            serial: 设备序列号
-            adb_path: adb 路径
+            serial: Device serial number
+            adb_path: adb path
 
         Returns:
-            设备信息（包含 model, product）
+            Device information (includes model, product)
         """
-        # 检查设备是否存在
+        # Check if device exists
         devices = cls.list_devices(adb_path)
         device = next((d for d in devices if d.serial == serial), None)
 
         if not device:
             raise DeviceNotFoundException(serial)
 
-        # 获取详细信息
+        # Get detailed information
         if device.is_available:
             model = cls.get_prop(serial, "ro.product.model", adb_path).strip()
             product = cls.get_prop(serial, "ro.product.name", adb_path).strip()
@@ -138,15 +137,15 @@ class ADBManager:
     @classmethod
     def get_prop(cls, serial: str, prop: str, adb_path: str = "adb") -> str:
         """
-        获取设备属性
+        Get device property
 
         Args:
-            serial: 设备序列号
-            prop: 属性名（如 ro.product.model）
-            adb_path: adb 路径
+            serial: Device serial number
+            prop: Property name (e.g., ro.product.model)
+            adb_path: adb path
 
         Returns:
-            属性值
+            Property value
         """
         result = cls._run_command([
             adb_path, "-s", serial, "shell", "getprop", prop
@@ -162,18 +161,18 @@ class ADBManager:
         adb_path: str = "adb"
     ) -> bool:
         """
-        推送文件到设备
+        Push file to device
 
         Args:
-            serial: 设备序列号
-            local_path: 本地文件路径
-            remote_path: 远程路径
-            adb_path: adb 路径
+            serial: Device serial number
+            local_path: Local file path
+            remote_path: Remote path
+            adb_path: adb path
 
         Returns:
-            是否成功
+            Whether successful
 
-        示例：
+        Example:
             ADBManager.push_file(
                 "ABC123",
                 Path("scrcpy-server.jar"),
@@ -199,20 +198,20 @@ class ADBManager:
         timeout: Optional[int] = None
     ) -> str:
         """
-        执行 shell 命令
+        Execute shell command
 
         Args:
-            serial: 设备序列号
-            command: shell 命令
-            adb_path: adb 路径
-            timeout: 超时时间（秒）
+            serial: Device serial number
+            command: Shell command
+            adb_path: adb path
+            timeout: Timeout in seconds
 
         Returns:
-            命令输出
+            Command output
 
-        示例：
+        Example:
             output = ADBManager.execute_shell("ABC123", "wm size")
-            # 输出：Physical size: 1440x3120
+            # Output: Physical size: 1440x3120
         """
         result = cls._run_command(
             [adb_path, "-s", serial, "shell", command],
@@ -229,16 +228,16 @@ class ADBManager:
         adb_path: str = "adb"
     ):
         """
-        端口转发
+        Port forwarding
 
         Args:
-            serial: 设备序列号
-            local_port: 本地端口
-            remote_port: 远程端口
-            adb_path: adb 路径
+            serial: Device serial number
+            local_port: Local port
+            remote_port: Remote port
+            adb_path: adb path
 
-        示例：
-            # 将设备的 27183 端口转发到本地 27183
+        Example:
+            # Forward device port 27183 to local 27183
             ADBManager.forward_port("ABC123", 27183, 27183)
         """
         cls._run_command([
@@ -253,7 +252,7 @@ class ADBManager:
         local_port: int,
         adb_path: str = "adb"
     ):
-        """移除端口转发"""
+        """Remove port forwarding"""
         cls._run_command([
             adb_path, "-s", serial, "forward", "--remove",
             f"tcp:{local_port}"

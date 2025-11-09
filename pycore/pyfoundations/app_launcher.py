@@ -53,27 +53,65 @@ class AppLauncher:
         self.app_entry = None
         self.context_loaded = False
 
-    def get_available_apps(self) -> List[str]:
+    def get_available_apps(self, debug: bool = False) -> List[str]:
         """
         Get list of available Python apps
+
+        Supports two entry point patterns:
+        - New pattern (recommended): {appname}/main.py
+        - Old pattern (legacy): {appname}/{appname}_main.py
+
+        Args:
+            debug: Print debug information during scan
 
         Returns:
             List of app names that have valid entry points
         """
         if not self.pyapps_dir.exists():
+            if debug:
+                print(f"[DEBUG] pyapps directory not found: {self.pyapps_dir}")
             return []
+
+        if debug:
+            print(f"\n[DEBUG] Scanning pyapps directory: {self.pyapps_dir}")
 
         apps = []
         for item in self.pyapps_dir.iterdir():
+            if debug:
+                print(f"[DEBUG] Checking: {item.name}")
+
             if not item.is_dir():
-                continue
-            if item.name.startswith('.') or item.name.startswith('__'):
+                if debug:
+                    print(f"[DEBUG]   -> Skipped (not a directory)")
                 continue
 
-            # Check for entry point: {appname}/{appname}_main.py
-            main_file = item / f"{item.name}_main.py"
-            if main_file.exists():
+            if item.name.startswith('.') or item.name.startswith('__'):
+                if debug:
+                    print(f"[DEBUG]   -> Skipped (hidden/system directory)")
+                continue
+
+            # Check for entry point (standard pattern first, then fallback)
+            main_file_standard = item / f"{item.name}_main.py"
+            main_file_fallback = item / "main.py"
+
+            has_standard = main_file_standard.exists()
+            has_fallback = main_file_fallback.exists()
+
+            if debug:
+                print(f"[DEBUG]   -> {item.name}_main.py exists: {has_standard}")
+                print(f"[DEBUG]   -> main.py exists: {has_fallback}")
+
+            if has_standard or has_fallback:
                 apps.append(item.name)
+                if debug:
+                    entry_file = f"{item.name}_main.py" if has_standard else "main.py"
+                    print(f"[DEBUG]   -> Added (entry: {entry_file})")
+            else:
+                if debug:
+                    print(f"[DEBUG]   -> Skipped (no valid entry point)")
+
+        if debug:
+            print(f"\n[DEBUG] Found {len(apps)} app(s): {', '.join(apps)}\n")
 
         return sorted(apps)
 
@@ -161,41 +199,33 @@ class AppLauncher:
         print()
 
         while True:
-            try:
-                answer = input('Select an application by number or name: ').strip()
+            answer = input('Select an application by number or name: ').strip()
 
-                if not answer:
-                    print('Input cannot be empty.')
-                    continue
+            if not answer:
+                print('Input cannot be empty.')
+                continue
 
-                # Try numeric selection
-                if answer.isdigit():
-                    index = int(answer) - 1
-                    if 0 <= index < len(apps):
-                        return apps[index]
-                    else:
-                        print(f'Invalid number. Please select 1-{len(apps)}.')
-                        continue
-
-                # Try name matching
-                matches = self.find_matching_apps(answer)
-
-                if len(matches) == 1:
-                    return matches[0]
-                elif len(matches) > 1:
-                    print(f'\nMultiple matches found:')
-                    for i, match in enumerate(matches, 1):
-                        print(f'  [{i}] {match}')
-                    continue
+            # Try numeric selection
+            if answer.isdigit():
+                index = int(answer) - 1
+                if 0 <= index < len(apps):
+                    return apps[index]
                 else:
-                    print('No matching application found. Please try again.')
+                    print(f'Invalid number. Please select 1-{len(apps)}.')
                     continue
 
-            except KeyboardInterrupt:
-                print('\nSelection cancelled.')
-                return None
-            except Exception as e:
-                print(f'Error: {e}')
+            # Try name matching
+            matches = self.find_matching_apps(answer)
+
+            if len(matches) == 1:
+                return matches[0]
+            elif len(matches) > 1:
+                print(f'\nMultiple matches found:')
+                for i, match in enumerate(matches, 1):
+                    print(f'  [{i}] {match}')
+                continue
+            else:
+                print('No matching application found. Please try again.')
                 continue
 
     def inject_app_to_environment(self, app_name: str):
@@ -241,8 +271,20 @@ class AppLauncher:
             matches = self.find_matching_apps(query)
 
             if len(matches) == 0:
-                print(f"Error: No application found matching '{query}'")
-                print(f"Available apps: {', '.join(self.get_available_apps())}")
+                print(f"\nError: No application found matching '{query}'")
+
+                # Show detailed scan with debug info
+                available = self.get_available_apps(debug=True)
+
+                if available:
+                    print(f"Available applications:")
+                    for app in available:
+                        print(f"  - {app}")
+                else:
+                    print("No applications found in pyapps directory.")
+
+                print(f"\nTip: Use keyword matching (e.g., 'mcp' matches 'mcpserver')")
+                print(f"Tip: Create a new app in pyapps/{query}/ with main.py entry point")
                 return False
 
             elif len(matches) == 1:
@@ -270,16 +312,25 @@ class AppLauncher:
         # Set app paths
         self.app_name = selected_app
         self.app_dir = self.pyapps_dir / selected_app
-        self.app_entry = self.app_dir / f"{selected_app}_main.py"
 
-        # Validate
-        if not self.app_dir.exists():
-            print(f'Error: App directory not found: {self.app_dir}')
+        # Determine entry point (standard pattern first, then fallback)
+        entry_standard = self.app_dir / f"{selected_app}_main.py"
+        entry_fallback = self.app_dir / "main.py"
+
+        if entry_standard.exists():
+            self.app_entry = entry_standard
+        elif entry_fallback.exists():
+            self.app_entry = entry_fallback
+        else:
+            print(f'Error: No valid entry point found for app: {selected_app}')
+            print(f'Expected one of:')
+            print(f'  - {self.app_dir}/{selected_app}_main.py (standard pattern)')
+            print(f'  - {self.app_dir}/main.py (fallback pattern)')
             return False
 
-        if not self.app_entry.exists():
-            print(f'Error: App entry point not found: {self.app_entry}')
-            print(f'Expected: {selected_app}/{selected_app}_main.py')
+        # Validate directory exists
+        if not self.app_dir.exists():
+            print(f'Error: App directory not found: {self.app_dir}')
             return False
 
         self.context_loaded = True
@@ -301,67 +352,44 @@ class AppLauncher:
         print(f'App Entry: {self.app_entry}')
         print()
 
-        try:
-            # Load the app module dynamically
-            module_name = f"pyapps.{self.app_name}.{self.app_name}_main"
-            spec = importlib.util.spec_from_file_location(
-                module_name,
-                self.app_entry
-            )
+        # Load the app module dynamically
+        module_name = f"pyapps.{self.app_name}.{self.app_name}_main"
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            self.app_entry
+        )
 
-            if spec is None or spec.loader is None:
-                print(f'Error: Failed to load app module from {self.app_entry}')
-                return False
-
-            # Create and execute module
-            app_module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = app_module
-            spec.loader.exec_module(app_module)
-
-            # Look for entry function (main or start)
-            if hasattr(app_module, 'main') and callable(app_module.main):
-                app_module.main()
-            elif hasattr(app_module, 'start') and callable(app_module.start):
-                app_module.start()
-            else:
-                print(f'Warning: App {self.app_name} does not have a main() or start() function')
-                print('Module loaded but no entry function found.')
-
-            return True
-
-        except Exception as e:
-            print(f'Error starting app {self.app_name}: {e}')
-            import traceback
-            traceback.print_exc()
+        if spec is None or spec.loader is None:
+            print(f'Error: Failed to load app module from {self.app_entry}')
             return False
+
+        # Create and execute module - let errors expose naturally
+        app_module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = app_module
+        spec.loader.exec_module(app_module)
+
+        # Look for entry function (main or start)
+        if hasattr(app_module, 'main') and callable(app_module.main):
+            app_module.main()
+        elif hasattr(app_module, 'start') and callable(app_module.start):
+            app_module.start()
+        else:
+            print(f'Warning: App {self.app_name} does not have a main() or start() function')
+            print('Module loaded but no entry function found.')
+
+        return True
 
     def stop(self):
         """Stop the application"""
         if self.app and hasattr(self.app, 'stop') and callable(self.app.stop):
-            try:
-                self.app.stop()
-            except Exception as e:
-                print(f'Error stopping app: {e}')
+            self.app.stop()
 
 
 def main():
     """Main entry point for AppLauncher"""
     launcher = AppLauncher()
-
-    try:
-        success = launcher.start()
-        sys.exit(0 if success else 1)
-
-    except KeyboardInterrupt:
-        print('\nInterrupted by user')
-        launcher.stop()
-        sys.exit(0)
-
-    except Exception as error:
-        print(f'Unexpected error: {error}')
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    success = launcher.start()
+    sys.exit(0 if success else 1)
 
 
 if __name__ == '__main__':

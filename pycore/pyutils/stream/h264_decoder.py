@@ -5,8 +5,8 @@ import numpy as np
 from typing import Generator, Optional
 from io import BytesIO
 
-from .video_decoder import VideoDecoder
-from .stream_types import VideoFrame, VideoFormat
+from pycore.pyutils.stream.video_decoder import VideoDecoder
+from pycore.pyutils.stream.stream_types import VideoFrame, VideoFormat
 
 
 class H264Decoder(VideoDecoder):
@@ -64,42 +64,36 @@ class H264Decoder(VideoDecoder):
 
         packet = av.Packet(packet_data)
 
-        try:
-            frames = self.codec.decode(packet)
+        # Decode frames - let errors expose naturally
+        frames = self.codec.decode(packet)
 
-            for frame in frames:
-                # Zero-copy: direct access to FFmpeg memory
-                yuv_array = frame.to_ndarray(format='yuv420p')
+        for frame in frames:
+            # Zero-copy: direct access to FFmpeg memory
+            yuv_array = frame.to_ndarray(format='yuv420p')
 
-                yield VideoFrame(
-                    data=yuv_array,
-                    width=frame.width,
-                    height=frame.height,
-                    format=VideoFormat.YUV420P,
-                    pts=frame.pts or 0,
-                    key_frame=frame.key_frame
-                )
-
-        except av.AVError as e:
-            # Decode error (skip corrupted frames)
-            print(f"Decode error: {e}")
+            yield VideoFrame(
+                data=yuv_array,
+                width=frame.width,
+                height=frame.height,
+                format=VideoFormat.YUV420P,
+                pts=frame.pts or 0,
+                key_frame=frame.key_frame
+            )
 
     def flush(self) -> Generator[VideoFrame, None, None]:
         """Flush decoder buffer"""
-        try:
-            frames = self.codec.decode(None)  # None triggers flush
-            for frame in frames:
-                yuv_array = frame.to_ndarray(format='yuv420p')
-                yield VideoFrame(
-                    data=yuv_array,
-                    width=frame.width,
-                    height=frame.height,
-                    format=VideoFormat.YUV420P,
-                    pts=frame.pts or 0,
-                    key_frame=frame.key_frame
-                )
-        except av.AVError:
-            pass
+        # Flush decoder - let errors expose naturally
+        frames = self.codec.decode(None)  # None triggers flush
+        for frame in frames:
+            yuv_array = frame.to_ndarray(format='yuv420p')
+            yield VideoFrame(
+                data=yuv_array,
+                width=frame.width,
+                height=frame.height,
+                format=VideoFormat.YUV420P,
+                pts=frame.pts or 0,
+                key_frame=frame.key_frame
+            )
 
     def close(self):
         """Close decoder"""

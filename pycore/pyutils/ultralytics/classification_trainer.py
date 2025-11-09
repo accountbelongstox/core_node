@@ -10,8 +10,8 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from .dataset_generator_yolo import ClassificationDatasetGenerator
-from .ultralytics_trainer import process_image_config
+from pycore.pyutils.ultralytics.dataset_generator_yolo import ClassificationDatasetGenerator
+from pycore.pyutils.ultralytics.ultralytics_trainer import process_image_config
 
 try:
     from ultralytics import YOLO

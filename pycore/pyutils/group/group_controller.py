@@ -1,8 +1,8 @@
 """Group control controller"""
 
 from typing import Set, Optional, Dict, Any
-from .sync_strategy import SyncStrategy, AllSyncStrategy
-from .sync_event import SyncEvent
+from pycore.pyutils.group.sync_strategy import SyncStrategy, AllSyncStrategy
+from pycore.pyutils.group.sync_event import SyncEvent
 
 
 class GroupController:

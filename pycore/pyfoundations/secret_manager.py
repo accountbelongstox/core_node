@@ -60,13 +60,13 @@ def _get_password(prompt: str = "Enter password: ") -> str:
                 print()
                 raise KeyboardInterrupt
             else:
-                try:
+                # Try to decode as UTF-8, skip if invalid
+                # Check if valid UTF-8 byte
+                if len(key) == 1 and 32 <= key[0] <= 126:  # Printable ASCII
                     char = key.decode('utf-8')
                     password.append(char)
                     sys.stdout.write('*')
                     sys.stdout.flush()
-                except:
-                    pass
         return ''.join(password)
     else:
         # Use standard getpass on Linux/Mac
@@ -166,14 +166,12 @@ def find_node_command() -> Optional[str]:
         'node' or 'nodejs' if found, None otherwise
     """
     for cmd in ['node', 'nodejs']:
-        try:
-            result = subprocess.run([cmd, '--version'],
-                                    capture_output=True,
-                                    timeout=5)
-            if result.returncode == 0:
-                return cmd
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            continue
+        # Test if command exists and works
+        result = subprocess.run([cmd, '--version'],
+                                capture_output=True,
+                                timeout=5)
+        if result.returncode == 0:
+            return cmd
     return None
 
 
@@ -196,11 +194,13 @@ def decrypt_all_secrets(output_dir: Optional[Path] = None,
 
     # Create output directory if needed
     if not output_dir.exists():
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            print(f"[SECRET_DECRYPT_ALL] ERROR: Failed to create output directory: {e}")
+        # Check if parent directory is writable
+        parent_dir = output_dir.parent
+        if not parent_dir.exists() or not os.access(parent_dir, os.W_OK):
+            print(f"[SECRET_DECRYPT_ALL] ERROR: Cannot create output directory (no write access): {parent_dir}")
             return False
+
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Check encrypted directory exists
     if not dirs['ENCRYPTED_DIR'].exists():
@@ -249,27 +249,21 @@ def decrypt_all_secrets(output_dir: Optional[Path] = None,
 
         print(f"[SECRET_DECRYPT_ALL] Decrypting: {file_name} -> {key_name}")
 
-        try:
-            # Run node disguise.js with pwd mode for decryption
-            result = subprocess.run(
-                [node_cmd, str(encrypted_file), 'pwd', password, str(output_dir)],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+        # Run node disguise.js with pwd mode for decryption
+        result = subprocess.run(
+            [node_cmd, str(encrypted_file), 'pwd', password, str(output_dir)],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
 
-            if result.returncode == 0:
-                print(f"[SECRET_DECRYPT_ALL]    SUCCESS: {key_name}")
-                success_count += 1
-            else:
-                print(f"[SECRET_DECRYPT_ALL]    FAILED: {key_name}")
-                if result.stderr:
-                    print(f"[SECRET_DECRYPT_ALL]   Error: {result.stderr}")
-                fail_count += 1
-
-        except Exception as e:
+        if result.returncode == 0:
+            print(f"[SECRET_DECRYPT_ALL]    SUCCESS: {key_name}")
+            success_count += 1
+        else:
             print(f"[SECRET_DECRYPT_ALL]    FAILED: {key_name}")
-            print(f"[SECRET_DECRYPT_ALL]   Error: {e}")
+            if result.stderr:
+                print(f"[SECRET_DECRYPT_ALL]   Error: {result.stderr}")
             fail_count += 1
 
     # Print summary
@@ -312,11 +306,13 @@ def encrypt_all_secrets(source_dir: Path,
 
     # Create encrypted directory if needed
     if not dirs['ENCRYPTED_DIR'].exists():
-        try:
-            dirs['ENCRYPTED_DIR'].mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            print(f"[SECRET_ENCRYPT_ALL] ERROR: Failed to create encrypted directory: {e}")
+        # Check if parent directory is writable
+        parent_dir = dirs['ENCRYPTED_DIR'].parent
+        if not parent_dir.exists() or not os.access(parent_dir, os.W_OK):
+            print(f"[SECRET_ENCRYPT_ALL] ERROR: Cannot create encrypted directory (no write access): {parent_dir}")
             return False
+
+        dirs['ENCRYPTED_DIR'].mkdir(parents=True, exist_ok=True)
 
     # Find source files (excluding hidden files)
     source_files = [f for f in source_dir.iterdir()
@@ -368,36 +364,30 @@ def encrypt_all_secrets(source_dir: Path,
 
         print(f"[SECRET_ENCRYPT_ALL] Encrypting: {key_name} -> {key_name}.js")
 
-        try:
-            # Verify source file exists and is readable
-            if not source_file.exists():
-                print(f"[SECRET_ENCRYPT_ALL]    FAILED: Source file not found: {source_file}")
-                fail_count += 1
-                continue
+        # Verify source file exists and is readable
+        if not source_file.exists():
+            print(f"[SECRET_ENCRYPT_ALL]    FAILED: Source file not found: {source_file}")
+            fail_count += 1
+            continue
 
-            # Run node disguise.js for encryption
-            # disguise.js expects: node disguise.js <inputPath> <password> <outputDir>
-            result = subprocess.run(
-                [node_cmd, str(disguise_js), str(source_file), password, str(dirs['ENCRYPTED_DIR'])],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+        # Run node disguise.js for encryption
+        # disguise.js expects: node disguise.js <inputPath> <password> <outputDir>
+        result = subprocess.run(
+            [node_cmd, str(disguise_js), str(source_file), password, str(dirs['ENCRYPTED_DIR'])],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
 
-            if result.returncode == 0 and output_file.exists():
-                print(f"[SECRET_ENCRYPT_ALL]    SUCCESS: {key_name}.js")
-                success_count += 1
-            else:
-                print(f"[SECRET_ENCRYPT_ALL]    FAILED: {key_name}")
-                if result.stderr:
-                    print(f"[SECRET_ENCRYPT_ALL]   Error: {result.stderr}")
-                if result.stdout:
-                    print(f"[SECRET_ENCRYPT_ALL]   Output: {result.stdout}")
-                fail_count += 1
-
-        except Exception as e:
+        if result.returncode == 0 and output_file.exists():
+            print(f"[SECRET_ENCRYPT_ALL]    SUCCESS: {key_name}.js")
+            success_count += 1
+        else:
             print(f"[SECRET_ENCRYPT_ALL]    FAILED: {key_name}")
-            print(f"[SECRET_ENCRYPT_ALL]   Error: {e}")
+            if result.stderr:
+                print(f"[SECRET_ENCRYPT_ALL]   Error: {result.stderr}")
+            if result.stdout:
+                print(f"[SECRET_ENCRYPT_ALL]   Output: {result.stdout}")
             fail_count += 1
 
     # Print summary
@@ -440,12 +430,11 @@ def get_secret_key(key_name: str) -> Optional[str]:
 
     # Check if raw file exists
     if raw_file.exists():
-        try:
+        # Check if file is readable
+        if os.access(raw_file, os.R_OK):
             content = raw_file.read_text(encoding='utf-8')
             if content:
                 return content.strip()
-        except Exception:
-            pass
 
     # Check if encrypted file exists
     if not encrypted_file.exists():
@@ -464,12 +453,11 @@ def get_secret_key(key_name: str) -> Optional[str]:
 
     # Try reading raw file again
     if raw_file.exists():
-        try:
+        # Check if file is readable
+        if os.access(raw_file, os.R_OK):
             content = raw_file.read_text(encoding='utf-8')
             if content:
                 return content.strip()
-        except Exception:
-            pass
 
     print(f"[SECRET_GET_KEY] ERROR: Failed to retrieve key: {key_name}")
     return None
@@ -510,12 +498,14 @@ def get_all_secret_keys() -> Dict[str, str]:
     secrets = {}
     for raw_file in raw_files:
         key_name = raw_file.name
-        try:
-            content = raw_file.read_text(encoding='utf-8')
-            if content:
-                secrets[key_name] = content.strip()
-        except Exception as e:
-            print(f"[SECRET_GET_ALL] WARNING: Failed to read {key_name}: {e}")
+        # Check if file is readable
+        if not os.access(raw_file, os.R_OK):
+            print(f"[SECRET_GET_ALL] WARNING: Cannot read {key_name}: Permission denied")
+            continue
+
+        content = raw_file.read_text(encoding='utf-8')
+        if content:
+            secrets[key_name] = content.strip()
 
     return secrets
 
@@ -567,49 +557,52 @@ def set_secret_key(key_name: str, value: str, password: Optional[str] = None) ->
         temp_file = temp_path / key_name
 
         # Write value to temporary file
-        try:
-            temp_file.write_text(value, encoding='utf-8')
-        except Exception as e:
-            print(f"[SECRET_SET_KEY] ERROR: Failed to write temporary file: {e}")
+        # Check if temp directory is writable
+        if not os.access(temp_path, os.W_OK):
+            print(f"[SECRET_SET_KEY] ERROR: Temporary directory not writable: {temp_path}")
             return False
+
+        temp_file.write_text(value, encoding='utf-8')
 
         # Create encrypted directory if needed
         if not dirs['ENCRYPTED_DIR'].exists():
-            try:
-                dirs['ENCRYPTED_DIR'].mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                print(f"[SECRET_SET_KEY] ERROR: Failed to create encrypted directory: {e}")
+            # Check if parent directory is writable
+            parent_dir = dirs['ENCRYPTED_DIR'].parent
+            if not parent_dir.exists() or not os.access(parent_dir, os.W_OK):
+                print(f"[SECRET_SET_KEY] ERROR: Cannot create encrypted directory (no write access): {parent_dir}")
                 return False
+
+            dirs['ENCRYPTED_DIR'].mkdir(parents=True, exist_ok=True)
 
         # Encrypt directly using disguise.js
         output_file = dirs['ENCRYPTED_DIR'] / f"{key_name}.js"
 
-        try:
-            result = subprocess.run(
-                [node_cmd, str(disguise_js), str(temp_file), password, str(dirs['ENCRYPTED_DIR'])],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+        result = subprocess.run(
+            [node_cmd, str(disguise_js), str(temp_file), password, str(dirs['ENCRYPTED_DIR'])],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
 
-            if result.returncode == 0 and output_file.exists():
-                # Also save to raw directory for immediate access
-                try:
-                    raw_file = dirs['RAW_DIR'] / key_name
-                    raw_file.parent.mkdir(parents=True, exist_ok=True)
-                    raw_file.write_text(value, encoding='utf-8')
-                except Exception as e:
-                    print(f"[SECRET_SET_KEY] WARNING: Failed to save to raw directory: {e}")
+        if result.returncode == 0 and output_file.exists():
+            # Also save to raw directory for immediate access
+            raw_file = dirs['RAW_DIR'] / key_name
 
-                return True
+            # Ensure raw directory exists
+            if not dirs['RAW_DIR'].exists():
+                dirs['RAW_DIR'].mkdir(parents=True, exist_ok=True)
+
+            # Check if raw directory is writable
+            if os.access(dirs['RAW_DIR'], os.W_OK):
+                raw_file.write_text(value, encoding='utf-8')
             else:
-                print(f"[SECRET_SET_KEY] ERROR: Encryption failed")
-                if result.stderr:
-                    print(f"[SECRET_SET_KEY]   Error: {result.stderr}")
-                return False
+                print(f"[SECRET_SET_KEY] WARNING: Cannot save to raw directory (no write access): {dirs['RAW_DIR']}")
 
-        except Exception as e:
-            print(f"[SECRET_SET_KEY] ERROR: {e}")
+            return True
+        else:
+            print(f"[SECRET_SET_KEY] ERROR: Encryption failed")
+            if result.stderr:
+                print(f"[SECRET_SET_KEY]   Error: {result.stderr}")
             return False
 
 

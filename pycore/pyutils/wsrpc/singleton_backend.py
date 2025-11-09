@@ -88,9 +88,17 @@ class SingletonBackendDetector:
         self._on_secondary_started: Optional[Callable] = None
         self._on_shutdown: Optional[Callable] = None
 
-    def _log(self, message: str, level: str = 'INFO'):
-        """Output log message"""
-        if self.debug or level in ['ERROR', 'WARNING']:
+    def _log(self, message: str, level: str = 'INFO', force: bool = False):
+        """
+        Output log message
+
+        Args:
+            message: Log message
+            level: Log level (INFO, WARNING, ERROR, CRITICAL)
+            force: Force output regardless of debug setting
+        """
+        # Always output: ERROR, WARNING, CRITICAL, or forced messages
+        if force or level in ['ERROR', 'WARNING', 'CRITICAL'] or self.debug:
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
             print(f"[{timestamp}] [{level}] SingletonBackend: {message}")
 
@@ -107,7 +115,7 @@ class SingletonBackendDetector:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.settimeout(self.timeout)
 
-            self._log(f"Checking for existing instance at {self.host}:{self.port}")
+            self._log(f"Checking for existing instance at {self.host}:{self.port}", force=True)
             client_socket.connect((self.host, self.port))
 
             # Send check signal
@@ -133,7 +141,7 @@ class SingletonBackendDetector:
             return False
 
         except (socket.timeout, socket.error, ConnectionRefusedError):
-            self._log(f"No existing instance detected")
+            self._log(f"No existing instance detected", force=True)
             return False
         except Exception as e:
             self._log(f"Error during instance detection: {e}", 'ERROR')
@@ -326,7 +334,7 @@ class SingletonBackendDetector:
             self._log("Application already running", 'WARNING')
             return False
 
-        self._log("=== Singleton Backend Starting ===")
+        self._log("=== Singleton Backend Starting ===", force=True)
 
         # Check if instance already exists
         instance_exists = self.check_instance_exists()
@@ -342,7 +350,7 @@ class SingletonBackendDetector:
 
         else:
             # No instance, start as primary
-            self._log("No primary instance detected, starting as primary instance")
+            self._log("No primary instance detected, starting as primary instance", force=True)
             self._is_primary_instance = True
 
             # Start server socket
@@ -377,7 +385,7 @@ class SingletonBackendDetector:
 
         self._communication_thread.start()
 
-        self._log(f"=== Startup Complete (Primary: {self._is_primary_instance}) ===")
+        self._log(f"=== Startup Complete (Primary: {self._is_primary_instance}) ===", force=True)
         return True
 
     def stop(self):

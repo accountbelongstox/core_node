@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 MCP Server Main Entry Point
 
@@ -31,15 +30,23 @@ Additional instances become SECONDARY (connect to backend)
 import sys
 import os
 import time
+import traceback
 from pathlib import Path
 
 # Add paths for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Import singleton RPC backend
-from pycore.pyutils.wsrpc.singleton_rpc_example import SingletonRpcBackend
+# Import pycore utilities
+from pycore import ColorPrint
 
+# Import singleton RPC backend
+from pycore.pyutils.wsrpc import SingletonRpcBackend
+
+# Import services (using absolute imports)
+from pyapps.mcpserver.services.document_offline_service import DocumentOfflineService
+from pyapps.mcpserver.services.webview_service import WebviewService
+from pyapps.mcpserver.services.icon_info_service import IconInfoService
 # Import MCP service implementations
 # These will be loaded dynamically
 
@@ -89,7 +96,19 @@ class UnifiedMCPServer(SingletonRpcBackend):
         # Service instances (lazy loaded)
         self._service_instances = {}
 
-        self._log("Unified MCP Server initialized")
+        # Initialize services
+        self.document_offline_service = DocumentOfflineService()
+        self.webview_service = WebviewService()
+        # Temporarily disabled to test
+        # self.icon_info_service = IconInfoService()
+        try:
+            self.icon_info_service = IconInfoService()
+            ColorPrint.blue("Icon Info Service initialized")
+        except Exception as e:
+            ColorPrint.red(f"Failed to initialize Icon Info Service: {e}")
+            self.icon_info_service = None
+
+        ColorPrint.blue("Unified MCP Server initialized")
 
     def _register_backend_routes(self):
         """Register all MCP service routes"""
@@ -195,6 +214,91 @@ class UnifiedMCPServer(SingletonRpcBackend):
             return await self._call_ai_collaboration('ask_question', params)
 
         # ============================================
+        # Document Offline Routes
+        # ============================================
+
+        @self.rpc_server.route('document_offline.start_crawl')
+        async def document_offline_start_crawl(params):
+            """Start document offline crawl"""
+            return await self.document_offline_service.start_crawl(params)
+
+        @self.rpc_server.route('document_offline.get_status')
+        async def document_offline_get_status(params):
+            """Get crawl status"""
+            return await self.document_offline_service.get_status(params)
+
+        @self.rpc_server.route('document_offline.stop_crawl')
+        async def document_offline_stop_crawl(params):
+            """Stop active crawl"""
+            return await self.document_offline_service.stop_crawl(params)
+
+        @self.rpc_server.route('document_offline.list_crawls')
+        async def document_offline_list_crawls(params):
+            """List all crawls"""
+            return await self.document_offline_service.list_crawls(params)
+
+        # ============================================
+        # Webview Launcher Routes
+        # ============================================
+
+        @self.rpc_server.route('webview.create_launcher')
+        async def webview_create_launcher(params):
+            """Create a new webview launcher"""
+            return await self.webview_service.create_launcher(params)
+
+        @self.rpc_server.route('webview.start_launcher')
+        async def webview_start_launcher(params):
+            """Start a webview launcher"""
+            return await self.webview_service.start_launcher(params)
+
+        @self.rpc_server.route('webview.stop_launcher')
+        async def webview_stop_launcher(params):
+            """Stop a webview launcher"""
+            return await self.webview_service.stop_launcher(params)
+
+        @self.rpc_server.route('webview.reload_webview')
+        async def webview_reload_webview(params):
+            """Reload webview window"""
+            return await self.webview_service.reload_webview(params)
+
+        @self.rpc_server.route('webview.launch_pymatrix')
+        async def webview_launch_pymatrix(params):
+            """Launch pyMatrix with webview GUI"""
+            return await self.webview_service.launch_pymatrix(params)
+
+        @self.rpc_server.route('webview.list_launchers')
+        async def webview_list_launchers(params):
+            """List all active launchers"""
+            return await self.webview_service.list_launchers(params)
+
+        @self.rpc_server.route('webview.get_status')
+        async def webview_get_status(params):
+            """Get launcher status"""
+            return await self.webview_service.get_launcher_status(params)
+
+        # ============================================
+        # Icon Information Routes - TESTING ONE BY ONE
+        # ============================================
+
+        try:
+            self._log("Attempting to register icon routes...")
+
+            # Test with simplest route first
+            if self.icon_info_service is not None:
+                @self.rpc_server.route('icon.get_metadata')
+                async def icon_get_metadata(params):
+                    """Get basic image metadata (dimensions, format)"""
+                    return await self.icon_info_service.get_icon_metadata(params)
+
+                self._log("Successfully registered icon.get_metadata route")
+            else:
+                self._log("Icon service is None, skipping icon routes", level='WARNING')
+
+        except Exception as e:
+            self._log(f"Error registering icon routes: {e}", level='ERROR')
+            self._log(f"Traceback: {traceback.format_exc()}", level='ERROR')
+
+        # ============================================
         # System Routes
         # ============================================
 
@@ -223,6 +327,9 @@ class UnifiedMCPServer(SingletonRpcBackend):
                     'image': ['generate_placeholder', 'replace_placeholder', 'scan_directory'],
                     'db': ['execute_query', 'list_tables', 'get_schema'],
                     'ai': ['register_role', 'write_log', 'ask_question'],
+                    'document_offline': ['start_crawl', 'get_status', 'stop_crawl', 'list_crawls'],
+                    'webview': ['create_launcher', 'start_launcher', 'stop_launcher', 'reload_webview', 'launch_pymatrix', 'list_launchers', 'get_status'],
+                    # 'icon': ['analyze', 'get_metadata', 'extract_text', 'analyze_colors', 'batch_analyze', 'find_similar', 'scan_directory', 'get_hash', 'slice_equal', 'slice_custom', 'slice_grid', 'slice_sprite', 'crop', 'create_grid'],
                     'system': ['health', 'list_services', 'get_info']
                 },
                 'timestamp': time.time()
@@ -330,25 +437,40 @@ class UnifiedMCPServer(SingletonRpcBackend):
             'params': params
         }
 
-
 def main():
     """Main entry point for Unified MCP Server"""
+    # Immediate startup output
+    print("\n" + "=" * 70)
+    print("MCP Server Main - Entry Point Called")
     print("=" * 70)
-    print("Unified MCP Server - Singleton Pattern + WebSocket RPC")
-    print("=" * 70)
-    print()
-    print("All MCP services integrated into single backend:")
-    print("  • Codebase Scanner")
-    print("  • File Processor")
-    print("  • Placeholder Image Generator")
-    print("  • Database Operations")
-    print("  • AI Collaboration")
-    print()
+    print(f"Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"PID: {os.getpid()}")
+    print(f"CWD: {os.getcwd()}")
+    print(f"Project Root: {PROJECT_ROOT}")
+    print("=" * 70 + "\n")
+
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue("Unified MCP Server - Singleton Pattern + WebSocket RPC")
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue("")
+    ColorPrint.blue("All MCP services integrated into single backend:")
+    ColorPrint.blue("  • Codebase Scanner")
+    ColorPrint.blue("  • File Processor")
+    ColorPrint.blue("  • Placeholder Image Generator")
+    ColorPrint.blue("  • Database Operations")
+    ColorPrint.blue("  • AI Collaboration")
+    ColorPrint.blue("")
 
     # Configuration
     SINGLETON_PORT = 19997
     RPC_PORT = 8767
     DEBUG = True
+
+    ColorPrint.blue(f"Configuration:")
+    ColorPrint.blue(f"  • Singleton Port: {SINGLETON_PORT}")
+    ColorPrint.blue(f"  • RPC Port: {RPC_PORT}")
+    ColorPrint.blue(f"  • Debug Mode: {DEBUG}")
+    ColorPrint.blue("")
 
     # Create unified MCP server
     server = UnifiedMCPServer(
@@ -361,50 +483,50 @@ def main():
 
     # Set event callbacks
     server.on_primary_started(
-        lambda: print("\n✓ Started as PRIMARY instance (running MCP backend)\n")
+        lambda: ColorPrint.green("\n✓ Started as PRIMARY instance (running MCP backend)\n")
     )
     server.on_secondary_started(
-        lambda: print("\n✓ Started as SECONDARY instance (reusing MCP backend)\n")
+        lambda: ColorPrint.green("\n✓ Started as SECONDARY instance (reusing MCP backend)\n")
     )
     server.on_shutdown(
-        lambda: print("\n✓ Shutting down MCP server...\n")
+        lambda: ColorPrint.blue("\n✓ Shutting down MCP server...\n")
     )
 
     # Start server
     if server.start():
         try:
-            print("=" * 70)
-            print("MCP Server Status")
-            print("=" * 70)
+            ColorPrint.blue("=" * 70)
+            ColorPrint.blue("MCP Server Status")
+            ColorPrint.blue("=" * 70)
 
             if server.is_primary_instance():
-                print(f"Role: PRIMARY (Backend Running)")
-                print(f"RPC Server: ws://localhost:{RPC_PORT}")
-                print(f"Singleton Detection: localhost:{SINGLETON_PORT}")
-                print(f"Project Root: {server.project_root}")
+                ColorPrint.green(f"Role: PRIMARY (Backend Running)")
+                ColorPrint.blue(f"RPC Server: ws://localhost:{RPC_PORT}")
+                ColorPrint.blue(f"Singleton Detection: localhost:{SINGLETON_PORT}")
+                ColorPrint.blue(f"Project Root: {server.project_root}")
             else:
-                print(f"Role: SECONDARY (Client Only)")
-                print(f"Connected to: ws://localhost:{RPC_PORT}")
+                ColorPrint.green(f"Role: SECONDARY (Client Only)")
+                ColorPrint.blue(f"Connected to: ws://localhost:{RPC_PORT}")
 
-            print()
-            print("Multiple instances can run - they share the same backend.")
-            print("Press Ctrl+C to stop.")
-            print("=" * 70)
-            print()
+            ColorPrint.blue("")
+            ColorPrint.blue("Multiple instances can run - they share the same backend.")
+            ColorPrint.blue("Press Ctrl+C to stop.")
+            ColorPrint.blue("=" * 70)
+            ColorPrint.blue("")
 
             # Keep running
             while server.is_running():
                 time.sleep(1)
 
         except KeyboardInterrupt:
-            print("\n\nReceived interrupt signal")
+            ColorPrint.yellow("\n\nReceived interrupt signal")
 
         finally:
             server.stop()
-            print("\nMCP Server stopped.")
+            ColorPrint.blue("\nMCP Server stopped.")
 
     else:
-        print("ERROR: Failed to start MCP Server!")
+        ColorPrint.red("ERROR: Failed to start MCP Server!")
         sys.exit(1)
 
 

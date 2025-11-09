@@ -6,7 +6,7 @@ Represents a single ADB device with all its properties and capabilities.
 
 from dataclasses import dataclass, field
 from typing import Optional
-from .adb_types import (
+from pycore.pyadb.adb_types import (
     ADBDeviceBasic,
     ADBDeviceState,
     ADBConnectionType,

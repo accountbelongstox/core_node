@@ -1,0 +1,36 @@
+{
+  "_comment": "Launcher Configuration with Offline Driver Support",
+  "_instructions": {
+    "driver_mode": "local (offline), system_path (offline), or auto_download (online)",
+    "driver_path": "Full path to chromedriver.exe (Windows) or chromedriver (Linux/Mac)",
+    "example_windows": "D:/drivers/chromedriver.exe",
+    "example_linux": "/usr/local/bin/chromedriver",
+    "download_url": "https://chromedriver.chromium.org/downloads"
+  },
+  "selenium_service": {
+    "browser_type": "chrome",
+    "headless": false,
+    "driver_mode": "local",
+    "driver_path": "D:/drivers/chromedriver.exe",
+    "disable_gpu": true,
+    "no_sandbox": true,
+    "max_sessions": 5,
+    "session_timeout": 3600,
+    "pool_size": 3,
+    "pool_timeout": 30,
+    "debug": false,
+    "enabled": true
+  },
+  "web_service": {
+    "enabled": false
+  },
+  "mcp_service": {
+    "enabled": false
+  },
+  "ui_service": {
+    "enabled": false
+  },
+  "auto_start_all": true,
+  "startup_delay": 0.5,
+  "graceful_shutdown_timeout": 10
+}

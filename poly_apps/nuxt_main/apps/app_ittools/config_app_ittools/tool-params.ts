@@ -265,14 +265,6 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
     }
   ],
 
-  json_to_yaml_converter: [
-    { name: 'json', label: 'JSON Input', type: 'textarea', required: true, placeholder: '{"name":"John","age":30}', rows: 8 }
-  ],
-
-  yaml_to_json_converter: [
-    { name: 'yaml', label: 'YAML Input', type: 'textarea', required: true, placeholder: 'name: John\nage: 30', rows: 8 }
-  ],
-
   // Web Dev Tools
   json_prettify: [
     { name: 'json', label: 'JSON to prettify', type: 'textarea', required: true, placeholder: '{"key":"value"}', rows: 8 },

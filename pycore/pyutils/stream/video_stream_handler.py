@@ -15,7 +15,14 @@ import struct
 from typing import Optional, Callable, AsyncGenerator
 from dataclasses import dataclass
 
-from ...pyfoundations.device import ScrcpyDevice
+from pycore.pyfoundations.device import ScrcpyDevice
+
+# Import FMP4Encoder at module level
+FMP4EncoderComplete = None
+try:
+    from pycore.pyutils.stream.fmp4_encoder_complete import FMP4Encoder as FMP4EncoderComplete
+except ImportError:
+    pass
 
 
 @dataclass
@@ -87,22 +94,18 @@ class VideoStreamHandler:
         # Parse H.264 configuration from first frames
         self.config = await self._parse_h264_config()
 
-        # Initialize fMP4 encoder
-        try:
-            from .fmp4_encoder_complete import FMP4Encoder as FMP4EncoderComplete
-
+        # Initialize fMP4 encoder if available
+        if FMP4EncoderComplete is None:
+            print("[VideoStreamHandler] Warning: FMP4EncoderComplete not available")
+            print("  Install required packages: pip install av numpy")
+            self.encoder = None
+        else:
             self.encoder = FMP4EncoderComplete(
                 width=self.config.width,
                 height=self.config.height,
                 fps=60  # Default FPS, apps can change this
             )
-
             print(f"[VideoStreamHandler] Encoder initialized: {self.config.width}x{self.config.height}")
-
-        except ImportError:
-            print("[VideoStreamHandler] Warning: FMP4EncoderComplete not available")
-            print("  Install required packages: pip install av numpy")
-            self.encoder = None
 
         self._running = True
         print("[VideoStreamHandler] Started")
@@ -111,12 +114,9 @@ class VideoStreamHandler:
         """Stop video stream processing"""
         self._running = False
 
+        # Cancel stream task if running
         if self._stream_task:
             self._stream_task.cancel()
-            try:
-                await self._stream_task
-            except asyncio.CancelledError:
-                pass
 
         print("[VideoStreamHandler] Stopped")
 
@@ -155,40 +155,33 @@ class VideoStreamHandler:
             raise RuntimeError("fMP4 encoder not available")
 
         while self._running:
-            try:
-                # Read H.264 frame from device (returns dict with metadata)
-                frame = await asyncio.to_thread(self.device.read_video_frame)
+            # Read H.264 frame from device (returns dict with metadata)
+            frame = await asyncio.to_thread(self.device.read_video_frame)
 
-                if not frame:
-                    # Connection closed
-                    break
-
-                # Extract frame data and metadata (scrcpy provides these)
-                frame_data = frame['data']
-                pts = frame['pts']
-                is_config = frame['is_config']
-                is_keyframe = frame['is_keyframe']
-
-                # Generate fMP4 media segment using scrcpy's PTS and keyframe flag
-                media_segment = self.encoder.generate_media_segment(
-                    frame_data,
-                    pts,  # Use scrcpy's PTS instead of calculating
-                    is_keyframe  # Use scrcpy's keyframe flag
-                )
-
-                self._frame_count += 1
-
-                # Callback with frame data
-                if self._on_frame:
-                    self._on_frame(frame_data)
-
-                yield media_segment
-
-            except Exception as e:
-                print(f"[VideoStreamHandler] Error streaming: {e}")
-                if self._on_error:
-                    self._on_error(e)
+            if not frame:
+                # Connection closed
                 break
+
+            # Extract frame data and metadata (scrcpy provides these)
+            frame_data = frame['data']
+            pts = frame['pts']
+            is_config = frame['is_config']
+            is_keyframe = frame['is_keyframe']
+
+            # Generate fMP4 media segment using scrcpy's PTS and keyframe flag
+            media_segment = self.encoder.generate_media_segment(
+                frame_data,
+                pts,  # Use scrcpy's PTS instead of calculating
+                is_keyframe  # Use scrcpy's keyframe flag
+            )
+
+            self._frame_count += 1
+
+            # Callback with frame data
+            if self._on_frame and callable(self._on_frame):
+                self._on_frame(frame_data)
+
+            yield media_segment
 
     async def stream_raw_h264(self) -> AsyncGenerator[bytes, None]:
         """
@@ -206,30 +199,23 @@ class VideoStreamHandler:
             raise RuntimeError("Stream not started. Call start() first.")
 
         while self._running:
-            try:
-                # Read H.264 frame from device (returns dict with metadata)
-                frame = await asyncio.to_thread(self.device.read_video_frame)
+            # Read H.264 frame from device (returns dict with metadata)
+            frame = await asyncio.to_thread(self.device.read_video_frame)
 
-                if not frame:
-                    # Connection closed
-                    break
-
-                # Extract frame data
-                frame_data = frame['data']
-
-                self._frame_count += 1
-
-                # Callback with frame data
-                if self._on_frame:
-                    self._on_frame(frame_data)
-
-                yield frame_data
-
-            except Exception as e:
-                print(f"[VideoStreamHandler] Error streaming: {e}")
-                if self._on_error:
-                    self._on_error(e)
+            if not frame:
+                # Connection closed
                 break
+
+            # Extract frame data
+            frame_data = frame['data']
+
+            self._frame_count += 1
+
+            # Callback with frame data
+            if self._on_frame and callable(self._on_frame):
+                self._on_frame(frame_data)
+
+            yield frame_data
 
     def on_frame(self, callback: Callable[[bytes], None]):
         """

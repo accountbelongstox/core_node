@@ -5,7 +5,7 @@ import numpy as np
 from typing import Optional
 from io import BytesIO
 
-from .stream_types import VideoFrame, VideoFormat
+from pycore.pyutils.stream.stream_types import VideoFrame, VideoFormat
 
 
 class FMP4Encoder:

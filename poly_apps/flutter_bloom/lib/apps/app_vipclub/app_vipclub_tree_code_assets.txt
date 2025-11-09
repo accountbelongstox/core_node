@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-07 22:18:25
+Generated: 2025-11-09 01:40:45
 App: app_vipclub
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -21,7 +21,8 @@ app_vipclub [code_assets]
 │   │   └── splash_controller_app_vipclub.dart
 │   ├── doc
 │   │   ├── 1.png
-│   │   └── 2.png
+│   │   ├── 2.png
+│   │   └── military_tactical_theme.md
 │   ├── features_app_vipclub
 │   │   ├── articles
 │   │   │   └── views
@@ -53,6 +54,7 @@ app_vipclub [code_assets]
 │   │   │   │   └── home_controller.dart
 │   │   │   ├── views
 │   │   │   │   ├── home_screen.dart
+│   │   │   │   ├── home_screen.dart.backup3
 │   │   │   │   └── home_screen_old.dart.backup
 │   │   │   └── widgets
 │   │   │       ├── article_card.dart
@@ -136,6 +138,8 @@ app_vipclub [code_assets]
 │   │   └── vipclub_storage_service.dart
 │   ├── settings_app_vipclub
 │   │   └── settings_app_vipclub.dart
+│   ├── theme_app_vipclub
+│   │   └── vipclub_theme.dart
 │   └── utils_app_vipclub
 │       └── splash_helper.dart
 ├── lib/common/
@@ -545,16 +549,19 @@ app_vipclub [code_assets]
 │       ├── type_button_widget.dart
 │       └── widgets.dart
 ├── assets/apps/app_vipclub/
-│   └── images
-│       ├── banner_1.jpg
-│       ├── banner_2.jpg
-│       ├── banner_3.jpg
-│       ├── login_bg_1.png
-│       ├── login_bg_2.png
-│       ├── logo.png
-│       ├── placeholder_images_metadata.json
-│       ├── splash_1.png
-│       └── splash_2.png
+│   ├── images
+│   │   ├── banner_1.jpg
+│   │   ├── banner_2.jpg
+│   │   ├── banner_3.jpg
+│   │   ├── login_bg_1.png
+│   │   ├── login_bg_2.png
+│   │   ├── logo.png
+│   │   ├── placeholder_images_metadata.json
+│   │   ├── splash_1.png
+│   │   └── splash_2.png
+│   └── styles
+│       ├── demo_military_dashboard.html
+│       └── military_tactical_theme.css
 └── assets/common/
     ├── fonts
     │   ├── .gitkeep

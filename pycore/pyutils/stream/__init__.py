@@ -33,15 +33,15 @@ Example:
     fmp4_chunk = encoder.encode(frame)
 """
 
-from .video_decoder import VideoDecoder
-from .h264_decoder import H264Decoder
-from .fmp4_encoder import FMP4Encoder
-from .stream_types import VideoFrame, VideoFormat
-from .video_stream_handler import VideoStreamHandler, H264Config
+from pycore.pyutils.stream.video_decoder import VideoDecoder
+from pycore.pyutils.stream.h264_decoder import H264Decoder
+from pycore.pyutils.stream.fmp4_encoder import FMP4Encoder
+from pycore.pyutils.stream.stream_types import VideoFrame, VideoFormat
+from pycore.pyutils.stream.video_stream_handler import VideoStreamHandler, H264Config
 
 # Import complete FMP4 encoder
 try:
-    from .fmp4_encoder_complete import FMP4Encoder as FMP4EncoderComplete, H264Frame
+    from pycore.pyutils.stream.fmp4_encoder_complete import FMP4Encoder as FMP4EncoderComplete, H264Frame
     __all__ = [
         'VideoDecoder',
         'H264Decoder',

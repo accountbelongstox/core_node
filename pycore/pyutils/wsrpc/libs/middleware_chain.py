@@ -4,7 +4,7 @@ Middleware Chain
 Provides middleware chain functionality for request/response processing
 """
 
-from typing import List, Callable, Any, Optional
+from typing import List, Callable, Any, Optional, Dict
 from pycore.pyfoundations.color_print import ColorPrint
 
 

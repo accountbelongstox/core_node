@@ -10,7 +10,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-from .bridge_wrapper import BridgeWrapper, bridge_function, bridge_class
+from pycore.pyutils.nodejs_bridge.bridge_wrapper import BridgeWrapper, bridge_function, bridge_class
 
 __all__ = [
     'BridgeWrapper',

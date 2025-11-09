@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Generator, Optional
-from .stream_types import VideoFrame
+from pycore.pyutils.stream.stream_types import VideoFrame
 
 
 class VideoDecoder(ABC):
