@@ -24,7 +24,7 @@
     - PowerShell Command: claude
     - File Number: 6
     - File Name: claude6.ps1
-    - Generation Time: 2025-11-07 17:43:55
+    - Generation Time: 2025-11-10 06:27:55
 #>
 
 Set-StrictMode -Version Latest
@@ -47,12 +47,15 @@ $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
+$projectRootPath = Split-Path $scriptsDirPath -Parent
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\.tmp\Users\时间�?
+# Automatically generates user directory at D:\.tmp\Users\时间戳
 # Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
 # ============================================================================
 
@@ -141,7 +144,7 @@ Write-Host ""
 #endregion
 
 #region Load SecretManager
-$secretManagerPath = "D:\programing\core_node\scripts\shells\win\win_common\SecretManager.ps1"
+$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
 
 if (Test-Path $secretManagerPath) {
     . $secretManagerPath
@@ -216,14 +219,16 @@ Write-Host "Claude AI - Pre-Launch Tasks" -ForegroundColor Yellow
 Write-Host ""
 
 # Execute pre-launch script if it exists
-if (Test-Path "D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1") {
+$preLaunchScript = Join-Path $aiToolsDirPath "claude_pre_launch.ps1"
+if (Test-Path $preLaunchScript) {
     $currentWorkingDir = Get-Location
-    Write-Host "[INFO] Executing pre-launch script: D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1" -ForegroundColor Cyan
+    Write-Host "[INFO] Executing pre-launch script: $preLaunchScript" -ForegroundColor Cyan
     Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
     Write-Host ""
-    & "D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1" -WorkingDirectory "$currentWorkingDir"
+    & $preLaunchScript -WorkingDirectory "$currentWorkingDir"
     Write-Host ""
 }
+
 
 Write-Host "Available tasks:" -ForegroundColor White
 Write-Host "  [1] Upgrade Claude AI to latest version (runs in separate window)" -ForegroundColor White
@@ -232,10 +237,11 @@ Write-Host ""
 
 $upgradeChoice = Read-Host "Do you want to upgrade Claude AI? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
+    $upgradeScript = Join-Path $aiToolsDirPath "claude_update.bat"
     Write-Host ""
     Write-Host "[INFO] Launching Claude AI upgrade in separate window..." -ForegroundColor Yellow
     # Use Start-Process to launch in new window, preventing environment pollution
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"D:\programing\core_node\scripts\pytools\ai_tools\claude_update.bat`"" -WindowStyle Normal
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
     Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
 } else {
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
@@ -243,14 +249,15 @@ if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
 
 
 $currentWorkingDir = Get-Location
+$syncScript = Join-Path $aiToolsDirPath "claude_sync_mcp_servers.py"
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python -u `"$syncScript`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
 Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py" --target claude --working-dir "$currentWorkingDir"
+python -u "$syncScript" --target claude --working-dir "$currentWorkingDir"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

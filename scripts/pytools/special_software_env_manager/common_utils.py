@@ -348,30 +348,52 @@ def get_arrow_key():
         import sys
         import tty
         import termios
+        import select
 
-        fd = sys.stdin.fileno()
+        input_stream = sys.stdin
+        close_stream = False
+
+        if not sys.stdin.isatty():
+            try:
+                input_stream = open('/dev/tty')
+                close_stream = True
+            except OSError:
+                input_stream = sys.stdin
+
+        fd = input_stream.fileno()
         old_settings = termios.tcgetattr(fd)
 
         try:
-            tty.setraw(sys.stdin.fileno())
+            tty.setraw(fd)
 
             while True:
-                ch = sys.stdin.read(1)
+                ch = input_stream.read(1)
 
                 if ch == '\x1b':  # ESC sequence
-                    # Try to read the next two characters
-                    import select
-                    if select.select([sys.stdin], [], [], 0.1)[0]:
-                        seq = sys.stdin.read(2)
-                        if seq == '[A':
+                    ready, _, _ = select.select([fd], [], [], 0.5)
+                    if not ready:
+                        return 'esc'
+
+                    second = input_stream.read(1)
+                    if not second:
+                        return 'esc'
+
+                    if second in ('[', 'O'):
+                        ready, _, _ = select.select([fd], [], [], 0.5)
+                        if not ready:
+                            return 'esc'
+
+                        third = input_stream.read(1)
+                        if third == 'A':
                             return 'up'
-                        elif seq == '[B':
+                        if third == 'B':
                             return 'down'
-                        elif seq == '[D':
-                            return 'left'
-                        elif seq == '[C':
+                        if third == 'C':
                             return 'right'
-                    # Just ESC key pressed
+                        if third == 'D':
+                            return 'left'
+                        return 'esc'
+
                     return 'esc'
 
                 elif ch == '\r' or ch == '\n':
@@ -381,6 +403,8 @@ def get_arrow_key():
 
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            if close_stream:
+                input_stream.close()
 
 
 def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> str:

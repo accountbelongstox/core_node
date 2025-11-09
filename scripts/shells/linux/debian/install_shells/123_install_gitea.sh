@@ -61,6 +61,7 @@ GITEA_CONFIG_DIR="$GITEA_BASE_DIR/config"
 GITEA_CUSTOM_DIR="$GITEA_BASE_DIR/custom"
 GITEA_LOG_DIR="$GITEA_BASE_DIR/log"
 GITEA_INSTALLED_FLAG="$GITEA_BASE_DIR/.installed"
+GITEA_CACHE_DIR="$GITEA_BASE_DIR/cache"
 GITEA_USER="git"
 GITEA_PORT="3000"
 
@@ -222,12 +223,103 @@ create_gitea_user() {
 
     if id "$GITEA_USER" &>/dev/null; then
         print_info_from_common_functions "User $GITEA_USER already exists"
-        return 0
+    else
+        $USE_SUDO useradd --system --shell /bin/bash --comment 'Git Version Control' --create-home --home-dir /home/$GITEA_USER $GITEA_USER
+        print_success_from_common_functions "User $GITEA_USER created"
     fi
 
-    $USE_SUDO useradd --system --shell /bin/bash --comment 'Git Version Control' --create-home --home-dir /home/$GITEA_USER $GITEA_USER
-    print_success_from_common_functions "User $GITEA_USER created"
+    ensure_gitea_user_privileges
 
+    return 0
+}
+
+ensure_gitea_user_privileges() {
+    print_step_from_common_functions "Ensuring $GITEA_USER user permissions..."
+
+    local user_home="/home/$GITEA_USER"
+    local required_groups=("sudo")
+    local current_shell
+
+    if [[ ! -d "$user_home" ]]; then
+        $USE_SUDO mkdir -p "$user_home"
+        print_info_from_common_functions "Created home directory at $user_home"
+    fi
+
+    $USE_SUDO chown $GITEA_USER:$GITEA_USER "$user_home"
+    $USE_SUDO chmod 750 "$user_home"
+
+    current_shell=$(getent passwd "$GITEA_USER" | cut -d: -f7)
+    if [[ "$current_shell" != "/bin/bash" ]]; then
+        $USE_SUDO usermod --shell /bin/bash "$GITEA_USER"
+        print_info_from_common_functions "Updated $GITEA_USER shell to /bin/bash"
+    fi
+
+    for group in "${required_groups[@]}"; do
+        if getent group "$group" >/dev/null 2>&1; then
+            if ! id -nG "$GITEA_USER" 2>/dev/null | tr ' ' '\n' | grep -Fxq "$group"; then
+                $USE_SUDO usermod -aG "$group" "$GITEA_USER"
+                print_info_from_common_functions "Added $GITEA_USER to $group group"
+            else
+                print_info_from_common_functions "$GITEA_USER already in $group group"
+            fi
+        else
+            print_warning_from_common_functions "Required group $group not found on system"
+        fi
+    done
+
+    if [[ -d "$GITEA_BASE_DIR" ]]; then
+        $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
+    fi
+
+    print_success_from_common_functions "$GITEA_USER user permissions verified"
+}
+
+verify_cached_binary() {
+    local binary_path="$1"
+    local expected_version="$2"
+
+    if [[ ! -f "$binary_path" ]]; then
+        return 1
+    fi
+
+    if [[ ! -s "$binary_path" ]]; then
+        return 1
+    fi
+
+    $USE_SUDO chmod +x "$binary_path" 2>/dev/null || true
+
+    local version=$("$binary_path" --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+
+    if [[ -z "$version" ]]; then
+        return 1
+    fi
+
+    if [[ "$version" != "$expected_version" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+install_cached_binary() {
+    local source_binary="$1"
+
+    if [[ ! -f "$source_binary" ]]; then
+        print_error_from_common_functions "Cached binary not found at $source_binary"
+        return 1
+    fi
+
+    if ! $USE_SUDO cp "$source_binary" "$GITEA_BINARY"; then
+        print_error_from_common_functions "Failed to copy cached binary to $GITEA_BINARY"
+        return 1
+    fi
+
+    if ! $USE_SUDO chmod +x "$GITEA_BINARY"; then
+        print_error_from_common_functions "Failed to set execute permission on $GITEA_BINARY"
+        return 1
+    fi
+
+    print_success_from_common_functions "Gitea binary installed from cache"
     return 0
 }
 
@@ -242,6 +334,11 @@ download_gitea() {
     fi
 
     GITEA_BINARY_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-${GITEA_ARCH}"
+    local cached_binary_filename="gitea-${GITEA_VERSION}-${GITEA_ARCH}"
+    local cached_binary="$GITEA_CACHE_DIR/$cached_binary_filename"
+
+    $USE_SUDO mkdir -p "$GITEA_CACHE_DIR"
+    $USE_SUDO chmod 750 "$GITEA_CACHE_DIR" 2>/dev/null || true
 
     # Check if binary already exists and matches target version
     if [[ -f "$GITEA_BINARY" ]]; then
@@ -261,6 +358,15 @@ download_gitea() {
         print_info_from_common_functions "DEBUG: Binary not found at $GITEA_BINARY, will download..."
     fi
 
+    if verify_cached_binary "$cached_binary" "$GITEA_VERSION"; then
+        print_success_from_common_functions "Using cached Gitea binary at $cached_binary"
+        install_cached_binary "$cached_binary"
+        return $?
+    elif [[ -f "$cached_binary" ]]; then
+        print_warning_from_common_functions "Cached binary at $cached_binary is invalid, removing..."
+        $USE_SUDO rm -f "$cached_binary"
+    fi
+
     # Download binary
     print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
     print_info_from_common_functions "DEBUG: Download URL: $GITEA_BINARY_URL"
@@ -273,9 +379,16 @@ download_gitea() {
     if wget -O "$temp_binary" "$GITEA_BINARY_URL"; then
         print_success_from_common_functions "Gitea binary downloaded"
 
-        # Verify binary
         if [[ ! -s "$temp_binary" ]]; then
             print_error_from_common_functions "Downloaded binary is empty"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+
+        $USE_SUDO chmod +x "$temp_binary"
+
+        if ! verify_cached_binary "$temp_binary" "$GITEA_VERSION"; then
+            print_error_from_common_functions "Downloaded binary verification failed"
             rm -rf "$temp_dir"
             return 1
         fi
@@ -283,17 +396,15 @@ download_gitea() {
         local binary_size=$(stat -c%s "$temp_binary" 2>/dev/null || stat -f%z "$temp_binary" 2>/dev/null)
         print_info_from_common_functions "DEBUG: Downloaded binary size: $binary_size bytes"
 
-        # Install binary
-        print_info_from_common_functions "DEBUG: Installing binary to $GITEA_BINARY"
-        $USE_SUDO mv "$temp_binary" "$GITEA_BINARY"
-        $USE_SUDO chmod +x "$GITEA_BINARY"
+        print_info_from_common_functions "DEBUG: Saving binary to cache at $cached_binary"
+        $USE_SUDO mv "$temp_binary" "$cached_binary"
+        $USE_SUDO chmod 755 "$cached_binary"
 
-        # Cleanup
         rm -rf "$temp_dir"
         print_info_from_common_functions "DEBUG: Cleaned up temp directory"
 
-        print_success_from_common_functions "Gitea binary installed to $GITEA_BINARY"
-        return 0
+        install_cached_binary "$cached_binary"
+        return $?
     else
         print_error_from_common_functions "Failed to download Gitea binary"
         print_error_from_common_functions "DEBUG: wget failed for URL: $GITEA_BINARY_URL"

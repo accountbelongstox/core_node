@@ -20,7 +20,6 @@ class LinuxCommandContentGenerator:
     def __init__(self):
         self.project_root = self._get_project_root()
         self.scripts_dir = self.project_root / 'scripts'
-        self.pycore_path = self.project_root / 'pycore'
         self.ai_tools_dir = self.scripts_dir / 'pytools' / 'ai_tools'
 
     @staticmethod
@@ -54,17 +53,18 @@ class LinuxCommandContentGenerator:
             support_upgrade: Whether to include upgrade option
             support_npm_update: Whether to include npm/npx update option
         """
-        update_script_path = self.get_update_script_path(tool_type)
-        sync_script_path = self.get_mcp_sync_script_path(tool_type)
-        pre_launch_script_path = self.get_pre_launch_script_path(tool_type)
+        update_script_name = self.get_update_script_path(tool_type).name
+        sync_script_name = self.get_mcp_sync_script_path(tool_type).name
+        pre_launch_script_name = self.get_pre_launch_script_path(tool_type).name
 
         pre_launch_section = f"""# Execute pre-launch script if it exists
-if [ -f "{pre_launch_script_path.as_posix()}" ]; then
+preLaunchScript="$aiToolsDirPath/{pre_launch_script_name}"
+if [ -f "$preLaunchScript" ]; then
     current_working_dir="$(pwd)"
-    echo "[INFO] Executing pre-launch script: {pre_launch_script_path.as_posix()}"
+    echo "[INFO] Executing pre-launch script: $preLaunchScript"
     echo "[INFO] Working Directory: $current_working_dir"
     echo ""
-    bash "{pre_launch_script_path.as_posix()}" "$current_working_dir"
+    bash "$preLaunchScript" "$current_working_dir"
     echo ""
 fi"""
 
@@ -80,18 +80,19 @@ read -p "Do you want to upgrade {tool_display_name}? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
     echo "[INFO] Launching {tool_display_name} upgrade in separate terminal..."
-    if [ -f "{update_script_path.as_posix()}" ]; then
+    upgrade_script="$aiToolsDirPath/{update_script_name}"
+    if [ -f "$upgrade_script" ]; then
         # Launch in background to avoid blocking current environment
         if command -v gnome-terminal &> /dev/null; then
-            gnome-terminal -- bash -c "{update_script_path.as_posix()}; read -p 'Press Enter to close'"
+            gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
         elif command -v xterm &> /dev/null; then
-            xterm -e "bash {update_script_path.as_posix()}; read -p 'Press Enter to close'" &
+            xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
         else
-            bash "{update_script_path.as_posix()}" &
+            bash "$upgrade_script" &
         fi
         echo "[SUCCESS] Upgrade terminal opened"
     else
-        echo "[WARNING] Upgrade script not found: {update_script_path.as_posix()}"
+        echo "[WARNING] Upgrade script not found: $upgrade_script"
     fi
 else
     echo "[INFO] Skipping upgrade"
@@ -130,8 +131,9 @@ fi
 echo ""
 echo "Syncing MCP Server Configurations..."
 echo ""
-if [ -f "{sync_script_path.as_posix()}" ]; then
-    echo "[INFO] Executing: python -u '{sync_script_path.as_posix()}' --target {target_name} --working-dir '$current_working_dir'"
+sync_script="$aiToolsDirPath/{sync_script_name}"
+if [ -f "$sync_script" ]; then
+    echo "[INFO] Executing: python -u '$sync_script' --target {target_name} --working-dir '$current_working_dir'"
     echo "[INFO] Working Directory: $current_working_dir"
     echo ""
 
@@ -145,9 +147,9 @@ if [ -f "{sync_script_path.as_posix()}" ]; then
         exit 1
     fi
 
-    $PYTHON_CMD -u "{sync_script_path.as_posix()}" --target {target_name} --working-dir "$current_working_dir"
+    $PYTHON_CMD -u "$sync_script" --target {target_name} --working-dir "$current_working_dir"
 else
-    echo "[WARNING] MCP sync script not found: {sync_script_path.as_posix()}"
+    echo "[WARNING] MCP sync script not found: $sync_script"
     echo "[INFO] Skipping MCP synchronization"
 fi
 
@@ -177,6 +179,9 @@ linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
 aiToolsDirPath="$pytoolsDirPath/ai_tools"
+projectRootPath="$(dirname "$scriptsDirPath")"
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
 #region Custom User Directory Configuration
 # ============================================================================
@@ -254,85 +259,25 @@ echo ""
 #endregion
 """
 
-    def _generate_python_secret_loader(self, variables: List[Dict[str, Any]], file_number: int) -> str:
-        """
-        Generate Python script to load secrets from encrypted storage
-
-        Args:
-            variables: List of variable definitions
-            file_number: File number to append to secret keys
-
-        Returns:
-            Python script as string
-        """
-        script_lines = [
-            "import sys",
-            "from pathlib import Path",
-            "",
-            "# Add pycore to path",
-            f"pycore_path = Path(\"{self.pycore_path.as_posix()}\")",
-            "sys.path.insert(0, str(pycore_path))",
-            "",
-            "try:",
-            "    from pyfoundations import get_secret_key",
-            "",
-            "    # Load all secrets",
-            "    secrets = {}"
-        ]
-
-        # Add loading code for each variable
-        for var in variables:
-            var_name = var['Name']
-            display_name = var['DisplayName']
-            secret_key_name = f"{var_name}_{file_number}"
-
-            script_lines.extend([
-                f"    try:",
-                f"        value = get_secret_key('{secret_key_name}')",
-                f"        if value:",
-                f"            secrets['{var_name}'] = value",
-                f"            print('[SUCCESS] Loaded {display_name}', file=sys.stderr)",
-                f"        else:",
-                f"            print('[WARNING] Failed to load {display_name}', file=sys.stderr)",
-                f"    except Exception as e:",
-                f"        print(f'[WARNING] Error loading {display_name}: {{e}}', file=sys.stderr)"
-            ])
-
-        script_lines.extend([
-            "",
-            "    # Output secrets in format: VAR_NAME=value",
-            "    for key, value in secrets.items():",
-            "        print(f\"{key}={value}\")",
-            "",
-            "except ImportError as e:",
-            "    print(f'[ERROR] Failed to import secret_manager: {e}', file=sys.stderr)",
-            "    sys.exit(1)",
-            "except Exception as e:",
-            "    print(f'[ERROR] Unexpected error: {e}', file=sys.stderr)",
-            "    sys.exit(1)"
-        ])
-
-        return "\n".join(script_lines)
-
     def _generate_env_loading_section(self, variables: List[Dict[str, Any]], file_number: int) -> str:
-        """
-        Generate bash section to load environment variables from encrypted storage
+        """Generate bash section to load environment variables via secret_manager.sh"""
 
-        Args:
-            variables: List of variable definitions
-            file_number: File number to append to secret keys
-
-        Returns:
-            Bash script section as string
-        """
         if not variables:
             return ""
 
-        python_script = self._generate_python_secret_loader(variables, file_number)
+        load_calls = []
+        for var in variables:
+            secret_key_name = f"{var['Name']}_{file_number}"
+            display_name = var.get('DisplayName', var['Name'])
+            load_calls.append(
+                f"load_secret_value \"{secret_key_name}\" \"{var['Name']}\" \"{display_name}\""
+            )
+
+        load_commands = "\n".join(load_calls)
 
         return f"""
 # =============================================================================
-# Load Environment Variables from Encrypted Storage
+# Load Environment Variables from Secret Manager
 # =============================================================================
 echo ""
 echo "============================================================"
@@ -340,30 +285,46 @@ echo "Loading Environment Variables"
 echo "============================================================"
 echo ""
 
-# Python script to load secrets
-PYCORE_PATH="{self.pycore_path.as_posix()}"
-LOAD_SECRETS_SCRIPT=$(cat <<'PYTHON_SCRIPT'
-{python_script}
-PYTHON_SCRIPT
-)
+secretManagerScript="$shellsDirPath/secret_manager/secret_manager.sh"
+secretManagerReady=false
 
-# Execute Python script and load environment variables
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
+if [ -f "$secretManagerScript" ]; then
+    source "$secretManagerScript"
+    if type secret_get_key &> /dev/null; then
+        secretManagerReady=true
+        echo "[INFO] Secret manager loaded successfully"
+    else
+        echo "[WARNING] secret_get_key function is unavailable after loading $secretManagerScript"
+    fi
 else
-    echo "[ERROR] Python not found"
-    exit 1
+    echo "[WARNING] Secret manager script not found: $secretManagerScript"
 fi
 
-# Load secrets into environment variables
-while IFS='=' read -r key value; do
-    if [ -n "$key" ] && [ -n "$value" ]; then
-        export "$key=$value"
-        echo "[SUCCESS] Set $key"
+load_secret_value() {{
+    local key_name="$1"
+    local env_name="$2"
+    local display_name="$3"
+    local value=""
+
+    if [ "$secretManagerReady" != true ]; then
+        echo "[WARNING] Secret manager is not initialized. Cannot load $display_name"
+        return 1
     fi
-done < <($PYTHON_CMD -c "$LOAD_SECRETS_SCRIPT" 2>&1 | grep -v '^\[')
+
+    if value="$(secret_get_key "$key_name" 2>/dev/null)"; then
+        if [ -n "$value" ]; then
+            printf -v "$env_name" '%s' "$value"
+            export "$env_name"
+            echo "[SUCCESS] Loaded $display_name"
+            return 0
+        fi
+    fi
+
+    echo "[WARNING] Failed to load $display_name"
+    return 1
+}}
+
+{load_commands}
 
 echo ""
 """
@@ -433,7 +394,7 @@ echo ""
 #     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #
 # Environment Variables:
-#     Environment variables are loaded from encrypted storage using Python secret_manager
+#     Environment variables are loaded from encrypted storage using secret_manager.sh
 # =============================================================================
 
 set -e

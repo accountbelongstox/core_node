@@ -51,19 +51,21 @@ class WindowsCommandContentGenerator:
             support_upgrade: Whether to include upgrade option
             support_npm_update: Whether to include npm/npx update option
         """
-        update_script_path = self.get_update_script_path(tool_type)
-        sync_script_path = self.get_mcp_sync_script_path(tool_type)
-        pre_launch_script_path = self.get_pre_launch_script_path(tool_type)
+        update_script_name = self.get_update_script_path(tool_type).name
+        sync_script_name = self.get_mcp_sync_script_path(tool_type).name
+        pre_launch_script_name = self.get_pre_launch_script_path(tool_type).name
 
         pre_launch_section = f"""# Execute pre-launch script if it exists
-if (Test-Path "{pre_launch_script_path}") {{
+$preLaunchScript = Join-Path $aiToolsDirPath "{pre_launch_script_name}"
+if (Test-Path $preLaunchScript) {{
     $currentWorkingDir = Get-Location
-    Write-Host "[INFO] Executing pre-launch script: {pre_launch_script_path}" -ForegroundColor Cyan
+    Write-Host "[INFO] Executing pre-launch script: $preLaunchScript" -ForegroundColor Cyan
     Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
     Write-Host ""
-    & "{pre_launch_script_path}" -WorkingDirectory "$currentWorkingDir"
+    & $preLaunchScript -WorkingDirectory "$currentWorkingDir"
     Write-Host ""
-}}"""
+}}
+"""
 
         upgrade_section = ""
         if support_upgrade:
@@ -75,10 +77,11 @@ Write-Host ""
 
 $upgradeChoice = Read-Host "Do you want to upgrade {tool_display_name}? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {{
+    $upgradeScript = Join-Path $aiToolsDirPath "{update_script_name}"
     Write-Host ""
     Write-Host "[INFO] Launching {tool_display_name} upgrade in separate window..." -ForegroundColor Yellow
     # Use Start-Process to launch in new window, preventing environment pollution
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"{update_script_path}`"" -WindowStyle Normal
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
     Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
 }} else {{
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
@@ -115,14 +118,15 @@ if ($npmUpdateChoice -eq "y" -or $npmUpdateChoice -eq "Y") {
 """
 
         sync_section = f"""$currentWorkingDir = Get-Location
+$syncScript = Join-Path $aiToolsDirPath "{sync_script_name}"
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"{sync_script_path}`" --target {target_name} --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python -u `"$syncScript`" --target {target_name} --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
 Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "{sync_script_path}" --target {target_name} --working-dir "$currentWorkingDir"
+python -u "$syncScript" --target {target_name} --working-dir "$currentWorkingDir"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -153,6 +157,9 @@ $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
+$projectRootPath = Split-Path $scriptsDirPath -Parent
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
 #region Custom User Directory Configuration
 # ============================================================================
@@ -297,7 +304,7 @@ Write-Host ""
 
         load_secret_manager = f"""
 #region Load SecretManager
-$secretManagerPath = "{self.secret_manager_path}"
+$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
 
 if (Test-Path $secretManagerPath) {{
     . $secretManagerPath
@@ -445,7 +452,7 @@ Write-Host ""
 
         load_secret_manager = f"""
 #region Load SecretManager
-$secretManagerPath = "{self.secret_manager_path}"
+$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
 
 if (Test-Path $secretManagerPath) {{
     . $secretManagerPath
