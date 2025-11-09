@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ReviewViewAppCodemart extends StatefulWidget {
   final int targetId;
@@ -48,7 +49,7 @@ class _ReviewViewAppCodemartState extends State<ReviewViewAppCodemart> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+        content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
         backgroundColor: Colors.green,
       ),
     );
@@ -201,7 +202,7 @@ class _ReviewViewAppCodemartState extends State<ReviewViewAppCodemart> {
 
             // Guidelines
             Card(
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -240,7 +241,7 @@ class _ReviewViewAppCodemartState extends State<ReviewViewAppCodemart> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(context.tr(LocalizationKeysAppCodemart.codemartSubmit)),
+                  : Text(LocalizationKeysAppCodemart.codemartSubmit.tr(context)),
             ),
           ],
         ),

@@ -5,6 +5,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/project_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ProjectsViewAppCodemart extends StatefulWidget {
   const ProjectsViewAppCodemart({super.key});
@@ -42,7 +43,7 @@ class _ProjectsViewAppCodemartState extends State<ProjectsViewAppCodemart> {
           });
         } else {
           setState(() {
-            _errorMessage = response.message ?? 'Failed to load projects';
+            _errorMessage = response.message ?? LocalizationKeysAppCodemart.codemartFailedLoadProjects.tr(context);
             _isLoading = false;
           });
         }
@@ -61,7 +62,7 @@ class _ProjectsViewAppCodemartState extends State<ProjectsViewAppCodemart> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjects)),
+        title: Text(LocalizationKeysAppCodemart.codemartProjects.tr(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -84,14 +85,14 @@ class _ProjectsViewAppCodemartState extends State<ProjectsViewAppCodemart> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadProjects,
-                        child: const Text('Retry'),
+                        child: Text(LocalizationKeysAppCodemart.codemartRetry.tr(context)),
                       ),
                     ],
                   ),
                 )
               : _projects.isEmpty
                   ? Center(
-                      child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+                      child: Text(LocalizationKeysAppCodemart.codemartNoData.tr(context)),
                     )
                   : RefreshIndicator(
                       onRefresh: _loadProjects,
@@ -107,7 +108,7 @@ class _ProjectsViewAppCodemartState extends State<ProjectsViewAppCodemart> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => RouterAppCodemart.goToCreateProject(context),
         icon: const Icon(Icons.add),
-        label: Text(context.tr(LocalizationKeysAppCodemart.codemartCreateProject)),
+        label: Text(LocalizationKeysAppCodemart.codemartCreateProject.tr(context)),
       ),
     );
   }
@@ -153,11 +154,11 @@ class _ProjectCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.attach_money, size: 16),
                   const SizedBox(width: 4),
-                  Text('Budget: \$${project.budget.toStringAsFixed(2)}'),
+                  Text('${LocalizationKeysAppCodemart.codemartBudget.tr(context)}: \$${project.budget.toStringAsFixed(2)}'),
                   const SizedBox(width: 16),
                   const Icon(Icons.code, size: 16),
                   const SizedBox(width: 4),
-                  Text('Complexity: ${project.complexity.name}'),
+                  Text('${LocalizationKeysAppCodemart.codemartComplexity.tr(context)}: ${project.complexity.name}'),
                 ],
               ),
               if (project.skills.isNotEmpty) ...[

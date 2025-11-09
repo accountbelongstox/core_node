@@ -70,8 +70,8 @@ class AChatWebSocketClient extends BaseWebSocketClient {
 
   // Fix: Constructor now requires WebSocketConfig with URL
   AChatWebSocketClient({
-    required WebSocketConfig config,
-  }) : super(config: config);
+    required super.config,
+  });
 
   /// Factory: Create AChat client with URL and auth
   /// 

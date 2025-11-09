@@ -53,6 +53,7 @@ sealed class StorageResult<T> {
 
 /// Success result containing data
 class StorageSuccess<T> extends StorageResult<T> {
+  @override
   final T data;
   const StorageSuccess(this.data);
   

@@ -5,6 +5,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/task_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SubmitTaskViewAppCodemart extends StatefulWidget {
   final int taskId;
@@ -92,7 +93,7 @@ class _SubmitTaskViewAppCodemartState extends State<SubmitTaskViewAppCodemart> {
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+            content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
             backgroundColor: Colors.green,
           ),
         );
@@ -122,7 +123,7 @@ class _SubmitTaskViewAppCodemartState extends State<SubmitTaskViewAppCodemart> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartSubmitTask)),
+        title: Text(LocalizationKeysAppCodemart.codemartSubmitTask.tr(context)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -203,7 +204,7 @@ class _SubmitTaskViewAppCodemartState extends State<SubmitTaskViewAppCodemart> {
                             controller: _descriptionController,
                             maxLines: 6,
                             decoration: InputDecoration(
-                              labelText: context.tr(LocalizationKeysAppCodemart.codemartTaskDescription),
+                              labelText: LocalizationKeysAppCodemart.codemartTaskDescription.tr(context),
                               hintText: 'Describe your implementation, changes made, and any notes for the reviewer...',
                               prefixIcon: const Icon(Icons.description),
                               alignLabelWithHint: true,
@@ -222,7 +223,7 @@ class _SubmitTaskViewAppCodemartState extends State<SubmitTaskViewAppCodemart> {
 
                           // Guidelines
                           Card(
-                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(
@@ -262,7 +263,7 @@ class _SubmitTaskViewAppCodemartState extends State<SubmitTaskViewAppCodemart> {
                                     width: 20,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : Text(context.tr(LocalizationKeysAppCodemart.codemartSubmit)),
+                                : Text(LocalizationKeysAppCodemart.codemartSubmit.tr(context)),
                           ),
                         ],
                       ),

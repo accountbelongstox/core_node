@@ -709,8 +709,7 @@ class NetworkException implements Exception {
 
 /// Authentication exception
 class AuthenticationException extends NetworkException {
-  const AuthenticationException(String message, {int? statusCode})
-      : super(message, statusCode: statusCode);
+  const AuthenticationException(super.message, {super.statusCode});
 
   @override
   String toString() => 'AuthenticationException: $message';
@@ -718,8 +717,7 @@ class AuthenticationException extends NetworkException {
 
 /// Authorization exception
 class AuthorizationException extends NetworkException {
-  const AuthorizationException(String message, {int? statusCode})
-      : super(message, statusCode: statusCode);
+  const AuthorizationException(super.message, {super.statusCode});
 
   @override
   String toString() => 'AuthorizationException: $message';
@@ -727,8 +725,7 @@ class AuthorizationException extends NetworkException {
 
 /// Network timeout exception
 class NetworkTimeoutException extends NetworkException {
-  const NetworkTimeoutException(String message)
-      : super(message);
+  const NetworkTimeoutException(super.message);
 
   @override
   String toString() => 'NetworkTimeoutException: $message';
@@ -740,11 +737,11 @@ class NetworkRetryException extends NetworkException {
   final List<String> attemptErrors;
 
   const NetworkRetryException(
-    String message,
+    super.message,
     this.attemptCount,
     this.attemptErrors,
-    {int? statusCode}
-  ) : super(message, statusCode: statusCode);
+    {super.statusCode}
+  );
 
   @override
   String toString() => 'NetworkRetryException: $message (attempts: $attemptCount)';
@@ -752,7 +749,7 @@ class NetworkRetryException extends NetworkException {
 
 /// Offline exception
 class OfflineException extends NetworkException {
-  const OfflineException(String message) : super(message);
+  const OfflineException(super.message);
 
   @override
   String toString() => 'OfflineException: $message';
@@ -760,7 +757,7 @@ class OfflineException extends NetworkException {
 
 /// Service not registered exception
 class ServiceNotRegisteredException extends NetworkException {
-  const ServiceNotRegisteredException(String message) : super(message);
+  const ServiceNotRegisteredException(super.message);
 
   @override
   String toString() => 'ServiceNotRegisteredException: $message';

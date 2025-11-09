@@ -10,9 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_bank/app_config_app_bank.dart';
 import 'config_app_bank/provider_app_bank.dart';

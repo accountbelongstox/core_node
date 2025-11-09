@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPC Client Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #output {
+            background-color: #f5f5f5;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h1>RPC Client Example</h1>
+
+    <div id="status" class="status disconnected">Status: Disconnected</div>
+
+    <div>
+        <h3>Test RPC Calls</h3>
+        <button onclick="testSayHello()">Say Hello</button>
+        <button onclick="testCalculate()">Calculate (10 * 5)</button>
+        <button onclick="testError()">Test Error</button>
+    </div>
+
+    <div>
+        <h3>Output:</h3>
+        <pre id="output"></pre>
+    </div>
+
+    <script src="/rpc/client.js"></script>
+    <script>
+        let client = null;
+        const output = document.getElementById('output');
+        const statusDiv = document.getElementById('status');
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function initClient() {
+            client = new UnifiedRpcClient('http://localhost:8080/rpc', {
+                clientId: 'browser-client-' + Date.now(),
+                httpFallback: true,
+                reconnect: true
+            });
+
+            client.on('connected', (data) => {
+                log(`Connected via ${data.mode}`);
+                statusDiv.textContent = `Status: Connected (${data.mode})`;
+                statusDiv.className = 'status connected';
+            });
+
+            client.on('disconnected', () => {
+                log('Disconnected');
+                statusDiv.textContent = 'Status: Disconnected';
+                statusDiv.className = 'status disconnected';
+            });
+
+            client.on('reconnecting', (data) => {
+                log(`Reconnecting... (attempt ${data.attempt})`);
+            });
+
+            client.on('error', (error) => {
+                log(`Error: ${error.message || error}`);
+            });
+
+            log('RPC Client initialized');
+            log(`Client ID: ${client.getClientId()}`);
+        }
+
+        async function testSayHello() {
+            if (!client) {
+                log('Client not initialized');
+                return;
+            }
+
+            try {
+                log('Calling sayHello...');
+                const result = await client.call('sayHello', { name: 'Browser User' });
+                log(`Result: ${JSON.stringify(result)}`);
+            } catch (error) {
+                log(`Error: ${error.message}`);
+            }
+        }
+
+        async function testCalculate() {
+            if (!client) {
+                log('Client not initialized');
+                return;
+            }
+
+            try {
+                log('Calling calculate...');
+                const result = await client.call('calculate', {
+                    a: 10,
+                    b: 5,
+                    operation: 'multiply'
+                });
+                log(`Result: ${JSON.stringify(result)}`);
+            } catch (error) {
+                log(`Error: ${error.message}`);
+            }
+        }
+
+        async function testError() {
+            if (!client) {
+                log('Client not initialized');
+                return;
+            }
+
+            try {
+                log('Calling non-existent route...');
+                const result = await client.call('nonExistentRoute', {});
+                log(`Result: ${JSON.stringify(result)}`);
+            } catch (error) {
+                log(`Expected error: ${error.message}`);
+            }
+        }
+
+        window.onload = () => {
+            initClient();
+        };
+
+        window.onbeforeunload = () => {
+            if (client) {
+                client.close();
+            }
+        };
+    </script>
+</body>
+</html>

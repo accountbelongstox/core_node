@@ -42,6 +42,8 @@ $WIN_COMMON_DIR = Join-Path $SCRIPTS_ROOT "win_common"
 # Import required modules
 . (Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1")
 . (Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1")
+. (Join-Path $WIN_COMMON_DIR "BCommon.ps1")
+. (Join-Path $WIN_COMMON_DIR "SplashManager.ps1")
 
 # Change to project root directory
 Write-Host "[DEBUG] Script location: $SCRIPT_DIR" -ForegroundColor Magenta
@@ -106,6 +108,16 @@ function Start-WebDebug {
     Write-Host "[INFO] Project Root: $PROJECT_ROOT" -ForegroundColor Yellow
     Write-Host "[INFO] Entry File: $($Config.EntryFile)" -ForegroundColor Yellow
     Write-Host "[INFO] Debug Port: $($Config.DebugPort)" -ForegroundColor Yellow
+
+    # Check pubspec status for information only
+    try {
+        $pubspecChanged = Test-PubspecChanged -ProjectRoot $PROJECT_ROOT
+        if (-not $pubspecChanged) {
+            Write-Host "[INFO] pubspec.yaml unchanged, using cached packages" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "[DEBUG] Could not check pubspec status: $_" -ForegroundColor Magenta
+    }
 
     # Prepare Flutter command
     $flutterArgs = @(

@@ -5,6 +5,8 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/auth/controllers/auth_controller.dart';
+import 'package:qyflutter/apps/app_vipclub/controller_app_vipclub/splash_controller_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/controller_app_vipclub/settings_controller_app_vipclub.dart';
 import 'package:qyflutter/apps/app_vipclub/router_app_vipclub/router_app_vipclub.dart';
 
 class VipClubSplashScreen extends StatefulWidget {
@@ -59,15 +61,32 @@ class _VipClubSplashScreenState extends State<VipClubSplashScreen>
 
     if (!mounted) return;
 
-    final authController = context.read<VipClubAuthController>();
-    await authController.checkLoginStatus();
+    try {
+      final splashController = context.read<VipClubSplashController>();
+      final settingsController = context.read<VipClubSettingsController>();
 
-    if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 100));
 
-    if (authController.isLoggedIn) {
+      if (!mounted) return;
+
+      if (settingsController.showSplash && splashController.shouldShowSplash) {
+        context.go(VipClubRoutes.splashIntro);
+        return;
+      }
+
+      final authController = context.read<VipClubAuthController>();
+      await authController.checkLoginStatus();
+
+      if (!mounted) return;
+
+      // Always go to home, whether logged in or not
       context.go(VipClubRoutes.home);
-    } else {
-      context.go(VipClubRoutes.login);
+    } catch (e) {
+      debugPrint('Error in splash navigation: $e');
+      if (mounted) {
+        // Go to home even if there's an error
+        context.go(VipClubRoutes.home);
+      }
     }
   }
 

@@ -12,7 +12,6 @@
 
 import 'package:go_router/go_router.dart';
 import '../features_app_travel/main_scaffold/main_scaffold.dart';
-import '../features_app_travel/home/views/home_screen.dart';
 import '../features_app_travel/city/views/city_screen.dart';
 import '../features_app_travel/sight/views/sight_detail_screen.dart';
 import '../features_app_travel/authentication/views/login_screen.dart';

@@ -1,0 +1,105 @@
+# Codex MCP Servers Configuration Template (Linux Server)
+# This file contains MCP server configurations for Codex on Linux Server
+# Auto-generated template - do not modify directly
+
+# Global MCP settings
+experimental_use_rmcp_client = true
+
+# ==================== Developer Documentation ====================
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.context7.env]
+# Add any required environment variables here
+# CONTEXT7_API_KEY = "your_key_here"
+
+# ==================== File Processing ====================
+
+[mcp_servers.file_processor]
+command = "python3"
+args = [
+    "/opt/projects/core_node/ncore/mcp_server/file_processor/main.py"
+]
+
+[mcp_servers.file_processor.env]
+# File processor environment variables
+PYTHONIOENCODING = "utf-8"
+LANG = "en_US.UTF-8"
+LC_ALL = "en_US.UTF-8"
+
+# ==================== Project-Specific Servers ====================
+
+# Example: Project-specific MCP server
+# Uncomment and modify as needed
+# [mcp_servers.my_project]
+# command = "node"
+# args = ["$PROJECT_NAME$/mcp-server/index.js"]
+# startup_timeout_sec = 30
+# tool_timeout_sec = 60
+
+# ==================== HTTP-based MCP Servers ====================
+
+# Example: Figma Remote MCP
+# [mcp_servers.figma]
+# url = "https://mcp.figma.com/mcp"
+# bearer_token = "your_token_here"
+
+# ==================== Server-Specific Examples ====================
+
+# Example: GitHub MCP (for CI/CD integration)
+# [mcp_servers.github]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-github"]
+# [mcp_servers.github.env]
+# GITHUB_PERSONAL_ACCESS_TOKEN = "your_token_here"
+
+# Example: Sentry (error monitoring)
+# [mcp_servers.sentry]
+# url = "https://mcp.sentry.io/mcp"
+# bearer_token = "your_sentry_token"
+
+# Example: Database MCP (PostgreSQL, MySQL, etc.)
+# [mcp_servers.database]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-postgres"]
+# [mcp_servers.database.env]
+# DATABASE_URL = "postgresql://user:pass@localhost:5432/dbname"
+
+# ==================== Linux Server Notes ====================
+#
+# Server Environment:
+# - No GUI/Display available (headless)
+# - Use CLI-only tools
+# - Ensure proper permissions
+#
+# Paths:
+# - Use absolute paths (e.g., /opt/, /srv/, /var/)
+# - Or use /home/username/ for user directories
+# - Use forward slashes (/)
+#
+# Python:
+# - Use python3 command
+# - Install packages with: pip3 install package-name
+# - Or use virtual environments: python3 -m venv venv
+#
+# Node.js:
+# - Use npx for global packages
+# - Or install locally: npm install -g package-name
+#
+# Security:
+# - Store secrets in environment variables
+# - Use .env files (never commit to git)
+# - Restrict file permissions (chmod 600 for sensitive files)
+#
+# Configuration structure:
+# - command: The executable to launch the server
+# - args: Array of arguments to pass to the command
+# - env: Environment variables (optional)
+# - url: For HTTP-based servers (instead of command)
+# - bearer_token: For HTTP servers requiring authentication
+# - startup_timeout_sec: Timeout for server initialization (optional)
+# - tool_timeout_sec: Timeout for tool execution (optional)
+#
+# More info: https://docs.codex.ai/mcp

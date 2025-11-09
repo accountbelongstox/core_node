@@ -1,13 +1,15 @@
 /// Login screen for app_qy
 /// Features phone number and WeChat authentication options
-library login_screen_app_qy;
+library;
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../../../common/auth_v2/auth_v2.dart';
-import '../../provider_app_qy/user_provider_app_qy.dart';
+import '../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../provider_app_qy/user_provider_app_qy.dart';
 import '../widgets/phone_login_button.dart';
 import '../widgets/wechat_login_button.dart';
 import '../widgets/agreement_checkbox.dart';
@@ -119,9 +121,9 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
   }
 
   Widget _buildAppSubtitle() {
-    return const Text(
-      '扇贝单词 记住单词，记录改变',
-      style: TextStyle(
+    return Text(
+      QyAppLocalizationKeys.qyAuthAppSlogan.tr(context),
+      style: const TextStyle(
         fontSize: 16,
         color: Colors.grey,
       ),
@@ -157,15 +159,15 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
           TextFormField(
             controller: _phoneController,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: '手机号',
-              hintText: '请输入手机号',
-              prefixIcon: Icon(Icons.phone),
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: QyAppLocalizationKeys.qyAuthPhoneNumber.tr(context),
+              hintText: QyAppLocalizationKeys.qyAuthPhonePlaceholder.tr(context),
+              prefixIcon: const Icon(Icons.phone),
+              border: const OutlineInputBorder(),
             ),
             validator: (value) {
               if (!userProvider.validatePhoneNumber(value ?? '')) {
-                return '请输入有效的手机号';
+                return QyAppLocalizationKeys.qyAuthPhoneInvalid.tr(context);
               }
               return null;
             },
@@ -177,15 +179,15 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
                 child: TextFormField(
                   controller: _codeController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: '验证码',
-                    hintText: '请输入验证码',
-                    prefixIcon: Icon(Icons.message),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: QyAppLocalizationKeys.qyAuthVerificationCode.tr(context),
+                    hintText: QyAppLocalizationKeys.qyAuthCodePlaceholder.tr(context),
+                    prefixIcon: const Icon(Icons.message),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (!userProvider.validateVerificationCode(value ?? '')) {
-                      return '请输入6位数字验证码';
+                      return QyAppLocalizationKeys.qyAuthCodeLength.tr(context);
                     }
                     return null;
                   },
@@ -198,8 +200,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
                     : () => _sendVerificationCode(userProvider),
                 child: Text(
                   _countdownSeconds > 0
-                      ? '$_countdownSeconds秒'
-                      : '获取验证码',
+                      ? '$_countdownSeconds${QyAppLocalizationKeys.qyAuthSeconds.tr(context)}'
+                      : QyAppLocalizationKeys.qyAuthGetCode.tr(context),
                 ),
               ),
             ],
@@ -224,12 +226,12 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : const Text('登录'),
+                : Text(QyAppLocalizationKeys.qyAuthLoginButton.tr(context)),
           ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => setState(() => _showPhoneForm = false),
-            child: const Text('返回'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
         ],
       ),
@@ -239,9 +241,9 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
   Widget _buildSkipLoginButton(UserProviderAppQy userProvider) {
     return TextButton(
       onPressed: _isLoading ? null : () => _handleSkipLogin(userProvider),
-      child: const Text(
-        '跳过登录 (Debug)',
-        style: TextStyle(
+      child: Text(
+        '${QyAppLocalizationKeys.qyAuthSkipLogin.tr(context)} (Debug)',
+        style: const TextStyle(
           color: Colors.grey,
           fontSize: 14,
         ),
@@ -294,20 +296,20 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
           _startCountdown();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('验证码已发送')),
+              SnackBar(content: Text(QyAppLocalizationKeys.qyAuthCodeSent.tr(context))),
             );
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(result.errorMessage ?? '发送验证码失败')),
+              SnackBar(content: Text(result.errorMessage ?? QyAppLocalizationKeys.qyAuthCodeSendFailed.tr(context))),
             );
           }
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('发送验证码错误: $e')),
+            SnackBar(content: Text('${QyAppLocalizationKeys.qyAuthCodeSendFailed.tr(context)}: $e')),
           );
         }
       } finally {
@@ -344,7 +346,7 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('登录失败')),
+              SnackBar(content: Text(QyAppLocalizationKeys.qyAuthLoginFailed.tr(context))),
             );
           }
         }
@@ -367,7 +369,7 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('微信登录失败')),
+            SnackBar(content: Text(QyAppLocalizationKeys.qyAuthWechatLoginFailed.tr(context))),
           );
         }
       }

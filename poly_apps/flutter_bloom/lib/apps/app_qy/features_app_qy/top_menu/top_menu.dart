@@ -14,14 +14,15 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/top_menu/widgets/custom_icon_label.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/top_menu/widgets/custom_icon_label_group.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class TopDropdownMenu extends StatelessWidget {
   final VoidCallback onClose;
 
   const TopDropdownMenu({
-    Key? key,
+    super.key,
     required this.onClose,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +36,7 @@ class TopDropdownMenu extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Menu'.tr(context),
+                QyAppLocalizationKeys.qyMenu.tr(context),
                 style: theme.textTheme.titleLarge,
               ),
               IconButton(
@@ -136,12 +137,12 @@ class TopDropdownMenu extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('i_am'.tr(context)),
-        content: Text('$featureName ${'feature'.tr(context)}'),
+        title: Text(QyAppLocalizationKeys.qyIAm.tr(context)),
+        content: Text('$featureName ${QyAppLocalizationKeys.qyFeature.tr(context)}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('关闭'.tr(context)),
+            child: Text(QyAppLocalizationKeys.qyClose.tr(context)),
           ),
         ],
       ),

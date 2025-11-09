@@ -350,20 +350,27 @@ export const CONVERTER_TOOLS: Tool[] = [
     category: 'converter',
     icon: 'calendar',
     params: {
-      datetime: { type: 'string', required: true, placeholder: 'Enter date and time' },
-      input_format: { type: 'string', required: false, placeholder: 'Input format (optional)' },
+      datetime: { type: 'string', required: true, placeholder: 'Enter date/time or timestamp' },
+      input_format: {
+        type: 'select',
+        required: false,
+        default: 'auto',
+        enum: ['auto', 'iso', 'unix', 'unix_ms', 'rfc2822', 'custom']
+      },
       output_format: {
         type: 'select',
         required: false,
-        default: 'iso',
-        enum: ['iso', 'unix', 'readable', 'custom']
+        default: 'all',
+        enum: ['all', 'iso', 'timestamp', 'unix', 'utc', 'locale', 'relative', 'custom']
       },
       timezone: {
         type: 'select',
         required: false,
         default: 'utc',
         enum: ['utc', 'local', 'est', 'pst', 'gmt', 'cet']
-      }
+      },
+      custom_format: { type: 'string', required: false, placeholder: 'Custom output pattern (optional)' },
+      custom_input_format: { type: 'string', required: false, placeholder: 'Custom input pattern (optional)' }
     },
     keywords: ['date', 'time', 'convert', 'format', 'timestamp', 'timezone']
   },

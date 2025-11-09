@@ -1,12 +1,9 @@
 /// Phone authentication provider implementation
 /// Supports SMS verification and phone number based authentication
-library phone_auth_provider;
+library;
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import '../auth_interface.dart';
 import '../auth_models.dart';
 import '../auth_config.dart';
@@ -79,7 +76,7 @@ class PhoneAuthProvider extends IAuthProvider implements IPhoneAuthProvider {
       );
     }
 
-    if (!await _validatePhoneNumber(phoneNumber, countryCode: countryCode)) {
+    if (!await validatePhoneNumber(phoneNumber, countryCode: countryCode)) {
       return PhoneAuthResult.failure(
         errorMessage: 'Invalid phone number',
         errorCode: PhoneAuthError.invalidPhoneNumber,

@@ -21,7 +21,6 @@
 // If you need to modify the menu, update the _buildDropdownItems() method or EnhancedTopMenu directly.
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_example/features_app_example/bookmark/bookmark_screen.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/home/widget/banner_widget.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/home/widget/coming_list.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/home/widget/fund_rising_listview.dart';

@@ -111,7 +111,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
               avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
               displayName: user?.displayName ?? '',
               subtitle: user?.about ?? '',
-              onBackTap: () => context.go(WuyAppRouter.getProfileRoute()),
+              onBackTap: () => context.pop(),
               onAvatarTap: () => _handleAvatarTap(),
               showBackButton: true,
               backgroundHeight: 180.0,
@@ -251,7 +251,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
+      child: SizedBox(
         height: 56,
         child: TextFormField(
           controller: controller,

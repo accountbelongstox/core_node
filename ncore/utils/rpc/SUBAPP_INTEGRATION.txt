@@ -1,0 +1,447 @@
+===========================================
+RPC 子应用集成机制 - SubApp Integration
+===========================================
+
+子应用可以注册到RPC框架，所有结果由框架统一管理按requestId回调
+
+核心特性：
+=========
+
+✓ 配置覆盖：子应用可以传递config覆盖原配置
+✓ 静态路径添加：子应用可以添加自己的静态目录
+✓ 路由注册：子应用可以注册路由和处理函数
+✓ 结果统一管理：所有结果返回RPC框架，按requestId回调
+✓ 自动前缀：子应用路由自动添加前缀（AppName.routeName）
+✓ 透明集成：WebSocket重试、HTTP缓存机制对子应用透明
+
+架构设计：
+=========
+
+┌──────────────────────────────────────────────┐
+│           RPC Framework (Core)                │
+│  ┌────────────────────────────────────────┐  │
+│  │      SubAppManager                     │  │
+│  │  - 管理子应用注册                       │  │
+│  │  - 统一路由调度                         │  │
+│  │  - requestId 跟踪                      │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │   HttpRpcServer / WsRpcServer          │  │
+│  │  - 接收请求                             │  │
+│  │  - 生成 requestId                       │  │
+│  │  - 调用子应用处理函数                    │  │
+│  │  - 统一缓存/通知结果                     │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+            ↓                    ↓
+    ┌──────────────┐    ┌──────────────┐
+    │  SubApp A    │    │  SubApp B    │
+    │  - routes    │    │  - routes    │
+    │  - config    │    │  - config    │
+    │  - static    │    │  - static    │
+    └──────────────┘    └──────────────┘
+
+使用流程：
+=========
+
+1. 注册子应用
+2. 注册路由和处理函数
+3. 子应用处理函数返回结果
+4. RPC框架接收结果，按requestId管理
+5. 通过WebSocket/HTTP通知客户端
+
+API 参考：
+=========
+
+1. 注册子应用
+   ```javascript
+   const rpc = require('#@ncore/utils/rpc');
+
+   rpc.registerSubApp('AppName', {
+       config: {
+           // 子应用配置，覆盖原配置
+           CUSTOM_TIMEOUT: 5000,
+           MAX_CONNECTIONS: 100
+       },
+       staticPaths: {
+           // 子应用静态路径
+           '/app-static': [
+               '/path/to/static1',
+               '/path/to/static2'
+           ],
+           '/app-assets': '/path/to/assets'
+       },
+       middleware: [
+           // 可选：子应用中间件
+           async (context, next) => {
+               console.log('SubApp middleware');
+               return await next(context);
+           }
+       ]
+   });
+   ```
+
+2. 注册路由
+   ```javascript
+   rpc.registerRoute('AppName', 'routeName', async (params, context) => {
+       // params: 客户端传递的参数
+       // context: 上下文信息
+       //   - requestId: 请求ID
+       //   - appName: 应用名称
+       //   - routeName: 完整路由名
+       //   - subAppConfig: 子应用配置
+       //   - sessionId: 会话ID
+       //   - returnResult(result): 手动返回结果（可选）
+       //   - returnError(error): 手动返回错误（可选）
+
+       // 处理逻辑
+       const result = await processData(params);
+
+       // 直接返回结果（推荐）
+       return result;
+
+       // 或使用 context 方法（可选）
+       // context.returnResult(result);
+   });
+   ```
+
+3. 注册时指定选项
+   ```javascript
+   rpc.registerRoute('AppName', 'routeName', handler, {
+       useFullName: false  // 如果为false，不添加前缀
+   });
+   ```
+
+4. 获取子应用统计信息
+   ```javascript
+   const stats = rpc.getSubAppStats();
+   // {
+   //   subAppsCount: 2,
+   //   routesCount: 10,
+   //   staticPathsCount: 5,
+   //   pendingRequestsCount: 3,
+   //   subApps: [...]
+   // }
+   ```
+
+5. 注销子应用
+   ```javascript
+   rpc.unregisterSubApp('AppName');
+   ```
+
+路由命名规则：
+=============
+
+默认情况：
+  注册：registerRoute('UserModule', 'getUser', handler)
+  调用：client.call('UserModule.getUser', params)
+
+自定义命名：
+  注册：registerRoute('UserModule', 'getUser', handler, {useFullName: false})
+  调用：client.call('getUser', params)
+
+完整示例：
+=========
+
+子应用端：
+```javascript
+// file: my_app/rpc_integration.js
+const rpc = require('#@ncore/utils/rpc');
+
+function registerMyApp() {
+    // 1. 注册应用
+    rpc.registerSubApp('MyApp', {
+        config: {
+            MY_APP_TIMEOUT: 10000,
+            MY_APP_MAX_ITEMS: 1000
+        },
+        staticPaths: {
+            '/myapp': '/path/to/myapp/public'
+        }
+    });
+
+    // 2. 注册路由
+    rpc.registerRoute('MyApp', 'getData', async (params, context) => {
+        console.log('MyApp.getData called');
+        console.log('RequestId:', context.requestId);
+        console.log('AppConfig:', context.subAppConfig);
+
+        // 业务逻辑
+        const data = await fetchDataFromDatabase(params.id);
+
+        // 返回结果，RPC框架会自动处理
+        return {
+            success: true,
+            data,
+            processedBy: context.appName,
+            requestId: context.requestId
+        };
+    });
+
+    rpc.registerRoute('MyApp', 'processItem', async (params, context) => {
+        if (!params.itemId) {
+            throw new Error('itemId is required');
+        }
+
+        const result = await processItem(params.itemId);
+        return { success: true, result };
+    });
+}
+
+module.exports = { registerMyApp };
+```
+
+主服务器端：
+```javascript
+// file: server.js
+const rpc = require('#@ncore/utils/rpc');
+const { registerMyApp } = require('./my_app/rpc_integration');
+
+async function startServer() {
+    // 1. 注册子应用
+    registerMyApp();
+
+    // 2. 创建服务器
+    const server = rpc.createExpressServer({
+        HTTP_PORT: 8080
+    });
+
+    const rpcServer = rpc.createHttpServer(server.getApp());
+
+    // 3. 可选：注册核心路由
+    rpcServer.route('coreFunction', async (params) => {
+        return { message: 'Core function' };
+    });
+
+    rpcServer.start();
+    await server.start();
+
+    console.log('Server started with SubApps');
+}
+
+startServer().catch(console.error);
+```
+
+客户端调用：
+```javascript
+// file: client.js
+const rpc = require('#@ncore/utils/rpc');
+
+async function callSubApp() {
+    const client = rpc.createClient('http://localhost:8080/rpc', {
+        clientId: 'my-client',
+        httpFallback: true
+    });
+
+    // 调用子应用路由（自动添加了前缀）
+    const result1 = await client.call('MyApp.getData', { id: 123 });
+    console.log('Result:', result1);
+
+    // 调用另一个子应用路由
+    const result2 = await client.call('MyApp.processItem', { itemId: 456 });
+    console.log('Result:', result2);
+
+    client.close();
+}
+
+callSubApp().catch(console.error);
+```
+
+结果流程详解：
+=============
+
+1. 客户端发起请求
+   ```
+   client.call('MyApp.getData', { id: 123 })
+   ```
+
+2. RPC框架生成requestId
+   ```
+   requestId = "uuid-12345-67890"
+   ```
+
+3. RPC框架调用SubAppManager
+   ```
+   subAppManager.executeRoute('MyApp.getData', params, requestId, context)
+   ```
+
+4. SubApp处理函数执行
+   ```javascript
+   async (params, context) => {
+       // context.requestId = "uuid-12345-67890"
+       const result = await fetchData(params.id);
+       return result;  // 返回给RPC框架
+   }
+   ```
+
+5. RPC框架接收结果
+   ```
+   SubAppManager._handleResult(requestId, result, null)
+   ```
+
+6. RPC框架统一处理
+   - WebSocket: 尝试3次通知（每次间隔1秒）
+   - HTTP: 缓存结果30分钟
+   - 客户端轮询获取（HTTP模式，1.5秒间隔）
+
+7. 客户端接收结果
+   ```
+   result = await client.call(...)
+   ```
+
+配置覆盖规则：
+=============
+
+优先级（从高到低）：
+1. 子应用配置（registerSubApp的config）
+2. 主服务器配置（createExpressServer的config）
+3. 默认配置（RPC框架默认值）
+
+示例：
+```javascript
+// 默认配置
+DEFAULT_TIMEOUT: 30000
+
+// 主服务器配置
+rpc.createExpressServer({
+    HTTP_PORT: 8080,
+    REQUEST_TIMEOUT: 20000  // 覆盖默认
+});
+
+// 子应用配置
+rpc.registerSubApp('MyApp', {
+    config: {
+        REQUEST_TIMEOUT: 10000  // 覆盖主服务器配置
+    }
+});
+
+// 最终MyApp使用: REQUEST_TIMEOUT = 10000
+```
+
+静态路径合并：
+=============
+
+主服务器路径：
+```javascript
+{
+    '/static': ['/path/to/static1', '/path/to/static2']
+}
+```
+
+子应用路径：
+```javascript
+{
+    '/static': '/path/to/myapp/static',
+    '/myapp': '/path/to/myapp/public'
+}
+```
+
+合并后：
+```javascript
+{
+    '/static': [
+        '/path/to/static1',
+        '/path/to/static2',
+        '/path/to/myapp/static'
+    ],
+    '/myapp': ['/path/to/myapp/public']
+}
+```
+
+特殊端点：
+=========
+
+GET /rpc/subapps
+  返回所有注册的子应用信息
+  响应：
+  {
+      "subAppsCount": 2,
+      "routesCount": 10,
+      "subApps": [
+          {
+              "name": "UserModule",
+              "routesCount": 5,
+              "registeredAt": 1234567890
+          },
+          ...
+      ]
+  }
+
+GET /rpc/health
+  健康检查，包含子应用统计
+  响应：
+  {
+      "status": "ok",
+      "routeCount": 5,
+      "subAppRoutesCount": 10,
+      "subAppsCount": 2,
+      ...
+  }
+
+测试命令：
+=========
+
+# 启动服务器（包含SubApps）
+node ncore/utils/rpc/SUBAPP_EXAMPLE.js server
+
+# 测试客户端调用
+node ncore/utils/rpc/SUBAPP_EXAMPLE.js client
+
+# 同时运行（自动测试）
+node ncore/utils/rpc/SUBAPP_EXAMPLE.js both
+
+优势：
+=====
+
+✓ 模块化：子应用独立开发和维护
+✓ 统一管理：所有结果由RPC框架统一管理
+✓ 透明集成：子应用无需关心WebSocket/HTTP细节
+✓ 配置灵活：每个子应用可以有自己的配置
+✓ 静态资源：子应用可以提供自己的静态文件
+✓ 路由隔离：自动前缀防止路由冲突
+✓ 统一回调：所有结果按requestId统一回调
+✓ 错误处理：统一的错误处理和通知机制
+
+注意事项：
+=========
+
+1. 路由命名冲突
+   - 使用前缀避免：AppName.routeName
+   - 或手动管理：{useFullName: false}
+
+2. 配置覆盖
+   - 子应用配置优先级最高
+   - 只覆盖指定的配置项
+
+3. 静态路径
+   - 相同URL路径会合并为数组
+   - 按注册顺序查找文件
+
+4. 异步处理
+   - 处理函数必须是async或返回Promise
+   - 同步函数会自动包装
+
+5. 错误处理
+   - 抛出异常会被RPC框架捕获
+   - 统一返回错误响应
+
+文件位置：
+=========
+
+核心文件：
+  ncore/utils/rpc/common/SubAppManager.js
+
+集成文件：
+  ncore/utils/rpc/http_rpc/HttpRpcServer.js
+  ncore/utils/rpc/common/index.js
+  ncore/utils/rpc/index.js
+
+示例文件：
+  ncore/utils/rpc/SUBAPP_EXAMPLE.js
+
+文档文件：
+  ncore/utils/rpc/SUBAPP_INTEGRATION.txt (本文件)
+
+状态：✅ 完整实现
+====================
+子应用集成机制已完整实现，所有结果由RPC框架统一按requestId管理和回调。

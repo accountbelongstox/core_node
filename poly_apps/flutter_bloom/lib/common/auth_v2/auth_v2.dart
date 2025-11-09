@@ -28,7 +28,7 @@
 ///   final user = authManager.currentUser;
 /// }
 /// ```
-library auth_v2;
+library;
 
 export 'auth_config.dart';
 export 'auth_interface.dart';

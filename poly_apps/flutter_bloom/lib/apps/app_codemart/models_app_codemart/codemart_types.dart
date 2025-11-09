@@ -334,7 +334,7 @@ class Attachment {
   final int id;
   final String fileName;
   final String fileUrl;
-  final FileType fileType;
+  final AttachmentFileType fileType;
   final AttachmentType attachmentType;
   final int fileSizeBytes;
   final String uploadedAt;
@@ -385,18 +385,18 @@ class Attachment {
   double get fileSizeMb => fileSizeBytes / (1024 * 1024);
 
   // Helper to check if file is an image
-  bool get isImage => fileType == FileType.image;
+  bool get isImage => fileType == AttachmentFileType.image;
 
   // Helper to check if file is a document
   bool get isDocument => [
-        FileType.pdf,
-        FileType.doc,
-        FileType.docx,
-        FileType.xls,
-        FileType.xlsx,
-        FileType.ppt,
-        FileType.pptx,
-        FileType.txt,
+        AttachmentFileType.pdf,
+        AttachmentFileType.doc,
+        AttachmentFileType.docx,
+        AttachmentFileType.xls,
+        AttachmentFileType.xlsx,
+        AttachmentFileType.ppt,
+        AttachmentFileType.pptx,
+        AttachmentFileType.txt,
       ].contains(fileType);
 }
 
@@ -520,11 +520,16 @@ class Project {
 class ProjectProposal {
   final int id;
   final int projectId;
+  final int? architectId;
   final ProjectStatus status;
   final RecommendedTechStack recommendedTechStack;
   final SuggestedTeamComposition suggestedTeamComposition;
   final int estimatedDuration;
   final double estimatedCost;
+  final String proposalDescription;
+  final DateTime? estimatedStartDate;
+  final DateTime? estimatedEndDate;
+  final List<ProposalMilestone> milestones;
   final List<CostBreakdownItem> costBreakdown;
   final String aiNotes;
   final String generatedAt;
@@ -532,11 +537,16 @@ class ProjectProposal {
   ProjectProposal({
     required this.id,
     required this.projectId,
+    this.architectId,
     required this.status,
     required this.recommendedTechStack,
     required this.suggestedTeamComposition,
     required this.estimatedDuration,
     required this.estimatedCost,
+    this.proposalDescription = '',
+    this.estimatedStartDate,
+    this.estimatedEndDate,
+    this.milestones = const [],
     required this.costBreakdown,
     required this.aiNotes,
     required this.generatedAt,
@@ -546,12 +556,20 @@ class ProjectProposal {
     return ProjectProposal(
       id: json['id'] as int,
       projectId: json['projectId'] as int,
+      architectId: json['architectId'] as int?,
       status: _parseProjectStatus(json['status'] as String),
       recommendedTechStack: RecommendedTechStack.fromJson(json['recommendedTechStack'] as Map<String, dynamic>),
       suggestedTeamComposition:
           SuggestedTeamComposition.fromJson(json['suggestedTeamComposition'] as Map<String, dynamic>),
       estimatedDuration: json['estimatedDuration'] as int,
       estimatedCost: (json['estimatedCost'] as num).toDouble(),
+      proposalDescription: json['proposalDescription'] as String? ?? '',
+      estimatedStartDate: _parseDateTime(json['estimatedStartDate']),
+      estimatedEndDate: _parseDateTime(json['estimatedEndDate']),
+      milestones: (json['milestones'] as List<dynamic>?)
+              ?.map((e) => ProposalMilestone.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       costBreakdown: (json['costBreakdown'] as List<dynamic>)
           .map((e) => CostBreakdownItem.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -564,11 +582,16 @@ class ProjectProposal {
     return {
       'id': id,
       'projectId': projectId,
+      'architectId': architectId,
       'status': status.name,
       'recommendedTechStack': recommendedTechStack.toJson(),
       'suggestedTeamComposition': suggestedTeamComposition.toJson(),
       'estimatedDuration': estimatedDuration,
       'estimatedCost': estimatedCost,
+      'proposalDescription': proposalDescription,
+      'estimatedStartDate': estimatedStartDate?.toIso8601String(),
+      'estimatedEndDate': estimatedEndDate?.toIso8601String(),
+      'milestones': milestones.map((e) => e.toJson()).toList(),
       'costBreakdown': costBreakdown.map((e) => e.toJson()).toList(),
       'aiNotes': aiNotes,
       'generatedAt': generatedAt,
@@ -660,6 +683,38 @@ class CostBreakdownItem {
       'hours': hours,
       'hourlyRate': hourlyRate,
       'subtotal': subtotal,
+    };
+  }
+}
+
+class ProposalMilestone {
+  final String title;
+  final String description;
+  final DateTime? dueDate;
+  final double payment;
+
+  ProposalMilestone({
+    required this.title,
+    required this.description,
+    this.dueDate,
+    required this.payment,
+  });
+
+  factory ProposalMilestone.fromJson(Map<String, dynamic> json) {
+    return ProposalMilestone(
+      title: json['title'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      dueDate: _parseDateTime(json['dueDate']),
+      payment: (json['payment'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'description': description,
+      'dueDate': dueDate?.toIso8601String(),
+      'payment': payment,
     };
   }
 }
@@ -815,58 +870,6 @@ class Task {
   }
 }
 
-class Attachment {
-  final int id;
-  final String fileName;
-  final String originalName;
-  final String mimeType;
-  final int size;
-  final String path;
-  final String url;
-  final int uploadedBy;
-  final String uploadedAt;
-
-  Attachment({
-    required this.id,
-    required this.fileName,
-    required this.originalName,
-    required this.mimeType,
-    required this.size,
-    required this.path,
-    required this.url,
-    required this.uploadedBy,
-    required this.uploadedAt,
-  });
-
-  factory Attachment.fromJson(Map<String, dynamic> json) {
-    return Attachment(
-      id: json['id'] as int,
-      fileName: json['fileName'] as String,
-      originalName: json['originalName'] as String,
-      mimeType: json['mimeType'] as String,
-      size: json['size'] as int,
-      path: json['path'] as String,
-      url: json['url'] as String,
-      uploadedBy: json['uploadedBy'] as int,
-      uploadedAt: json['uploadedAt'] as String,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'fileName': fileName,
-      'originalName': originalName,
-      'mimeType': mimeType,
-      'size': size,
-      'path': path,
-      'url': url,
-      'uploadedBy': uploadedBy,
-      'uploadedAt': uploadedAt,
-    };
-  }
-}
-
 class PaginatedResponse<T> {
   final List<T> items;
   final int total;
@@ -1008,6 +1011,22 @@ Database _parseDatabase(String value) {
   );
 }
 
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is DateTime) {
+    return value;
+  }
+
+  if (value is String && value.trim().isNotEmpty) {
+    return DateTime.tryParse(value.trim());
+  }
+
+  return null;
+}
+
 MilestoneStatus _parseMilestoneStatus(String value) {
   final normalized = value.replaceAll('_', '').toLowerCase();
   return MilestoneStatus.values.firstWhere(
@@ -1066,10 +1085,10 @@ VerificationStatus _parseVerificationStatus(String value) {
   );
 }
 
-FileType _parseFileType(String value) {
-  return FileType.values.firstWhere(
+AttachmentFileType _parseFileType(String value) {
+  return AttachmentFileType.values.firstWhere(
     (e) => e.name == value,
-    orElse: () => FileType.pdf,
+    orElse: () => AttachmentFileType.pdf,
   );
 }
 

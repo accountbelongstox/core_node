@@ -132,6 +132,16 @@ class WuyFakeDataGenerator {
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
         updatedAt: DateTime.now(),
+        lastMessage: 'Hey, are we still meeting tonight?',
+        lastMessageTime: DateTime.now().subtract(const Duration(minutes: 5)),
+        unreadMessageCount: 2,
+        isMonitoring: true,
+        lastLocationTime: DateTime.now().subtract(const Duration(minutes: 10)),
+        lastLocation: {
+          'latitude': 39.9042,
+          'longitude': 116.4074,
+          'address': 'Beijing, China'
+        },
       ),
       FriendModelAppWuy(
         id: '2',
@@ -144,6 +154,16 @@ class WuyFakeDataGenerator {
         lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
         createdAt: DateTime.now().subtract(const Duration(days: 25)),
         updatedAt: DateTime.now(),
+        lastMessage: 'Thanks for your help!',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 1)),
+        unreadMessageCount: 0,
+        isMonitoring: false,
+        lastLocationTime: DateTime.now().subtract(const Duration(hours: 3)),
+        lastLocation: {
+          'latitude': 31.2304,
+          'longitude': 121.4737,
+          'address': 'Shanghai, China'
+        },
       ),
       FriendModelAppWuy(
         id: '3',
@@ -156,6 +176,16 @@ class WuyFakeDataGenerator {
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 20)),
         updatedAt: DateTime.now(),
+        lastMessage: 'Check out this new library!',
+        lastMessageTime: DateTime.now().subtract(const Duration(minutes: 30)),
+        unreadMessageCount: 5,
+        isMonitoring: true,
+        lastLocationTime: DateTime.now().subtract(const Duration(minutes: 15)),
+        lastLocation: {
+          'latitude': 22.5431,
+          'longitude': 114.0579,
+          'address': 'Shenzhen, China'
+        },
       ),
       FriendModelAppWuy(
         id: '4',
@@ -168,6 +198,16 @@ class WuyFakeDataGenerator {
         lastSeen: DateTime.now().subtract(const Duration(hours: 5)),
         createdAt: DateTime.now().subtract(const Duration(days: 15)),
         updatedAt: DateTime.now(),
+        lastMessage: 'Love the new design!',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 4)),
+        unreadMessageCount: 1,
+        isMonitoring: false,
+        lastLocationTime: DateTime.now().subtract(const Duration(hours: 6)),
+        lastLocation: {
+          'latitude': 30.5728,
+          'longitude': 104.0668,
+          'address': 'Chengdu, China'
+        },
       ),
       FriendModelAppWuy(
         id: '5',
@@ -180,6 +220,16 @@ class WuyFakeDataGenerator {
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 10)),
         updatedAt: DateTime.now(),
+        lastMessage: 'Concert this weekend?',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 12)),
+        unreadMessageCount: 0,
+        isMonitoring: true,
+        lastLocationTime: DateTime.now().subtract(const Duration(hours: 1)),
+        lastLocation: {
+          'latitude': 23.1291,
+          'longitude': 113.2644,
+          'address': 'Guangzhou, China'
+        },
       ),
     ];
   }

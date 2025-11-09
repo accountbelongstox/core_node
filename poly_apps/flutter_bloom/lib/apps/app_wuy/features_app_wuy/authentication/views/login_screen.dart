@@ -13,7 +13,6 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_common_background.dart';

@@ -37,31 +37,38 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     onMessage: handleTextMessage,
     onBinaryMessage: handleBinaryMessage,
     onConnect: () => {
+      console.log('[useVideoStream] WebSocket connected');
       connected.value = true;
     },
     onDisconnect: () => {
+      console.log('[useVideoStream] WebSocket disconnected');
       connected.value = false;
       cleanup();
     },
     onError: (error) => {
-      console.error('Video stream WebSocket error:', error);
+      console.error('[useVideoStream] WebSocket error:', error);
+      alert(`Failed to connect to video stream: ${error}`);
     }
   });
 
   function handleTextMessage(message: WSRPCMessage) {
     if (message.type === 'video.connected') {
-      console.log('Video stream connected:', message.data);
+      console.log('[useVideoStream] Video stream connected:', message.data);
     } else if (message.type === 'video.init') {
+      console.log('[useVideoStream] Received video.init:', message.data);
       videoInfo.value = message.data as VideoInitMessage;
       initializeMediaSource(message.data);
     } else if (message.type === 'video.metadata') {
       metrics.value = message.data as VideoMetadata;
-    } else if (message.type === 'error') {
-      console.error('Video stream error:', message.data);
+    } else if (message.type === 'video.error' || message.type === 'error') {
+      console.error('[useVideoStream] Video stream error:', message.data);
+      // Show error to user
+      alert(`Video stream error: ${message.data.error || message.data.message || 'Unknown error'}`);
     }
   }
 
   function handleBinaryMessage(data: ArrayBuffer) {
+    // console.log('[useVideoStream] Received binary data:', data.byteLength, 'bytes');
     bufferQueue.push(data);
     processBufferQueue();
   }
@@ -73,6 +80,9 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     }
 
     console.log('[useVideoStream] Initializing MediaSource for', data);
+    console.log('[useVideoStream] Video resolution:', data.width, 'x', data.height);
+    console.log('[useVideoStream] Codec:', data.codec);
+    console.log('[useVideoStream] Bitrate:', data.bitrate);
 
     mediaSource.value = new MediaSource();
     videoElement.value.src = URL.createObjectURL(mediaSource.value);
@@ -92,6 +102,7 @@ export function useVideoStream(options: UseVideoStreamOptions) {
           'video/mp4; codecs="avc1.64001F"',
           'video/mp4; codecs="avc1.640028"'
         ].filter(MediaSource.isTypeSupported));
+        alert('Video codec not supported by your browser. Please try a different browser.');
         return;
       }
 
@@ -106,11 +117,13 @@ export function useVideoStream(options: UseVideoStreamOptions) {
 
         sourceBuffer.value.addEventListener('error', (e) => {
           console.error('[useVideoStream] SourceBuffer error:', e);
+          alert('Video buffer error. The stream may be corrupted.');
         });
 
-        console.log('[useVideoStream] SourceBuffer created successfully');
+        console.log('[useVideoStream] ✓ SourceBuffer created successfully');
       } catch (e) {
         console.error('[useVideoStream] Failed to create SourceBuffer:', e);
+        alert(`Failed to create video buffer: ${e}`);
       }
     });
 
@@ -120,6 +133,7 @@ export function useVideoStream(options: UseVideoStreamOptions) {
 
     mediaSource.value.addEventListener('error', (e) => {
       console.error('[useVideoStream] MediaSource error:', e);
+      alert('Video source error. Please reconnect the device.');
     });
   }
 

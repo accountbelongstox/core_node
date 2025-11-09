@@ -31,10 +31,10 @@ Example:
     )
 """
 
-from .device_info import DeviceInfo, Resolution
-from .server_params import ServerParams, VideoCodec
-from .android_device import AndroidDevice
-from .scrcpy_device import ScrcpyDevice
+from pycore.pyfoundations.device.device_info import DeviceInfo, Resolution
+from pycore.pyfoundations.device.server_params import ServerParams, VideoCodec
+from pycore.pyfoundations.device.android_device import AndroidDevice
+from pycore.pyfoundations.device.scrcpy_device import ScrcpyDevice
 
 __all__ = [
     'DeviceInfo',

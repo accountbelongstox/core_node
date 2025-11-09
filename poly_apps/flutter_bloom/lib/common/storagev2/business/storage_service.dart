@@ -39,7 +39,7 @@ class StorageService {
       }
       
       if (_cacheService != null) {
-        final cacheResult = await _cacheService!.initialize();
+        final cacheResult = await _cacheService.initialize();
         if (cacheResult is StorageError) {
           return cacheResult;
         }
@@ -72,7 +72,7 @@ class StorageService {
       };
       
       if (_cacheService != null) {
-        final cacheStatsResult = await _cacheService!.getStats();
+        final cacheStatsResult = await _cacheService.getStats();
         if (cacheStatsResult is StorageSuccess) {
           result['cache'] = cacheStatsResult.data?.toMap() ?? {};
         }
@@ -94,7 +94,7 @@ class StorageService {
       
       // Clean up expired cache entries
       if (_cacheService != null) {
-        final cleanupResult = await _cacheService!.cleanupExpired();
+        final cleanupResult = await _cacheService.cleanupExpired();
         if (cleanupResult is StorageSuccess) {
           results['cacheCleanup'] = cleanupResult.data;
         }
@@ -177,7 +177,7 @@ class StorageService {
       
       // Clean up cache
       if (_cacheService != null) {
-        final cleanupResult = await _cacheService!.cleanupExpired();
+        final cleanupResult = await _cacheService.cleanupExpired();
         if (cleanupResult is StorageSuccess) {
           results['cacheOptimized'] = cleanupResult.data;
         }
@@ -226,7 +226,7 @@ class StorageService {
       
       // Check cache service if available
       if (_cacheService != null) {
-        final cacheStatsResult = await _cacheService!.getStats();
+        final cacheStatsResult = await _cacheService.getStats();
         if (cacheStatsResult is StorageError) {
           results['isValid'] = false;
           results['issues'].add('Cache service error: ${cacheStatsResult.message}');
@@ -246,7 +246,7 @@ class StorageService {
   Future<StorageResult<void>> close() async {
     try {
       if (_cacheService != null) {
-        final cacheResult = await _cacheService!.close();
+        final cacheResult = await _cacheService.close();
         if (cacheResult is StorageError) {
           return cacheResult;
         }

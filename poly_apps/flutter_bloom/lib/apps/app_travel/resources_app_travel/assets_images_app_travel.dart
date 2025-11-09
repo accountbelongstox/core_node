@@ -73,6 +73,7 @@ class AssetsImagesAppTravel {
   ];
 
   // Swiper Banner Images
+  static const String travelSwiperPromoFood = '$_baseUpload/carousel_promo_food_001.jpg';
   static const String travelSwiper1 = '$_baseUpload/zg0516000000zifq4FC3C.jpg';
   static const String travelSwiper2 = '$_baseUpload/zg0a15000000ypf1tBC70.jpg';
   static const String travelSwiper3 = '$_baseUpload/zg0e15000000yqzweE43E.jpg';
@@ -96,6 +97,18 @@ class AssetsImagesAppTravel {
   static const String travelHotHotel = '$_baseUpload/10020l000000ddw8hB633.png';
   static const String travelHotFood = '$_baseUpload/100c0l000000d9klbC07D.png';
   static const String travelHotShopping = '$_baseUpload/100u0l000000d6wtm2B89.png';
+
+  // User Profile Images
+  static const String travelUserAvatarDefault = 'assets/apps/app_travel/images/user_avatar_default.png';
+  static const String travelVipBadge = 'assets/apps/app_travel/images/vip_badge.png';
+  static const String travelHotelTitleLogo = 'assets/apps/app_travel/images/hotel_title_logo.png';
+
+  // Flight Icons
+  static const String travelIconTransfer = 'assets/apps/app_travel/images/icon_transfer.png';
+  static const String travelFlightIcon = 'assets/apps/app_travel/images/flight_icon.png';
+
+  // Airline Logos
+  static const String travelAirlineLogoJeju = 'assets/apps/app_travel/images/airline_logo_jeju.png';
 
   // Popular & Recommended
   static const String travelPopularAttraction = '$_baseUpload/2dcda4e400ace9f993835fbb.jpg_250x250_d841fd57.jpg';
@@ -136,6 +149,7 @@ class AssetsImagesAppTravel {
   /// Get all swiper images
   static List<String> getSwiperImages() {
     return [
+      travelSwiperPromoFood,
       travelSwiper1,
       travelSwiper2,
       travelSwiper3,
@@ -193,6 +207,7 @@ class AssetsImagesAppTravel {
       ...getNavigationIcons(),
 
       // Swiper
+      'travelSwiperPromoFood': travelSwiperPromoFood,
       'travelSwiper1': travelSwiper1,
       'travelSwiper2': travelSwiper2,
       'travelSwiper3': travelSwiper3,
@@ -213,6 +228,13 @@ class AssetsImagesAppTravel {
       // Utilities
       'travelNoResult': travelNoResult,
       'travelAjaxLoader': travelAjaxLoader,
+
+      // User Profile
+      'travelUserAvatarDefault': travelUserAvatarDefault,
+      'travelVipBadge': travelVipBadge,
+
+      // Flight Icons
+      'travelIconTransfer': travelIconTransfer,
     };
   }
 

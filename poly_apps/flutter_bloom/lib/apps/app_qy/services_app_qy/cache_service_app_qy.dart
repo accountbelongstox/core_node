@@ -1,5 +1,5 @@
 /// Cache service for app_qy data persistence
-library cache_service_app_qy;
+library;
 
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';

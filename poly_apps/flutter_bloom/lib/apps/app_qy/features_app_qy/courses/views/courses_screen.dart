@@ -1,9 +1,10 @@
 /// Courses screen
-library courses_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class CoursesScreen extends StatefulWidget {
   const CoursesScreen({super.key});
@@ -60,7 +61,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
           ),
           Expanded(
             child: Text(
-              '课程中心',
+              QyAppLocalizationKeys.qyCoursesTitle.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -78,7 +79,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '精选课程',
+          QyAppLocalizationKeys.qyCoursesFeatured.tr(context),
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -137,7 +138,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '专业师资 • 系统学习',
+                        QyAppLocalizationKeys.qyCoursesTagline.tr(context),
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 14,
@@ -165,7 +166,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '课程分类',
+          QyAppLocalizationKeys.qyCoursesCategories.tr(context),
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -201,19 +202,19 @@ class _CoursesScreenState extends State<CoursesScreen> {
                 ),
               ),
               title: Text(category['name'] as String),
-              subtitle: Text('${category['count']} 个课程'),
+              subtitle: Text(QyAppLocalizationKeys.qyCoursesCount.tr(context).replaceAll('{count}', category['count'].toString())),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('${category['name']}功能开发中...'),
+                    content: Text(QyAppLocalizationKeys.qyCoursesInDev.tr(context).replaceAll('{name}', category['name'] as String)),
                     backgroundColor: AppTheme.primaryGreen,
                   ),
                 );
               },
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

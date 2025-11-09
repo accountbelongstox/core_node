@@ -12,6 +12,8 @@
 
 /// Data models and formats for app_qy
 /// Contains standardized request/response data structures
+library;
+
 
 
 class LoginRequestData {

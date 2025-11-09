@@ -4,6 +4,8 @@
 
 ```
 scripts/
+├── android/
+│   └── gradle.properties
 ├── build_scripts/
 │   ├── controllers/
 │   │   ├── step19_view_effects_controller.py
@@ -19,6 +21,9 @@ scripts/
 │   │   ├── constants/
 │   │   │   ├── __init__.py
 │   │   │   └── build_constants.py
+│   │   ├── debug/
+│   │   │   ├── __init__.py
+│   │   │   └── debug_system.py
 │   │   ├── debugging/
 │   │   │   └── debug_provider.py
 │   │   ├── __init__.py
@@ -58,9 +63,12 @@ scripts/
 │   │   │   ├── platform_specs_manager.py
 │   │   │   ├── web_specs.py
 │   │   │   └── windows_specs.py
+│   │   ├── PATH_HELPER_USAGE_EXAMPLES.py
 │   │   ├── __init__.py
 │   │   ├── app_config_reader.py
 │   │   ├── backup_manager.py
+│   │   ├── cache_cleaner.py
+│   │   ├── cleanup_manager.py
 │   │   ├── commander.py
 │   │   ├── enhanced_viewer.js
 │   │   ├── factory_analyzer.py
@@ -68,9 +76,12 @@ scripts/
 │   │   ├── flutter_to_android_asset_scanner.py
 │   │   ├── image_classifier.py
 │   │   ├── image_processor.py
+│   │   ├── kotlin_config_manager.py
 │   │   ├── menu_helper.py
+│   │   ├── path_helper.py
 │   │   ├── platform_image_scanner.py
 │   │   ├── print_helper.py
+│   │   ├── script_generator.py
 │   │   ├── smart_image_resizer.py
 │   │   ├── smart_image_selector.py
 │   │   ├── source_scanner.py
@@ -81,9 +92,14 @@ scripts/
 │   │   └── build_monitor.js
 │   ├── web_templates/
 │   │   └── build_monitor.html
+│   ├── 00_orchestrator.ps1
+│   ├── 01_cleanup.ps1
+│   ├── 02_kotlin_fix.ps1
+│   ├── 03_retry_cleanup.ps1
+│   ├── 04_build.ps1
+│   ├── BUILD_ERROR_ANALYSIS.md
+│   ├── CLEANUP_CONFIRMATION_GUIDE.md
 │   ├── TREE.md
-│   ├── build_app.ps1
-│   ├── build_main.ps1
 │   ├── main.py
 │   └── print.py
 ├── dev_debug/
@@ -91,25 +107,6 @@ scripts/
 │   ├── startDebugByPhone.ps1
 │   ├── startDebugByWeb.ps1
 │   └── startDebugByWindows.ps1
-├── devpy_debug/
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── app_manager.py
-│   │   ├── config.py
-│   │   └── file_manager.py
-│   ├── platforms/
-│   │   ├── __init__.py
-│   │   ├── android.py
-│   │   ├── ios.py
-│   │   ├── web.py
-│   │   └── windows.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── adb.py
-│   │   ├── flutter.py
-│   │   ├── logger.py
-│   │   └── network.py
-│   └── main.py
 ├── flutter_icon_reduction/
 │   ├── README.md
 │   ├── android_asset_generator.py
@@ -126,8 +123,12 @@ scripts/
 │   ├── check_dependencies.bat
 │   ├── image_analyzer.py
 │   ├── main.py
+│   ├── quick_test.py
 │   ├── run_icons_viewer.bat
 │   ├── run_web_viewer.bat
+│   ├── test_compress_fix.html
+│   ├── test_final_fixes.py
+│   ├── test_integration.py
 │   └── web_main.py
 ├── utils/
 │   └── platform_specs_map.py
@@ -136,17 +137,29 @@ scripts/
 │   │   ├── package_detector.py
 │   │   └── package_installer.ps1
 │   ├── BCommon.ps1
+│   ├── BuildLogger.ps1
 │   ├── CommonUtilities.ps1
 │   ├── FlutterBackupManager.ps1
 │   ├── FlutterBuildExecutor.ps1
 │   ├── FlutterGlobalVar.ps1
 │   ├── FlutterLogManager.ps1
 │   ├── FlutterMenuSystem.ps1
+│   ├── PathHelper.ps1
 │   └── SplashManager.ps1
+├── android_config_manager.py
+├── check_braces.ps1
+├── cursor_debug_script_execution_and_error.md
+├── error.txt
+├── fix_gradle_cache.ps1
+├── ios_config_manager.py
+├── migrate_travel_app.py
 ├── scripts_tree.md
+├── split_sprite_image.py
 ├── start.bat
 ├── start.ps1
-└── start.sh
+├── start.sh
+├── syntax_check.ps1
+└── test_logging.ps1
 ```
 
 ---

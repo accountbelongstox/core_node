@@ -1,20 +1,20 @@
-"""ADB 相关异常定义"""
+"""ADB related exception definitions"""
 
 
 class ADBException(Exception):
-    """ADB 操作基础异常"""
+    """ADB operation base exception"""
     pass
 
 
 class DeviceNotFoundException(ADBException):
-    """设备未找到异常"""
+    """Device not found exception"""
     def __init__(self, serial: str):
         super().__init__(f"Device not found: {serial}")
         self.serial = serial
 
 
 class ADBCommandFailedException(ADBException):
-    """ADB 命令执行失败异常"""
+    """ADB command execution failed exception"""
     def __init__(self, command: str, return_code: int, stderr: str):
         super().__init__(
             f"ADB command failed: {command}\n"

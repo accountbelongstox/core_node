@@ -1,10 +1,11 @@
 /// Word item card widget
-library word_item_card;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/theme/app_theme.dart';
-import '../../../../../../../common/widgets/glassmorphism_card.dart';
 import '../../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../models/word_models.dart';
 
 class WordItemCard extends StatelessWidget {
@@ -73,7 +74,7 @@ class WordItemCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _getTypeLabel(word.type),
+                      _getTypeLabel(word.type, context),
                       style: TextStyle(
                         fontSize: 12,
                         color: _getTypeColor(word.type),
@@ -132,7 +133,7 @@ class WordItemCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '发音',
+                    QyAppLocalizationKeys.qyWordBookPronunciation.tr(context),
                     style: TextStyle(
                       fontSize: 12,
                       color: _getTypeColor(word.type),
@@ -140,7 +141,7 @@ class WordItemCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    '掌握度',
+                    QyAppLocalizationKeys.qyWordBookMasteryLevel.tr(context),
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[600],
@@ -202,16 +203,16 @@ class WordItemCard extends StatelessWidget {
     }
   }
 
-  String _getTypeLabel(WordType type) {
+  String _getTypeLabel(WordType type, BuildContext context) {
     switch (type) {
       case WordType.newWords:
-        return '新词';
+        return QyAppLocalizationKeys.qyWordBookNewWord.tr(context);
       case WordType.learning:
-        return '学习中';
+        return QyAppLocalizationKeys.qyWordBookLearning.tr(context);
       case WordType.mastered:
-        return '已掌握';
+        return QyAppLocalizationKeys.qyWordBookMastered.tr(context);
       default:
-        return '全部';
+        return QyAppLocalizationKeys.qyWordBookAll.tr(context);
     }
   }
 

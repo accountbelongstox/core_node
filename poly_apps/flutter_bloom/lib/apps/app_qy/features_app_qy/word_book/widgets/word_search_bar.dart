@@ -1,5 +1,5 @@
 /// Word search bar widget
-library word_search_bar;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/i18n/i18n_service.dart';

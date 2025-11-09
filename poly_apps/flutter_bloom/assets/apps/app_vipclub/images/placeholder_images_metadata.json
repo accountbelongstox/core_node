@@ -1,0 +1,67 @@
+{
+  "directory": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_vipclub/images",
+  "generated_at": "2025-11-07T22:05:38.951318",
+  "total_images": 4,
+  "images": [
+    {
+      "filename": "banner_1.jpg",
+      "file_path": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_vipclub/images/banner_1.jpg",
+      "width": 800,
+      "height": 400,
+      "placeholder_type": "unsplash_search",
+      "created_at": "2025-11-07T22:05:29.614488",
+      "file_size": 71860,
+      "source": "unsplash",
+      "description": "Lounge area in bedroom",
+      "photographer": "Meg von Haartman",
+      "photographer_url": "https://unsplash.com/@traveleroohlala",
+      "unsplash_id": "XZTnTiz-Tjo",
+      "unsplash_url": "https://unsplash.com/photos/elegant-vintage-seating-area-is-richly-decorated-XZTnTiz-Tjo",
+      "color": "#260c0c",
+      "likes": 0
+    },
+    {
+      "filename": "banner_2.jpg",
+      "file_path": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_vipclub/images/banner_2.jpg",
+      "width": 800,
+      "height": 400,
+      "placeholder_type": "unsplash_search",
+      "created_at": "2025-11-07T22:05:33.689377",
+      "file_size": 68250,
+      "source": "unsplash",
+      "description": "The early morning light casts a warm glow over a golf course as a maintenance vehicle tends to the fairways. The course is enveloped in soft mist, creating a tranquil and almost dreamlike atmosphere. Large, mature trees stand tall, framing the winding green and crisp white sand bunkers. This image embodies the peaceful and meticulous preparation that goes into perfecting the course before the day's first round.",
+      "photographer": "Keith Tanner",
+      "photographer_url": "https://unsplash.com/@keithtanman",
+      "unsplash_id": "EGQ0m5QyNu8",
+      "unsplash_url": "https://unsplash.com/photos/a-golf-course-is-surrounded-by-trees-EGQ0m5QyNu8",
+      "color": "#26260c",
+      "likes": 1
+    },
+    {
+      "filename": "banner_3.jpg",
+      "file_path": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_vipclub/images/banner_3.jpg",
+      "width": 800,
+      "height": 400,
+      "placeholder_type": "unsplash_search",
+      "created_at": "2025-11-07T22:05:38.784463",
+      "file_size": 66058,
+      "source": "unsplash",
+      "description": "Luxurious and Modern Bedroom with an Ornate Chandelier, a Tufted Headboard, and a Dark Accent Wall with Decorative Mirrors",
+      "photographer": "Aalo Lens",
+      "photographer_url": "https://unsplash.com/@aalolens",
+      "unsplash_id": "Xph_EJ-22vE",
+      "unsplash_url": "https://unsplash.com/photos/luxurious-bedroom-with-modern-decor-and-large-windows-Xph_EJ-22vE",
+      "color": "#d9d9d9",
+      "likes": 2
+    },
+    {
+      "filename": "logo.png",
+      "file_path": "D:/programing/core_node/poly_apps/flutter_bloom/assets/apps/app_vipclub/images/logo.png",
+      "width": 200,
+      "height": 200,
+      "placeholder_type": "icon",
+      "created_at": "2025-11-07T22:05:38.950134",
+      "file_size": 2933
+    }
+  ]
+}

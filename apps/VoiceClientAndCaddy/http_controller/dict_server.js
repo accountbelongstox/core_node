@@ -14,7 +14,8 @@ const { APP_TMP_DIR, APP_DATA_CACHE_DIR } = require('#@global_dir');
 const logger = require('#@logger');
 const { replaceSpaceToDash } = require('#@ncore/foundation/utilities/strtool.js');
 const { ITEM_TYPE } = require('../provider/types/data_types.js');
-const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/foundation/express_utils/libs/UploadTools.js');
+const rpc = require('#@ncore/utils/rpc');
+const UploadTools = rpc.getExpressServer().uploadTools;
 const { fcopy } = require('#@ftools');
 const { copyFileToDir } = fcopy;
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR,
@@ -133,7 +134,7 @@ const deleteFile = async (filePath) => {
 async function submitAudio(req, res, next) {
     try {
         logger.info('\n=== Audio Submission Request ===');
-        const { fields, files, filePaths } = await uploadAndKeepOriginName(req, APP_TMP_DIR);
+        const { fields, files, filePaths } = await UploadTools.uploadAndKeepOriginName(req, APP_TMP_DIR);
         if (!fields.content || !fields.type) {
             return res.status(400).json({
                 success: false,
@@ -190,7 +191,7 @@ async function submitAudioSimple(req, res, next) {
     const SENTENCES_SOUND_WATCHER = `SENTENCES_SOUND_WATCHER`;
     try {
         logger.info('\n=== Audio Submission-Simple Request ===');
-        const { fields, files, filePaths } = await uploadAndKeepOriginName(req, APP_TMP_DIR);
+        const { fields, files, filePaths } = await UploadTools.uploadAndKeepOriginName(req, APP_TMP_DIR);
         if (!fields.type) {
             return res.status(400).json({
                 success: false,

@@ -115,6 +115,8 @@ class AppExampleServiceManager {
 
 /// Example widget showing how to use the service manager
 class AppExampleUsageWidget extends StatefulWidget {
+  const AppExampleUsageWidget({super.key});
+
   @override
   _AppExampleUsageWidgetState createState() => _AppExampleUsageWidgetState();
 }

@@ -1,0 +1,11 @@
+{
+  "test_urls": [
+    "https://google.com",
+    "https://github.com",
+    "https://stackoverflow.com"
+  ],
+  "screenshot_dir": "screenshots",
+  "test_duration": 30,
+  "enable_screenshots": true,
+  "navigation_delay": 3
+}

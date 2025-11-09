@@ -1,5 +1,5 @@
 /// Course Data Models for QY App
-library course_models;
+library;
 
 import 'package:equatable/equatable.dart';
 

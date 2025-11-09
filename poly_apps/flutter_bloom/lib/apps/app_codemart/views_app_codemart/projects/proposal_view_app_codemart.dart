@@ -5,6 +5,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/project_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ProposalViewAppCodemart extends StatefulWidget {
   final int projectId;
@@ -75,7 +76,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+            content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
             backgroundColor: Colors.green,
           ),
         );
@@ -162,7 +163,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'Architect #${_proposal!.architectId}',
+                                              'Architect #${_proposal!.architectId?.toString() ?? 'N/A'}',
                                               style: Theme.of(context).textTheme.titleSmall,
                                             ),
                                             const Text('Professional Architect'),
@@ -189,7 +190,11 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                     style: Theme.of(context).textTheme.titleMedium,
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(_proposal!.proposalDescription),
+                                  Text(
+                                    _proposal!.proposalDescription.isNotEmpty
+                                        ? _proposal!.proposalDescription
+                                        : 'No description provided.',
+                                  ),
                                 ],
                               ),
                             ),
@@ -202,8 +207,9 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                               leading: const Icon(Icons.schedule),
                               title: const Text('Estimated Timeline'),
                               subtitle: Text(
-                                'Start: ${_proposal!.estimatedStartDate.toString().split(' ')[0]}\n'
-                                'End: ${_proposal!.estimatedEndDate.toString().split(' ')[0]}',
+                                'Start: ${_formatDate(_proposal!.estimatedStartDate)}\n'
+                                'End: ${_formatDate(_proposal!.estimatedEndDate)}\n'
+                                'Duration: ${_proposal!.estimatedDuration} days',
                               ),
                             ),
                           ),
@@ -231,7 +237,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                       Text(milestone.description),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Due: ${milestone.dueDate.toString().split(' ')[0]}',
+                                        'Due: ${_formatDate(milestone.dueDate)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
@@ -269,7 +275,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                               TextButton(
                                                 onPressed: () => Navigator.pop(context),
                                                 child: Text(
-                                                  context.tr(LocalizationKeysAppCodemart.codemartCancel),
+                                                  LocalizationKeysAppCodemart.codemartCancel.tr(context),
                                                 ),
                                               ),
                                               FilledButton(
@@ -278,7 +284,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                                   _handleAcceptProposal();
                                                 },
                                                 child: Text(
-                                                  context.tr(LocalizationKeysAppCodemart.codemartConfirm),
+                                                  LocalizationKeysAppCodemart.codemartConfirm.tr(context),
                                                 ),
                                               ),
                                             ],
@@ -311,5 +317,16 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
       default:
         return Colors.grey.withOpacity(0.2);
     }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) {
+      return 'TBD';
+    }
+
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 }

@@ -1,0 +1,302 @@
+Trigger Words Feature - Usage Guide
+====================================
+
+OVERVIEW
+--------
+The trigger words feature allows you to control WHEN translation happens.
+Only sentences AFTER a trigger word is detected will be translated.
+
+This is useful for:
+- Saving API costs (only translate when needed)
+- Controlling translation context
+- Interactive translation workflows
+- Conditional translation based on user input
+
+HOW IT WORKS
+------------
+1. You set one or more trigger words (Chinese or any language)
+2. Plugin monitors incoming text for these trigger words
+3. BEFORE trigger word: No translation (original text returned)
+4. AFTER trigger word found: Translation begins
+5. Translation continues for all subsequent text in that session
+
+BASIC USAGE
+-----------
+
+Example 1: Single Chinese trigger word
+---------------------------------------
+const translator = require('./index.js');
+const sessionId = 'my-session';
+
+// Set trigger word
+translator.setTriggerWords(sessionId, '翻译');
+translator.enableTriggerWords(sessionId);
+
+// These lines will NOT be translated
+translator.appendData(sessionId, 'This is line 1\n');
+translator.appendData(sessionId, 'This is line 2\n');
+
+// Trigger word appears - translation starts NOW
+translator.appendData(sessionId, '翻译 please translate the following\n');
+
+// These lines WILL be translated
+translator.appendData(sessionId, 'This line will be translated\n');
+translator.appendData(sessionId, 'This line too\n');
+
+translator.flushSession(sessionId);
+
+Example 2: Multiple Chinese trigger words
+------------------------------------------
+const sessionId = 'multi-trigger';
+
+// Set multiple trigger words
+translator.setTriggerWords(sessionId, ['翻译', '请翻译', '帮我翻译']);
+translator.enableTriggerWords(sessionId);
+
+// Any of these will trigger translation:
+translator.appendData(sessionId, 'Some text\n');
+translator.appendData(sessionId, '请翻译 this text\n');  // Trigger found!
+translator.appendData(sessionId, 'Now translating\n');   // Will translate
+
+Example 3: Add trigger words dynamically
+-----------------------------------------
+const sessionId = 'dynamic';
+
+// Start with one trigger word
+translator.setTriggerWords(sessionId, '翻译');
+
+// Add more trigger words
+translator.addTriggerWord(sessionId, '请翻译');
+translator.addTriggerWord(sessionId, '需要翻译');
+translator.addTriggerWord(sessionId, '翻译成中文');
+
+translator.enableTriggerWords(sessionId);
+
+// Now any of the 4 trigger words will activate translation
+
+Example 4: Check trigger status
+--------------------------------
+const sessionId = 'status-check';
+
+translator.setTriggerWords(sessionId, ['翻译', '请翻译']);
+translator.enableTriggerWords(sessionId);
+
+// Check status
+const status = translator.getTriggerWordsStatus(sessionId);
+console.log(status);
+// Output:
+// {
+//   enabled: true,
+//   triggerWordsCount: 2,
+//   triggerWords: ['翻译', '请翻译'],
+//   triggerFound: false,  // Not found yet
+//   matchMode: 'any'
+// }
+
+Example 5: Disable/Enable trigger words
+----------------------------------------
+const sessionId = 'toggle';
+
+translator.setTriggerWords(sessionId, '翻译');
+
+// Disable (will translate everything)
+translator.disableTriggerWords(sessionId);
+
+// Enable (will wait for trigger)
+translator.enableTriggerWords(sessionId);
+
+COMMON CHINESE TRIGGER WORDS
+-----------------------------
+Here are some commonly used Chinese trigger words:
+
+翻译           - Translate
+请翻译         - Please translate
+帮我翻译       - Help me translate
+需要翻译       - Need translation
+翻译成中文     - Translate to Chinese
+翻译成英文     - Translate to English
+请翻译下面的   - Please translate the following
+帮忙翻译一下   - Help translate this
+
+CONFIGURATION FILE SETUP
+-------------------------
+You can also configure trigger words in config.json:
+
+{
+  "triggerWords": ["翻译", "请翻译", "帮我翻译"],
+  "enableTriggerWords": true,
+  "triggerWordsMatchMode": "any"
+}
+
+API REFERENCE
+-------------
+
+setTriggerWords(sessionId, words)
+  - Set trigger words for a session
+  - words: string or array of strings (Chinese or any language)
+  - Example: setTriggerWords('id', '翻译')
+  - Example: setTriggerWords('id', ['翻译', '请翻译'])
+
+addTriggerWord(sessionId, word)
+  - Add a single trigger word to existing list
+  - word: string (Chinese or any language)
+  - Example: addTriggerWord('id', '翻译')
+
+enableTriggerWords(sessionId)
+  - Enable trigger word detection for a session
+  - Example: enableTriggerWords('id')
+
+disableTriggerWords(sessionId)
+  - Disable trigger word detection (translates everything)
+  - Example: disableTriggerWords('id')
+
+getTriggerWordsStatus(sessionId)
+  - Get current trigger words status
+  - Returns: {
+      enabled: boolean,
+      triggerWordsCount: number,
+      triggerWords: string[],
+      triggerFound: boolean,
+      matchMode: string
+    }
+
+COMPLETE EXAMPLE
+----------------
+const translator = require('./index.js');
+
+// Configure API (required for actual translation)
+process.env.AZURE_TRANSLATOR_KEY = 'your-key';
+process.env.AZURE_TRANSLATOR_REGION = 'global';
+
+const sessionId = 'complete-example';
+
+// Setup trigger words
+translator.setTriggerWords(sessionId, ['翻译', '请翻译']);
+translator.enableTriggerWords(sessionId);
+
+// Monitor translation events
+translator.onTranslationReady((data) => {
+    console.log('Translation ready:', data.id, data.index);
+});
+
+// Send data
+translator.appendData(sessionId, 'This will not be translated\n');
+translator.appendData(sessionId, 'Neither will this\n');
+translator.appendData(sessionId, '翻译 Trigger word detected\n');
+translator.appendData(sessionId, 'This WILL be translated\n');
+translator.appendData(sessionId, 'And this too\n');
+
+translator.flushSession(sessionId);
+
+// Wait for translations
+setTimeout(() => {
+    const fullText = translator.getFullText(sessionId);
+    const translations = translator.getTranslationMap(sessionId);
+
+    console.log('Full text:', fullText);
+    console.log('Translations:', translations);
+
+    // Check status
+    const status = translator.getTriggerWordsStatus(sessionId);
+    console.log('Trigger found:', status.triggerFound); // true
+
+    translator.clearSession(sessionId);
+}, 3000);
+
+COMBINING WITH CODE DETECTION
+------------------------------
+Trigger words work together with code detection:
+
+const sessionId = 'code-example';
+
+translator.setTriggerWords(sessionId, '翻译');
+translator.enableTriggerWords(sessionId);
+
+translator.appendData(sessionId, 'Some documentation\n');
+translator.appendData(sessionId, '翻译 the following code comments\n');
+translator.appendData(sessionId, '```python\n');
+translator.appendData(sessionId, '# This comment will be translated\n');
+translator.appendData(sessionId, 'def hello():\n');  // Code not translated
+translator.appendData(sessionId, '    pass\n');      // Code not translated
+translator.appendData(sessionId, '```\n');
+
+translator.flushSession(sessionId);
+
+After trigger word:
+- Comments in code: TRANSLATED
+- Actual code: NOT translated
+- Documentation: TRANSLATED
+
+ADVANCED: PER-SESSION TRIGGER WORDS
+-----------------------------------
+Each session can have different trigger words:
+
+translator.setTriggerWords('session-1', '翻译');
+translator.setTriggerWords('session-2', ['请翻译', '帮我翻译']);
+translator.setTriggerWords('session-3', 'translate');
+
+translator.enableTriggerWords('session-1');
+translator.enableTriggerWords('session-2');
+translator.enableTriggerWords('session-3');
+
+TROUBLESHOOTING
+---------------
+
+Q: Trigger word not working?
+A: Make sure you called enableTriggerWords(sessionId)
+
+Q: Everything is being translated?
+A: Check if trigger words are enabled with getTriggerWordsStatus(sessionId)
+
+Q: No translation happening?
+A: Trigger word might not have been detected yet, or Azure API key not configured
+
+Q: Want to translate everything again?
+A: Call disableTriggerWords(sessionId) to bypass trigger word check
+
+Q: Can I use English trigger words?
+A: Yes! Use any language: setTriggerWords(id, 'translate')
+
+PERFORMANCE TIPS
+----------------
+1. Use short, common trigger words
+2. Avoid trigger words that appear in normal text
+3. Consider using Chinese characters for uniqueness
+4. Disable trigger words when not needed to save processing
+
+USE CASES
+---------
+
+1. Interactive Translation:
+   User types "翻译" to start translation mode
+
+2. Cost Optimization:
+   Only translate after user confirms with trigger word
+
+3. Selective Translation:
+   Translate only specific sections marked with trigger
+
+4. Multi-language Support:
+   Different triggers for different languages
+
+5. Context-aware Translation:
+   Start translation based on user intent
+
+TESTING
+-------
+Run the trigger words test:
+
+node test_trigger_words.js
+
+This will demonstrate all trigger word features.
+
+SUMMARY
+-------
+✓ Set trigger words: Chinese or any language
+✓ Multiple trigger words supported
+✓ Enable/disable per session
+✓ Check trigger status
+✓ Works with code detection
+✓ Saves API costs
+✓ Per-session configuration
+✓ Dynamic trigger word management

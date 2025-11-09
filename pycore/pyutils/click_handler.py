@@ -631,7 +631,7 @@ class ClickHandler:
                 value = value.lower()
                 
                 if any(keyword in name or keyword in automation_id or keyword in value 
-                       for keyword in ['diablo', 'd3', '暗黑', '破坏神']):
+                       for keyword in ['diablo', 'd3']):
                     diablo3_button = control
                     diablo3_button_index = i
                     ColorPrint.green(f"✅ Found alternative Diablo III button: {control.get('name', 'No name')}")

@@ -1,9 +1,8 @@
 
-library wechat_auth_provider;
+library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../auth_interface.dart';
@@ -133,7 +132,7 @@ class WeChatAuthProvider extends IAuthProvider {
 
       return AuthResult.success(
         user: user,
-        token: tokenResult.token,
+        token: tokenResult.token!,
         additionalData: {
           'openId': resultData['openId'],
           'unionId': resultData['unionId'],
@@ -354,8 +353,8 @@ class WeChatAuthProvider extends IAuthProvider {
         },
       );
 
-      return AuthResult.success(
-        user: null, // Will be set by caller
+      return AuthResult(
+        success: true,
         token: token,
       );
     } catch (e) {

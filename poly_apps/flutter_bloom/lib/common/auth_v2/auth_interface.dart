@@ -1,8 +1,9 @@
 
 /// Base authentication interface for all authentication providers
-library auth_interface;
+library;
 
 import 'dart:async';
+import 'package:flutter/widgets.dart';
 import 'auth_models.dart';
 import 'auth_config.dart';
 
@@ -165,6 +166,7 @@ enum PhoneAuthError {
   invalidPhoneNumber,
   invalidCountryCode,
   invalidVerificationCode,
+  invalidResponse,
   codeExpired,
   tooManyAttempts,
   networkError,
@@ -374,7 +376,7 @@ abstract class IBiometricAuth {
   Future<bool> get isAvailable;
 
   /// Get available biometric types
-  Future<List<BiometricType>> getAvailableTypes;
+  Future<List<BiometricType>> get getAvailableTypes;
 
   /// Authenticate with biometrics
   Future<BiometricResult> authenticate({
@@ -435,6 +437,3 @@ enum BiometricError {
   lockoutPermanent,
   unknownError,
 }
-
-/// Import necessary UI components
-import 'package:flutter/widgets.dart';

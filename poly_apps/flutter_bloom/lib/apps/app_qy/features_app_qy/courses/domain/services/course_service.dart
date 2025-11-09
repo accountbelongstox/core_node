@@ -1,7 +1,7 @@
 /// Course Data Service
-library course_service;
+library;
 
-import '../../../common/theme/app_theme.dart';
+import '../../../../../../../common/theme/app_theme.dart';
 import '../models/course_model.dart';
 
 class CourseService {

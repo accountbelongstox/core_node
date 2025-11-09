@@ -101,7 +101,10 @@ class _VipClubArticleDetailScreenState
                     Positioned(
                       top: 60,
                       left: 16,
-                      child: VipBadge(text: 'Featured'),
+                      child: VipBadge(
+                        tier: 'gold',
+                        text: 'Featured',
+                      ),
                     ),
                 ],
               ),

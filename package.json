@@ -7,11 +7,14 @@
     "#@ncore/*": "./ncore/*",
     "#@apps/*": "./apps/*",
     "#@global_vars": "./ncore/global_vars/index.js",
+    "#@global_vars/gconfig/rpc_config": "./ncore/global_vars/gconfig/rpc_config.js",
     "#@global_dir": "./ncore/global_vars/global_dir/globaldir.js",
     "#@bdir": "./ncore/global_vars/global_dir/globaldir.js",
     "#@gconfig": "./ncore/global_vars/tool/gconfig.js",
     "#@logger": "./ncore/foundation/common/logger.js",
     "#@commander": "./ncore/foundation/common/commander.js",
+    "#@secret_manager": "./ncore/foundation/common/secret_manager.js",
+    "#@secret_config_helper": "./ncore/foundation/common/secret_config_helper.js",
     "#@freader": "./ncore/foundation/utilities/filetoollibs/freader.js",
     "#@fwriter": "./ncore/foundation/utilities/filetoollibs/fwriter.js",
     "#@ftools": "./ncore/foundation/utilities/filetool.js",
@@ -29,7 +32,9 @@
     "#@frontend_launcher": "./ncore/utils/frontend_launcher/main.js",
     "#@mcp_server": "./ncore/utils/mcp_server/index.js",
     "#@singleton_browser": "./ncore/utils/singleton_browser/main.js",
-    "#@ittools": "./ncore/utils/ittools/index.js"
+    "#@ittools": "./ncore/utils/ittools/index.js",
+    "#@python_bridge": "./ncore/utils/python_bridge/index.js",
+    "#@singleton_rpc_launcher": "./ncore/utils/rpc/SingletonRpcLauncher.js"
   },
   "private": true,
   "description": "ncore is a collection of core modules for Electron application development. This module set provides foundational infrastructure and common functionalities, including plugin management, logging, and core feature extensions. By using ncore, developers can efficiently build and manage complex Electron applications, enhancing maintainability and scalability throughout the development process.",
@@ -98,7 +103,7 @@
     "eslint-plugin-prettier": "^3.0.1",
     "extend2": "^1.0.0",
     "firebase-tools": "^14.1.0",
-    "js-yaml": "^3.13.1",
+    "js-yaml": "^3.14.1",
     "mz-modules": "^2.1.0",
     "nodemon": "^2.0.16",
     "npminstall": "^3.15.0",
@@ -118,6 +123,7 @@
     "@babel/core": "^7.24.9",
     "@babel/node": "^7.24.8",
     "@babel/preset-env": "^7.24.8",
+    "@iarna/toml": "^2.2.5",
     "@puppeteer/browsers": "^2.2.0",
     "@types/depd": "^1.1.36",
     "@types/koa": "^2.15.0",
@@ -169,11 +175,13 @@
     "he": "^1.2.0",
     "helmet": "^8.0.0",
     "iconv-lite": "^0.6.3",
+    "ini": "^4.1.2",
     "is-type-of": "^2.1.0",
     "javascript-obfuscator": "^4.1.1",
     "jsdom": "^26.1.0",
     "json5": "^2.2.3",
     "lodash": "^4.17.21",
+    "marked": "^13.0.3",
     "merge-descriptors": "^2.0.0",
     "methods": "^1.1.2",
     "mkdirp": "^3.0.1",
@@ -222,6 +230,7 @@
     "windows-shortcuts": "^0.1.6",
     "winreg": "^1.2.5",
     "winston": "^3.13.1",
+    "xml2js": "^0.6.2",
     "xmldom": "^0.6.0",
     "xpath": "^0.0.34",
     "yn": "^5.0.0"
@@ -239,7 +248,16 @@
   },
   "engines": {
     "node": ">=18.0.0 <=22.x.x",
-    "npm": ">=6.0.0"
+    "npm": ">=6.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@10.13.1",
+  "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "@electron/rebuild": "*"
+      }
+    }
   },
   "exclude": [
     "node_modules"

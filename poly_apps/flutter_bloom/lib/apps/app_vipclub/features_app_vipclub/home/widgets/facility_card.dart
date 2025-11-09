@@ -73,7 +73,7 @@ class FacilityCard extends StatelessWidget {
                               SizedBox(width: 4),
                               Text(
                                 'VIP',
-                                style: ThemeTextStyles.captionSmall.copyWith(
+                                style: ThemeTextStyles.caption1.copyWith(
                                   color: ThemeColors.neutralWhite,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -108,7 +108,7 @@ class FacilityCard extends StatelessWidget {
                           SizedBox(height: ThemeDimensions.tinyPadding),
                           Text(
                             _getFacilityTypeLabel(),
-                            style: ThemeTextStyles.captionMedium.copyWith(
+                            style: ThemeTextStyles.caption1.copyWith(
                               color: ThemeColors.neutralGrey,
                             ),
                           ),

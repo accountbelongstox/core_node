@@ -1,0 +1,664 @@
+<!-- ### NUXT MULTI-APP PROMPT START ### -->
+<!--
+⚠️ IMPORTANT: This Nuxt workspace uses a multi-app namespace architecture.
+- Each namespace lives under apps/app_{name} with its own layouts, routes, and configs.
+- Shared utilities live in common/, components/, services/, stores/, and theme/.
+- Read development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md before editing.
+- Keep AI responses aligned with namespace isolation rules and routing prefixes.
+-->
+<!-- ### NUXT MULTI-APP PROMPT END ### -->
+
+================================================================================
+Nuxt App Directory Snapshot
+================================================================================
+Generated: 2025-11-09 01:47:12
+App: admin
+Mode: code_assets
+Nuxt Root: /mnt/d/programing/core_node/poly_apps/nuxt_main
+Architecture Guide: development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
+================================================================================
+
+admin [code_assets]
+├── apps/app_admin/
+│   ├── components_app_admin
+│   │   └── .gitkeep
+│   ├── composables_app_admin
+│   │   └── .gitkeep
+│   ├── config_app_admin
+│   │   └── app-config.ts
+│   ├── constants_app_admin
+│   │   └── admin-constants.ts
+│   ├── layouts_app_admin
+│   │   ├── .gitkeep
+│   │   └── default.vue
+│   ├── locales_app_admin
+│   │   └── .gitkeep
+│   ├── pages_app_admin
+│   │   └── datasources.vue
+│   ├── router_app_admin
+│   │   └── routes.ts
+│   ├── services_app_admin
+│   │   └── .gitkeep
+│   ├── stores_app_admin
+│   │   └── admin-store.ts
+│   ├── styles_app_admin
+│   │   └── .gitkeep
+│   └── theme_app_admin
+│       └── admin-theme.ts
+├── common/
+│   ├── components
+│   │   ├── dashboard
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout
+│   │   │   └── MainHeader.vue
+│   │   └── ui
+│   │       ├── BaseButton.vue
+│   │       ├── BaseContextMenu.vue
+│   │       ├── BaseModal.vue
+│   │       ├── BasePanel.vue
+│   │       ├── BaseSlider.vue
+│   │       ├── BaseToast.vue
+│   │       ├── BaseToggle.vue
+│   │       ├── DataTable.vue
+│   │       ├── DeviceTagBadge.vue
+│   │       └── ToastContainer.vue
+│   ├── composables
+│   │   └── useAppTheme.ts
+│   ├── constants
+│   │   └── base-constants.ts
+│   ├── layouts
+│   │   ├── auth.vue
+│   │   └── default.vue
+│   ├── middleware
+│   │   └── .gitkeep
+│   ├── pages
+│   │   ├── boxed-lockscreen.vue
+│   │   ├── boxed-password-reset.vue
+│   │   ├── boxed-signin.vue
+│   │   ├── boxed-signup.vue
+│   │   ├── cover-lockscreen.vue
+│   │   ├── cover-login.vue
+│   │   ├── cover-password-reset.vue
+│   │   ├── cover-register.vue
+│   │   └── users
+│   │       ├── profile.vue
+│   │       └── user-account-settings.vue
+│   ├── plugins
+│   │   └── theme.client.ts
+│   ├── services
+│   │   └── .gitkeep
+│   ├── stores
+│   │   └── base-store.ts
+│   ├── styles
+│   │   └── theme-base.css
+│   ├── theme
+│   │   └── base-theme.config.ts
+│   ├── types
+│   │   └── .gitkeep
+│   └── utils
+│       └── .gitkeep
+├── components/
+│   ├── ThemeCustomizer.vue
+│   ├── codemart
+│   │   ├── CodemartSidebar.vue
+│   │   └── home
+│   │       ├── CodemartFooter.vue
+│   │       ├── CodemartHeader.vue
+│   │       ├── CustomerServiceButton.vue
+│   │       ├── HeroCarousel.vue
+│   │       ├── ServiceFlowSection.vue
+│   │       ├── StatisticsSection.vue
+│   │       └── TestimonialsCarousel.vue
+│   ├── layout
+│   │   ├── Footer.vue
+│   │   ├── Header.vue
+│   │   └── Sidebar.vue
+│   ├── plugins
+│   │   ├── QuillEditor.vue
+│   │   └── highlight.vue
+│   ├── shared
+│   │   ├── dashboard
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout
+│   │   │   └── MainHeader.vue
+│   │   └── ui
+│   │       └── DataTable.vue
+│   └── subsite-admin
+│       └── AdminSidebar.vue
+├── composables/
+│   ├── codePreview.ts
+│   ├── useAppTheme.ts
+│   ├── useAuth.ts
+│   ├── useCharts.ts
+│   ├── useDashboard.ts
+│   ├── useDataSource.ts
+│   ├── useNuxtApi.ts
+│   ├── useRoles.ts
+│   ├── useRouteNamespace.ts
+│   ├── useTables.ts
+│   ├── useVueQuery.ts
+│   └── useWSRPC.ts
+├── configs/
+│   ├── codemart-menu.ts
+│   ├── codemart.config.ts
+│   ├── dashboard.config.ts
+│   ├── dev.config.ts
+│   ├── example.config.ts
+│   ├── mainsite.config.ts
+│   ├── pymatrix.config.ts
+│   └── subsite-admin.config.ts
+├── constants/
+│   ├── apps
+│   │   ├── admin-constants.ts
+│   │   └── codemart-constants.ts
+│   └── base-constants.ts
+├── services/
+│   ├── api
+│   │   ├── admin
+│   │   │   ├── admin-datasource-api.ts
+│   │   │   └── users
+│   │   │       └── admin-users-api.ts
+│   │   ├── charts.ts
+│   │   ├── codemart
+│   │   │   └── codemart-projects-api.ts
+│   │   ├── dashboard
+│   │   │   └── dashboard-analytics-api.ts
+│   │   ├── dashboard.ts
+│   │   ├── dev
+│   │   │   ├── dev-devops-api.ts
+│   │   │   ├── dev-devops-integration-api.ts
+│   │   │   └── dev-tools-api.ts
+│   │   ├── enhanced-dashboard.ts
+│   │   ├── example
+│   │   │   └── example-datasource-api.ts
+│   │   ├── finance.ts
+│   │   ├── main
+│   │   │   ├── analytics
+│   │   │   │   └── main-analytics-api.ts
+│   │   │   └── main-datasource-api.ts
+│   │   ├── nuxt-fetch.ts
+│   │   ├── pymatrix
+│   │   │   ├── pymatrix-config-api.ts
+│   │   │   ├── pymatrix-device-api.ts
+│   │   │   ├── pymatrix-file-api.ts
+│   │   │   ├── pymatrix-group-api.ts
+│   │   │   ├── pymatrix-health-api.ts
+│   │   │   └── pymatrix-recording-api.ts
+│   │   └── tables.ts
+│   ├── config
+│   │   ├── api-config-manager.ts
+│   │   └── endpoints.ts
+│   └── datasource
+│       └── manager.ts
+├── stores/
+│   ├── app-datasource.ts
+│   ├── apps
+│   │   ├── admin-store.ts
+│   │   └── codemart-store.ts
+│   ├── base
+│   │   └── base-store.ts
+│   ├── datasource.ts
+│   └── index.ts
+├── theme/
+│   ├── apps
+│   │   ├── admin-theme.ts
+│   │   ├── codemart-theme.ts
+│   │   ├── dashboard-theme.ts
+│   │   ├── dev-theme.ts
+│   │   └── example-theme.ts
+│   └── base-theme.config.ts
+├── types/
+│   ├── api.ts
+│   ├── datasource.ts
+│   ├── devops.ts
+│   └── pymatrix.ts
+├── utils/
+│   ├── apiHelpers.ts
+│   └── namespace-registry.ts
+├── layouts/
+│   ├── admin.vue
+│   ├── auth-layout.vue
+│   ├── base.vue
+│   ├── codemart-layout.vue
+│   ├── dashboard.vue
+│   ├── default-with-nav.vue
+│   └── pymatrix.vue
+├── plugins/
+│   ├── datasource.client.ts
+│   ├── maska.ts
+│   ├── perfect-scrollbar.ts
+│   ├── theme.client.ts
+│   ├── tippy.ts
+│   ├── vue-easymde.ts
+│   ├── vue3-apexcharts.ts
+│   ├── vue3-json-excel.ts
+│   └── vue3-popper.ts
+├── middleware/
+│   └── app-entry.global.ts
+├── i18n/
+│   └── locales
+│       ├── da.json
+│       ├── de.json
+│       ├── el.json
+│       ├── en.json
+│       ├── es.json
+│       ├── fr.json
+│       ├── hu.json
+│       ├── it.json
+│       ├── ja.json
+│       ├── pl.json
+│       ├── pt.json
+│       ├── ru.json
+│       ├── sv.json
+│       ├── tr.json
+│       └── zh.json
+├── app-entry.ts
+├── app-setting.ts
+├── nuxt.config.ts
+├── package.json
+├── tsconfig.json
+├── assets/
+│   └── css
+│       ├── animate.css
+│       ├── app.css
+│       ├── apps
+│       │   ├── app_pymatrix_theme.css
+│       │   └── pymatrix
+│       │       ├── components
+│       │       │   ├── badges.css
+│       │       │   ├── buttons.css
+│       │       │   ├── forms.css
+│       │       │   ├── panels.css
+│       │       │   ├── tree.css
+│       │       │   └── video.css
+│       │       ├── layout
+│       │       │   ├── grid.css
+│       │       │   ├── sidebar.css
+│       │       │   └── topbar.css
+│       │       └── pymatrix-theme.css
+│       ├── datatable.css
+│       ├── dragndrop.css
+│       ├── file-upload-preview.css
+│       ├── file-upload-with-preview.min.css
+│       ├── flatpickr.css
+│       ├── form-elements.css
+│       ├── fullcalendar.css
+│       ├── lightbox.css
+│       ├── markdown-editor.css
+│       ├── quill-editor.css
+│       ├── range-slider.css
+│       ├── scrumboard.css
+│       ├── select2.css
+│       ├── sweetalert.css
+│       ├── sweetalert2.css
+│       ├── swiper.css
+│       ├── tailwind.css
+│       ├── theme
+│       │   ├── animations.css
+│       │   └── variables.css
+│       ├── tippy.css
+│       └── wizard.css
+├── public/
+│   ├── assets
+│   │   └── images
+│   │       ├── auth-cover.svg
+│   │       ├── card-americanexpress.svg
+│   │       ├── card-mastercard.svg
+│   │       ├── card-visa.svg
+│   │       ├── carousel1.jpeg
+│   │       ├── carousel2.jpeg
+│   │       ├── carousel3.jpeg
+│   │       ├── checked.svg
+│   │       ├── close.svg
+│   │       ├── coming-soon.svg
+│   │       ├── custom-swal.svg
+│   │       ├── drag-1.jpeg
+│   │       ├── drag-2.jpeg
+│   │       ├── drag-4.jpg
+│   │       ├── features_overview.svg
+│   │       ├── file-preview.svg
+│   │       ├── flags
+│   │       │   ├── AC.svg
+│   │       │   ├── AD.svg
+│   │       │   ├── AE.svg
+│   │       │   ├── AF.svg
+│   │       │   ├── AG.svg
+│   │       │   ├── AI.svg
+│   │       │   ├── AL.svg
+│   │       │   ├── AM.svg
+│   │       │   ├── AO.svg
+│   │       │   ├── AR.svg
+│   │       │   ├── AS.svg
+│   │       │   ├── AT.svg
+│   │       │   ├── AU.svg
+│   │       │   ├── AW.svg
+│   │       │   ├── AX.svg
+│   │       │   ├── AZ.svg
+│   │       │   ├── BA.svg
+│   │       │   ├── BB.svg
+│   │       │   ├── BD.svg
+│   │       │   ├── BE.svg
+│   │       │   ├── BF.svg
+│   │       │   ├── BG.svg
+│   │       │   ├── BH.svg
+│   │       │   ├── BI.svg
+│   │       │   ├── BJ.svg
+│   │       │   ├── BL.svg
+│   │       │   ├── BM.svg
+│   │       │   ├── BN.svg
+│   │       │   ├── BO.svg
+│   │       │   ├── BR.svg
+│   │       │   ├── BS.svg
+│   │       │   ├── BT.svg
+│   │       │   ├── BV.svg
+│   │       │   ├── BW.svg
+│   │       │   ├── BY.svg
+│   │       │   ├── BZ.svg
+│   │       │   ├── CA.svg
+│   │       │   ├── CC.svg
+│   │       │   ├── CD.svg
+│   │       │   ├── CF.svg
+│   │       │   ├── CG.svg
+│   │       │   ├── CH.svg
+│   │       │   ├── CI.svg
+│   │       │   ├── CK.svg
+│   │       │   ├── CL.svg
+│   │       │   ├── CM.svg
+│   │       │   ├── CN.svg
+│   │       │   ├── CO.svg
+│   │       │   ├── CR.svg
+│   │       │   ├── CU.svg
+│   │       │   ├── CV.svg
+│   │       │   ├── CW.svg
+│   │       │   ├── CX.svg
+│   │       │   ├── CY.svg
+│   │       │   ├── CZ.svg
+│   │       │   ├── DA.svg
+│   │       │   ├── DE.svg
+│   │       │   ├── DJ.svg
+│   │       │   ├── DK.svg
+│   │       │   ├── DM.svg
+│   │       │   ├── DO.svg
+│   │       │   ├── DZ.svg
+│   │       │   ├── EC.svg
+│   │       │   ├── EE.svg
+│   │       │   ├── EG.svg
+│   │       │   ├── EH.svg
+│   │       │   ├── EL.svg
+│   │       │   ├── EN.svg
+│   │       │   ├── ER.svg
+│   │       │   ├── ES.svg
+│   │       │   ├── ET.svg
+│   │       │   ├── EU.svg
+│   │       │   ├── FI.svg
+│   │       │   ├── FJ.svg
+│   │       │   ├── FK.svg
+│   │       │   ├── FM.svg
+│   │       │   ├── FO.svg
+│   │       │   ├── FR.svg
+│   │       │   ├── GA.svg
+│   │       │   ├── GB-ENG.svg
+│   │       │   ├── GB-NIR.svg
+│   │       │   ├── GB-SCT.svg
+│   │       │   ├── GB-WLS.svg
+│   │       │   ├── GB-ZET.svg
+│   │       │   ├── GB.svg
+│   │       │   ├── GD.svg
+│   │       │   ├── GE.svg
+│   │       │   ├── GF.svg
+│   │       │   ├── GG.svg
+│   │       │   ├── GH.svg
+│   │       │   ├── GI.svg
+│   │       │   ├── GL.svg
+│   │       │   ├── GM.svg
+│   │       │   ├── GN.svg
+│   │       │   ├── GP.svg
+│   │       │   ├── GQ.svg
+│   │       │   ├── GR.svg
+│   │       │   ├── GS.svg
+│   │       │   ├── GT.svg
+│   │       │   ├── GU.svg
+│   │       │   ├── GW.svg
+│   │       │   ├── GY.svg
+│   │       │   ├── HK.svg
+│   │       │   ├── HM.svg
+│   │       │   ├── HN.svg
+│   │       │   ├── HR.svg
+│   │       │   ├── HT.svg
+│   │       │   ├── HU.svg
+│   │       │   ├── ID.svg
+│   │       │   ├── IE.svg
+│   │       │   ├── IL.svg
+│   │       │   ├── IM.svg
+│   │       │   ├── IN.svg
+│   │       │   ├── IO.svg
+│   │       │   ├── IQ.svg
+│   │       │   ├── IR.svg
+│   │       │   ├── IS.svg
+│   │       │   ├── IT.svg
+│   │       │   ├── JA.svg
+│   │       │   ├── JE.svg
+│   │       │   ├── JM.svg
+│   │       │   ├── JO.svg
+│   │       │   ├── JP.svg
+│   │       │   ├── KE.svg
+│   │       │   ├── KG.svg
+│   │       │   ├── KH.svg
+│   │       │   ├── KI.svg
+│   │       │   ├── KM.svg
+│   │       │   ├── KN.svg
+│   │       │   ├── KP.svg
+│   │       │   ├── KR.svg
+│   │       │   ├── KW.svg
+│   │       │   ├── KY.svg
+│   │       │   ├── KZ.svg
+│   │       │   ├── LA.svg
+│   │       │   ├── LB.svg
+│   │       │   ├── LC.svg
+│   │       │   ├── LGBT.svg
+│   │       │   ├── LI.svg
+│   │       │   ├── LK.svg
+│   │       │   ├── LR.svg
+│   │       │   ├── LS.svg
+│   │       │   ├── LT.svg
+│   │       │   ├── LU.svg
+│   │       │   ├── LV.svg
+│   │       │   ├── LY.svg
+│   │       │   ├── MA.svg
+│   │       │   ├── MC.svg
+│   │       │   ├── MD.svg
+│   │       │   ├── ME.svg
+│   │       │   ├── MF.svg
+│   │       │   ├── MG.svg
+│   │       │   ├── MH.svg
+│   │       │   ├── MK.svg
+│   │       │   ├── ML.svg
+│   │       │   ├── MM.svg
+│   │       │   ├── MN.svg
+│   │       │   ├── MO.svg
+│   │       │   ├── MP.svg
+│   │       │   ├── MQ.svg
+│   │       │   ├── MR.svg
+│   │       │   ├── MS.svg
+│   │       │   ├── MT.svg
+│   │       │   ├── MU.svg
+│   │       │   ├── MV.svg
+│   │       │   ├── MW.svg
+│   │       │   ├── MX.svg
+│   │       │   ├── MY.svg
+│   │       │   ├── MZ.svg
+│   │       │   ├── NA.svg
+│   │       │   ├── NC.svg
+│   │       │   ├── NE.svg
+│   │       │   ├── NF.svg
+│   │       │   ├── NG.svg
+│   │       │   ├── NI.svg
+│   │       │   ├── NL.svg
+│   │       │   ├── NO.svg
+│   │       │   ├── NP.svg
+│   │       │   ├── NR.svg
+│   │       │   ├── NU.svg
+│   │       │   ├── NZ.svg
+│   │       │   ├── OM.svg
+│   │       │   ├── PA.svg
+│   │       │   ├── PE.svg
+│   │       │   ├── PF.svg
+│   │       │   ├── PG.svg
+│   │       │   ├── PH.svg
+│   │       │   ├── PK.svg
+│   │       │   ├── PL.svg
+│   │       │   ├── PM.svg
+│   │       │   ├── PN.svg
+│   │       │   ├── PR.svg
+│   │       │   ├── PS.svg
+│   │       │   ├── PT.svg
+│   │       │   ├── PW.svg
+│   │       │   ├── PY.svg
+│   │       │   ├── QA.svg
+│   │       │   ├── RE.svg
+│   │       │   ├── RH.svg
+│   │       │   ├── RO.svg
+│   │       │   ├── RS.svg
+│   │       │   ├── RU.svg
+│   │       │   ├── RW.svg
+│   │       │   ├── SA.svg
+│   │       │   ├── SB.svg
+│   │       │   ├── SC.svg
+│   │       │   ├── SD.svg
+│   │       │   ├── SE.svg
+│   │       │   ├── SG.svg
+│   │       │   ├── SH.svg
+│   │       │   ├── SI.svg
+│   │       │   ├── SJ.svg
+│   │       │   ├── SK.svg
+│   │       │   ├── SL.svg
+│   │       │   ├── SM.svg
+│   │       │   ├── SN.svg
+│   │       │   ├── SO.svg
+│   │       │   ├── SR.svg
+│   │       │   ├── SS.svg
+│   │       │   ├── ST.svg
+│   │       │   ├── SV.svg
+│   │       │   ├── SV1.svg
+│   │       │   ├── SX.svg
+│   │       │   ├── SY.svg
+│   │       │   ├── SZ.svg
+│   │       │   ├── TC.svg
+│   │       │   ├── TD.svg
+│   │       │   ├── TF.svg
+│   │       │   ├── TG.svg
+│   │       │   ├── TH.svg
+│   │       │   ├── TJ.svg
+│   │       │   ├── TK.svg
+│   │       │   ├── TL.svg
+│   │       │   ├── TM.svg
+│   │       │   ├── TN.svg
+│   │       │   ├── TO.svg
+│   │       │   ├── TR.svg
+│   │       │   ├── TT.svg
+│   │       │   ├── TV.svg
+│   │       │   ├── TW.svg
+│   │       │   ├── TZ.svg
+│   │       │   ├── UG.svg
+│   │       │   ├── UK.svg
+│   │       │   ├── UK1.svg
+│   │       │   ├── UM.svg
+│   │       │   ├── US-CA.svg
+│   │       │   ├── US.svg
+│   │       │   ├── UY.svg
+│   │       │   ├── UZ.svg
+│   │       │   ├── VA.svg
+│   │       │   ├── VC.svg
+│   │       │   ├── VE.svg
+│   │       │   ├── VG.svg
+│   │       │   ├── VI.svg
+│   │       │   ├── VN.svg
+│   │       │   ├── VU.svg
+│   │       │   ├── WF.svg
+│   │       │   ├── WS.svg
+│   │       │   ├── XK.svg
+│   │       │   ├── YE.svg
+│   │       │   ├── YT.svg
+│   │       │   ├── ZA.svg
+│   │       │   ├── ZH.svg
+│   │       │   ├── ZM.svg
+│   │       │   └── ZW.svg
+│   │       ├── g-8.png
+│   │       ├── lightbox1.jpg
+│   │       ├── lightbox2.jpeg
+│   │       ├── lightbox3.jpeg
+│   │       ├── lightbox4.jpeg
+│   │       ├── lightbox5.jpeg
+│   │       ├── lightbox6.jpeg
+│   │       ├── litecoin.svg
+│   │       ├── logo.svg
+│   │       ├── map-dark.svg
+│   │       ├── map.svg
+│   │       ├── menu-heade.jpg
+│   │       ├── notification-bg.png
+│   │       ├── product-camera.jpg
+│   │       ├── product-headphones.jpg
+│   │       ├── product-laptop.jpg
+│   │       ├── product-shoes.jpg
+│   │       ├── product-watch.jpg
+│   │       ├── profile-1.jpeg
+│   │       ├── profile-10.jpeg
+│   │       ├── profile-11.jpeg
+│   │       ├── profile-12.jpeg
+│   │       ├── profile-13.jpeg
+│   │       ├── profile-14.jpeg
+│   │       ├── profile-15.jpeg
+│   │       ├── profile-16.jpeg
+│   │       ├── profile-17.jpeg
+│   │       ├── profile-18.jpeg
+│   │       ├── profile-19.jpeg
+│   │       ├── profile-2.jpeg
+│   │       ├── profile-20.jpeg
+│   │       ├── profile-21.jpeg
+│   │       ├── profile-22.jpeg
+│   │       ├── profile-23.jpeg
+│   │       ├── profile-24.jpeg
+│   │       ├── profile-25.jpeg
+│   │       ├── profile-26.jpeg
+│   │       ├── profile-27.jpeg
+│   │       ├── profile-28.jpeg
+│   │       ├── profile-29.jpeg
+│   │       ├── profile-3.jpeg
+│   │       ├── profile-30.jpeg
+│   │       ├── profile-30.png
+│   │       ├── profile-31.jpeg
+│   │       ├── profile-32.jpeg
+│   │       ├── profile-33.jpeg
+│   │       ├── profile-34.jpeg
+│   │       ├── profile-35.png
+│   │       ├── profile-4.jpeg
+│   │       ├── profile-5.jpeg
+│   │       ├── profile-6.jpeg
+│   │       ├── profile-7.jpeg
+│   │       ├── profile-8.jpeg
+│   │       ├── profile-9.jpeg
+│   │       ├── settings-dark.svg
+│   │       ├── settings-light.svg
+│   │       ├── sweet-bg.jpg
+│   │       └── user-profile.jpeg
+│   ├── demo-prepare.html
+│   ├── favicon.png
+│   └── vite.svg
+└── docs/
+    ├── ARCHITECTURE_ANALYSIS_MULTI_LAYER_ISSUES.md
+    ├── ARCHITECTURE_ANALYSIS_REPORT.md
+    ├── ARCHITECTURE_COMPLETE.txt
+    ├── ARCHITECTURE_FIXES_SUMMARY.txt
+    ├── ARCHITECTURE_REFACTORING_PROPOSAL.md
+    ├── COMMAND_TRACE_EXPLANATION.md
+    ├── CSS_ARCHITECTURE_PLAN.md
+    ├── DATASOURCE_ARCHITECTURE.md
+    ├── IMPLEMENTATION_COMPLETE.md
+    ├── IMPLEMENTATION_GUIDE.md
+    ├── IMPLEMENTATION_PHASES.txt
+    ├── MIGRATION_FINAL_REPORT.txt
+    └── SCRIPT_AUTO_DISCOVERY_DESIGN.md

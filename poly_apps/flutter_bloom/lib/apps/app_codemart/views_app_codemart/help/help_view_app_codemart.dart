@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class HelpViewAppCodemart extends StatelessWidget {
   const HelpViewAppCodemart({super.key});

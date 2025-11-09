@@ -11,12 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_example/features_app_example/authentication/views/congratulation_screen.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/widgets/country_picker.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
-import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/profile/views/profile_screen.dart';
 import 'package:get/get.dart';

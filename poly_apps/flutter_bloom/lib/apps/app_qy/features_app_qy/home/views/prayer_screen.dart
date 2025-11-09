@@ -16,7 +16,6 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/prayer_m
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/prayer_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 
 class PrayerScreen extends StatelessWidget {
   final PrayerModel? prayerModel;

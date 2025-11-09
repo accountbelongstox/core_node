@@ -1,5 +1,5 @@
 <template>
-  <aside class="pm-left-sidebar">
+  <aside class="pm-left-sidebar pm-aurora-panel">
     <div class="pm-left-sidebar__header">
       <h3 class="pm-left-sidebar__title">Device List</h3>
       <span class="pm-count-badge">{{ devices.length }}</span>
@@ -88,6 +88,15 @@ const emit = defineEmits<Emits>();
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+}
+
+.pm-left-sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid rgba(124, 92, 255, 0.18);
 }
 
 .pm-left-sidebar__header {
@@ -201,10 +210,25 @@ const emit = defineEmits<Emits>();
   transition: var(--pm-transition-fast);
 }
 
+.pm-sidebar-item::after {
+  content: '';
+  position: absolute;
+  inset: 20% 10% auto 10%;
+  height: 1px;
+  border-radius: var(--pm-radius-pill);
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.4), transparent);
+  opacity: 0;
+  transition: var(--pm-transition-fast);
+}
+
 .pm-sidebar-item:hover {
   transform: translateX(4px);
   border-color: var(--pm-color-border);
   box-shadow: var(--pm-shadow-sm);
+}
+
+.pm-sidebar-item:hover::after {
+  opacity: 1;
 }
 
 .pm-sidebar-item--active {

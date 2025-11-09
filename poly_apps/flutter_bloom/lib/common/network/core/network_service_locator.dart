@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'unified_network_client.dart';
 // FIXED: Added 'as retry' prefix to resolve ConnectivityMonitor naming conflict
 import 'network_retry_manager.dart' as retry;
 // FIXED: Added 'as queue' prefix to resolve QueueStats and OfflineStats naming conflicts
 import 'network_queue_and_offline.dart' as queue;
 // FIXED: Added 'as cache' prefix to resolve CacheManager naming conflict
 import '../../cache_manager/cache_manager.dart' as cache;
-import 'network_types.dart';
 
 /// Network Service Locator
 /// Replaces problematic singleton pattern with proper dependency injection

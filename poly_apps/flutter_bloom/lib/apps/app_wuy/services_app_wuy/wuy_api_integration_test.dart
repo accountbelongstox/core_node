@@ -11,13 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/foundation.dart';
-import '../config_app_wuy/app_config_app_wuy.dart';
-import '../models_app_wuy/auth_models_app_wuy.dart';
-import '../models_app_wuy/user_model_app_wuy.dart';
 import 'wuy_api_service_manager.dart';
-import 'wuy_auth_api_service.dart';
-import 'wuy_user_api_service.dart';
-import 'wuy_friends_api_service.dart';
 
 /// API Integration Test Helper for Wuy App
 /// Provides testing utilities for validating API endpoints
@@ -554,7 +548,7 @@ class TestResult {
     duration = milliseconds;
   }
 
-  bool get hasData(String key) => data.containsKey(key);
+  bool hasData(String key) => data.containsKey(key);
   dynamic getData(String key) => data[key];
 
   Map<String, dynamic> toJson() {

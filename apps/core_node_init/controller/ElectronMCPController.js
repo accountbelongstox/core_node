@@ -13,8 +13,8 @@
 const logger = require('#@logger');
 const ElectronManager = require('../../../ncore/utils/electron');
 const { commander } = require('#@commander');
-const { ftools } = require('#@ftools');
-const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const WebSocket = require('ws');
 const electronConfig = require('../config/electron');
 
 class ElectronMCPController {
@@ -36,14 +36,26 @@ class ElectronMCPController {
         try {
             logger.info('Initializing ElectronMCPController...');
 
-            // Initialize Electron manager
+            const electronEnabled = this.config.enabled !== false;
+
+            if (!electronEnabled) {
+                logger.info('Electron is disabled in configuration, skipping Electron initialization');
+                this.initialized = true;
+                return this;
+            }
+
             this.electronManager = ElectronManager.getInstance();
             await this.electronManager.initialize(this.config);
 
-            // Setup IPC handlers
+            if (!this.electronManager.isInitialized || !this.electronManager.electron) {
+                logger.warn('Electron module not available, running without Electron features');
+                this.electronManager = null;
+                this.initialized = true;
+                return this;
+            }
+
             this.setupIPCHandlers();
 
-            // Initialize services
             await this.initializeServices();
 
             this.initialized = true;
@@ -178,21 +190,102 @@ class ElectronMCPController {
     async checkBackendHealth() {
         try {
             const backendConfig = this.config.services.backend;
-            const { httptool } = require('#@btools');
+            if (!backendConfig || backendConfig.enabled === false) {
+                return false;
+            }
 
+            const backendUrl = backendConfig.url || '';
+            if (backendUrl.startsWith('ws://') || backendUrl.startsWith('wss://')) {
+                return await this._checkBackendHealthViaWebSocket(backendConfig);
+            }
+
+            return await this._checkBackendHealthViaHttp(backendConfig);
+        } catch (error) {
+            logger.debug(`Backend health check failed: ${error.message}`);
+            return false;
+        }
+    }
+
+    async _checkBackendHealthViaHttp(backendConfig) {
+        try {
+            const { httptool } = require('#@btools');
+            const healthPath = backendConfig.healthCheck || '/api/status';
             const response = await httptool.getRequest(
-                `${backendConfig.url}${backendConfig.healthCheck}`,
+                `${backendConfig.url}${healthPath}`,
                 {
                     timeout: this.config.monitoring.connectionTimeout,
                     retries: this.config.monitoring.retryAttempts
                 }
             );
-
             return response && response.statusCode === 200;
         } catch (error) {
-            logger.debug(`Backend health check failed: ${error.message}`);
+            logger.debug(`HTTP backend health check failed: ${error.message}`);
             return false;
         }
+    }
+
+    async _checkBackendHealthViaWebSocket(backendConfig) {
+        return await new Promise((resolve) => {
+            const routeName = backendConfig.healthRoute || 'server.status';
+            const requestId = uuidv4();
+            const timeoutMs = this.config.monitoring.connectionTimeout;
+            let resolved = false;
+
+            const socket = new WebSocket(backendConfig.url, {
+                handshakeTimeout: timeoutMs
+            });
+
+            const finalize = (result) => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                try {
+                    socket.terminate();
+                } catch (error) {
+                    logger.debug(`Error terminating WebSocket: ${error.message}`);
+                }
+                resolve(result);
+            };
+
+            const timeoutHandle = setTimeout(() => {
+                finalize(false);
+            }, timeoutMs);
+
+            socket.on('open', () => {
+                const payload = {
+                    type: 'request',
+                    id: requestId,
+                    route: routeName,
+                    params: {},
+                    timestamp: Date.now()
+                };
+                socket.send(JSON.stringify(payload));
+            });
+
+            socket.on('message', (data) => {
+                try {
+                    const message = JSON.parse(data.toString());
+                    if (message.type === 'response' && message.id === requestId) {
+                        clearTimeout(timeoutHandle);
+                        finalize(message.success !== false);
+                    }
+                } catch (error) {
+                    logger.debug(`WebSocket backend health parsing error: ${error.message}`);
+                }
+            });
+
+            socket.on('error', (error) => {
+                clearTimeout(timeoutHandle);
+                logger.debug(`WebSocket backend health socket error: ${error.message}`);
+                finalize(false);
+            });
+
+            socket.on('close', () => {
+                clearTimeout(timeoutHandle);
+                finalize(resolved);
+            });
+        });
     }
 
     async checkFrontendHealth() {
@@ -312,12 +405,26 @@ class ElectronMCPController {
 
     async openBackendStatus() {
         try {
-            const backendUrl = `${this.config.services.backend.url}${this.config.services.backend.healthCheck}`;
+            const backendConfig = this.config.services.backend;
+            const backendUrl = backendConfig.url;
+
+            if (backendUrl.startsWith('ws://') || backendUrl.startsWith('wss://')) {
+                logger.info(`Backend WebSocket endpoint: ${backendUrl}`);
+                return {
+                    success: true,
+                    url: backendUrl,
+                    message: 'Backend WebSocket endpoint logged'
+                };
+            }
+
             const { shell } = require('electron');
-            await shell.openExternal(backendUrl);
+            const targetUrl = backendConfig.healthCheck ?
+                `${backendUrl}${backendConfig.healthCheck}` :
+                backendUrl;
+            await shell.openExternal(targetUrl);
             return {
                 success: true,
-                url: backendUrl
+                url: targetUrl
             };
         } catch (error) {
             logger.error(`Failed to open backend status: ${error.message}`);

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/auth/views/splash_screen.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/auth/views/login_screen.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/views/home_screen.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/profile/views/profile_screen.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/splash/views/splash_intro_screen.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/membership/views/membership_tiers_screen.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/articles/views/articles_list_screen.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/articles/views/article_detail_screen.dart';
@@ -10,6 +15,7 @@ import 'package:qyflutter/apps/app_vipclub/models_app_vipclub/article_model_app_
 
 class VipClubRoutes {
   static const String splash = '/';
+  static const String splashIntro = '/splash-intro';
   static const String login = '/login';
   static const String register = '/register';
   static const String home = '/home';
@@ -44,6 +50,10 @@ GoRouter createVipClubRouter() {
       GoRoute(
         path: VipClubRoutes.splash,
         builder: (context, state) => const VipClubSplashScreen(),
+      ),
+      GoRoute(
+        path: VipClubRoutes.splashIntro,
+        builder: (context, state) => const VipClubSplashIntroScreen(),
       ),
       GoRoute(
         path: VipClubRoutes.login,
@@ -179,32 +189,6 @@ GoRouter createVipClubRouter() {
   );
 }
 
-class VipClubSplashScreen extends StatelessWidget {
-  const VipClubSplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('VIP Club Splash Screen'),
-      ),
-    );
-  }
-}
-
-class VipClubLoginScreen extends StatelessWidget {
-  const VipClubLoginScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('VIP Club Login Screen'),
-      ),
-    );
-  }
-}
-
 class VipClubRegisterScreen extends StatelessWidget {
   const VipClubRegisterScreen({super.key});
 
@@ -213,19 +197,6 @@ class VipClubRegisterScreen extends StatelessWidget {
     return const Scaffold(
       body: Center(
         child: Text('VIP Club Register Screen'),
-      ),
-    );
-  }
-}
-
-class VipClubHomeScreen extends StatelessWidget {
-  const VipClubHomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('VIP Club Home Screen'),
       ),
     );
   }
@@ -381,19 +352,6 @@ class VipClubCreateBookingScreen extends StatelessWidget {
     return const Scaffold(
       body: Center(
         child: Text('VIP Club Create Booking Screen'),
-      ),
-    );
-  }
-}
-
-class VipClubProfileScreen extends StatelessWidget {
-  const VipClubProfileScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('VIP Club Profile Screen'),
       ),
     );
   }

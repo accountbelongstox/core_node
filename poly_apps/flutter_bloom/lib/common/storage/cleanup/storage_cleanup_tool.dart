@@ -23,8 +23,10 @@ class StorageCleanupTool {
   static const String _cleanupVersion = '1.0.0';
 
   /// Check if cleanup is needed
-  static Future<bool> isCleanupNeeded() async {
+  static Future<bool> isCleanupNeeded({String? appName}) async {
     try {
+      await StorageManager.instance.init(appName: appName);
+
       // Check if cleanup flag exists
       final result = await StorageManager.instance.getValue<String>(
         'common_storage',
@@ -51,7 +53,7 @@ class StorageCleanupTool {
       await StorageManager.instance.init(appName: appName);
 
       // Check if cleanup is needed
-      if (!await isCleanupNeeded()) {
+      if (!await isCleanupNeeded(appName: appName)) {
         return CleanupResult(
           success: true,
           message: 'Cleanup not needed or already completed',
@@ -73,14 +75,14 @@ class StorageCleanupTool {
 
       // Optimize current database
       if (optimizeDatabase) {
-        final optimized = await _optimizeDatabase();
+        final optimized = await _optimizeDatabase(appName: appName);
         if (optimized) {
           actions.add('Optimized current database');
         }
       }
 
       // Clean up expired entries
-      final expiredCount = await _cleanupExpiredEntries();
+      final expiredCount = await _cleanupExpiredEntries(appName: appName);
       cleanedItems += expiredCount;
       if (expiredCount > 0) {
         actions.add('Removed $expiredCount expired entries');
@@ -159,8 +161,11 @@ class StorageCleanupTool {
   }
 
   /// Optimize current database
-  static Future<bool> _optimizeDatabase() async {
+  static Future<bool> _optimizeDatabase({String? appName}) async {
     try {
+      await StorageManager.instance.init(appName: appName);
+      await UnifiedSQLiteStorageAdapter.instance.init(appName: appName);
+
       // Get unified storage adapter
       final adapter = UnifiedSQLiteStorageAdapter.instance;
       
@@ -179,8 +184,11 @@ class StorageCleanupTool {
   }
 
   /// Clean up expired entries
-  static Future<int> _cleanupExpiredEntries() async {
+  static Future<int> _cleanupExpiredEntries({String? appName}) async {
     try {
+      await StorageManager.instance.init(appName: appName);
+      await UnifiedSQLiteStorageAdapter.instance.init(appName: appName);
+
       final adapter = UnifiedSQLiteStorageAdapter.instance;
       return await adapter.cleanupExpiredEntries();
     } catch (e) {

@@ -121,6 +121,14 @@ class OrderModel {
     }
   }
 
+  // 判断是否是转机航班
+  bool get hasTransfer {
+    if (type != OrderType.flight) return false;
+    return extraInfo?['hasTransfer'] == true ||
+           extraInfo?['isMultiSegment'] == true ||
+           (extraInfo?['totalStops'] != null && extraInfo!['totalStops'] > 0);
+  }
+
   bool matchesFilter(String filter) {
     switch (filter) {
       case '全部':

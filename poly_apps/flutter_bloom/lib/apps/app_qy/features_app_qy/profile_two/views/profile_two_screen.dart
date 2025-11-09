@@ -24,6 +24,7 @@ import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class ProfileTwoScreen extends StatelessWidget {
   const ProfileTwoScreen({super.key});
@@ -35,7 +36,7 @@ class ProfileTwoScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'profile'.tr(context),
+          QyAppLocalizationKeys.qyProfile.tr(context),
           style: ThemeTextStyles.textMedium,
         ),
         leading: IconButton(
@@ -103,14 +104,14 @@ class ProfileTwoScreen extends StatelessWidget {
             ),
             Align(
                 alignment: Alignment.topLeft,
-                child: Text('about'.tr(context),
+                child: Text(QyAppLocalizationKeys.qyAbout.tr(context),
                     style: ThemeTextStyles.textBold.copyWith(
                         fontSize: ThemeDimensions.fontSizeDefault))),
             const SizedBox(
               height: ThemeDimensions.defaultSize,
             ),
             Text(
-              'about_description'.tr(context),
+              QyAppLocalizationKeys.qyAboutDescription.tr(context),
               style: ThemeTextStyles.textMedium,
             ),
             const SizedBox(
@@ -118,7 +119,7 @@ class ProfileTwoScreen extends StatelessWidget {
             ),
             Row(
               children: [
-                Text('interest'.tr(context),
+                Text(QyAppLocalizationKeys.qyInterest.tr(context),
                     style: ThemeTextStyles.textBold.copyWith(
                         fontSize: ThemeDimensions.fontSizeDefault)),
                 const SizedBox(width: ThemeDimensions.defaultSize),
@@ -134,9 +135,9 @@ class ProfileTwoScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InterestWidget(interest: 'medical'.tr(context)),
-                  InterestWidget(interest: 'disaster'.tr(context)),
-                  InterestWidget(interest: 'education'.tr(context)),
+                  InterestWidget(interest: QyAppLocalizationKeys.qyMedical.tr(context)),
+                  InterestWidget(interest: QyAppLocalizationKeys.qyDisaster.tr(context)),
+                  InterestWidget(interest: QyAppLocalizationKeys.qyEducation.tr(context)),
                   InterestWidget(interest: 'social.title'.tr(context)),
                 ],
               ),
@@ -144,9 +145,9 @@ class ProfileTwoScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                InterestWidget(interest: 'orphanage'.tr(context)),
-                InterestWidget(interest: 'humanity'.tr(context)),
-                InterestWidget(interest: 'environment'.tr(context)),
+                InterestWidget(interest: QyAppLocalizationKeys.qyOrphanage.tr(context)),
+                InterestWidget(interest: QyAppLocalizationKeys.qyHumanity.tr(context)),
+                InterestWidget(interest: QyAppLocalizationKeys.qyEnvironment.tr(context)),
               ],
             ),
           ],

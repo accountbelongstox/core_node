@@ -24,42 +24,35 @@ abstract class StorageException implements Exception {
 
 /// Configuration exception
 class StorageConfigurationException extends StorageException {
-  const StorageConfigurationException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageConfigurationException(super.message, {super.code, super.details});
 }
 
 /// Initialization exception
 class StorageInitializationException extends StorageException {
-  const StorageInitializationException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageInitializationException(super.message, {super.code, super.details});
 }
 
 /// Data validation exception
 class StorageValidationException extends StorageException {
-  const StorageValidationException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageValidationException(super.message, {super.code, super.details});
 }
 
 /// Encryption exception
 class StorageEncryptionException extends StorageException {
-  const StorageEncryptionException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageEncryptionException(super.message, {super.code, super.details});
 }
 
 /// Cache exception
 class StorageCacheException extends StorageException {
-  const StorageCacheException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageCacheException(super.message, {super.code, super.details});
 }
 
 /// Transaction exception
 class StorageTransactionException extends StorageException {
-  const StorageTransactionException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageTransactionException(super.message, {super.code, super.details});
 }
 
 /// Migration exception
 class StorageMigrationException extends StorageException {
-  const StorageMigrationException(String message, {String? code, dynamic details})
-      : super(message, code: code, details: details);
+  const StorageMigrationException(super.message, {super.code, super.details});
 }

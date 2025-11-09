@@ -1,11 +1,11 @@
 /// Python Course Detail Screen
-library course_python_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../../../../common/widgets/gradient_button.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../domain/models/course_model.dart';
 
 class CoursePythonScreen extends StatefulWidget {
@@ -54,10 +54,10 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
     ],
   );
 
-  double _userProgress = 0.28;
-  int _completedLessons = 18;
-  int _currentStreak = 12;
-  int _projectCompleted = 3;
+  final double _userProgress = 0.28;
+  final int _completedLessons = 18;
+  final int _currentStreak = 12;
+  final int _projectCompleted = 3;
 
   @override
   void initState() {
@@ -137,7 +137,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
             const Icon(Icons.code, color: Colors.white),
             const SizedBox(width: 8),
             Text(
-              '继续编程',
+              QyAppLocalizationKeys.qyCourseContinueCoding.tr(context),
               style: AppTextStyles.bodyMedium.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -240,11 +240,11 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
           fontWeight: FontWeight.bold,
         ),
         unselectedLabelStyle: AppTextStyles.bodySmall,
-        tabs: const [
-          Tab(text: '概览'),
-          Tab(text: '课程'),
-          Tab(text: '项目'),
-          Tab(text: '进度'),
+        tabs: [
+          Tab(text: QyAppLocalizationKeys.qyCourseOverview.tr(context)),
+          Tab(text: QyAppLocalizationKeys.qyCourseLessons.tr(context)),
+          Tab(text: QyAppLocalizationKeys.qyCourseProjects.tr(context)),
+          Tab(text: QyAppLocalizationKeys.qyCourseProgress.tr(context)),
         ],
       ),
     );
@@ -291,7 +291,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '编程学习进度',
+                QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
                 style: AppTextStyles.headline6.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -342,7 +342,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '已完成 $_completedLessons/${_pythonCourse.lessons} 节课',
+                        QyAppLocalizationKeys.qyCourseCompletedLessons.tr(context).replaceAll('{completed}', _completedLessons.toString()).replaceAll('{total}', _pythonCourse.lessons.toString()),
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),
@@ -353,7 +353,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                                color: Colors.white.withOpacity(0.9), size: 16),
                           const SizedBox(width: 4),
                           Text(
-                            '连续 $_currentStreak 天',
+                            QyAppLocalizationKeys.qyCourseConsecutiveDays.tr(context).replaceAll('{days}', _currentStreak.toString()),
                             style: AppTextStyles.bodyMedium.copyWith(
                               color: Colors.white.withOpacity(0.9),
                             ),
@@ -367,7 +367,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '完成项目 $_projectCompleted 个',
+                        QyAppLocalizationKeys.qyCourseProjectsCompleted.tr(context).replaceAll('{count}', _projectCompleted.toString()),
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),
@@ -378,7 +378,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                                color: Colors.white.withOpacity(0.9), size: 16),
                           const SizedBox(width: 4),
                           Text(
-                            '编程 ${_getTotalLinesOfCode()} 行',
+                            QyAppLocalizationKeys.qyCourseLinesOfCode.tr(context).replaceAll('{lines}', _getTotalLinesOfCode().toString()),
                             style: AppTextStyles.bodyMedium.copyWith(
                               color: Colors.white.withOpacity(0.9),
                             ),
@@ -409,7 +409,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '课程信息',
+            QyAppLocalizationKeys.qyCourseInfo.tr(context),
             style: AppTextStyles.headline6.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -421,7 +421,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               Expanded(
                 child: _buildInfoItem(
                   Icons.schedule,
-                  '课程时长',
+                  QyAppLocalizationKeys.qyCourseDuration.tr(context),
                   _pythonCourse.duration,
                   AppTheme.info,
                 ),
@@ -430,7 +430,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               Expanded(
                 child: _buildInfoItem(
                   Icons.code,
-                  '代码练习',
+                  QyAppLocalizationKeys.qyCourseCodePractice.tr(context),
                   '${_pythonCourse.lessons}个',
                   AppTheme.success,
                 ),
@@ -443,7 +443,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               Expanded(
                 child: _buildInfoItem(
                   Icons.trending_up,
-                  '难度递进',
+                  QyAppLocalizationKeys.qyCourseDifficultyProgression.tr(context),
                   _pythonCourse.level,
                   AppTheme.warning,
                 ),
@@ -452,7 +452,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               Expanded(
                 child: _buildInfoItem(
                   Icons.star,
-                  '课程评分',
+                  QyAppLocalizationKeys.qyCourseRating.tr(context),
                   '${_pythonCourse.rating}',
                   AppTheme.accentColor,
                 ),
@@ -502,7 +502,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '课程特色',
+            QyAppLocalizationKeys.qyCourseFeatures.tr(context),
             style: AppTextStyles.headline6.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -537,7 +537,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 ),
               ],
             ),
-          )).toList(),
+          )),
         ],
       ),
     );
@@ -551,7 +551,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '授课导师',
+            QyAppLocalizationKeys.qyCourseInstructor.tr(context),
             style: AppTextStyles.headline6.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -612,7 +612,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '学习路径',
+            QyAppLocalizationKeys.qyCourseLearningPath.tr(context),
             style: AppTextStyles.headline6.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -674,7 +674,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -687,7 +687,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '课程内容',
+            QyAppLocalizationKeys.qyCourseCurriculum.tr(context),
             style: AppTextStyles.headline5.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -851,7 +851,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                             Icon(Icons.lock, color: Colors.grey, size: 14)
                           else
                             Text(
-                              '已完成 $completed/$totalLessons',
+                              QyAppLocalizationKeys.qyCourseCompletedLessons.tr(context).replaceAll('{completed}', completed.toString()).replaceAll('{total}', totalLessons.toString()),
                               style: AppTextStyles.bodySmall.copyWith(
                                 color: AppTheme.textSecondary,
                               ),
@@ -1317,7 +1317,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 ),
               ],
             ),
-          )).toList(),
+          )),
         ],
       ),
     );

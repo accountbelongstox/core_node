@@ -1,10 +1,11 @@
 /// Course Plans screen with learning roadmap and schedules
-library course_plans_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class CoursePlansScreen extends StatefulWidget {
   const CoursePlansScreen({super.key});
@@ -161,14 +162,14 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
             child: Column(
               children: [
                 Text(
-                  '课程计划',
+                  QyAppLocalizationKeys.qyCoursesTitle.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '制定你的学习计划',
+                  QyAppLocalizationKeys.qyCourseLearningPath.tr(context),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -201,7 +202,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
         children: [
           Expanded(
             child: _buildStatItem(
-              '进行中',
+              QyAppLocalizationKeys.qyCourseInProgress.tr(context),
               '2',
               Icons.play_circle,
               Colors.white,
@@ -214,7 +215,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              '已完成',
+              QyAppLocalizationKeys.qyCourseCompleted.tr(context),
               '5',
               Icons.check_circle,
               Colors.white,
@@ -227,7 +228,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              '总时长',
+              QyAppLocalizationKeys.qyCourseDuration.tr(context),
               '165h',
               Icons.access_time,
               Colors.white,
@@ -473,7 +474,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '学习进度',
+              QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
               style: AppTextStyles.bodySmall.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -513,7 +514,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
     // Navigate to course plan detail screen
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('正在打开课程: ${plan['title']}'),
+        content: Text('${QyAppLocalizationKeys.qyCourseStart.tr(context)}: ${plan['title']}'),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -522,7 +523,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
   void _showLockedMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('该课程暂未开放'),
+        content: Text(QyAppLocalizationKeys.qyCourseLocked.tr(context)),
         backgroundColor: AppTheme.warning,
       ),
     );
@@ -536,7 +537,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
           borderRadius: BorderRadius.circular(20),
         ),
         title: Text(
-          '筛选课程',
+          QyAppLocalizationKeys.qyCoursesCategories.tr(context),
           style: AppTextStyles.headline5.copyWith(
             color: AppTheme.textPrimary,
           ),
@@ -559,7 +560,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '确定',
+                QyAppLocalizationKeys.qyCommonOk.tr(context),
                 style: AppTextStyles.buttonText,
               ),
             ),

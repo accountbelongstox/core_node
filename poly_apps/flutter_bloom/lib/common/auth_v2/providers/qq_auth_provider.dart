@@ -1,11 +1,10 @@
 
 /// QQ authentication provider implementation
 /// Supports QQ login with access token and user info retrieval
-library qq_auth_provider;
+library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../auth_interface.dart';
@@ -312,7 +311,10 @@ class QQAuthProvider extends IAuthProvider {
         lastLoginAt: DateTime.now(),
       );
 
-      return AuthResult.success(user: user);
+      return AuthResult(
+        success: true,
+        user: user,
+      );
     } catch (e) {
       return AuthResult.failure(
         errorMessage: 'User info error: ${e.toString()}',

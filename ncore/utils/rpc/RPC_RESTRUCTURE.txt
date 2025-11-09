@@ -1,0 +1,144 @@
+===========================================
+RPC Module Restructure Complete
+===========================================
+
+DIRECTORY STRUCTURE:
+-------------------
+ncore/utils/rpc/
+├── common/                    # Shared RPC libraries
+│   ├── config.js             # Unified configuration management
+│   ├── cache.js              # Client cache using encyclopedia
+│   └── index.js              # Common exports
+├── ws_rpc/                   # WebSocket RPC
+│   ├── WsRpcServer.js
+│   ├── WsRpcClient.js
+│   ├── libs/                 # WebSocket-specific libs
+│   └── index.js
+├── http_rpc/                 # HTTP RPC & Express Server
+│   ├── HttpRpcServer.js
+│   ├── HttpRpcClient.js
+│   ├── ExpressServer.js      # Full Express server wrapper
+│   ├── libs/                 # HTTP-specific libs
+│   │   ├── RouterManager.js
+│   │   ├── StaticServer.js
+│   │   ├── WsManager.js
+│   │   ├── UploadTools.js
+│   │   └── ...
+│   ├── provider/
+│   ├── tool/
+│   └── index.js
+└── index.js                  # Unified RPC entry point
+
+GLOBAL CONFIGURATION:
+--------------------
+ncore/global_vars/gconfig/
+├── rpc_constants.js          # RPC constants (moved from gcommon/ws_rpc_constants.js)
+└── rpc_config.js             # Shared configuration for both HTTP and WS RPC
+
+SHARED FEATURES:
+---------------
+✓ Common configuration for both HTTP and WebSocket RPC
+✓ Same port for HTTP and WebSocket (USE_SAME_PORT: true)
+✓ Shared client cache using encyclopedia.js
+✓ Unified constants and error codes
+✓ Consistent API across modules
+
+USAGE EXAMPLES:
+--------------
+
+1. Unified Import:
+   const rpc = require('#@ncore/utils/rpc');
+
+   // WebSocket RPC
+   const wsServer = rpc.createWsServer({ port: 8080 });
+   const wsClient = rpc.createWsClient('ws://localhost:8080');
+
+   // HTTP RPC
+   const httpServer = rpc.createHttpServer(expressApp);
+   const httpClient = rpc.createHttpClient('http://localhost:8080/rpc');
+
+   // Express Server
+   const server = await rpc.startExpressServer({ HTTP_PORT: 8080 });
+
+2. Configuration:
+   const { setConfig, getConfig } = require('#@ncore/utils/rpc');
+
+   setConfig({
+       HTTP_PORT: 8080,
+       WS_PORT: 8080,
+       USE_SAME_PORT: true,
+       AUTH_ENABLED: true
+   });
+
+   const config = getConfig();
+
+3. Client Cache:
+   const { getCache } = require('#@ncore/utils/rpc');
+
+   const cache = getCache();
+   cache.set('user:123', { name: 'John' }, 3600000);
+   const user = cache.get('user:123');
+
+4. WebSocket RPC:
+   const { ws } = require('#@ncore/utils/rpc');
+
+   const server = ws.createServer();
+   server.route('getData', async (params) => {
+       return { data: 'result' };
+   });
+   await server.start();
+
+5. HTTP RPC + Express:
+   const { http } = require('#@ncore/utils/rpc');
+
+   const server = http.createExpressServer({ HTTP_PORT: 8080 });
+
+   server.getRouterManager().get('/api/test', (req, res) => {
+       res.json({ status: 'ok' });
+   });
+
+   await server.start();
+
+6. Constants:
+   const { RPC_CONSTANTS, MSG_TYPES, ERROR_CODES } = require('#@ncore/utils/rpc');
+
+   console.log(MSG_TYPES.REQUEST);    // 'request'
+   console.log(ERROR_CODES.TIMEOUT);  // 'TIMEOUT'
+
+MIGRATION GUIDE:
+---------------
+
+Old imports:
+  require('#@ncore/utils/ws_rpc')
+  require('#@ncore/utils/http_rpc')
+  require('#@ncore/foundation/express_utils')
+  require('#@global_vars').WS_RPC_CONSTANTS
+
+New imports:
+  require('#@ncore/utils/rpc')
+  require('#@ncore/utils/rpc/ws_rpc')
+  require('#@ncore/utils/rpc/http_rpc')
+  require('#@ncore/utils/rpc/common')
+  require('#@global_vars').RPC_CONSTANTS
+
+BREAKING CHANGES:
+----------------
+✓ WS_RPC_CONSTANTS renamed to RPC_CONSTANTS (backward compatible alias maintained)
+✓ Configuration moved from http_rpc/config to ncore/global_vars/gconfig
+✓ Constants moved from gcommon/ws_rpc_constants.js to gconfig/rpc_constants.js
+✓ express_utils functionality merged into http_rpc
+
+BACKWARD COMPATIBILITY:
+----------------------
+✓ Old WS_RPC_CONSTANTS still available in global_vars for compatibility
+✓ All original APIs preserved
+✓ Existing code should continue to work with new imports
+
+KEY IMPROVEMENTS:
+----------------
+✓ Unified configuration across HTTP and WebSocket RPC
+✓ Shared client cache using encyclopedia for persistence
+✓ Cleaner directory structure
+✓ Single entry point for all RPC functionality
+✓ Better code organization and maintainability
+✓ Reduced duplication

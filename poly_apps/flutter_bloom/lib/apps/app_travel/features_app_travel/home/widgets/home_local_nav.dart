@@ -18,9 +18,9 @@ class HomeLocalNav extends StatelessWidget {
   final List<LocalNavModel> localNavs;
 
   const HomeLocalNav({
-    Key? key,
+    super.key,
     required this.localNavs,
-  }) : super(key: key);
+  });
 
   Widget _buildIcon(int index) {
     const iconSize = 32.0;
@@ -75,13 +75,12 @@ class HomeLocalNav extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      height: 22.0,
-      margin: const EdgeInsets.only(bottom: 22.0),
+      height: 0.0,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            top: -68.0,
+            top: -95.0,
             left: 12.0,
             right: 12.0,
             child: Container(
@@ -99,34 +98,31 @@ class HomeLocalNav extends StatelessWidget {
                 ],
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(displayNavs.length, (index) {
                   final nav = displayNavs[index];
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        debugPrint('Local nav tapped: ${nav.title}');
-                      },
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildIcon(index),
-                          const SizedBox(height: 4.0),
-                          Flexible(
-                            child: Text(
-                              nav.title,
-                              style: const TextStyle(
-                                fontSize: 11.0,
-                                color: Colors.black87,
-                                height: 1.2,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                  return GestureDetector(
+                    onTap: () {
+                      debugPrint('Local nav tapped: ${nav.title}');
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildIcon(index),
+                        const SizedBox(height: 3.0),
+                        Text(
+                          nav.title,
+                          style: const TextStyle(
+                            fontSize: 11.0,
+                            color: Colors.black87,
+                            height: 1.0,
                           ),
-                        ],
-                      ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   );
                 }),

@@ -17,7 +17,6 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/authentication/views/creat
 import 'package:qyflutter/apps/app_qy/features_app_qy/profile/domain/model/select_insterest_model.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:get/get.dart';
 
 class SelectInsterestScreenView extends StatelessWidget {

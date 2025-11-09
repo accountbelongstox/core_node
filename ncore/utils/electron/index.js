@@ -10,8 +10,9 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const { app, BrowserWindow, Menu, Tray, dialog, shell } = require('electron');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const WebSocket = require('ws');
 const logger = require('#@logger');
 
 class ElectronManager {
@@ -20,15 +21,24 @@ class ElectronManager {
         this.version = '1.0.0';
         this.mainWindow = null;
         this.tray = null;
+        this.electron = null;
+        this.app = null;
+        this.BrowserWindow = null;
+        this.Menu = null;
+        this.Tray = null;
+        this.dialog = null;
+        this.shell = null;
         this.config = {
+            enabled: false,
             appTitle: 'Core Node MCP Server',
             trayIcon: null,
             frontendUrl: 'http://localhost:7096',
-            backendUrl: 'http://localhost:8080',
+            backendUrl: 'ws://localhost:8081',
+            backendHealthRoute: 'server.status',
             autoStart: true,
             showWindowOnStart: false,
             enableTray: true,
-            checkInterval: 5000 // Service health check interval
+            checkInterval: 5000
         };
         this.isInitialized = false;
         this.isQuitting = false;
@@ -36,6 +46,26 @@ class ElectronManager {
             frontend: false,
             backend: false
         };
+    }
+
+    _loadElectron() {
+        if (this.electron) {
+            return true;
+        }
+
+        try {
+            this.electron = require('electron');
+            this.app = this.electron.app;
+            this.BrowserWindow = this.electron.BrowserWindow;
+            this.Menu = this.electron.Menu;
+            this.Tray = this.electron.Tray;
+            this.dialog = this.electron.dialog;
+            this.shell = this.electron.shell;
+            return true;
+        } catch (error) {
+            logger.error(`Failed to load Electron module: ${error.message}`);
+            return false;
+        }
     }
 
     async initialize(config = {}) {
@@ -47,10 +77,23 @@ class ElectronManager {
         try {
             logger.info('Initializing ElectronManager...');
 
-            // Merge configuration
             this.config = { ...this.config, ...config };
 
-            // Setup app event handlers
+            const electronEnabled = this.config.enabled !== false && (this.config.tray?.enabled || this.config.window?.enabled);
+
+            if (!electronEnabled) {
+                logger.info('Electron is disabled in configuration, skipping initialization');
+                this.isInitialized = true;
+                return this;
+            }
+
+            const electronLoaded = this._loadElectron();
+            if (!electronLoaded) {
+                logger.warn('Electron module not available, running without desktop features');
+                this.isInitialized = true;
+                return this;
+            }
+
             this.setupAppEventHandlers();
 
             this.isInitialized = true;
@@ -63,32 +106,32 @@ class ElectronManager {
     }
 
     setupAppEventHandlers() {
-        // App ready handler
-        app.whenReady().then(() => {
+        if (!this.app) {
+            logger.warn('Electron app not available, skipping event handler setup');
+            return;
+        }
+
+        this.app.whenReady().then(() => {
             this.onAppReady();
         });
 
-        // Window all closed handler
-        app.on('window-all-closed', () => {
+        this.app.on('window-all-closed', () => {
             if (process.platform !== 'darwin') {
-                app.quit();
+                this.app.quit();
             }
         });
 
-        // App activate handler (macOS)
-        app.on('activate', () => {
-            if (BrowserWindow.getAllWindows().length === 0) {
+        this.app.on('activate', () => {
+            if (this.BrowserWindow && this.BrowserWindow.getAllWindows().length === 0) {
                 this.createMainWindow();
             }
         });
 
-        // Before quit handler
-        app.on('before-quit', () => {
+        this.app.on('before-quit', () => {
             this.isQuitting = true;
         });
 
-        // App will quit handler
-        app.on('will-quit', (event) => {
+        this.app.on('will-quit', (event) => {
             logger.info('Electron application is quitting');
         });
     }
@@ -123,13 +166,19 @@ class ElectronManager {
     }
 
     createTray() {
+        if (!this.Tray) {
+            logger.warn('Tray not available, skipping tray creation');
+            return;
+        }
+
         try {
             const trayConfig = this.config.tray || {};
             const iconPath = trayConfig.icon || this.config.trayIcon || path.join(__dirname, 'assets', 'tray-icon.png');
             const tooltip = trayConfig.tooltip || this.config.appTitle || 'Core Node MCP Server';
 
-            this.tray = new Tray(iconPath);
+            this.tray = new this.Tray(iconPath);
             this.tray.setToolTip(tooltip);
+            logger.info(`Tray icon path resolved: ${iconPath}`);
 
             if (trayConfig.title) {
                 this.tray.setTitle(trayConfig.title);
@@ -165,12 +214,17 @@ class ElectronManager {
     }
 
     createMainWindow() {
+        if (!this.BrowserWindow) {
+            logger.warn('BrowserWindow not available, skipping window creation');
+            return;
+        }
+
         try {
             const windowConfig = this.config.window || {};
             const securityConfig = this.config.security || {};
             const modeConfig = this.config.mode || {};
 
-            this.mainWindow = new BrowserWindow({
+            this.mainWindow = new this.BrowserWindow({
                 width: windowConfig.width || 1200,
                 height: windowConfig.height || 800,
                 minWidth: windowConfig.minWidth || 800,
@@ -321,8 +375,25 @@ class ElectronManager {
                 return;
             }
 
-            // Open backend status page in default browser
-            await shell.openExternal(`${this.config.backendUrl}/api/status`);
+            const backendUrl = this.config.backendUrl || '';
+
+            if (backendUrl.startsWith('ws://') || backendUrl.startsWith('wss://')) {
+                if (this.dialog) {
+                    await this.dialog.showMessageBox({
+                        type: 'info',
+                        title: 'Backend WebSocket Endpoint',
+                        message: 'The backend is exposed via WebSocket.',
+                        detail: backendUrl
+                    });
+                }
+                return;
+            }
+
+            const statusUrl = `${backendUrl}${this.config.backendHealthRoute || '/api/status'}`;
+
+            if (this.shell) {
+                await this.shell.openExternal(statusUrl);
+            }
         } catch (error) {
             logger.error(`Failed to open backend status: ${error.message}`);
         }
@@ -332,8 +403,13 @@ class ElectronManager {
         try {
             logger.info('Restarting services...');
 
-            // Show confirmation dialog
-            const result = await dialog.showMessageBox({
+            if (!this.dialog) {
+                logger.warn('Dialog not available, skipping confirmation');
+                await this.performServiceRestart();
+                return;
+            }
+
+            const result = await this.dialog.showMessageBox({
                 type: 'question',
                 buttons: ['Yes', 'No'],
                 defaultId: 1,
@@ -341,7 +417,7 @@ class ElectronManager {
                 message: 'Are you sure you want to restart all services?'
             });
 
-            if (result.response === 0) { // Yes button
+            if (result.response === 0) {
                 await this.performServiceRestart();
             }
         } catch (error) {
@@ -351,16 +427,15 @@ class ElectronManager {
 
     async performServiceRestart() {
         try {
-            // Implementation would depend on how services are managed
-            // This is a placeholder for actual restart logic
             logger.info('Performing service restart...');
 
-            // Notify user
-            await dialog.showMessageBox({
-                type: 'info',
-                title: 'Services Restarting',
-                message: 'Services are being restarted. This may take a moment.'
-            });
+            if (this.dialog) {
+                await this.dialog.showMessageBox({
+                    type: 'info',
+                    title: 'Services Restarting',
+                    message: 'Services are being restarted. This may take a moment.'
+                });
+            }
 
             // Actual restart logic would go here
             // For now, just update status
@@ -380,7 +455,12 @@ class ElectronManager {
     }
 
     showAboutDialog() {
-        dialog.showMessageBox({
+        if (!this.dialog) {
+            logger.warn('Dialog not available, cannot show about dialog');
+            return;
+        }
+
+        this.dialog.showMessageBox({
             type: 'info',
             title: 'About',
             message: `${this.config.appTitle}\nVersion: ${this.version}\n\nCore Node MCP Server with Electron integration`,
@@ -417,7 +497,12 @@ class ElectronManager {
     }
 
     showServiceError(serviceName, message) {
-        dialog.showMessageBox({
+        if (!this.dialog) {
+            logger.error(`${serviceName} Service Error: ${message}`);
+            return;
+        }
+
+        this.dialog.showMessageBox({
             type: 'error',
             title: `${serviceName} Service Error`,
             message: message,
@@ -479,19 +564,99 @@ class ElectronManager {
 
     async checkBackendHealth() {
         try {
-            const fetch = require('node-fetch');
-            const response = await fetch(`${this.config.backendUrl}/api/status`, {
-                method: 'GET',
-                timeout: 3000
-            });
-            return response.ok;
+            const backendUrl = this.config.backendUrl || '';
+            if (backendUrl.startsWith('ws://') || backendUrl.startsWith('wss://')) {
+                return await this._checkBackendHealthViaWebSocket(backendUrl);
+            }
+            return await this._checkBackendHealthViaHttp(backendUrl);
         } catch (error) {
             return false;
         }
     }
 
+    async _checkBackendHealthViaHttp(backendUrl) {
+        try {
+            const fetch = require('node-fetch');
+            const statusUrl = `${backendUrl}${this.config.backendHealthRoute || '/api/status'}`;
+            const response = await fetch(statusUrl, {
+                method: 'GET',
+                timeout: 3000
+            });
+            return response.ok;
+        } catch (error) {
+            logger.debug(`HTTP backend health check failed: ${error.message}`);
+            return false;
+        }
+    }
+
+    async _checkBackendHealthViaWebSocket(backendUrl) {
+        return await new Promise((resolve) => {
+            const healthRoute = this.config.backendHealthRoute || 'server.status';
+            const requestId = uuidv4();
+            const timeoutMs = 3000;
+            let resolved = false;
+
+            const socket = new WebSocket(backendUrl, {
+                handshakeTimeout: timeoutMs
+            });
+
+            const finalize = (result) => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                try {
+                    socket.terminate();
+                } catch (error) {
+                    logger.debug(`Error terminating backend health socket: ${error.message}`);
+                }
+                resolve(result);
+            };
+
+            const timeoutHandle = setTimeout(() => {
+                finalize(false);
+            }, timeoutMs);
+
+            socket.on('open', () => {
+                const payload = {
+                    type: 'request',
+                    id: requestId,
+                    route: healthRoute,
+                    params: {},
+                    timestamp: Date.now()
+                };
+                socket.send(JSON.stringify(payload));
+            });
+
+            socket.on('message', (data) => {
+                try {
+                    const message = JSON.parse(data.toString());
+                    if (message.type === 'response' && message.id === requestId) {
+                        clearTimeout(timeoutHandle);
+                        finalize(message.success !== false);
+                    }
+                } catch (error) {
+                    logger.debug(`Backend WebSocket health parse error: ${error.message}`);
+                }
+            });
+
+            socket.on('error', (error) => {
+                clearTimeout(timeoutHandle);
+                logger.debug(`Backend WebSocket health socket error: ${error.message}`);
+                finalize(false);
+            });
+
+            socket.on('close', () => {
+                clearTimeout(timeoutHandle);
+                finalize(resolved);
+            });
+        });
+    }
+
     updateTrayMenu() {
-        if (!this.tray) return;
+        if (!this.tray || !this.Menu) {
+            return;
+        }
 
         const menuConfig = this.config.tray?.contextMenu || {};
         const menuItems = menuConfig.items || {};
@@ -578,12 +743,14 @@ class ElectronManager {
             menuTemplate.push({
                 label: 'Quit',
                 click: () => {
-                    app.quit();
+                    if (this.app) {
+                        this.app.quit();
+                    }
                 }
             });
         }
 
-        const contextMenu = Menu.buildFromTemplate(menuTemplate);
+        const contextMenu = this.Menu.buildFromTemplate(menuTemplate);
         this.tray.setContextMenu(contextMenu);
     }
 

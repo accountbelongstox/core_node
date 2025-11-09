@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
 class PrayerScreenView extends StatelessWidget {

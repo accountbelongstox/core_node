@@ -213,7 +213,7 @@ class AuthInterceptor implements AuthInterceptorInterface {
   Future<bool> processResponse(int statusCode, Map<String, dynamic>? responseBody) async {
     if (shouldRefreshToken(statusCode)) {
       if (kDebugMode) {
-        print('Received ${statusCode} status, attempting token refresh');
+        print('Received $statusCode status, attempting token refresh');
       }
       
       final refreshSuccess = await refreshToken();

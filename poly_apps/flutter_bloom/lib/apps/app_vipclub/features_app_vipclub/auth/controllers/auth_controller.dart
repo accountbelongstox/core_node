@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_vipclub/models_app_vipclub/user_model_app_vipclub.dart';
 import 'package:qyflutter/apps/app_vipclub/services_app_vipclub/vipclub_auth_api_service.dart';
+import 'package:qyflutter/apps/app_vipclub/provider_app_vipclub/user_provider_app_vipclub.dart';
 
 class VipClubAuthController extends ChangeNotifier {
   final VipClubAuthApiService _authApi;
+  final VipClubUserProvider _userProvider;
 
   bool _isLoading = false;
   String? _errorMessage;
-  VipClubUserModel? _currentUser;
 
-  VipClubAuthController(this._authApi);
+  VipClubAuthController(this._authApi, this._userProvider);
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  VipClubUserModel? get currentUser => _currentUser;
-  bool get isLoggedIn => _currentUser != null;
+  VipClubUserModel? get currentUser => _userProvider.user;
+  bool get isLoggedIn => _userProvider.isAuthenticated;
 
   Future<bool> login({
     required String email,
@@ -25,13 +26,21 @@ class VipClubAuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _userProvider.ensureInitialized();
+
       final result = await _authApi.login(
         email: email,
         password: password,
       );
 
       if (result['success']) {
-        _currentUser = result['user'] as VipClubUserModel;
+        final user = result['user'] as VipClubUserModel;
+        _userProvider.setUser(user);
+
+        if (result['token'] != null) {
+          _userProvider.updateToken(result['token'] as String);
+        }
+
         _isLoading = false;
         notifyListeners();
         return true;
@@ -60,6 +69,8 @@ class VipClubAuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _userProvider.ensureInitialized();
+
       final result = await _authApi.register(
         email: email,
         password: password,
@@ -68,7 +79,13 @@ class VipClubAuthController extends ChangeNotifier {
       );
 
       if (result['success']) {
-        _currentUser = result['user'] as VipClubUserModel;
+        final user = result['user'] as VipClubUserModel;
+        _userProvider.setUser(user);
+
+        if (result['token'] != null) {
+          _userProvider.updateToken(result['token'] as String);
+        }
+
         _isLoading = false;
         notifyListeners();
         return true;
@@ -86,13 +103,38 @@ class VipClubAuthController extends ChangeNotifier {
     }
   }
 
+  Future<void> mockDebugLogin(String username) async {
+    _isLoading = true;
+    notifyListeners();
+
+    await _userProvider.ensureInitialized();
+
+    final mockUser = VipClubUserModel(
+      id: 123,
+      email: '$username@debug.com',
+      name: username.toUpperCase(),
+      phone: '+1234567890',
+      memberType: 'gold',
+      vipPoints: 50000,
+      memberSince: DateTime.now().subtract(const Duration(days: 365)),
+      memberExpiry: DateTime.now().add(const Duration(days: 365)),
+      isActive: true,
+    );
+
+    _userProvider.setUser(mockUser);
+    _userProvider.updateToken('debug_token_${DateTime.now().millisecondsSinceEpoch}');
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
 
     try {
       await _authApi.logout();
-      _currentUser = null;
+      _userProvider.clearUser();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -100,10 +142,20 @@ class VipClubAuthController extends ChangeNotifier {
   }
 
   Future<void> checkLoginStatus() async {
+    await _userProvider.ensureInitialized();
+
     final isLoggedIn = await _authApi.isLoggedIn();
-    if (isLoggedIn) {
-      _currentUser = await _authApi.getUserInfo();
+    if (isLoggedIn && _userProvider.user != null) {
       notifyListeners();
+      return;
+    }
+
+    if (isLoggedIn) {
+      final user = await _authApi.getUserInfo();
+      if (user != null) {
+        _userProvider.setUser(user);
+        notifyListeners();
+      }
     }
   }
 

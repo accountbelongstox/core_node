@@ -10,6 +10,15 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+// ============================================================================
+// [DEPRECATED - MS] This screen is deprecated and should not be used
+// ============================================================================
+// This old screen has been replaced by refactored MVC architecture screens.
+// Please use the refactored screens located in:
+//   - features_app_qy/auth/views/login_phone_screen_refactored_app_qy.dart
+// This file is kept for reference only and is not connected to the app routes.
+// ============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_text_field.dart';
 import 'package:qyflutter/common/widgets/custom_gradient_text.dart';
@@ -30,6 +39,7 @@ import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/authentication/actions/auth_actions.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 // 自定义分段按钮组件
 class SegmentedButton extends StatefulWidget {
@@ -424,7 +434,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                       ),
                     ),
                     CustomGradientText(
-                      text: 'welcome'.tr(context),
+                      text: QyAppLocalizationKeys.qyWelcome.tr(context),
                       fontSize: ThemeDimensions.fontSizeOverOverOverExtraLarge,
                       gradientStyleIndex: 4,
                       style: ThemeTextStyles.textSemiBold,
@@ -476,7 +486,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                                   checked = newBool;
                                 });
                               }),
-                          Text('remember_me'.tr(context),
+                          Text(QyAppLocalizationKeys.qyRememberMe.tr(context),
                               style: ThemeTextStyles.textMedium.copyWith(
                                 color: Theme.of(context).colorScheme.onSurface,
                               )),
@@ -487,7 +497,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                           onTap: () {
                             context.pushReplacement(QyAppRoutesProvider.routeForgot);
                           },
-                          child: Text("forgot_the_password".tr(context),
+                          child: Text(QyAppLocalizationKeys.qyForgotPassword.tr(context),
                               style: ThemeTextStyles.textMedium.copyWith(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -497,8 +507,8 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: SegmentedButton(
-                        leftText: 'sign_in'.tr(context),
-                        rightText: 'sign_up'.tr(context),
+                        leftText: QyAppLocalizationKeys.qySignIn.tr(context),
+                        rightText: QyAppLocalizationKeys.qySignUp.tr(context),
                         initialLeftSelected: _isSignIn,
                         onLeftTap: () {
                           if (!_isSignIn) {

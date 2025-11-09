@@ -1,204 +1,204 @@
 # Unified GPU Management System
 
-## 概述
+## Overview
 
-统一GPU管理系统提供了一个集中化的GPU检测、自动安装和管理解决方案，支持多种GPU加速方案并自动回退到CPU。
+The Unified GPU Management System provides a centralized solution for GPU detection, automatic installation, and management, supporting multiple GPU acceleration schemes with automatic fallback to CPU.
 
-## 核心功能
+## Core Features
 
-### 1. 自动GPU检测（优先级顺序）
+### 1. Automatic GPU Detection (Priority Order)
 
 ```
 1. NVIDIA GPU (CUDA)
-   ├── PyTorch CUDA (模型训练)
-   └── OpenCV CUDA (图像处理，可选)
+   ├── PyTorch CUDA (Model training)
+   └── OpenCV CUDA (Image processing, optional)
 
 2. AMD GPU (ROCm)
-   └── PyTorch ROCm (模型训练)
+   └── PyTorch ROCm (Model training)
 
 3. Intel GPU (oneAPI)
-   └── 未来支持
+   └── Future support
 
-4. CPU (回退)
-   └── PyTorch CPU版本
+4. CPU (Fallback)
+   └── PyTorch CPU version
 ```
 
-### 2. 自动安装支持
+### 2. Automatic Installation Support
 
-当启用`auto_install=True`时，系统会自动：
+When `auto_install=True` is enabled, the system will automatically:
 
-- **NVIDIA GPU检测到时**:
-  - 分析驱动版本确定CUDA版本
-  - 自动安装对应的PyTorch CUDA版本
-  - 提示OpenCV CUDA的安装方法（可选）
+- **When NVIDIA GPU is detected**:
+  - Analyze driver version to determine CUDA version
+  - Automatically install corresponding PyTorch CUDA version
+  - Provide OpenCV CUDA installation instructions (optional)
 
-- **AMD GPU检测到时**:
-  - 自动安装PyTorch ROCm版本
+- **When AMD GPU is detected**:
+  - Automatically install PyTorch ROCm version
 
-- **无GPU时**:
-  - 安装PyTorch CPU版本
+- **When no GPU is detected**:
+  - Install PyTorch CPU version
 
-### 3. ENCYCLOPEDIA缓存
+### 3. ENCYCLOPEDIA Caching
 
-- GPU检测只运行一次
-- 结果缓存在全局ENCYCLOPEDIA中
-- 后续调用立即返回缓存结果
-- 零性能开销
+- GPU detection runs only once
+- Results cached in global ENCYCLOPEDIA
+- Subsequent calls return cached results immediately
+- Zero performance overhead
 
-## 使用方法
+## Usage
 
-### 基础用法
+### Basic Usage
 
 ```python
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager, get_device
 
-# 方法1: 获取管理器实例（推荐）
+# Method 1: Get manager instance (recommended)
 gpu_manager = get_gpu_manager(verbose=True, auto_install=False)
-device = gpu_manager.get_device()  # 返回: "cuda" 或 "cpu"
+device = gpu_manager.get_device()  # Returns: "cuda" or "cpu"
 
-# 方法2: 快速获取设备
-device = get_device(verbose=True)  # 直接返回最佳设备
+# Method 2: Quick device retrieval
+device = get_device(verbose=True)  # Directly returns best device
 
-# 方法3: 启用自动安装
+# Method 3: Enable auto-installation
 gpu_manager = get_gpu_manager(verbose=True, auto_install=True)
 ```
 
-### 训练时使用
+### Usage During Training
 
 ```python
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_device
 from ultralytics import YOLO
 
-# 自动选择最佳设备
+# Automatically select best device
 device = get_device(verbose=True)
 
-# 训练
+# Train
 model = YOLO("yolov8n.pt")
 results = model.train(
     data="dataset.yaml",
     epochs=300,
-    device=device  # 自动使用GPU或CPU
+    device=device  # Automatically uses GPU or CPU
 )
 ```
 
-### 图像处理时使用
+### Usage for Image Processing
 
 ```python
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager
 from pycore.pyutils.ultralytics.gpu_image_processor import get_gpu_processor
 
-# 获取GPU信息
+# Get GPU information
 gpu_manager = get_gpu_manager()
 info = gpu_manager.get_info()
 
-# 使用GPU加速的图像处理器
+# Use GPU-accelerated image processor
 gpu_processor = get_gpu_processor()
 resized = gpu_processor.resize(image, (640, 640))
 ```
 
-### 检查GPU状态
+### Check GPU Status
 
 ```python
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager
 
 manager = get_gpu_manager()
 
-# 打印详细摘要
+# Print detailed summary
 manager.print_summary()
 
-# 获取完整信息
+# Get complete information
 info = manager.get_info()
-print(f"GPU类型: {info['gpu_type']}")
-print(f"GPU名称: {info['gpu_name']}")
+print(f"GPU Type: {info['gpu_type']}")
+print(f"GPU Name: {info['gpu_name']}")
 print(f"PyTorch CUDA: {info['pytorch_cuda_available']}")
 print(f"OpenCV CUDA: {info['opencv_cuda_available']}")
 
-# 简单检查
+# Simple check
 if manager.is_gpu_available():
-    print("GPU加速可用!")
+    print("GPU acceleration available!")
 else:
-    print("使用CPU模式")
+    print("Using CPU mode")
 ```
 
-## OpenCV CUDA 安装指南
+## OpenCV CUDA Installation Guide
 
-### 为什么需要OpenCV CUDA？
+### Why OpenCV CUDA?
 
-- **不需要**: 如果只进行模型训练（PyTorch已经使用GPU）
-- **可选**: 如果需要加速大量图像预处理操作
-- **推荐**: 对于实时视频处理或大规模数据集生成
+- **Not needed**: If only doing model training (PyTorch already uses GPU)
+- **Optional**: If need to accelerate large-scale image preprocessing operations
+- **Recommended**: For real-time video processing or large-scale dataset generation
 
-### 安装方法
+### Installation Methods
 
-#### 选项1: 标准安装（不含CUDA）
+#### Option 1: Standard Installation (No CUDA)
 
 ```bash
-# 当前你的安装方式
+# Current installation method
 pip install opencv-python
-# 或包含contrib模块
+# Or with contrib modules
 pip install opencv-contrib-python
 ```
 
-**特点**:
-- ✅ 安装简单快速
-- ✅ 稳定可靠
-- ❌ 图像处理使用CPU
-- ✅ 适合大多数用户
+**Features**:
+- ✅ Simple and fast installation
+- ✅ Stable and reliable
+- ❌ Image processing uses CPU
+- ✅ Suitable for most users
 
-#### 选项2: 从源代码编译（含CUDA支持）
+#### Option 2: Compile from Source (With CUDA Support)
 
-**仅适合高级用户！需要2-4小时编译时间。**
+**For advanced users only! Requires 2-4 hours compilation time.**
 
 ```bash
-# 1. 卸载现有OpenCV
+# 1. Uninstall existing OpenCV
 pip uninstall opencv-python opencv-contrib-python -y
 
-# 2. 克隆opencv-python仓库
+# 2. Clone opencv-python repository
 git clone --recursive https://github.com/opencv/opencv-python.git
 cd opencv-python
 
-# 3. 设置编译参数（根据你的GPU调整CUDA_ARCH_BIN）
-# RTX 4060 使用 8.9
-# 查看你的GPU架构: https://developer.nvidia.com/cuda-gpus
+# 3. Set compilation parameters (adjust CUDA_ARCH_BIN according to your GPU)
+# RTX 4060 uses 8.9
+# Check your GPU architecture: https://developer.nvidia.com/cuda-gpus
 export CMAKE_ARGS="-DWITH_CUDA=ON -DCUDA_ARCH_BIN=8.9 -DWITH_CUBLAS=ON -DWITH_CUFFT=ON"
 export ENABLE_CONTRIB=1
 
-# 4. 编译（需要很长时间）
+# 4. Compile (takes a long time)
 pip wheel . --verbose
 
-# 5. 安装生成的wheel文件
+# 5. Install generated wheel file
 pip install dist/opencv_contrib_python-*.whl
 ```
 
-**注意事项**:
-- 需要安装CUDA Toolkit（与驱动版本匹配）
-- 需要CMake 3.15+
-- Windows需要Visual Studio 2019+
-- Linux需要gcc/g++编译器
-- 编译可能需要2-4小时
+**Notes**:
+- Requires CUDA Toolkit installation (matching driver version)
+- Requires CMake 3.15+
+- Windows requires Visual Studio 2019+
+- Linux requires gcc/g++ compiler
+- Compilation may take 2-4 hours
 
-#### 选项3: 使用预编译包（如果可用）
+#### Option 3: Use Pre-compiled Packages (If Available)
 
-某些第三方可能提供预编译的OpenCV CUDA包，但要注意：
-- 兼容性可能有问题
-- 版本可能不是最新的
-- 安全性需要自行验证
+Some third parties may provide pre-compiled OpenCV CUDA packages, but note:
+- Compatibility may have issues
+- Version may not be latest
+- Security needs to be verified independently
 
-### CUDA架构版本对照表
+### CUDA Architecture Version Reference
 
-| GPU系列 | 计算能力 | CUDA_ARCH_BIN |
-|---------|---------|---------------|
-| RTX 40系列 (4090/4080/4070/4060) | 8.9 | 8.9 |
-| RTX 30系列 (3090/3080/3070/3060) | 8.6 | 8.6 |
-| RTX 20系列 (2080/2070/2060) | 7.5 | 7.5 |
-| GTX 16系列 (1660/1650) | 7.5 | 7.5 |
-| GTX 10系列 (1080/1070/1060) | 6.1 | 6.1 |
+| GPU Series | Compute Capability | CUDA_ARCH_BIN |
+|------------|-------------------|---------------|
+| RTX 40 Series (4090/4080/4070/4060) | 8.9 | 8.9 |
+| RTX 30 Series (3090/3080/3070/3060) | 8.6 | 8.6 |
+| RTX 20 Series (2080/2070/2060) | 7.5 | 7.5 |
+| GTX 16 Series (1660/1650) | 7.5 | 7.5 |
+| GTX 10 Series (1080/1070/1060) | 6.1 | 6.1 |
 
-查看完整列表: https://developer.nvidia.com/cuda-gpus
+View complete list: https://developer.nvidia.com/cuda-gpus
 
-## 系统输出示例
+## System Output Examples
 
-### NVIDIA GPU检测到
+### NVIDIA GPU Detected
 
 ```
 ================================================================================
@@ -228,7 +228,7 @@ Acceleration Status:
 ================================================================================
 ```
 
-### 无GPU检测到
+### No GPU Detected
 
 ```
 ================================================================================
@@ -251,202 +251,202 @@ Acceleration Status:
 ================================================================================
 ```
 
-## 性能对比
+## Performance Comparison
 
-### 模型训练 (YOLOv8n, 300 epochs)
+### Model Training (YOLOv8n, 300 epochs)
 
-| 设备 | 每个epoch时间 | 总训练时间 | 加速比 |
-|------|--------------|-----------|--------|
-| RTX 4060 (CUDA) | ~20秒 | ~1.7小时 | 10x |
-| CPU (i7-12700) | ~200秒 | ~17小时 | 1x |
+| Device | Time per Epoch | Total Training Time | Speedup |
+|--------|---------------|---------------------|---------|
+| RTX 4060 (CUDA) | ~20s | ~1.7 hours | 10x |
+| CPU (i7-12700) | ~200s | ~17 hours | 1x |
 
-### 图像处理 (1000张640x640图片)
+### Image Processing (1000 images 640x640)
 
-| 操作 | OpenCV CUDA | OpenCV CPU | 加速比 |
-|------|-------------|-----------|--------|
-| 缩放 | ~0.5秒 | ~2秒 | 4x |
-| 模糊 | ~0.3秒 | ~1.5秒 | 5x |
-| 颜色转换 | ~0.2秒 | ~0.8秒 | 4x |
+| Operation | OpenCV CUDA | OpenCV CPU | Speedup |
+|-----------|-------------|------------|---------|
+| Resize | ~0.5s | ~2s | 4x |
+| Blur | ~0.3s | ~1.5s | 5x |
+| Color Conversion | ~0.2s | ~0.8s | 4x |
 
-**结论**:
-- ✅ PyTorch CUDA对训练至关重要（10x加速）
-- ⚠️ OpenCV CUDA对图像处理有帮助但非必需（4-5x加速）
+**Conclusion**:
+- ✅ PyTorch CUDA is crucial for training (10x speedup)
+- ⚠️ OpenCV CUDA helps image processing but not essential (4-5x speedup)
 
-## 故障排除
+## Troubleshooting
 
-### 问题1: PyTorch CUDA安装失败
+### Issue 1: PyTorch CUDA Installation Failed
 
 ```bash
-# 手动检查CUDA版本
+# Manually check CUDA version
 nvidia-smi
 
-# 手动安装（根据输出的CUDA版本）
+# Manually install (according to output CUDA version)
 pip uninstall torch torchvision torchaudio -y
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
-### 问题2: 虚拟内存不足
+### Issue 2: Insufficient Virtual Memory
 
-症状: 训练时崩溃，错误 "WinError 1455: The paging file is too small"
+Symptoms: Crash during training, error "WinError 1455: The paging file is too small"
 
-解决方案:
-1. 减少batch_size (从16降到8)
-2. 减少workers数量 (从8降到4)
-3. 增加Windows虚拟内存到16-32GB
+Solutions:
+1. Reduce batch_size (from 16 to 8)
+2. Reduce workers count (from 8 to 4)
+3. Increase Windows virtual memory to 16-32GB
 
-### 问题3: GPU内存不足
+### Issue 3: GPU Memory Insufficient
 
-症状: CUDA out of memory
+Symptoms: CUDA out of memory
 
-解决方案:
+Solutions:
 ```python
-# 减少batch size
+# Reduce batch size
 results = model.train(
     data="dataset.yaml",
     epochs=300,
-    batch=8,  # 从16降到8
+    batch=8,  # Reduced from 16 to 8
     device="cuda"
 )
 ```
 
-### 问题4: 多GPU系统选择特定GPU
+### Issue 4: Multi-GPU System Select Specific GPU
 
 ```python
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager
 
-# 获取管理器
+# Get manager
 manager = get_gpu_manager()
 
-# 手动指定GPU
+# Manually specify GPU
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # 使用第一个GPU
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use first GPU
 
-# 或在训练时指定
+# Or specify during training
 results = model.train(
     data="dataset.yaml",
-    device=0  # 使用GPU 0
+    device=0  # Use GPU 0
 )
 ```
 
-## 技术架构
+## Technical Architecture
 
-### 组件关系
+### Component Relationships
 
 ```
-unified_gpu_manager.py (统一管理器)
-    ├── 检测GPU硬件
-    ├── 自动安装依赖
-    └── 提供统一接口
+unified_gpu_manager.py (Unified Manager)
+    ├── Detect GPU hardware
+    ├── Auto-install dependencies
+    └── Provide unified interface
         ↓
-device_manager.py (设备管理)
-    ├── NVIDIA检测
-    ├── AMD检测
-    └── 设备选择
+device_manager.py (Device Management)
+    ├── NVIDIA detection
+    ├── AMD detection
+    └── Device selection
         ↓
-gpu_image_processor.py (图像处理)
-    ├── OpenCV CUDA加速
-    └── CPU回退
+gpu_image_processor.py (Image Processing)
+    ├── OpenCV CUDA acceleration
+    └── CPU fallback
         ↓
-训练和推理代码
+Training and inference code
 ```
 
-### ENCYCLOPEDIA缓存流程
+### ENCYCLOPEDIA Caching Flow
 
 ```
-第一次调用 get_gpu_manager()
+First call to get_gpu_manager()
     ↓
-检查 ENCYCLOPEDIA["unified_gpu_manager_state"]
+Check ENCYCLOPEDIA["unified_gpu_manager_state"]
     ↓
-    No → 执行完整检测
-        ├── 检测GPU硬件
-        ├── 检测PyTorch/OpenCV
-        ├── （可选）自动安装
-        └── 保存结果到ENCYCLOPEDIA
+    No → Execute full detection
+        ├── Detect GPU hardware
+        ├── Detect PyTorch/OpenCV
+        ├── (Optional) Auto-install
+        └── Save results to ENCYCLOPEDIA
     ↓
-    Yes → 直接从缓存加载
-        └── 立即返回（<1ms）
+    Yes → Load directly from cache
+        └── Return immediately (<1ms)
 ```
 
-## 最佳实践
+## Best Practices
 
-### 1. 开发环境
+### 1. Development Environment
 
 ```python
-# 开发时禁用自动安装，查看完整信息
+# Disable auto-install during development, view complete information
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager
 
 manager = get_gpu_manager(verbose=True, auto_install=False)
 manager.print_summary()
 ```
 
-### 2. 生产环境
+### 2. Production Environment
 
 ```python
-# 生产环境启用自动安装
+# Enable auto-install in production
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_device
 
-device = get_device(verbose=False)  # 静默模式
+device = get_device(verbose=False)  # Silent mode
 ```
 
-### 3. CI/CD环境
+### 3. CI/CD Environment
 
 ```bash
-# Dockerfile示例
+# Dockerfile example
 FROM python:3.10
 
-# 安装基础依赖
+# Install base dependencies
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-# 安装你的应用
+# Install your application
 COPY . /app
 WORKDIR /app
 RUN pip install -r requirements.txt
 
-# GPU会自动回退到CPU
+# GPU will automatically fallback to CPU
 ```
 
-### 4. 多平台支持
+### 4. Multi-Platform Support
 
 ```python
-# 代码自动适配所有平台
+# Code automatically adapts to all platforms
 from pycore.pyutils.ultralytics.unified_gpu_manager import get_device
 
-# Windows: CUDA或CPU
-# Linux: CUDA, ROCm或CPU
-# macOS: CPU (Metal未来支持)
-# Docker: 根据容器配置自动选择
+# Windows: CUDA or CPU
+# Linux: CUDA, ROCm or CPU
+# macOS: CPU (Metal future support)
+# Docker: Automatically select according to container configuration
 
-device = get_device()  # 自动处理一切
+device = get_device()  # Automatically handles everything
 ```
 
-## 更新日志
+## Changelog
 
 ### v1.0.0 (2025-10-17)
 
-**新功能**:
-- ✅ 统一GPU管理器
-- ✅ NVIDIA CUDA自动检测和安装
-- ✅ AMD ROCm自动检测和安装
-- ✅ ENCYCLOPEDIA全局缓存
-- ✅ 自动回退到CPU
-- ✅ PyTorch和OpenCV统一管理
+**New Features**:
+- ✅ Unified GPU manager
+- ✅ NVIDIA CUDA automatic detection and installation
+- ✅ AMD ROCm automatic detection and installation
+- ✅ ENCYCLOPEDIA global caching
+- ✅ Automatic fallback to CPU
+- ✅ PyTorch and OpenCV unified management
 
-**改进**:
-- ✅ 消除重复的依赖检查消息
-- ✅ 清晰区分PyTorch CUDA和OpenCV CUDA
-- ✅ 详细的安装指导
-- ✅ 完整的错误处理
+**Improvements**:
+- ✅ Eliminated duplicate dependency check messages
+- ✅ Clear distinction between PyTorch CUDA and OpenCV CUDA
+- ✅ Detailed installation guidance
+- ✅ Complete error handling
 
-## 贡献指南
+## Contributing
 
-欢迎提交问题和改进建议到项目仓库。
+Welcome to submit issues and improvement suggestions to the project repository.
 
-## 许可证
+## License
 
-与项目主体保持一致。
+Consistent with the main project.
 
 ---
 
-**维护者**: Core Node Team
-**最后更新**: 2025-10-17
-**文档版本**: 1.0.0
+**Maintainer**: Core Node Team
+**Last Updated**: 2025-10-17
+**Document Version**: 1.0.0

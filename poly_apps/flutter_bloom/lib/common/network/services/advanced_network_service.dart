@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../core/network_config.dart';
 // REFACTOR: Renamed network_models.dart to endpoint_network_models.dart
-import '../core/endpoint_network_models.dart' as models hide NetworkResponse;
 import '../core/unified_network_client.dart';
 // REFACTOR: Import CancelToken, NetworkRequest, NetworkResponse, RequestMethod from network_types.dart
 import '../core/network_types.dart' show CancelToken, NetworkRequest, NetworkResponse, RequestMethod;

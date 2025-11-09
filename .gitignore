@@ -194,10 +194,13 @@ app.*.symbols
 **/.settings/
 
 # Package manager files
+# Note: Root pnpm-lock.yaml should be tracked for consistency
 **/yarn.lock
 **/package-lock.json
-**/pnpm-lock.yaml
 **/*.lock
+# Ignore lock files in subprojects only
+poly_apps/**/pnpm-lock.yaml
+apps/**/pnpm-lock.yaml
 
 # Runtime and process files
 **/*.pid

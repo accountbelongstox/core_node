@@ -1,18 +1,19 @@
 /// Main settings screen
-library settings_screen;
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/services/settings_service.dart';
+import '../../../../../../common/localization/localization_manager.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
-import 'widgets/settings_section.dart';
-import 'widgets/settings_tile.dart';
+import '../widgets/settings_section.dart';
+import '../widgets/settings_tile.dart';
 import 'account_settings_screen.dart';
 import 'display_settings_screen.dart';
 import 'reminder_settings_screen.dart';
 import 'recommend_settings_screen.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -82,7 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           Expanded(
             child: Text(
-              'settings.title'.tr,
+              'settings.title'.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -100,7 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, userProvider, child) {
         final user = userProvider.currentUser;
         return SettingsSection(
-          title: 'settings.account'.tr,
+          title: 'settings.account'.tr(context),
           child: Column(
             children: [
               SettingsTile(
@@ -114,8 +115,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                title: user?.displayName ?? 'User',
-                subtitle: user?.phone ?? 'Not logged in',
+                title: user?.displayName ?? QyAppLocalizationKeys.qyUser.tr(context),
+                subtitle: user?.phone ?? QyAppLocalizationKeys.qyNotLoggedIn.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _navigateToAccountSettings(),
               ),
@@ -128,7 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildStudySettingsSection() {
     return SettingsSection(
-      title: 'settings.study'.tr,
+      title: 'settings.study'.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -136,8 +137,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.notifications_outlined,
               color: AppTheme.primaryGreen,
             ),
-            title: 'settings.reminder'.tr,
-            subtitle: '每日学习提醒',
+            title: 'settings.reminder'.tr(context),
+            subtitle: QyAppLocalizationKeys.qyDailyStudyReminder.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToReminderSettings(),
           ),
@@ -146,8 +147,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.trending_up_outlined,
               color: AppTheme.secondaryGreen,
             ),
-            title: 'settings.recommend'.tr,
-            subtitle: '个性化推荐设置',
+            title: 'settings.recommend'.tr(context),
+            subtitle: QyAppLocalizationKeys.qyPersonalizedRecommendations.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToRecommendSettings(),
           ),
@@ -156,8 +157,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.sync_outlined,
               color: AppTheme.accentGreen,
             ),
-            title: 'settings.dataSync'.tr,
-            subtitle: '同步设置',
+            title: 'settings.dataSync'.tr(context),
+            subtitle: QyAppLocalizationKeys.qySyncSettings.tr(context),
             trailing: Switch(
               value: true,
               onChanged: (value) {},
@@ -173,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Consumer<SettingsService>(
       builder: (context, settings, child) {
         return SettingsSection(
-          title: 'settings.appearance'.tr,
+          title: 'settings.appearance'.tr(context),
           child: Column(
             children: [
               SettingsTile(
@@ -183,8 +184,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : Icons.light_mode_outlined,
                   color: AppTheme.primaryGreen,
                 ),
-                title: 'settings.darkMode'.tr,
-                subtitle: settings.themeMode == ThemeMode.dark ? '深色模式' : '浅色模式',
+                title: 'settings.darkMode'.tr(context),
+                subtitle: settings.themeMode == ThemeMode.dark
+                    ? QyAppLocalizationKeys.qyDarkMode.tr(context)
+                    : QyAppLocalizationKeys.qyLightMode.tr(context),
                 trailing: Switch(
                   value: settings.themeMode == ThemeMode.dark,
                   onChanged: (value) {
@@ -198,8 +201,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Icons.translate_outlined,
                   color: AppTheme.secondaryGreen,
                 ),
-                title: 'settings.language'.tr,
-                subtitle: settings.language == 'zh' ? '中文' : 'English',
+                title: 'settings.language'.tr(context),
+                subtitle: settings.language == 'zh'
+                    ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
+                    : QyAppLocalizationKeys.qyLanguageEnglish.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showLanguageDialog(),
               ),
@@ -208,8 +213,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Icons.desktop_windows_outlined,
                   color: AppTheme.accentGreen,
                 ),
-                title: 'settings.displayMode'.tr,
-                subtitle: '显示布局设置',
+                title: 'settings.displayMode'.tr(context),
+                subtitle: QyAppLocalizationKeys.qyDisplayLayoutSettings.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _navigateToDisplaySettings(),
               ),
@@ -222,7 +227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildOtherSettingsSection() {
     return SettingsSection(
-      title: 'settings.otherSettings'.tr,
+      title: 'settings.otherSettings'.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -230,12 +235,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.storage_outlined,
               color: Colors.orange,
             ),
-            title: 'settings.clearCache'.tr,
+            title: 'settings.clearCache'.tr(context),
             subtitle: '${_cacheSize.toStringAsFixed(1)} MB',
             trailing: TextButton(
               onPressed: _clearCache,
               child: Text(
-                '清除',
+                QyAppLocalizationKeys.qyClear.tr(context),
                 style: TextStyle(color: AppTheme.primaryGreen),
               ),
             ),
@@ -245,8 +250,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.web_outlined,
               color: AppTheme.primaryGreen,
             ),
-            title: 'settings.webviewCompat'.tr,
-            subtitle: '兼容性设置',
+            title: 'settings.webviewCompat'.tr(context),
+            subtitle: QyAppLocalizationKeys.qyCompatibilitySettings.tr(context),
             trailing: Switch(
               value: _webviewCompat,
               onChanged: (value) {
@@ -262,8 +267,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.play_circle_outline,
               color: AppTheme.secondaryGreen,
             ),
-            title: 'settings.playerCompat'.tr,
-            subtitle: '播放器兼容性',
+            title: 'settings.playerCompat'.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsPlayerCompatibility.tr(context),
             trailing: Switch(
               value: _playerCompat,
               onChanged: (value) {
@@ -279,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.schedule_outlined,
               color: AppTheme.accentGreen,
             ),
-            title: 'settings.timezone'.tr,
+            title: 'settings.timezone'.tr(context),
             subtitle: _currentTimezone,
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showTimezoneDialog(),
@@ -291,7 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSupportSection() {
     return SettingsSection(
-      title: '支持',
+      title: QyAppLocalizationKeys.qySupport.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -299,8 +304,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.help_outline,
               color: AppTheme.primaryGreen,
             ),
-            title: 'settings.help'.tr,
-            subtitle: '帮助中心',
+            title: 'settings.help'.tr(context),
+            subtitle: QyAppLocalizationKeys.qyHelp.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToHelp(),
           ),
@@ -309,8 +314,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.feedback_outlined,
               color: AppTheme.secondaryGreen,
             ),
-            title: 'settings.feedback'.tr,
-            subtitle: '意见反馈',
+            title: 'settings.feedback'.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsFeedback.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToFeedback(),
           ),
@@ -321,7 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAppInfoSection() {
     return SettingsSection(
-      title: '关于',
+      title: QyAppLocalizationKeys.qyAbout.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -329,7 +334,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.info_outline,
               color: AppTheme.primaryGreen,
             ),
-            title: 'settings.version'.tr,
+            title: 'settings.version'.tr(context),
             subtitle: 'v1.1.0',
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToAbout(),
@@ -339,8 +344,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.description_outlined,
               color: AppTheme.secondaryGreen,
             ),
-            title: 'settings.agreement'.tr,
-            subtitle: '用户使用协议',
+            title: 'settings.agreement'.tr(context),
+            subtitle: QyAppLocalizationKeys.qyTerms.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToAgreement(),
           ),
@@ -349,8 +354,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.privacy_tip_outlined,
               color: AppTheme.accentGreen,
             ),
-            title: 'settings.privacyPolicy'.tr,
-            subtitle: '隐私政策',
+            title: 'settings.privacyPolicy'.tr(context),
+            subtitle: QyAppLocalizationKeys.qyPrivacyPolicy.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToPrivacyPolicy(),
           ),
@@ -392,38 +397,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showLanguageDialog() {
+    final settingsService =
+        Provider.of<SettingsService>(context, listen: false);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('选择语言'),
+        title: Text(QyAppLocalizationKeys.qyLanguage.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text('中文'),
+              title: Text(QyAppLocalizationKeys.qyLanguageChinese.tr(context)),
               trailing: Consumer<SettingsService>(
-                builder: (context, settings, child) {
-                  return settings.language == 'zh'
+                builder: (context, service, child) {
+                  return service.language == 'zh'
                       ? Icon(Icons.check, color: AppTheme.primaryGreen)
                       : null;
                 },
               ),
               onTap: () {
-                settings.setLanguage('zh');
+                settingsService.setLanguage('zh');
                 Navigator.of(context).pop();
               },
             ),
             ListTile(
-              title: Text('English'),
+              title: Text(QyAppLocalizationKeys.qyLanguageEnglish.tr(context)),
               trailing: Consumer<SettingsService>(
-                builder: (context, settings, child) {
-                  return settings.language == 'en'
+                builder: (context, service, child) {
+                  return service.language == 'en'
                       ? Icon(Icons.check, color: AppTheme.primaryGreen)
                       : null;
                 },
               ),
               onTap: () {
-                settings.setLanguage('en');
+                settingsService.setLanguage('en');
                 Navigator.of(context).pop();
               },
             ),
@@ -474,15 +481,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _clearCache() {
+    final messageTemplate = QyAppLocalizationKeys.qyClearCacheMessage.tr(context);
+    final message = messageTemplate.replaceFirst('{size}', _cacheSize.toStringAsFixed(1));
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('清除缓存'),
-        content: Text('确定要清除缓存吗？这将删除 ${_cacheSize.toStringAsFixed(1)} MB 的数据。'),
+        title: Text(QyAppLocalizationKeys.qyClearCacheTitle.tr(context)),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('取消'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -492,7 +501,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('缓存已清除'),
+                  content: Text(QyAppLocalizationKeys.qyCacheCleared.tr(context)),
                   backgroundColor: AppTheme.primaryGreen,
                 ),
               );
@@ -501,7 +510,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               backgroundColor: AppTheme.primaryGreen,
               foregroundColor: Colors.white,
             ),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyConfirm.tr(context)),
           ),
         ],
       ),
@@ -511,7 +520,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToHelp() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('帮助中心功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qyHelpCenterInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -520,7 +529,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToFeedback() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('意见反馈功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qySettingsFeedbackInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -529,7 +538,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToAbout() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('关于页面功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qySettingsAboutInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -538,7 +547,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToAgreement() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('用户协议功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qySettingsTermsInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -547,7 +556,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToPrivacyPolicy() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('隐私政策功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qySettingsPrivacyInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );

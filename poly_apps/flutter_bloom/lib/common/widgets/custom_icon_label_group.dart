@@ -19,11 +19,11 @@ class CustomIconLabelGroup extends StatelessWidget {
   final WrapAlignment alignment;
 
   const CustomIconLabelGroup({
-    Key? key,
+    super.key,
     required this.iconLabelList,
     this.title,
     this.alignment = WrapAlignment.center,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class CustomIconLabelGroup extends StatelessWidget {
               style: theme.textTheme.titleMedium,
             ),
           ),
-        Container(
+        SizedBox(
           width: double.infinity, // Set width to 100%
           child: Wrap(
             alignment: alignment,

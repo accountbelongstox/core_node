@@ -3,6 +3,7 @@ import 'package:qyflutter/common/widgets/widgets.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_gradients.dart';
 import 'package:qyflutter/apps/app_vipclub/services_app_vipclub/membership_api_service_app_vipclub.dart';
 
 /// VIP Membership Tiers Selection Screen
@@ -115,7 +116,7 @@ class _VipClubMembershipTiersScreenState
           SizedBox(height: ThemeDimensions.hugePadding),
 
           // Membership Tiers
-          ..._tiers.map((tier) => _buildTierCard(tier)).toList(),
+          ..._tiers.map((tier) => _buildTierCard(tier)),
         ],
       ),
     );
@@ -321,7 +322,7 @@ class _VipClubMembershipSubscribeScreenState
                       : null,
                 ),
               );
-            }).toList(),
+            }),
 
             SizedBox(height: ThemeDimensions.hugePadding),
 

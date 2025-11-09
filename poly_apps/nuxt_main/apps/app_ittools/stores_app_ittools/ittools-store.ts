@@ -10,6 +10,8 @@ export interface ItToolsState {
   allTools: Tool[];
   filteredTools: Tool[];
   selectedTool: Tool | null;
+  openedToolIds: string[];
+  activeToolId: string | null;
 
   // Search and filters
   searchQuery: string;
@@ -17,6 +19,7 @@ export interface ItToolsState {
 
   // User preferences
   favorites: string[];
+  recentToolVisits: string[];
   history: Array<{
     toolId: string;
     timestamp: number;
@@ -34,6 +37,9 @@ export interface ItToolsState {
   // Loading and error state
   loading: boolean;
   error: string | null;
+
+  // Last used tool
+  lastToolId: string | null;
 }
 
 export const useItToolsStore = defineStore('ittools', {
@@ -42,6 +48,8 @@ export const useItToolsStore = defineStore('ittools', {
     allTools: ALL_TOOLS,
     filteredTools: ALL_TOOLS,
     selectedTool: null,
+    openedToolIds: [],
+    activeToolId: null,
 
     // Search and filters
     searchQuery: '',
@@ -49,6 +57,7 @@ export const useItToolsStore = defineStore('ittools', {
 
     // User preferences
     favorites: [],
+    recentToolVisits: [],
     history: [],
 
     // UI state
@@ -60,7 +69,9 @@ export const useItToolsStore = defineStore('ittools', {
 
     // Loading and error state
     loading: false,
-    error: null
+    error: null,
+
+    lastToolId: null
   }),
 
   getters: {
@@ -82,6 +93,25 @@ export const useItToolsStore = defineStore('ittools', {
     },
 
     /**
+     * Get opened tools in tab order
+     */
+    openedTools: (state) => {
+      return state.openedToolIds
+        .map(id => state.allTools.find(tool => tool.id === id))
+        .filter(Boolean) as Tool[];
+    },
+
+    /**
+     * Currently active tool tab
+     */
+    activeTool: (state) => {
+      if (!state.activeToolId) {
+        return null;
+      }
+      return state.allTools.find(tool => tool.id === state.activeToolId) || null;
+    },
+
+    /**
      * Get recent tools from history
      */
     recentTools: (state) => {
@@ -90,6 +120,19 @@ export const useItToolsStore = defineStore('ittools', {
         .slice(0, 10)
         .map(item => state.allTools.find(tool => tool.id === item.toolId))
         .filter(Boolean) as Tool[];
+    },
+
+    recentlyOpenedTools: (state) => {
+      return state.recentToolVisits
+        .map(id => state.allTools.find(tool => tool.id === id))
+        .filter(Boolean) as Tool[];
+    },
+
+    lastUsedTool: (state) => {
+      if (!state.lastToolId) {
+        return null;
+      }
+      return state.allTools.find(tool => tool.id === state.lastToolId) || null;
     },
 
     /**
@@ -179,6 +222,10 @@ export const useItToolsStore = defineStore('ittools', {
      */
     selectTool(tool: Tool): void {
       this.selectedTool = tool;
+      this.activeToolId = tool.id;
+      if (!this.openedToolIds.includes(tool.id)) {
+        this.openedToolIds.push(tool.id);
+      }
     },
 
     /**
@@ -186,6 +233,50 @@ export const useItToolsStore = defineStore('ittools', {
      */
     clearSelectedTool(): void {
       this.selectedTool = null;
+      this.activeToolId = null;
+    },
+
+    /**
+     * Close an opened tool tab
+     */
+    closeTool(toolId: string): void {
+      const index = this.openedToolIds.indexOf(toolId);
+      if (index > -1) {
+        this.openedToolIds.splice(index, 1);
+      }
+
+      if (this.activeToolId === toolId) {
+        const nextId = this.openedToolIds[index] || this.openedToolIds[index - 1] || null;
+        this.activeToolId = nextId || null;
+        this.selectedTool = nextId
+          ? (this.allTools.find(tool => tool.id === nextId) || null)
+          : null;
+      }
+
+      if (this.selectedTool?.id === toolId && this.activeToolId !== toolId) {
+        this.selectedTool = this.activeToolId
+          ? (this.allTools.find(tool => tool.id === this.activeToolId) || null)
+          : null;
+      }
+    },
+
+    /**
+     * Set an opened tool tab as active
+     */
+    setActiveTool(toolId: string): void {
+      if (!this.openedToolIds.includes(toolId)) {
+        this.openedToolIds.push(toolId);
+      }
+
+      const tool = this.allTools.find(t => t.id === toolId) || null;
+      this.selectedTool = tool;
+      this.activeToolId = tool ? tool.id : null;
+
+      if (toolId) {
+        this.recordToolVisit(toolId);
+        this.lastToolId = toolId;
+        this.saveLastUsedTool();
+      }
     },
 
     /**
@@ -237,6 +328,18 @@ export const useItToolsStore = defineStore('ittools', {
       }
 
       this.saveHistory();
+    },
+
+    recordToolVisit(toolId: string): void {
+      const existingIndex = this.recentToolVisits.indexOf(toolId);
+      if (existingIndex > -1) {
+        this.recentToolVisits.splice(existingIndex, 1);
+      }
+      this.recentToolVisits.unshift(toolId);
+      if (this.recentToolVisits.length > 10) {
+        this.recentToolVisits = this.recentToolVisits.slice(0, 10);
+      }
+      this.saveRecentToolVisits();
     },
 
     /**
@@ -299,6 +402,11 @@ export const useItToolsStore = defineStore('ittools', {
           this.history = JSON.parse(savedHistory);
         }
 
+        const savedRecentVisits = localStorage.getItem('ittools_recent_tool_visits');
+        if (savedRecentVisits) {
+          this.recentToolVisits = JSON.parse(savedRecentVisits);
+        }
+
         const savedApiUrl = localStorage.getItem('ittools_api_base_url');
         if (savedApiUrl) {
           this.apiBaseUrl = savedApiUrl;
@@ -307,6 +415,11 @@ export const useItToolsStore = defineStore('ittools', {
         const savedTheme = localStorage.getItem('ittools_theme') as 'light' | 'dark';
         if (savedTheme) {
           this.theme = savedTheme;
+        }
+
+        const savedLastTool = localStorage.getItem('ittools_last_tool_id');
+        if (savedLastTool) {
+          this.lastToolId = savedLastTool;
         }
       } catch (error) {
         console.error('Error loading preferences:', error);
@@ -332,6 +445,26 @@ export const useItToolsStore = defineStore('ittools', {
         localStorage.setItem('ittools_history', JSON.stringify(this.history));
       } catch (error) {
         console.error('Error saving history:', error);
+      }
+    },
+
+    saveRecentToolVisits(): void {
+      try {
+        localStorage.setItem('ittools_recent_tool_visits', JSON.stringify(this.recentToolVisits));
+      } catch (error) {
+        console.error('Error saving recent tools:', error);
+      }
+    },
+
+    saveLastUsedTool(): void {
+      try {
+        if (this.lastToolId) {
+          localStorage.setItem('ittools_last_tool_id', this.lastToolId);
+        } else {
+          localStorage.removeItem('ittools_last_tool_id');
+        }
+      } catch (error) {
+        console.error('Error saving last used tool:', error);
       }
     },
 

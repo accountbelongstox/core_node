@@ -19,6 +19,7 @@
 
     const CONFIG = {
         SERVER_URL: 'http://127.0.0.1:8765',
+        WS_URL: 'ws://127.0.0.1:8765/ws',
         MAX_DEPTH: 10,
         DELAY: 1000,
         MAX_LINKS_PER_PAGE: Infinity,
@@ -31,8 +32,211 @@
         IFRAME_NAVIGATION_TIMEOUT: 10000
     };
 
+    class ServerBridge {
+        constructor(config) {
+            this.config = config;
+            this.socket = null;
+            this.isConnected = false;
+            this.shouldReconnect = true;
+            this.pendingMessages = [];
+            this.statusListeners = new Set();
+            this.commandListeners = new Set();
+            this.retryTimer = null;
+            this.connectionAttempts = 0;
+        }
+
+        connect() {
+            if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            try {
+                this.socket = new WebSocket(this.config.WS_URL);
+            } catch (error) {
+                this.scheduleReconnect();
+                return;
+            }
+            this.socket.addEventListener('open', () => this.handleOpen());
+            this.socket.addEventListener('message', (event) => this.handleMessage(event));
+            this.socket.addEventListener('close', () => this.handleClose());
+            this.socket.addEventListener('error', () => this.handleClose());
+        }
+
+        handleOpen() {
+            this.isConnected = true;
+            this.connectionAttempts = 0;
+            this.notifyStatus('connected');
+            this.sendRaw({
+                type: 'hello',
+                payload: {
+                    url: window.location.href,
+                    userAgent: navigator.userAgent,
+                    title: document.title
+                }
+            });
+            this.flushPending();
+        }
+
+        handleClose() {
+            this.isConnected = false;
+            this.notifyStatus('disconnected');
+            if (this.shouldReconnect) {
+                this.scheduleReconnect();
+            }
+        }
+
+        scheduleReconnect() {
+            if (this.retryTimer) {
+                return;
+            }
+            this.connectionAttempts += 1;
+            const delayDuration = Math.min(12000, 1500 * this.connectionAttempts);
+            this.retryTimer = setTimeout(() => {
+                this.retryTimer = null;
+                this.connect();
+            }, delayDuration);
+        }
+
+        handleMessage(event) {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'command') {
+                    this.notifyCommand(message.action, message.payload || {});
+                } else if (message.type === 'config') {
+                    this.applyRemoteConfig(message.payload || {});
+                }
+            } catch (error) {
+                console.warn('[DocumentOffline-Crawler] Invalid WS payload', error);
+            }
+        }
+
+        applyRemoteConfig(payload) {
+            if (!payload || typeof payload !== 'object') {
+                return;
+            }
+            if (typeof payload.maxDepth === 'number') {
+                CONFIG.MAX_DEPTH = payload.maxDepth;
+            }
+            if (typeof payload.serverUrl === 'string') {
+                this.config.SERVER_URL = payload.serverUrl;
+            }
+        }
+
+        sendRaw(message) {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                try {
+                    this.socket.send(JSON.stringify(message));
+                    return true;
+                } catch (error) {
+                    console.warn('[DocumentOffline-Crawler] Unable to send WS message', error);
+                }
+            }
+            return false;
+        }
+
+        flushPending() {
+            if (!this.pendingMessages.length || !this.isConnected) {
+                return;
+            }
+            const queue = [...this.pendingMessages];
+            this.pendingMessages = [];
+            queue.forEach((message) => this.sendRaw(message));
+        }
+
+        async sendMessage(type, payload) {
+            const message = { type, payload };
+            if (!this.sendRaw(message)) {
+                this.pendingMessages.push(message);
+                if (this.pendingMessages.length > 50) {
+                    this.pendingMessages.shift();
+                }
+                return this.sendViaHttp(type, payload);
+            }
+            return { via: 'ws' };
+        }
+
+        sendPage(payload) {
+            return this.sendMessage('page', payload);
+        }
+
+        sendComplete(payload) {
+            return this.sendMessage('complete', payload);
+        }
+
+        async sendViaHttp(type, payload) {
+            const endpoint = type === 'page' ? '/page' : type === 'complete' ? '/complete' : '/event';
+            return new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: `${this.config.SERVER_URL}${endpoint}`,
+                    headers: { 'Content-Type': 'application/json' },
+                    data: JSON.stringify(payload),
+                    onload: () => resolve({ via: 'http' }),
+                    onerror: reject,
+                    ontimeout: reject
+                });
+            }).catch((error) => {
+                console.warn('[DocumentOffline-Crawler] HTTP fallback failed', error);
+            });
+        }
+
+        async ping() {
+            if (this.sendRaw({ type: 'ping', payload: { ts: Date.now() } })) {
+                return true;
+            }
+            return new Promise((resolve) => {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: `${this.config.SERVER_URL}/ping`,
+                    onload: () => resolve(true),
+                    onerror: () => resolve(false),
+                    ontimeout: () => resolve(false)
+                });
+            });
+        }
+
+        onStatusChange(callback) {
+            this.statusListeners.add(callback);
+            return () => this.statusListeners.delete(callback);
+        }
+
+        onCommand(callback) {
+            this.commandListeners.add(callback);
+            return () => this.commandListeners.delete(callback);
+        }
+
+        notifyStatus(status) {
+            this.statusListeners.forEach((callback) => {
+                try {
+                    callback(status);
+                } catch (error) {
+                    console.warn('[DocumentOffline-Crawler] Status callback failed', error);
+                }
+            });
+        }
+
+        notifyCommand(action, payload) {
+            this.commandListeners.forEach((callback) => {
+                try {
+                    callback(action, payload);
+                } catch (error) {
+                    console.warn('[DocumentOffline-Crawler] Command callback failed', error);
+                }
+            });
+        }
+    }
+
+    const SERVER_BRIDGE = new ServerBridge(CONFIG);
     const PANEL_ID = 'documentoffline-panel';
     const PANEL_STYLE_ID = 'documentoffline-panel-style';
+    let lastBridgeStatus = 'connecting';
+
+    SERVER_BRIDGE.onStatusChange((status) => {
+        lastBridgeStatus = status;
+        updatePanelStatus('connection', status);
+    });
+    SERVER_BRIDGE.onCommand((action, payload) => handleServerCommand(action, payload));
+    SERVER_BRIDGE.connect();
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -48,39 +252,6 @@
         } catch (error) {
             return url;
         }
-    }
-
-    function sendServerRequest(serverUrl, endpoint, data, logFn) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'POST',
-                url: `${serverUrl}${endpoint}`,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                data: JSON.stringify(data),
-                onload: (response) => {
-                    try {
-                        resolve(JSON.parse(response.responseText));
-                    } catch (error) {
-                        resolve({ success: true });
-                    }
-                },
-                onerror: (error) => {
-                    if (typeof logFn === 'function') {
-                        logFn(`Server connection error: ${error}`, 'error');
-                    }
-                    reject(error);
-                },
-                ontimeout: () => {
-                    if (typeof logFn === 'function') {
-                        logFn('Server request timeout', 'error');
-                    }
-                    reject(new Error('Timeout'));
-                },
-                timeout: 10000
-            });
-        });
     }
 
     class RecursiveCrawler {
@@ -108,13 +279,21 @@
         }
 
         async sendToServer(endpoint, data) {
-            return sendServerRequest(this.config.SERVER_URL, endpoint, data, (msg, type) => this.log(msg, type));
+            if (endpoint === '/page') {
+                return SERVER_BRIDGE.sendPage(data);
+            }
+            if (endpoint === '/complete') {
+                return SERVER_BRIDGE.sendComplete(data);
+            }
+            if (endpoint === '/ping') {
+                return SERVER_BRIDGE.ping();
+            }
+            return SERVER_BRIDGE.sendMessage('event', { endpoint, payload: data });
         }
 
         async pingServer() {
             try {
-                await this.sendToServer('/ping', {});
-                return true;
+                return await SERVER_BRIDGE.ping();
             } catch (error) {
                 return false;
             }
@@ -174,7 +353,7 @@
             this.globalProcessedUrls.add(normalizedUrl);
             this.log(`Captured page (depth ${depth}): ${linkInfo.text || normalizedUrl}`, 'success');
             try {
-                await this.sendToServer('/page', pageData);
+                await SERVER_BRIDGE.sendPage(pageData);
                 this.log(`Sent page to server: ${normalizedUrl}`, 'success');
             } catch (error) {
                 this.log(`Failed to send page to server: ${error.message}`, 'error');
@@ -289,7 +468,7 @@
             this.log(`Total URLs in global set: ${this.globalProcessedUrls.size}`, 'success');
             this.log(`Failed URLs: ${this.globalFailedUrls.size}`, 'success');
             try {
-                await this.sendToServer('/complete', {
+                await SERVER_BRIDGE.sendComplete({
                     totalPages: this.results.length,
                     globalProcessedUrls: Array.from(this.globalProcessedUrls),
                     failedUrls: Array.from(this.globalFailedUrls),
@@ -644,8 +823,7 @@
 
         async pingServer() {
             try {
-                await sendServerRequest(this.config.SERVER_URL, '/ping', {}, (msg, type) => this.log(msg, type));
-                return true;
+                return await SERVER_BRIDGE.ping();
             } catch (error) {
                 return false;
             }
@@ -679,7 +857,7 @@
 
         async onPageCaptured(pageData) {
             try {
-                await sendServerRequest(this.config.SERVER_URL, '/page', pageData, (msg, type) => this.log(msg, type));
+                await SERVER_BRIDGE.sendPage(pageData);
                 this.log(`Sent iframe page to server: ${pageData.url}`, 'success');
             } catch (error) {
                 this.log(`Failed to send iframe page: ${error.message}`, 'error');
@@ -716,13 +894,13 @@
 
         async sendCompletion() {
             try {
-                await sendServerRequest(this.config.SERVER_URL, '/complete', {
+                await SERVER_BRIDGE.sendComplete({
                     totalPages: this.globalProcessedUrls.size,
                     failedUrls: Array.from(this.globalFailedUrls),
                     pageLinkMap: this.pageLinkMap,
                     iframeResults: this.results,
                     sourceType: 'iframe'
-                }, (msg, type) => this.log(msg, type));
+                });
                 this.log('Sent iframe completion payload', 'success');
             } catch (error) {
                 this.log('Failed to send iframe completion payload: ' + error.message, 'error');
@@ -972,7 +1150,33 @@
     function updatePanelStatus(section, status) {
         const target = document.querySelector(`[data-docoffline-status="${section}"]`);
         if (target) {
-            target.textContent = `Status: ${status}`;
+            const label = target.dataset.docofflineLabel || 'Status';
+            target.textContent = `${label}: ${status}`;
+        }
+    }
+
+    function handleServerCommand(action, payload) {
+        const normalized = (action || '').toLowerCase();
+        switch (normalized) {
+            case 'startpagecrawl':
+                startPageCrawl();
+                break;
+            case 'startiframecrawl':
+                startIframeCrawl();
+                break;
+            case 'stoppagecrawl':
+            case 'stopiframecrawl':
+            case 'stop':
+                stopPageCrawl();
+                stopIframeCrawl();
+                break;
+            case 'focus-url':
+                if (payload?.url) {
+                    console.info('[DocumentOffline-Crawler] Focus request for URL:', payload.url);
+                }
+                break;
+            default:
+                console.info('[DocumentOffline-Crawler] Unknown command from server:', action);
         }
     }
 
@@ -989,6 +1193,7 @@
                 <button data-docoffline-action="toggle-panel" class="docoffline-secondary">–</button>
             </div>
             <div class="docoffline-panel-body">
+                <div class="docoffline-status" data-docoffline-status="connection" data-docoffline-label="Server">Server: connecting...</div>
                 <div class="docoffline-section">
                     <div class="docoffline-section-title">Page Crawl</div>
                     <div class="docoffline-status" data-docoffline-status="page">Status: idle</div>
@@ -1050,6 +1255,7 @@
         document.body.appendChild(panel);
         makePanelDraggable(panel);
         controlPanel = panel;
+        updatePanelStatus('connection', lastBridgeStatus);
         return controlPanel;
     }
 

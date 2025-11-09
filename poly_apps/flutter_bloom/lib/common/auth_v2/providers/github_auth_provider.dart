@@ -1,12 +1,10 @@
 
 /// GitHub authentication provider implementation
 /// Supports GitHub OAuth with access token and user info retrieval
-library github_auth_provider;
+library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../auth_interface.dart';
@@ -254,7 +252,7 @@ class GitHubAuthProvider extends IAuthProvider {
   /// Build GitHub OAuth authorization URL
   Uri _buildAuthUrl(Map<String, dynamic>? additionalParameters) {
     final params = <String, String>{
-      'client_id': _config!.clientId,
+      'client_id': _config!.clientId ?? '',
       'scope': _config!.scopes,
       'allow_signup': _config!.allowSignup.toString(),
     };
@@ -347,7 +345,7 @@ class GitHubAuthProvider extends IAuthProvider {
 
       // Get user info with the access token
       final userResult = await _getUserInfo(accessToken);
-      if (!userResult.success) {
+      if (!userResult.success || userResult.user == null) {
         return AuthResult.failure(
           errorMessage: 'Failed to get user info',
           errorCode: userResult.errorCode ?? AuthError.unknownError,
@@ -358,7 +356,7 @@ class GitHubAuthProvider extends IAuthProvider {
       _currentUser = userResult.user;
 
       return AuthResult.success(
-        user: userResult.user,
+        user: userResult.user!,
         token: token,
       );
     } catch (e) {
@@ -424,7 +422,10 @@ class GitHubAuthProvider extends IAuthProvider {
         isVerified: userData['verified'] as bool? ?? false,
       );
 
-      return AuthResult.success(user: user);
+      return AuthResult(
+        success: true,
+        user: user,
+      );
     } catch (e) {
       return AuthResult.failure(
         errorMessage: 'User info error: ${e.toString()}',

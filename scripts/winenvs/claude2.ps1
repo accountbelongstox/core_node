@@ -36,8 +36,111 @@ Write-Host "Running: claude2.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
+#region Initialize Path Variables
+$scriptCurrentPath = $PSScriptRoot
+if (-not $scriptCurrentPath) {
+    $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+$scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$shellsDirPath = Join-Path $scriptsDirPath "shells"
+$winDirPath = Join-Path $shellsDirPath "win"
+$winCommonDirPath = Join-Path $winDirPath "win_common"
+$pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
+$aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
+
+#region Custom User Directory Configuration
+# ============================================================================
+# CUSTOM USER DIRECTORY SETTING
+# ============================================================================
+# Automatically generates user directory at D:\.tmp\Users\时间�?# Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
+# ============================================================================
+
+# Generate timestamp for directory name
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$baseTempDir = "D:\.tmp\Users"
+$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+
+# Create the directory if it doesn't exist
+try {
+    if (-not (Test-Path $baseTempDir)) {
+        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
+    }
+    
+    if (-not (Test-Path $CustomUserDirectory)) {
+        Write-Host "[INFO] Creating custom user directory: $CustomUserDirectory" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $CustomUserDirectory -Force | Out-Null
+    }
+    
+    # Verify directory was created successfully
+    if (Test-Path $CustomUserDirectory) {
+        $userProfilePath = $CustomUserDirectory
+        Write-Host "[SUCCESS] Using auto-generated custom user directory: $userProfilePath" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Failed to create custom directory, falling back to system default" -ForegroundColor Yellow
+        $userProfilePath = $env:USERPROFILE
+        if (-not $userProfilePath) {
+            $userProfilePath = [Environment]::GetFolderPath("UserProfile")
+        }
+        Write-Host "[INFO] Using system default user directory: $userProfilePath" -ForegroundColor Cyan
+    }
+} catch {
+    Write-Host "[ERROR] Failed to create custom user directory: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[INFO] Falling back to system default..." -ForegroundColor Yellow
+    $userProfilePath = $env:USERPROFILE
+    if (-not $userProfilePath) {
+        $userProfilePath = [Environment]::GetFolderPath("UserProfile")
+    }
+    Write-Host "[INFO] Using system default user directory: $userProfilePath" -ForegroundColor Cyan
+}
+
+$userHomePath = $userProfilePath
+$usersDirectoryPath = Split-Path $userProfilePath -Parent
+
+# Set environment variables for Node.js, React, Python, and other applications
+# ============================================================================
+# These environment variables will be available to all child processes
+# including Node.js, React, Python, and other applications launched from this script
+#
+# Python usage examples:
+#   import os
+#   user_home = os.path.expanduser("~")  # Uses HOME or USERPROFILE
+#   user_home = os.getenv("USERPROFILE") or os.getenv("HOME")
+#   from pathlib import Path
+#   user_home = Path.home()  # Uses HOME or USERPROFILE
+# ============================================================================
+$env:USERPROFILE = $userProfilePath
+$env:HOME = $userProfilePath
+$env:USER_HOME = $userProfilePath
+$env:HOMEPATH = $userProfilePath
+$env:USER_DIR = $userProfilePath
+
+Write-Host "[INFO] Environment variables set for Node.js/React/Python applications:" -ForegroundColor Cyan
+Write-Host "  USERPROFILE = $env:USERPROFILE" -ForegroundColor Gray
+Write-Host "  HOME = $env:HOME" -ForegroundColor Gray
+Write-Host "  USER_HOME = $env:USER_HOME" -ForegroundColor Gray
+Write-Host "  HOMEPATH = $env:HOMEPATH" -ForegroundColor Gray
+Write-Host "  USER_DIR = $env:USER_DIR" -ForegroundColor Gray
+Write-Host ""
+#endregion
+
+# Test path resolution (can be removed in production)
+Write-Host "[DEBUG] Path Resolution Test:" -ForegroundColor Magenta
+Write-Host "  Script Path: $scriptCurrentPath" -ForegroundColor Gray
+Write-Host "  Scripts Dir: $scriptsDirPath" -ForegroundColor Gray
+Write-Host "  Shells Dir: $shellsDirPath" -ForegroundColor Gray
+Write-Host "  Win Dir: $winDirPath" -ForegroundColor Gray
+Write-Host "  Win Common Dir: $winCommonDirPath" -ForegroundColor Gray
+Write-Host "  PyTools Dir: $pytoolsDirPath" -ForegroundColor Gray
+Write-Host "  AI Tools Dir: $aiToolsDirPath" -ForegroundColor Gray
+Write-Host "  User Profile: $userProfilePath" -ForegroundColor Gray
+Write-Host "  User Home: $userHomePath" -ForegroundColor Gray
+Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
+Write-Host ""
+#endregion
+
 #region Load SecretManager
-$secretManagerPath = "D:\programing\core_node\scripts\shells\win\win_common\SecretManager.ps1"
+$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
 
 if (Test-Path $secretManagerPath) {
     . $secretManagerPath
@@ -104,12 +207,13 @@ Write-Host "Claude Code - Pre-Launch Tasks" -ForegroundColor Yellow
 Write-Host ""
 
 # Execute pre-launch script if it exists
-if (Test-Path "D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1") {
+$preLaunchScriptPath = Join-Path $aiToolsDirPath "claude_pre_launch.ps1"
+if (Test-Path $preLaunchScriptPath) {
     $currentWorkingDir = Get-Location
-    Write-Host "[INFO] Executing pre-launch script: D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1" -ForegroundColor Cyan
+    Write-Host "[INFO] Executing pre-launch script: $preLaunchScriptPath" -ForegroundColor Cyan
     Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
     Write-Host ""
-    & "D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1" -WorkingDirectory "$currentWorkingDir"
+    & $preLaunchScriptPath -WorkingDirectory "$currentWorkingDir"
     Write-Host ""
 }
 
@@ -122,21 +226,30 @@ $upgradeChoice = Read-Host "Do you want to upgrade Claude Code? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
     Write-Host ""
     Write-Host "[INFO] Launching Claude Code upgrade in separate window..." -ForegroundColor Yellow
-    Start-Process -FilePath "D:\programing\core_node\scripts\pytools\ai_tools\claude_update.bat" -WindowStyle Normal
+    $updateBatPath = Join-Path $aiToolsDirPath "claude_update.bat"
+    Start-Process -FilePath $updateBatPath -WindowStyle Normal
     Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
 } else {
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
 }
 
-$currentWorkingDir = Get-Location
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python claude_sync_mcp_servers.py" -ForegroundColor Cyan
+Write-Host "[INFO] Python will use custom user directory: $env:USERPROFILE" -ForegroundColor Cyan
+Write-Host "[INFO] Python can access via: os.getenv('USERPROFILE'), os.getenv('HOME'), or Path.home()" -ForegroundColor Gray
 Write-Host ""
 
-python -u "D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py" --target claude --working-dir "$currentWorkingDir"
+$syncScriptPath = Join-Path $aiToolsDirPath "claude_sync_mcp_servers.py"
+# Python will automatically inherit the environment variables set above
+# Python code can access the custom user directory using:
+#   import os
+#   user_home = os.getenv("USERPROFILE") or os.getenv("HOME")
+#   # or
+#   from pathlib import Path
+#   user_home = Path.home()  # Uses HOME or USERPROFILE environment variable
+python $syncScriptPath
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

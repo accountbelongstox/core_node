@@ -672,14 +672,19 @@ async function handleContextMenuAction(action: string, serial: string) {
   }
 }
 
+watch(videoElement, (el) => {
+  if (el) {
+    connectVideo();
+    updateCanvasSize();
+  }
+}, { immediate: true });
+
 onMounted(() => {
-  connectVideo();
   if (props.enableControl) {
     connectControl();
     connectGroup();
   }
 
-  updateCanvasSize();
   window.addEventListener('resize', updateCanvasSize);
 });
 
@@ -702,11 +707,14 @@ watch(() => videoElement.value, () => {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 300px;
-  background: var(--pm-bg-main);
+  min-height: 0;
+  background: var(--pm-color-surface);
   border-radius: var(--pm-radius-lg);
   overflow: hidden;
   box-shadow: var(--pm-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: inherit;
 }
 
 /* Video Element */
@@ -773,7 +781,7 @@ watch(() => videoElement.value, () => {
   padding: 4px 12px;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: var(--pm-transition-fast);
   animation: pm-fadeIn 0.5s ease;
@@ -807,7 +815,7 @@ watch(() => videoElement.value, () => {
   padding: 6px 16px;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   border: 1px solid rgba(255, 255, 255, 0.2);
   font-size: var(--pm-font-size-xs);
   font-weight: 600;
@@ -820,7 +828,7 @@ watch(() => videoElement.value, () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--pm-text-secondary);
+  background: var(--pm-text-muted);
   transition: var(--pm-transition-fast);
 }
 
@@ -830,8 +838,8 @@ watch(() => videoElement.value, () => {
 }
 
 .pm-video-status--connected .status-dot {
-  background: var(--pm-success);
-  box-shadow: 0 0 8px var(--pm-success);
+  background: var(--pm-color-success);
+  box-shadow: 0 0 8px var(--pm-color-success);
   animation: pm-pulse 2s ease-in-out infinite;
 }
 
@@ -841,7 +849,7 @@ watch(() => videoElement.value, () => {
 }
 
 .pm-video-status--disconnected .status-dot {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
 }
 
 /* Video Buttons - Base Style */
@@ -856,7 +864,7 @@ watch(() => videoElement.value, () => {
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: var(--pm-radius-circle);
+  border-radius: 50%;
   color: #ffffff;
   cursor: pointer;
   transition: var(--pm-transition-fast);
@@ -871,8 +879,8 @@ watch(() => videoElement.value, () => {
 }
 
 .pm-video-btn:hover {
-  background: var(--pm-primary);
-  border-color: var(--pm-primary);
+  background: var(--pm-color-primary);
+  border-color: var(--pm-color-primary);
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(83, 86, 251, 0.4);
 }
@@ -1181,7 +1189,7 @@ watch(() => videoElement.value, () => {
   width: 40px;
   height: 40px;
   border: 3px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--pm-primary);
+  border-top-color: var(--pm-color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   z-index: 5;
@@ -1201,12 +1209,12 @@ watch(() => videoElement.value, () => {
 
 /* Hover Effects Enhancement */
 .pm-video-btn--info:hover {
-  background: linear-gradient(135deg, var(--pm-primary) 0%, var(--pm-secondary) 100%);
+  background: linear-gradient(135deg, var(--pm-color-primary) 0%, var(--pm-color-accent) 100%);
   border-color: transparent;
 }
 
 .pm-video-btn--fullscreen:hover {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   border-color: transparent;
 }
 
@@ -1216,7 +1224,7 @@ watch(() => videoElement.value, () => {
 .pm-video-btn--screen-control:hover,
 .pm-video-btn--file-push:hover,
 .pm-video-btn--apk-install:hover {
-  background: linear-gradient(135deg, var(--pm-secondary) 0%, var(--pm-accent) 100%);
+  background: linear-gradient(135deg, var(--pm-color-accent) 0%, var(--pm-color-primary) 100%);
   border-color: transparent;
 }
 

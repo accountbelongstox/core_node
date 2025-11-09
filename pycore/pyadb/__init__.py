@@ -18,10 +18,10 @@ Usage:
     ADBManager.execute_shell("ABC123", "input tap 500 1000")
 """
 
-from .adb_manager import ADBManager
-from .adb_device import ADBDevice
-from .adb_types import ADBDeviceState, ADBConnectionType
-from .adb_commands import ADBCommands
+from pycore.pyadb.adb_manager import ADBManager
+from pycore.pyadb.adb_device import ADBDevice
+from pycore.pyadb.adb_types import ADBDeviceState, ADBConnectionType
+from pycore.pyadb.adb_commands import ADBCommands
 
 __all__ = [
     'ADBManager',

@@ -10,6 +10,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'user_model_app_wuy.dart';
+
 /// Authentication models for Wuy App
 /// Contains all auth-related data models
 

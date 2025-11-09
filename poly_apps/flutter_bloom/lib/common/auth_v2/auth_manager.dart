@@ -1,14 +1,14 @@
 
 /// Authentication manager for coordinating multiple authentication providers
 /// Provides a unified interface for authentication across different providers
-library auth_manager;
+library;
 
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../auth_interface.dart';
-import '../auth_models.dart';
-import '../auth_config.dart';
+import 'auth_interface.dart';
+import 'auth_models.dart';
+import 'auth_config.dart';
 import 'providers/wechat_auth_provider.dart';
 import 'providers/qq_auth_provider.dart';
 import 'providers/google_auth_provider.dart';
@@ -217,7 +217,7 @@ class AuthenticationManager extends IAuthenticationManager {
   }
 
   @override
-  Future<AuthResult> linkAdditionalProvider(
+  Future<AuthResult> linkProvider(
     AuthProvider provider,
     AuthConfig config,
   ) async {
@@ -458,7 +458,7 @@ class AuthenticationManager extends IAuthenticationManager {
 
     if (_currentSession?.expiresAt != null) {
       final duration = _currentSession!.expiresAt!.difference(DateTime.now());
-      if (duration.isPositive) {
+      if (duration.inMicroseconds > 0) {
         _sessionTimer = Timer(duration, () {
           _handleSessionExpired();
         });

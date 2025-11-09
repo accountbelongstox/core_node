@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 
 class FeedHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -19,10 +18,10 @@ class FeedHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onFilterTap;
 
   const FeedHeader({
-    Key? key,
+    super.key,
     required this.tabController,
     required this.onFilterTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

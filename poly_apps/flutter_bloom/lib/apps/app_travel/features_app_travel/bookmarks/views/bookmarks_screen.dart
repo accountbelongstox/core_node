@@ -18,7 +18,7 @@ import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
 
 class BookmarksScreen extends StatelessWidget {
-  const BookmarksScreen({Key? key}) : super(key: key);
+  const BookmarksScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

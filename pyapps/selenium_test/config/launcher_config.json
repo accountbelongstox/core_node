@@ -1,0 +1,36 @@
+{
+  "_comment": "Launcher Configuration with Auto Browser/Driver Detection",
+  "_instructions": {
+    "browser_type": "edge (default, recommended), chrome, firefox",
+    "driver_mode": "auto (recommended - auto-detects and downloads if needed), local (offline with manual path), system_path (offline, from PATH), auto_download (online only)",
+    "driver_path": "Only needed for 'local' mode. Full path to driver exe",
+    "example_edge_windows": "D:/drivers/msedgedriver.exe",
+    "example_chrome_windows": "D:/drivers/chromedriver.exe",
+    "example_linux": "/usr/local/bin/msedgedriver or /usr/local/bin/chromedriver"
+  },
+  "selenium_service": {
+    "browser_type": "edge",
+    "headless": false,
+    "driver_mode": "auto",
+    "disable_gpu": true,
+    "no_sandbox": true,
+    "max_sessions": 5,
+    "session_timeout": 3600,
+    "pool_size": 3,
+    "pool_timeout": 30,
+    "debug": false,
+    "enabled": true
+  },
+  "web_service": {
+    "enabled": false
+  },
+  "mcp_service": {
+    "enabled": false
+  },
+  "ui_service": {
+    "enabled": false
+  },
+  "auto_start_all": true,
+  "startup_delay": 0.5,
+  "graceful_shutdown_timeout": 10
+}

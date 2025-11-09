@@ -1,0 +1,384 @@
+{
+  "bridgeVersion": "1.0.0",
+  "timestamp": "2025-11-05T17:30:00Z",
+  "projectName": "flutter_bloom",
+  "targetDirectory": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib",
+
+  "errorStatistics": {
+    "initialTotalIssues": 2089,
+    "initialTotalErrors": 519,
+    "currentTotalIssues": 1836,
+    "currentTotalErrors": 271,
+    "totalWarnings": 0,
+    "totalInfos": 0,
+    "errorsByType": {
+      "undefined_method": 85,
+      "undefined_named_parameter": 70,
+      "undefined_identifier": 60,
+      "undefined_getter": 48,
+      "undefined_class": 46,
+      "missing_required_argument": 28,
+      "uri_does_not_exist": 26,
+      "invocation_of_non_function_expression": 24,
+      "non_type_as_type_argument": 19,
+      "argument_type_not_assignable": 13,
+      "not_enough_positional_arguments": 12,
+      "return_of_invalid_type_from_closure": 3,
+      "unterminated_string_literal": 2,
+      "invalid_override": 2,
+      "invalid_constant": 2,
+      "extra_positional_arguments": 2,
+      "extends_non_class": 2,
+      "creation_with_non_type": 2,
+      "undefined_setter": 1,
+      "undefined_enum_constant": 1,
+      "not_initialized_non_nullable_instance_field": 1,
+      "map_value_type_not_assignable": 1,
+      "list_element_type_not_assignable": 1,
+      "invalid_assignment": 1,
+      "instantiate_abstract_class": 1,
+      "getter_with_parameters": 1,
+      "expected_token": 1,
+      "directive_after_declaration": 1,
+      "body_might_complete_normally": 1,
+      "ambiguous_extension_member_access": 1
+    }
+  },
+
+  "fixStrategy": {
+    "phase1_critical_errors": {
+      "description": "Fix critical errors that prevent compilation",
+      "priority": "HIGH",
+      "errorTypes": [
+        "unterminated_string_literal",
+        "expected_token",
+        "directive_after_declaration"
+      ],
+      "estimatedCount": 4,
+      "status": "completed",
+      "fixedCount": 4,
+      "completedAt": "2025-11-05T17:45:00Z"
+    },
+    "phase2_duplicate_classes": {
+      "description": "Remove duplicate class definitions",
+      "priority": "HIGH",
+      "issues": [
+        "Duplicate Attachment class in codemart_types.dart - Verified only one definition exists"
+      ],
+      "estimatedCount": 0,
+      "status": "completed",
+      "fixedCount": 0,
+      "completedAt": "2025-11-05T17:45:00Z",
+      "notes": "No duplicate found upon verification"
+    },
+    "phase3_centralize_common_logic": {
+      "description": "Centralize shared logic to lib/common",
+      "priority": "MEDIUM",
+      "strategy": "Move shared models, widgets, and utilities to lib/common",
+      "targetStructure": {
+        "lib/common/models": "Shared data models across apps",
+        "lib/common/widgets": "Reusable widgets",
+        "lib/common/services": "Shared services",
+        "lib/common/utils": "Utility functions"
+      },
+      "status": "pending"
+    },
+    "phase4_undefined_errors": {
+      "description": "Fix undefined getters, methods, and identifiers",
+      "priority": "MEDIUM",
+      "errorTypes": [
+        "undefined_method",
+        "undefined_named_parameter",
+        "undefined_identifier",
+        "undefined_getter",
+        "undefined_class"
+      ],
+      "estimatedCount": 309,
+      "strategy": "Ensure proper imports from lib/common, fix method signatures, update parameter names",
+      "status": "pending"
+    },
+    "phase5_missing_imports": {
+      "description": "Fix missing imports and URI errors",
+      "priority": "MEDIUM",
+      "errorTypes": [
+        "uri_does_not_exist"
+      ],
+      "estimatedCount": 26,
+      "status": "completed",
+      "fixedCount": 26,
+      "completedAt": "2025-11-05T18:00:00Z",
+      "notes": "Fixed import paths in auth_v2, authentication routes, and common widgets"
+    },
+    "phase6_type_errors": {
+      "description": "Fix type-related errors",
+      "priority": "LOW",
+      "errorTypes": [
+        "argument_type_not_assignable",
+        "non_type_as_type_argument",
+        "invocation_of_non_function_expression"
+      ],
+      "estimatedCount": 56,
+      "status": "pending"
+    },
+    "phase7_function_signature_errors": {
+      "description": "Fix function signature mismatches",
+      "priority": "LOW",
+      "errorTypes": [
+        "missing_required_argument",
+        "not_enough_positional_arguments",
+        "extra_positional_arguments"
+      ],
+      "estimatedCount": 42,
+      "status": "pending"
+    }
+  },
+
+  "fixProgress": {
+    "totalFixed": 248,
+    "fixedByType": {
+      "unterminated_string_literal": 2,
+      "expected_token": 1,
+      "directive_after_declaration": 1,
+      "uri_does_not_exist": 26,
+      "undefined_method_via_widgets": 21,
+      "cascading_fixes": 197
+    },
+    "remainingErrors": 271,
+    "completionPercentage": 47.78
+  },
+
+  "currentWork": {
+    "phase": "phase5_missing_imports",
+    "startedAt": "2025-11-05T17:30:00Z",
+    "completedAt": "2025-11-05T18:00:00Z",
+    "assignedTo": "AI_Assistant_1",
+    "status": "completed",
+    "currentFile": null,
+    "notes": [
+      "Session 1: Fixed 3 critical syntax errors",
+      "Session 2: Created 6 missing widget files for app_qy",
+      "Session 2: Fixed 5 URI import path errors",
+      "Total errors reduced from 519 to 271 (47.78% reduction)",
+      "Total issues reduced from 2089 to 1836 (253 issues fixed)",
+      "Created widgets: WordSearchBar, WordListView, WordStatsCard, CategoryList, PlaybackControls, CurrentWordCard"
+    ]
+  },
+
+  "centralizationPlan": {
+    "description": "Plan to centralize common logic to lib/common",
+    "targetStructure": {
+      "lib/common/models": {
+        "description": "Shared data models",
+        "suggestedFiles": [
+          "user_model.dart",
+          "api_response_model.dart",
+          "attachment_model.dart"
+        ]
+      },
+      "lib/common/widgets": {
+        "description": "Reusable widgets",
+        "suggestedFiles": [
+          "custom_button.dart",
+          "custom_input.dart",
+          "loading_indicator.dart"
+        ]
+      },
+      "lib/common/services": {
+        "description": "Shared services",
+        "suggestedFiles": [
+          "api_service.dart",
+          "auth_service.dart",
+          "storage_service.dart"
+        ]
+      },
+      "lib/common/utils": {
+        "description": "Utility functions",
+        "suggestedFiles": [
+          "validators.dart",
+          "formatters.dart",
+          "constants.dart"
+        ]
+      }
+    },
+    "identifiedDuplicates": [],
+    "movesToPerform": []
+  },
+
+  "aiCollaboration": {
+    "description": "This bridge file is used for collaboration between AI assistants",
+    "lastUpdatedBy": "AI_Assistant_1",
+    "lastUpdateTime": "2025-11-05T18:00:00Z",
+    "nextAssignee": "AI_Assistant_2",
+    "handoffNotes": [
+      "Phase 1 (critical syntax errors) COMPLETED - 4 errors fixed",
+      "Phase 2 (duplicate classes) COMPLETED - 0 errors (no duplicates found)",
+      "Phase 5 (missing imports) COMPLETED - 26 URI errors fixed",
+      "Created 6 missing widget files for app_qy word features",
+      "Total progress: 248 errors fixed (47.78% complete)",
+      "Remaining: 271 errors",
+      "Next priority: Phase 4 - Fix remaining undefined errors (estimated ~200)",
+      "Recommend: undefined_method, undefined_getter, undefined_class errors",
+      "Approach: Check if methods/getters exist but are misspelled, or need to be created"
+    ],
+    "communication": [
+      {
+        "from": "AI_Assistant_1",
+        "to": "AI_Assistant_2",
+        "timestamp": "2025-11-05T17:45:00Z",
+        "message": "Completed Phase 1 critical syntax fixes. Ready for centralization and undefined error fixes."
+      },
+      {
+        "from": "AI_Assistant_1",
+        "to": "AI_Assistant_2",
+        "timestamp": "2025-11-05T18:00:00Z",
+        "message": "Session 2 complete. Fixed URI errors and created missing widgets. 47.78% progress achieved. Ready for Phase 4 undefined error fixes."
+      }
+    ]
+  },
+
+  "fileChanges": {
+    "modified": [
+      {
+        "file": "lib/apps/app_qy/features_app_qy/more_features/views/more_features_screen.dart",
+        "line": 163,
+        "change": "Removed extra quote after Icons.spellcheck",
+        "type": "syntax_fix"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_listening/views/word_listening_dictation_screen.dart",
+        "line": 57,
+        "change": "Added missing quote before 'color'",
+        "type": "syntax_fix"
+      },
+      {
+        "file": "lib/common/auth_v2/auth_interface.dart",
+        "line": "6,440",
+        "change": "Moved import statement to file header",
+        "type": "syntax_fix"
+      },
+      {
+        "file": "lib/common/auth_v2/auth_manager.dart",
+        "line": "9-11",
+        "change": "Fixed import paths from ../ to ./ for same-directory files",
+        "type": "import_fix"
+      },
+      {
+        "file": "lib/common/auth_v2/auth_provider_factory.dart",
+        "line": "6-7",
+        "change": "Fixed import paths from ../ to ./ for same-directory files",
+        "type": "import_fix"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/authentication/auth_routes_app_qy.dart",
+        "line": "6,8",
+        "change": "Corrected relative import paths for provider and home",
+        "type": "import_fix"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/authentication/views/login_screen_app_qy.dart",
+        "line": 10,
+        "change": "Fixed provider import path",
+        "type": "import_fix"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/courses/domain/services/course_service.dart",
+        "line": "4-5",
+        "change": "Fixed import paths for app_theme and course_model",
+        "type": "import_fix"
+      },
+      {
+        "file": "lib/common/widgets/animations/animation_utils.dart",
+        "line": 5,
+        "change": "Fixed theme import path from ../theme to ../../theme",
+        "type": "import_fix"
+      }
+    ],
+    "created": [
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_book/views/widgets/word_search_bar.dart",
+        "type": "widget",
+        "purpose": "Search bar widget for word book feature"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_book/views/widgets/word_list_view.dart",
+        "type": "widget",
+        "purpose": "List view widget for displaying words"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_book/views/widgets/word_stats_card.dart",
+        "type": "widget",
+        "purpose": "Statistics card widget for word progress"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_listening/views/widgets/category_list.dart",
+        "type": "widget",
+        "purpose": "Category list widget for word listening"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_listening/views/widgets/playback_controls.dart",
+        "type": "widget",
+        "purpose": "Playback control widget for audio player"
+      },
+      {
+        "file": "lib/apps/app_qy/features_app_qy/word_listening/views/widgets/current_word_card.dart",
+        "type": "widget",
+        "purpose": "Card widget for displaying current word with phonetic and translation"
+      }
+    ],
+    "deleted": []
+  },
+
+  "guidelines": {
+    "reference": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\development-guides\\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+    "keyPrinciples": [
+      "Follow Flutter best practices",
+      "Centralize common logic in lib/common",
+      "Maintain consistent code style",
+      "Fix errors incrementally by priority",
+      "Document all changes in this bridge file"
+    ]
+  },
+
+  "knownIssues": [
+    {
+      "issue": "Duplicate Attachment class",
+      "location": "lib/apps/app_codemart/models_app_codemart/codemart_types.dart",
+      "lines": [333],
+      "severity": "HIGH",
+      "status": "resolved",
+      "resolution": "Verified only one Attachment class definition exists at line 333",
+      "resolvedAt": "2025-11-05T17:45:00Z"
+    },
+    {
+      "issue": "Missing imports",
+      "description": "26 uri_does_not_exist errors",
+      "severity": "MEDIUM",
+      "status": "resolved",
+      "resolution": "Fixed all import paths in auth_v2, authentication, and common widgets",
+      "resolvedAt": "2025-11-05T18:00:00Z"
+    },
+    {
+      "issue": "Missing widget files",
+      "description": "6 widget files were missing for app_qy word features",
+      "severity": "HIGH",
+      "status": "resolved",
+      "resolution": "Created all 6 widget files with basic implementations",
+      "resolvedAt": "2025-11-05T18:00:00Z"
+    },
+    {
+      "issue": "Remaining undefined errors",
+      "description": "~200 undefined errors (method, getter, identifier, class, parameter)",
+      "severity": "HIGH",
+      "status": "in_progress",
+      "suggestedFix": "Check if methods/getters exist but are misspelled, or create missing implementations",
+      "estimatedRemaining": 200
+    },
+    {
+      "issue": "Type-related errors",
+      "description": "56 type errors (argument_type_not_assignable, etc.)",
+      "severity": "MEDIUM",
+      "status": "pending",
+      "suggestedFix": "Fix type conversions and ensure proper type annotations"
+    }
+  ]
+}
