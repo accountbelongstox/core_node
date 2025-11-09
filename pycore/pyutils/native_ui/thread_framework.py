@@ -36,6 +36,233 @@ from pycore.pyutils.native_ui.title_bar import CustomTitleBar
 from pycore.pyutils.native_ui.system_tray import SystemTray, TrayMenuItem
 
 
+class ActionType:
+    """
+    Window action types
+
+    These actions can have callbacks registered via register_action_callback().
+    When an action is triggered, all registered callbacks are executed in order,
+    followed by the default native implementation.
+
+    Example:
+        # Register custom cleanup before window closes
+        ui_thread.register_action_callback(ActionType.CLOSE, cleanup_services)
+
+        # When user clicks close button:
+        # 1. cleanup_services() is called
+        # 2. Default close action (destroy UI, stop threads, etc.) is called
+    """
+    CLOSE = "close"          # Window close - destroys UI, stops threads, cleanup
+    MINIMIZE = "minimize"    # Window minimize - iconify window
+    MAXIMIZE = "maximize"    # Window maximize - full screen
+    RESTORE = "restore"      # Window restore - restore from maximized
+    RESTART = "restart"      # Application restart - stops and restarts
+    MENU = "menu"            # Menu button click
+
+
+class ActionContext:
+    """
+    Action execution context
+
+    Provides access to native implementation from within callbacks.
+    Allows callbacks to decide whether to call the native implementation.
+
+    Usage:
+        def my_close_callback(context: ActionContext):
+            # Custom cleanup
+            print("Cleaning up...")
+
+            # Call native implementation
+            context.call_native()
+    """
+
+    def __init__(self, action: str, native_impl: Optional[Callable] = None, debug: bool = False):
+        """
+        Initialize action context
+
+        Args:
+            action: Action type
+            native_impl: Native implementation callable
+            debug: Enable debug logging
+        """
+        self.action = action
+        self.native_impl = native_impl
+        self.debug = debug
+        self._native_called = False
+
+    def call_native(self):
+        """
+        Call the native implementation
+
+        Can only be called once. Subsequent calls are ignored.
+        """
+        if self.native_impl and not self._native_called:
+            if self.debug:
+                ColorPrint.blue(f"[ActionContext] Calling native implementation for '{self.action}'")
+            self.native_impl()
+            self._native_called = True
+        elif self._native_called:
+            if self.debug:
+                ColorPrint.yellow(f"[ActionContext] Native already called for '{self.action}', ignoring")
+
+    def is_native_called(self) -> bool:
+        """Check if native implementation was called"""
+        return self._native_called
+
+
+class ActionQueue:
+    """
+    Action callback queue manager
+
+    Manages callbacks for window actions (close, minimize, maximize, etc.).
+
+    **Key behavior:**
+    - If callbacks are registered: ONLY execute callbacks, native is available via context.call_native()
+    - If NO callbacks registered: Execute native implementation directly
+
+    This allows complete customization while maintaining default behavior.
+
+    Thread-safe: All operations are executed in the main UI thread.
+
+    Usage:
+        queue = ActionQueue(debug=True)
+
+        # Example 1: Custom behavior, then call native
+        def my_minimize(context: ActionContext):
+            print("Custom minimize logic")
+            context.call_native()  # Call native if needed
+
+        queue.register(ActionType.MINIMIZE, my_minimize)
+
+        # Example 2: Completely override behavior (no native call)
+        def my_maximize(context: ActionContext):
+            print("Fully custom maximize - no native")
+            # Don't call context.call_native()
+
+        queue.register(ActionType.MAXIMIZE, my_maximize)
+
+        # Execute action
+        queue.execute(ActionType.MINIMIZE, native_minimize_function)
+        # Calls: my_minimize(context) - user decides if native is called
+    """
+
+    def __init__(self, debug: bool = False):
+        """
+        Initialize action queue
+
+        Args:
+            debug: Enable debug logging
+        """
+        self.debug = debug
+        # Dictionary mapping action type to list of callbacks
+        # Format: {ActionType.CLOSE: [callback1, callback2, ...], ...}
+        self._callbacks: Dict[str, List[Callable]] = {}
+
+        if self.debug:
+            ColorPrint.blue("[ActionQueue] Initialized")
+
+    def register(self, action: str, callback: Callable):
+        """
+        Register a callback for an action
+
+        Callbacks receive an ActionContext parameter that allows them to
+        call the native implementation via context.call_native().
+
+        If callbacks are registered for an action, the native implementation
+        will NOT be called automatically - callbacks must call context.call_native()
+        if they want the native behavior.
+
+        Args:
+            action: Action type (e.g., ActionType.CLOSE)
+            callback: Callback function accepting ActionContext parameter
+        """
+        if action not in self._callbacks:
+            self._callbacks[action] = []
+
+        self._callbacks[action].append(callback)
+
+        if self.debug:
+            ColorPrint.green(f"[ActionQueue] Registered callback for action '{action}': {callback.__name__}")
+
+    def execute(self, action: str, native_impl: Optional[Callable] = None):
+        """
+        Execute callbacks for an action
+
+        If callbacks are registered:
+            - Create ActionContext with native implementation
+            - Execute each callback with context parameter
+            - Callbacks can call context.call_native() to invoke native behavior
+            - Native is NOT called automatically
+
+        If NO callbacks registered:
+            - Execute native implementation directly (default behavior)
+
+        Args:
+            action: Action type (e.g., ActionType.CLOSE)
+            native_impl: Native implementation (optional)
+        """
+        if self.debug:
+            ColorPrint.blue(f"[ActionQueue] Executing action '{action}'...")
+
+        # Check if callbacks are registered
+        if action in self._callbacks and len(self._callbacks[action]) > 0:
+            # Create context for callbacks
+            context = ActionContext(action, native_impl, debug=self.debug)
+
+            # Execute user callbacks
+            for idx, callback in enumerate(self._callbacks[action]):
+                if self.debug:
+                    ColorPrint.blue(f"[ActionQueue] Executing callback {idx + 1}/{len(self._callbacks[action])}: {callback.__name__}")
+
+                callback(context)
+
+            if self.debug:
+                if context.is_native_called():
+                    ColorPrint.green(f"[ActionQueue] Action '{action}' completed (native was called)")
+                else:
+                    ColorPrint.green(f"[ActionQueue] Action '{action}' completed (native was NOT called)")
+        else:
+            # No callbacks registered, execute native directly
+            if native_impl:
+                if self.debug:
+                    ColorPrint.blue(f"[ActionQueue] No callbacks registered, executing native implementation for '{action}'")
+                native_impl()
+
+                if self.debug:
+                    ColorPrint.green(f"[ActionQueue] Action '{action}' completed (native only)")
+            else:
+                if self.debug:
+                    ColorPrint.yellow(f"[ActionQueue] No callbacks and no native implementation for '{action}'")
+
+    def clear(self, action: Optional[str] = None):
+        """
+        Clear callbacks
+
+        Args:
+            action: Action type to clear (None = clear all)
+        """
+        if action is None:
+            self._callbacks.clear()
+            if self.debug:
+                ColorPrint.yellow("[ActionQueue] Cleared all callbacks")
+        elif action in self._callbacks:
+            del self._callbacks[action]
+            if self.debug:
+                ColorPrint.yellow(f"[ActionQueue] Cleared callbacks for action '{action}'")
+
+    def get_callbacks(self, action: str) -> List[Callable]:
+        """
+        Get list of callbacks for an action
+
+        Args:
+            action: Action type
+
+        Returns:
+            List of callbacks (empty list if none registered)
+        """
+        return self._callbacks.get(action, [])
+
+
 @dataclass
 class NativeUIThreadConfig:
     """Configuration for NativeUIThread"""
@@ -167,6 +394,7 @@ class NativeUIThread(threading.Thread):
         self.signal_manager = SignalManager(debug=config.debug)
         self.task_timer = TaskTimer(tick_interval=config.task_timer_interval, debug=config.debug)
         self.main_executor = MainThreadExecutor(debug=config.debug)
+        self.action_queue = ActionQueue(debug=config.debug)
 
         # Command queue for cross-thread communication
         self.command_queue = queue.Queue()
@@ -177,6 +405,9 @@ class NativeUIThread(threading.Thread):
         # Register default handlers
         self._register_default_handlers()
 
+        # Register default main thread methods
+        self._register_main_thread_methods()
+
         ColorPrint.blue(f"[{self.name}] Native UI Thread initialized: {config.app_name}")
 
     def _register_default_handlers(self):
@@ -185,6 +416,61 @@ class NativeUIThread(threading.Thread):
         self.signal_manager.register_handler(SignalType.WINDOW_MINIMIZE, self._handle_window_minimize)
         self.signal_manager.register_handler(SignalType.WINDOW_MAXIMIZE, self._handle_window_maximize)
         self.signal_manager.register_handler(SignalType.WINDOW_RESTORE, self._handle_window_restore)
+
+    def _register_main_thread_methods(self):
+        """
+        Register default main thread methods for cross-thread execution
+
+        These methods can be called from any thread via main_executor.execute('method_name')
+        and will be executed safely in the main UI thread.
+
+        Flow: Tray Menu → main_executor.execute() → Signal → ActionQueue → Native Implementation
+        """
+        # Window visibility control (direct execution)
+        self.main_executor.register_method('show_window', self._method_show_window)
+        self.main_executor.register_method('hide_window', self._method_hide_window)
+
+        # Window state control (sends signals → ActionQueue → callbacks + native)
+        self.main_executor.register_method('close', self._method_close)
+        self.main_executor.register_method('minimize', self._method_minimize)
+        self.main_executor.register_method('maximize', self._method_maximize)
+        self.main_executor.register_method('restore', self._method_restore)
+        self.main_executor.register_method('restart', self._method_restart)
+
+    # ============================================
+    # Main Thread Method Implementations
+    # ============================================
+
+    def _method_show_window(self):
+        """Main thread method: Show window"""
+        self.show_window()
+
+    def _method_hide_window(self):
+        """Main thread method: Hide window"""
+        self.hide_window()
+
+    def _method_close(self):
+        """Main thread method: Close window (triggers Signal → ActionQueue)"""
+        self.signal_manager.emit(SignalType.WINDOW_CLOSE)
+
+    def _method_minimize(self):
+        """Main thread method: Minimize window (triggers Signal → ActionQueue)"""
+        self.signal_manager.emit(SignalType.WINDOW_MINIMIZE)
+
+    def _method_maximize(self):
+        """Main thread method: Maximize window (triggers Signal → ActionQueue)"""
+        self.signal_manager.emit(SignalType.WINDOW_MAXIMIZE)
+
+    def _method_restore(self):
+        """Main thread method: Restore window (triggers Signal → ActionQueue)"""
+        self.signal_manager.emit(SignalType.WINDOW_RESTORE)
+
+    def _method_restart(self):
+        """Main thread method: Restart application (triggers Signal → ActionQueue)"""
+        self.action_queue.execute(
+            ActionType.RESTART,
+            native_impl=self._native_restart
+        )
 
     def run(self):
         """
@@ -297,42 +583,7 @@ class NativeUIThread(threading.Thread):
         """
         ColorPrint.blue(f"[{self.name}] Creating webview for: {url}")
 
-        # Try pywebview first (best support, already installed)
-        try:
-            import webview as pywebview
-
-            ColorPrint.blue(f"[{self.name}] Using pywebview for webview")
-
-            # Create pywebview window with parent window
-            # Note: pywebview creates its own window, we need to embed it
-            # For now, create standalone window
-            self.webview_widget = pywebview.create_window(
-                self.config.app_name,
-                url,
-                width=self.config.width,
-                height=self.config.height
-            )
-
-            # Start pywebview in background thread
-            def start_pywebview():
-                """Start pywebview in separate thread"""
-                try:
-                    pywebview.start()
-                except Exception as e:
-                    ColorPrint.red(f"[{self.name}] pywebview start error: {e}")
-
-            webview_thread = threading.Thread(target=start_pywebview, daemon=True)
-            webview_thread.start()
-
-            ColorPrint.green(f"[{self.name}] Pywebview started: {url}")
-            return
-
-        except ImportError:
-            ColorPrint.yellow(f"[{self.name}] pywebview not available, trying alternative...")
-        except Exception as e:
-            ColorPrint.yellow(f"[{self.name}] pywebview error: {e}, trying alternative...")
-
-        # Try tkinterweb second (better HTML5 support)
+        # Try tkinterweb first (embeddable in Tkinter, better integration)
         try:
             from tkinterweb import HtmlFrame
 
@@ -341,16 +592,19 @@ class NativeUIThread(threading.Thread):
             self.webview_widget = HtmlFrame(parent)
             self.webview_widget.pack(fill=tk.BOTH, expand=True)
 
-            # Load URL
-            if url.startswith('http://') or url.startswith('https://'):
-                self.webview_widget.load_website(url)
-            else:
-                # Load from file
-                with open(url, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
-                self.webview_widget.load_html(html_content)
+            # Delay loading until mainloop is running to avoid "main thread is not in main loop" error
+            def delayed_load():
+                if url.startswith('http://') or url.startswith('https://'):
+                    self.webview_widget.load_website(url)
+                else:
+                    # Load from file
+                    with open(url, 'r', encoding='utf-8') as f:
+                        html_content = f.read()
+                    self.webview_widget.load_html(html_content)
+                ColorPrint.green(f"[{self.name}] Webview loaded successfully: {url}")
 
-            ColorPrint.green(f"[{self.name}] Webview loaded successfully: {url}")
+            # Schedule loading after mainloop starts (1000ms delay to ensure mainloop is fully initialized)
+            self.root.after(1000, delayed_load)
             return
 
         except ImportError:
@@ -491,32 +745,88 @@ class NativeUIThread(threading.Thread):
         ColorPrint.red(f"[{self.name}] Webview error: {error_message}")
 
     def _start_system_tray(self):
-        """Start system tray with configured menu items"""
+        """
+        Start system tray with configured menu items
+
+        Menu structure (overlay mode):
+        1. Default window controls (Show/Hide, Maximize, Minimize, Restart)
+        2. User custom menu items (if provided)
+        3. Separator
+        4. Exit
+        """
         ColorPrint.blue(f"[{self.name}] Starting system tray...")
 
         # Use provided tooltip or default to app name
         tooltip = self.config.tray_tooltip or self.config.app_name
 
-        # Create default menu items if none provided
-        menu_items = self.config.tray_menu_items
-        if not menu_items:
-            # Create default menu
-            menu_items = [
-                TrayMenuItem(
-                    text="Show Window",
-                    callback=lambda: self.show_window(),
-                    default=True
-                ),
-                TrayMenuItem(
-                    text="Hide Window",
-                    callback=lambda: self.hide_window()
-                ),
-                TrayMenuItem.SEPARATOR,
-                TrayMenuItem(
-                    text="Exit",
-                    callback=lambda: self.stop()
-                )
-            ]
+        # Helper functions for tray menu callbacks
+        # These callbacks are executed in tray thread, must use main_executor
+        def _tray_show():
+            """Tray menu: Show window (executed in tray thread, forwarded to main thread)"""
+            self.main_executor.call('show_window')
+
+        def _tray_hide():
+            """Tray menu: Hide window (executed in tray thread, forwarded to main thread)"""
+            self.main_executor.call('hide_window')
+
+        def _tray_maximize():
+            """Tray menu: Maximize window (executed in tray thread, forwarded to main thread)"""
+            self.main_executor.call('maximize')
+
+        def _tray_minimize():
+            """Tray menu: Minimize window (executed in tray thread, forwarded to main thread)"""
+            self.main_executor.call('minimize')
+
+        def _tray_restart():
+            """Tray menu: Restart application (executed in tray thread, forwarded to main thread)"""
+            self.main_executor.call('restart')
+
+        def _tray_close():
+            """Tray menu: Close/Exit application (executed in tray thread, forwarded to main thread)"""
+            self.main_executor.call('close')
+
+        # Create default window control menu items
+        default_menu_items = [
+            TrayMenuItem(
+                text="Show Window",
+                callback=_tray_show,
+                default=True  # This is the only default item
+            ),
+            TrayMenuItem(
+                text="Hide Window",
+                callback=_tray_hide
+            ),
+            TrayMenuItem.SEPARATOR,
+            TrayMenuItem(
+                text="Maximize",
+                callback=_tray_maximize
+            ),
+            TrayMenuItem(
+                text="Minimize",
+                callback=_tray_minimize
+            ),
+            TrayMenuItem(
+                text="Restart",
+                callback=_tray_restart
+            ),
+        ]
+
+        # Build final menu: default + user custom + exit
+        menu_items = default_menu_items.copy()
+
+        # Add user custom menu items if provided
+        if self.config.tray_menu_items:
+            menu_items.append(TrayMenuItem.SEPARATOR)
+            menu_items.extend(self.config.tray_menu_items)
+
+        # Add exit at the end
+        menu_items.extend([
+            TrayMenuItem.SEPARATOR,
+            TrayMenuItem(
+                text="Exit",
+                callback=_tray_close  # Use main thread executor
+            )
+        ])
 
         # Create system tray
         self.system_tray = SystemTray(
@@ -651,27 +961,78 @@ class NativeUIThread(threading.Thread):
         self.signal_manager.emit(SignalType.WINDOW_CLOSE)
 
     def _handle_window_close(self, signal: Signal):
-        """Handle window close signal"""
+        """
+        Handle window close signal
+
+        Executes all registered callbacks via ActionQueue, then performs native close.
+        Native implementation: stops UI thread, cleans up resources.
+        """
         ColorPrint.yellow(f"[{self.name}] Handling window close signal")
-        self.stop()
+
+        # Define native close implementation
+        def native_close():
+            ColorPrint.yellow(f"[{self.name}] Executing native close")
+            self.stop()
+
+        # Execute action queue (user callbacks + native implementation)
+        self.action_queue.execute(ActionType.CLOSE, native_close)
 
     def _handle_window_minimize(self, signal: Signal):
-        """Handle window minimize signal"""
-        if self.root:
-            self.root.iconify()
-            self.window_state = WindowState.MINIMIZED
+        """
+        Handle window minimize signal
+
+        Executes all registered callbacks via ActionQueue, then performs native minimize.
+        Native implementation: iconifies window.
+        """
+        ColorPrint.blue(f"[{self.name}] Handling window minimize signal")
+
+        # Define native minimize implementation
+        def native_minimize():
+            if self.root:
+                ColorPrint.blue(f"[{self.name}] Executing native minimize")
+                self.root.iconify()
+                self.window_state = WindowState.MINIMIZED
+
+        # Execute action queue (user callbacks + native implementation)
+        self.action_queue.execute(ActionType.MINIMIZE, native_minimize)
 
     def _handle_window_maximize(self, signal: Signal):
-        """Handle window maximize signal"""
-        if self.root:
-            self.root.state('zoomed')
-            self.window_state = WindowState.MAXIMIZED
+        """
+        Handle window maximize signal
+
+        Executes all registered callbacks via ActionQueue, then performs native maximize.
+        Native implementation: maximizes window to full screen.
+        """
+        ColorPrint.blue(f"[{self.name}] Handling window maximize signal")
+
+        # Define native maximize implementation
+        def native_maximize():
+            if self.root:
+                ColorPrint.blue(f"[{self.name}] Executing native maximize")
+                self.root.state('zoomed')
+                self.window_state = WindowState.MAXIMIZED
+
+        # Execute action queue (user callbacks + native implementation)
+        self.action_queue.execute(ActionType.MAXIMIZE, native_maximize)
 
     def _handle_window_restore(self, signal: Signal):
-        """Handle window restore signal"""
-        if self.root:
-            self.root.state('normal')
-            self.window_state = WindowState.NORMAL
+        """
+        Handle window restore signal
+
+        Executes all registered callbacks via ActionQueue, then performs native restore.
+        Native implementation: restores window from maximized state.
+        """
+        ColorPrint.blue(f"[{self.name}] Handling window restore signal")
+
+        # Define native restore implementation
+        def native_restore():
+            if self.root:
+                ColorPrint.blue(f"[{self.name}] Executing native restore")
+                self.root.state('normal')
+                self.window_state = WindowState.NORMAL
+
+        # Execute action queue (user callbacks + native implementation)
+        self.action_queue.execute(ActionType.RESTORE, native_restore)
 
     def _request_close(self):
         """Request to close the UI"""
@@ -686,6 +1047,73 @@ class NativeUIThread(threading.Thread):
         ColorPrint.yellow(f"[{self.name}] Stopping UI thread...")
         self._running = False
         self._stop_event.set()
+
+    def _native_restart(self):
+        """
+        Native restart implementation
+
+        Note: tkinter cannot restart after mainloop exits.
+        This will stop the UI. Applications should implement
+        restart at the application level (e.g., re-run script).
+        """
+        ColorPrint.yellow(f"[{self.name}] Restart requested - stopping UI...")
+        ColorPrint.yellow(f"[{self.name}] Note: Full restart requires application-level implementation")
+        self.stop()
+
+    def register_action_callback(self, action: str, callback: Callable):
+        """
+        Register a callback for a window action
+
+        Callbacks receive an ActionContext parameter and can decide whether to
+        call the native implementation via context.call_native().
+
+        **Important:** If you register a callback, the native implementation will
+        NOT be called automatically. You must call context.call_native() if you
+        want the native behavior.
+
+        Available actions:
+            - ActionType.CLOSE: Window close (native: stops UI, destroys window, cleanup)
+            - ActionType.MINIMIZE: Window minimize (native: iconifies window)
+            - ActionType.MAXIMIZE: Window maximize (native: full screen)
+            - ActionType.RESTORE: Window restore (native: restore from maximized)
+            - ActionType.RESTART: Application restart (native: stop and restart)
+            - ActionType.MENU: Menu button click
+
+        Example 1: Custom behavior + native implementation
+            def cleanup_services(context: ActionContext):
+                print("Stopping all services...")
+                # Stop services here
+
+                # Call native implementation
+                context.call_native()
+
+            ui_thread.register_action_callback(ActionType.CLOSE, cleanup_services)
+
+        Example 2: Fully custom behavior (no native)
+            def custom_minimize(context: ActionContext):
+                print("Custom minimize - hiding to tray")
+                # Custom logic here
+                # Don't call context.call_native()
+
+            ui_thread.register_action_callback(ActionType.MINIMIZE, custom_minimize)
+
+        Example 3: Conditional native call
+            def smart_close(context: ActionContext):
+                if confirm_close():
+                    save_state()
+                    context.call_native()  # Proceed with close
+                else:
+                    print("Close cancelled")
+                    # Don't call native, window stays open
+
+            ui_thread.register_action_callback(ActionType.CLOSE, smart_close)
+
+        Args:
+            action: Action type (use ActionType constants)
+            callback: Callback function accepting ActionContext parameter
+        """
+        self.action_queue.register(action, callback)
+        ColorPrint.green(f"[{self.name}] Registered callback for action '{action}': {callback.__name__}")
 
     def wait_until_ready(self, timeout: Optional[float] = None):
         """

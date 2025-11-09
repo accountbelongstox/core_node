@@ -64,8 +64,10 @@ DEPENDENCY_MAP = {
     # For HTTP requests
     "requests": "requests",
 
-    # For WebView GUI (pyutils.web)
+    # For WebView GUI (pyutils.web, pyutils.native_ui)
     "webview": "pywebview",
+    "tkinterweb": "tkinterweb",
+    "tkhtmlview": "tkhtmlview",
 
     # For logging
     "loguru": "loguru",
