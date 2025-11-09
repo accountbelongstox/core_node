@@ -237,28 +237,22 @@ class SystemTray:
 
     def _setup_tray(self):
         """Setup tray icon"""
-        try:
-            # Create menu
-            menu = self._build_menu() if self.menu_items else None
+        # Create menu
+        menu = self._build_menu() if self.menu_items else None
 
-            # Create icon
-            self._icon = pystray.Icon(
-                self.app_name,
-                self._image,
-                self.tooltip,
-                menu
-            )
+        # Create icon
+        self._icon = pystray.Icon(
+            self.app_name,
+            self._image,
+            self.tooltip,
+            menu
+        )
 
-            # Set left click handler if provided
-            if self.on_left_click:
-                self._icon.on_activate = lambda: self.on_left_click()
+        # Set left click handler if provided
+        if self.on_left_click:
+            self._icon.on_activate = lambda: self.on_left_click()
 
-            ColorPrint.green(f"[SystemTray] Tray icon created")
-
-        except Exception as e:
-            ColorPrint.red(f"[SystemTray] Failed to setup tray: {e}")
-            import traceback
-            traceback.print_exc()
+        ColorPrint.green(f"[SystemTray] Tray icon created")
 
     def start(self):
         """
