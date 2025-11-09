@@ -12,20 +12,20 @@ This module provides:
 - Secret management (encryption/decryption)
 """
 
-from .color_print import ColorPrint
-from .encyclopedia import Encyclopedia, ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import Encyclopedia, ENCYCLOPEDIA
 
 # Event bus
-from .event_bus import EventBus, EventTypes, Event
+from pycore.pyfoundations.event_bus import EventBus, EventTypes, Event
 
 # Global variables
-from .gvar import GlobalVarManager
+from pycore.pyfoundations.gvar import GlobalVarManager
 
 # Device abstractions
-from .device import DeviceInfo, Resolution, ServerParams, VideoCodec, AndroidDevice, ScrcpyDevice
+from pycore.pyfoundations.device import DeviceInfo, Resolution, ServerParams, VideoCodec, AndroidDevice, ScrcpyDevice
 
 # Secret management
-from .secret_manager import (
+from pycore.pyfoundations.secret_manager import (
     get_core_node_dir,
     get_secret_directories,
     decrypt_all_secrets,

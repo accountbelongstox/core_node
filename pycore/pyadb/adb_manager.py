@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 import time
 
-from .adb_types import (
+from pycore.pyadb.adb_types import (
     ADBDeviceBasic,
     ADBDeviceState,
     ADBExecuteResult,
@@ -27,7 +27,7 @@ from .adb_types import (
     ADBDeviceBattery,
     ADBForwardSpec
 )
-from .adb_device import ADBDevice
+from pycore.pyadb.adb_device import ADBDevice
 
 
 class ADBManager:

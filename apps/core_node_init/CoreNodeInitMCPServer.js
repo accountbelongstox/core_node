@@ -320,20 +320,6 @@ class CoreNodeInitMCPServer {
                     enableWebSocket: true
                 });
 
-                // Add health check endpoint for singleton detection
-                if (itToolsController.itToolsInstance && itToolsController.itToolsInstance.httpServer) {
-                    itToolsController.itToolsInstance.httpServer.app.get('/health/ping', (req, res) => {
-                        res.json({
-                            success: true,
-                            status: 'ok',
-                            service: 'core_node_init_mcp',
-                            timestamp: new Date().toISOString(),
-                            uptime: process.uptime()
-                        });
-                    });
-                    logger.info('Health check endpoint registered at /health/ping');
-                }
-
                 // Initialize Translation Controller
                 try {
                     translationController = new TranslationController();

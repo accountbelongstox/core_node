@@ -6,7 +6,7 @@ Defines all configuration parameters for scrcpy-server.
 
 from dataclasses import dataclass, field
 from typing import Optional
-from .device_info import VideoCodec
+from pycore.pydevice.device_info import VideoCodec
 
 
 @dataclass

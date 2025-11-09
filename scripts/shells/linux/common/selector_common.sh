@@ -27,6 +27,7 @@ declare -a MENU_CONFIG=(
     "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
     "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
+    "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )
@@ -323,16 +324,20 @@ show_service_management_menu() {
     echo "  1) Nginx"
     echo "  2) MySQL/MariaDB"
     echo "  3) Redis"
-    echo "  4) Return to main menu"
+    echo "  4) Gitea"
+    echo "  5) XRDP (Remote Desktop)"
+    echo "  6) Return to main menu"
     echo ""
-    echo "Enter your choice (1-4): "
+    echo "Enter your choice (1-5): "
 
     read -n 1 choice
     case "$choice" in
         1) manage_nginx_service ;;
         2) manage_mysql_service ;;
         3) manage_redis_service ;;
-        4) return ;;
+        4) manage_gitea_service ;;
+        5) manage_xrdp_service ;;
+        6) return ;;
         *) echo "Invalid choice. Press any key to continue..."; read -n 1 ;;
     esac
 }
@@ -442,6 +447,66 @@ manage_redis_service() {
         echo "To re-enable, set INSTALL_REDIS=true and run the installation script."
     else
         echo "Redis is not installed."
+    fi
+
+    echo ""
+    echo "Press any key to continue..."
+    read -n 1
+}
+
+# Function to manage Gitea service
+manage_gitea_service() {
+    echo ""
+    echo "Managing Gitea service..."
+
+    if systemctl list-units --full -all | grep -Fq "gitea.service"; then
+        echo "Gitea is installed."
+
+        if systemctl is-active --quiet gitea; then
+            echo "Gitea is currently running."
+            echo "Stopping Gitea service..."
+            sudo systemctl stop gitea
+        fi
+
+        if systemctl is-enabled --quiet gitea; then
+            echo "Disabling Gitea service from auto-start..."
+            sudo systemctl disable gitea
+        fi
+
+        echo "Gitea service has been stopped and disabled."
+        echo "To re-enable, set INSTALL_GITEA=true and run the installation script."
+    else
+        echo "Gitea is not installed."
+    fi
+
+    echo ""
+    echo "Press any key to continue..."
+    read -n 1
+}
+
+# Function to manage XRDP service
+manage_xrdp_service() {
+    echo ""
+    echo "Managing XRDP service..."
+
+    if systemctl list-units --full -all | grep -Fq "xrdp.service"; then
+        echo "XRDP is installed."
+
+        if systemctl is-active --quiet xrdp; then
+            echo "XRDP is currently running."
+            echo "Stopping XRDP service..."
+            sudo systemctl stop xrdp
+        fi
+
+        if systemctl is-enabled --quiet xrdp; then
+            echo "Disabling XRDP service from auto-start..."
+            sudo systemctl disable xrdp
+        fi
+
+        echo "XRDP service has been stopped and disabled."
+        echo "To re-enable, set INSTALL_XRDP=true and run the installation script."
+    else
+        echo "XRDP is not installed."
     fi
 
     echo ""
