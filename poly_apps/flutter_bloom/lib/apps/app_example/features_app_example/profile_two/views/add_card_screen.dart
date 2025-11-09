@@ -15,7 +15,6 @@ import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:get/get.dart';
 
 class AddNewCardScreen extends StatelessWidget {
   const AddNewCardScreen({super.key});

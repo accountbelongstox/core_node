@@ -13,7 +13,6 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/fundraising/views/my_fudrasing_screen.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'activity_screen.dart';
 
 class FundrasingScreenView extends StatelessWidget {

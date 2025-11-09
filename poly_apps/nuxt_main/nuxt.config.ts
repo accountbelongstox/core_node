@@ -85,7 +85,7 @@ export default defineNuxtConfig({
 
     css: [
         '~/assets/css/app.css',
-        '~/assets/css/apps/pymatrix/pymatrix-theme.css'
+        '~/assets/css/apps/app_pymatrix_theme.css'
     ],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 
@@ -152,6 +152,11 @@ export default defineNuxtConfig({
             include: ['quill'],
             exclude: ['vue3-easymde', 'vue-json-excel3', 'easymde', 'vue3-quill']
         },
+        server: {
+            watch: {
+                ignored: ['**/pages/index.vue']
+            }
+        },
         ssr: {
             noExternal: ['vue3-quill']
         },
@@ -166,7 +171,14 @@ export default defineNuxtConfig({
         options: { linkExactActiveClass: 'active' },
     },
     nitro: {
-        preset: 'node-server'
+        preset: 'node-server',
+        devProxy: {
+            '/api/ittools': {
+                target: 'http://localhost:8080',
+                changeOrigin: true,
+                prependPath: true
+            }
+        }
     },
     experimental: {
         payloadExtraction: false

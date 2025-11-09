@@ -1,11 +1,11 @@
 /// Authentication routes for app_qy
-library auth_routes_app_qy;
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../provider_app_qy/user_provider_app_qy.dart';
+import '../../provider_app_qy/user_provider_app_qy.dart';
 import 'views/login_screen_v2_app_qy.dart';
-import '../../home/views/home_screen_app_qy.dart';
+import '../home/views/home_screen_app_qy.dart';
 
 class AuthRoutesAppQy {
   static const String login = '/login';

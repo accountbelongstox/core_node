@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../config_app_bank/theme_config_app_bank.dart';
 import '../localization_app_bank/localization_keys_app_bank.dart';

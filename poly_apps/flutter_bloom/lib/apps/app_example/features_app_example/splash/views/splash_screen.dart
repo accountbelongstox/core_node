@@ -18,10 +18,9 @@ import 'package:qyflutter/apps/app_example/config_app_example/storage_app_exampl
 import 'package:qyflutter/apps/app_example/controller_app_example/settings_controller_app_example.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
 import 'package:provider/provider.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -134,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: isDarkMode
                                 ? theme.colorScheme.onSurface.withOpacity(0.7)
-                                : theme.colorScheme.onBackground
+                                : theme.colorScheme.onSurface
                                     .withOpacity(0.7),
                             fontSize: 14,
                           ),

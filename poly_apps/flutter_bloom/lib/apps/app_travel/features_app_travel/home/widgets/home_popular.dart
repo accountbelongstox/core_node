@@ -11,18 +11,21 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../models_app_travel/popular_item_model.dart';
 import '../../../widgets/travel_icons.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 
 class HomePopular extends StatelessWidget {
   final List<PopularItemModel> popularItems;
 
   const HomePopular({
-    Key? key,
+    super.key,
     required this.popularItems,
-  }) : super(key: key);
+  });
 
-  Widget _buildPopularItem(PopularItemModel item) {
+  Widget _buildPopularItem(BuildContext context, PopularItemModel item) {
     return Container(
       margin: const EdgeInsets.only(top: 32.0),
       child: Row(
@@ -31,8 +34,8 @@ class HomePopular extends StatelessWidget {
           Container(
             width: 160.0,
             height: 160.0,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEEEEEE),
+            decoration: const BoxDecoration(
+              color: TravelColors.travelBorder,
             ),
             child: item.getFullImageUrl().startsWith('assets/')
                 ? Image.asset(
@@ -58,7 +61,7 @@ class HomePopular extends StatelessWidget {
                       return Container(
                         width: 80.0,
                         height: 80.0,
-                        color: const Color(0xFFEEEEEE),
+                        color: TravelColors.travelBorder,
                         child: const Icon(Icons.broken_image, size: 30, color: Colors.grey),
                       );
                     },
@@ -85,9 +88,9 @@ class HomePopular extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      const Text(
-                        '景点人气榜',
-                        style: TextStyle(
+                      Text(
+                        TravelLocalizationKeys.travelAttractionRanking.tr(context),
+                        style: const TextStyle(
                           fontSize: 16.0,
                           fontWeight: FontWeight.normal,
                           color: Colors.black87,
@@ -96,11 +99,11 @@ class HomePopular extends StatelessWidget {
                       ...item.list.asMap().entries.map((entry) {
                         final index = entry.key;
                         final sight = entry.value;
-                        Color rankColor = const Color(0xFF666666);
+                        Color rankColor = TravelColors.travelRankDefault;
                         if (index == 0) {
-                          rankColor = const Color(0xFFFF3838);
+                          rankColor = TravelColors.travelRank1;
                         } else if (index == 1) {
-                          rankColor = const Color(0xFFFF9F33);
+                          rankColor = TravelColors.travelRank2;
                         }
                         return Text.rich(
                           TextSpan(
@@ -116,7 +119,7 @@ class HomePopular extends StatelessWidget {
                                 text: ' $sight',
                                 style: const TextStyle(
                                   fontSize: 12.0,
-                                  color: Color(0xFF666666),
+                                  color: TravelColors.travelTextSecondary,
                                 ),
                               ),
                             ],
@@ -124,7 +127,7 @@ class HomePopular extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ],
@@ -156,7 +159,7 @@ class HomePopular extends StatelessWidget {
     }
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12.0, 0, 12.0, 12.0),
+      margin: const EdgeInsets.fromLTRB(12.0, 0, 12.0, 0),
       padding: const EdgeInsets.all(10.0),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -175,9 +178,9 @@ class HomePopular extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                '排行榜',
-                style: TextStyle(
+              Text(
+                TravelLocalizationKeys.travelRanking.tr(context),
+                style: const TextStyle(
                   fontSize: 18.0,
                   fontWeight: FontWeight.normal,
                   color: Colors.black87,
@@ -189,24 +192,24 @@ class HomePopular extends StatelessWidget {
                 },
                 child: Row(
                   children: [
-                    const Text(
-                      '更多',
-                      style: TextStyle(
+                    Text(
+                      TravelLocalizationKeys.travelMore.tr(context),
+                      style: const TextStyle(
                         fontSize: 12.0,
-                        color: Color(0xFF999999),
+                        color: TravelColors.travelTextTertiary,
                       ),
                     ),
-                    Icon(
+                    const Icon(
                       TravelIcons.arrowRight,
                       size: 12.0,
-                      color: const Color(0xFF999999),
+                      color: TravelColors.travelTextTertiary,
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          ...popularItems.map((item) => _buildPopularItem(item)).toList(),
+          ...popularItems.map((item) => _buildPopularItem(context, item)),
         ],
       ),
     );

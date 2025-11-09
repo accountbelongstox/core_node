@@ -1,0 +1,933 @@
+{
+  "file_info": {
+    "filename": "word_listening_ai_explain.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_ai_explain.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_ai_explain.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:00\nR4il s91 93\n单词随身听\n单词书 •今日新词 =\nbolster\nthrive\nritual\nAl讲词\n趣味讲解释义&用法\n贝壳续期\n加入会员畅享\n随身听已过期",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 16,
+    "processing_time": 2.2504701614379883,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:00",
+        "bbox": {
+          "left": 0,
+          "top": 53.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 77.0,
+              "top": 53.0,
+              "width": 60.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 53.0,
+              "width": 24.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "00",
+            "confidence": 0,
+            "bbox": {
+              "left": 161.0,
+              "top": 53.0,
+              "width": 57.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "R4il s91 93",
+        "bbox": {
+          "left": 0,
+          "top": 48.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "R4il",
+            "confidence": 0,
+            "bbox": {
+              "left": 945.0,
+              "top": 48.0,
+              "width": 93.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "s91",
+            "confidence": 0,
+            "bbox": {
+              "left": 1041.0,
+              "top": 48.0,
+              "width": 74.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "93",
+            "confidence": 0,
+            "bbox": {
+              "left": 1118.0,
+              "top": 49.0,
+              "width": 65.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "单词随身听",
+        "bbox": {
+          "left": 0,
+          "top": 210.0,
+          "width": 0,
+          "height": 66.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 489.0,
+              "top": 210.0,
+              "width": 120.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "随身听",
+            "confidence": 0,
+            "bbox": {
+              "left": 609.0,
+              "top": 210.0,
+              "width": 163.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "单词书 •今日新词 =",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 505.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 392.0,
+              "top": 449.0,
+              "width": 105.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "书",
+            "confidence": 0,
+            "bbox": {
+              "left": 497.0,
+              "top": 449.0,
+              "width": 65.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "•",
+            "confidence": 0,
+            "bbox": {
+              "left": 565.0,
+              "top": 449.0,
+              "width": 37.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "今日",
+            "confidence": 0,
+            "bbox": {
+              "left": 602.0,
+              "top": 449.0,
+              "width": 91.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "新词",
+            "confidence": 0,
+            "bbox": {
+              "left": 693.0,
+              "top": 449.0,
+              "width": 121.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "=",
+            "confidence": 0,
+            "bbox": {
+              "left": 817.0,
+              "top": 449.0,
+              "width": 55.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "bolster",
+        "bbox": {
+          "left": 0,
+          "top": 836.0,
+          "width": 0,
+          "height": 76.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "bolster",
+            "confidence": 0,
+            "bbox": {
+              "left": 833.0,
+              "top": 836.0,
+              "width": 179.0,
+              "height": 76.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "thrive",
+        "bbox": {
+          "left": 0,
+          "top": 1091.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "thrive",
+            "confidence": 0,
+            "bbox": {
+              "left": 844.0,
+              "top": 1091.0,
+              "width": 141.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "ritual",
+        "bbox": {
+          "left": 0,
+          "top": 1212.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "ritual",
+            "confidence": 0,
+            "bbox": {
+              "left": 868.0,
+              "top": 1212.0,
+              "width": 129.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "Al讲词",
+        "bbox": {
+          "left": 0,
+          "top": 1798.0,
+          "width": 0,
+          "height": 81.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Al",
+            "confidence": 0,
+            "bbox": {
+              "left": 275.0,
+              "top": 1798.0,
+              "width": 81.0,
+              "height": 81.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "讲",
+            "confidence": 0,
+            "bbox": {
+              "left": 356.0,
+              "top": 1798.0,
+              "width": 71.0,
+              "height": 81.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "词",
+            "confidence": 0,
+            "bbox": {
+              "left": 427.0,
+              "top": 1798.0,
+              "width": 66.0,
+              "height": 81.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "趣味讲解释义&用法",
+        "bbox": {
+          "left": 0,
+          "top": 1903.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "趣味",
+            "confidence": 0,
+            "bbox": {
+              "left": 279.0,
+              "top": 1903.0,
+              "width": 100.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "讲解",
+            "confidence": 0,
+            "bbox": {
+              "left": 378.0,
+              "top": 1903.0,
+              "width": 99.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "释义",
+            "confidence": 0,
+            "bbox": {
+              "left": 478.0,
+              "top": 1903.0,
+              "width": 99.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "&",
+            "confidence": 0,
+            "bbox": {
+              "left": 577.0,
+              "top": 1903.0,
+              "width": 40.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "用法",
+            "confidence": 0,
+            "bbox": {
+              "left": 617.0,
+              "top": 1903.0,
+              "width": 94.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "贝壳续期",
+        "bbox": {
+          "left": 0,
+          "top": 2420.0,
+          "width": 0,
+          "height": 65.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "贝壳",
+            "confidence": 0,
+            "bbox": {
+              "left": 194.0,
+              "top": 2420.0,
+              "width": 112.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "续期",
+            "confidence": 0,
+            "bbox": {
+              "left": 306.0,
+              "top": 2420.0,
+              "width": 110.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "加入会员畅享",
+        "bbox": {
+          "left": 0,
+          "top": 2420.0,
+          "width": 0,
+          "height": 66.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "加入",
+            "confidence": 0,
+            "bbox": {
+              "left": 783.0,
+              "top": 2420.0,
+              "width": 128.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 911.0,
+              "top": 2420.0,
+              "width": 104.0,
+              "height": 64.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "畅享",
+            "confidence": 0,
+            "bbox": {
+              "left": 1015.0,
+              "top": 2420.0,
+              "width": 111.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "随身听已过期",
+        "bbox": {
+          "left": 0,
+          "top": 2574.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "随身听",
+            "confidence": 0,
+            "bbox": {
+              "left": 505.0,
+              "top": 2574.0,
+              "width": 130.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "已",
+            "confidence": 0,
+            "bbox": {
+              "left": 635.0,
+              "top": 2574.0,
+              "width": 39.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "过期",
+            "confidence": 0,
+            "bbox": {
+              "left": 674.0,
+              "top": 2574.0,
+              "width": 85.0,
+              "height": 53.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 77.0,
+          "top": 53.0,
+          "width": 60.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 53.0,
+          "width": 24.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "00",
+        "confidence": 0,
+        "bbox": {
+          "left": 161.0,
+          "top": 53.0,
+          "width": 57.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "R4il",
+        "confidence": 0,
+        "bbox": {
+          "left": 945.0,
+          "top": 48.0,
+          "width": 93.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "s91",
+        "confidence": 0,
+        "bbox": {
+          "left": 1041.0,
+          "top": 48.0,
+          "width": 74.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "93",
+        "confidence": 0,
+        "bbox": {
+          "left": 1118.0,
+          "top": 49.0,
+          "width": 65.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 489.0,
+          "top": 210.0,
+          "width": 120.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "随身听",
+        "confidence": 0,
+        "bbox": {
+          "left": 609.0,
+          "top": 210.0,
+          "width": 163.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 392.0,
+          "top": 449.0,
+          "width": 105.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "书",
+        "confidence": 0,
+        "bbox": {
+          "left": 497.0,
+          "top": 449.0,
+          "width": 65.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "•",
+        "confidence": 0,
+        "bbox": {
+          "left": 565.0,
+          "top": 449.0,
+          "width": 37.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "今日",
+        "confidence": 0,
+        "bbox": {
+          "left": 602.0,
+          "top": 449.0,
+          "width": 91.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "新词",
+        "confidence": 0,
+        "bbox": {
+          "left": 693.0,
+          "top": 449.0,
+          "width": 121.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "=",
+        "confidence": 0,
+        "bbox": {
+          "left": 817.0,
+          "top": 449.0,
+          "width": 55.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "bolster",
+        "confidence": 0,
+        "bbox": {
+          "left": 833.0,
+          "top": 836.0,
+          "width": 179.0,
+          "height": 76.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "thrive",
+        "confidence": 0,
+        "bbox": {
+          "left": 844.0,
+          "top": 1091.0,
+          "width": 141.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "ritual",
+        "confidence": 0,
+        "bbox": {
+          "left": 868.0,
+          "top": 1212.0,
+          "width": 129.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Al",
+        "confidence": 0,
+        "bbox": {
+          "left": 275.0,
+          "top": 1798.0,
+          "width": 81.0,
+          "height": 81.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "讲",
+        "confidence": 0,
+        "bbox": {
+          "left": 356.0,
+          "top": 1798.0,
+          "width": 71.0,
+          "height": 81.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "词",
+        "confidence": 0,
+        "bbox": {
+          "left": 427.0,
+          "top": 1798.0,
+          "width": 66.0,
+          "height": 81.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "趣味",
+        "confidence": 0,
+        "bbox": {
+          "left": 279.0,
+          "top": 1903.0,
+          "width": 100.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "讲解",
+        "confidence": 0,
+        "bbox": {
+          "left": 378.0,
+          "top": 1903.0,
+          "width": 99.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "释义",
+        "confidence": 0,
+        "bbox": {
+          "left": 478.0,
+          "top": 1903.0,
+          "width": 99.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "&",
+        "confidence": 0,
+        "bbox": {
+          "left": 577.0,
+          "top": 1903.0,
+          "width": 40.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "用法",
+        "confidence": 0,
+        "bbox": {
+          "left": 617.0,
+          "top": 1903.0,
+          "width": 94.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "贝壳",
+        "confidence": 0,
+        "bbox": {
+          "left": 194.0,
+          "top": 2420.0,
+          "width": 112.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "续期",
+        "confidence": 0,
+        "bbox": {
+          "left": 306.0,
+          "top": 2420.0,
+          "width": 110.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "加入",
+        "confidence": 0,
+        "bbox": {
+          "left": 783.0,
+          "top": 2420.0,
+          "width": 128.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 911.0,
+          "top": 2420.0,
+          "width": 104.0,
+          "height": 64.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "畅享",
+        "confidence": 0,
+        "bbox": {
+          "left": 1015.0,
+          "top": 2420.0,
+          "width": 111.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "随身听",
+        "confidence": 0,
+        "bbox": {
+          "left": 505.0,
+          "top": 2574.0,
+          "width": 130.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "已",
+        "confidence": 0,
+        "bbox": {
+          "left": 635.0,
+          "top": 2574.0,
+          "width": 39.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "过期",
+        "confidence": 0,
+        "bbox": {
+          "left": 674.0,
+          "top": 2574.0,
+          "width": 85.0,
+          "height": 53.0
+        }
+      }
+    ]
+  }
+}

@@ -227,6 +227,7 @@ class ThemeColors {
   static const Color transparent = Color(0x00000000);
 
   /// Common grey shades (equivalent to Colors.grey[xxx])
+  static const Color grey05 = Color(0xFFFDFDFD); // Very light grey for input fills
   static const Color grey50 = Color(0xFFFAFAFA);
   static const Color grey100 = Color(0xFFF5F5F5);
   static const Color grey200 = Color(0xFFEEEEEE);
@@ -273,6 +274,7 @@ class ThemeColors {
   static const Color primaryDark = blue100;
   static const Color textSecondary = secondaryLabel;
   static const Color textPrimary = label;
+  static const Color textTertiary = tertiaryLabel;
   static const Color surfaceVariant = grey100;
   static const Color secondaryColor = green;
   static const Color error = red;
@@ -282,6 +284,12 @@ class ThemeColors {
   static const Color greyColor = grey500;
 
   static const Color primaryLight = blue10;
+
+  // Additional semantic aliases for refactored screens
+  static const Color surface = lightSurface;
+  static const Color background = lightBackground;
+  static const Color border = borderColor;
+  static const Color shadow = shadowColor;
 
   // Semantic color aliases for VIP Club and modern apps
   // Use these for consistent theming across all features
@@ -295,6 +303,7 @@ class ThemeColors {
 
   // Primary and accent colors (for branding and highlights)
   static const Color primaryBlue = blue;             // #007AFF - Primary brand color
+  static const Color accent = blue;                  // Default accent color for highlights
   static const Color accentGold = Color(0xFFD4AF37); // #D4AF37 - VIP Gold tier
   static const Color accentPurple = purple;          // #AF52DE - Purple accents
   static const Color accentGreen = green;            // #34C759 - Green accents
@@ -313,12 +322,10 @@ class ThemeColors {
     primary: blue,
     secondary: green,
     surface: lightSurface,
-    background: lightBackground,
     error: red,
     onPrimary: white,
     onSecondary: white,
     onSurface: black,
-    onBackground: black,
     onError: white,
   );
 
@@ -326,12 +333,10 @@ class ThemeColors {
     primary: blue60,
     secondary: green60,
     surface: darkSurface,
-    background: darkBackground,
     error: red60,
     onPrimary: black,
     onSecondary: black,
     onSurface: white,
-    onBackground: white,
     onError: black,
   );
 
@@ -386,4 +391,7 @@ class ThemeColors {
       end: Alignment.bottomRight,
     );
   }
+
+  // Backward compatibility aliases for app_qy
+  static const Color secondary = green;
 }

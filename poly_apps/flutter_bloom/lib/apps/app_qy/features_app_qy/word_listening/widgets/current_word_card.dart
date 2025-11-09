@@ -1,8 +1,7 @@
 /// Current word card widget for word listening
-library current_word_card;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../../common/theme/app_theme.dart';
 
 class CurrentWordCard extends StatelessWidget {

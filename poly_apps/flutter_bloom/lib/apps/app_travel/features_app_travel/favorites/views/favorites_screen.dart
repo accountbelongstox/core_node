@@ -17,7 +17,7 @@ import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
 
 class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({Key? key}) : super(key: key);
+  const FavoritesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

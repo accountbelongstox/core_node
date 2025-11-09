@@ -1,3 +1,32 @@
+<!-- ### FLUTTER ARCHITECTURE PROMPT START ### -->
+<!-- 
+⚠️ IMPORTANT: AI MUST READ THIS DOCUMENT FIRST ⚠️
+
+This document contains the ARCHITECTURE and REFERENCE documentation for this Flutter project.
+
+🔑 KEY ARCHITECTURE INFORMATION:
+- This is a MULTI-APP (Multi-Entry) Flutter framework
+- Multiple apps coexist in a single codebase with separate entry points
+- Each app has its own entry file: lib/apps/app_{name}/main_app_{name}.dart
+- Common code is shared in lib/common/
+- Main entry (lib/main.dart) is a lightweight proxy that routes to specific apps
+
+📋 FRAMEWORK STRUCTURE:
+- Multi-entry pattern: Each app has independent entry point
+- Shared common code: lib/common/ contains shared utilities, widgets, etc.
+- App-specific code: lib/apps/{app_name}/ contains app-specific implementation
+- Unified routing: All apps share routing, localization, and static resources
+
+🎯 FOR AI ASSISTANTS:
+- ALWAYS check this document before making architectural decisions
+- Understand the multi-app structure before modifying code
+- Respect the separation between common and app-specific code
+- Follow the entry point patterns when creating new apps
+
+This is a critical reference document - please review it thoroughly before proceeding.
+-->
+<!-- ### FLUTTER ARCHITECTURE PROMPT END ### -->
+
 <!-- ### AI SPECIAL ATTENTION RULES START ### -->
 <!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
 <!-- - Write all code in English only. -->

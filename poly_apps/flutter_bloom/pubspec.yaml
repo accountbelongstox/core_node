@@ -46,11 +46,15 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   crypto: ^3.0.3
+  dio: ^5.4.0
   flutter_localizations:
     sdk: flutter
   flutter_native_splash: ^2.4.6
   font_awesome_flutter: ^10.9.1 
 
+  equatable: any
+  sqflite: any
+  timezone: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -87,12 +91,20 @@ flutter:
 
     - assets/apps/app_bank/images/
 
+    # VIP Club App assets
+    - assets/apps/app_vipclub/images/
+    - assets/apps/app_vipclub/styles/
+
     # Travel App assets
     - assets/apps/app_travel/images/
     - assets/apps/app_travel/images/nav/
     - assets/apps/app_travel/images/upload/
     - assets/apps/app_travel/fonts/
     - assets/apps/app_travel/innerdata/
+
+    # QY App assets (English learning app)
+    - assets/apps/app_qy/test_images/
+    - assets/apps/app_qy/test_images/dictionaries/
 
   fonts:
     - family: Roboto

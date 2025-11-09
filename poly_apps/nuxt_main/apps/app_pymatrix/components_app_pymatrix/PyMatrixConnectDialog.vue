@@ -352,7 +352,7 @@ async function handleConnect() {
 
 /* Modal Container */
 .pm-modal {
-  background: var(--pm-bg-card);
+  background: var(--pm-color-surface);
   border-radius: var(--pm-radius-lg);
   max-width: 650px;
   width: 90%;
@@ -370,7 +370,7 @@ async function handleConnect() {
   justify-content: space-between;
   align-items: center;
   padding: var(--pm-space-lg);
-  border-bottom: 1px solid var(--pm-border);
+  border-bottom: 1px solid var(--pm-color-border-soft);
   background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
 }
 
@@ -379,7 +379,7 @@ async function handleConnect() {
   font-size: var(--pm-font-size-xl);
   font-weight: 700;
   margin: 0;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -392,10 +392,10 @@ async function handleConnect() {
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--pm-border);
-  border-radius: var(--pm-radius-circle);
+  border: 1px solid var(--pm-color-border-soft);
+  border-radius: 50%;
   font-size: 28px;
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   cursor: pointer;
   transition: var(--pm-transition-fast);
   line-height: 1;
@@ -403,7 +403,7 @@ async function handleConnect() {
 }
 
 .pm-modal__header button:hover {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   color: #ffffff;
   border-color: transparent;
   transform: rotate(90deg) scale(1.1);
@@ -423,7 +423,7 @@ async function handleConnect() {
 .preset-section {
   padding-bottom: var(--pm-space-md);
   margin-bottom: var(--pm-space-md);
-  border-bottom: 1px solid var(--pm-border);
+  border-bottom: 1px solid var(--pm-color-border-soft);
   animation: pm-fadeUp 0.4s ease;
 }
 
@@ -444,10 +444,10 @@ async function handleConnect() {
   width: 48px;
   height: 48px;
   padding: 0;
-  background: var(--pm-bg-main);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-md);
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   font-size: 20px;
   cursor: pointer;
   transition: var(--pm-transition-fast);
@@ -459,13 +459,13 @@ async function handleConnect() {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   opacity: 0;
   transition: var(--pm-transition-fast);
 }
 
 .preset-btn:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(83, 86, 251, 0.3);
 }
@@ -497,7 +497,7 @@ async function handleConnect() {
 .pm-form-group label {
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -506,7 +506,7 @@ async function handleConnect() {
 .pm-form-group label::before {
   content: '◆';
   font-size: 8px;
-  color: var(--pm-primary);
+  color: var(--pm-color-primary);
 }
 
 /* Config Grid */
@@ -523,20 +523,20 @@ async function handleConnect() {
   height: 48px;
   padding: 12px 20px;
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-primary);
-  background: var(--pm-bg-main);
-  border: 1.5px solid var(--pm-border);
+  color: var(--pm-text-default);
+  background: var(--pm-color-surface);
+  border: 1.5px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-xl);
   outline: none;
   transition: var(--pm-transition-fast);
 }
 
 .pm-input:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
 }
 
 .pm-input:focus {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
   background: #ffffff;
 }
@@ -557,9 +557,9 @@ textarea.pm-input {
   height: 48px;
   padding: 12px 40px 12px 20px;
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-primary);
-  background: var(--pm-bg-main);
-  border: 1.5px solid var(--pm-border);
+  color: var(--pm-text-default);
+  background: var(--pm-color-surface);
+  border: 1.5px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-xl);
   outline: none;
   transition: var(--pm-transition-fast);
@@ -571,11 +571,11 @@ textarea.pm-input {
 }
 
 .pm-select:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
 }
 
 .pm-select:focus {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
 }
 
@@ -601,7 +601,7 @@ textarea.pm-input {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--pm-text-secondary);
+  background-color: var(--pm-text-muted);
   transition: var(--pm-transition-normal);
   border-radius: 34px;
 }
@@ -619,7 +619,7 @@ textarea.pm-input {
 }
 
 .pm-switch input:checked + .slider {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
 }
 
 .pm-switch input:checked + .slider::before {
@@ -627,16 +627,16 @@ textarea.pm-input {
 }
 
 .pm-switch input:focus + .slider {
-  box-shadow: 0 0 4px var(--pm-primary);
+  box-shadow: 0 0 4px var(--pm-color-primary);
 }
 
 /* Error Message */
 .pm-error {
   padding: 12px 16px;
   background: rgba(235, 87, 87, 0.1);
-  border: 1px solid var(--pm-danger);
+  border: 1px solid var(--pm-color-danger);
   border-radius: var(--pm-radius-md);
-  color: var(--pm-danger);
+  color: var(--pm-color-danger);
   font-size: var(--pm-font-size-sm);
   margin: 0;
   animation: pm-fadeIn 0.3s ease;
@@ -647,8 +647,8 @@ textarea.pm-input {
   display: flex;
   gap: 12px;
   padding: var(--pm-space-lg);
-  border-top: 1px solid var(--pm-border);
-  background: var(--pm-bg-main);
+  border-top: 1px solid var(--pm-color-border-soft);
+  background: var(--pm-color-surface);
   justify-content: flex-end;
 }
 
@@ -661,7 +661,7 @@ textarea.pm-input {
   padding: 12px 28px;
   font-size: var(--pm-font-size-base);
   font-weight: 600;
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   cursor: pointer;
   transition: var(--pm-transition-fast);
   outline: none;
@@ -688,30 +688,30 @@ textarea.pm-input {
 
 /* Default Button */
 .pm-button--default {
-  background: var(--pm-bg-main);
-  color: var(--pm-text-primary);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  color: var(--pm-text-default);
+  border: 1px solid var(--pm-color-border-soft);
 }
 
 .pm-button--default::before {
-  background: var(--pm-primary);
+  background: var(--pm-color-primary);
 }
 
 .pm-button--default:hover {
-  border-color: var(--pm-primary);
-  color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
+  color: var(--pm-color-primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
 }
 
 /* Primary Button */
 .pm-button--primary {
-  background: var(--pm-primary);
+  background: var(--pm-color-primary);
   color: #ffffff;
 }
 
 .pm-button--primary::before {
-  background: var(--pm-secondary);
+  background: var(--pm-color-accent);
 }
 
 .pm-button--primary:hover {
@@ -725,7 +725,7 @@ textarea.pm-input {
 
 /* Rainbow/Gradient Button */
 .pm-button--rainbow {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   color: #ffffff;
   font-weight: 700;
 }
@@ -784,18 +784,18 @@ textarea.pm-input {
 }
 
 .pm-modal__body::-webkit-scrollbar-track {
-  background: var(--pm-bg-main);
+  background: var(--pm-color-surface);
   border-radius: 10px;
 }
 
 .pm-modal__body::-webkit-scrollbar-thumb {
-  background: var(--pm-border);
+  background: var(--pm-color-border-soft);
   border-radius: 10px;
   transition: var(--pm-transition-fast);
 }
 
 .pm-modal__body::-webkit-scrollbar-thumb:hover {
-  background: var(--pm-primary);
+  background: var(--pm-color-primary);
 }
 
 /* Responsive */

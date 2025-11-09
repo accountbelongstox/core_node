@@ -1,0 +1,372 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+/// Account Settings 1 Screen for QY App
+library;
+
+import 'package:flutter/material.dart';
+import '../../../../../../common/theme/base/theme_colors.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+
+class AccountSettings1ScreenAppQy extends StatefulWidget {
+  const AccountSettings1ScreenAppQy({super.key});
+
+  @override
+  State<AccountSettings1ScreenAppQy> createState() => _AccountSettings1ScreenAppQyState();
+}
+
+class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQy> {
+  final List<Map<String, dynamic>> _quickSections;
+  final List<Map<String, dynamic>> _otherOptions;
+  bool _isNightModeEnabled;
+
+  _AccountSettings1ScreenAppQyState()
+      : _quickSections = [
+          {
+            'title': QyAppLocalizationKeys.qyReminderSettings,
+            'description': '每日提醒 • 打卡日程',
+            'icon': Icons.notifications_active_outlined,
+            'color': ThemeColors.primary,
+          },
+          {
+            'title': QyAppLocalizationKeys.qyAccountSettings,
+            'description': '账号安全 • 登录方式',
+            'icon': Icons.person_outline,
+            'color': ThemeColors.secondaryColor,
+          },
+          {
+            'title': QyAppLocalizationKeys.qyRecommendSettings,
+            'description': '智能推荐 • 难度偏好',
+            'icon': Icons.auto_awesome,
+            'color': ThemeColors.warning,
+          },
+          {
+            'title': QyAppLocalizationKeys.qyOtherSettings,
+            'description': '关于我们 • 客服帮助',
+            'icon': Icons.widgets_outlined,
+            'color': ThemeColors.info,
+          },
+        ],
+        _otherOptions = [
+          {
+            'title': QyAppLocalizationKeys.qyDisplayMode,
+            'subtitle': QyAppLocalizationKeys.qySettingsStandardMode,
+            'icon': Icons.dark_mode_outlined,
+          },
+          {
+            'title': QyAppLocalizationKeys.qyAboutUs,
+            'subtitle': '版本 6.3.1',
+            'icon': Icons.info_outline,
+          },
+          {
+            'title': QyAppLocalizationKeys.qyCheckForUpdate,
+            'subtitle': '已是最新版本',
+            'icon': Icons.system_update_alt,
+          },
+          {
+            'title': QyAppLocalizationKeys.qyNetworkDiagnostics,
+            'subtitle': 'Wi-Fi · 稳定',
+            'icon': Icons.wifi_tethering,
+          },
+        ],
+        _isNightModeEnabled = false;
+
+  void _handleSectionTap(Map<String, dynamic> section) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${section['title'].tr(context)} ${QyAppLocalizationKeys.qyFeatureComingSoon.tr(context)}'),
+      ),
+    );
+  }
+
+  void _handleLogout() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(QyAppLocalizationKeys.qyLogoutConfirm.tr(context)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ThemeColors.background,
+      appBar: AppBar(
+        title: Text(
+          QyAppLocalizationKeys.qyAccountSettings.tr(context),
+          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+        ),
+        backgroundColor: ThemeColors.surface,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildQuickGrid(),
+              SizedBox(height: Dimensions.spacingMedium),
+              _buildNightModeCard(),
+              SizedBox(height: Dimensions.spacingMedium),
+              _buildOtherOptions(),
+              SizedBox(height: Dimensions.spacingMedium),
+              _buildIcpInfo(),
+              SizedBox(height: Dimensions.spacingMedium),
+              _buildLogoutButton(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickGrid() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '设置中心',
+          style: TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
+        ),
+        SizedBox(height: Dimensions.spacingSmall),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _quickSections.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 1.4,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+          ),
+          itemBuilder: (context, index) {
+            final section = _quickSections[index];
+            return InkWell(
+              onTap: () => _handleSectionTap(section),
+              borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+              child: Container(
+                padding: EdgeInsets.all(Dimensions.paddingMedium),
+                decoration: BoxDecoration(
+                  color: ThemeColors.surface,
+                  borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+                  border: Border.all(color: ThemeColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(Dimensions.paddingSmall),
+                      decoration: BoxDecoration(
+                        color: (section['color'] as Color).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                      ),
+                      child: Icon(
+                        section['icon'] as IconData,
+                        color: section['color'] as Color,
+                      ),
+                    ),
+                    SizedBox(height: Dimensions.spacingSmall),
+                    Text(
+                      (section['title'] as String).tr(context),
+                      style: TextStyles.body1.copyWith(
+                        color: ThemeColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: Dimensions.spacingXSmall),
+                    Text(
+                      section['description'] as String,
+                      style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNightModeCard() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '夜间/护眼模式',
+                      style: TextStyles.body1.copyWith(
+                        color: ThemeColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: Dimensions.spacingXSmall),
+                    Text(
+                      _isNightModeEnabled ? '护眼模式已开启' : '普通模式 · 保护视力',
+                      style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _isNightModeEnabled,
+                activeColor: ThemeColors.primary,
+                onChanged: (value) {
+                  setState(() {
+                    _isNightModeEnabled = value;
+                  });
+                },
+              ),
+            ],
+          ),
+          SizedBox(height: Dimensions.spacingMedium),
+          Container(
+            padding: EdgeInsets.all(Dimensions.paddingMedium),
+            decoration: BoxDecoration(
+              color: ThemeColors.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.visibility_outlined, color: ThemeColors.primary),
+                SizedBox(width: Dimensions.spacingSmall),
+                Expanded(
+                  child: Text(
+                    '建议夜晚开启护眼模式，自动降低屏幕亮度并调整色温。',
+                    style: TextStyles.caption.copyWith(color: ThemeColors.primary),
+                  ),
+                ),
+                Text(
+                  '普通模式',
+                  style: TextStyles.caption.copyWith(color: ThemeColors.primary),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.blueGrey),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOtherOptions() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(_otherOptions.length, (index) {
+          final option = _otherOptions[index];
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Icon(option['icon'] as IconData, color: ThemeColors.primary),
+                  SizedBox(width: Dimensions.spacingMedium),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (option['title'] as String).tr(context),
+                          style: TextStyles.body1.copyWith(
+                            color: ThemeColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: Dimensions.spacingXSmall),
+                        Text(
+                          option['subtitle'] as String,
+                          style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ThemeColors.textTertiary),
+                ],
+              ),
+              if (index != _otherOptions.length - 1)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: Dimensions.spacingSmall),
+                  child: Divider(color: ThemeColors.border),
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildIcpInfo() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ICP 备案号',
+            style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+          ),
+          SizedBox(height: Dimensions.spacingXSmall),
+          Text(
+            '苏ICP备13045540号-20A',
+            style: TextStyles.body1.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: ThemeColors.error,
+        padding: EdgeInsets.symmetric(vertical: Dimensions.paddingSmall),
+        side: BorderSide(color: ThemeColors.error),
+      ),
+      onPressed: _handleLogout,
+      icon: const Icon(Icons.logout),
+      label: Text(QyAppLocalizationKeys.qyLogout.tr(context)),
+    );
+  }
+}

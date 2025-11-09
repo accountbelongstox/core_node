@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class RegistrationFlowViewAppCodemart extends StatefulWidget {
   final String roleType;
@@ -19,7 +20,7 @@ class RegistrationFlowViewAppCodemart extends StatefulWidget {
 class _RegistrationFlowViewAppCodemartState
     extends State<RegistrationFlowViewAppCodemart> {
   int _currentStep = 0;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   final List<String> _steps = [
     LocalizationKeysAppCodemart.codemartEmailVerification,
@@ -49,8 +50,8 @@ class _RegistrationFlowViewAppCodemartState
       appBar: AppBar(
         title: Text(
           widget.roleType == 'developer'
-              ? context.tr(LocalizationKeysAppCodemart.codemartRegisterAsDeveloper)
-              : context.tr(LocalizationKeysAppCodemart.codemartRegisterAsClient),
+              ? LocalizationKeysAppCodemart.codemartRegisterAsDeveloper.tr(context)
+              : LocalizationKeysAppCodemart.codemartRegisterAsClient.tr(context),
         ),
       ),
       body: Column(
@@ -86,7 +87,7 @@ class _RegistrationFlowViewAppCodemartState
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        context.tr(_steps[index]),
+                        _steps[index].tr(context),
                         style: Theme.of(context).textTheme.labelSmall,
                         textAlign: TextAlign.center,
                         maxLines: 2,
@@ -118,7 +119,7 @@ class _RegistrationFlowViewAppCodemartState
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _handleBack,
-                      child: Text(context.tr(LocalizationKeysAppCodemart.codemartPrevious)),
+                      child: Text(LocalizationKeysAppCodemart.codemartPrevious.tr(context)),
                     ),
                   ),
                 if (_currentStep > 0) const SizedBox(width: 16),
@@ -133,8 +134,8 @@ class _RegistrationFlowViewAppCodemartState
                           )
                         : Text(
                             _currentStep < _steps.length - 1
-                                ? context.tr(LocalizationKeysAppCodemart.codemartNext)
-                                : context.tr(LocalizationKeysAppCodemart.codemartFinish),
+                                ? LocalizationKeysAppCodemart.codemartNext.tr(context)
+                                : LocalizationKeysAppCodemart.codemartFinish.tr(context),
                           ),
                   ),
                 ),
@@ -172,7 +173,7 @@ class _EmailVerificationStep extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.tr(LocalizationKeysAppCodemart.codemartEmailVerification),
+              LocalizationKeysAppCodemart.codemartEmailVerification.tr(context),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
@@ -201,7 +202,7 @@ class _PhoneVerificationStep extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.tr(LocalizationKeysAppCodemart.codemartPhoneVerification),
+              LocalizationKeysAppCodemart.codemartPhoneVerification.tr(context),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
@@ -230,7 +231,7 @@ class _KycVerificationStep extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.tr(LocalizationKeysAppCodemart.codemartKycVerification),
+              LocalizationKeysAppCodemart.codemartKycVerification.tr(context),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
@@ -258,7 +259,7 @@ class _PaymentDepositStep extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.tr(LocalizationKeysAppCodemart.codemartPaymentDeposit),
+              LocalizationKeysAppCodemart.codemartPaymentDeposit.tr(context),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),

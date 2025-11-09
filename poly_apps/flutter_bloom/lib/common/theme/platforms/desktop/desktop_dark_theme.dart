@@ -34,7 +34,6 @@ ThemeData getDesktopDarkTheme() {
     hoverColor: const Color(0xFF0078D4).withAlpha((255 * 0.08).round()),
     splashColor: const Color(0xFF0078D4).withAlpha((255 * 0.16).round()),
     highlightColor: const Color(0xFF0078D4).withAlpha((255 * 0.24).round()),
-    indicatorColor: const Color(0xFF0078D4),
     disabledColor: const Color(0xFF6E6E6E),
     secondaryHeaderColor: const Color(0xFF3C3C3C),
     unselectedWidgetColor: const Color(0xFF9E9E9E),
@@ -223,7 +222,7 @@ ThemeData getDesktopDarkTheme() {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       textStyle: const TextStyle(color: Color(0xFFE1E1E1)),
-    ),
+    ), tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFF0078D4)),
   );
 
   if (!kIsWeb) {

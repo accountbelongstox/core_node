@@ -1,9 +1,9 @@
 """Android device abstraction"""
 
 from abc import ABC, abstractmethod
-from typing import Optional
-from .device_info import DeviceInfo, Resolution
-from .server_params import ServerParams
+from typing import Optional, Any
+from pycore.pyfoundations.device.device_info import DeviceInfo, Resolution
+from pycore.pyfoundations.device.server_params import ServerParams
 
 
 class AndroidDevice(ABC):
@@ -28,8 +28,8 @@ class AndroidDevice(ABC):
         self.serial = serial
         self.params = params
         self.info: Optional[DeviceInfo] = None
-        self._video_socket: Optional[int] = None
-        self._control_socket: Optional[int] = None
+        self._video_socket: Optional[Any] = None  # socket.socket object
+        self._control_socket: Optional[Any] = None  # socket.socket object
 
     @abstractmethod
     def start_server(self) -> int:

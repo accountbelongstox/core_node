@@ -1,5 +1,5 @@
 <template>
-  <div class="pm-right-sidebar">
+  <div class="pm-right-sidebar pm-aurora-panel">
     <div class="pm-right-sidebar__header">
       <h3 class="pm-right-sidebar__title">Device Control</h3>
     </div>
@@ -147,6 +147,15 @@ function sendText() {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+  --pm-control-btn-bg: rgba(16, 21, 44, 0.9);
+  --pm-control-btn-border: rgba(148, 163, 184, 0.24);
+  --pm-control-btn-hover-bg: rgba(34, 42, 84, 0.95);
+  --pm-control-btn-hover-border: rgba(124, 92, 255, 0.55);
+  --pm-control-btn-foreground: #ffffff;
+  --pm-control-btn-primary-gradient: linear-gradient(135deg, #5b5fe2 0%, #7c5cff 55%, #a855f7 100%);
+  --pm-control-btn-primary-shadow: 0 10px 26px rgba(124, 92, 255, 0.35);
+  --pm-control-btn-primary-shadow-hover: 0 16px 34px rgba(124, 92, 255, 0.45);
 }
 
 .pm-right-sidebar__header {
@@ -240,9 +249,9 @@ function sendText() {
   min-height: 82px;
   padding: var(--pm-space-md) var(--pm-space-sm);
   border-radius: var(--pm-radius-md);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(16, 21, 44, 0.75);
-  color: var(--pm-text-default);
+  border: 1px solid var(--pm-control-btn-border);
+  background: var(--pm-control-btn-bg);
+  color: var(--pm-control-btn-foreground);
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   cursor: pointer;
@@ -267,9 +276,14 @@ function sendText() {
 }
 
 .control-btn:hover {
-  border-color: var(--pm-color-border);
+  border-color: var(--pm-control-btn-hover-border);
+  background: var(--pm-control-btn-hover-bg);
   box-shadow: var(--pm-shadow-sm);
   transform: translateY(-3px);
+}
+
+.control-btn:hover span {
+  color: var(--pm-control-btn-foreground);
 }
 
 .control-btn:hover::before {
@@ -283,6 +297,7 @@ function sendText() {
 .btn-icon {
   font-size: 28px;
   transition: var(--pm-transition-fast);
+  color: currentColor;
 }
 
 .control-btn:hover .btn-icon {
@@ -290,9 +305,10 @@ function sendText() {
 }
 
 .control-btn.primary {
-  background: var(--pm-gradient-main);
+  background: var(--pm-control-btn-primary-gradient);
   border-color: transparent;
-  color: var(--pm-text-strong);
+  color: var(--pm-control-btn-foreground);
+  box-shadow: var(--pm-control-btn-primary-shadow);
 }
 
 .control-btn.primary::before {
@@ -300,7 +316,7 @@ function sendText() {
 }
 
 .control-btn.primary:hover {
-  box-shadow: 0 8px 22px rgba(124, 92, 255, 0.35);
+  box-shadow: var(--pm-control-btn-primary-shadow-hover);
 }
 
 .control-btn.danger {
@@ -413,6 +429,17 @@ function sendText() {
 
 .pm-right-sidebar__body::-webkit-scrollbar-thumb:hover {
   background: var(--pm-color-primary);
+}
+
+:global([data-pm-theme='light'] .pm-right-sidebar) {
+  --pm-control-btn-bg: rgba(33, 35, 68, 0.92);
+  --pm-control-btn-border: rgba(93, 53, 246, 0.2);
+  --pm-control-btn-hover-bg: rgba(46, 49, 92, 0.98);
+  --pm-control-btn-hover-border: rgba(93, 53, 246, 0.45);
+  --pm-control-btn-foreground: #ffffff;
+  --pm-control-btn-primary-gradient: linear-gradient(135deg, #7c3aed 0%, #9d5bff 55%, #c084fc 100%);
+  --pm-control-btn-primary-shadow: 0 12px 30px rgba(93, 53, 246, 0.3);
+  --pm-control-btn-primary-shadow-hover: 0 18px 36px rgba(93, 53, 246, 0.4);
 }
 
 @media (max-width: 1278px) {

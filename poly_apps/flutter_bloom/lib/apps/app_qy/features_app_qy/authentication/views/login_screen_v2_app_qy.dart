@@ -1,12 +1,13 @@
 /// Beautiful login screen with glassmorphism and gradients
 /// Uses centralized i18n, theme, and settings systems
-library login_screen_v2_app_qy;
+library;
 
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
+import '../../../../../../common/localization/localization_manager.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/gradient_button.dart';
 import '../../../../../../common/widgets/glassmorphism_card.dart';
@@ -14,6 +15,7 @@ import '../../../../../../common/widgets/animations/animation_utils.dart';
 import '../../../../../../common/services/settings_service.dart';
 import '../../../../../../common/auth_v2/auth_v2.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class LoginScreenV2AppQy extends StatefulWidget {
   const LoginScreenV2AppQy({super.key});
@@ -290,7 +292,9 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
         color: Colors.white,
       ),
       label: Text(
-        _showMoreOptions ? '收起' : '更多登录方式',
+        _showMoreOptions
+            ? QyAppLocalizationKeys.qyAuthCollapseOptions.tr(context)
+            : QyAppLocalizationKeys.qyAuthMoreOptions.tr(context),
         style: const TextStyle(color: Colors.white),
       ),
     );
@@ -557,8 +561,8 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
             child: Checkbox(
               value: _agreedToTerms,
               onChanged: (value) => setState(() => _agreedToTerms = value ?? false),
-              fillColor: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
+              fillColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
                   return AppTheme.primaryGreen;
                 }
                 return Colors.white.withOpacity(0.3);
@@ -721,7 +725,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       final success = await userProvider.loginWithWeChat();
 
       if (success && mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacementNamed(QyAppRoutesProvider.routeHome);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -744,7 +748,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('中文'),
+              title: Text(QyAppLocalizationKeys.qyLanguageChinese.tr(context)),
               trailing: _i18n.languageCode == 'zh'
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,
@@ -754,7 +758,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
               },
             ),
             ListTile(
-              title: const Text('English'),
+              title: Text(QyAppLocalizationKeys.qyLanguageEnglish.tr(context)),
               trailing: _i18n.languageCode == 'en'
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,

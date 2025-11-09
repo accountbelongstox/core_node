@@ -21,14 +21,14 @@ class SettingsDropdownItem<T> extends StatelessWidget {
   final Color? iconColor;
 
   const SettingsDropdownItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.value,
     required this.items,
     required this.onChanged,
     this.iconColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

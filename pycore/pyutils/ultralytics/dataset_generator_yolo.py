@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 
 # Import enhancer utilities (used in direct patch mode)
 try:
-    from ..image_enhancer import ImageEnhancer, create_enhancement_from_config
+    from pycore.pyutils.image_enhancer import ImageEnhancer, create_enhancement_from_config
     ENHANCER_AVAILABLE = True
 except ImportError:
     try:

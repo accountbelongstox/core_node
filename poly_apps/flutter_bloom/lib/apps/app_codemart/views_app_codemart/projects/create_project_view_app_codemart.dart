@@ -7,6 +7,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_enums.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/project_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class CreateProjectViewAppCodemart extends StatefulWidget {
   const CreateProjectViewAppCodemart({super.key});
@@ -40,11 +41,11 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
-      _showError('Please select start and end dates');
+      _showError(LocalizationKeysAppCodemart.codemartSelectStartEndDates.tr(context));
       return;
     }
     if (_skills.isEmpty) {
-      _showError('Please add at least one skill');
+      _showError(LocalizationKeysAppCodemart.codemartAddAtLeastOneSkill.tr(context));
       return;
     }
 
@@ -78,13 +79,13 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+            content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
             backgroundColor: Colors.green,
           ),
         );
         RouterAppCodemart.goToProjectDetails(context, projectId);
       } else {
-        _showError(response.message ?? 'Failed to create project');
+        _showError(response.message ?? LocalizationKeysAppCodemart.codemartFailedCreateProject.tr(context));
       }
     } catch (e) {
       _showError('Error: $e');
@@ -128,18 +129,18 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Skill'),
+        title: Text(LocalizationKeysAppCodemart.codemartAddSkill.tr(context)),
         content: TextField(
           controller: skillController,
-          decoration: const InputDecoration(
-            labelText: 'Skill name',
-            hintText: 'e.g., Flutter, Python, Node.js',
+          decoration: InputDecoration(
+            labelText: LocalizationKeysAppCodemart.codemartSkillName.tr(context),
+            hintText: LocalizationKeysAppCodemart.codemartSkillPlaceholder.tr(context),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.tr(LocalizationKeysAppCodemart.codemartCancel)),
+            child: Text(LocalizationKeysAppCodemart.codemartCancel.tr(context)),
           ),
           FilledButton(
             onPressed: () {
@@ -150,7 +151,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
                 Navigator.pop(context);
               }
             },
-            child: const Text('Add'),
+            child: Text(LocalizationKeysAppCodemart.codemartAdd.tr(context)),
           ),
         ],
       ),
@@ -171,7 +172,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
         });
       }
     } catch (e) {
-      _showError('Error picking files: $e');
+      _showError(LocalizationKeysAppCodemart.codemartErrorPickingFiles.tr(context));
     }
   }
 
@@ -209,7 +210,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartCreateProject)),
+        title: Text(LocalizationKeysAppCodemart.codemartCreateProject.tr(context)),
       ),
       body: Form(
         key: _formKey,
@@ -220,12 +221,12 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             TextFormField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectTitle),
+                labelText: LocalizationKeysAppCodemart.codemartProjectTitle.tr(context),
                 prefixIcon: const Icon(Icons.title),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter project title';
+                  return LocalizationKeysAppCodemart.codemartPleaseEnterProjectTitle.tr(context);
                 }
                 return null;
               },
@@ -237,13 +238,13 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               controller: _descriptionController,
               maxLines: 4,
               decoration: InputDecoration(
-                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectDescription),
+                labelText: LocalizationKeysAppCodemart.codemartProjectDescription.tr(context),
                 prefixIcon: const Icon(Icons.description),
                 alignLabelWithHint: true,
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter project description';
+                  return LocalizationKeysAppCodemart.codemartPleaseEnterProjectDescription.tr(context);
                 }
                 return null;
               },
@@ -255,15 +256,15 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               controller: _budgetController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                labelText: LocalizationKeysAppCodemart.codemartProjectBudget.tr(context),
                 prefixIcon: const Icon(Icons.attach_money),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter budget';
+                  return LocalizationKeysAppCodemart.codemartPleaseEnterBudget.tr(context);
                 }
                 if (double.tryParse(value) == null) {
-                  return 'Please enter valid number';
+                  return LocalizationKeysAppCodemart.codemartPleaseEnterValidNumber.tr(context);
                 }
                 return null;
               },
@@ -273,9 +274,9 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             // Budget Type
             DropdownButtonFormField<BudgetType>(
               value: _budgetType,
-              decoration: const InputDecoration(
-                labelText: 'Budget Type',
-                prefixIcon: Icon(Icons.payments),
+              decoration: InputDecoration(
+                labelText: LocalizationKeysAppCodemart.codemartBudgetType.tr(context),
+                prefixIcon: const Icon(Icons.payments),
               ),
               items: BudgetType.values.map((type) {
                 return DropdownMenuItem(
@@ -295,7 +296,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             DropdownButtonFormField<ProjectComplexityType>(
               value: _complexity,
               decoration: InputDecoration(
-                labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectComplexity),
+                labelText: LocalizationKeysAppCodemart.codemartProjectComplexity.tr(context),
                 prefixIcon: const Icon(Icons.layers),
               ),
               items: ProjectComplexityType.values.map((type) {
@@ -315,8 +316,8 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             // Start Date
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectStartDate)),
-              subtitle: Text(_startDate?.toString().split(' ')[0] ?? 'Not selected'),
+              title: Text(LocalizationKeysAppCodemart.codemartProjectStartDate.tr(context)),
+              subtitle: Text(_startDate?.toString().split(' ')[0] ?? LocalizationKeysAppCodemart.codemartNotSelected.tr(context)),
               onTap: () => _selectDate(context, true),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -328,8 +329,8 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             // End Date
             ListTile(
               leading: const Icon(Icons.event),
-              title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectEndDate)),
-              subtitle: Text(_endDate?.toString().split(' ')[0] ?? 'Not selected'),
+              title: Text(LocalizationKeysAppCodemart.codemartProjectEndDate.tr(context)),
+              subtitle: Text(_endDate?.toString().split(' ')[0] ?? LocalizationKeysAppCodemart.codemartNotSelected.tr(context)),
               onTap: () => _selectDate(context, false),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -343,19 +344,19 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  context.tr(LocalizationKeysAppCodemart.codemartProjectSkills),
+                  LocalizationKeysAppCodemart.codemartProjectSkills.tr(context),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 FilledButton.icon(
                   onPressed: _showAddSkillDialog,
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Skill'),
+                  label: Text(LocalizationKeysAppCodemart.codemartAddSkill.tr(context)),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             if (_skills.isEmpty)
-              const Text('No skills added yet', style: TextStyle(color: Colors.grey))
+              Text(LocalizationKeysAppCodemart.codemartNoSkillsAdded.tr(context), style: const TextStyle(color: Colors.grey))
             else
               Wrap(
                 spacing: 8,
@@ -376,21 +377,21 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Attachments (Optional)',
+                  LocalizationKeysAppCodemart.codemartAttachmentsOptional.tr(context),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 OutlinedButton.icon(
                   onPressed: _pickFiles,
                   icon: const Icon(Icons.attach_file),
-                  label: const Text('Add Files'),
+                  label: Text(LocalizationKeysAppCodemart.codemartAddFiles.tr(context)),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             if (_attachedFiles.isEmpty)
-              const Text(
-                'Attach project documents, designs, or specifications (PDF, DOC, XLS, etc.)',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+              Text(
+                LocalizationKeysAppCodemart.codemartAttachDocumentsHint.tr(context),
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
               )
             else
               Card(
@@ -425,7 +426,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(context.tr(LocalizationKeysAppCodemart.codemartSubmit)),
+                  : Text(LocalizationKeysAppCodemart.codemartSubmit.tr(context)),
             ),
           ],
         ),

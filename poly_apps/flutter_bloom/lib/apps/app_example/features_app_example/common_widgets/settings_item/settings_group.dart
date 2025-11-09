@@ -20,13 +20,13 @@ class SettingsGroup extends StatelessWidget {
   final BorderRadius? borderRadius;
 
   const SettingsGroup({
-    Key? key,
+    super.key,
     this.title,
     required this.items,
     this.padding,
     this.backgroundColor,
     this.borderRadius,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

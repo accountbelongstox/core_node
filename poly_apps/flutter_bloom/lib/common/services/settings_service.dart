@@ -1,6 +1,6 @@
 /// Centralized settings service with reactive updates
 /// Provides persistent settings storage and real-time app refresh
-library settings_service;
+library;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';

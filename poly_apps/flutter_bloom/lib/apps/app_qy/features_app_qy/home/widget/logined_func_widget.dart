@@ -13,9 +13,9 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/bookmark/bookmark_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class LoginedFuncWidget extends StatelessWidget {
   const LoginedFuncWidget({super.key});
@@ -35,32 +35,32 @@ class LoginedFuncWidget extends StatelessWidget {
           children: [
             _buildFunctionButton(
               context,
-              'my_donations'.tr(context),
+              QyAppLocalizationKeys.qyMyDonations.tr(context),
               Icons.volunteer_activism,
               () => context.push(QyAppRoutesProvider.routeDonation),
             ),
             _buildFunctionButton(
               context,
-              'my_fundraising'.tr(context),
+              QyAppLocalizationKeys.qyMyFundraising.tr(context),
               Icons.campaign,
               () => context.push(QyAppRoutesProvider.routeFundraising),
             ),
             _buildFunctionButton(
               context,
-              'my_profile'.tr(context),
+              QyAppLocalizationKeys.qyMyProfile.tr(context),
               Icons.account_circle,
               // Note: routeProfileTwo doesn't exist, using routeProfile instead
               () => context.push(QyAppRoutesProvider.routeProfile),
             ),
             _buildFunctionButton(
               context,
-              'my_prayers'.tr(context),
+              QyAppLocalizationKeys.qyMyPrayers.tr(context),
               Icons.favorite,
               () => context.push(QyAppRoutesProvider.routePrayer),
             ),
             _buildFunctionButton(
               context,
-              'bookmarks'.tr(context),
+              QyAppLocalizationKeys.qyBookmarks.tr(context),
               Icons.bookmark,
               () => context.push(QyAppRoutesProvider.routeBookmarks),
             ),

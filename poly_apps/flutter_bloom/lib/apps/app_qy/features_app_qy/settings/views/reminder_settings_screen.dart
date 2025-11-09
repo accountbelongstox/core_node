@@ -1,11 +1,12 @@
 /// Reminder settings screen
-library reminder_settings_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
-import 'widgets/settings_section.dart';
-import 'widgets/settings_tile.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../widgets/settings_section.dart';
+import '../widgets/settings_tile.dart';
 
 class ReminderSettingsScreen extends StatefulWidget {
   const ReminderSettingsScreen({super.key});
@@ -19,7 +20,7 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
   TimeOfDay _reminderTime = const TimeOfDay(hour: 19, minute: 0);
   bool _vibrationEnabled = true;
   bool _soundEnabled = true;
-  List<String> _selectedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  final List<String> _selectedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +71,7 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
           ),
           Expanded(
             child: Text(
-              'settings.reminder'.tr,
+              'settings.reminder'.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -85,7 +86,7 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
 
   Widget _buildDailyReminderSection() {
     return SettingsSection(
-      title: '每日提醒',
+      title: QyAppLocalizationKeys.qySettingsDailyReminder.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -93,8 +94,8 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
               Icons.notifications_active_outlined,
               color: AppTheme.primaryGreen,
             ),
-            title: '开启每日提醒',
-            subtitle: '每天固定时间提醒学习',
+            title: QyAppLocalizationKeys.qySettingsEnableDailyReminder.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsEnableDailyReminderSubtitle.tr(context),
             trailing: Switch(
               value: _dailyReminder,
               onChanged: (value) {
@@ -112,7 +113,7 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
                 Icons.schedule_outlined,
                 color: AppTheme.secondaryGreen,
               ),
-              title: '提醒时间',
+              title: QyAppLocalizationKeys.qySettingsReminderTime.tr(context),
               subtitle: '${_reminderTime.hour.toString().padLeft(2, '0')}:${_reminderTime.minute.toString().padLeft(2, '0')}',
               trailing: const Icon(Icons.chevron_right),
               onTap: _selectTime,
@@ -125,7 +126,7 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
 
   Widget _buildNotificationSettings() {
     return SettingsSection(
-      title: '通知设置',
+      title: QyAppLocalizationKeys.qyNotificationSettings.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -133,8 +134,8 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
               Icons.vibration_outlined,
               color: AppTheme.accentGreen,
             ),
-            title: '震动提醒',
-            subtitle: '学习提醒时震动',
+            title: QyAppLocalizationKeys.qySettingsVibrationReminder.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsVibrationReminderSubtitle.tr(context),
             trailing: Switch(
               value: _vibrationEnabled,
               onChanged: (value) {
@@ -151,8 +152,8 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
               Icons.volume_up_outlined,
               color: Colors.orange,
             ),
-            title: '声音提醒',
-            subtitle: '学习提醒时播放声音',
+            title: QyAppLocalizationKeys.qySettingsSoundReminder.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsSoundReminderSubtitle.tr(context),
             trailing: Switch(
               value: _soundEnabled,
               onChanged: (value) {
@@ -169,10 +170,18 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
   }
 
   Widget _buildReminderDays() {
-    final days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    final days = [
+      QyAppLocalizationKeys.qySettingsWeekdayMonday.tr(context),
+      QyAppLocalizationKeys.qySettingsWeekdayTuesday.tr(context),
+      QyAppLocalizationKeys.qySettingsWeekdayWednesday.tr(context),
+      QyAppLocalizationKeys.qySettingsWeekdayThursday.tr(context),
+      QyAppLocalizationKeys.qySettingsWeekdayFriday.tr(context),
+      QyAppLocalizationKeys.qySettingsWeekdaySaturday.tr(context),
+      QyAppLocalizationKeys.qySettingsWeekdaySunday.tr(context),
+    ];
 
     return SettingsSection(
-      title: '提醒日期',
+      title: QyAppLocalizationKeys.qySettingsReminderDate.tr(context),
       child: Column(
         children: [
           Wrap(
@@ -201,7 +210,7 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '每天提醒',
+            QyAppLocalizationKeys.qySettingsRemindEveryday.tr(context),
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],

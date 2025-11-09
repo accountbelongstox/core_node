@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'tencent_maps_config.dart';
 
 enum TencentMapStyle {

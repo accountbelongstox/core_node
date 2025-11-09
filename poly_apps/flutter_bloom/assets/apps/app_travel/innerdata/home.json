@@ -3,6 +3,10 @@
   "data": {
     "swipeImages": [
       {
+        "id": 100,
+        "url": "upload/carousel_promo_food_001.jpg"
+      },
+      {
         "id": 101,
         "url": "upload/zg0516000000zifq4FC3C.jpg"
       },
@@ -98,8 +102,7 @@
           {
             "id": 301,
             "title": "旅游",
-            "subtitle": "出境/国内游",
-            "tag": "678月节"
+            "subtitle": "出境/国内游"
           },
           {
             "id": 302,

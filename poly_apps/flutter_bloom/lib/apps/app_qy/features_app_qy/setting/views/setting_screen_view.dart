@@ -22,6 +22,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class SettingScreenView extends StatefulWidget {
   const SettingScreenView({super.key});
@@ -41,12 +42,12 @@ class _SettingScreenViewState extends State<SettingScreenView> {
       context.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('logout_success'.tr(context)),
+          content: Text(QyAppLocalizationKeys.qyLogoutSuccess.tr(context)),
           backgroundColor: Theme.of(context).colorScheme.primary,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
           action: SnackBarAction(
-            label: 'OK',
+            label: QyAppLocalizationKeys.qyOk.tr(context),
             textColor: Theme.of(context).colorScheme.onPrimary,
             onPressed: () {
               context.push(QyAppRoutesProvider.routeHome);
@@ -61,7 +62,7 @@ class _SettingScreenViewState extends State<SettingScreenView> {
       context.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('logout_failed'.tr(context)),
+          content: Text(QyAppLocalizationKeys.qyLogoutFailed.tr(context)),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -75,7 +76,7 @@ class _SettingScreenViewState extends State<SettingScreenView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('settings'.tr(context)),
+        title: Text(QyAppLocalizationKeys.qySettings.tr(context)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -86,22 +87,22 @@ class _SettingScreenViewState extends State<SettingScreenView> {
           children: [
             // Account Settings Group
             SettingsGroup(
-              title: 'account_settings'.tr(context),
+              title: QyAppLocalizationKeys.qyAccountSettings.tr(context),
               items: [
                 SettingsArrowItem(
                   icon: Icons.person,
-                  title: 'profile'.tr(context),
+                  title: QyAppLocalizationKeys.qyProfile.tr(context),
                   onTap: () => context.push(QyAppRoutesProvider.routeProfile),
                 ),
                 SettingsArrowItem(
                   icon: Icons.security,
-                  title: 'privacy_security'.tr(context),
+                  title: QyAppLocalizationKeys.qyPrivacySecurity.tr(context),
                   // Note: routeSecuritySettings doesn't exist, using routeSecurity instead
                   onTap: () => context.push(QyAppRoutesProvider.routeSecurity),
                 ),
                 SettingsSwitchItem(
                   icon: Icons.fingerprint,
-                  title: 'biometric_auth'.tr(context),
+                  title: QyAppLocalizationKeys.qyBiometricAuth.tr(context),
                   value: _biometricAuth,
                   onChanged: (value) => setState(() => _biometricAuth = value),
                 ),
@@ -110,32 +111,32 @@ class _SettingScreenViewState extends State<SettingScreenView> {
 
             // App Settings Group
             SettingsGroup(
-              title: 'app_settings'.tr(context),
+              title: QyAppLocalizationKeys.qyAppSettings.tr(context),
               items: [
                 SettingsSwitchItem(
                   icon: Icons.dark_mode,
-                  title: 'dark_mode'.tr(context),
+                  title: QyAppLocalizationKeys.qyDarkMode.tr(context),
                   value: settingsController.isDarkMode,
                   onChanged: (value) => settingsController.toggleTheme(),
                 ),
                 SettingsSwitchItem(
                   icon: Icons.notifications,
-                  title: 'notifications'.tr(context),
+                  title: QyAppLocalizationKeys.qyNotifications.tr(context),
                   value: _notifications,
                   onChanged: (value) => setState(() => _notifications = value),
                 ),
                 SettingsDropdownItem<String>(
                   icon: Icons.language,
-                  title: 'language'.tr(context),
+                  title: QyAppLocalizationKeys.qyLanguage.tr(context),
                   value: settingsController.getCurrentLocaleIdentifier(),
                   items: [
                     DropdownMenuItem(
                       value: 'en',
-                      child: Text('language_english'.tr(context)),
+                      child: Text(QyAppLocalizationKeys.qyLanguageEnglish.tr(context)),
                     ),
                     DropdownMenuItem(
                       value: 'zh',
-                      child: Text('language_chinese'.tr(context)),
+                      child: Text(QyAppLocalizationKeys.qyLanguageChinese.tr(context)),
                     ),
                   ],
                   onChanged: (value) async {
@@ -149,22 +150,22 @@ class _SettingScreenViewState extends State<SettingScreenView> {
 
             // Support Group
             SettingsGroup(
-              title: 'support'.tr(context),
+              title: QyAppLocalizationKeys.qySupport.tr(context),
               items: [
                 SettingsArrowItem(
                   icon: Icons.help_outline,
-                  title: 'help_support'.tr(context),
+                  title: QyAppLocalizationKeys.qyHelpSupport.tr(context),
                   onTap: () => context.push(QyAppRoutesProvider.routeHelp),
                 ),
                 SettingsArrowItem(
                   icon: Icons.info_outline,
-                  title: 'about'.tr(context),
+                  title: QyAppLocalizationKeys.qyAbout.tr(context),
                   // Note: routeAbout doesn't exist, using routeHelp instead
                   onTap: () => context.push(QyAppRoutesProvider.routeHelp),
                 ),
                 SettingsBadgeItem(
                   icon: Icons.update,
-                  title: 'app_version'.tr(context),
+                  title: QyAppLocalizationKeys.qyAppVersion.tr(context),
                   badge: '1.0.0',
                   onTap: () {},
                 ),
@@ -173,17 +174,17 @@ class _SettingScreenViewState extends State<SettingScreenView> {
 
             // Social Group
             SettingsGroup(
-              title: 'social'.tr(context),
+              title: QyAppLocalizationKeys.qySocial.tr(context),
               items: [
                 SettingsArrowItem(
                   icon: Icons.people,
-                  title: 'invite_friends'.tr(context),
+                  title: QyAppLocalizationKeys.qyInviteFriends.tr(context),
                   // Note: routeInviteFriends doesn't exist, using routeHelp as placeholder
                   onTap: () => context.push(QyAppRoutesProvider.routeHelp),
                 ),
                 SettingsArrowItem(
                   icon: Icons.share,
-                  title: 'share_app'.tr(context),
+                  title: QyAppLocalizationKeys.qyShareApp.tr(context),
                   onTap: () {},
                 ),
               ],
@@ -194,21 +195,21 @@ class _SettingScreenViewState extends State<SettingScreenView> {
               padding: const EdgeInsets.all(16.0),
               child: SettingsArrowItem(
                 icon: Icons.logout,
-                title: 'logout'.tr(context),
+                title: QyAppLocalizationKeys.qyLogout.tr(context),
                 iconColor: Theme.of(context).colorScheme.error,
                 onTap: () {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: Text('logout_confirm'.tr(context)),
+                      title: Text(QyAppLocalizationKeys.qyLogoutConfirm.tr(context)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: Text('cancel'.tr(context)),
+                          child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
                         ),
                         TextButton(
                           onPressed: () => _handleLogout(context),
-                          child: Text('yes_logout'.tr(context)),
+                          child: Text(QyAppLocalizationKeys.qyYesLogout.tr(context)),
                         ),
                       ],
                     ),

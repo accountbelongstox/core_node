@@ -1,0 +1,9 @@
+poly_apps/flutter_bloom/lib/apps/app_qy/docs 其中所有
+  的页，每个页一个json有位置信息，以及图片作为参考，现在完成所有页，根据进度表 poly_apps/flutter_bloom/lib/apps/app_qy/PAGES_PROGRESS.md，每个页的完成度记录，poly_apps/flutter_bloom/lib/apps
+  /app_qy/app_qy_tree_code_assets.txt poly_apps/flutter_bl
+  oom/development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md  ，先从
+  http://127.0.0.1:10005/#/qy/home
+  。现在的home完成度很低。注意你可以全面重构页面，而且要使用多语言系统 例如
+  QyAppLocalizationKeys.qyCommonOk.tr(context)，用户model,设置state,api、包括主题
+  颜色中心化，请不要在代码中硬编码数据、api、颜色等，优先引用lib/common中的库扩展
+  出子APP的个性化类库。

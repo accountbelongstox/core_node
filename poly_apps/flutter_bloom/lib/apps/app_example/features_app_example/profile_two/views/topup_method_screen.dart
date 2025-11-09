@@ -16,7 +16,6 @@ import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/home/widget/actions_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:get/get.dart';
 
 import 'add_card_screen.dart';

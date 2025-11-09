@@ -39,7 +39,7 @@ class JwtAuthStrategy implements AuthStrategy {
     final claims = await claimProvider?.call();
     return AuthPayload(
       headers: <String, String>{
-        'Authorization': prefix + ' ' + token,
+        'Authorization': '$prefix $token',
         ...extraHeaders,
       },
       metadata: <String, dynamic>{

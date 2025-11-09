@@ -391,7 +391,7 @@ class WuySettingsScreen extends StatelessWidget {
                               Navigator.pop(context, optionStr);
                             },
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   );

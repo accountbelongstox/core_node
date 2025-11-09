@@ -20,19 +20,16 @@ import 'package:qyflutter/common/utils/validation/phone_checker.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
 import '../config_app_wuy/api_config_app_wuy.dart';
-import '../config_app_wuy/api_endpoints_app_wuy.dart';
+import '../config_app_wuy/api_endpoints_app_wuy.dart' as legacy_endpoints;
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import '../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../models_app_wuy/location_model_app_wuy.dart';
-import '../models_app_wuy/auth_models_app_wuy.dart';
 import '../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
 import 'wuy_fake_data_generator.dart';
 import 'wuy_auth_state_manager.dart';
-import 'wuy_api_client.dart';
 import 'wuy_api_service_manager.dart';
-import 'wuy_auth_api_service.dart';
 
 /// Unified Wuy Service
 /// Consolidates WuyApiCenter, WuyAuthService, and WuyService functionality
@@ -348,7 +345,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
     _initializeNetworkClient();
 
     final request = createPublicRequest(
-      endpoint: ApiEndpointsAppWuy.authLogin,
+      endpoint: legacy_endpoints.ApiEndpointsAppWuy.authLogin,
       method: RequestMethod.post,
       body: {
         'phone': phone,
@@ -382,7 +379,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
     _initializeNetworkClient();
 
     final request = createPublicRequest(
-      endpoint: ApiEndpointsAppWuy.authRegister,
+      endpoint: legacy_endpoints.ApiEndpointsAppWuy.authRegister,
       method: RequestMethod.post,
       body: {
         'phone': phone,
@@ -415,7 +412,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
     _initializeNetworkClient();
 
     final request = createPublicRequest(
-      endpoint: ApiEndpointsAppWuy.authSendCode,
+      endpoint: legacy_endpoints.ApiEndpointsAppWuy.authSendCode,
       method: RequestMethod.post,
       body: {
         'phone': phone,
@@ -442,7 +439,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
       _initializeNetworkClient();
 
       final request = createAuthenticatedRequest(
-        endpoint: ApiEndpointsAppWuy.authLogout,
+        endpoint: legacy_endpoints.ApiEndpointsAppWuy.authLogout,
         method: RequestMethod.post,
       );
 
@@ -631,6 +628,19 @@ class WuyUnifiedService extends AdvancedNetworkService {
                 displayName: username,
               ),
       operationName: 'Add friend',
+    );
+  }
+
+  /// Update friend monitoring status
+  Future<models.NetworkResponse<bool>> updateFriendMonitoringStatus(
+    String friendId,
+    bool isMonitoring,
+  ) async {
+    return _postApiCall<bool>(
+      endpoint: 'friend/$friendId/monitoring',
+      data: {'is_monitoring': isMonitoring},
+      offlineDataProvider: () => true,
+      operationName: 'Update friend monitoring status',
     );
   }
 

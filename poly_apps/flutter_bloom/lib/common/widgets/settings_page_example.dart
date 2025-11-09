@@ -71,8 +71,8 @@ class _SettingsPageExampleState extends State<SettingsPageExample> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _clearAllSettings,
-        child: const Icon(Icons.clear_all),
         tooltip: 'Clear All Settings',
+        child: const Icon(Icons.clear_all),
       ),
     );
   }

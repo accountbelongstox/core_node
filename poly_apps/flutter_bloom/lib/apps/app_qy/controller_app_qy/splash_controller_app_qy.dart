@@ -14,7 +14,6 @@ import 'package:flutter/foundation.dart';
 import 'package:qyflutter/common/widgets/custom_snackbar.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
-import 'package:qyflutter/apps/app_qy/services_app_qy/auth_api_app_qy_service.dart';
 
 // AI MODIFICATION NOTE: This controller was enhanced by QR_Profile_AI_Assistant
 // - Fixed import paths to follow project structure

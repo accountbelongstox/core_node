@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class PrivacySettingsViewAppCodemart extends StatefulWidget {
   const PrivacySettingsViewAppCodemart({super.key});
@@ -8,7 +9,7 @@ class PrivacySettingsViewAppCodemart extends StatefulWidget {
 }
 
 class _PrivacySettingsViewAppCodemartState extends State<PrivacySettingsViewAppCodemart> {
-  bool _profileVisible = true;
+  final bool _profileVisible = true;
   bool _showEmail = false;
   bool _showPhone = false;
   bool _allowMessages = true;

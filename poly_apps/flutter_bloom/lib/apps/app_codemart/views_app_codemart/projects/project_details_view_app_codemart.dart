@@ -4,6 +4,7 @@ import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../services_app_codemart/project_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ProjectDetailsViewAppCodemart extends StatefulWidget {
   final int projectId;
@@ -65,7 +66,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectTitle)),
+        title: Text(LocalizationKeysAppCodemart.codemartProjectTitle.tr(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -127,19 +128,19 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
                           // Budget
                           _InfoRow(
                             icon: Icons.attach_money,
-                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
-                            value: '\$${_project!.budget.toStringAsFixed(2)} (${_project!.budgetType.name})',
+                            label: LocalizationKeysAppCodemart.codemartProjectBudget.tr(context),
+                            value: '\$${_project!.budget.toStringAsFixed(2)} (${_project!.budgetType})',
                           ),
 
                           // Dates
                           _InfoRow(
                             icon: Icons.calendar_today,
-                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectStartDate),
+                            label: LocalizationKeysAppCodemart.codemartProjectStartDate.tr(context),
                             value: _project!.startDate.toString().split(' ')[0],
                           ),
                           _InfoRow(
                             icon: Icons.event,
-                            label: context.tr(LocalizationKeysAppCodemart.codemartProjectEndDate),
+                            label: LocalizationKeysAppCodemart.codemartProjectEndDate.tr(context),
                             value: _project!.endDate.toString().split(' ')[0],
                           ),
 
@@ -147,7 +148,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
 
                           // Description
                           Text(
-                            context.tr(LocalizationKeysAppCodemart.codemartProjectDescription),
+                            LocalizationKeysAppCodemart.codemartProjectDescription.tr(context),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
@@ -157,7 +158,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
 
                           // Skills
                           Text(
-                            context.tr(LocalizationKeysAppCodemart.codemartProjectSkills),
+                            LocalizationKeysAppCodemart.codemartProjectSkills.tr(context),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
@@ -181,7 +182,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
                               spacing: 8,
                               runSpacing: 8,
                               children: _project!.languages.map((lang) {
-                                return Chip(label: Text(lang));
+                                return Chip(label: Text(lang.name));
                               }).toList(),
                             ),
                           ],
@@ -198,7 +199,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
                               spacing: 8,
                               runSpacing: 8,
                               children: _project!.frameworks.map((framework) {
-                                return Chip(label: Text(framework));
+                                return Chip(label: Text(framework.name));
                               }).toList(),
                             ),
                           ],

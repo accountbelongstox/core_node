@@ -1,0 +1,2 @@
+按规范修复以上错误 ，规范参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+以上为该子app的结构md D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt

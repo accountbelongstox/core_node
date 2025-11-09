@@ -5,6 +5,8 @@ This provides a concrete implementation of AndroidDevice that connects
 to scrcpy-server for video streaming and device control.
 """
 
+import sys
+import random
 import socket
 import struct
 import subprocess
@@ -13,9 +15,18 @@ import time
 from typing import Optional, Callable
 from pathlib import Path
 
-from .android_device import AndroidDevice
-from .device_info import DeviceInfo, Resolution
-from .server_params import ServerParams, VideoCodec
+# UTF-8 encoding for Windows
+if sys.platform == 'win32':
+    import codecs
+    # Check if stdout is already wrapped to avoid double-wrapping
+    if hasattr(sys.stdout, 'buffer'):
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    # If already wrapped, stdout/stderr are already UTF-8 capable
+
+from pycore.pyfoundations.device.android_device import AndroidDevice
+from pycore.pyfoundations.device.device_info import DeviceInfo, Resolution
+from pycore.pyfoundations.device.server_params import ServerParams, VideoCodec
 
 
 class ScrcpyDevice(AndroidDevice):
@@ -54,6 +65,7 @@ class ScrcpyDevice(AndroidDevice):
         # Port forwarding
         self._video_port: Optional[int] = None
         self._control_port: Optional[int] = None
+        self._device_socket_name: Optional[str] = None  # For reverse tunnel cleanup
 
         # Device info
         self.info: Optional[DeviceInfo] = None
@@ -63,94 +75,149 @@ class ScrcpyDevice(AndroidDevice):
 
     def start_server(self) -> int:
         """
-        Start scrcpy-server on the device
+        Start scrcpy-server on the device using REVERSE mode (default)
+
+        REVERSE mode (default, recommended):
+        - PC listens on a port, device connects to PC
+        - Uses: adb reverse localabstract:scrcpy_<SCID> tcp:<PORT>
+        - More reliable, no polling needed
+        - No dummy byte sent
+
+        FORWARD mode (fallback):
+        - Device listens on abstract socket, PC connects to device
+        - Uses: adb forward tcp:<PORT> localabstract:scrcpy_<SCID>
+        - Requires polling until server is ready
+        - Dummy byte sent to detect connection errors
 
         Returns:
             Local video port number
 
         Raises:
             RuntimeError: If server fails to start
+
+        Reference: scrcpy develop.md lines 309-319, adb_tunnel.c
         """
-        try:
-            # 1. Find available ports
-            self._video_port = self._find_free_port()
-            self._control_port = self._find_free_port()
+        scid = random.randint(0, 0x7FFFFFFF)  # 31-bit random number
 
-            # 2. Setup port forwarding
-            self._setup_port_forward(self._video_port, "localabstract:scrcpy_video")
-            self._setup_port_forward(self._control_port, "localabstract:scrcpy_control")
+        # Find free port for the tunnel
+        tunnel_port = self._find_free_port()
 
-            # 3. Build scrcpy-server command
-            server_cmd = self._build_server_command()
+        # Setup REVERSE tunnel (PC listens, device connects)
+        # This is scrcpy's default mode and most reliable
+        abstract_addr = f"scrcpy_{scid:08x}"
+        self._setup_reverse_tunnel(tunnel_port, abstract_addr)
 
-            # 4. Start scrcpy-server process
-            adb_cmd = [
-                self.adb_path,
-                "-s", self.serial,
-                "shell",
-                *server_cmd
-            ]
+        print(f"\n[ScrcpyDevice] Starting scrcpy-server for {self.serial}")
+        print(f"[ScrcpyDevice] SCID: {scid:08x}")
+        print(f"[ScrcpyDevice] Mode: REVERSE (PC listens, device connects)")
+        print(f"[ScrcpyDevice] Tunnel: adb reverse localabstract:{abstract_addr} -> tcp:{tunnel_port}")
 
-            self._server_process = subprocess.Popen(
-                adb_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE
-            )
+        # Start listening socket BEFORE starting server
+        listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listen_socket.bind(('127.0.0.1', tunnel_port))
+        listen_socket.listen(2)  # video + control
+        listen_socket.settimeout(30.0)  # 30 second timeout
+        print(f"[ScrcpyDevice] ✓ Listening on tcp:{tunnel_port}")
 
-            # 5. Wait for server to start (give it 2 seconds)
-            time.sleep(2)
+        # Build and start scrcpy-server process
+        server_cmd = self._build_server_command(scid)
 
-            # 6. Connect to video socket
-            self._video_socket = self._connect_to_port(self._video_port)
+        adb_cmd = [
+            self.adb_path,
+            "-s", self.serial,
+            "shell",
+            *server_cmd
+        ]
 
-            # 7. Connect to control socket
-            self._control_socket = self._connect_to_port(self._control_port)
+        print(f"[ScrcpyDevice] Command: {' '.join(adb_cmd)}")
 
-            # 8. Read device info from video socket (first frame contains metadata)
-            self._read_device_info()
+        self._server_process = subprocess.Popen(
+            adb_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE
+        )
 
-            print(f"[ScrcpyDevice] Server started for {self.serial}")
-            print(f"  Video port: {self._video_port}")
-            print(f"  Control port: {self._control_port}")
+        # Accept connections from device (reverse mode)
+        print(f"[ScrcpyDevice] Waiting for device to connect...")
 
-            return self._video_port
+        # Accept video socket (first socket)
+        print(f"[ScrcpyDevice] Accepting video socket...")
+        self._video_socket, _ = listen_socket.accept()
+        self._video_socket.settimeout(10.0)
+        print(f"[ScrcpyDevice] ✓ Video socket connected")
 
-        except Exception as e:
-            self.stop_server()
-            raise RuntimeError(f"Failed to start scrcpy-server: {e}")
+        # NOTE: In REVERSE mode, NO dummy byte is sent
+        # Dummy byte is only sent in FORWARD mode
+        # Reference: scrcpy develop.md lines 333-336
+
+        # Accept control socket if enabled
+        if self.params.control:
+            print(f"[ScrcpyDevice] Accepting control socket...")
+            self._control_socket, _ = listen_socket.accept()
+            self._control_socket.settimeout(10.0)
+            print(f"[ScrcpyDevice] ✓ Control socket connected")
+
+        listen_socket.close()
+
+        # 7. NOW read device metadata (server can send it now)
+        # Sent by connection.sendDeviceMeta() in Server.java line 107
+        print(f"[ScrcpyDevice] Reading device metadata from first socket...")
+        self._read_device_metadata()
+        print(f"[ScrcpyDevice] ✓ Device: {self.info.model}")
+
+        # 8. Read codec metadata from video socket (12 bytes: codec_id + width + height)
+        # Sent by videoStreamer.writeVideoHeader() after encoding starts
+        print(f"[ScrcpyDevice] Reading video codec metadata...")
+        self._read_video_codec_metadata()
+        print(f"[ScrcpyDevice] ✓ Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
+
+        # After the initial handshake, switch sockets back to blocking mode so
+        # long-running streams are not interrupted by read timeouts.
+        if self._video_socket:
+            self._video_socket.settimeout(None)
+        if self._control_socket:
+            self._control_socket.settimeout(None)
+
+        print(f"\n[ScrcpyDevice] ✓ Server started successfully for {self.serial}")
+        print(f"  Tunnel port: {tunnel_port}")
+        print(f"  Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
+        print(f"  Model: {self.info.model}\n")
+
+        # Store tunnel port for cleanup
+        self._video_port = tunnel_port
+        self._control_port = tunnel_port
+
+        return tunnel_port
 
     def stop_server(self):
         """Stop scrcpy-server and clean up resources"""
-        try:
-            # Close sockets
-            if self._video_socket:
-                self._video_socket.close()
-                self._video_socket = None
+        # Close sockets
+        if self._video_socket:
+            self._video_socket.close()
+            self._video_socket = None
 
-            if self._control_socket:
-                self._control_socket.close()
-                self._control_socket = None
+        if self._control_socket:
+            self._control_socket.close()
+            self._control_socket = None
 
-            # Remove port forwarding
-            if self._video_port:
-                self._remove_port_forward(self._video_port)
-            if self._control_port:
-                self._remove_port_forward(self._control_port)
+        # Remove reverse tunnel (if using reverse mode)
+        if self._device_socket_name:
+            self._remove_reverse_tunnel(self._device_socket_name)
+            self._device_socket_name = None
 
-            # Kill server process
-            if self._server_process:
-                self._server_process.terminate()
-                try:
-                    self._server_process.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    self._server_process.kill()
-                self._server_process = None
+        # Remove port forwarding (if using forward mode)
+        if self._video_port:
+            self._remove_port_forward(self._video_port)
 
-            print(f"[ScrcpyDevice] Server stopped for {self.serial}")
+        # Kill server process
+        if self._server_process:
+            self._server_process.terminate()
+            self._server_process.wait(timeout=3)
+            self._server_process = None
 
-        except Exception as e:
-            print(f"[ScrcpyDevice] Error stopping server: {e}")
+        print(f"[ScrcpyDevice] Server stopped for {self.serial}")
 
     def get_video_socket(self) -> socket.socket:
         """
@@ -187,26 +254,42 @@ class ScrcpyDevice(AndroidDevice):
 
     def read_video_frame(self) -> Optional[bytes]:
         """
-        Read one video frame from socket
+        Read one video frame from socket according to scrcpy protocol
+
+        Frame header format (12 bytes):
+        - PTS (8 bytes, u64): bits 63-62 contain flags (config|keyframe), bits 61-0 contain PTS
+        - packet_size (4 bytes, u32): size of the raw packet
 
         Returns:
-            Frame data (H.264 NAL unit) or None if connection closed
+            Tuple of (frame_data, pts, is_config, is_keyframe) or None if connection closed
+
+        Reference: scrcpy develop.md line 366-393
         """
-        try:
-            # Read frame length (4 bytes)
-            length_bytes = self._recv_exactly(self._video_socket, 4)
-            if not length_bytes:
-                return None
-
-            frame_length = struct.unpack(">I", length_bytes)[0]
-
-            # Read frame data
-            frame_data = self._recv_exactly(self._video_socket, frame_length)
-            return frame_data
-
-        except Exception as e:
-            print(f"[ScrcpyDevice] Error reading video frame: {e}")
+        # Read 12-byte frame header
+        header = self._recv_exactly(self._video_socket, 12)
+        if not header:
             return None
+
+        # Unpack header: PTS (8 bytes) + packet_size (4 bytes)
+        pts_raw, packet_size = struct.unpack(">QI", header)
+
+        # Extract flags from top 2 bits of PTS
+        is_config = bool(pts_raw & 0x8000000000000000)  # bit 63
+        is_keyframe = bool(pts_raw & 0x4000000000000000)  # bit 62
+        pts = pts_raw & 0x3FFFFFFFFFFFFFFF  # bits 61-0
+
+        # Read packet data
+        packet_data = self._recv_exactly(self._video_socket, packet_size)
+        if not packet_data:
+            return None
+
+        return {
+            'data': packet_data,
+            'pts': pts,
+            'is_config': is_config,
+            'is_keyframe': is_keyframe,
+            'size': packet_size
+        }
 
     def send_control_message(self, message: bytes):
         """
@@ -215,10 +298,7 @@ class ScrcpyDevice(AndroidDevice):
         Args:
             message: Control message bytes (built by MessageBuilder)
         """
-        try:
-            self._control_socket.sendall(message)
-        except Exception as e:
-            print(f"[ScrcpyDevice] Error sending control message: {e}")
+        self._control_socket.sendall(message)
 
     # ========================================================================
     # Private Helper Methods
@@ -232,8 +312,41 @@ class ScrcpyDevice(AndroidDevice):
             port = s.getsockname()[1]
         return port
 
+    def _setup_reverse_tunnel(self, local_port: int, device_socket_name: str):
+        """
+        Setup ADB reverse tunnel (REVERSE mode)
+        Device connects to PC's listening port
+
+        Args:
+            local_port: PC port to listen on
+            device_socket_name: Device abstract socket name (without localabstract: prefix)
+        """
+        cmd = [
+            self.adb_path,
+            "-s", self.serial,
+            "reverse",
+            f"localabstract:{device_socket_name}",
+            f"tcp:{local_port}"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise RuntimeError(f"adb reverse failed: {result.stderr}")
+
+        print(f"[ScrcpyDevice] ✓ Reverse tunnel: localabstract:{device_socket_name} -> tcp:{local_port}")
+
+        # Store for cleanup
+        self._device_socket_name = device_socket_name
+
     def _setup_port_forward(self, local_port: int, remote: str):
-        """Setup ADB port forwarding"""
+        """
+        Setup ADB port forwarding (FORWARD mode - fallback)
+        PC connects to device's listening socket
+
+        Args:
+            local_port: PC port to forward
+            remote: Device socket (e.g., localabstract:scrcpy_XXXXXXXX)
+        """
         cmd = [
             self.adb_path,
             "-s", self.serial,
@@ -242,6 +355,17 @@ class ScrcpyDevice(AndroidDevice):
             remote
         ]
         subprocess.run(cmd, check=True, capture_output=True)
+
+    def _remove_reverse_tunnel(self, device_socket_name: str):
+        """Remove ADB reverse tunnel"""
+        cmd = [
+            self.adb_path,
+            "-s", self.serial,
+            "reverse",
+            "--remove",
+            f"localabstract:{device_socket_name}"
+        ]
+        subprocess.run(cmd, capture_output=True)
 
     def _remove_port_forward(self, local_port: int):
         """Remove ADB port forwarding"""
@@ -255,75 +379,116 @@ class ScrcpyDevice(AndroidDevice):
         subprocess.run(cmd, capture_output=True)
 
     def _connect_to_port(self, port: int) -> socket.socket:
-        """Connect to local port"""
+        """Connect to local port with timeout"""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10.0)  # 10 second timeout for debugging
         sock.connect(('127.0.0.1', port))
+        print(f"[ScrcpyDevice] Socket connected successfully to port {port}")
         return sock
 
-    def _build_server_command(self) -> list:
-        """Build scrcpy-server shell command"""
-        # Basic scrcpy-server command structure
-        # This is a simplified version - real scrcpy has many more options
+    def _build_server_command(self, scid: int) -> list:
+        """
+        Build scrcpy-server shell command for v3.3.3
+
+        Exact format from official scrcpy (captured from running process):
+        app_process / com.genymobile.scrcpy.Server 3.3.3 scid=XXXXXXXX log_level=debug audio=false max_size=720 max_fps=60
+
+        Args:
+            scid: 31-bit random session ID
+
+        Reference: scrcpy_source/server/src/main/java/com/genymobile/scrcpy/Options.java
+        """
+        # scrcpy v3.3.3 server command - EXACT match with official scrcpy
         cmd = [
             "CLASSPATH=/data/local/tmp/scrcpy-server.jar",
             "app_process",
             "/",
             "com.genymobile.scrcpy.Server",
-            "2.0",  # scrcpy version
+            "3.3.3",  # Version (args[0]) - must match BuildConfig.VERSION_NAME
+            f"scid={scid:08x}",
+            "log_level=debug",
+            "audio=false",  # Audio streaming is currently disabled for web tests
             f"max_size={self.params.max_size}",
-            f"bit_rate={self.params.bit_rate}",
             f"max_fps={self.params.max_fps}",
-            f"codec={self.params.codec.value}",
-            "tunnel_forward=true",
-            f"control={str(self.params.control).lower()}",
         ]
+
+        if self.params.bit_rate:
+            cmd.append(f"video_bit_rate={self.params.bit_rate}")
+
+        if self.params.codec:
+            cmd.append(f"video_codec={self.params.codec.value}")
+
+        if not self.params.control:
+            cmd.append("control=false")
+
+        if self.params.locked_video_orientation != -1:
+            cmd.append(f"locked_video_orientation={self.params.locked_video_orientation}")
+
         return cmd
+
+    def _read_device_metadata(self):
+        """
+        Read device metadata from FIRST socket (per scrcpy protocol)
+
+        According to scrcpy develop.md:
+        - Device metadata is sent on the first socket opened
+        - Currently only contains device name (64 bytes, null-terminated)
+        - May contain more fields in future versions
+
+        Reference: https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/DesktopConnection.java#L151
+        """
+        # Read device name (64 bytes, null-terminated string)
+        name_bytes = self._recv_exactly(self._video_socket, 64)
+        device_name = name_bytes.split(b'\x00')[0].decode('utf-8')
+
+        print(f"[ScrcpyDevice] Device name from metadata: {device_name}")
+
+        # Get additional device info from ADB (scrcpy protocol doesn't provide these)
+        dpi = self._get_device_dpi()
+        android_version = self._get_android_version()
+        sdk_version = self._get_sdk_version()
+
+        # Initialize DeviceInfo with placeholder resolution (will be updated from codec metadata)
+        self.info = DeviceInfo(
+            serial=self.serial,
+            model=device_name,
+            resolution=Resolution(width=0, height=0),  # Will be updated
+            dpi=dpi,
+            android_version=android_version,
+            sdk_version=sdk_version
+        )
+
+    def _read_video_codec_metadata(self):
+        """
+        Read codec metadata from VIDEO socket (per scrcpy protocol)
+
+        According to scrcpy develop.md (line 355-363):
+        Video socket sends 12 bytes of codec metadata:
+        - codec_id (u32): H264=0x68323634, H265=0x68323635, AV1=0x00617631
+        - width (u32): initial video width
+        - height (u32): initial video height
+
+        Reference: https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/Streamer.java#L33-L51
+        """
+        # Read 12 bytes: codec_id (4) + width (4) + height (4)
+        codec_metadata = self._recv_exactly(self._video_socket, 12)
+
+        # Unpack as big-endian unsigned integers
+        codec_id, width, height = struct.unpack(">III", codec_metadata)
+
+        print(f"[ScrcpyDevice] Codec metadata: codec_id=0x{codec_id:08x}, {width}x{height}")
+
+        # Update DeviceInfo with actual resolution
+        self.info.resolution = Resolution(width=width, height=height)
 
     def _read_device_info(self):
         """
-        Read device metadata from video socket
+        DEPRECATED: Use _read_device_metadata() and _read_video_codec_metadata() instead
 
-        Scrcpy sends device info in the first packet:
-        - Device name (64 bytes)
-        - Width (2 bytes)
-        - Height (2 bytes)
+        This method is kept for backward compatibility but should not be used.
         """
-        try:
-            # Read device name (64 bytes, null-terminated string)
-            name_bytes = self._recv_exactly(self._video_socket, 64)
-            device_name = name_bytes.split(b'\x00')[0].decode('utf-8')
-
-            # Read width (2 bytes, big-endian unsigned short)
-            width_bytes = self._recv_exactly(self._video_socket, 2)
-            width = struct.unpack(">H", width_bytes)[0]
-
-            # Read height (2 bytes, big-endian unsigned short)
-            height_bytes = self._recv_exactly(self._video_socket, 2)
-            height = struct.unpack(">H", height_bytes)[0]
-
-            # Create DeviceInfo
-            self.info = DeviceInfo(
-                serial=self.serial,
-                model=device_name,
-                android_version="Unknown",  # Not provided by scrcpy
-                resolution=Resolution(width=width, height=height),
-                density=0,  # Not provided by scrcpy
-                manufacturer="Unknown"  # Not provided by scrcpy
-            )
-
-            print(f"[ScrcpyDevice] Device info: {device_name} ({width}x{height})")
-
-        except Exception as e:
-            print(f"[ScrcpyDevice] Failed to read device info: {e}")
-            # Create minimal device info
-            self.info = DeviceInfo(
-                serial=self.serial,
-                model="Unknown",
-                android_version="Unknown",
-                resolution=Resolution(width=1080, height=1920),
-                density=0,
-                manufacturer="Unknown"
-            )
+        # Legacy method - now split into two methods following scrcpy protocol
+        raise NotImplementedError("Use _read_device_metadata() and _read_video_codec_metadata() instead")
 
     def _recv_exactly(self, sock: socket.socket, length: int) -> bytes:
         """
@@ -346,3 +511,31 @@ class ScrcpyDevice(AndroidDevice):
                 raise ConnectionError("Connection closed")
             data += chunk
         return data
+
+    def _get_device_dpi(self) -> int:
+        """Get device screen DPI via ADB"""
+        cmd = [self.adb_path, "-s", self.serial, "shell", "wm", "density"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            # Output format: "Physical density: 440"
+            output = result.stdout.strip()
+            if ":" in output:
+                dpi_str = output.split(":")[-1].strip()
+                return int(dpi_str)
+        return 480  # Default DPI
+
+    def _get_android_version(self) -> str:
+        """Get Android version via ADB"""
+        cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.release"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return "Unknown"
+
+    def _get_sdk_version(self) -> int:
+        """Get Android SDK version via ADB"""
+        cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.sdk"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return int(result.stdout.strip())
+        return 0  # Unknown SDK version

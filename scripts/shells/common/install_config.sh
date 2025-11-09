@@ -29,7 +29,7 @@ MAIN_JS="$PROJECT_ROOT/main.js"
 
 # Installation state tracking
 NODE_MODULES_INSTALLED_FLAG="$PROJECT_ROOT/.install_state/node_modules_installed"
-YARN_INSTALLED_FLAG="$PROJECT_ROOT/.install_state/yarn_installed"
+PNPM_INSTALLED_FLAG="$PROJECT_ROOT/.install_state/pnpm_installed"
 
 # Download configuration
 DOWNLOAD_TIMEOUT=300000  # 5 minutes in milliseconds
@@ -86,38 +86,38 @@ is_node_modules_installed() {
     return 1  # Not installed
 }
 
-# Check if yarn is installed
-is_yarn_installed() {
-    if [[ -f "$YARN_INSTALLED_FLAG" ]]; then
+# Check if pnpm is installed
+is_pnpm_installed() {
+    if [[ -f "$PNPM_INSTALLED_FLAG" ]]; then
         return 0  # Already checked and installed
     fi
-    
-    if command -v yarn >/dev/null 2>&1; then
+
+    if command -v pnpm >/dev/null 2>&1; then
         # Mark as installed
-        mkdir -p "$(dirname "$YARN_INSTALLED_FLAG")"
-        touch "$YARN_INSTALLED_FLAG"
+        mkdir -p "$(dirname "$PNPM_INSTALLED_FLAG")"
+        touch "$PNPM_INSTALLED_FLAG"
         return 0  # Installed
     fi
-    
+
     return 1  # Not installed
 }
 
-# Install node modules and yarn if needed
+# Install node modules and pnpm if needed
 ensure_node_modules() {
     local force_install=${1:-false}
-    
+
     if [[ "$force_install" == "true" ]]; then
         log_info "Force install mode enabled"
-        rm -f "$NODE_MODULES_INSTALLED_FLAG" "$YARN_INSTALLED_FLAG"
+        rm -f "$NODE_MODULES_INSTALLED_FLAG" "$PNPM_INSTALLED_FLAG"
     fi
-    
+
     # Check if already installed
-    if is_node_modules_installed && is_yarn_installed; then
-        log_success "Node modules and Yarn are already installed"
+    if is_node_modules_installed && is_pnpm_installed; then
+        log_success "Node modules and pnpm are already installed"
         return 0
     fi
-    
-    log_info "Installing node modules and yarn..."
+
+    log_info "Installing node modules and pnpm..."
     
     # Check if installer script exists
     if [[ ! -f "$NODE_MODULES_INSTALLER" ]]; then
@@ -130,16 +130,16 @@ ensure_node_modules() {
     
     # Run the installer
     if "$NODE_MODULES_INSTALLER"; then
-        log_success "Node modules and yarn installation completed"
-        
+        log_success "Node modules and pnpm installation completed"
+
         # Mark as installed
         mkdir -p "$(dirname "$NODE_MODULES_INSTALLED_FLAG")"
         touch "$NODE_MODULES_INSTALLED_FLAG"
-        touch "$YARN_INSTALLED_FLAG"
-        
+        touch "$PNPM_INSTALLED_FLAG"
+
         return 0
     else
-        log_error "Failed to install node modules and yarn"
+        log_error "Failed to install node modules and pnpm"
         return 1
     fi
 }
@@ -350,6 +350,6 @@ wait_for_file_by_pattern() {
 
 # Export functions for use in other scripts
 export -f log_info log_success log_warning log_error
-export -f is_node_modules_installed is_yarn_installed ensure_node_modules
+export -f is_node_modules_installed is_pnpm_installed ensure_node_modules
 export -f is_core_node_init_available find_all_downloads_dirs find_files_by_pattern
 export -f automated_download wait_for_file_by_pattern

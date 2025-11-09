@@ -1,6 +1,6 @@
 /// Centralized theme system for Flutter Bloom
 /// Provides consistent theming across all apps
-library app_theme;
+library;
 
 import 'package:flutter/material.dart';
 
@@ -11,6 +11,11 @@ class AppTheme {
   static const Color accentGreen = Color(0xFF81C784);
   static const Color darkGreen = Color(0xFF388E3C);
   static const Color lightGreen = Color(0xFFC8E6C9);
+
+  // Backwards compatibility aliases
+  static const Color primaryColor = primaryGreen;
+  static const Color accentColor = accentGreen;
+  static const Color secondaryColor = secondaryGreen;
 
   // Social Colors
   static const Color wechatGreen = Color(0xFF07C160);
@@ -182,6 +187,31 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
+  // Status-specific Gradients
+  static LinearGradient errorGradient = LinearGradient(
+    colors: [error, Color(0xFFE57373)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static LinearGradient warningGradient = LinearGradient(
+    colors: [warning, Color(0xFFFFB74D)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static LinearGradient infoGradient = LinearGradient(
+    colors: [info, Color(0xFF64B5F6)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static LinearGradient socialGradient = LinearGradient(
+    colors: [wechatGreen, Color(0xFF34D399)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
@@ -254,7 +284,7 @@ class AppTheme {
       ),
     ),
 
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -313,7 +343,7 @@ class AppTheme {
       ),
     ),
 
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -568,6 +598,9 @@ class AppTextStyles {
     color: AppTheme.textPrimary,
     height: 1.3,
   );
+
+  // Backwards compatibility alias
+  static TextStyle get headline6 => headline5;
 
   static TextStyle get bodyLarge => const TextStyle(
     fontSize: 16,

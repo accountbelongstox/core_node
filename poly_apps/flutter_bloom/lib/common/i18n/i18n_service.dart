@@ -1,6 +1,6 @@
 /// Centralized internationalization service for Flutter Bloom
 /// Provides multi-language support with reactive updates
-library i18n_service;
+library;
 
 import 'package:flutter/material.dart';
 import 'translations.dart';

@@ -1,5 +1,5 @@
 /// Translation strings for all supported languages
-library translations;
+library;
 
 class Translations {
   static const Map<String, dynamic> zhCN = {

@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const encyclopedia = require('./gcommon/encyclopedia.js')
-const WS_RPC_CONSTANTS = require('./gcommon/ws_rpc_constants.js')
+const RPC_CONSTANTS = require('./gconfig/rpc_constants.js')
 
 
 const path = require('path');
@@ -20,6 +20,12 @@ const os = require('os');
 const gdir = require('./global_dir/globaldir.js');
 const env = require('./libs/env.js');
 const { getAppName, getIsServer, getIsService, apps } = require('./libs/app_parameter.js');
+const {
+    getSettingsCenter,
+    getThemeCenter,
+    getDataCenter,
+    DEFAULT_THEME_DEFINITIONS
+} = require('#@/ncore/utils/state_center/index.js');
 const isServer = getIsServer()
 const isService = getIsService()
 const isWindows = os.platform() === 'win32';
@@ -39,7 +45,7 @@ const cwd = rootdir;
 const appsdir = path.join(rootdir, 'apps');
 
 const basedir = gdir.CWD;
-const appdir = path.join(appsdir, appname);
+const appdir = appname ? path.join(appsdir, appname) : appsdir;
 env.addRootDir(appdir);
 const appentry = path.join(appdir, 'main.js');
 const appentry_es = `./apps/${appname}/main.js`
@@ -119,6 +125,11 @@ module.exports = {
     isService,
     apps,
     startTime,
-    WS_RPC_CONSTANTS,
+    RPC_CONSTANTS,
+    WS_RPC_CONSTANTS: RPC_CONSTANTS,
+    getSettingsCenter,
+    getThemeCenter,
+    getDataCenter,
+    DEFAULT_THEME_DEFINITIONS
 
 };

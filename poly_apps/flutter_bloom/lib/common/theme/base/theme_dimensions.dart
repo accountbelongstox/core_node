@@ -537,7 +537,7 @@ class ThemeDimensions {
   static late double fontSizeOverOverOverExtraLarge;
 
   // Screen dimensions
-  static late double splashLogoWidth = 150.0;
+  static double splashLogoWidth = 150.0;
   static late double screenThirdWidth;
   static late double screenHalfWidth;
   static late double screenTwoThirdWidth;
@@ -616,4 +616,11 @@ class ThemeDimensions {
 
   /// Legacy alias for backward compatibility
   static const double menuIconSize = iconSizeL;
+
+  // Backward compatibility aliases for app_qy
+  static const double radiusMedium = radiusM;
+  static const double spacingXSmall = spacing4;
+  static const double paddingXSmall = spacing4;
+  static const double paddingXLarge = spacing32;
+  static const double radiusXLarge = radiusXL;
 }

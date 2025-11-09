@@ -66,7 +66,7 @@ class UserProviderAppTravel extends ChangeNotifier {
           isLoggedIn: true,
           favorites: [],
           bookmarks: [],
-          currentCity: 'Luoyang',
+          currentCity: '塞班',
           lastLoginTime: DateTime.now(),
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),

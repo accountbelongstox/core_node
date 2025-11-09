@@ -1,8 +1,8 @@
 /// Animation utilities and reusable animated widgets
-library animation_utils;
+library;
 
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../../theme/app_theme.dart';
 
 /// Utility class for common animations
 class AnimationUtils {
@@ -59,10 +59,10 @@ class AnimationUtils {
     Duration duration = const Duration(milliseconds: 1500),
   }) {
     return _Shimmer(
-      child: child,
       baseColor: baseColor ?? Colors.grey.shade300,
       highlightColor: highlightColor ?? Colors.grey.shade100,
       duration: duration,
+      child: child,
     );
   }
 

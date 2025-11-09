@@ -1,0 +1,67 @@
+{
+  "triggerWords": [],
+  "enableTriggerWords": false,
+  "triggerWordsMatchMode": "any",
+  "azure": {
+    "endpoint": "api.cognitive.microsofttranslator.com",
+    "apiKey": "YOUR_AZURE_TRANSLATOR_KEY_HERE",
+    "region": "global",
+    "subscriptionId": "",
+    "resourceGroup": "",
+    "defaultTargetLanguage": "zh-Hans",
+    "apiVersion": "3.0",
+    "timeout": 10000,
+    "retryCount": 3,
+    "retryDelay": 1000
+  },
+  "supportedLanguages": {
+    "zh-Hans": "Simplified Chinese",
+    "zh-Hant": "Traditional Chinese",
+    "en": "English",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "pt": "Portuguese",
+    "it": "Italian"
+  },
+  "codeMarkers": [
+    "code",
+    "python",
+    "javascript",
+    "java",
+    "cpp",
+    "c++",
+    "ruby",
+    "go",
+    "rust",
+    "typescript",
+    "bash",
+    "shell",
+    "sql",
+    "html",
+    "css",
+    "php",
+    "c#",
+    "swift",
+    "kotlin",
+    "dart"
+  ],
+  "commentPatterns": {
+    "singleLine": ["#", "//", "--", ";", "%"],
+    "multiLineStart": ["/*", "\"\"\"", "'''", "<!--", "{-", "(*"],
+    "multiLineEnd": ["*/", "\"\"\"", "'''", "-->", "-}", "*)"]
+  },
+  "codeBlockMarkers": {
+    "start": ["```", "~~~", "<code>", "<pre>"],
+    "end": ["```", "~~~", "</code>", "</pre>"]
+  },
+  "bufferTimeout": 5000,
+  "maxCacheSize": 10000,
+  "batchSize": 25,
+  "enableCache": true,
+  "enableLanguageDetection": true
+}

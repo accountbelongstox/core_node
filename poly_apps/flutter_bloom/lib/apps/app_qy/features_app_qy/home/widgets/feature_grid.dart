@@ -1,9 +1,8 @@
 /// Feature grid widget showing all learning features
-library feature_grid;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../common/theme/app_theme.dart';
 import '../../word_book/views/word_book_screen.dart';
 import '../../word_listening/views/word_listening_screen.dart';
 

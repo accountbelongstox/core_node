@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 
 // AI: Claude Code - Enhanced with better theming support and maintainability
 // Reason: Added theme color integration while maintaining existing functionality for backward compatibility

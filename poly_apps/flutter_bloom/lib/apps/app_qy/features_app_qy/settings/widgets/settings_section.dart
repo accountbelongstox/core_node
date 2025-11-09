@@ -1,5 +1,5 @@
 /// Settings section widget
-library settings_section;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/theme/app_theme.dart';

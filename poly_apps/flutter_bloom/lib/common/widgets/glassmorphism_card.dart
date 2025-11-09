@@ -1,5 +1,5 @@
 /// Glassmorphism card widget with blur effect
-library glassmorphism_card;
+library;
 
 import 'dart:ui';
 import 'package:flutter/material.dart';

@@ -11,9 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 
 /// Enhanced Investment Screen
 /// Modern investment dashboard with portfolio overview, market trends, and product recommendations
@@ -29,9 +27,9 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
 
-  double _totalPortfolioValue = 25750.80;
-  double _todaysChange = 342.15;
-  double _todaysChangePercent = 1.35;
+  final double _totalPortfolioValue = 25750.80;
+  final double _todaysChange = 342.15;
+  final double _todaysChangePercent = 1.35;
 
   final List<InvestmentHolding> _holdings = [
     InvestmentHolding(

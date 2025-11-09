@@ -7,8 +7,8 @@ These are convenience functions built on top of ADBManager.
 
 from typing import List, Optional
 from pathlib import Path
-from .adb_manager import ADBManager
-from .adb_device import ADBDevice
+from pycore.pyadb.adb_manager import ADBManager
+from pycore.pyadb.adb_device import ADBDevice
 
 
 class ADBCommands:

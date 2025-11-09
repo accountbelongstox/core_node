@@ -90,7 +90,7 @@ class NetworkManager {
   }) async {
     final descriptor = resolveEndpoint(endpointId);
     if (descriptor == null) {
-      throw ArgumentError('Endpoint ' + endpointId + ' not registered');
+      throw ArgumentError('Endpoint $endpointId not registered');
     }
     return execute<T>(
       NetworkRequest(
@@ -121,7 +121,7 @@ class NetworkManager {
       staleEntry = cached;
       if (request.options.useCacheOnly) {
         throw NetworkError(
-            message: 'Cache miss for request ' + request.requestId);
+            message: 'Cache miss for request ${request.requestId}');
       }
     }
 
@@ -205,7 +205,7 @@ class NetworkManager {
           if (cachePolicy.allowStaleOnNetworkError && stale != null) {
             return _fromCache<T>(request, stale, isStale: true);
           }
-          throw error;
+          rethrow;
         }
         await _sleep(retryPolicy.backoffForAttempt(attempt));
       }
@@ -382,7 +382,7 @@ class NetworkManager {
     headers.addAll(payload.headers);
     if (payload.cookies.isNotEmpty) {
       final cookie =
-          payload.cookies.entries.map((e) => e.key + '=' + e.value).join('; ');
+          payload.cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
       headers['Cookie'] = cookie;
     }
     params.addAll(payload.query);
@@ -418,9 +418,7 @@ class NetworkManager {
         if (body is Map<String, dynamic>) {
           return body.entries
               .map((entry) =>
-                  Uri.encodeQueryComponent(entry.key) +
-                  '=' +
-                  Uri.encodeQueryComponent(entry.value?.toString() ?? ''))
+                  '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(entry.value?.toString() ?? '')}')
               .join('&');
         }
         return body;
@@ -494,10 +492,10 @@ class NetworkManager {
     final sortedParams = request.params.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     for (final entry in sortedParams) {
-      buffer.write('|' + entry.key + '=' + entry.value.toString());
+      buffer.write('|${entry.key}=${entry.value}');
     }
     if (request.body != null) {
-      buffer.write('|body=' + jsonEncode(request.body));
+      buffer.write('|body=${jsonEncode(request.body)}');
     }
     return buffer.toString();
   }
@@ -540,7 +538,7 @@ class NetworkManager {
         return parsed['error'] as String;
       }
     }
-    return 'HTTP ' + raw.statusCode.toString();
+    return 'HTTP ${raw.statusCode}';
   }
 
   void _maybeUpdateLogin(EndpointDescriptor descriptor, dynamic parsed) {

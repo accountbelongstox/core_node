@@ -3,6 +3,20 @@ class VipClubTextKeys {
   static const String vipclubWelcome = 'vipclub_welcome';
   static const String vipclubTagline = 'vipclub_tagline';
 
+  static const String vipclubSplashTitle1 = 'vipclub_splash_title_1';
+  static const String vipclubSplashDesc1 = 'vipclub_splash_desc_1';
+  static const String vipclubSplashTitle2 = 'vipclub_splash_title_2';
+  static const String vipclubSplashDesc2 = 'vipclub_splash_desc_2';
+  static const String vipclubSplashTitle3 = 'vipclub_splash_title_3';
+  static const String vipclubSplashDesc3 = 'vipclub_splash_desc_3';
+  static const String vipclubSplashTitle4 = 'vipclub_splash_title_4';
+  static const String vipclubSplashDesc4 = 'vipclub_splash_desc_4';
+  static const String vipclubSplashTitle5 = 'vipclub_splash_title_5';
+  static const String vipclubSplashDesc5 = 'vipclub_splash_desc_5';
+  static const String vipclubSplashSkip = 'vipclub_splash_skip';
+  static const String vipclubSplashNext = 'vipclub_splash_next';
+  static const String vipclubSplashGetStarted = 'vipclub_splash_get_started';
+
   static const String vipclubLogin = 'vipclub_login';
   static const String vipclubRegister = 'vipclub_register';
   static const String vipclubLogout = 'vipclub_logout';
@@ -80,4 +94,43 @@ class VipClubTextKeys {
   static const String vipclubSettings = 'vipclub_settings';
   static const String vipclubLanguage = 'vipclub_language';
   static const String vipclubTheme = 'vipclub_theme';
+
+  static const String vipclubLoginTitle = 'vipclub_login_title';
+  static const String vipclubLoginSubtitle = 'vipclub_login_subtitle';
+  static const String vipclubLoginWelcome = 'vipclub_login_welcome';
+  static const String vipclubLoginAccount = 'vipclub_login_account';
+  static const String vipclubLoginPhone = 'vipclub_login_phone';
+  static const String vipclubLoginUsername = 'vipclub_login_username';
+  static const String vipclubLoginUsernameRequired = 'vipclub_login_username_required';
+  static const String vipclubLoginPassword = 'vipclub_login_password';
+  static const String vipclubLoginPasswordRequired = 'vipclub_login_password_required';
+  static const String vipclubLoginRememberMe = 'vipclub_login_remember_me';
+  static const String vipclubLoginForgotPassword = 'vipclub_login_forgot_password';
+  static const String vipclubLoginPhoneNumber = 'vipclub_login_phone_number';
+  static const String vipclubLoginVerificationCode = 'vipclub_login_verification_code';
+  static const String vipclubLoginOr = 'vipclub_login_or';
+  static const String vipclubLoginWechat = 'vipclub_login_wechat';
+  static const String vipclubLoginGoogle = 'vipclub_login_google';
+  static const String vipclubLoginNoAccount = 'vipclub_login_no_account';
+  static const String vipclubLoginRegister = 'vipclub_login_register';
+  static const String vipclubNoAccount = 'vipclub_no_account';
+  static const String vipclubCreateAccount = 'vipclub_create_account';
+  static const String vipclubEmailRequired = 'vipclub_email_required';
+  static const String vipclubEmailInvalid = 'vipclub_email_invalid';
+  static const String vipclubPasswordRequired = 'vipclub_password_required';
+  static const String vipclubPasswordTooShort = 'vipclub_password_too_short';
+  static const String vipclubLoginSuccess = 'vipclub_login_success';
+  static const String vipclubLoginFailed = 'vipclub_login_failed';
+
+  static const String vipclubWelcomeBack = 'vipclub_welcome_back';
+  static const String vipclubMemberSince = 'vipclub_member_since';
+  static const String vipclubMemberExpiry = 'vipclub_member_expiry';
+  static const String vipclubMyAccount = 'vipclub_my_account';
+  static const String vipclubEditProfile = 'vipclub_edit_profile';
+  static const String vipclubAccountInfo = 'vipclub_account_info';
+
+  static const String vipclubHomeWelcome = 'vipclub_home_welcome';
+  static const String vipclubHomeSubtitle = 'vipclub_home_subtitle';
+  static const String vipclubQuickAccess = 'vipclub_quick_access';
+  static const String vipclubFeaturedFacilities = 'vipclub_featured_facilities';
 }

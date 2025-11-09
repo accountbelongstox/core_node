@@ -16,7 +16,8 @@ const logger = require('#@logger');
 const gconfig = require('#@gconfig');
 const { WWWROOT_DIR, SKIP_DIRS, UPDATE_CACHE_DIR } = gconfig;
 const crypto = require('crypto');
-const UploadTools = require('#@/ncore/foundation/express_utils/libs/UploadTools.js');
+const rpc = require('#@ncore/utils/rpc');
+const UploadTools = rpc.getExpressServer().uploadTools;
 const FILE_RECORDS_PATH = path.join(UPDATE_CACHE_DIR, 'file_records.json');
 function getFileRecords() {
     try {

@@ -1,10 +1,12 @@
 /// Word Listening Free Mode screen
-library word_listening_free_screen;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class WordListeningFreeScreen extends StatefulWidget {
   const WordListeningFreeScreen({super.key});
@@ -18,50 +20,50 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
-  final List<Map<String, dynamic>> _wordCategories = [
+  List<Map<String, dynamic>> get _wordCategories => [
     {
-      'title': '日常词汇',
-      'subtitle': '基础日常用语',
+      'title': QyAppLocalizationKeys.qyListeningCategoryDaily.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningCategoryDailyDesc.tr(context),
       'icon': Icons.home,
       'color': AppTheme.primaryGreen,
       'count': 1200,
       'locked': false,
     },
     {
-      'title': '商务英语',
-      'subtitle': '职场商务词汇',
+      'title': QyAppLocalizationKeys.qyListeningCategoryBusiness.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningCategoryBusinessDesc.tr(context),
       'icon': Icons.business,
       'color': AppTheme.newColor,
       'count': 800,
       'locked': false,
     },
     {
-      'title': '学术词汇',
-      'subtitle': '学术专业术语',
+      'title': QyAppLocalizationKeys.qyListeningCategoryAcademic.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningCategoryAcademicDesc.tr(context),
       'icon': Icons.school,
       'color': AppTheme.learningColor,
       'count': 600,
       'locked': false,
     },
     {
-      'title': '旅游英语',
-      'subtitle': '旅行交流词汇',
+      'title': QyAppLocalizationKeys.qyListeningCategoryTravel.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningCategoryTravelDesc.tr(context),
       'icon': Icons.flight,
       'color': AppTheme.masteredColor,
       'count': 400,
       'locked': false,
     },
     {
-      'title': '科技词汇',
-      'subtitle': '科学技术术语',
+      'title': QyAppLocalizationKeys.qyListeningCategoryTech.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningCategoryTechDesc.tr(context),
       'icon': Icons.computer,
       'color': AppTheme.darkGreen,
       'count': 500,
       'locked': false,
     },
     {
-      'title': '医学词汇',
-      'subtitle': '医疗健康术语',
+      'title': QyAppLocalizationKeys.qyListeningCategoryMedical.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningCategoryMedicalDesc.tr(context),
       'icon': Icons.local_hospital,
       'color': AppTheme.error,
       'count': 300,
@@ -147,14 +149,14 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             child: Column(
               children: [
                 Text(
-                  '自由听力',
+                  QyAppLocalizationKeys.qyListeningFreeTitle.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '选择类别，自由练习',
+                  QyAppLocalizationKeys.qyListeningFreeDesc.tr(context),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -185,7 +187,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '播放速度',
+              QyAppLocalizationKeys.qyListeningSpeed.tr(context),
               style: AppTextStyles.headline5.copyWith(
                 color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -195,15 +197,15 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             Row(
               children: [
                 Expanded(
-                  child: _buildSpeedButton(0, '慢速', Icons.turtle_down, AppTheme.newColor),
+                  child: _buildSpeedButton(0, QyAppLocalizationKeys.qyListeningSpeedSlow.tr(context), Icons.turtle_down, AppTheme.newColor),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _buildSpeedButton(1, '正常', Icons.play_arrow, AppTheme.primaryGreen),
+                  child: _buildSpeedButton(1, QyAppLocalizationKeys.qyListeningSpeedNormal.tr(context), Icons.play_arrow, AppTheme.primaryGreen),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _buildSpeedButton(2, '快速', Icons.fast_forward, AppTheme.learningColor),
+                  child: _buildSpeedButton(2, QyAppLocalizationKeys.qyListeningSpeedFast.tr(context), Icons.fast_forward, AppTheme.learningColor),
                 ),
               ],
             ),
@@ -266,7 +268,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         children: [
           Expanded(
             child: _buildStatItem(
-              '今日听力',
+              QyAppLocalizationKeys.qyListeningTodayListening.tr(context),
               '${(_listeningTime / 60).toInt()} 分钟',
               Icons.access_time,
               Colors.white,
@@ -279,7 +281,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              '已学词汇',
+              QyAppLocalizationKeys.qyListeningLearnedWords.tr(context),
               '89',
               Icons.headphones,
               Colors.white,
@@ -292,7 +294,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              '连续天数',
+              QyAppLocalizationKeys.qyListeningStreakDays.tr(context),
               '7 天',
               Icons.local_fire_department,
               Colors.white,
@@ -438,7 +440,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              '选择词汇类别开始听力练习',
+              QyAppLocalizationKeys.qyListeningSelectCategory.tr(context),
               style: AppTextStyles.bodyLarge.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -469,7 +471,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         child: Column(
           children: [
             Text(
-              '当前单词',
+              QyAppLocalizationKeys.qyListeningCurrentWord.tr(context),
               style: AppTextStyles.bodyMedium.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -511,7 +513,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _isPlaying ? '停止' : '播放',
+                            _isPlaying ? QyAppLocalizationKeys.qyListeningStop.tr(context) : QyAppLocalizationKeys.qyListeningPlay.tr(context),
                             style: AppTextStyles.buttonText,
                           ),
                         ],
@@ -586,7 +588,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
     // Simulate getting next word
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('切换到下一个单词'),
+        content: Text(QyAppLocalizationKeys.qyListeningNextWordTip.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -600,7 +602,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
           borderRadius: BorderRadius.circular(20),
         ),
         title: Text(
-          '听力统计',
+          QyAppLocalizationKeys.qyListeningStats.tr(context),
           style: AppTextStyles.headline5.copyWith(
             color: AppTheme.textPrimary,
           ),
@@ -608,11 +610,11 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildStatsRow('今日练习', '${(_listeningTime / 60).toInt()} 分钟'),
-            _buildStatsRow('本周练习', '245 分钟'),
-            _buildStatsRow('总练习时长', '1,234 分钟'),
-            _buildStatsRow('连续学习', '7 天'),
-            _buildStatsRow('平均每日', '176 分钟'),
+            _buildStatsRow(QyAppLocalizationKeys.qyListeningTodayPractice.tr(context), '${(_listeningTime / 60).toInt()} ${QyAppLocalizationKeys.qyListeningMinutes.tr(context)}'),
+            _buildStatsRow(QyAppLocalizationKeys.qyListeningWeekPractice.tr(context), '245 ${QyAppLocalizationKeys.qyListeningMinutes.tr(context)}'),
+            _buildStatsRow(QyAppLocalizationKeys.qyListeningTotalTime.tr(context), '1,234 ${QyAppLocalizationKeys.qyListeningMinutes.tr(context)}'),
+            _buildStatsRow(QyAppLocalizationKeys.qyListeningContinuousDays.tr(context), '7 ${QyAppLocalizationKeys.qyListeningDays.tr(context)}'),
+            _buildStatsRow(QyAppLocalizationKeys.qyListeningDailyAverage.tr(context), '176 ${QyAppLocalizationKeys.qyListeningMinutes.tr(context)}'),
           ],
         ),
         actions: [
@@ -625,7 +627,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '关闭',
+                QyAppLocalizationKeys.qyClose.tr(context),
                 style: AppTextStyles.buttonText,
               ),
             ),

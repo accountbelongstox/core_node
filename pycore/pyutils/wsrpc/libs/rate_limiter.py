@@ -22,8 +22,8 @@ class RateLimiter:
         """
         options = options or {}
         self.enabled = options.get('enabled', True)
-        self.max_requests = options.get('max_requests', 100)
-        self.window_ms = options.get('window_ms', 60000)  # 1 minute
+        self.max_requests = options.get('max_requests') or 100
+        self.window_ms = options.get('window_ms') or 60000  # 1 minute
         self.skip_successful_requests = options.get('skip_successful_requests', False)
         self.skip_failed_requests = options.get('skip_failed_requests', False)
         self.on_limit_reached: Optional[Callable] = options.get('on_limit_reached')

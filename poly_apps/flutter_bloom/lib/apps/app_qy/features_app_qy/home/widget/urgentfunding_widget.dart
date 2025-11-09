@@ -15,7 +15,6 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/urgetnt_
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_constants.dart';
-import 'package:get/get.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 
 class UrgentFundraisingScreen extends StatelessWidget {

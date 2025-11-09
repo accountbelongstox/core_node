@@ -297,7 +297,7 @@ async function deleteDevice() {
 
 /* Modal Container */
 .pm-modal {
-  background: var(--pm-bg-card);
+  background: var(--pm-color-surface);
   border-radius: var(--pm-radius-xl);
   box-shadow: var(--pm-shadow-lg);
   width: 100%;
@@ -315,7 +315,7 @@ async function deleteDevice() {
   align-items: center;
   justify-content: space-between;
   padding: var(--pm-space-xl);
-  border-bottom: 1px solid var(--pm-border);
+  border-bottom: 1px solid var(--pm-color-border-soft);
   background: linear-gradient(135deg, rgba(83, 86, 251, 0.03) 0%, rgba(243, 57, 248, 0.03) 100%);
 }
 
@@ -323,7 +323,7 @@ async function deleteDevice() {
   margin: 0;
   font-size: var(--pm-font-size-xl);
   font-weight: 700;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -337,8 +337,8 @@ async function deleteDevice() {
   justify-content: center;
   background: rgba(235, 87, 87, 0.1);
   border: 1px solid rgba(235, 87, 87, 0.2);
-  border-radius: var(--pm-radius-circle);
-  color: var(--pm-danger);
+  border-radius: 50%;
+  color: var(--pm-color-danger);
   font-size: 28px;
   font-weight: 300;
   cursor: pointer;
@@ -347,9 +347,9 @@ async function deleteDevice() {
 }
 
 .pm-modal__header button:hover {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   color: #ffffff;
-  border-color: var(--pm-danger);
+  border-color: var(--pm-color-danger);
   transform: rotate(90deg) scale(1.1);
   box-shadow: 0 4px 16px rgba(235, 87, 87, 0.4);
 }
@@ -366,8 +366,8 @@ async function deleteDevice() {
 
 /* Settings Section */
 .settings-section {
-  background: var(--pm-bg-main);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-lg);
   padding: var(--pm-space-lg);
   display: flex;
@@ -390,7 +390,7 @@ async function deleteDevice() {
 .section-header {
   padding-bottom: 12px;
   border-bottom: 2px solid transparent;
-  border-image: var(--pm-gradient-primary) 1;
+  border-image: var(--pm-gradient-main) 1;
   border-image-slice: 1;
   margin-bottom: 8px;
 }
@@ -399,7 +399,7 @@ async function deleteDevice() {
   margin: 0 0 8px 0;
   font-size: var(--pm-font-size-lg);
   font-weight: 600;
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -413,7 +413,7 @@ async function deleteDevice() {
 .section-header p {
   margin: 0;
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   line-height: 1.5;
 }
 
@@ -439,7 +439,7 @@ async function deleteDevice() {
 .pm-form-group label {
   font-size: var(--pm-font-size-sm);
   font-weight: 500;
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -448,7 +448,7 @@ async function deleteDevice() {
 .pm-form-group label::before {
   content: '◆';
   font-size: 8px;
-  color: var(--pm-primary);
+  color: var(--pm-color-primary);
 }
 
 /* Input Styles */
@@ -457,20 +457,20 @@ async function deleteDevice() {
   height: 44px;
   padding: 0 18px;
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   background: #ffffff;
-  border: 1.5px solid var(--pm-border);
+  border: 1.5px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-xl);
   outline: none;
   transition: var(--pm-transition-fast);
 }
 
 .pm-input:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
 }
 
 .pm-input:focus {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
   background: #ffffff;
 }
@@ -485,9 +485,9 @@ async function deleteDevice() {
   height: 44px;
   padding: 0 40px 0 18px;
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   background: #ffffff;
-  border: 1.5px solid var(--pm-border);
+  border: 1.5px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-xl);
   outline: none;
   cursor: pointer;
@@ -499,12 +499,12 @@ async function deleteDevice() {
 }
 
 .pm-select:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   background-color: rgba(83, 86, 251, 0.02);
 }
 
 .pm-select:focus {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
   background-color: #ffffff;
 }
@@ -527,8 +527,8 @@ async function deleteDevice() {
 .pm-switch .slider {
   position: absolute;
   inset: 0;
-  background: var(--pm-border);
-  border-radius: var(--pm-radius-full);
+  background: var(--pm-color-border-soft);
+  border-radius: var(--pm-radius-pill);
   transition: var(--pm-transition-fast);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -541,13 +541,13 @@ async function deleteDevice() {
   left: 3px;
   bottom: 3px;
   background: #ffffff;
-  border-radius: var(--pm-radius-circle);
+  border-radius: 50%;
   transition: var(--pm-transition-fast);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .pm-switch input:checked + .slider {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
 }
 
 .pm-switch input:checked + .slider::before {
@@ -565,14 +565,14 @@ async function deleteDevice() {
   gap: 8px;
   padding: 16px;
   background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
-  border: 1px solid var(--pm-border);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-md);
 }
 
 .device-selector label {
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
 }
 
 /* Form Actions */
@@ -583,7 +583,7 @@ async function deleteDevice() {
   gap: 12px;
   margin-top: 12px;
   padding-top: 16px;
-  border-top: 1px solid var(--pm-border);
+  border-top: 1px solid var(--pm-color-border-soft);
 }
 
 .form-actions.grouped {
@@ -599,7 +599,7 @@ async function deleteDevice() {
   padding: 12px 28px;
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   cursor: pointer;
   transition: var(--pm-transition-fast);
   border: none;
@@ -632,7 +632,7 @@ async function deleteDevice() {
 
 /* Primary Button */
 .pm-button--primary {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   color: #ffffff;
 }
 
@@ -651,7 +651,7 @@ async function deleteDevice() {
 
 /* Success Button */
 .pm-button--success {
-  background: var(--pm-success);
+  background: var(--pm-color-success);
   color: #ffffff;
 }
 
@@ -670,7 +670,7 @@ async function deleteDevice() {
 
 /* Danger Button */
 .pm-button--danger {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   color: #ffffff;
 }
 
@@ -690,13 +690,13 @@ async function deleteDevice() {
 /* Default Button */
 .pm-button--default {
   background: #ffffff;
-  color: var(--pm-text-primary);
-  border: 1px solid var(--pm-border);
+  color: var(--pm-text-default);
+  border: 1px solid var(--pm-color-border-soft);
 }
 
 .pm-button--default:hover {
-  border-color: var(--pm-primary);
-  color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
+  color: var(--pm-color-primary);
   box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
 }
 
@@ -707,8 +707,8 @@ async function deleteDevice() {
   justify-content: flex-end;
   gap: 12px;
   padding: var(--pm-space-lg) var(--pm-space-xl);
-  border-top: 1px solid var(--pm-border);
-  background: var(--pm-bg-main);
+  border-top: 1px solid var(--pm-color-border-soft);
+  background: var(--pm-color-surface);
 }
 
 /* Loading State */
@@ -722,15 +722,15 @@ async function deleteDevice() {
 
 .loading span {
   font-size: var(--pm-font-size-base);
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
 }
 
 .spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid var(--pm-border);
-  border-top-color: var(--pm-primary);
-  border-radius: var(--pm-radius-circle);
+  border: 3px solid var(--pm-color-border-soft);
+  border-top-color: var(--pm-color-primary);
+  border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
@@ -744,7 +744,7 @@ async function deleteDevice() {
   background: rgba(235, 87, 87, 0.1);
   border: 1px solid rgba(235, 87, 87, 0.3);
   border-radius: var(--pm-radius-md);
-  color: var(--pm-danger);
+  color: var(--pm-color-danger);
   font-size: var(--pm-font-size-sm);
   margin: 0;
   animation: pm-fadeIn 0.3s ease;
@@ -788,18 +788,18 @@ async function deleteDevice() {
 }
 
 .pm-modal__body::-webkit-scrollbar-track {
-  background: var(--pm-bg-main);
+  background: var(--pm-color-surface);
   border-radius: 10px;
 }
 
 .pm-modal__body::-webkit-scrollbar-thumb {
-  background: var(--pm-border);
+  background: var(--pm-color-border-soft);
   border-radius: 10px;
   transition: var(--pm-transition-fast);
 }
 
 .pm-modal__body::-webkit-scrollbar-thumb:hover {
-  background: var(--pm-primary);
+  background: var(--pm-color-primary);
 }
 
 /* Responsive */

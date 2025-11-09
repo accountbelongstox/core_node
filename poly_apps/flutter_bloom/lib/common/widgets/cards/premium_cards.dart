@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
-import 'package:qyflutter/common/theme/base/theme_shadow.dart';
 import 'package:qyflutter/common/theme/base/theme_gradients.dart';
 import 'package:qyflutter/common/theme/base/theme_effects.dart';
 

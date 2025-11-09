@@ -1,0 +1,7 @@
+开始任务：现在前端已经识别到有一个设备连接，但屏幕投屏没有显示出来。请与前端联调。
+参考规范：
+现在有一组桥接文件，poly_apps/pyMatrix/docs/bridge_with_nuxt_pyMatrix/bridge_with_nuxt_pyMatrix_tree.md  是前端和后端共享的，注意你是后端，
+你可以更新桥接文件上的内容，但注意你遵循的是你自己的规则，桥接文件只是一个交流而非规范。将你的工作内容更新到桥接文档。并注意最后日期，当你读取过的内容标记为：知道了。
+你们将实现联调，使前前和后端的功能能够一致并做到有效能用。
+poly_apps\pyMatrix\UI_PLANNING_DOCUMENT.md 根据你的分析，适配后端。
+注意你要遵守核心库放在pycore类库中，子app pyMatrix 负责组织逻辑的思路。当你不了解规范时可以读一下其他文件。

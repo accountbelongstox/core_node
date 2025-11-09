@@ -5,15 +5,22 @@ Analyzes compile_factory directory structure and provides detailed information a
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import re
 
+# Import build constants
+sys.path.insert(0, str(Path(__file__).parent.parent / "core" / "constants"))
+from build_constants import COMPILE_FACTORY_DIR
+
 class FactoryAnalyzer:
     """Analyzes compile_factory directory and provides build information"""
 
-    def __init__(self, factory_path: str = "D:/programing/.build_dir/compile_factory"):
+    def __init__(self, factory_path: str = None):
+        if factory_path is None:
+            factory_path = COMPILE_FACTORY_DIR
         self.factory_path = Path(factory_path)
 
     def is_in_temp_directory(self, current_path: str) -> bool:

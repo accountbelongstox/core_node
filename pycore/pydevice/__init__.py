@@ -17,10 +17,10 @@ Usage:
     device = await manager.connect_usb("ABC123", params)
 """
 
-from .device_info import DeviceInfo, Resolution, VideoCodec
-from .server_params import ServerParams
-from .android_device import AndroidDevice
-from .connection_manager import ConnectionManager, ConnectionType, ConnectionState
+from pycore.pydevice.device_info import DeviceInfo, Resolution, VideoCodec
+from pycore.pydevice.server_params import ServerParams
+from pycore.pydevice.android_device import AndroidDevice
+from pycore.pydevice.connection_manager import ConnectionManager, ConnectionType, ConnectionState
 
 __all__ = [
     'DeviceInfo',

@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const { appname } = require('#@global_vars');
-const { startExpressServer } = require('#@/ncore/foundation/express_utils/index.js');
+const rpc = require('#@ncore/utils/rpc');
 const router = require('./router.js');
 // Initialize all routes
 
@@ -22,7 +22,8 @@ class HttpMain {
     async start(config) {
         if(!config) config = require('../config/index.js');
         router.initializeRoutes();
-        await startExpressServer(config)
+        const expressServer = rpc.createExpressServer(config);
+        await expressServer.start();
     }
 }
 

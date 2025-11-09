@@ -25,7 +25,7 @@ class UrgentFundRisingWidget extends StatefulWidget {
 
 class _UrgentFundRisingWidgetState extends State<UrgentFundRisingWidget> {
   int selectedIndex = 0;
-  setSelectedIndex(int index) {
+  void setSelectedIndex(int index) {
     setState(() {
       selectedIndex = index;
     });

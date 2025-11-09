@@ -202,7 +202,7 @@ class _VipClubPaymentScreenState extends State<VipClubPaymentScreen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
 
             SizedBox(height: ThemeDimensions.largePadding),
 

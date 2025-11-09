@@ -27,7 +27,8 @@
 
 #region Variable Declarations
 $script:CURRENT_DIR = $PSScriptRoot
-$script:SHELLS_DIR = Split-Path $script:CURRENT_DIR -Parent
+$script:WIN_DIR = Split-Path $script:CURRENT_DIR -Parent
+$script:SHELLS_DIR = Split-Path $script:WIN_DIR -Parent
 $script:SCRIPTS_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:PROJECT_ROOT = Split-Path $script:SCRIPTS_DIR -Parent
 $script:PYTOOLS_DIR = Join-Path $script:SCRIPTS_DIR "pytools"

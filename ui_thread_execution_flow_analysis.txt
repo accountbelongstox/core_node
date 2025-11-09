@@ -1,0 +1,187 @@
+===============================================================================
+UI操作的线程执行流程分析
+===============================================================================
+
+场景：用户点击窗口关闭按钮
+
+-------------------------------------------------------------------------------
+步骤 1: UI事件触发 [UI主线程 - CustomUIThread]
+-------------------------------------------------------------------------------
+位置: title_bar.py:_on_close_click()
+操作: 用户点击关闭按钮触发事件
+
+执行代码:
+    def _on_close_click(self):
+        ColorPrint.yellow("[TitleBar] Close button clicked")
+        self.signal_manager.emit(SignalType.WINDOW_CLOSE)
+
+动作: 将信号放入 signal_queue (线程安全队列)
+
+-------------------------------------------------------------------------------
+步骤 2: 信号处理 [SignalProcessor线程 - daemon]
+-------------------------------------------------------------------------------
+位置: thread_framework.py:_signal_processing_loop()
+操作: 持续监听信号队列
+
+执行代码:
+    def _signal_processing_loop(self):
+        while self._running:
+            # Process signals
+            self.signal_manager.process_signals()  # <-- 这里处理信号
+
+            # Execute main thread methods
+            self.main_executor.execute_pending()
+
+            # Process command queue
+            self._process_command_queue()
+
+            time.sleep(0.01)
+
+SignalManager.process_signals() 执行流程:
+    1. 从 signal_queue 取出信号
+    2. 查找对应的处理器: _handle_window_close()
+    3. 执行处理器函数
+
+-------------------------------------------------------------------------------
+步骤 3: 处理器执行 [SignalProcessor线程]
+-------------------------------------------------------------------------------
+位置: thread_framework.py:_handle_window_close()
+操作: 处理关闭信号
+
+执行代码:
+    def _handle_window_close(self, signal: Signal):
+        ColorPrint.yellow(f"[{self.name}] Handling window close signal")
+        self.stop()  # <-- 在SignalProcessor线程执行
+
+-------------------------------------------------------------------------------
+步骤 4: 停止UI [SignalProcessor线程]
+-------------------------------------------------------------------------------
+位置: thread_framework.py:stop()
+操作: 设置停止标志
+
+执行代码:
+    def stop(self):
+        ColorPrint.yellow(f"[{self.name}] Stopping UI thread...")
+        self._running = False     # <-- 设置运行标志
+        self._stop_event.set()    # <-- 设置停止事件
+
+注意: 这些操作在 SignalProcessor线程 执行，不是UI主线程！
+
+-------------------------------------------------------------------------------
+步骤 5: UI主线程响应 [UI主线程 - CustomUIThread]
+-------------------------------------------------------------------------------
+位置: thread_framework.py:_run_mainloop()
+操作: 检测到停止标志，退出循环
+
+执行代码:
+    def _run_mainloop(self):
+        ColorPrint.blue(f"[{self.name}] Starting mainloop...")
+
+        while self._running and self.root:  # <-- 检查 _running
+            try:
+                # Process Tkinter events
+                self.root.update()
+
+                # Check for stop signal
+                if self._stop_event.is_set():  # <-- 检查停止事件
+                    break
+
+                time.sleep(0.01)
+            except tk.TclError:
+                break
+            except Exception as e:
+                ColorPrint.red(f"[{self.name}] Mainloop error: {e}")
+                break
+
+===============================================================================
+关键结论
+===============================================================================
+
+[1] UI操作 NOT 直接调用函数
+    - 点击按钮 -> emit信号 -> 放入队列
+    - 不会直接调用 stop() 或其他处理函数
+
+[2] 使用信号队列进行线程间通信（异步、解耦）
+    - SignalManager 使用 queue.Queue (线程安全)
+    - UI线程只负责发射信号
+    - SignalProcessor线程负责处理信号
+
+[3] 信号处理在 SignalProcessor线程 执行
+    - _handle_window_close() 在 SignalProcessor 线程
+    - stop() 在 SignalProcessor 线程
+    - 所有 handler 都在 SignalProcessor 线程
+
+[4] 关闭等操作通过设置标志通知UI主线程
+    - SignalProcessor 设置 _running = False
+    - SignalProcessor 设置 _stop_event
+    - UI主线程检测标志后自行退出
+
+[5] UI主线程只负责UI渲染和事件循环
+    - 运行 Tkinter mainloop
+    - 处理 UI 事件（点击、拖拽等）
+    - 发射信号到队列
+    - 检测停止标志
+
+===============================================================================
+线程执行总结
+===============================================================================
+
+UI主线程 (CustomUIThread):
+    - 运行 Tkinter UI 事件循环
+    - 捕获用户操作（点击按钮）
+    - 发射信号到队列
+    - 检测停止标志并退出
+
+SignalProcessor线程 (daemon):
+    - 监听信号队列
+    - 处理所有信号
+    - 执行 handler 函数
+    - 设置控制标志
+
+TaskTimer线程 (daemon):
+    - 定时执行注册的任务
+    - 与 UI 操作无关
+
+===============================================================================
+架构优势
+===============================================================================
+
+1. 线程安全
+   - 使用 queue.Queue 避免竞态条件
+   - 不需要手动加锁
+
+2. 解耦
+   - UI线程和处理逻辑分离
+   - 信号发射者和处理者解耦
+   - 便于扩展和维护
+
+3. 异步
+   - UI操作不阻塞
+   - 信号异步处理
+   - 响应速度快
+
+4. 可扩展
+   - 可以注册多个处理器
+   - 支持自定义信号类型
+   - 支持信号回调
+
+===============================================================================
+回答用户的问题
+===============================================================================
+
+Q: UI的操作是不是通知主线程，而不是直接调用函数？
+A: 是的！UI操作通过信号队列通知 SignalProcessor线程，不是直接调用函数。
+
+Q: 关闭等功能操作都在主线程执行？
+A: 不完全准确。关闭操作的处理在 SignalProcessor线程 执行，但最终的UI清理
+   和退出由 UI主线程 自己完成。流程是：
+
+   UI线程: 发射信号
+      |
+      v
+   SignalProcessor线程: 处理信号，设置停止标志
+      |
+      v
+   UI线程: 检测标志，执行清理，退出
+
+===============================================================================

@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Import all feature screens
-import 'package:qyflutter/apps/app_achat/features_app_achat/home/views/home_screen.dart';
 import 'package:qyflutter/apps/app_achat/features_app_achat/chat_home/views/chat_home_screen.dart';
 import 'package:qyflutter/apps/app_achat/features_app_achat/add_contacts/views/add_contacts_screen.dart';
 import 'package:qyflutter/apps/app_achat/features_app_achat/app_lock/views/app_lock_screen.dart';

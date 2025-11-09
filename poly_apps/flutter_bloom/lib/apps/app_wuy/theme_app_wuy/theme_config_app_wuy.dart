@@ -239,14 +239,14 @@ class WuyAppThemeConfig {
   
   // Wuy App specific switch style
   static SwitchThemeData get wuySwitchTheme => SwitchThemeData(
-    thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-      if (states.contains(MaterialState.selected)) {
+    thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) {
         return wuyPrimaryColor;
       }
       return ThemeColors.greyColor;
     }),
-    trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-      if (states.contains(MaterialState.selected)) {
+    trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) {
         return wuyPrimaryColor.withOpacity(0.3);
       }
       return ThemeColors.greyColor.withOpacity(0.3);
@@ -353,12 +353,10 @@ class WuyAppThemeConfig {
     primary: wuyPrimaryColor,
     secondary: wuySecondaryColor,
     surface: wuySurfaceColor,
-    background: wuyBackgroundColor,
     error: wuyErrorColor,
     onPrimary: Colors.white,
     onSecondary: Colors.white,
     onSurface: wuyTextPrimary,
-    onBackground: wuyTextPrimary,
     onError: Colors.white,
   );
   
@@ -388,9 +386,7 @@ class WuyAppThemeConfig {
     colorScheme: wuyColorScheme.copyWith(
       brightness: Brightness.dark,
       surface: const Color(0xFF1C1C1E),
-      background: const Color(0xFF000000),
       onSurface: Colors.white,
-      onBackground: Colors.white,
     ),
     textTheme: ThemeTextStyles.darkTextTheme,
     appBarTheme: wuyAppBarTheme.copyWith(

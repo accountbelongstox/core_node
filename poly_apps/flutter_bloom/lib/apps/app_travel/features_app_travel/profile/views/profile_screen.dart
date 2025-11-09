@@ -1,52 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../provider_app_travel/user_provider_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/assets_images_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 import '../../settings/views/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final List<Map<String, dynamic>> _statsData = [
-    {'icon': Icons.local_activity, 'label': '优惠券', 'value': 10, 'hasBadge': true},
-    {'icon': Icons.star_border, 'label': '收藏浏览', 'value': 0, 'hasBadge': false},
-    {'icon': Icons.account_balance_wallet, 'label': '积分', 'value': 0, 'hasBadge': false},
-  ];
+  List<Map<String, dynamic>> _getStatsData(BuildContext context) {
+    return [
+      {'icon': Icons.local_activity, 'label': TravelLocalizationKeys.travelCoupon.tr(context), 'value': 10, 'hasBadge': true},
+      {'icon': Icons.star_border, 'label': TravelLocalizationKeys.travelFavoritesAndViews.tr(context), 'value': 0, 'hasBadge': false},
+      {'icon': Icons.account_balance_wallet, 'label': TravelLocalizationKeys.travelPoints.tr(context), 'value': 0, 'hasBadge': false},
+    ];
+  }
 
-  final List<Map<String, dynamic>> _orderActions = [
-    {'icon': Icons.credit_card, 'label': '待付款'},
-    {'icon': Icons.luggage, 'label': '待出行'},
-    {'icon': Icons.rate_review, 'label': '待点评'},
-    {'icon': Icons.assignment_return, 'label': '退款/售后'},
-    {'icon': Icons.receipt_long, 'label': '我的订单', 'isHighlight': true},
-  ];
+  List<Map<String, dynamic>> _getOrderActions(BuildContext context) {
+    return [
+      {'icon': Icons.credit_card, 'label': TravelLocalizationKeys.travelPendingPayment.tr(context)},
+      {'icon': Icons.luggage, 'label': TravelLocalizationKeys.travelPendingTrip.tr(context)},
+      {'icon': Icons.rate_review, 'label': TravelLocalizationKeys.travelPendingReview.tr(context)},
+      {'icon': Icons.assignment_return, 'label': TravelLocalizationKeys.travelRefundAfterSales.tr(context)},
+      {'icon': Icons.receipt_long, 'label': TravelLocalizationKeys.travelMyOrders.tr(context), 'isHighlight': true},
+    ];
+  }
 
-  final List<Map<String, dynamic>> _financialServices = [
-    {'amount': '30万', 'title': '信用贷', 'subtitle': '最高可借'},
-    {'amount': '10万', 'title': '拿去花', 'subtitle': '最高额度'},
-    {'amount': '50万', 'title': '生意人贷', 'subtitle': '最高可借'},
-    {'amount': '20万', 'title': '银行专区', 'subtitle': '最高可借'},
-  ];
+  List<Map<String, dynamic>> _getFinancialServices(BuildContext context) {
+    return [
+      {'amount': '30万', 'title': TravelLocalizationKeys.travelCreditLoan.tr(context), 'subtitle': TravelLocalizationKeys.travelMaxAmount.tr(context)},
+      {'amount': '10万', 'title': TravelLocalizationKeys.travelNakuHua.tr(context), 'subtitle': TravelLocalizationKeys.travelMaxCredit.tr(context)},
+      {'amount': '50万', 'title': TravelLocalizationKeys.travelBusinessLoan.tr(context), 'subtitle': TravelLocalizationKeys.travelMaxAmount.tr(context)},
+      {'amount': '20万', 'title': TravelLocalizationKeys.travelBankZone.tr(context), 'subtitle': TravelLocalizationKeys.travelMaxAmount.tr(context)},
+    ];
+  }
 
-  final List<Map<String, dynamic>> _functionGrid = [
-    {'icon': Icons.info_outline, 'label': '常用信息'},
-    {'icon': Icons.receipt, 'label': '我的发票'},
-    {'icon': Icons.card_giftcard, 'label': '权益卡'},
-    {'icon': Icons.rate_review, 'label': '我的点评'},
-    {'icon': Icons.edit_note, 'label': '我的笔记'},
-    {'icon': Icons.camera_alt, 'label': '创作中心'},
-    {'icon': Icons.group, 'label': '我的社区'},
-    {'icon': Icons.map, 'label': '旅行足迹'},
-    {'icon': Icons.feedback, 'label': '我要吐槽'},
-    {'icon': Icons.credit_score, 'label': '我的信用'},
-  ];
+  List<Map<String, dynamic>> _getFunctionGrid(BuildContext context) {
+    return [
+      {'icon': Icons.info_outline, 'label': TravelLocalizationKeys.travelCommonInfo.tr(context)},
+      {'icon': Icons.receipt, 'label': TravelLocalizationKeys.travelMyInvoice.tr(context)},
+      {'icon': Icons.card_giftcard, 'label': TravelLocalizationKeys.travelRightsCard.tr(context)},
+      {'icon': Icons.rate_review, 'label': TravelLocalizationKeys.travelMyReviews.tr(context)},
+      {'icon': Icons.edit_note, 'label': TravelLocalizationKeys.travelMyNotes.tr(context)},
+      {'icon': Icons.camera_alt, 'label': TravelLocalizationKeys.travelCreationCenter.tr(context)},
+      {'icon': Icons.group, 'label': TravelLocalizationKeys.travelMyCommunity.tr(context)},
+      {'icon': Icons.map, 'label': TravelLocalizationKeys.travelTravelFootprint.tr(context)},
+      {'icon': Icons.feedback, 'label': TravelLocalizationKeys.travelComplaint.tr(context)},
+      {'icon': Icons.credit_score, 'label': TravelLocalizationKeys.travelMyCredit.tr(context)},
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: TravelColors.travelBackground,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -66,6 +80,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeader() {
+    final userProvider = context.watch<UserProviderAppTravel>();
+    final user = userProvider.user;
+    final username = user.username ?? TravelLocalizationKeys.travelGuestUser.tr(context);
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16.0, 48.0, 16.0, 16.0),
@@ -76,29 +94,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             height: 60.0,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE0E0E0), width: 2.0),
+              border: Border.all(
+                color: user.isLoggedIn ? TravelColors.travelPrimary : TravelColors.travelBorderLight,
+                width: 2.0,
+              ),
             ),
             child: ClipOval(
-              child: Image.asset(
-                'assets/apps/app_travel/images/profile_avatar.png',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFE3F2FD),
-                    child: const Icon(
-                      Icons.person,
-                      size: 36.0,
-                      color: Color(0xFF00D0D8),
+              child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                  ? Image.network(
+                      user.avatarUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
+                    )
+                  : Image.asset(
+                      AssetsImagesAppTravel.travelUserAvatarDefault,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ),
           const SizedBox(width: 12.0),
-          const Text(
-            '去哪儿用户',
-            style: TextStyle(
+          Text(
+            username,
+            style: const TextStyle(
               fontSize: 18.0,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -113,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 36.0,
               height: 36.0,
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: TravelColors.travelBackground,
                 borderRadius: BorderRadius.circular(6.0),
               ),
               child: const Icon(
@@ -132,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 36.0,
               height: 36.0,
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: TravelColors.travelBackground,
                 borderRadius: BorderRadius.circular(6.0),
               ),
               child: const Icon(
@@ -155,11 +177,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 36.0,
               height: 36.0,
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: TravelColors.travelBackground,
                 borderRadius: BorderRadius.circular(6.0),
               ),
               child: const Icon(
-                Icons.message_outlined,
+                Icons.settings_outlined,
                 size: 20.0,
                 color: Colors.black54,
               ),
@@ -171,83 +193,122 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildMemberCard() {
-    return Container(
-      margin: const EdgeInsets.all(16.0),
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [Color(0xFF9DD8F2), Color(0xFFB8E3F8)],
+    return GestureDetector(
+      onTap: () {
+        debugPrint('Member card tapped');
+      },
+      child: Container(
+        margin: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8.0,
+              offset: const Offset(0, 2.0),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: Row(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '大众会员',
-                style: TextStyle(
-                  fontSize: 20.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4.0),
-              Row(
-                children: const [
-                  Icon(
-                    Icons.diamond,
-                    size: 14.0,
-                    color: Colors.black54,
-                  ),
-                  SizedBox(width: 4.0),
-                  Text(
-                    '积分抵现',
-                    style: TextStyle(
-                      fontSize: 13.0,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const Spacer(),
-          Image.asset(
-            'assets/apps/app_travel/images/profile_member_badge.png',
-            width: 80.0,
-            height: 80.0,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12.0),
+          child: Image.asset(
+            'assets/apps/app_travel/images/profile_member_banner.png',
+            width: double.infinity,
+            fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               return Container(
-                width: 80.0,
-                height: 80.0,
+                padding: const EdgeInsets.all(16.0),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: TravelColors.travelGradientLightBlue,
+                  ),
+                  borderRadius: BorderRadius.circular(12.0),
                 ),
-                child: const Icon(
-                  Icons.verified,
-                  size: 40.0,
-                  color: Colors.white,
+                child: Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          TravelLocalizationKeys.travelPublicMember.tr(context),
+                          style: const TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.diamond,
+                              size: 14.0,
+                              color: Colors.black54,
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              TravelLocalizationKeys.travelPointsRedeem.tr(context),
+                              style: const TextStyle(
+                                fontSize: 13.0,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Container(
+                      width: 79.0,
+                      height: 79.0,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.transparent,
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          AssetsImagesAppTravel.travelVipBadge,
+                          width: 79.0,
+                          height: 79.0,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 79.0,
+                              height: 79.0,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.verified,
+                                size: 40.0,
+                                color: Colors.white,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildStats() {
+    final statsData = _getStatsData(context);
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: _statsData.map((stat) {
+        children: statsData.map((stat) {
           return GestureDetector(
             onTap: () {
               debugPrint('${stat['label']} tapped');
@@ -291,7 +352,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: 8.0,
                           height: 8.0,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFFF6B35),
+                            color: TravelColors.travelBadge,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -307,12 +368,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildOrderActions() {
+    final orderActions = _getOrderActions(context);
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: _orderActions.map((action) {
+        children: orderActions.map((action) {
           final isHighlight = action['isHighlight'] ?? false;
           return GestureDetector(
             onTap: () {
@@ -323,14 +385,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Icon(
                   action['icon'],
                   size: 28.0,
-                  color: isHighlight ? const Color(0xFF00D0D8) : Colors.black54,
+                  color: isHighlight ? TravelColors.travelPrimary : Colors.black54,
                 ),
                 const SizedBox(height: 6.0),
                 Text(
                   action['label'],
                   style: TextStyle(
                     fontSize: 12.0,
-                    color: isHighlight ? const Color(0xFF00D0D8) : Colors.black54,
+                    color: isHighlight ? TravelColors.travelPrimary : Colors.black54,
                   ),
                 ),
               ],
@@ -354,13 +416,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Icon(
             Icons.train,
             size: 20.0,
-            color: Color(0xFF00D0D8),
+            color: TravelColors.travelPrimary,
           ),
           const SizedBox(width: 8.0),
-          const Expanded(
+          Expanded(
             child: Text(
-              '登录12306账号可享极速出票、优先退改',
-              style: TextStyle(
+              TravelLocalizationKeys.travel12306Prompt.tr(context),
+              style: const TextStyle(
                 fontSize: 13.0,
                 color: Colors.black87,
               ),
@@ -371,18 +433,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               debugPrint('12306 prompt tapped');
             },
             child: Row(
-              children: const [
+              children: [
                 Text(
-                  '去查看',
-                  style: TextStyle(
+                  TravelLocalizationKeys.travelGoCheck.tr(context),
+                  style: const TextStyle(
                     fontSize: 13.0,
-                    color: Color(0xFF00D0D8),
+                    color: TravelColors.travelPrimary,
                   ),
                 ),
                 Icon(
                   Icons.chevron_right,
                   size: 18.0,
-                  color: Color(0xFF00D0D8),
+                  color: TravelColors.travelPrimary,
                 ),
               ],
             ),
@@ -393,6 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildFinancialServices() {
+    final financialServices = _getFinancialServices(context);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       padding: const EdgeInsets.all(16.0),
@@ -405,7 +468,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ..._financialServices.map((service) {
+              ...financialServices.map((service) {
                 return Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -441,8 +504,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 );
-              }).toList(),
-              Container(
+              }),
+              SizedBox(
                 width: 60.0,
                 child: Column(
                   children: [
@@ -450,19 +513,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 40.0,
                       height: 40.0,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE3F2FD),
+                        color: TravelColors.travelPrimaryLight,
                         borderRadius: BorderRadius.circular(8.0),
                       ),
                       child: const Icon(
                         Icons.account_balance_wallet,
                         size: 24.0,
-                        color: Color(0xFF00D0D8),
+                        color: TravelColors.travelPrimary,
                       ),
                     ),
                     const SizedBox(height: 4.0),
-                    const Text(
-                      '我的钱包',
-                      style: TextStyle(
+                    Text(
+                      TravelLocalizationKeys.travelMyWallet.tr(context),
+                      style: const TextStyle(
                         fontSize: 11.0,
                         color: Colors.black54,
                       ),
@@ -476,12 +539,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 6.0),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF9A56),
+              color: TravelColors.travelAccentOrange,
               borderRadius: BorderRadius.circular(15.0),
             ),
-            child: const Text(
-              '去查看',
-              style: TextStyle(
+            child: Text(
+              TravelLocalizationKeys.travelGoCheck.tr(context),
+              style: const TextStyle(
                 fontSize: 13.0,
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
@@ -494,6 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildFunctionGrid() {
+    final functionGrid = _getFunctionGrid(context);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       padding: const EdgeInsets.all(16.0),
@@ -510,9 +574,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSpacing: 20.0,
           childAspectRatio: 0.9,
         ),
-        itemCount: _functionGrid.length,
+        itemCount: functionGrid.length,
         itemBuilder: (context, index) {
-          final function = _functionGrid[index];
+          final function = functionGrid[index];
           return GestureDetector(
             onTap: () {
               debugPrint('${function['label']} tapped');
@@ -557,26 +621,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(
+              children: [
+                const Icon(
                   Icons.circle,
                   size: 8.0,
-                  color: Color(0xFF00D0D8),
+                  color: TravelColors.travelPrimary,
                 ),
-                SizedBox(width: 8.0),
+                const SizedBox(width: 8.0),
                 Text(
-                  '精彩推荐 一玩到底',
-                  style: TextStyle(
+                  TravelLocalizationKeys.travelWonderfulRecommendation.tr(context),
+                  style: const TextStyle(
                     fontSize: 16.0,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
-                SizedBox(width: 8.0),
-                Icon(
+                const SizedBox(width: 8.0),
+                const Icon(
                   Icons.circle,
                   size: 8.0,
-                  color: Color(0xFF00D0D8),
+                  color: TravelColors.travelPrimary,
                 ),
               ],
             ),
@@ -599,16 +663,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF9C27B0), Color(0xFFE040FB)],
+                      colors: TravelColors.travelGradientPurple,
                     ),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      '精彩推荐',
-                      style: TextStyle(
+                      TravelLocalizationKeys.travelWonderful.tr(context),
+                      style: const TextStyle(
                         fontSize: 24.0,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: TravelColors.travelTextLight,
                       ),
                     ),
                   ),
@@ -617,6 +681,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: TravelColors.travelPrimaryLight,
+      child: const Icon(
+        Icons.person,
+        size: 36.0,
+        color: TravelColors.travelPrimary,
       ),
     );
   }

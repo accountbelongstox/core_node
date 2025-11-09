@@ -14,11 +14,49 @@ const { execCmdResultText, pipeExecCmd } = require('#@commander');
 const logger = require('#@logger');
 const path = require('path');
 const fs = require('fs').promises;
+const { getThemeCenter, getDataCenter, getSettingsCenter } = require('#@global_vars');
 
 /**
  * Development Tools Management Controller
  * Provides API endpoints for managing development tools and environments
  */
+
+const themeCenter = getThemeCenter();
+const dataCenter = getDataCenter();
+const settingsCenter = getSettingsCenter();
+const devopsData = dataCenter.scope('devops');
+const devopsSettings = settingsCenter.scope('devops');
+const toolPreferences = devopsSettings.scope('toolPreferences');
+
+function getActiveThemePayload() {
+    const activeTheme = themeCenter.getActiveTheme();
+    return {
+        name: activeTheme.name,
+        config: activeTheme.config
+    };
+}
+
+function attachTheme(tool) {
+    const themePayload = getActiveThemePayload();
+    const preferences = toolPreferences.get(tool.id, {});
+    return {
+        ...tool,
+        config: {
+            ...tool.config,
+            ...preferences,
+            theme: themePayload.name,
+            themeConfig: themePayload.config
+        }
+    };
+}
+
+function decorateToolCollection(collection) {
+    return collection.map((tool) => attachTheme(tool));
+}
+
+function persistToolsSnapshot() {
+    devopsData.set('tools', mockDevTools, { persist: true });
+}
 
 // Mock data for development tools
 const mockDevTools = [
@@ -31,7 +69,6 @@ const mockDevTools = [
         status: 'active',
         config: {
             port: 8080,
-            theme: 'dark',
             extensions: ['ms-python.python', 'ms-vscode.vscode-typescript-next']
         },
         lastUsed: new Date().toISOString(),
@@ -147,6 +184,21 @@ const mockDevEnvironments = [
 // Active tool sessions
 const activeSessions = new Map();
 
+const persistedTools = devopsData.get('tools');
+if (Array.isArray(persistedTools) && persistedTools.length > 0) {
+    mockDevTools.length = 0;
+    mockDevTools.push(...persistedTools);
+}
+
+const persistedEnvironments = devopsData.get('environments');
+if (Array.isArray(persistedEnvironments) && persistedEnvironments.length > 0) {
+    mockDevEnvironments.length = 0;
+    mockDevEnvironments.push(...persistedEnvironments);
+}
+
+persistToolsSnapshot();
+devopsData.set('environments', mockDevEnvironments, { persist: true });
+
 /**
  * Get all development tools
  */
@@ -167,7 +219,7 @@ async function getDevTools(req, res) {
 
         return {
             success: true,
-            data: tools,
+            data: decorateToolCollection(tools),
             message: 'Development tools retrieved successfully'
         };
     } catch (error) {
@@ -198,7 +250,7 @@ async function getDevTool(req, res) {
 
         return {
             success: true,
-            data: tool,
+            data: attachTheme(tool),
             message: 'Development tool retrieved successfully'
         };
     } catch (error) {
@@ -264,6 +316,18 @@ async function launchDevTool(req, res) {
         if (toolIndex !== -1) {
             mockDevTools[toolIndex].usage.totalSessions++;
             mockDevTools[toolIndex].lastUsed = new Date().toISOString();
+            persistToolsSnapshot();
+        }
+
+        devopsSettings.set('lastLaunch', {
+            toolId: id,
+            sessionId,
+            launchedAt: new Date().toISOString(),
+            theme: getActiveThemePayload()
+        });
+
+        if (config && Object.keys(config).length > 0) {
+            toolPreferences.merge(id, config, { persist: true });
         }
 
         logger.info(`Launched development tool: ${tool.name} (Session: ${sessionId})`);
@@ -317,10 +381,18 @@ async function stopDevTool(req, res) {
             mockDevTools[toolIndex].usage.totalTime += sessionTime;
             mockDevTools[toolIndex].usage.averageSessionTime = 
                 Math.floor(mockDevTools[toolIndex].usage.totalTime / mockDevTools[toolIndex].usage.totalSessions);
+            persistToolsSnapshot();
         }
 
         // Remove active session
         activeSessions.delete(sessionId);
+
+        devopsSettings.set('lastStop', {
+            toolId: session.toolId,
+            sessionId,
+            stoppedAt: new Date().toISOString(),
+            duration: sessionTime
+        });
 
         logger.info(`Stopped development tool session: ${sessionId} (Duration: ${sessionTime}s)`);
 
@@ -352,6 +424,7 @@ async function getDevToolStats(req, res) {
         );
 
         const popularTools = mockDevTools
+            .slice()
             .sort((a, b) => b.usage.totalSessions - a.usage.totalSessions)
             .slice(0, 5)
             .map(tool => ({

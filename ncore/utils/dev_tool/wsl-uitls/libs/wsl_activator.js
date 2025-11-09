@@ -15,7 +15,8 @@ const fs = require('fs');
 const path = require('path');
 const { pipeExecCmd, execPowerShell, execCmd } = require('#@commander');
 const logger = require('#@/ncore/basic/libs/logger.js');
-const userSettings = require('#@/ncore/global_vars/libs/user_settings.js');
+const { getSettingsCenter } = require('#@global_vars');
+const settingsScope = getSettingsCenter().scope('wsl');
 
 class WSLActivator {
     constructor() {
@@ -29,12 +30,12 @@ class WSLActivator {
 
         // Define settings keys for tracking command execution
         this.SETTINGS_KEYS = {
-            ADMIN_CHECK: 'wsl.admin_privileges_confirmed',
-            WSL_ENABLED: 'wsl.features_enabled',
-            HYPERV_ENABLED: 'wsl.hyperv_enabled',
-            WSL_UPDATE_INSTALLED: 'wsl.update_installed',
-            UBUNTU_INSTALLED: 'wsl.ubuntu_installed',
-            WSL2_DEFAULT: 'wsl.wsl2_default_set'
+            ADMIN_CHECK: 'admin_privileges_confirmed',
+            WSL_ENABLED: 'features_enabled',
+            HYPERV_ENABLED: 'hyperv_enabled',
+            WSL_UPDATE_INSTALLED: 'update_installed',
+            UBUNTU_INSTALLED: 'ubuntu_installed',
+            WSL2_DEFAULT: 'wsl2_default_set'
         };
     }
 
@@ -47,7 +48,7 @@ class WSLActivator {
         }
         
         // Then check user settings
-        if (userSettings.hasKey(this.SETTINGS_KEYS.ADMIN_CHECK)) {
+        if (settingsScope.get(this.SETTINGS_KEYS.ADMIN_CHECK)) {
             logger.info('Admin privileges were previously confirmed');
             // Set environment variable for future checks in this session
             process.env.WSL_ADMIN_PRIVILEGES = 'true';
@@ -58,7 +59,7 @@ class WSLActivator {
             execCmd('fsutil dirty query %systemdrive%');
             // Cache the successful result
             process.env.WSL_ADMIN_PRIVILEGES = 'true';
-            userSettings.setKey(this.SETTINGS_KEYS.ADMIN_CHECK);
+            settingsScope.set(this.SETTINGS_KEYS.ADMIN_CHECK, true);
             return true;
         } catch (error) {
             process.env.WSL_ADMIN_PRIVILEGES = 'false';
@@ -108,7 +109,7 @@ class WSLActivator {
     }
 
     enableWSL2() {
-        if (userSettings.hasKey(this.SETTINGS_KEYS.WSL_ENABLED)) {
+        if (settingsScope.get(this.SETTINGS_KEYS.WSL_ENABLED)) {
             logger.info('WSL2 features were previously enabled. Skipping...');
             return true;
         }
@@ -117,7 +118,7 @@ class WSLActivator {
             logger.warn('Enabling WSL2...');
             execCmd(`${this.dismPath} /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart`);
             execCmd(`${this.dismPath} /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`);
-            userSettings.setKey(this.SETTINGS_KEYS.WSL_ENABLED);
+            settingsScope.set(this.SETTINGS_KEYS.WSL_ENABLED, true);
             logger.success('WSL2 features enabled successfully.');
             return true;
         } catch (error) {
@@ -127,7 +128,7 @@ class WSLActivator {
     }
 
     enableHyperV() {
-        if (userSettings.hasKey(this.SETTINGS_KEYS.HYPERV_ENABLED)) {
+        if (settingsScope.get(this.SETTINGS_KEYS.HYPERV_ENABLED)) {
             logger.info('Hyper-V was previously enabled. Skipping...');
             return true;
         }
@@ -135,7 +136,7 @@ class WSLActivator {
         try {
             logger.warn('Enabling Hyper-V...');
             execCmd(`${this.dismPath} /online /enable-feature /featurename:Microsoft-Hyper-V-All /all /norestart`);
-            userSettings.setKey(this.SETTINGS_KEYS.HYPERV_ENABLED);
+            settingsScope.set(this.SETTINGS_KEYS.HYPERV_ENABLED, true);
             logger.success('Hyper-V enabled successfully.');
             return true;
         } catch (error) {
@@ -145,7 +146,7 @@ class WSLActivator {
     }
 
     installWSL2Update() {
-        if (userSettings.hasKey(this.SETTINGS_KEYS.WSL_UPDATE_INSTALLED)) {
+        if (settingsScope.get(this.SETTINGS_KEYS.WSL_UPDATE_INSTALLED)) {
             logger.info('WSL2 update was previously installed. Skipping...');
             return true;
         }
@@ -161,7 +162,7 @@ class WSLActivator {
 
             logger.warn('Installing WSL2 update package...');
             execCmd(`${this.msiexecPath} /i "${downloadPath}" /quiet /norestart`);
-            userSettings.setKey(this.SETTINGS_KEYS.WSL_UPDATE_INSTALLED);
+            settingsScope.set(this.SETTINGS_KEYS.WSL_UPDATE_INSTALLED, true);
             logger.success('WSL2 update package installed successfully.');
             return true;
         } catch (error) {
@@ -171,7 +172,7 @@ class WSLActivator {
     }
 
     installUbuntu() {
-        if (userSettings.hasKey(this.SETTINGS_KEYS.UBUNTU_INSTALLED) || this.isUbuntuInstalled()) {
+        if (settingsScope.get(this.SETTINGS_KEYS.UBUNTU_INSTALLED) || this.isUbuntuInstalled()) {
             logger.info('Ubuntu was previously installed. Skipping...');
             return true;
         }
@@ -182,7 +183,7 @@ class WSLActivator {
                 Start-Process winget -ArgumentList "winget install --Id '9NZ3KLHXDJP5' --source msstore --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow
             `;
             execPowerShell(script);
-            userSettings.setKey(this.SETTINGS_KEYS.UBUNTU_INSTALLED);
+            settingsScope.set(this.SETTINGS_KEYS.UBUNTU_INSTALLED, true);
             logger.success('Ubuntu installation completed successfully.');
             return true;
         } catch (error) {
@@ -192,7 +193,7 @@ class WSLActivator {
     }
 
     setDefaultWSL2() {
-        if (userSettings.hasKey(this.SETTINGS_KEYS.WSL2_DEFAULT)) {
+        if (settingsScope.get(this.SETTINGS_KEYS.WSL2_DEFAULT)) {
             logger.info('WSL2 was previously set as default. Skipping...');
             return true;
         }
@@ -200,7 +201,7 @@ class WSLActivator {
         try {
             logger.warn('Setting WSL2 as default version...');
             execCmd('wsl --set-default-version 2');
-            userSettings.setKey(this.SETTINGS_KEYS.WSL2_DEFAULT);
+            settingsScope.set(this.SETTINGS_KEYS.WSL2_DEFAULT, true);
             logger.success('WSL2 set as default version successfully.');
             return true;
         } catch (error) {

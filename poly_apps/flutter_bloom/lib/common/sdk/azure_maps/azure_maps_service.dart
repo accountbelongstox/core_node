@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'azure_maps_config.dart';
 
 enum AzureMapTileset {

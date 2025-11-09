@@ -42,10 +42,24 @@ class UserModelAppCodemart extends ChangeNotifier {
     notifyListeners();
   }
 
-  void login(UserProfile profile, String token) {
-    _userProfile = profile;
+  void login(
+    Map<String, dynamic> userData,
+    String token,
+    Map<String, dynamic>? developerData,
+    Map<String, dynamic>? clientData,
+  ) {
+    _userProfile = UserProfile.fromJson(userData);
     _token = token;
     _isLoggedIn = true;
+
+    if (developerData != null) {
+      _developerProfile = DeveloperProfile.fromJson(developerData);
+    }
+
+    if (clientData != null) {
+      _clientProfile = ClientProfile.fromJson(clientData);
+    }
+
     notifyListeners();
   }
 

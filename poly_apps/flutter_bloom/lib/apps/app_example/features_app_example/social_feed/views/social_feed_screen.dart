@@ -12,11 +12,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/social_feed/model/post_model.dart';
-import 'package:qyflutter/apps/app_example/features_app_example/social_feed/widget/post_card.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/social_feed/widget/feed_header.dart';
 
 class SocialFeedScreen extends StatefulWidget {
-  const SocialFeedScreen({Key? key}) : super(key: key);
+  const SocialFeedScreen({super.key});
 
   @override
   State<SocialFeedScreen> createState() => _SocialFeedScreenState();

@@ -1,5 +1,5 @@
 /// Phone login button widget
-library phone_login_button;
+library;
 
 import 'package:flutter/material.dart';
 

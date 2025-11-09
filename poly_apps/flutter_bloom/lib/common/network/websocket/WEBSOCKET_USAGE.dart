@@ -13,6 +13,8 @@
 /// WebSocket Usage Examples
 /// 
 /// This file demonstrates how to use the universal WebSocket library
+library;
+
 
 import 'websocket_client.dart';
 import 'websocket_config.dart';
@@ -166,8 +168,7 @@ void exampleWithHeartbeat() async {
 
 /// Example 7: App-Specific WebSocket Client (like AChat)
 class MyAppWebSocketClient extends BaseWebSocketClient {
-  MyAppWebSocketClient({required WebSocketConfig config})
-      : super(config: config);
+  MyAppWebSocketClient({required super.config});
 
   /// Factory: Create with URL and credentials
   factory MyAppWebSocketClient.create({

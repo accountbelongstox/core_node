@@ -1,5 +1,5 @@
 /// Beautiful gradient button widget
-library gradient_button;
+library;
 
 import 'package:flutter/material.dart';
 

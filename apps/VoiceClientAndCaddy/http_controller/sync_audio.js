@@ -12,7 +12,8 @@
 
 const { APP_TMP_DIR, APP_DATA_DIR, APP_DATA_CACHE_DIR } = require('#@global_dir');
 const logger = require('#@logger');
-const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/foundation/express_utils/libs/UploadTools.js');
+const rpc = require('#@ncore/utils/rpc');
+const UploadTools = rpc.getExpressServer().uploadTools;
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, 
     IS_SERVER 
 } = require('../provider/baseDir/BaseDirProvider.js');
@@ -23,7 +24,7 @@ let submissionsCache = null;
 
 
 async function getDiffAudioTable(req, res) {
-    const { fields } = await wrapFileDetails(req);
+    const { fields } = await UploadTools.wrapFileDetails(req);
     // 
     if (!fields.ClientAudioMeter) {
         return res.status(400).json({

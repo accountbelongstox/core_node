@@ -6,9 +6,9 @@ class HomeWaterfall extends StatelessWidget {
   final List<SightModel> sights;
 
   const HomeWaterfall({
-    Key? key,
+    super.key,
     required this.sights,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

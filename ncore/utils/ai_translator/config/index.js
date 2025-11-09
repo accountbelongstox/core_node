@@ -12,6 +12,7 @@
 
 const path = require('path');
 const { DATA_DIR } = require('#@global_dir');
+const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
 
 const defaultConfig = {
     // Database and storage paths
@@ -79,7 +80,7 @@ const defaultConfig = {
 
     // OpenRouter API settings
     openRouterConfig: {
-        apiKey: process.env.OPENROUTER_API_KEY,
+        apiKey: getSecretOrEnv('OPENROUTER_API_KEY', 'OPENROUTER_API_KEY'),
         baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
         referrer: 'https://ncore-translator.local/',
         appName: 'NCore AI Translator',

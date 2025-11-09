@@ -1,7 +1,9 @@
 /// Bank App Initializer
 /// Simplified initialization helper for the bank application
+library;
 
 import 'package:flutter/foundation.dart';
+import 'package:qyflutter/apps/app_bank/models_app_bank/bank_user_model.dart';
 import '../providers_app_bank/bank_user_provider.dart';
 import '../services_app_bank/bank_network_service.dart';
 import '../managers_app_bank/app_lifecycle_manager.dart';
@@ -139,7 +141,7 @@ class BankAppInitializer {
   }
 
   /// Get current user
-  get currentUser {
+  BankUserModel? get currentUser {
     return _userProvider?.user;
   }
 

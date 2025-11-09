@@ -1,0 +1,787 @@
+{
+  "file_info": {
+    "filename": "display_mode.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\display_mode.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\display_mode.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:01\n个\n夜间或护眼模式\n跟随系统\n开启后，将跟随系统打开或关闭夜间模式\n夜间模式\n护眼模式\n普通模式\n◎",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 9,
+    "processing_time": 3.3340868949890137,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:01",
+        "bbox": {
+          "left": 0,
+          "top": 47.0,
+          "width": 0,
+          "height": 67.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 72.0,
+              "top": 47.0,
+              "width": 65.0,
+              "height": 66.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 136.0,
+              "top": 48.0,
+              "width": 25.0,
+              "height": 64.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "01",
+            "confidence": 0,
+            "bbox": {
+              "left": 160.0,
+              "top": 49.0,
+              "width": 50.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "个",
+        "bbox": {
+          "left": 0,
+          "top": 190.0,
+          "width": 0,
+          "height": 97.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "个",
+            "confidence": 0,
+            "bbox": {
+              "left": 61.0,
+              "top": 190.0,
+              "width": 85.0,
+              "height": 97.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "夜间或护眼模式",
+        "bbox": {
+          "left": 0,
+          "top": 206.0,
+          "width": 0,
+          "height": 77.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "夜间",
+            "confidence": 0,
+            "bbox": {
+              "left": 250.0,
+              "top": 206.0,
+              "width": 144.0,
+              "height": 77.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "或",
+            "confidence": 0,
+            "bbox": {
+              "left": 394.0,
+              "top": 206.0,
+              "width": 77.0,
+              "height": 77.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "护",
+            "confidence": 0,
+            "bbox": {
+              "left": 471.0,
+              "top": 206.0,
+              "width": 67.0,
+              "height": 77.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "眼",
+            "confidence": 0,
+            "bbox": {
+              "left": 539.0,
+              "top": 206.0,
+              "width": 67.0,
+              "height": 77.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 606.0,
+              "top": 206.0,
+              "width": 133.0,
+              "height": 77.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "跟随系统",
+        "bbox": {
+          "left": 0,
+          "top": 460.0,
+          "width": 0,
+          "height": 71.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "跟随",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 461.0,
+              "width": 120.0,
+              "height": 70.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "系统",
+            "confidence": 0,
+            "bbox": {
+              "left": 171.0,
+              "top": 460.0,
+              "width": 112.0,
+              "height": 70.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "开启后，将跟随系统打开或关闭夜间模式",
+        "bbox": {
+          "left": 0,
+          "top": 622.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "开启",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 622.0,
+              "width": 92.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "后",
+            "confidence": 0,
+            "bbox": {
+              "left": 145.0,
+              "top": 622.0,
+              "width": 43.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "，",
+            "confidence": 0,
+            "bbox": {
+              "left": 187.0,
+              "top": 622.0,
+              "width": 36.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "将",
+            "confidence": 0,
+            "bbox": {
+              "left": 223.0,
+              "top": 622.0,
+              "width": 43.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "跟随",
+            "confidence": 0,
+            "bbox": {
+              "left": 266.0,
+              "top": 622.0,
+              "width": 86.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "系统",
+            "confidence": 0,
+            "bbox": {
+              "left": 351.0,
+              "top": 622.0,
+              "width": 85.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "打开",
+            "confidence": 0,
+            "bbox": {
+              "left": 437.0,
+              "top": 622.0,
+              "width": 86.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "或",
+            "confidence": 0,
+            "bbox": {
+              "left": 522.0,
+              "top": 622.0,
+              "width": 43.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "关闭",
+            "confidence": 0,
+            "bbox": {
+              "left": 565.0,
+              "top": 622.0,
+              "width": 86.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "夜间",
+            "confidence": 0,
+            "bbox": {
+              "left": 651.0,
+              "top": 622.0,
+              "width": 78.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 11,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 729.0,
+              "top": 622.0,
+              "width": 87.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "夜间模式",
+        "bbox": {
+          "left": 0,
+          "top": 800.0,
+          "width": 0,
+          "height": 65.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "夜间",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 800.0,
+              "width": 121.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 174.0,
+              "top": 800.0,
+              "width": 109.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "护眼模式",
+        "bbox": {
+          "left": 0,
+          "top": 997.0,
+          "width": 0,
+          "height": 66.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "护",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 998.0,
+              "width": 64.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "眼",
+            "confidence": 0,
+            "bbox": {
+              "left": 116.0,
+              "top": 998.0,
+              "width": 56.0,
+              "height": 64.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 172.0,
+              "top": 997.0,
+              "width": 111.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "普通模式",
+        "bbox": {
+          "left": 0,
+          "top": 1191.0,
+          "width": 0,
+          "height": 70.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "普通",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 1192.0,
+              "width": 119.0,
+              "height": 70.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 171.0,
+              "top": 1191.0,
+              "width": 112.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "◎",
+        "bbox": {
+          "left": 0,
+          "top": 1180.0,
+          "width": 0,
+          "height": 85.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "◎",
+            "confidence": 0,
+            "bbox": {
+              "left": 1107.0,
+              "top": 1180.0,
+              "width": 85.0,
+              "height": 85.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 72.0,
+          "top": 47.0,
+          "width": 65.0,
+          "height": 66.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 136.0,
+          "top": 48.0,
+          "width": 25.0,
+          "height": 64.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "01",
+        "confidence": 0,
+        "bbox": {
+          "left": 160.0,
+          "top": 49.0,
+          "width": 50.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "个",
+        "confidence": 0,
+        "bbox": {
+          "left": 61.0,
+          "top": 190.0,
+          "width": 85.0,
+          "height": 97.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "夜间",
+        "confidence": 0,
+        "bbox": {
+          "left": 250.0,
+          "top": 206.0,
+          "width": 144.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "或",
+        "confidence": 0,
+        "bbox": {
+          "left": 394.0,
+          "top": 206.0,
+          "width": 77.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "护",
+        "confidence": 0,
+        "bbox": {
+          "left": 471.0,
+          "top": 206.0,
+          "width": 67.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "眼",
+        "confidence": 0,
+        "bbox": {
+          "left": 539.0,
+          "top": 206.0,
+          "width": 67.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 606.0,
+          "top": 206.0,
+          "width": 133.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "跟随",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 461.0,
+          "width": 120.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "系统",
+        "confidence": 0,
+        "bbox": {
+          "left": 171.0,
+          "top": 460.0,
+          "width": 112.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "开启",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 622.0,
+          "width": 92.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "后",
+        "confidence": 0,
+        "bbox": {
+          "left": 145.0,
+          "top": 622.0,
+          "width": 43.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "，",
+        "confidence": 0,
+        "bbox": {
+          "left": 187.0,
+          "top": 622.0,
+          "width": 36.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "将",
+        "confidence": 0,
+        "bbox": {
+          "left": 223.0,
+          "top": 622.0,
+          "width": 43.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "跟随",
+        "confidence": 0,
+        "bbox": {
+          "left": 266.0,
+          "top": 622.0,
+          "width": 86.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "系统",
+        "confidence": 0,
+        "bbox": {
+          "left": 351.0,
+          "top": 622.0,
+          "width": 85.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "打开",
+        "confidence": 0,
+        "bbox": {
+          "left": 437.0,
+          "top": 622.0,
+          "width": 86.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "或",
+        "confidence": 0,
+        "bbox": {
+          "left": 522.0,
+          "top": 622.0,
+          "width": 43.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "关闭",
+        "confidence": 0,
+        "bbox": {
+          "left": 565.0,
+          "top": 622.0,
+          "width": 86.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "夜间",
+        "confidence": 0,
+        "bbox": {
+          "left": 651.0,
+          "top": 622.0,
+          "width": 78.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 11,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 729.0,
+          "top": 622.0,
+          "width": 87.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "夜间",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 800.0,
+          "width": 121.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 174.0,
+          "top": 800.0,
+          "width": 109.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "护",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 998.0,
+          "width": 64.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "眼",
+        "confidence": 0,
+        "bbox": {
+          "left": 116.0,
+          "top": 998.0,
+          "width": 56.0,
+          "height": 64.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 172.0,
+          "top": 997.0,
+          "width": 111.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "普通",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 1192.0,
+          "width": 119.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 171.0,
+          "top": 1191.0,
+          "width": 112.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "◎",
+        "confidence": 0,
+        "bbox": {
+          "left": 1107.0,
+          "top": 1180.0,
+          "width": 85.0,
+          "height": 85.0
+        }
+      }
+    ]
+  }
+}

@@ -52,10 +52,15 @@ class WebSocketManager:
 
         Args:
             key: Grouping key (e.g., device serial)
-            websocket: WebSocket connection
+            websocket: WebSocket connection (must be already accepted)
             metadata: Connection metadata (optional)
+
+        Note:
+            WebSocket must be accepted before calling this method.
+            This manager does not call websocket.accept() to avoid double acceptance.
         """
-        await websocket.accept()
+        # WebSocket should already be accepted by the route handler
+        # DO NOT call websocket.accept() here to avoid double acceptance
 
         async with self._lock:
             if key not in self._connections:

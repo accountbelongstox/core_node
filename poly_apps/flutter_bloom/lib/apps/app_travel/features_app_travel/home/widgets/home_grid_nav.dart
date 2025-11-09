@@ -18,10 +18,10 @@ class HomeGridNav extends StatelessWidget {
   final bool isFirst;
 
   const HomeGridNav({
-    Key? key,
+    super.key,
     required this.gridNav,
     this.isFirst = false,
-  }) : super(key: key);
+  });
 
   String _getBackgroundImage(String title, int index) {
     const Map<String, List<String>> imageMap = {
@@ -85,42 +85,15 @@ class HomeGridNav extends StatelessWidget {
       if (isFirst) {
         background = Positioned(
           right: 0,
-          bottom: 0,
-          child: Image.asset(
-            imagePath,
-            width: 146.0,
-            fit: BoxFit.contain,
-            alignment: Alignment.bottomRight,
-          ),
-        );
-      } else if (index == 1 && !isSpecialThird) {
-        background = Positioned(
-          left: 0,
-          bottom: 0,
-          child: Image.asset(
-            imagePath,
-            width: 74.0,
-            fit: BoxFit.contain,
-            alignment: Alignment.bottomLeft,
-          ),
-        );
-      } else if (isSpecialThird) {
-        background = Positioned.fill(
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [Color(0xFFFFBC49), Color(0xFFFFD252)],
-              ),
-            ),
-            child: Align(
-              alignment: Alignment.bottomRight,
-              child: Image.asset(
-                imagePath,
-                width: 173.0,
-                fit: BoxFit.contain,
-              ),
+          top: 0,
+          child: Transform.scale(
+            scale: 0.5,
+            alignment: Alignment.topRight,
+            child: Image.asset(
+              imagePath,
+              width: 146.0,
+              fit: BoxFit.contain,
+              alignment: Alignment.topRight,
             ),
           ),
         );
@@ -143,7 +116,6 @@ class HomeGridNav extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              background,
               Container(
                 width: double.infinity,
                 height: double.infinity,
@@ -153,6 +125,7 @@ class HomeGridNav extends StatelessWidget {
                     : EdgeInsets.zero,
                 child: item.hasSubtitle
                     ? Column(
+                        mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: isFirst ? CrossAxisAlignment.start : CrossAxisAlignment.center,
                         children: [
@@ -160,20 +133,20 @@ class HomeGridNav extends StatelessWidget {
                             item.title,
                             style: TextStyle(
                               color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                              fontSize: 16.0,
+                              fontSize: isFirst ? 20.0 : 16.0,
                               fontWeight: FontWeight.bold,
-                              height: 1.2,
+                              height: 1.0,
                             ),
                             textAlign: isFirst ? TextAlign.left : TextAlign.center,
                           ),
-                          const SizedBox(height: 2.0),
+                          const SizedBox(height: 4.0),
                           Text(
                             item.subtitle!,
                             style: TextStyle(
                               color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                              fontSize: 11.0,
-                              fontWeight: FontWeight.normal,
-                              height: 1.2,
+                              fontSize: isFirst ? 11.0 : 11.0,
+                              fontWeight: FontWeight.w400,
+                              height: 1.0,
                             ),
                             textAlign: isFirst ? TextAlign.left : TextAlign.center,
                           ),
@@ -183,12 +156,13 @@ class HomeGridNav extends StatelessWidget {
                         item.title,
                         style: TextStyle(
                           color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.normal,
+                          fontSize: isFirst ? 20.0 : 16.0,
+                          fontWeight: isFirst ? FontWeight.bold : FontWeight.normal,
                         ),
                         textAlign: isFirst ? TextAlign.left : TextAlign.center,
                       ),
               ),
+              background,
               if (item.hasTag)
                 Positioned(
                   top: 0,

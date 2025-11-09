@@ -1,157 +1,123 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../models_app_travel/recommend_item_model.dart';
-import '../../../widgets/travel_icons.dart';
+import '../../../resources_app_travel/assets_icons_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
 
 class HomeRecommend extends StatelessWidget {
   final List<List<RecommendItemModel>> recommend;
 
   const HomeRecommend({
-    Key? key,
+    super.key,
     required this.recommend,
-  }) : super(key: key);
+  });
 
-  final List<Map<String, String>> recommendCards = const [
-    {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_1.png',
-      'title': '天天神券',
-      'subtitle': '签到领券',
-    },
-    {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_2.png',
-      'title': '低价机票',
-      'subtitle': '30天低价',
-    },
-    {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_3.png',
-      'title': '1折机票',
-      'subtitle': '200元起',
-    },
-    {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_4.png',
-      'title': '酒店囤货',
-      'subtitle': '69元秒底',
-    },
-    {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_5.png',
-      'title': 'AI行程',
-      'subtitle': '智能规划',
-    },
-  ];
+  List<Map<String, dynamic>> _getRecommendCards(BuildContext context) {
+    return [
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon1,
+        'titleKey': TravelLocalizationKeys.travelDailyCoupon,
+        'subtitleKey': TravelLocalizationKeys.travelSignInCoupon,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon2,
+        'titleKey': TravelLocalizationKeys.travelCheapFlights,
+        'subtitleKey': TravelLocalizationKeys.travel30DayLowPrice,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon3,
+        'titleKey': TravelLocalizationKeys.travelDiscountFlight,
+        'subtitleKey': TravelLocalizationKeys.travelStartingPrice,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon4,
+        'titleKey': TravelLocalizationKeys.travelHotelStock,
+        'subtitleKey': TravelLocalizationKeys.travelFlashDeal,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon5,
+        'titleKey': TravelLocalizationKeys.travelAIItinerary,
+        'subtitleKey': TravelLocalizationKeys.travelSmartPlanning,
+      },
+    ];
+  }
 
-  Widget _buildRecommendCard(Map<String, String> card) {
-    return Container(
-      width: 100.0,
-      margin: const EdgeInsets.only(right: 12.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget _buildRecommendCard(BuildContext context, Map<String, dynamic> card) {
+    return Column(
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Container(
-            width: 100.0,
-            height: 100.0,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4.0,
-                  offset: const Offset(0, 2.0),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 0.0),
+            child: AspectRatio(
+              aspectRatio: 1.0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12.0),
+                child: Image.asset(
+                  card['icon']!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFFF5F5F5),
+                      child: const Icon(
+                        Icons.image,
+                        color: Colors.grey,
+                        size: 40.0,
+                      ),
+                    );
+                  },
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.asset(
-                card['icon']!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFF5F5F5),
-                    child: const Icon(
-                      Icons.image,
-                      color: Colors.grey,
-                      size: 40.0,
-                    ),
-                  );
-                },
               ),
             ),
           ),
-          const SizedBox(height: 6.0),
-          Text(
-            card['title']!,
-            style: const TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 2.0),
-          Text(
-            card['subtitle']!,
-            style: const TextStyle(
-              fontSize: 11.0,
-              color: Color(0xFF999999),
-            ),
-            textAlign: TextAlign.center,
-          ),
         ],
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final recommendCards = _getRecommendCards(context);
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8.0),
-            child: Image.asset(
-              'assets/apps/app_travel/images/recommend_banner.png',
-              width: double.infinity,
-              height: 120.0,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: double.infinity,
-                  height: 120.0,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF4E6),
-                    borderRadius: BorderRadius.circular(8.0),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFE5CC), Color(0xFFFFF4E6)],
-                    ),
+      margin: const EdgeInsets.symmetric(horizontal: 0.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12.0),
+        child: Container(
+          height: 216.0,
+          child: Stack(
+            children: [
+              Positioned(
+                left: -80,
+                top: -216.0 * 0.1,
+                bottom: -216.0 * 0.1,
+                right: 0,
+                child: Transform.scale(
+                  scale: 1.0,
+                  child: Image.asset(
+                    AssetsIconsAppTravel.travelRecommendBg1,
+                    fit: BoxFit.cover,
                   ),
-                  child: const Center(
-                    child: Text(
-                      '新用户三单礼',
-                      style: TextStyle(
-                        fontSize: 24.0,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFFF6600),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Row(
+                  children: [
+                    Expanded(child: _buildRecommendCard(context, recommendCards[0])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[1])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[2])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[3])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[4])),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12.0),
-          SizedBox(
-            height: 140.0,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              itemCount: recommendCards.length,
-              itemBuilder: (context, index) {
-                return _buildRecommendCard(recommendCards[index]);
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

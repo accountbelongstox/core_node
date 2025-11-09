@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 
 class FollowerCardWidget extends StatelessWidget {
   final String followers;

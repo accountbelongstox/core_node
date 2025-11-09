@@ -1,5 +1,5 @@
 /// WeChat login button widget
-library wechat_login_button;
+library;
 
 import 'package:flutter/material.dart';
 

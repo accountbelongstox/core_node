@@ -17,7 +17,7 @@ import 'package:qyflutter/apps/app_example/router_app_example/routes_provider_ap
 // AI: Claude Code - Replaced app-specific HomeBottomNavigationBar with common EnhancedBottomNavigation
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();

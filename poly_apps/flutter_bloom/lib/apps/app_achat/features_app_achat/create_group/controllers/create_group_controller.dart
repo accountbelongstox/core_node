@@ -15,7 +15,7 @@ import 'package:qyflutter/apps/app_achat/features_app_achat/create_group/models/
 
 class CreateGroupController extends ChangeNotifier {
   List<ContactModel> _contacts = [];
-  List<ContactModel> _selectedContacts = [];
+  final List<ContactModel> _selectedContacts = [];
   List<ContactModel> _filteredContacts = [];
   String _searchQuery = '';
   bool _isLoading = false;

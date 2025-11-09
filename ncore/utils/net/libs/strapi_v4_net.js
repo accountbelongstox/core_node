@@ -16,6 +16,7 @@ const path = require('path');
     const Base = require('#@base');
     const { getEnvValue } = require('#@baseTool');
     const { env } = require('#@global_vars');
+    const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
 
     const __filename = __filename;
     const __dirname = path.dirname(__filename);
@@ -26,7 +27,7 @@ const path = require('path');
             process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
             if (!cunstom_env) cunstom_env = env;
             this.apiUrl = getEnvValue(cunstom_env, 'STRAPI_URL', 'https://localhost:1337');
-            this.publicToken = getEnvValue(cunstom_env, 'STRAPI_TOKEN', null);
+            this.publicToken = getSecretOrEnv('STRAPI_TOKEN', 'STRAPI_TOKEN', getEnvValue(cunstom_env, 'STRAPI_TOKEN', null));
             console.log(`apiUrl`, this.apiUrl);
             console.log(`publicToken`, this.publicToken);
             this.privateToken = this.loadTokenFromCache() || null;

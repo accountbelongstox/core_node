@@ -209,11 +209,37 @@ if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {{
         Write-Host "[CLEANUP]   Removed: $gradleDaemonDir" -ForegroundColor Gray
     }}
 
-    # Clean Flutter build directories using Python-provided paths
-    Write-Host "[CLEANUP] Cleaning Flutter build directories..." -ForegroundColor Yellow
-    flutter clean
-    {chr(10).join([f'if (Test-Path "{path}") {{ Remove-Item -Path "{path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: {path}" -ForegroundColor Gray }}' for path in comprehensive_paths['flutter_paths']])}
-    {chr(10).join([f'if (Test-Path "android\\{path}") {{ Remove-Item -Path "android\\{path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: android\\{path}" -ForegroundColor Gray }}' for path in comprehensive_paths['android_paths']])}
+    # Check if pubspec cache optimization is enabled
+    $skipPubGetFlag = ".skip_pub_get"
+    $pubCacheOptimized = Test-Path $skipPubGetFlag
+
+    if ($pubCacheOptimized) {{
+        Write-Host "[CLEANUP] Pubspec cache optimization detected - preserving .pub-cache" -ForegroundColor Green
+        Write-Host "[CLEANUP] Using selective cleanup instead of flutter clean" -ForegroundColor Yellow
+
+        # Manual selective cleanup (excluding .pub-cache)
+        $cleanupPaths = @("build", ".dart_tool")
+        foreach ($path in $cleanupPaths) {{
+            if (Test-Path $path) {{
+                Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "[CLEANUP]   Removed: $path" -ForegroundColor Gray
+            }}
+        }}
+
+        # Clean Android build directories
+        $androidCleanupPaths = @("android\\.gradle", "android\\build")
+        foreach ($path in $androidCleanupPaths) {{
+            if (Test-Path $path) {{
+                Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "[CLEANUP]   Removed: $path" -ForegroundColor Gray
+            }}
+        }}
+    }} else {{
+        Write-Host "[CLEANUP] Cleaning Flutter build directories..." -ForegroundColor Yellow
+        flutter clean
+        {chr(10).join([f'if (Test-Path "{path}") {{ Remove-Item -Path "{path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: {path}" -ForegroundColor Gray }}' for path in comprehensive_paths['flutter_paths']])}
+        {chr(10).join([f'if (Test-Path "android\\{path}") {{ Remove-Item -Path "android\\{path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: android\\{path}" -ForegroundColor Gray }}' for path in comprehensive_paths['android_paths']])}
+    }}
 
     # Clean additional cache directories
     Write-Host "[CLEANUP] Cleaning additional cache directories..." -ForegroundColor Yellow
@@ -295,10 +321,37 @@ try {{
     Write-Host "Could not stop Gradle daemons" -ForegroundColor Yellow
 }}
 
-# Aggressive cleanup using Python-provided paths
-flutter clean
-{chr(10).join([f'Remove-Item -Path "{path}" -Recurse -Force -ErrorAction SilentlyContinue' for path in retry_paths['flutter_paths']])}
-{chr(10).join([f'Remove-Item -Path "android\\{path}" -Recurse -Force -ErrorAction SilentlyContinue' for path in retry_paths['android_paths']])}
+# Check if pubspec cache optimization is enabled
+$skipPubGetFlag = ".skip_pub_get"
+$pubCacheOptimized = Test-Path $skipPubGetFlag
+
+if ($pubCacheOptimized) {{
+    Write-Host "[RETRY] Pubspec cache optimization detected - preserving .pub-cache" -ForegroundColor Green
+    Write-Host "[RETRY] Using selective cleanup" -ForegroundColor Yellow
+
+    # Manual selective cleanup (excluding .pub-cache)
+    $cleanupPaths = @("build", ".dart_tool")
+    foreach ($path in $cleanupPaths) {{
+        if (Test-Path $path) {{
+            Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "[RETRY]   Removed: $path" -ForegroundColor Gray
+        }}
+    }}
+
+    # Clean Android build directories
+    $androidCleanupPaths = @("android\\.gradle", "android\\build")
+    foreach ($path in $androidCleanupPaths) {{
+        if (Test-Path $path) {{
+            Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "[RETRY]   Removed: $path" -ForegroundColor Gray
+        }}
+    }}
+}} else {{
+    # Aggressive cleanup using Python-provided paths
+    flutter clean
+    {chr(10).join([f'Remove-Item -Path "{path}" -Recurse -Force -ErrorAction SilentlyContinue' for path in retry_paths['flutter_paths']])}
+    {chr(10).join([f'Remove-Item -Path "android\\{path}" -Recurse -Force -ErrorAction SilentlyContinue' for path in retry_paths['android_paths']])}
+}}
 
 # Clean Gradle cache using dynamic paths
 $gradleCacheDir = Join-Path $env:USERPROFILE ".gradle\\caches"
@@ -316,6 +369,26 @@ Write-Host "[RETRY] Additional cleanup completed, retrying build..." -Foreground
 {self.generate_powershell_helpers()}
 
 Write-Host "[BUILD] Starting Flutter build process..." -ForegroundColor Yellow
+
+# ================================================================
+# PUBSPEC CACHE OPTIMIZATION CHECK
+# ================================================================
+$skipPubGetFlag = ".skip_pub_get"
+$offlineMode = $false
+
+if (Test-Path $skipPubGetFlag) {{
+    Write-Host ""
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "  PUBSPEC CACHE OPTIMIZATION ENABLED" -ForegroundColor Green
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "[INFO] pubspec.yaml unchanged, using cached packages" -ForegroundColor Gray
+    Write-Host "[INFO] Skipping network download, using offline mode" -ForegroundColor Gray
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host ""
+    $offlineMode = $true
+}} else {{
+    Write-Host "[INFO] No cache optimization flag found, will download packages as needed" -ForegroundColor Gray
+}}
 
 # ================================================================
 # STATIC ANALYSIS PHASE (Disabled to avoid duplicate pub get)
@@ -341,7 +414,16 @@ Write-Host ""
 # COMPILATION PHASE (Targets specific entry point)
 # ================================================================
 Write-Host "[BUILD] Proceeding with compilation..." -ForegroundColor Green
-Write-Host "[BUILD] Executing: {flutter_command}" -ForegroundColor Cyan
+
+# Modify flutter command based on offline mode
+$flutterCommand = "{flutter_command}"
+if ($offlineMode) {{
+    # Add --offline flag to use cached packages
+    $flutterCommand = $flutterCommand + " --offline"
+    Write-Host "[BUILD] Using offline mode (cached packages)" -ForegroundColor Green
+}}
+
+Write-Host "[BUILD] Executing: $flutterCommand" -ForegroundColor Cyan
 Write-Host "[BUILD] Starting real-time output..." -ForegroundColor Yellow
 Write-Host "" # Empty line for clarity
 
@@ -354,7 +436,7 @@ try {{
     Start-Transcript -Path $logFile -Force | Out-Null
 
     # Execute command directly (real-time output to console)
-    Invoke-Expression "{flutter_command}"
+    Invoke-Expression $flutterCommand
     $exitCode = $LASTEXITCODE
 
     # Stop transcript
@@ -488,7 +570,20 @@ while ($retryCount -le $maxRetries -and $exitCode -ne 0) {{
             # Run retry cleanup (lighter cleanup for retries)
             try {{
                 Write-Host "[ORCHESTRATOR] Running retry cleanup..." -ForegroundColor Yellow
-                flutter clean
+
+                # Check if pubspec cache optimization is enabled
+                $skipPubGetFlag = ".skip_pub_get"
+                if (Test-Path $skipPubGetFlag) {{
+                    Write-Host "[ORCHESTRATOR] Pubspec cache optimization enabled - using selective cleanup" -ForegroundColor Green
+                    # Only clean build and .dart_tool, preserve .pub-cache
+                    if (Test-Path "build") {{ Remove-Item -Path "build" -Recurse -Force -ErrorAction SilentlyContinue }}
+                    if (Test-Path ".dart_tool") {{ Remove-Item -Path ".dart_tool" -Recurse -Force -ErrorAction SilentlyContinue }}
+                    if (Test-Path "android\\.gradle") {{ Remove-Item -Path "android\\.gradle" -Recurse -Force -ErrorAction SilentlyContinue }}
+                    if (Test-Path "android\\build") {{ Remove-Item -Path "android\\build" -Recurse -Force -ErrorAction SilentlyContinue }}
+                }} else {{
+                    flutter clean
+                }}
+
                 Write-Host "[ORCHESTRATOR] Note: flutter pub get will be called automatically by flutter build" -ForegroundColor Gray
             }} catch {{
                 Write-Host "[ORCHESTRATOR] Retry cleanup error: $_" -ForegroundColor Red

@@ -289,7 +289,7 @@ Future<T?> showActionSheet<T>({
                 Navigator.of(context).pop(action.value);
               },
             );
-          }).toList(),
+          }),
           Divider(height: 1),
           ListTile(
             title: Text(

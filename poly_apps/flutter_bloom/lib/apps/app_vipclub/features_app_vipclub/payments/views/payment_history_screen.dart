@@ -22,7 +22,7 @@ class _VipClubPaymentHistoryScreenState
   List<VipClubPaymentModel> _payments = [];
   bool _isLoading = true;
   String? _error;
-  int _currentPage = 1;
+  final int _currentPage = 1;
   int _totalPayments = 0;
 
   @override

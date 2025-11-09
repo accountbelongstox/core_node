@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SettingsViewAppCodemart extends StatelessWidget {
   const SettingsViewAppCodemart({super.key});
@@ -10,24 +11,24 @@ class SettingsViewAppCodemart extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartSettings)),
+        title: Text(LocalizationKeysAppCodemart.codemartSettings.tr(context)),
       ),
       body: ListView(
         children: [
           _SettingsSection(
-            title: 'Account',
+            title: LocalizationKeysAppCodemart.codemartAccount.tr(context),
             children: [
               ListTile(
                 leading: const Icon(Icons.person),
-                title: const Text('Profile'),
-                subtitle: const Text('Edit your profile information'),
+                title: Text(LocalizationKeysAppCodemart.codemartProfile.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartEditProfileInfo.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToProfile(context),
               ),
               ListTile(
                 leading: const Icon(Icons.account_balance_wallet),
-                title: Text(context.tr(LocalizationKeysAppCodemart.codemartWallet)),
-                subtitle: const Text('Manage payments and transactions'),
+                title: Text(LocalizationKeysAppCodemart.codemartWallet.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartManagePaymentsTransactions.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToWallet(context),
               ),
@@ -35,26 +36,26 @@ class SettingsViewAppCodemart extends StatelessWidget {
           ),
           const Divider(),
           _SettingsSection(
-            title: 'Preferences',
+            title: LocalizationKeysAppCodemart.codemartPreferences.tr(context),
             children: [
               ListTile(
                 leading: const Icon(Icons.notifications),
-                title: const Text('Notifications'),
-                subtitle: const Text('Manage notification preferences'),
+                title: Text(LocalizationKeysAppCodemart.codemartNotifications.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartManageNotificationPreferences.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToNotificationSettings(context),
               ),
               ListTile(
                 leading: const Icon(Icons.language),
-                title: const Text('Language'),
-                subtitle: const Text('Change app language'),
+                title: Text(LocalizationKeysAppCodemart.codemartLanguage.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartChangeAppLanguage.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToLanguageSettings(context),
               ),
               ListTile(
                 leading: const Icon(Icons.dark_mode),
-                title: const Text('Theme'),
-                subtitle: const Text('Light, Dark, or System'),
+                title: Text(LocalizationKeysAppCodemart.codemartTheme.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartLightDarkSystem.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   // TODO: Show theme selector dialog
@@ -64,19 +65,19 @@ class SettingsViewAppCodemart extends StatelessWidget {
           ),
           const Divider(),
           _SettingsSection(
-            title: 'Privacy & Security',
+            title: LocalizationKeysAppCodemart.codemartPrivacySecurity.tr(context),
             children: [
               ListTile(
                 leading: const Icon(Icons.privacy_tip),
-                title: const Text('Privacy'),
-                subtitle: const Text('Manage privacy settings'),
+                title: Text(LocalizationKeysAppCodemart.codemartPrivacy.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartManagePrivacySettings.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToPrivacySettings(context),
               ),
               ListTile(
                 leading: const Icon(Icons.lock),
-                title: const Text('Security'),
-                subtitle: const Text('Password and authentication'),
+                title: Text(LocalizationKeysAppCodemart.codemartSecurity.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartPasswordAuthentication.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   // TODO: Navigate to security settings
@@ -86,25 +87,25 @@ class SettingsViewAppCodemart extends StatelessWidget {
           ),
           const Divider(),
           _SettingsSection(
-            title: 'Support',
+            title: LocalizationKeysAppCodemart.codemartSupport.tr(context),
             children: [
               ListTile(
                 leading: const Icon(Icons.help),
-                title: const Text('Help & Support'),
-                subtitle: const Text('FAQs and contact support'),
+                title: Text(LocalizationKeysAppCodemart.codemartHelpSupport.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartFaqsContactSupport.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToHelp(context),
               ),
               ListTile(
                 leading: const Icon(Icons.info),
-                title: const Text('About'),
-                subtitle: const Text('App version and information'),
+                title: Text(LocalizationKeysAppCodemart.codemartAbout.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartAppVersionInfo.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => RouterAppCodemart.goToAbout(context),
               ),
               ListTile(
                 leading: const Icon(Icons.description),
-                title: const Text('Terms & Conditions'),
+                title: Text(LocalizationKeysAppCodemart.codemartTermsConditions.tr(context)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   // TODO: Show terms and conditions
@@ -114,31 +115,31 @@ class SettingsViewAppCodemart extends StatelessWidget {
           ),
           const Divider(),
           _SettingsSection(
-            title: 'App',
+            title: LocalizationKeysAppCodemart.codemartApp.tr(context),
             children: [
               ListTile(
                 leading: const Icon(Icons.cached),
-                title: const Text('Clear Cache'),
-                subtitle: const Text('Free up storage space'),
+                title: Text(LocalizationKeysAppCodemart.codemartClearCache.tr(context)),
+                subtitle: Text(LocalizationKeysAppCodemart.codemartFreeUpStorage.tr(context)),
                 onTap: () {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Clear Cache'),
-                      content: const Text('Are you sure you want to clear app cache?'),
+                      title: Text(LocalizationKeysAppCodemart.codemartClearCache.tr(context)),
+                      content: Text(LocalizationKeysAppCodemart.codemartClearCacheConfirm.tr(context)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: Text(context.tr(LocalizationKeysAppCodemart.codemartCancel)),
+                          child: Text(LocalizationKeysAppCodemart.codemartCancel.tr(context)),
                         ),
                         FilledButton(
                           onPressed: () {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Cache cleared')),
+                              SnackBar(content: Text(LocalizationKeysAppCodemart.codemartCacheCleared.tr(context))),
                             );
                           },
-                          child: Text(context.tr(LocalizationKeysAppCodemart.codemartConfirm)),
+                          child: Text(LocalizationKeysAppCodemart.codemartConfirm.tr(context)),
                         ),
                       ],
                     ),
@@ -147,7 +148,7 @@ class SettingsViewAppCodemart extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.bug_report),
-                title: const Text('Report a Bug'),
+                title: Text(LocalizationKeysAppCodemart.codemartReportBug.tr(context)),
                 onTap: () {
                   // TODO: Open bug report form
                 },

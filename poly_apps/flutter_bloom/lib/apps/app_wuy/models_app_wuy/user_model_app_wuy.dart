@@ -20,6 +20,7 @@ class UserModelAppWuy extends LaravelUserModel {
   final bool isOnline;
   final bool isVerified;
   final String? bio;
+  final String? location;
   final DateTime? lastSeen;
   final String? firstName;
   final String? lastName;
@@ -79,6 +80,7 @@ class UserModelAppWuy extends LaravelUserModel {
     this.isOnline = false,
     this.isVerified = false,
     this.bio,
+    this.location,
     this.lastSeen,
     this.firstName,
     this.lastName,
@@ -163,9 +165,10 @@ class UserModelAppWuy extends LaravelUserModel {
       isOnline: json['is_online'] as bool? ?? json['isOnline'] as bool? ?? false,
       isVerified: json['is_verified'] as bool? ?? json['isVerified'] as bool? ?? false,
       bio: json['bio']?.toString(),
-      lastSeen: json['last_seen'] != null 
+      location: json['location']?.toString(),
+      lastSeen: json['last_seen'] != null
           ? DateTime.tryParse(json['last_seen'].toString())
-          : json['lastSeen'] != null 
+          : json['lastSeen'] != null
               ? DateTime.tryParse(json['lastSeen'].toString())
               : null,
       firstName: json['first_name']?.toString() ?? json['firstName']?.toString(),
@@ -184,6 +187,7 @@ class UserModelAppWuy extends LaravelUserModel {
       'is_online': isOnline,
       'is_verified': isVerified,
       'bio': bio,
+      'location': location,
       'last_seen': lastSeen?.toIso8601String(),
       'first_name': firstName,
       'last_name': lastName,
@@ -248,6 +252,7 @@ class UserModelAppWuy extends LaravelUserModel {
     bool? isOnline,
     bool? isVerified,
     String? bio,
+    String? location,
     DateTime? lastSeen,
     String? firstName,
     String? lastName,
@@ -307,6 +312,7 @@ class UserModelAppWuy extends LaravelUserModel {
       isOnline: isOnline ?? this.isOnline,
       isVerified: isVerified ?? this.isVerified,
       bio: bio ?? this.bio,
+      location: location ?? this.location,
       lastSeen: lastSeen ?? this.lastSeen,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../../../provider_app_travel/user_provider_app_travel.dart';
-import '../../../widgets/travel_icons.dart';
+import '../../../resources_app_travel/assets_images_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 
 class HomeHeader extends StatelessWidget {
   final double scrollTop;
@@ -14,7 +17,7 @@ class HomeHeader extends StatelessWidget {
   const HomeHeader({
     super.key,
     this.scrollTop = 0,
-    this.currentCity = 'Luoyang',
+    this.currentCity = '塞班',
     this.onCityTap,
     this.onMenuTap,
   });
@@ -55,20 +58,20 @@ class HomeHeader extends StatelessWidget {
     final boxShadow = _calculateBoxShadow();
 
     return Container(
-      height: 60.0,
+      height: 48.0,
       decoration: BoxDecoration(
         color: Colors.transparent,
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 8.0),
+        padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 6.0),
         child: Row(
           children: [
             Expanded(
               child: Container(
-                height: 44.0,
+                height: 36.0,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(22.0),
+                  borderRadius: BorderRadius.circular(18.0),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.15),
@@ -85,12 +88,12 @@ class HomeHeader extends StatelessWidget {
                           context.push(TravelAppRoutesProvider.routeSearch);
                         },
                         child: Container(
-                          padding: const EdgeInsets.only(left: 18.0),
+                          padding: const EdgeInsets.only(left: 14.0),
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            '新人大礼包',
+                            TravelLocalizationKeys.travelNewUserGift.tr(context),
                             style: TextStyle(
-                              fontSize: 14.0,
+                              fontSize: 11.0,
                               color: Colors.grey[600],
                             ),
                           ),
@@ -102,19 +105,19 @@ class HomeHeader extends StatelessWidget {
                         context.push(TravelAppRoutesProvider.routeSearch);
                       },
                       child: Container(
-                        margin: const EdgeInsets.all(6.0),
+                        margin: const EdgeInsets.all(5.0),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20.0,
-                          vertical: 8.0,
+                          horizontal: 16.0,
+                          vertical: 6.0,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00D0D8),
-                          borderRadius: BorderRadius.circular(16.0),
+                          color: TravelColors.travelPrimary,
+                          borderRadius: BorderRadius.circular(13.0),
                         ),
-                        child: const Text(
-                          '搜索',
-                          style: TextStyle(
-                            fontSize: 13.0,
+                        child: Text(
+                          TravelLocalizationKeys.travelSearch.tr(context),
+                          style: const TextStyle(
+                            fontSize: 10.0,
                             color: Colors.white,
                             fontWeight: FontWeight.w500,
                           ),
@@ -125,32 +128,111 @@ class HomeHeader extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 10.0),
-            GestureDetector(
-              onTap: onMenuTap,
-              child: Container(
-                width: 40.0,
-                height: 40.0,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 8.0,
-                      offset: const Offset(0, 2.0),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  TravelIcons.scan,
-                  size: 20.0,
-                  color: const Color(0xFF00D0D8),
-                ),
+            const SizedBox(width: 8.0),
+            _buildHotelLogo(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHotelLogo(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        debugPrint('Hotel logo tapped');
+      },
+      child: SizedBox(
+        height: 36.0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 26.0,
+              height: 26.0,
+              child: Image.asset(
+                AssetsImagesAppTravel.travelHotelTitleLogo,
+                fit: BoxFit.contain,
+                color: Colors.white,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.hotel,
+                    size: 20.0,
+                    color: Colors.white,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 1.5),
+            Text(
+              '酒店比价',
+              style: const TextStyle(
+                fontSize: 7.0,
+                color: Colors.white,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildUserAvatar(BuildContext context) {
+    final userProvider = context.watch<UserProviderAppTravel>();
+    final user = userProvider.user;
+
+    return GestureDetector(
+      onTap: () {
+        context.go(TravelAppRoutesProvider.routeProfile);
+      },
+      child: Container(
+        width: 40.0,
+        height: 40.0,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white,
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 8.0,
+              offset: const Offset(0, 2.0),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+              ? Image.network(
+                  user.avatarUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildDefaultAvatar();
+                  },
+                )
+              : Image.asset(
+                  AssetsImagesAppTravel.travelUserAvatarDefault,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildDefaultAvatar();
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: TravelColors.travelPrimaryLight,
+      child: const Icon(
+        Icons.person,
+        size: 24.0,
+        color: TravelColors.travelPrimary,
       ),
     );
   }

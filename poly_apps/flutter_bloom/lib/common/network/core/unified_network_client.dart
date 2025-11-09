@@ -9,6 +9,7 @@
 /// - Timeout and retry handling
 /// - Network connectivity check
 /// - Type-safe response handling
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -136,7 +137,7 @@ class UnifiedNetworkClient implements NetworkClient {
       // Parse response
       return _parseResponse<T>(response);
       
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('Network request failed: $e');
       
       return NetworkResponse<T>(
