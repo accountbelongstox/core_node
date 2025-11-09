@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     # Search for windows
     windows = finder.find_windows_by_titles(
-        titles=["Diablo III", "暗黑破坏神 III"],
+        titles=["Diablo III"],
         match_mode="in",
         use_cache=True
     )

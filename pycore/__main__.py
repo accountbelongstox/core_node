@@ -14,7 +14,7 @@ It performs two main functions:
 import sys
 import os
 import subprocess
-from . import check_and_install_dependencies
+from pycore import check_and_install_dependencies
 
 # The directory where the standalone tool scripts are located.
 TOOLS_DIR = os.path.join(os.path.dirname(__file__), "py_auto")

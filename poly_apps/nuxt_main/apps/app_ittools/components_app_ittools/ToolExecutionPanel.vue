@@ -129,7 +129,6 @@
       </div>
     </div>
   </div>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -139,6 +138,7 @@ import { ItToolsMainAPI } from '../services_app_ittools/ittools-main-api';
 import { TOOL_PARAMS } from '../config_app_ittools/tool-params';
 import UniversalToolForm from './tools/UniversalToolForm.vue';
 import { getToolComponent } from './tools/tool-registry';
+import { appLogger } from '../services_app_ittools/logger';
 
 const props = defineProps<{
   tool: Tool | null;
@@ -200,6 +200,7 @@ const handleExecute = async () => {
   copied.value = false;
 
   const startTime = performance.now();
+  appLogger.info(`Executing ${props.tool.name}`);
 
   try {
     const response = await api.executeTool(
@@ -213,13 +214,16 @@ const handleExecute = async () => {
     if (response.success) {
       result.value = response.data;
       emit('executed', response.data);
+      appLogger.success(`${props.tool.name} executed successfully`);
     } else {
       error.value = response.error || 'Unknown error occurred';
+      appLogger.error(`${props.tool.name} failed: ${error.value}`);
     }
   } catch (err: any) {
     executionTime.value = Math.round(performance.now() - startTime);
     error.value = err.message || 'Failed to execute tool';
     console.error('Tool execution error:', err);
+    appLogger.error(`${props.tool?.name || 'Tool'} execution error: ${error.value}`);
   } finally {
     isExecuting.value = false;
   }
@@ -235,6 +239,9 @@ const reset = () => {
 
 const handleExternalExecuted = (data: any) => {
   emit('executed', data);
+  if (props.tool) {
+    appLogger.success(`${props.tool.name} completed`);
+  }
 };
 
 const copyToClipboard = async () => {
@@ -247,6 +254,7 @@ const copyToClipboard = async () => {
   try {
     await navigator.clipboard.writeText(text);
     copied.value = true;
+    appLogger.info('Result copied to clipboard');
     setTimeout(() => {
       copied.value = false;
     }, 2000);

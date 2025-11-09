@@ -1,9 +1,12 @@
 <template>
   <header class="pm-topbar pm-aurora-panel">
     <div class="pm-topbar__left">
-      <div class="pm-topbar__logo pm-glow-ring">
-        <span class="pm-topbar__logo-icon">📱</span>
-        <h1 class="pm-topbar__logo-title">pyMatrix</h1>
+      <div class="pm-topbar__logo pm-glow-ring" aria-label="星灿传媒云矩阵">
+        <span class="pm-topbar__logo-icon" aria-hidden="true">🌌</span>
+        <h1 class="pm-topbar__logo-title">
+          星灿传媒云矩阵
+          <span class="pm-topbar__logo-reg" aria-hidden="true">®</span>
+        </h1>
       </div>
     </div>
 
@@ -106,6 +109,23 @@ const emit = defineEmits<Emits>();
   top: 0;
   z-index: 120;
   overflow: hidden;
+  --pm-topbar-chip-bg: rgba(12, 18, 40, 0.45);
+  --pm-topbar-chip-border: rgba(148, 163, 184, 0.3);
+  --pm-topbar-chip-hover: rgba(18, 26, 60, 0.92);
+  --pm-topbar-logo-bg: rgba(12, 20, 40, 0.85);
+  --pm-topbar-logo-border: rgba(124, 92, 255, 0.35);
+  --pm-topbar-btn-bg: linear-gradient(145deg, rgba(16, 21, 44, 0.75), rgba(44, 36, 78, 0.72));
+  --pm-topbar-btn-border: rgba(148, 163, 184, 0.28);
+  --pm-topbar-btn-color: var(--pm-text-default);
+  --pm-topbar-btn-hover-bg: linear-gradient(145deg, rgba(28, 35, 74, 0.95), rgba(88, 65, 124, 0.85));
+  --pm-topbar-btn-hover-color: var(--pm-text-strong);
+  --pm-topbar-btn-hover-border: rgba(124, 92, 255, 0.55);
+  --pm-topbar-btn-active-bg: rgba(124, 92, 255, 0.16);
+  --pm-topbar-btn-active-border: rgba(124, 92, 255, 0.45);
+  --pm-topbar-btn-primary: linear-gradient(135deg, #5b5fe2 0%, #7c5cff 55%, #a855f7 100%);
+  --pm-topbar-btn-primary-hover: linear-gradient(135deg, #6f6eea 0%, #8f7dff 60%, #c084fc 100%);
+  --pm-topbar-btn-primary-shadow: 0 10px 30px rgba(124, 92, 255, 0.35);
+  --pm-topbar-btn-primary-shadow-hover: 0 16px 38px rgba(124, 92, 255, 0.45);
 }
 
 .pm-topbar::after {
@@ -126,11 +146,11 @@ const emit = defineEmits<Emits>();
 .pm-topbar__logo {
   display: inline-flex;
   align-items: center;
-  gap: var(--pm-space-sm);
+  gap: var(--pm-space-md);
   padding: var(--pm-space-sm) var(--pm-space-lg);
   border-radius: var(--pm-radius-pill);
-  background: rgba(12, 20, 40, 0.85);
-  border: 1px solid rgba(124, 92, 255, 0.35);
+  background: var(--pm-topbar-logo-bg);
+  border: 1px solid var(--pm-topbar-logo-border);
   color: var(--pm-text-strong);
   font-weight: 700;
   letter-spacing: 0.4px;
@@ -145,13 +165,24 @@ const emit = defineEmits<Emits>();
 }
 
 .pm-topbar__logo-icon {
-  font-size: 28px;
+  font-size: 30px;
+  filter: drop-shadow(0 0 6px rgba(124, 92, 255, 0.5));
 }
 
 .pm-topbar__logo-title {
   margin: 0;
   font-size: var(--pm-font-size-lg);
   color: var(--pm-text-strong);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--pm-space-2xs);
+  letter-spacing: 0.12em;
+}
+
+.pm-topbar__logo-reg {
+  font-size: 0.55em;
+  color: var(--pm-text-muted);
+  vertical-align: top;
 }
 
 .pm-topbar__center {
@@ -168,8 +199,8 @@ const emit = defineEmits<Emits>();
   gap: var(--pm-space-sm);
   padding: var(--pm-space-sm) var(--pm-space-lg);
   border-radius: var(--pm-radius-pill);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(12, 18, 40, 0.45);
+  border: 1px solid var(--pm-topbar-chip-border);
+  background: var(--pm-topbar-chip-bg);
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   color: var(--pm-text-default);
@@ -180,8 +211,8 @@ const emit = defineEmits<Emits>();
 }
 
 .pm-topbar__status:hover {
-  border-color: var(--pm-color-border);
-  background: rgba(12, 18, 40, 0.95);
+  border-color: var(--pm-topbar-btn-hover-border);
+  background: var(--pm-topbar-chip-hover);
 }
 
 .pm-topbar__status::after {
@@ -230,9 +261,9 @@ const emit = defineEmits<Emits>();
   gap: var(--pm-space-xs);
   padding: var(--pm-space-sm) var(--pm-space-lg);
   border-radius: var(--pm-radius-pill);
-  background: rgba(16, 21, 44, 0.65);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  color: var(--pm-text-muted);
+  background: var(--pm-topbar-btn-bg);
+  border: 1px solid var(--pm-topbar-btn-border);
+  color: var(--pm-topbar-btn-color);
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   transition: var(--pm-transition-fast);
@@ -255,9 +286,9 @@ const emit = defineEmits<Emits>();
 }
 
 .pm-topbar__action-btn:hover {
-  background: rgba(16, 21, 44, 0.85);
-  color: var(--pm-text-default);
-  border-color: var(--pm-color-border);
+  background: var(--pm-topbar-btn-hover-bg);
+  color: var(--pm-topbar-btn-hover-color);
+  border-color: var(--pm-topbar-btn-hover-border);
   transform: translateY(-1px);
 }
 
@@ -266,22 +297,23 @@ const emit = defineEmits<Emits>();
 }
 
 .pm-topbar__action-btn--primary {
-  background: var(--pm-gradient-main);
+  background: var(--pm-topbar-btn-primary);
   color: var(--pm-text-strong);
   border-color: transparent;
-  box-shadow: 0 8px 26px rgba(124, 92, 255, 0.32);
+  box-shadow: var(--pm-topbar-btn-primary-shadow);
   isolation: isolate;
 }
 
 .pm-topbar__action-btn--primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 34px rgba(124, 92, 255, 0.4);
+  background: var(--pm-topbar-btn-primary-hover);
+  box-shadow: var(--pm-topbar-btn-primary-shadow-hover);
 }
 
 .pm-topbar__action-btn--active {
-  background: rgba(124, 92, 255, 0.22);
-  color: var(--pm-text-strong);
-  border-color: rgba(124, 92, 255, 0.4);
+  background: var(--pm-topbar-btn-active-bg);
+  color: var(--pm-topbar-btn-hover-color);
+  border-color: var(--pm-topbar-btn-active-border);
 }
 
 .pm-topbar__user {
@@ -310,6 +342,26 @@ const emit = defineEmits<Emits>();
 
 .pm-topbar__user-name {
   color: inherit;
+}
+
+:global([data-pm-theme='light'] .pm-topbar) {
+  --pm-topbar-chip-bg: rgba(255, 255, 255, 0.9);
+  --pm-topbar-chip-border: rgba(15, 23, 42, 0.1);
+  --pm-topbar-chip-hover: rgba(255, 255, 255, 1);
+  --pm-topbar-logo-bg: rgba(255, 255, 255, 0.95);
+  --pm-topbar-logo-border: rgba(93, 53, 246, 0.25);
+  --pm-topbar-btn-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(238, 241, 255, 0.85));
+  --pm-topbar-btn-border: rgba(93, 53, 246, 0.2);
+  --pm-topbar-btn-color: var(--pm-text-default);
+  --pm-topbar-btn-hover-bg: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(227, 232, 255, 0.95));
+  --pm-topbar-btn-hover-color: var(--pm-text-strong);
+  --pm-topbar-btn-hover-border: rgba(91, 191, 146, 0.45);
+  --pm-topbar-btn-active-bg: rgba(93, 53, 246, 0.14);
+  --pm-topbar-btn-active-border: rgba(93, 53, 246, 0.45);
+  --pm-topbar-btn-primary: linear-gradient(135deg, #7c3aed 0%, #9d5bff 55%, #c084fc 100%);
+  --pm-topbar-btn-primary-hover: linear-gradient(135deg, #8b5cf6 0%, #b277ff 65%, #d8b4fe 100%);
+  --pm-topbar-btn-primary-shadow: 0 12px 28px rgba(93, 53, 246, 0.25);
+  --pm-topbar-btn-primary-shadow-hover: 0 16px 34px rgba(93, 53, 246, 0.35);
 }
 
 @media (max-width: 1100px) {

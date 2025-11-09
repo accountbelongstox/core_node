@@ -17,9 +17,14 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+# Import FileLockManager - handle relative vs absolute imports
+FileLockManager = None
 try:
-    from .file_lock_manager import FileLockManager
+    from pycore.pyfoundations.file_lock_manager import FileLockManager
 except ImportError:
+    pass
+
+if FileLockManager is None:
     from file_lock_manager import FileLockManager
 
 
@@ -119,12 +124,14 @@ class SplitFileStore:
         if not record_file.exists():
             return None
 
-        try:
-            with record_file.open('r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            self._log(f"Warning: Failed to read {record_file.name}: {e}")
+        # Check if file is readable
+        if not os.access(record_file, os.R_OK):
+            self._log(f"Warning: Cannot read {record_file.name}: Permission denied")
             return None
+
+        # Read and parse JSON - let errors expose naturally
+        with record_file.open('r', encoding='utf-8') as f:
+            return json.load(f)
 
     def _write_record(self, key: str, data: Dict):
         """Write a single record file"""
@@ -132,28 +139,21 @@ class SplitFileStore:
 
         # Atomic write with tmp file
         tmp_file = record_file.with_suffix('.tmp')
-        try:
-            with tmp_file.open('w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
 
-            tmp_file.replace(record_file)
-        except Exception as e:
-            if tmp_file.exists():
-                try:
-                    tmp_file.unlink()
-                except:
-                    pass
-            raise e
+        # Write to temporary file
+        with tmp_file.open('w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+
+        # Replace original file atomically
+        tmp_file.replace(record_file)
 
     def _delete_record(self, key: str):
         """Delete a single record file"""
         record_file = self._get_record_file(key)
-        try:
-            record_file.unlink(missing_ok=True)
-        except OSError:
-            pass
+        # unlink with missing_ok=True won't raise if file doesn't exist
+        record_file.unlink(missing_ok=True)
 
     def ensure_file(self):
         """Ensure metadata file exists (compatibility)"""
@@ -177,17 +177,20 @@ class SplitFileStore:
         self._log(f"  Found {len(record_files)} record files")
 
         for record_file in record_files:
-            try:
-                with record_file.open('r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    # Record file contains single entry with path as key
-                    if isinstance(data, dict) and len(data) == 1:
-                        files_data.update(data)
-                    elif 'path' in data:
-                        # If stored as object with path field
-                        files_data[data['path']] = data
-            except Exception as e:
-                self._log(f"Warning: Failed to read {record_file.name}: {e}")
+            # Check if file is readable
+            if not os.access(record_file, os.R_OK):
+                self._log(f"Warning: Cannot read {record_file.name}: Permission denied")
+                continue
+
+            # Read and parse JSON - let errors expose naturally for debugging
+            with record_file.open('r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Record file contains single entry with path as key
+                if isinstance(data, dict) and len(data) == 1:
+                    files_data.update(data)
+                elif 'path' in data:
+                    # If stored as object with path field
+                    files_data[data['path']] = data
 
         # Combine metadata and files
         result = {
@@ -333,13 +336,15 @@ class SplitFileStore:
         record_files = list(self.files_dir.glob('*.json'))
 
         for record_file in record_files:
-            try:
-                with record_file.open('r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        keys.extend(data.keys())
-            except Exception:
-                pass
+            # Check if file is readable
+            if not os.access(record_file, os.R_OK):
+                continue
+
+            # Read and parse JSON - skip corrupted files silently
+            with record_file.open('r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    keys.extend(data.keys())
 
         return keys
 

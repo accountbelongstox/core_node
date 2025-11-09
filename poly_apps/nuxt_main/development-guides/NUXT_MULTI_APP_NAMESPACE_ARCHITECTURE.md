@@ -1,512 +1,353 @@
 # Nuxt Multi-App Namespace Architecture
 
-**Version:** 4.0 (Updated: 2025-10-31)
-**Status:** ✅ **COMPLETE** (100%)
+**Version:** 6.0 (Updated: 2025-11-10)
+**Status:** ✅ COMPLETE
 
 ---
 
-## 🎯 Quick Reference
+## 🤖 AI Development Guide
 
-### Registered Apps (5)
-```typescript
-type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard'
+### Priority: Extend Common Libraries First
+When developing features, **always check and extend `common/` libraries first** before creating app-specific code:
+
+**Common Libraries (Scan First):**
+- `common/stores/` - Global state management (app-config-store, base-store)
+- `common/composables/` - Reusable composables (useAppTheme, useGlobalConfig, useI18nConfig)
+- `common/components/ui/` - Base UI components (BaseButton, BaseModal, DataTable, etc.)
+- `common/components/dashboard/` - Dashboard components (StatCard, ProgressChart)
+- `common/utils/` - Utility functions (localStorage)
+- `common/plugins/` - Global plugins (app-config.client, theme.client)
+- `common/theme/` - Theme configurations
+
+**Extension Rule:**
+- ✅ Extend common libraries when the functionality is **reusable across multiple apps**
+- ✅ Keep common code **generic and configurable**
+- ❌ Avoid adding app-specific business logic to common layer
+
+### Entry Point Pattern
+**Rule:** `pages/index.{namespace}.vue` should **ONLY import a single component**, with all logic in the app component.
+
+**Required Pattern:**
+```vue
+<!-- AI WARNING: Edit components under apps/app_{namespace}/components_app_{namespace}/{namespace}_index/ instead -->
+<template>
+  <{Namespace}App />
+</template>
+
+<script setup lang="ts">
+import {Namespace}App from '@/apps/app_{namespace}/components_app_{namespace}/{namespace}_index/{Namespace}App.vue';
+</script>
 ```
 
-### Namespace Structure
-| App | Namespace | Route Prefix | Config | API | Status |
-|-----|-----------|--------------|--------|-----|--------|
-| example | example | / | ✅ | ✅ | ✅ |
-| codemart | codemart | /codemart | ✅ | ✅ | ✅ |
-| dev | dev | /dev | ✅ | ✅ | ✅ |
-| admin | admin | /admin | ✅ | ✅ | ✅ |
-| dashboard | dashboard | /dashboard | ✅ | ✅ | ✅ |
+**Example:** `pages/index.ittools.vue` → `components_app_ittools/ittools_index/ItToolsApp.vue`
+
+---
+
+## 🎯 Core Principles
+
+### Namespace Isolation
+- Each app has unique namespace identifier
+- No cross-app dependencies in code
+- Shared resources via global `common/` layer
+- API requests tagged with `X-App-Namespace` header
+
+### Directory Structure
+```
+poly_apps/nuxt_main/
+├── apps/app_{namespace}/          # App-specific code
+│   ├── components_app_{namespace}/ # App components
+│   ├── composables_app_{namespace}/# App composables
+│   ├── stores_app_{namespace}/     # App stores
+│   ├── layouts_app_{namespace}/    # App layouts
+│   ├── i18n_app_{namespace}/       # App translations
+│   │   └── locales/
+│   │       ├── en.json
+│   │       ├── zh.json
+│   │       ├── ja.json
+│   │       └── fa.json
+│   └── config_app_{namespace}/     # App config
+├── common/                         # Shared foundation
+│   ├── components/ui/
+│   ├── composables/
+│   ├── stores/
+│   ├── utils/
+│   └── plugins/
+├── i18n/locales/                   # Global translations
+├── configs/{namespace}.config.ts   # App configs
+├── composables/useRouteNamespace.ts# Namespace detection
+└── pages/index.{namespace}.vue     # App entry pages
+```
 
 ---
 
 ## 📐 Architecture Layers
 
-### 1. App Entry System
-**File:** `app-entry.ts`
-
-Defines app metadata, theme, features, and permissions:
+### 1. Namespace Registry
+**File:** `utils/namespace-registry.ts`
+**Purpose:** Type-safe namespace management
 
 ```typescript
-interface AppEntryConfig {
-  name: string
-  displayName: string
-  namespace: string              // ⭐ Primary identifier
-  defaultRoute: string
-  theme: { primary, secondary, layout }
-  api: { namespace, baseUrl, version }
-  features: { [key: string]: boolean }
-  permissions: { required, roles }
-}
+export type RegisteredNamespace =
+  | 'example' | 'codemart' | 'dev' | 'admin'
+  | 'dashboard' | 'pymatrix' | 'ittools' | 'main'
 ```
 
-### 2. Route Namespace System
+### 2. Route Detection
 **File:** `composables/useRouteNamespace.ts`
+**Purpose:** Auto-detect namespace from URL
 
-Maps URL paths to app namespaces:
-
-```typescript
-const namespaceRegistry = {
-  example: { prefix: '', ... },           // Root routes
-  codemart: { prefix: '/codemart', ... },
-  dev: { prefix: '/dev', ... },
-  admin: { prefix: '/admin', ... },
-  dashboard: { prefix: '/dashboard', ... }
-}
-```
-
-**Detection Logic:**
-- `/admin/users` → `admin`
-- `/dev/tools` → `dev`
-- `/dashboard` → `dashboard`
+**Rules:**
+- `/pymatrix/*` → `pymatrix`
+- `/admin/*` → `admin`
+- `/dev/*` → `dev`
 - `/` → `example` (default)
 
-### 3. Configuration Files
-**Location:** `configs/*.config.ts`
-
-Each app has a dedicated config file:
-- `example.config.ts` - Example app settings
-- `codemart.config.ts` - CodeMart platform
-- `dev.config.ts` - Development tools
-- `subsite-admin.config.ts` - Admin panel
-- `dashboard.config.ts` - Analytics dashboard
+### 3. Configuration System
+**Location:** `configs/{namespace}.config.ts`
+**Required Fields:**
+- `name` - Display name
+- `namespace` - Unique identifier
+- `routes.prefix` - URL prefix
+- `theme` - Theme settings
+- `api.baseUrl` - API endpoint
 
 ### 4. API Service Layer
 **Location:** `services/api/{namespace}/`
-
-Namespace isolation via HTTP headers:
-
-```typescript
-class ExampleDataSourceAPI {
-  async getData() {
-    return $fetch('/api/example/datasources', {
-      headers: {
-        'X-App-Namespace': 'example'  // ⭐ Isolation key
-      }
-    })
-  }
-}
-```
-
-**Directory Structure:**
-```
-services/api/
-├── example/example-datasource-api.ts
-├── codemart/codemart-projects-api.ts
-├── dev/dev-tools-api.ts
-├── admin/admin-datasource-api.ts
-└── dashboard/dashboard-analytics-api.ts
-```
+**Convention:** `{namespace}-{resource}-api.ts`
+**Header:** `X-App-Namespace: {namespace}`
 
 ### 5. Layout System
-**Location:** `layouts/` and `apps/app_*/layouts_app_*/`
+**Global:** `layouts/` - `base.vue`, `default-with-nav.vue`, `{namespace}.vue`
+**App-Specific:** `apps/app_{namespace}/layouts_app_{namespace}/`
+**Usage:** `definePageMeta({ layout: 'pymatrix' })`
 
-Layout isolation via custom app layouts. Each app can choose its own UI structure:
+### 6. Entry Point & Build System
 
-```vue
-<!-- pages/index.pymatrix.vue -->
-<script setup>
-definePageMeta({
-  layout: 'pymatrix'  // Uses apps/app_pymatrix/layouts_app_pymatrix/default.vue
-})
-</script>
-```
+#### Entry Pages
+**Location:** `pages/index.{namespace}.vue`
+**Pattern:** Import single app component from `components_app_{namespace}/{namespace}_index/{Namespace}App.vue`
 
-**Directory Structure:**
-```
-layouts/
-├── base.vue                    # Minimal: services only, no UI
-├── default-with-nav.vue        # Standard: Header + Sidebar + Footer
-├── admin.vue                   # Wrapper for app_admin layout
-├── dashboard.vue               # Wrapper for app_dashboard layout
-├── pymatrix.vue                # Wrapper for app_pymatrix layout
-└── auth-layout.vue             # Auth pages
+#### Launcher Scripts
+**Development:** `.\scripts\start.ps1 [namespace]` or `node scripts/switch-app-entry-plus.js [namespace]`
+**Build:** `.\scripts\start.ps1 [namespace] build`
 
-apps/
-├── app_admin/
-│   └── layouts_app_admin/
-│       └── default.vue         # Admin layout (uses shared Header/Sidebar)
-├── app_dashboard/
-│   └── layouts_app_dashboard/
-│       └── default.vue         # Dashboard layout (uses shared Header/Sidebar)
-└── app_pymatrix/
-    └── layouts_app_pymatrix/
-        └── default.vue         # PyMatrix custom layout (own navigation)
-```
+#### Multi-App Factory System (switch-app-entry-plus.js)
+**How It Works:**
+1. **Mirrors** source workspace to factory build directory per app (`factory_root/_app_{namespace}/`)
+2. **Runs** `switch-app-entry.js` in mirrored tree to activate specific app entry
+3. **Watches** source files with 2s debounce, auto-syncs changes to all active factory runtimes
+4. **Launches** `pnpm dev:{namespace}` or `pnpm build:{namespace}` from factory directory
+5. **Supports** concurrent multi-app development (`--apps app1,app2`)
 
-**Layout Types:**
-
-| Layout | Use Case | Navigation | Services |
-|--------|----------|------------|----------|
-| `base` | Minimal app, custom UI | None | ✅ Theme, Store, i18n |
-| `default-with-nav` | Standard admin app | Header + Sidebar + Footer | ✅ All services |
-| `app_*/layouts_app_*/default` | Custom app layout | App-defined | ✅ All services |
-
-**Key Principles:**
-- ✅ Shared components (`components/layout/Header.vue`, `Sidebar.vue`) are **optional**
-- ✅ Apps **choose** whether to use shared navigation components
-- ✅ Apps can implement their own complete UI structure
-- ✅ Base layout provides services (theme, store, i18n) without forcing UI
-
-**Creating Custom Layout:**
-
-1. Create layout directory in app folder:
+**Usage:**
 ```bash
-mkdir -p apps/app_myapp/layouts_app_myapp
+# Single app
+node scripts/switch-app-entry-plus.js ittools
+
+# Multiple apps concurrently
+node scripts/switch-app-entry-plus.js --apps ittools,pymatrix
+
+# Build mode
+node scripts/switch-app-entry-plus.js ittools --mode build
 ```
 
-2. Create layout file:
-```vue
-<!-- apps/app_myapp/layouts_app_myapp/default.vue -->
-<template>
-  <div class="my-app-layout">
-    <!-- Custom structure -->
-    <MyAppHeader />
-    <NuxtPage />
-    <MyAppFooter />
-  </div>
-</template>
-```
+**Factory Locations:**
+- Windows: `D:/programing/.build_dir/nuxt_factory/_app_{namespace}/`
+- Linux: `{base}/_build_dir/nuxt_factory/linux/_app_{namespace}/`
 
-3. Create wrapper in root layouts:
-```vue
-<!-- layouts/myapp.vue -->
-<script setup>
-import MyAppLayout from '~/apps/app_myapp/layouts_app_myapp/default.vue'
-</script>
+### 7. i18n Namespace System
 
-<template>
-  <MyAppLayout />
-</template>
-```
+#### Global Layer
+**Location:** `i18n/locales/`
+**Content:** Common translations (save, cancel, settings, theme, etc.)
+**Languages:** en, zh, ja, fa, es, fr, de, ru, pt, it, pl, tr, sv, hu, da, el
 
-4. Use in page:
-```vue
-<!-- pages/index.myapp.vue -->
-<script setup>
-definePageMeta({
-  layout: 'myapp'
-})
-</script>
-```
+#### App-Specific Layer
+**Location:** `apps/app_{namespace}/i18n_app_{namespace}/locales/`
+**Naming:** `i18n_app_pymatrix`, `i18n_app_admin`, etc.
+**Content:** App-specific translations only
 
-5. Update app-entry.ts:
-```typescript
-myapp: {
-  theme: {
-    layout: 'myapp'  // Matches layouts/myapp.vue
-  }
-}
-```
+#### Merging Strategy
+1. Load global translations
+2. Load app-specific translations
+3. Merge (app overrides global)
 
-### 6. Entry Point System
-**Location:** `pages/index.{app}.vue`
-
-Each app has a dedicated entry file:
-- `index.example.vue`
-- `index.codemart.vue`
-- `index.dev.vue`
-- `index.admin.vue`
-- `index.dashboard.vue`
-
-**Switch Script:** `scripts/switch-app-entry.js`
-
-```bash
-# Switch to codemart app
-node scripts/switch-app-entry.js codemart
-
-# Start dev server
-yarn dev:codemart
-```
+#### Composable
+**File:** `composables/useAppI18n.ts`
+**Usage:** `const { t } = useAppI18n()` - Auto-merges global + app translations
 
 ---
 
-## 🔧 Namespace Validation
+## 📦 Common vs App-Specific Architecture
 
-### Built-in Validation
-```typescript
-import { useRouteNamespace } from '@/composables/useRouteNamespace'
+### Common Layer Standards
 
-const { validateNamespace, validateAllNamespaces } = useRouteNamespace()
+| Category | Location | Examples | Rules |
+|----------|----------|----------|-------|
+| **Stores** | `common/stores/` | app-config-store, base-store | Generic state, no app-specific logic |
+| **Components** | `common/components/ui/` | BaseButton, BaseModal, DataTable | Reusable, props-driven, configurable |
+| | `common/components/dashboard/` | StatCard, ProgressChart | No namespace-specific features |
+| **Composables** | `common/composables/` | useAppTheme, useGlobalConfig, useI18nConfig | Pure logic, no app dependencies |
+| **Utils** | `common/utils/` | localStorage | Pure functions, type-safe |
+| **Plugins** | `common/plugins/` | app-config.client, theme.client | Global initialization, no namespace hardcoding |
 
-// Validate single namespace
-const result = validateNamespace('example')
-// { valid: true, missing: [] }
+### App-Specific Layer Standards
 
-// Validate all namespaces
-const allResults = validateAllNamespaces()
-// { example: {...}, codemart: {...}, dev: {...}, admin: {...}, dashboard: {...} }
-```
+| Category | Location | Naming / Structure | Rules |
+|----------|----------|-------------------|-------|
+| **Components** | `components_app_{namespace}/` | `{namespace}_index/{Namespace}App.vue` (main)<br>`{namespace}_index_components/` (sub-components)<br>`{feature}/` (feature modules) | App-specific UI, can import common, no cross-app imports |
+| **Stores** | `stores_app_{namespace}/` | `deviceStore.ts`, `groupStore.ts` | App-specific state, can compose common stores, no cross-app imports |
+| **Services** | `services/api/{namespace}/` or<br>`services_app_{namespace}/` | `{namespace}-{resource}-api.ts` | Must add `X-App-Namespace` header, no cross-namespace imports |
+| **Composables** | `composables_app_{namespace}/` | App-specific composables | Can use common composables, no cross-app imports |
+| **Config** | `config_app_{namespace}/` | Tool registries, constants | App-specific config only |
 
-### Type Safety
-```typescript
-import type { RegisteredNamespace } from '@/utils/namespace-registry'
-import { validateNamespaceType } from '@/utils/namespace-registry'
-
-function processNamespace(ns: RegisteredNamespace) {
-  // TypeScript ensures ns is one of the 5 valid namespaces
-}
-
-// Runtime validation
-validateNamespaceType('example') // OK
-validateNamespaceType('invalid') // Throws error
-```
+**Component Naming Examples:**
+- Main: `ittools_index/ItToolsApp.vue`, `pymatrix_index/PyMatrixApp.vue`
+- Sub: `ittools_index_components/CategoryTreePanel.vue`
+- Feature: `tools/converter/Base64ConverterTool.vue`
 
 ---
 
-## 🚀 Adding a New App
+## 📋 Namespace Rules
 
-### 1. Register in App Entry
-```typescript
-// app-entry.ts
-const appEntryRegistry = {
-  myapp: {
-    name: 'myapp',
-    namespace: 'myapp',
-    defaultRoute: '/myapp',
-    theme: { primary: '#xxx', secondary: '#xxx', layout: 'myapp-layout' },
-    api: { namespace: 'myapp', baseUrl: '/api/myapp', version: 'v1' },
-    features: { ... },
-    permissions: { ... }
-  }
-}
-```
+### ✅ DO
+1. Use consistent namespace across all layers
+2. Put common code in `common/`
+3. Validate namespace with TypeScript types
+4. Prefix app-specific directories with `app_{namespace}`
+5. Include HTTP header for API requests
+6. Support all global languages in app i18n
+7. Use `useAppI18n()` for merged translations
 
-### 2. Create Config
-```typescript
-// configs/myapp.config.ts
-export const myAppConfig = {
-  name: 'My App',
-  namespace: 'myapp',
-  routes: { prefix: '/myapp', pages: [...] },
-  theme: { ... },
-  api: { baseUrl: '/api/myapp', endpoints: {...} }
-}
-```
-
-### 3. Register Route Namespace
-```typescript
-// composables/useRouteNamespace.ts
-import myAppConfig from '@/configs/myapp.config'
-
-const namespaceRegistry = {
-  myapp: {
-    namespace: 'myapp',
-    prefix: '/myapp',
-    config: myAppConfig,
-    pages: ['myapp-dashboard'],
-    theme: myAppConfig.theme
-  }
-}
-```
-
-### 4. Create API Service
-```typescript
-// services/api/myapp/myapp-main-api.ts
-export class MyAppMainAPI {
-  private baseUrl = '/api/myapp'
-  private namespace = 'myapp'
-
-  async getData() {
-    return $fetch(`${this.baseUrl}/data`, {
-      headers: { 'X-App-Namespace': this.namespace }
-    })
-  }
-}
-```
-
-### 5. Create Layout (Optional)
-**Option A: Use Default Navigation Layout**
-```typescript
-// app-entry.ts
-myapp: {
-  theme: {
-    layout: 'default-with-nav'  // Uses shared Header/Sidebar
-  }
-}
-```
-
-**Option B: Create Custom Layout**
-1. Create layout directory:
-```bash
-mkdir -p apps/app_myapp/layouts_app_myapp
-```
-
-2. Create layout file:
-```vue
-<!-- apps/app_myapp/layouts_app_myapp/default.vue -->
-<template>
-  <div class="myapp-layout">
-    <!-- Custom structure or use shared components -->
-    <layout-header />  <!-- Optional: choose to use shared Header -->
-    <layout-sidebar /> <!-- Optional: choose to use shared Sidebar -->
-    <NuxtPage />
-    <layout-footer />  <!-- Optional: choose to use shared Footer -->
-  </div>
-</template>
-```
-
-3. Create wrapper in root layouts:
-```vue
-<!-- layouts/myapp.vue -->
-<script setup>
-import MyAppLayout from '~/apps/app_myapp/layouts_app_myapp/default.vue'
-</script>
-<template>
-  <MyAppLayout />
-</template>
-```
-
-4. Update app-entry.ts:
-```typescript
-myapp: {
-  theme: {
-    layout: 'myapp'  // Matches layouts/myapp.vue
-  }
-}
-```
-
-### 6. Create Entry Page
-```vue
-<!-- pages/index.myapp.vue -->
-<template>
-  <div>
-    <h1>My App</h1>
-  </div>
-</template>
-```
-
-### 7. Add to Switch Script
-```javascript
-// scripts/switch-app-entry.js
-const SUPPORTED_APPS = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'myapp']
-```
-
-### 8. Update Type System
-```typescript
-// utils/namespace-registry.ts
-export type RegisteredNamespace
-
-getNamespacesList(): RegisteredNamespace[] {
-}
-```
+### ❌ DON'T
+1. Hardcode namespace strings
+2. Mix namespaces in single file
+3. Skip namespace validation
+4. Create routes without prefixes
+5. Duplicate common code in app directories
+6. Reference other app's code
+7. Put app-specific translations in global i18n
+8. Skip languages in app i18n files
 
 ---
 
-## 📋 Best Practices
+## 🚀 Adding New App
 
-### ✅ Do
-1. **Use HTTP headers** for namespace isolation: `X-App-Namespace`
-2. **Follow naming convention**: `{namespace}-{resource}-api.ts`
-3. **Keep namespace consistent** across all layers
-4. **Validate namespaces** before processing
-5. **Use TypeScript types** for compile-time safety
-6. **Create custom layouts** if app needs unique navigation structure
-7. **Use shared components** (`layout-header`, `layout-sidebar`) when appropriate
-8. **Choose layout explicitly** in pages via `definePageMeta`
-
-### ❌ Don't
-1. Don't hardcode namespace strings (use types)
-2. Don't mix namespaces in a single file
-3. Don't skip validation
-4. Don't create routes without prefixes (except root namespace)
-5. Don't bypass the app entry system
-6. Don't modify shared layouts for app-specific needs
-7. Don't duplicate navigation components when custom layout exists
-8. Don't force UI structure on apps that need custom layouts
+| Step | Action | Files/Locations |
+|------|--------|----------------|
+| 1. Create Dirs | App structure | `apps/app_myapp/{components,composables,stores,layouts,i18n_app_myapp/locales}_app_myapp`<br>`services/api/myapp/` |
+| 2. Register | Namespace | `utils/namespace-registry.ts`: `... \| 'myapp'`<br>`composables/useRouteNamespace.ts`: `myapp: { prefix: '/myapp' }` |
+| 3. Create Files | Entry & config | `pages/index.myapp.vue` (imports `MyappApp.vue`)<br>`components_app_myapp/myapp_index/MyappApp.vue`<br>`configs/myapp.config.ts`<br>`layouts/myapp.vue`<br>`services/api/myapp/myapp-main-api.ts` (with `X-App-Namespace` header)<br>`i18n_app_myapp/locales/{en,zh,ja,fa}.json` |
 
 ---
 
-## 🔍 Common Patterns
-
-### Pattern 1: Namespace Detection
-```typescript
-const { currentNamespace } = useRouteNamespace()
-// Automatically detects from route path
-```
-
-### Pattern 2: Conditional Features
-```typescript
-const appConfig = getAppEntryConfig('codemart')
-if (appConfig.features.marketplace) {
-  // Show marketplace features
-}
-```
-
-### Pattern 3: Dynamic Theming
-```typescript
-// Middleware applies theme on route change
-document.documentElement.style.setProperty('--color-primary', appConfig.theme.primary)
-```
-
-### Pattern 4: Custom Layout Selection
-```vue
-<!-- pages/index.myapp.vue -->
-<script setup>
-definePageMeta({
-  layout: 'myapp'  // Uses custom layout from apps/app_myapp/layouts_app_myapp/
-})
-</script>
-```
-
-### Pattern 5: Optional Shared Components
-```vue
-<!-- apps/app_myapp/layouts_app_myapp/default.vue -->
-<template>
-  <div class="myapp-layout">
-    <!-- Choose to use shared components or implement custom -->
-    <layout-header />  <!-- ✅ Optional: shared component -->
-    <MyAppCustomNav /> <!-- ✅ Custom component -->
-    <NuxtPage />
-  </div>
-</template>
-```
-
----
-
-## 🎯 Key Files Reference
+## 🔍 Key Files
 
 | Purpose | File |
 |---------|------|
-| App Registry | `app-entry.ts` |
-| Route Namespaces | `composables/useRouteNamespace.ts` |
-| Type Safety | `utils/namespace-registry.ts` |
-| Switch Script | `scripts/switch-app-entry.js` |
-| Middleware | `middleware/app-entry.global.ts` |
-| Base Layout | `layouts/base.vue` |
-| Default Layout | `layouts/default-with-nav.vue` |
-| App Layouts | `apps/app_*/layouts_app_*/default.vue` |
-| Layout Wrappers | `layouts/{app}.vue` |
+| Namespace Types | `utils/namespace-registry.ts` |
+| Route Detection | `composables/useRouteNamespace.ts` |
+| App Configs | `configs/{namespace}.config.ts` |
+| API Services | `services/api/{namespace}/` |
+| App i18n | `apps/app_{namespace}/i18n_app_{namespace}/locales/` |
+| Global i18n | `i18n/locales/` |
+| i18n Composable | `composables/useAppI18n.ts` |
+| Launcher | `scripts/start.ps1` |
+| Entry Pages | `pages/index.{namespace}.vue` |
 
 ---
 
-## ✅ Architecture Status
+## ✅ Validation Checklist
 
-**Overall Completeness: 100%** 🎉
+### For Each App
+**Required Structure:**
+1. Namespace registered in `utils/namespace-registry.ts`
+2. Route mapping in `composables/useRouteNamespace.ts`
+3. Config file created in `configs/{namespace}.config.ts`
+4. API service directory in `services/api/{namespace}/`
+5. Entry page `pages/index.{namespace}.vue` (imports single component only)
+6. Main app component `apps/app_{namespace}/components_app_{namespace}/{namespace}_index/{Namespace}App.vue`
+7. Layout wrapper `layouts/{namespace}.vue`
+8. App layout (optional) `apps/app_{namespace}/layouts_app_{namespace}/`
+9. i18n directory `apps/app_{namespace}/i18n_app_{namespace}/locales/`
+10. All global languages supported in app i18n (en, zh, ja, fa, etc.)
+11. No duplicate translation keys between global and app i18n
 
-- ✅ App Entry System (5/5 apps)
-- ✅ Route Namespaces (5/5 registered)
-- ✅ Config Files (5/5 created)
-- ✅ API Services (5/5 namespaces)
-- ✅ Layout System (Layout isolation implemented)
-- ✅ Page Entries (5/5 files)
-- ✅ Validation System
-- ✅ Type Safety
+**Component Naming:**
+- Main component: `{namespace}_index/{Namespace}App.vue`
+- Sub-components: `{namespace}_index_components/`
+- Feature modules: organized in subdirectories
 
-**Layout Isolation Status:**
-- ✅ Base layout created (`layouts/base.vue`)
-- ✅ Default navigation layout (`layouts/default-with-nav.vue`)
-- ✅ Custom app layouts (admin, dashboard, pymatrix)
-- ✅ Layout wrappers in root layouts directory
-- ✅ Shared components are optional (opt-in model)
-- ✅ No forced UI structure on sub-apps
+### Global Standards
+**Common Layer:**
+1. Generic, reusable code in `common/`
+2. Global translations in `i18n/locales/`
+3. All apps use consistent language set (16 languages)
+4. No app-specific code in global layers
+5. Common components are props-driven and configurable
 
-**All critical gaps resolved.**
+**Services Layer:**
+1. API services organized by namespace: `services/api/{namespace}/`
+2. All API requests include `X-App-Namespace` header
+3. No cross-namespace API imports
 
 ---
 
-**Last Updated:** 2025-10-31
+## 🎯 i18n Best Practices
+
+### Global i18n (`i18n/locales/`)
+**Include:** UI actions, status, navigation, settings
+**Exclude:** App-specific features, domain terminology
+
+### App i18n (`i18n_app_{namespace}/locales/`)
+**Include:** Feature names, workflows, domain terminology unique to app
+**Exclude:** Common translations, other app's translations
+
+### Standards
+- **Naming:** snake_case with feature prefix (`batch_connect`, `device_info`)
+- **Languages:** Support all 16 global languages (en, zh, ja, fa, es, fr, de, ru, pt, it, pl, tr, sv, hu, da, el)
+- **RTL:** Test Persian (fa) and Arabic (ar) for layout issues
+
+---
+
+## 📊 Current Apps
+
+**AI Instruction:** Scan the following directories to discover all registered apps:
+
+**Discovery Commands:**
+```bash
+# Scan for app directories
+ls apps/ | grep "^app_"
+
+# Scan for entry pages
+ls pages/ | grep "^index\." | grep -v "index.vue"
+
+# Verify namespace registry
+cat utils/namespace-registry.ts | grep "RegisteredNamespace"
+```
+
+**Expected App Structure:**
+Each discovered app should have:
+- `apps/app_{namespace}/` - App directory
+- `pages/index.{namespace}.vue` - Entry page
+- `apps/app_{namespace}/components_app_{namespace}/{namespace}_index/{Namespace}App.vue` - Main component
+- `apps/app_{namespace}/i18n_app_{namespace}/locales/` - Translation files
+- `services/api/{namespace}/` - API services (optional)
+
+**Example Apps:** example, codemart, dev, admin, dashboard, pymatrix, ittools, main
+
+---
+
+## 🔧 Common Patterns
+
+| Pattern | Code |
+|---------|------|
+| Namespace Detection | `const { currentNamespace } = useRouteNamespace()` |
+| App Translation | `const { t } = useAppI18n()` |
+| API with Namespace | `$fetch('/api/endpoint', { headers: { 'X-App-Namespace': namespace }})` |
+| Custom Layout | `definePageMeta({ layout: 'myapp' })` |
+
+---
+
+**Last Updated:** 2025-11-10
 **Maintained By:** Core Node Team

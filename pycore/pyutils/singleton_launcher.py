@@ -1,32 +1,27 @@
 # -*- coding: utf-8 -*-
 """
-单例启动类示例 (Singleton Launcher Example)
+Singleton Launcher Example
 
-⚠️ 重要说明 / IMPORTANT NOTICE:
+⚠️ IMPORTANT NOTICE:
 ==========================================
-这是一个示例类库，无须直接引入到项目中使用。
-请将此代码复制到您的项目中，并根据实际需求进行修改和实现。
-
 This is an example library and should NOT be imported directly.
 Please copy this code to your project and modify it according to your needs.
 
-功能说明 / Features:
+Features:
 ==========================================
-1. 单例模式：确保应用程序只启动一个后端实例
-2. 双线程架构：
-   - 客户端通信线程：处理与客户端的通信
-   - 后端主线程：运行主要业务逻辑
-3. 智能检测：自动检测是否已有实例运行
-4. 资源共享：多个客户端共享同一个后端实例
+1. Singleton pattern: Ensures only one backend instance is started
+2. Dual-thread architecture:
+   - Client communication thread: Handles communication with clients
+   - Backend main thread: Runs main business logic
+3. Smart detection: Automatically detects if an instance is already running
+4. Resource sharing: Multiple clients share the same backend instance
 
-技术要求 / Requirements:
+Requirements:
 ==========================================
-仅使用Python官方标准库，无第三方依赖
 Only uses Python standard library, no third-party dependencies
 
-实现方式 / Implementation:
+Implementation:
 ==========================================
-使用socket端口检测来实现单例模式
 Uses socket port detection to implement singleton pattern
 """
 
@@ -40,36 +35,36 @@ from typing import Optional, Callable, Dict, Any
 
 class SingletonLauncher:
     """
-    单例启动器基类
+    Singleton launcher base class
 
-    使用说明：
-    1. 复制此类到您的项目中
-    2. 继承此类并实现 run_backend() 和 run_client_communication() 方法
-    3. 在主程序入口调用 start() 方法
+    Usage:
+    1. Copy this class to your project
+    2. Inherit this class and implement run_backend() and run_client_communication() methods
+    3. Call start() method in main program entry
 
     Example:
         class MyLauncher(SingletonLauncher):
             def run_backend(self):
-                # 实现后端逻辑
+                # Implement backend logic
                 pass
 
             def run_client_communication(self):
-                # 实现客户端通信逻辑
+                # Implement client communication logic
                 pass
 
         launcher = MyLauncher(host='localhost', port=9999)
         launcher.start()
     """
 
-    # 硬编码配置 / Hardcoded Configuration
+    # Hardcoded Configuration
     DEFAULT_HOST = 'localhost'
-    DEFAULT_PORT = 19999  # 默认单例检测端口
-    DEFAULT_TIMEOUT = 2   # 检测超时时间（秒）
+    DEFAULT_PORT = 19999  # Default singleton detection port
+    DEFAULT_TIMEOUT = 2   # Detection timeout (seconds)
 
-    # 通信协议常量 / Communication Protocol Constants
-    SIGNAL_CHECK = 'INSTANCE_CHECK'      # 实例检测信号
-    SIGNAL_ALIVE = 'INSTANCE_ALIVE'      # 实例存活响应
-    SIGNAL_SHUTDOWN = 'SHUTDOWN'         # 关闭信号
+    # Communication Protocol Constants
+    SIGNAL_CHECK = 'INSTANCE_CHECK'      # Instance detection signal
+    SIGNAL_ALIVE = 'INSTANCE_ALIVE'      # Instance alive response
+    SIGNAL_SHUTDOWN = 'SHUTDOWN'         # Shutdown signal
 
     def __init__(
         self,
@@ -79,57 +74,57 @@ class SingletonLauncher:
         debug: bool = False
     ):
         """
-        初始化单例启动器
+        Initialize singleton launcher
 
         Args:
-            host: 监听地址（默认: localhost）
-            port: 监听端口（默认: 19999）
-            timeout: 检测超时时间（默认: 2秒）
-            debug: 是否开启调试输出
+            host: Listen address (default: localhost)
+            port: Listen port (default: 19999)
+            timeout: Detection timeout (default: 2 seconds)
+            debug: Whether to enable debug output
         """
         self.host = host
         self.port = port
         self.timeout = timeout
         self.debug = debug
 
-        # 运行状态
+        # Running state
         self._running = False
         self._is_primary_instance = False
 
-        # 线程对象
+        # Thread objects
         self._backend_thread: Optional[threading.Thread] = None
         self._communication_thread: Optional[threading.Thread] = None
 
-        # 服务器socket（仅主实例使用）
+        # Server socket (only used by primary instance)
         self._server_socket: Optional[socket.socket] = None
 
-        # 事件回调
+        # Event callbacks
         self._on_primary_started: Optional[Callable] = None
         self._on_secondary_started: Optional[Callable] = None
         self._on_shutdown: Optional[Callable] = None
 
     def _log(self, message: str, level: str = 'INFO'):
-        """输出日志"""
+        """Output log"""
         if self.debug or level in ['ERROR', 'WARNING']:
             print(f"[{level}] SingletonLauncher: {message}")
 
     def _check_instance_exists(self) -> bool:
         """
-        检测是否已有实例运行
+        Check if an instance is already running
 
         Returns:
-            True: 已有实例运行
-            False: 无实例运行
+            True: Instance already running
+            False: No instance running
         """
         try:
-            # 尝试连接到指定端口
+            # Try to connect to specified port
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.settimeout(self.timeout)
 
-            self._log(f"检测实例: {self.host}:{self.port}")
+            self._log(f"Checking instance: {self.host}:{self.port}")
             client_socket.connect((self.host, self.port))
 
-            # 发送检测信号
+            # Send detection signal
             message = json.dumps({
                 'type': self.SIGNAL_CHECK,
                 'timestamp': time.time()
@@ -137,55 +132,55 @@ class SingletonLauncher:
 
             client_socket.sendall(message + b'\n')
 
-            # 等待响应
+            # Wait for response
             response = client_socket.recv(1024).decode('utf-8')
             response_data = json.loads(response.strip())
 
             client_socket.close()
 
-            # 检查是否收到存活响应
+            # Check if received alive response
             if response_data.get('type') == self.SIGNAL_ALIVE:
-                self._log("检测到已有实例运行", 'WARNING')
+                self._log("Detected existing instance running", 'WARNING')
                 return True
 
             return False
 
         except (socket.timeout, socket.error, ConnectionRefusedError) as e:
-            self._log(f"未检测到实例: {e}")
+            self._log(f"No instance detected: {e}")
             return False
         except Exception as e:
-            self._log(f"检测过程出错: {e}", 'ERROR')
+            self._log(f"Error during detection: {e}", 'ERROR')
             return False
 
     def _start_server_socket(self) -> bool:
         """
-        启动服务器socket（单例检测用）
+        Start server socket (for singleton detection)
 
         Returns:
-            True: 启动成功
-            False: 启动失败（端口被占用）
+            True: Started successfully
+            False: Failed to start (port in use)
         """
         try:
             self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._server_socket.bind((self.host, self.port))
             self._server_socket.listen(5)
-            self._server_socket.settimeout(1.0)  # 设置超时以便可以响应关闭
+            self._server_socket.settimeout(1.0)  # Set timeout to allow shutdown response
 
-            self._log(f"服务器socket启动成功: {self.host}:{self.port}")
+            self._log(f"Server socket started successfully: {self.host}:{self.port}")
             return True
 
         except OSError as e:
-            self._log(f"服务器socket启动失败: {e}", 'ERROR')
+            self._log(f"Server socket startup failed: {e}", 'ERROR')
             return False
 
     def _handle_client_connection(self, client_socket: socket.socket, address):
         """
-        处理客户端连接（单例检测）
+        Handle client connection (singleton detection)
 
         Args:
-            client_socket: 客户端socket
-            address: 客户端地址
+            client_socket: Client socket
+            address: Client address
         """
         try:
             data = client_socket.recv(1024).decode('utf-8')
@@ -195,9 +190,9 @@ class SingletonLauncher:
             message = json.loads(data.strip())
             msg_type = message.get('type')
 
-            self._log(f"收到来自 {address} 的消息: {msg_type}")
+            self._log(f"Received message from {address}: {msg_type}")
 
-            # 响应实例检测
+            # Respond to instance detection
             if msg_type == self.SIGNAL_CHECK:
                 response = json.dumps({
                     'type': self.SIGNAL_ALIVE,
@@ -206,9 +201,9 @@ class SingletonLauncher:
                 }).encode('utf-8')
                 client_socket.sendall(response + b'\n')
 
-            # 处理关闭信号
+            # Handle shutdown signal
             elif msg_type == self.SIGNAL_SHUTDOWN:
-                self._log("收到关闭信号", 'WARNING')
+                self._log("Received shutdown signal", 'WARNING')
                 self._running = False
                 response = json.dumps({
                     'type': 'SHUTDOWN_ACK',
@@ -217,19 +212,19 @@ class SingletonLauncher:
                 client_socket.sendall(response + b'\n')
 
         except Exception as e:
-            self._log(f"处理客户端连接出错: {e}", 'ERROR')
+            self._log(f"Error handling client connection: {e}", 'ERROR')
 
         finally:
             client_socket.close()
 
     def _server_socket_loop(self):
-        """服务器socket监听循环（主实例）"""
-        self._log("服务器socket监听循环启动")
+        """Server socket listening loop (primary instance)"""
+        self._log("Server socket listening loop started")
 
         while self._running:
             try:
                 client_socket, address = self._server_socket.accept()
-                # 使用新线程处理连接
+                # Use new thread to handle connection
                 threading.Thread(
                     target=self._handle_client_connection,
                     args=(client_socket, address),
@@ -237,265 +232,265 @@ class SingletonLauncher:
                 ).start()
 
             except socket.timeout:
-                continue  # 超时继续循环
+                continue  # Timeout, continue loop
 
             except Exception as e:
                 if self._running:
-                    self._log(f"服务器socket错误: {e}", 'ERROR')
+                    self._log(f"Server socket error: {e}", 'ERROR')
                 break
 
-        self._log("服务器socket监听循环结束")
+        self._log("Server socket listening loop ended")
 
     def _backend_thread_entry(self):
-        """后端线程入口"""
-        self._log("后端线程启动")
+        """Backend thread entry"""
+        self._log("Backend thread started")
 
         try:
-            # 先启动服务器socket（单例检测）
+            # Start server socket first (singleton detection)
             self._server_socket_loop()
 
-            # 运行用户定义的后端逻辑
+            # Run user-defined backend logic
             self.run_backend()
 
         except Exception as e:
-            self._log(f"后端线程异常: {e}", 'ERROR')
+            self._log(f"Backend thread exception: {e}", 'ERROR')
 
         finally:
-            self._log("后端线程结束")
+            self._log("Backend thread ended")
 
     def _communication_thread_entry(self):
-        """客户端通信线程入口"""
-        self._log("客户端通信线程启动")
+        """Client communication thread entry"""
+        self._log("Client communication thread started")
 
         try:
             self.run_client_communication()
 
         except Exception as e:
-            self._log(f"客户端通信线程异常: {e}", 'ERROR')
+            self._log(f"Client communication thread exception: {e}", 'ERROR')
 
         finally:
-            self._log("客户端通信线程结束")
+            self._log("Client communication thread ended")
 
     # ============================================
-    # 用户需要实现的方法 / Methods to be implemented
+    # Methods to be implemented
     # ============================================
 
     def run_backend(self):
         """
-        运行后端主逻辑（需要子类实现）
+        Run backend main logic (needs to be implemented by subclass)
 
-        此方法在后端主线程中运行，实现您的核心业务逻辑。
-        仅在主实例（第一个启动的实例）中运行。
+        This method runs in the backend main thread, implementing your core business logic.
+        Only runs in the primary instance (first started instance).
 
         Example:
             def run_backend(self):
                 while self._running:
-                    # 执行后端任务
+                    # Execute backend tasks
                     time.sleep(1)
         """
-        raise NotImplementedError("请实现 run_backend() 方法")
+        raise NotImplementedError("Please implement run_backend() method")
 
     def run_client_communication(self):
         """
-        运行客户端通信逻辑（需要子类实现）
+        Run client communication logic (needs to be implemented by subclass)
 
-        此方法在客户端通信线程中运行，处理与客户端的通信。
-        在所有实例（主实例和次要实例）中都会运行。
+        This method runs in the client communication thread, handling communication with clients.
+        Runs in all instances (primary and secondary instances).
 
         Example:
             def run_client_communication(self):
                 while self._running:
-                    # 处理客户端通信
+                    # Handle client communication
                     time.sleep(1)
         """
-        raise NotImplementedError("请实现 run_client_communication() 方法")
+        raise NotImplementedError("Please implement run_client_communication() method")
 
     # ============================================
-    # 公共接口 / Public Interface
+    # Public Interface
     # ============================================
 
     def start(self) -> bool:
         """
-        启动应用程序
+        Start application
 
         Returns:
-            True: 启动成功（作为主实例或次要实例）
-            False: 启动失败
+            True: Started successfully (as primary or secondary instance)
+            False: Failed to start
         """
         if self._running:
-            self._log("应用程序已在运行", 'WARNING')
+            self._log("Application already running", 'WARNING')
             return False
 
-        self._log("=== 单例启动器开始启动 ===")
+        self._log("=== Singleton launcher starting ===")
 
-        # 检测是否已有实例运行
+        # Check if instance already exists
         instance_exists = self._check_instance_exists()
 
         if instance_exists:
-            # 已有实例运行，作为次要实例启动
-            self._log("检测到主实例，作为次要实例启动", 'WARNING')
+            # Instance exists, start as secondary instance
+            self._log("Primary instance detected, starting as secondary instance", 'WARNING')
             self._is_primary_instance = False
 
-            # 触发次要实例启动回调
+            # Trigger secondary instance startup callback
             if self._on_secondary_started:
                 self._on_secondary_started()
 
         else:
-            # 无实例运行，作为主实例启动
-            self._log("未检测到主实例，作为主实例启动")
+            # No instance running, start as primary instance
+            self._log("No primary instance detected, starting as primary instance")
             self._is_primary_instance = True
 
-            # 启动服务器socket
+            # Start server socket
             if not self._start_server_socket():
-                self._log("无法启动服务器socket，启动失败", 'ERROR')
+                self._log("Cannot start server socket, startup failed", 'ERROR')
                 return False
 
-            # 启动后端线程
+            # Start backend thread
             self._backend_thread = threading.Thread(
                 target=self._backend_thread_entry,
                 name="BackendThread",
                 daemon=False
             )
 
-            # 触发主实例启动回调
+            # Trigger primary instance startup callback
             if self._on_primary_started:
                 self._on_primary_started()
 
-        # 启动客户端通信线程（所有实例都需要）
+        # Start client communication thread (all instances need this)
         self._communication_thread = threading.Thread(
             target=self._communication_thread_entry,
             name="ClientCommunicationThread",
             daemon=False
         )
 
-        # 设置运行标志
+        # Set running flag
         self._running = True
 
-        # 启动线程
+        # Start threads
         if self._is_primary_instance and self._backend_thread:
             self._backend_thread.start()
 
         self._communication_thread.start()
 
-        self._log(f"=== 启动完成 (主实例: {self._is_primary_instance}) ===")
+        self._log(f"=== Startup complete (Primary instance: {self._is_primary_instance}) ===")
         return True
 
     def stop(self):
-        """停止应用程序"""
+        """Stop application"""
         if not self._running:
             return
 
-        self._log("=== 开始停止应用程序 ===")
+        self._log("=== Starting application shutdown ===")
 
         self._running = False
 
-        # 触发关闭回调
+        # Trigger shutdown callback
         if self._on_shutdown:
             self._on_shutdown()
 
-        # 等待线程结束
+        # Wait for threads to end
         if self._communication_thread:
             self._communication_thread.join(timeout=5)
 
         if self._backend_thread:
             self._backend_thread.join(timeout=5)
 
-        # 关闭服务器socket
+        # Close server socket
         if self._server_socket:
             try:
                 self._server_socket.close()
             except:
                 pass
 
-        self._log("=== 应用程序已停止 ===")
+        self._log("=== Application stopped ===")
 
     def is_running(self) -> bool:
-        """检查是否正在运行"""
+        """Check if running"""
         return self._running
 
     def is_primary_instance(self) -> bool:
-        """检查是否为主实例"""
+        """Check if primary instance"""
         return self._is_primary_instance
 
     # ============================================
-    # 事件回调设置 / Event Callback Setters
+    # Event Callback Setters
     # ============================================
 
     def on_primary_started(self, callback: Callable):
-        """设置主实例启动回调"""
+        """Set primary instance startup callback"""
         self._on_primary_started = callback
         return self
 
     def on_secondary_started(self, callback: Callable):
-        """设置次要实例启动回调"""
+        """Set secondary instance startup callback"""
         self._on_secondary_started = callback
         return self
 
     def on_shutdown(self, callback: Callable):
-        """设置关闭回调"""
+        """Set shutdown callback"""
         self._on_shutdown = callback
         return self
 
 
 # ============================================
-# 使用示例 / Usage Example
+# Usage Example
 # ============================================
 
 class ExampleLauncher(SingletonLauncher):
-    """示例实现"""
+    """Example implementation"""
 
     def run_backend(self):
-        """后端逻辑示例"""
-        print("后端线程开始运行...")
+        """Backend logic example"""
+        print("Backend thread starting...")
         counter = 0
         while self._running:
             counter += 1
-            print(f"后端任务执行中... (计数: {counter})")
+            print(f"Backend task executing... (count: {counter})")
             time.sleep(2)
-        print("后端线程结束")
+        print("Backend thread ended")
 
     def run_client_communication(self):
-        """客户端通信逻辑示例"""
-        print("客户端通信线程开始运行...")
+        """Client communication logic example"""
+        print("Client communication thread starting...")
         counter = 0
         while self._running:
             counter += 1
-            print(f"客户端通信处理中... (计数: {counter})")
+            print(f"Client communication processing... (count: {counter})")
             time.sleep(3)
-        print("客户端通信线程结束")
+        print("Client communication thread ended")
 
 
 def main():
-    """示例主函数"""
-    print("=== SingletonLauncher 使用示例 ===\n")
+    """Example main function"""
+    print("=== SingletonLauncher Usage Example ===\n")
 
-    # 创建启动器实例
+    # Create launcher instance
     launcher = ExampleLauncher(
         host='localhost',
         port=19999,
         debug=True
     )
 
-    # 设置回调
-    launcher.on_primary_started(lambda: print("✓ 作为主实例启动"))
-    launcher.on_secondary_started(lambda: print("✓ 作为次要实例启动"))
-    launcher.on_shutdown(lambda: print("✓ 应用程序即将关闭"))
+    # Set callbacks
+    launcher.on_primary_started(lambda: print("✓ Started as primary instance"))
+    launcher.on_secondary_started(lambda: print("✓ Started as secondary instance"))
+    launcher.on_shutdown(lambda: print("✓ Application shutting down"))
 
-    # 启动
+    # Start
     if launcher.start():
         try:
-            # 保持主线程运行
-            print("\n应用程序运行中，按 Ctrl+C 停止...\n")
+            # Keep main thread running
+            print("\nApplication running, press Ctrl+C to stop...\n")
             while launcher.is_running():
                 time.sleep(1)
 
         except KeyboardInterrupt:
-            print("\n收到中断信号")
+            print("\nReceived interrupt signal")
 
         finally:
             launcher.stop()
     else:
-        print("启动失败！")
+        print("Startup failed!")
 
 
 if __name__ == '__main__':

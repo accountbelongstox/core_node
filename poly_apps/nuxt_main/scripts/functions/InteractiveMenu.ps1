@@ -40,12 +40,22 @@ function Show-InteractiveMenu {
         [scriptblock]$OnStateChange = $null
     )
 
+    $modeOptions = @("debug", "build")
     $selectedIndex = $InitialIndex
-    $mode = $InitialMode
+    $mode = if ($modeOptions -contains $InitialMode) { $InitialMode } else { "debug" }
     $running = $true
 
     if ($selectedIndex -ge $MenuItems.Count) {
         $selectedIndex = 0
+    }
+
+    function Get-ModeLabel {
+        param([string]$ModeValue)
+        switch ($ModeValue) {
+            "debug" { return "Debug" }
+            "build" { return "Build" }
+            default { return $ModeValue }
+        }
     }
 
     function Draw-Menu {
@@ -63,9 +73,9 @@ function Show-InteractiveMenu {
 
             $prefix = if ($isSelected) { ">" } else { " " }
             $modeText = if ($isSelected) {
-                if ($mode -eq "debug") { "[Debug]" } else { "[Build]" }
+                "[" + (Get-ModeLabel -ModeValue $mode) + "]"
             } else {
-                "       "
+                "           "
             }
 
             if ($isSelected) {
@@ -78,7 +88,7 @@ function Show-InteractiveMenu {
 
         Write-Host ""
         $selectedApp = $MenuItems[$selectedIndex]
-        Write-Host "Selected: $($selectedApp.DisplayName) - Port: $($selectedApp.Port) - Mode: $mode" -ForegroundColor Yellow
+        Write-Host "Selected: $($selectedApp.DisplayName) - Port: $($selectedApp.Port) - Mode: $(Get-ModeLabel -ModeValue $mode)" -ForegroundColor Yellow
     }
 
     function Invoke-StateChange {
@@ -105,13 +115,17 @@ function Show-InteractiveMenu {
             Start-Sleep -Milliseconds 150
         }
         elseif ([KeyboardUtil]::GetAsyncKeyState($VK_LEFT) -band 0x8000) {
-            $mode = if ($mode -eq "debug") { "build" } else { "debug" }
+            $currentIndex = $modeOptions.IndexOf($mode)
+            if ($currentIndex -lt 0) { $currentIndex = 0 }
+            $mode = $modeOptions[($currentIndex - 1 + $modeOptions.Count) % $modeOptions.Count]
             Draw-Menu
             Invoke-StateChange
             Start-Sleep -Milliseconds 150
         }
         elseif ([KeyboardUtil]::GetAsyncKeyState($VK_RIGHT) -band 0x8000) {
-            $mode = if ($mode -eq "debug") { "build" } else { "debug" }
+            $currentIndex = $modeOptions.IndexOf($mode)
+            if ($currentIndex -lt 0) { $currentIndex = 0 }
+            $mode = $modeOptions[($currentIndex + 1) % $modeOptions.Count]
             Draw-Menu
             Invoke-StateChange
             Start-Sleep -Milliseconds 150

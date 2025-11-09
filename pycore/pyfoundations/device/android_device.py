@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 from typing import Optional, Any
-from .device_info import DeviceInfo, Resolution
-from .server_params import ServerParams
+from pycore.pyfoundations.device.device_info import DeviceInfo, Resolution
+from pycore.pyfoundations.device.server_params import ServerParams
 
 
 class AndroidDevice(ABC):
