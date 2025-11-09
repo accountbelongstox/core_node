@@ -16,7 +16,7 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
-    USE_SUDO=""
+USE_SUDO=""
 fi
 # Parameter validation
 TARGET_REMOTE=""
@@ -58,6 +58,37 @@ PROJECT_NAME="core_node"  # Hardcoded project name
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 export COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+
+read_masked_password() {
+    local prompt="$1"
+    local password=""
+    local char=""
+    local old_stty="$(stty -g 2>/dev/null)"
+
+    printf "%s" "$prompt"
+
+    stty -echo 2>/dev/null
+    while IFS= read -r -s -n1 char; do
+        if [[ -z "$char" ]]; then
+            printf "\n"
+            break
+        elif [[ $char == $'\n' || $char == $'\r' ]]; then
+            printf "\n"
+            break
+        elif [[ $char == $'\177' || $char == $'\b' ]]; then
+            if [ -n "$password" ]; then
+                password="${password%?}"
+                printf "\b \b"
+            fi
+        else
+            password+="$char"
+            printf "*"
+        fi
+    done
+
+    stty "$old_stty" 2>/dev/null
+    printf "%s" "$password"
+}
 
 # File validation function for win_common directory
 test_win_common_files() {
