@@ -1,17 +1,17 @@
 {
-  "_comment": "Launcher Configuration with Offline Driver Support",
+  "_comment": "Launcher Configuration with Auto Browser/Driver Detection",
   "_instructions": {
-    "driver_mode": "local (offline), system_path (offline), or auto_download (online)",
-    "driver_path": "Full path to chromedriver.exe (Windows) or chromedriver (Linux/Mac)",
-    "example_windows": "D:/drivers/chromedriver.exe",
-    "example_linux": "/usr/local/bin/chromedriver",
-    "download_url": "https://chromedriver.chromium.org/downloads"
+    "browser_type": "edge (default, recommended), chrome, firefox",
+    "driver_mode": "auto (recommended - auto-detects and downloads if needed), local (offline with manual path), system_path (offline, from PATH), auto_download (online only)",
+    "driver_path": "Only needed for 'local' mode. Full path to driver exe",
+    "example_edge_windows": "D:/drivers/msedgedriver.exe",
+    "example_chrome_windows": "D:/drivers/chromedriver.exe",
+    "example_linux": "/usr/local/bin/msedgedriver or /usr/local/bin/chromedriver"
   },
   "selenium_service": {
-    "browser_type": "chrome",
+    "browser_type": "edge",
     "headless": false,
-    "driver_mode": "local",
-    "driver_path": "D:/drivers/chromedriver.exe",
+    "driver_mode": "auto",
     "disable_gpu": true,
     "no_sandbox": true,
     "max_sessions": 5,

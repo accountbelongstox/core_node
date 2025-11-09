@@ -6,8 +6,16 @@ Firefox browser running in dedicated thread.
 Each instance is a self-contained thread that manages its own Selenium driver.
 """
 
+import os
+import shutil
 import time
 from typing import Dict, Any, Optional
+
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.common.by import By
+
 from pycore import ColorPrint
 from pycore.pyutils.pybrowser.core.threaded_browser import ThreadedBrowser
 
@@ -42,84 +50,186 @@ class FirefoxBrowser(ThreadedBrowser):
                 - download_dir: Download directory
                 - window_size: tuple (width, height)
                 - preferences: dict of Firefox preferences
+                - driver_mode: str (auto, local, system_path, auto_download)
+                - driver_path: str (path to geckodriver)
             thread_name: Custom thread name (default: auto-generated)
         """
         super().__init__(config, thread_name or 'FirefoxBrowser', daemon=True)
         self.browser_type = 'firefox'
         self.version = None
 
+    def _get_driver_service(self):
+        """
+        Get GeckoDriver service with fallback chain
+
+        Priority:
+            1. Auto mode: Try local paths -> download
+            2. Local path (if configured)
+            3. System PATH
+            4. Auto-download (requires internet)
+
+        Returns:
+            Service instance
+
+        Note:
+            Errors propagate naturally for easier debugging.
+            If offline and no local driver, will fail with clear message.
+        """
+        driver_mode = self.config.get('driver_mode', 'auto')
+        driver_path = self.config.get('driver_path')
+
+        # Mode 0: Auto mode (智能查找)
+        if driver_mode == 'auto':
+            ColorPrint.blue(f"{self.name}: Auto-detecting GeckoDriver...")
+
+            # Try find_driver utility
+            from pycore.pyutils.pybrowser.utils.browser_finder import find_driver
+            found_driver = find_driver('firefox')
+            if found_driver:
+                ColorPrint.green(f"{self.name}: Auto-found driver: {found_driver}")
+                return Service(found_driver)
+
+            # Fallback to auto-download
+            ColorPrint.yellow(f"{self.name}: Driver not found locally, attempting download...")
+            ColorPrint.yellow(f"{self.name}: Note: This requires internet connection")
+
+            from webdriver_manager.firefox import GeckoDriverManager
+
+            # Let download errors propagate naturally
+            downloaded_path = GeckoDriverManager().install()
+            ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
+            return Service(downloaded_path)
+
+        # Mode 1: Local driver path
+        if driver_mode == 'local' and driver_path:
+            if os.path.exists(driver_path):
+                ColorPrint.green(f"{self.name}: Using local driver: {driver_path}")
+                return Service(driver_path)
+            else:
+                ColorPrint.red(f"{self.name}: Local driver not found: {driver_path}")
+                ColorPrint.yellow(f"{self.name}: Falling back to system PATH...")
+
+        # Mode 2: System PATH
+        if driver_mode == 'system_path' or (driver_mode == 'local' and not driver_path):
+            system_driver = shutil.which('geckodriver')
+            if system_driver:
+                ColorPrint.green(f"{self.name}: Using system PATH driver: {system_driver}")
+                return Service(system_driver)
+            else:
+                ColorPrint.red(f"{self.name}: GeckoDriver not found in system PATH")
+
+        # Mode 3: Auto-download (requires internet)
+        if driver_mode == 'auto_download':
+            ColorPrint.blue(f"{self.name}: Attempting to download GeckoDriver...")
+            from webdriver_manager.firefox import GeckoDriverManager
+            downloaded_path = GeckoDriverManager().install()
+            ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
+            return Service(downloaded_path)
+
+        # All methods failed - provide clear guidance
+        error_msg = (
+            f"\n"
+            f"=================================================================\n"
+            f" GeckoDriver Not Found - Configuration Required\n"
+            f"=================================================================\n"
+            f"\n"
+            f"Attempted methods:\n"
+            f"  1. Local path: {driver_path if driver_path else 'Not configured'}\n"
+            f"  2. System PATH: Not found\n"
+            f"  3. Auto-download: Not attempted (driver_mode={driver_mode})\n"
+            f"\n"
+            f"SOLUTIONS:\n"
+            f"\n"
+            f"Option 1 (Recommended): Use 'auto' mode\n"
+            f"  Config: {{\"driver_mode\": \"auto\"}}\n"
+            f"  - First run requires internet to download driver\n"
+            f"  - Subsequent runs use cached driver (offline)\n"
+            f"\n"
+            f"Option 2 (Offline): Manual driver installation\n"
+            f"  1. Download GeckoDriver from:\n"
+            f"     https://github.com/mozilla/geckodriver/releases\n"
+            f"  2. Place at: D:\\drivers\\geckodriver.exe (Windows)\n"
+            f"  3. Config: {{\"driver_mode\": \"local\", \"driver_path\": \"D:/drivers/geckodriver.exe\"}}\n"
+            f"\n"
+            f"Option 3: System PATH\n"
+            f"  1. Download driver and add to system PATH\n"
+            f"  2. Config: {{\"driver_mode\": \"system_path\"}}\n"
+            f"\n"
+            f"For diagnostic help, run:\n"
+            f"  python pyapps/selenium_test/diagnose_v2.py\n"
+            f"\n"
+            f"================================================================="
+        )
+        ColorPrint.red(error_msg)
+        raise RuntimeError(error_msg)
+
     def _launch_browser(self):
         """
         Launch Firefox browser (runs in thread context)
 
         This is called automatically when thread starts via start()
+
+        Note:
+            All errors propagate naturally for debugging.
         """
-        try:
-            from selenium import webdriver
-            from selenium.webdriver.firefox.service import Service
-            from selenium.webdriver.firefox.options import Options
-            from webdriver_manager.firefox import GeckoDriverManager
+        ColorPrint.blue(f"{self.name}: Launching Firefox browser...")
 
-            ColorPrint.blue(f"{self.name}: Launching Firefox browser...")
+        # Configure Firefox options
+        firefox_options = Options()
 
-            # Configure Firefox options
-            firefox_options = Options()
+        # Headless mode
+        if self.config.get('headless', False):
+            firefox_options.add_argument('--headless')
+            ColorPrint.blue(f"{self.name}: Headless mode enabled")
 
-            # Headless mode
-            if self.config.get('headless', False):
-                firefox_options.add_argument('--headless')
-                ColorPrint.blue(f"{self.name}: Headless mode enabled")
+        # Custom arguments
+        for arg in self.config.get('args', []):
+            firefox_options.add_argument(arg)
 
-            # Custom arguments
-            for arg in self.config.get('args', []):
-                firefox_options.add_argument(arg)
+        # Profile directory
+        profile_dir = self.config.get('profile_dir')
+        if profile_dir:
+            firefox_options.add_argument(f'--profile={profile_dir}')
 
-            # Profile directory
-            profile_dir = self.config.get('profile_dir')
-            if profile_dir:
-                firefox_options.add_argument(f'--profile={profile_dir}')
+        # Download directory
+        download_dir = self.config.get('download_dir')
+        if download_dir:
+            firefox_options.set_preference('browser.download.folderList', 2)
+            firefox_options.set_preference('browser.download.dir', download_dir)
+            firefox_options.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/octet-stream')
 
-            # Download directory
-            download_dir = self.config.get('download_dir')
-            if download_dir:
-                firefox_options.set_preference('browser.download.folderList', 2)
-                firefox_options.set_preference('browser.download.dir', download_dir)
-                firefox_options.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/octet-stream')
+        # Custom preferences
+        preferences = self.config.get('preferences', {})
+        for key, value in preferences.items():
+            firefox_options.set_preference(key, value)
 
-            # Custom preferences
-            preferences = self.config.get('preferences', {})
-            for key, value in preferences.items():
-                firefox_options.set_preference(key, value)
+        # Window size
+        window_size = self.config.get('window_size')
+        if window_size:
+            width, height = window_size
+            firefox_options.add_argument(f'--width={width}')
+            firefox_options.add_argument(f'--height={height}')
 
-            # Window size
-            window_size = self.config.get('window_size')
-            if window_size:
-                width, height = window_size
-                firefox_options.add_argument(f'--width={width}')
-                firefox_options.add_argument(f'--height={height}')
+        # Get driver service with fallback chain (errors propagate)
+        service = self._get_driver_service()
 
-            # Launch Firefox
-            service = Service(GeckoDriverManager().install())
-            self.driver = webdriver.Firefox(service=service, options=firefox_options)
+        # Launch Firefox (errors propagate)
+        self.driver = webdriver.Firefox(service=service, options=firefox_options)
 
-            # Mark as launched
-            self.is_launched = True
-            self.launch_time = time.time()
+        # Mark as launched
+        self.is_launched = True
+        self.launch_time = time.time()
 
-            # Get version
-            try:
-                capabilities = self.driver.capabilities
-                self.version = capabilities.get('browserVersion') or capabilities.get('version')
-            except:
-                self.version = 'unknown'
+        # Get version (check safely)
+        if self.driver and hasattr(self.driver, 'capabilities'):
+            capabilities = self.driver.capabilities
+            self.version = capabilities.get('browserVersion') or capabilities.get('version', 'unknown')
+        else:
+            self.version = 'unknown'
 
-            ColorPrint.green(
-                f"{self.name}: Firefox browser launched successfully (v{self.version})"
-            )
-
-        except Exception as e:
-            ColorPrint.red(f"{self.name}: Failed to launch Firefox: {e}")
-            raise
+        ColorPrint.green(
+            f"{self.name}: Firefox browser launched successfully (v{self.version})"
+        )
 
     def new_tab(self, url: str = 'about:blank') -> bool:
         """
@@ -137,17 +247,14 @@ class FirefoxBrowser(ThreadedBrowser):
             driver.switch_to.window(driver.window_handles[-1])
             return True
 
-        try:
-            return self.execute(_open_tab, url)
-        except:
-            return False
+        return self.execute(_open_tab, url)
 
     def close_current_tab(self) -> bool:
         """
         Close current tab (thread-safe)
 
         Returns:
-            True if successful
+            True if successful, False if only one tab
         """
         def _close_tab(driver):
             if len(driver.window_handles) > 1:
@@ -157,10 +264,7 @@ class FirefoxBrowser(ThreadedBrowser):
                 return True
             return False
 
-        try:
-            return self.execute(_close_tab)
-        except:
-            return False
+        return self.execute(_close_tab)
 
     def switch_to_tab(self, index: int) -> bool:
         """
@@ -170,7 +274,7 @@ class FirefoxBrowser(ThreadedBrowser):
             index: Tab index (0-based)
 
         Returns:
-            True if successful
+            True if successful, False if index out of range
         """
         def _switch_tab(driver, tab_index):
             handles = driver.window_handles
@@ -179,10 +283,7 @@ class FirefoxBrowser(ThreadedBrowser):
                 return True
             return False
 
-        try:
-            return self.execute(_switch_tab, index)
-        except:
-            return False
+        return self.execute(_switch_tab, index)
 
     def get_tab_count(self) -> int:
         """
@@ -194,10 +295,7 @@ class FirefoxBrowser(ThreadedBrowser):
         def _count_tabs(driver):
             return len(driver.window_handles)
 
-        try:
-            return self.execute(_count_tabs)
-        except:
-            return 0
+        return self.execute(_count_tabs)
 
     def screenshot(self, filepath: str) -> bool:
         """
@@ -212,10 +310,7 @@ class FirefoxBrowser(ThreadedBrowser):
         def _take_screenshot(driver, path):
             return driver.save_screenshot(path)
 
-        try:
-            return self.execute(_take_screenshot, filepath)
-        except:
-            return False
+        return self.execute(_take_screenshot, filepath)
 
     def execute_script(self, script: str, *args) -> Any:
         """
@@ -242,10 +337,9 @@ class FirefoxBrowser(ThreadedBrowser):
             value: Locator value
 
         Returns:
-            WebElement or None
+            WebElement or None if not found
         """
         def _find_elem(driver, locator_by, locator_value):
-            from selenium.webdriver.common.by import By
             by_mapping = {
                 'id': By.ID,
                 'name': By.NAME,
@@ -257,15 +351,14 @@ class FirefoxBrowser(ThreadedBrowser):
                 'partial_link_text': By.PARTIAL_LINK_TEXT
             }
             by_method = by_mapping.get(locator_by.lower(), By.CSS_SELECTOR)
-            try:
-                return driver.find_element(by_method, locator_value)
-            except:
-                return None
 
-        try:
-            return self.execute(_find_elem, by, value)
-        except:
+            # Check if element exists before finding
+            elements = driver.find_elements(by_method, locator_value)
+            if elements:
+                return elements[0]
             return None
+
+        return self.execute(_find_elem, by, value)
 
     def find_elements(self, by: str, value: str) -> list:
         """
@@ -276,10 +369,9 @@ class FirefoxBrowser(ThreadedBrowser):
             value: Locator value
 
         Returns:
-            List of WebElements
+            List of WebElements (empty list if none found)
         """
         def _find_elems(driver, locator_by, locator_value):
-            from selenium.webdriver.common.by import By
             by_mapping = {
                 'id': By.ID,
                 'name': By.NAME,
@@ -291,15 +383,9 @@ class FirefoxBrowser(ThreadedBrowser):
                 'partial_link_text': By.PARTIAL_LINK_TEXT
             }
             by_method = by_mapping.get(locator_by.lower(), By.CSS_SELECTOR)
-            try:
-                return driver.find_elements(by_method, locator_value)
-            except:
-                return []
+            return driver.find_elements(by_method, locator_value)
 
-        try:
-            return self.execute(_find_elems, by, value)
-        except:
-            return []
+        return self.execute(_find_elems, by, value)
 
     def set_window_size(self, width: int, height: int) -> bool:
         """
@@ -316,10 +402,7 @@ class FirefoxBrowser(ThreadedBrowser):
             driver.set_window_size(w, h)
             return True
 
-        try:
-            return self.execute(_set_size, width, height)
-        except:
-            return False
+        return self.execute(_set_size, width, height)
 
     def maximize_window(self) -> bool:
         """
@@ -332,10 +415,7 @@ class FirefoxBrowser(ThreadedBrowser):
             driver.maximize_window()
             return True
 
-        try:
-            return self.execute(_maximize)
-        except:
-            return False
+        return self.execute(_maximize)
 
     def get_cookies(self) -> list:
         """
@@ -347,10 +427,7 @@ class FirefoxBrowser(ThreadedBrowser):
         def _get_cookies(driver):
             return driver.get_cookies()
 
-        try:
-            return self.execute(_get_cookies)
-        except:
-            return []
+        return self.execute(_get_cookies)
 
     def add_cookie(self, cookie_dict: Dict[str, Any]) -> bool:
         """
@@ -366,10 +443,7 @@ class FirefoxBrowser(ThreadedBrowser):
             driver.add_cookie(cookie)
             return True
 
-        try:
-            return self.execute(_add_cookie, cookie_dict)
-        except:
-            return False
+        return self.execute(_add_cookie, cookie_dict)
 
     def delete_all_cookies(self) -> bool:
         """
@@ -382,10 +456,7 @@ class FirefoxBrowser(ThreadedBrowser):
             driver.delete_all_cookies()
             return True
 
-        try:
-            return self.execute(_delete_cookies)
-        except:
-            return False
+        return self.execute(_delete_cookies)
 
     def set_preference(self, key: str, value: Any) -> bool:
         """

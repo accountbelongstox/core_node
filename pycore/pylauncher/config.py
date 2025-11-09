@@ -118,7 +118,7 @@ class SeleniumServiceConfig:
     Configures browser automation (pybrowser)
     """
     # Browser type
-    browser_type: str = "chrome"  # chrome, edge, firefox
+    browser_type: str = "edge"  # chrome, edge, firefox (default: edge)
 
     # Browser options
     headless: bool = False
@@ -126,6 +126,7 @@ class SeleniumServiceConfig:
     no_sandbox: bool = True
 
     # WebDriver configuration
+    driver_mode: Optional[str] = "auto"  # auto, local, system_path, auto_download
     driver_path: Optional[str] = None
     binary_path: Optional[str] = None
 

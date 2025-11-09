@@ -13,7 +13,7 @@
 ================================================================================
 Nuxt App Directory Snapshot
 ================================================================================
-Generated: 2025-11-09 01:59:54
+Generated: 2025-11-10 01:59:25
 App: pymatrix
 Mode: code_assets
 Nuxt Root: D:/programing/core_node/poly_apps/nuxt_main
@@ -257,6 +257,13 @@ pymatrix [code_assets]
 │   │   │   ├── settings.html
 │   │   │   └── style.css
 │   │   └── task.txt
+│   ├── i18n_app_pymatrix
+│   │   ├── README.md
+│   │   └── locales
+│   │       ├── en.json
+│   │       ├── fa.json
+│   │       ├── ja.json
+│   │       └── zh.json
 │   ├── layouts_app_pymatrix
 │   │   └── default.vue
 │   ├── services
@@ -282,6 +289,7 @@ pymatrix [code_assets]
 │   └── utils_app_pymatrix
 │       └── api-urls.ts
 ├── common/
+│   ├── GLOBAL_CONFIG_GUIDE.md
 │   ├── components
 │   │   ├── dashboard
 │   │   │   ├── ProgressChart.vue
@@ -299,9 +307,12 @@ pymatrix [code_assets]
 │   │       ├── BaseToggle.vue
 │   │       ├── DataTable.vue
 │   │       ├── DeviceTagBadge.vue
+│   │       ├── GlobalConfigPanel.vue
 │   │       └── ToastContainer.vue
 │   ├── composables
-│   │   └── useAppTheme.ts
+│   │   ├── useAppTheme.ts
+│   │   ├── useGlobalConfig.ts
+│   │   └── useI18nConfig.ts
 │   ├── constants
 │   │   └── base-constants.ts
 │   ├── layouts
@@ -322,10 +333,12 @@ pymatrix [code_assets]
 │   │       ├── profile.vue
 │   │       └── user-account-settings.vue
 │   ├── plugins
+│   │   ├── app-config.client.ts
 │   │   └── theme.client.ts
 │   ├── services
 │   │   └── .gitkeep
 │   ├── stores
+│   │   ├── app-config-store.ts
 │   │   └── base-store.ts
 │   ├── styles
 │   │   └── theme-base.css
@@ -334,7 +347,8 @@ pymatrix [code_assets]
 │   ├── types
 │   │   └── .gitkeep
 │   └── utils
-│       └── .gitkeep
+│       ├── .gitkeep
+│       └── localStorage.ts
 ├── components/
 │   ├── ThemeCustomizer.vue
 │   ├── codemart
@@ -367,6 +381,7 @@ pymatrix [code_assets]
 │       └── AdminSidebar.vue
 ├── composables/
 │   ├── codePreview.ts
+│   ├── useAppI18n.ts
 │   ├── useAppTheme.ts
 │   ├── useAuth.ts
 │   ├── useCharts.ts
@@ -482,6 +497,7 @@ pymatrix [code_assets]
 │       ├── el.json
 │       ├── en.json
 │       ├── es.json
+│       ├── fa.json
 │       ├── fr.json
 │       ├── hu.json
 │       ├── it.json
@@ -635,4 +651,5 @@ pymatrix [code_assets]
     ├── IMPLEMENTATION_GUIDE.md
     ├── IMPLEMENTATION_PHASES.txt
     ├── MIGRATION_FINAL_REPORT.txt
+    ├── NUXT_REMOTE_FACTORY_PLAN.md
     └── SCRIPT_AUTO_DISCOVERY_DESIGN.md

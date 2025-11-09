@@ -148,7 +148,7 @@ from pycore.pyutils.stream import VideoFrame, VideoFormat
 ## 5. Application Development Standards
 
 ### 5.1 App Directory Structure
-```
+``` 
 pyapps/
 └── {appname}/
     ├── {appname}_main.py   # STANDARD entry point
