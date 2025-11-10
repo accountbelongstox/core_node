@@ -160,6 +160,7 @@ if (-not $scriptCurrentPath) {
     }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
 $shellsDirPath = Join-Path $scriptsDirPath "shells"
 $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
@@ -321,25 +322,66 @@ Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$pythonExecutable = "python3"
-if (-not (Get-Command $pythonExecutable -ErrorAction SilentlyContinue)) {{
-    if (Get-Command python -ErrorAction SilentlyContinue) {{
-        $pythonExecutable = "python"
-    }} else {{
-        Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
-        exit 1
-    }}
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python"
+}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python3"
+}} else {{
+    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
+    exit 1
 }}
 
-$pycoreCaller = Join-Path $projectRootPath "pycore_module_caller.py"
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] PyCore module caller: $pycoreCaller" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
 function Get-SecretValue {{
     param([string]$KeyName)
     Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
-    $arguments = @($pycoreCaller, '--module', 'pyfoundations.secret_manager', '--call', 'get_secret_key', $KeyName)
-    $value = & $pythonExecutable $arguments 2>$null
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    $arguments = @($secretManagerScript, 'get_secret_key', $KeyName)
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable $($arguments -join ' ')" -ForegroundColor DarkGray
+
+    # Capture both stdout and stderr
+    $output = & $pythonExecutable $arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
+
+    # Check if output contains error messages
+    $errorOutput = $output | Where-Object {{ $_ -is [System.Management.Automation.ErrorRecord] }}
+    if ($errorOutput) {{
+        Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
+        $errorOutput | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Yellow }}
+    }}
+
+    # Get the actual value (non-error output)
+    $value = ($output | Where-Object {{ $_ -isnot [System.Management.Automation.ErrorRecord] }}) -join "`n"
+
+    if ($value) {{
+        Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
+        # Show masked preview (first 4 chars + *** + last 4 chars)
+        if ($value.Length -gt 8) {{
+            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
+            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
+        }}
+    }} else {{
+        Write-Host "[DEBUG] Returned empty value" -ForegroundColor Yellow
+    }}
+
     return $value
 }}
 
@@ -348,9 +390,17 @@ function Get-SecretValue {{
         var_loading_code = ""
         for var in variables:
             secret_key_name = f"{var['Name']}_{file_number}"
+            display_name = var.get('DisplayName', var['Name'])
             var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
 if ($env:{var['Name']}) {{
-    Write-Host "[SUCCESS] Loaded {var['Name']}" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded {var['Name']} (Length: $($env:{var['Name']}.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($env:{var['Name']}.Length -gt 8) {{
+        $maskedValue = $env:{var['Name']}.Substring(0, 4) + "***" + $env:{var['Name']}.Substring($env:{var['Name']}.Length - 4)
+        Write-Host "[INFO] {display_name}: $maskedValue" -ForegroundColor Cyan
+    }} else {{
+        Write-Host "[INFO] {display_name}: ****" -ForegroundColor Cyan
+    }}
 }} else {{
     Write-Host "[WARNING] Failed to load {var['Name']}" -ForegroundColor Yellow
 }}
@@ -481,31 +531,51 @@ Write-Host ""
 $sshConnection = "{ssh_connection}"
 Write-Host "[INFO] SSH Connection: $sshConnection" -ForegroundColor Green
 
-$pythonExecutable = "python3"
-if (-not (Get-Command $pythonExecutable -ErrorAction SilentlyContinue)) {{
-    if (Get-Command python -ErrorAction SilentlyContinue) {{
-        $pythonExecutable = "python"
-    }} else {{
-        Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
-        $pythonExecutable = $null
-    }}
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python"
+}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python3"
+}} else {{
+    Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
 }}
 
-$pycoreCaller = Join-Path $projectRootPath "pycore_module_caller.py"
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] PyCore module caller: $pycoreCaller" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
 function Get-SSHSecret {{
     param([string]$KeyName)
     if (-not $pythonExecutable) {{ return $null }}
     Write-Host "[DEBUG] Loading SSH secret key: $KeyName" -ForegroundColor DarkGray
-    $args = @($pycoreCaller, '--module', 'pyfoundations.secret_manager', '--call', 'get_secret_key', $KeyName)
-    return (& $pythonExecutable $args 2>$null)
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    $args = @($secretManagerScript, 'get_secret_key', $KeyName)
+    $result = (& $pythonExecutable $args 2>$null)
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    return $result
 }}
 
 $sshPassword = Get-SSHSecret "{password_key_name}"
 if ($sshPassword) {{
-    Write-Host "[SUCCESS] SSH password loaded" -ForegroundColor Green
+    Write-Host "[SUCCESS] SSH password loaded (Length: $($sshPassword.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($sshPassword.Length -gt 8) {{
+        $maskedValue = $sshPassword.Substring(0, 4) + "***" + $sshPassword.Substring($sshPassword.Length - 4)
+        Write-Host "[INFO] Password: $maskedValue" -ForegroundColor Cyan
+    }} else {{
+        Write-Host "[INFO] Password: ****" -ForegroundColor Cyan
+    }}
 }} else {{
     Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
 }}
@@ -557,4 +627,27 @@ $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 #endregion
 """
 
-        return f"{header}{file_name_display}{load_secret_manager}"
+        # Generate path resolution section (needed for $projectRootPath)
+        path_resolution = """
+#region Initialize Path Variables
+$scriptActualPath = $PSCommandPath
+$item = Get-Item -LiteralPath $PSCommandPath
+if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+    $scriptActualPath = $item.Target
+}
+$scriptCurrentPath = Split-Path $scriptActualPath -Parent
+if (-not $scriptCurrentPath) {
+    $scriptCurrentPath = $PSScriptRoot
+    if (-not $scriptCurrentPath) {
+        $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+}
+$scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
+Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
+#endregion
+"""
+
+        return f"{header}{file_name_display}{path_resolution}{load_secret_manager}"

@@ -322,7 +322,7 @@ class SpecialSoftwareEnvManager:
         """Get the next available file number for a command prefix"""
         platform_type = get_platform_type()
 
-        # Check both winenvs and liunxenvs directories
+        # Check both winenvs and linuxenvs directories
         directories = []
         if platform_type == 'windows':
             directories.append(get_winenvs_dir())
@@ -1076,8 +1076,14 @@ class SpecialSoftwareEnvManager:
             with open(linux_script_path, 'w', encoding='utf-8') as f:
                 f.write(linux_content)
 
+            # Always try to set execute permission (works on Linux/Mac, no-op on Windows)
+            try:
+                os.chmod(linux_script_path, 0o755)
+            except Exception:
+                pass
+
+            # Try to create symlink on Linux/Mac
             if platform.system() != 'Windows':
-                os.chmod(linux_script_path, os.stat(linux_script_path).st_mode | stat.S_IEXEC)
                 self._ensure_linux_symlink(linux_script_path)
 
             ColorMessage.write(f"[OK] Linux script: {linux_script_path}", 'success')
@@ -1107,6 +1113,77 @@ class SpecialSoftwareEnvManager:
                 ColorMessage.write(f"   {script_path}", 'info')
 
         return script_paths
+
+    def _generate_symlink_script(self):
+        """Generate a helper script to create symlinks on Linux"""
+        linuxenvs_dir = get_linuxenvs_dir()
+        script_path = linuxenvs_dir / "create_symlinks.sh"
+
+        # Find all .sh scripts in linuxenvs directory
+        sh_scripts = sorted(linuxenvs_dir.glob("*.sh"))
+        if not sh_scripts:
+            return
+
+        # Build script content
+        script_lines = [
+            "#!/bin/bash",
+            "# Auto-generated script to create symlinks for Linux environment scripts",
+            "# This script should be run on Linux to create symlinks in /usr/local/bin",
+            "",
+            "set -e",
+            "",
+            "# Get script directory",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"",
+            "",
+            "echo \"Creating symlinks in /usr/local/bin...\"",
+            "echo \"\"",
+            "",
+            "# Check if we need sudo",
+            "if [ -w /usr/local/bin ]; then",
+            "    USE_SUDO=\"\"",
+            "else",
+            "    USE_SUDO=\"sudo\"",
+            "fi",
+            "",
+        ]
+
+        # Add symlink commands for each script
+        for script in sh_scripts:
+            if script.name == "create_symlinks.sh":
+                continue
+            script_name = script.stem
+            script_lines.append(f"# Link {script_name}")
+            script_lines.append(f"$USE_SUDO chmod +x \"$SCRIPT_DIR/{script.name}\"")
+            script_lines.append(f"$USE_SUDO ln -sf \"$SCRIPT_DIR/{script.name}\" /usr/local/bin/{script_name}")
+            script_lines.append(f"echo \"[LINK] {script_name} -> $SCRIPT_DIR/{script.name}\"")
+            script_lines.append("")
+
+        script_lines.extend([
+            "echo \"\"",
+            "echo \"Symlinks created successfully!\"",
+            "echo \"You can now run these commands from anywhere:\"",
+            ""
+        ])
+
+        # Add command list
+        for script in sh_scripts:
+            if script.name != "create_symlinks.sh":
+                script_lines.append(f"echo \"  {script.stem}\"")
+
+        # Write script
+        try:
+            with open(script_path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write('\n'.join(script_lines) + '\n')
+
+            # Try to set execute permission
+            try:
+                os.chmod(script_path, 0o755)
+            except Exception:
+                pass
+
+            ColorMessage.write(f"\n[CREATED] Symlink helper: {script_path}", 'success')
+        except Exception as e:
+            ColorMessage.write(f"[WARNING] Failed to create symlink helper script: {e}", 'warning')
 
     def _ensure_linux_symlink(self, script_path: Path):
         """Ensure /usr/local/bin links to the given script"""
@@ -1171,7 +1248,7 @@ class SpecialSoftwareEnvManager:
         return sorted(numbers)
 
     def restore_scripts_from_secrets(self):
-        """Restore winenvs/liunxenvs scripts based on stored secrets"""
+        """Restore winenvs/linuxenvs scripts based on stored secrets"""
 
         clear_screen()
         ColorMessage.write("Restore Scripts from Secret Storage", 'info')
@@ -1211,7 +1288,14 @@ class SpecialSoftwareEnvManager:
             ColorMessage.write("No matching secrets were found to restore scripts.", 'warning')
         else:
             ColorMessage.write(f"Restored {total_sets} script set(s) from secret storage.", 'success')
-            if platform.system() != 'Windows':
+
+            # Generate symlink creation script for Linux
+            self._generate_symlink_script()
+
+            if platform.system() == 'Windows':
+                ColorMessage.write("\nTo use Linux scripts, run this on Linux:", 'info')
+                ColorMessage.write("  bash scripts/linuxenvs/create_symlinks.sh", 'info')
+            else:
                 ColorMessage.write("Linux commands were linked into /usr/local/bin.", 'info')
 
         print()

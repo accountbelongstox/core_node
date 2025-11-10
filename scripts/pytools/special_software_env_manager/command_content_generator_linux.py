@@ -172,24 +172,32 @@ echo ""
         """Generate custom user directory configuration section for Linux"""
         return """
 #region Initialize Path Variables
-scriptCurrentPath="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -L "${BASH_SOURCE[0]}" ]; then
-    scriptRealPath="$(readlink -f "${BASH_SOURCE[0]}")"
-    scriptCurrentPath="$(cd "$(dirname "$scriptRealPath")" && pwd)"
+# Resolve script real path (handle symlinks)
+scriptRealPath="${BASH_SOURCE[0]}"
+if [ -L "$scriptRealPath" ]; then
+    scriptRealPath="$(readlink -f "$scriptRealPath")"
 fi
+scriptCurrentPath="$(cd "$(dirname "$scriptRealPath")" && pwd)"
+
+# Calculate project structure paths
+# Expected structure: project_root/scripts/linuxenvs/script.sh
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+
+# Additional paths (optional, for compatibility)
 shellsDirPath="$scriptsDirPath/shells"
 linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
 aiToolsDirPath="$pytoolsDirPath/ai_tools"
-projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
-# Path resolution algorithm:
-#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
+# Path resolution algorithm:
+#   Script (resolve symlink) -> Script Dir (linuxenvs) -> Scripts Dir -> Project Root
+
+echo "[DEBUG] scriptRealPath:    $scriptRealPath"
 echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
-echo "[DEBUG] scriptsDirPath:   $scriptsDirPath"
-echo "[DEBUG] projectRootPath:  $projectRootPath"
+echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
+echo "[DEBUG] projectRootPath:   $projectRootPath"
 
 #region Custom User Directory Configuration
 # ============================================================================
@@ -289,10 +297,13 @@ if ! command -v "$python_exec" &> /dev/null; then
     fi
 fi
 
-pycore_launcher="{self.project_root.as_posix()}/pycore_module_caller.py"
+# Use relative path from script location to project root
+secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
 
-echo "[DEBUG] python executable: $python_exec"
-echo "[DEBUG] pycore module caller: $pycore_launcher"
+echo "[DEBUG] Python executable: $python_exec"
+echo "[DEBUG] Project root: $projectRootPath"
+echo "[DEBUG] Secret manager script: $secret_manager_script"
+echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
 
 load_secret_value() {{
     local key_name="$1"
@@ -301,17 +312,41 @@ load_secret_value() {{
     local value=""
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
+    echo "[DEBUG] Working directory: $projectRootPath"
+    echo "[DEBUG] Command: cd \"$projectRootPath\" && $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
 
-    value=$($python_exec "$pycore_launcher" --module pyfoundations.secret_manager --call get_secret_key "$key_name" 2>/dev/null)
+    # Capture stderr to temp file for debugging
+    local tmp_err=$(mktemp)
+    # Switch to project root before calling Python
+    value=$(cd "$projectRootPath" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    local exit_code=$?
+
+    # Show stderr if there were errors
+    if [ -s "$tmp_err" ]; then
+        echo "[DEBUG] Python stderr:"
+        cat "$tmp_err"
+    fi
+    rm -f "$tmp_err"
+
+    echo "[DEBUG] Exit code: $exit_code"
+    echo "[DEBUG] Returned value length: ${{#value}}"
 
     if [ -n "$value" ]; then
         printf -v "$env_name" '%s' "$value"
         export "$env_name"
-        echo "[SUCCESS] Loaded $display_name"
+        echo "[SUCCESS] Loaded $display_name (value length: ${{#value}})"
+
+        # Show masked preview (first 4 chars + *** + last 4 chars)
+        if [ ${{#value}} -gt 8 ]; then
+            local masked="${{value:0:4}}***${{value: -4}}"
+            echo "[INFO] $display_name: $masked"
+        else
+            echo "[INFO] $display_name: ****"
+        fi
         return 0
     fi
 
-    echo "[WARNING] Failed to load $display_name"
+    echo "[WARNING] Failed to load $display_name (empty value returned)"
     return 1
 }}
 
@@ -599,15 +634,15 @@ echo ""
         return f"{header}{password_section}{file_name_display}{connection_section}"
 
     def write_linux_script(self, content: str, command_prefix: str, file_number: int) -> bool:
-        """Write Linux script to liunxenvs directory"""
-        liunxenvs_dir = self.scripts_dir / 'liunxenvs'
+        """Write Linux script to linuxenvs directory"""
+        linuxenvs_dir = self.scripts_dir / 'linuxenvs'
 
-        if not liunxenvs_dir.exists():
-            liunxenvs_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Created liunxenvs directory: {liunxenvs_dir}")
+        if not linuxenvs_dir.exists():
+            linuxenvs_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Created linuxenvs directory: {linuxenvs_dir}")
 
         file_name = f"{command_prefix}{file_number}.sh"
-        target_path = liunxenvs_dir / file_name
+        target_path = linuxenvs_dir / file_name
 
         try:
             with open(target_path, 'w', encoding='utf-8') as f:

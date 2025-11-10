@@ -68,68 +68,25 @@ export function useVideoStream(options: UseVideoStreamOptions) {
   }
 
   /**
-   * Parse binary frame according to scrcpy_web_test specification
-   * Frame format: [serial_length(1)][serial(N)][pts(8)][size(4)][h264_data(N)]
+   * Handle binary message - Standard MSE Protocol
+   *
+   * Backend sends standard fMP4 (Fragmented MP4) format:
+   * - First message: fMP4 init segment [ftyp][moov] boxes
+   * - Subsequent messages: fMP4 media segments [moof][mdat] boxes
+   *
+   * No custom frame parsing needed - MediaSource API handles fMP4 natively
+   *
+   * Reference: BRIDGE_FILE_SPECIFICATION.md - Standard MSE Protocol
    */
-  function parseBinaryFrame(data: ArrayBuffer) {
-    const view = new DataView(data);
-    let offset = 0;
-
-    // 1. Read serial length (1 byte)
-    const serialLength = view.getUint8(offset);
-    offset += 1;
-
-    // 2. Read serial (N bytes)
-    const serialBytes = new Uint8Array(data, offset, serialLength);
-    const serial = new TextDecoder('utf-8').decode(serialBytes);
-    offset += serialLength;
-
-    // 3. Read PTS (8 bytes, Big Endian)
-    const ptsHigh = view.getUint32(offset, false);  // Big Endian
-    const ptsLow = view.getUint32(offset + 4, false);
-    const pts = (BigInt(ptsHigh) << 32n) | BigInt(ptsLow);
-    offset += 8;
-
-    // Extract flags from PTS
-    const PTS_MASK = 0x3FFFFFFFFFFFFFFFn;
-    const FLAG_CONFIG_FRAME = 0x8000000000000000n;
-    const FLAG_KEY_FRAME = 0x4000000000000000n;
-
-    const isConfigFrame = !!(pts & FLAG_CONFIG_FRAME);
-    const isKeyFrame = !!(pts & FLAG_KEY_FRAME);
-    const actualPts = pts & PTS_MASK;
-
-    // 4. Read size (4 bytes, Big Endian)
-    const size = view.getUint32(offset, false);
-    offset += 4;
-
-    // 5. Extract H.264 data
-    const h264Data = data.slice(offset, offset + size);
-
-    console.log(`[Frame] serial=${serial}, pts=${actualPts}, size=${size}, config=${isConfigFrame}, key=${isKeyFrame}`);
-
-    return {
-      serial,
-      pts: actualPts,
-      size,
-      isConfigFrame,
-      isKeyFrame,
-      h264Data
-    };
-  }
-
   function handleBinaryMessage(data: ArrayBuffer) {
-    // Parse frame header
-    const frame = parseBinaryFrame(data);
-    
-    // Verify serial matches expected device
-    if (frame.serial !== options.deviceSerial) {
-      console.warn(`[useVideoStream] Frame serial mismatch: expected ${options.deviceSerial}, got ${frame.serial}`);
-      return;
-    }
+    // ✅ Standard MSE: Direct fMP4 segment push
+    // Backend already sends proper fMP4 format via VideoStreamHandler
 
-    // Push H.264 data to buffer queue
-    bufferQueue.push(frame.h264Data);
+    console.log(`[useVideoStream] Received fMP4 segment: ${data.byteLength} bytes`);
+
+    // Push fMP4 segment directly to buffer queue
+    // MediaSource API will parse fMP4 boxes ([ftyp][moov][moof][mdat])
+    bufferQueue.push(data);
     processBufferQueue();
   }
 
@@ -150,25 +107,60 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     mediaSource.value.addEventListener('sourceopen', () => {
       if (!mediaSource.value) return;
 
-      // Use fMP4 codec for H.264
-      const codec = 'video/mp4; codecs="avc1.64001F"';
+      /**
+       * H.264 Codec String Selection for fMP4
+       *
+       * Format: avc1.PPCCLL
+       *   PP = Profile (42=Baseline, 4D=Main, 64=High)
+       *   CC = Constraint flags
+       *   LL = Level (28=4.0, 1F=3.1, 1E=3.0)
+       *
+       * Scrcpy uses High Profile by default, but we try fallback for compatibility:
+       * 1. avc1.640028 - High Profile Level 4.0 (best quality, scrcpy default)
+       * 2. avc1.64001F - High Profile Level 3.1 (good quality)
+       * 3. avc1.4D401F - Main Profile Level 3.1 (good balance)
+       * 4. avc1.42E01E - Baseline Profile Level 3.0 (maximum compatibility)
+       *
+       * Reference: BRIDGE_FILE_SPECIFICATION.md - MediaSource Configuration
+       */
+      const codecCandidates = [
+        'video/mp4; codecs="avc1.640028"',  // High Profile Level 4.0
+        'video/mp4; codecs="avc1.64001F"',  // High Profile Level 3.1
+        'video/mp4; codecs="avc1.4D401F"',  // Main Profile Level 3.1
+        'video/mp4; codecs="avc1.42E01E"',  // Baseline Profile Level 3.0
+      ];
 
-      console.log('[useVideoStream] Checking codec support:', codec);
+      let codec: string | null = null;
+      for (const candidate of codecCandidates) {
+        if (MediaSource.isTypeSupported(candidate)) {
+          codec = candidate;
+          console.log('[useVideoStream] Selected codec:', codec);
+          break;
+        }
+      }
 
-      if (!MediaSource.isTypeSupported(codec)) {
-        console.error('[useVideoStream] Codec not supported:', codec);
-        console.log('[useVideoStream] Supported types:', [
-          'video/mp4; codecs="avc1.42E01E"',
-          'video/mp4; codecs="avc1.64001F"',
-          'video/mp4; codecs="avc1.640028"'
-        ].filter(MediaSource.isTypeSupported));
-        alert('Video codec not supported by your browser. Please try a different browser.');
+      if (!codec) {
+        console.error('[useVideoStream] No supported H.264 codec found');
+        console.log('[useVideoStream] Tested codecs:', codecCandidates);
+        alert('Video codec not supported by your browser. Please try Chrome, Firefox, or Edge.');
         return;
       }
 
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        sourceBuffer.value = mediaSource.value.addSourceBuffer(codec);
-        sourceBuffer.value.mode = 'sequence';
+      // Create SourceBuffer with selected codec
+      sourceBuffer.value = mediaSource.value.addSourceBuffer(codec);
+
+      /**
+       * SourceBuffer mode: 'sequence'
+       *
+       * In sequence mode:
+       * - Timestamps are ignored, frames play in arrival order
+       * - Best for real-time streaming (live video)
+       * - Better error tolerance
+       * - Automatically manages buffer
+       *
+       * Alternative 'segments' mode would require accurate PTS in fMP4
+       */
+      sourceBuffer.value.mode = 'sequence';
 
         sourceBuffer.value.addEventListener('updateend', () => {
           isAppending = false;

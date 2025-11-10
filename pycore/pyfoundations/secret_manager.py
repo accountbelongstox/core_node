@@ -616,3 +616,67 @@ __all__ = [
     'get_all_secret_keys',
     'set_secret_key'
 ]
+
+
+def main():
+    """Command-line interface for secret_manager"""
+    if len(sys.argv) < 2:
+        print("[SECRET_MANAGER] ERROR: Command is required")
+        sys.exit(1)
+
+    command = sys.argv[1]
+
+    if command == 'get_secret_key':
+        if len(sys.argv) < 3:
+            print("[SECRET_MANAGER] ERROR: Key name is required")
+            sys.exit(1)
+
+        key_name = sys.argv[2]
+        value = get_secret_key(key_name)
+
+        if value:
+            print(value)
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    elif command == 'get_all_secret_keys':
+        secrets = get_all_secret_keys()
+        for key, value in secrets.items():
+            print(f"{key}={value}")
+        sys.exit(0)
+
+    elif command == 'set_secret_key':
+        if len(sys.argv) < 4:
+            print("[SECRET_MANAGER] ERROR: Key name and value are required")
+            sys.exit(1)
+
+        key_name = sys.argv[2]
+        value = sys.argv[3]
+        password = sys.argv[4] if len(sys.argv) > 4 else None
+
+        success = set_secret_key(key_name, value, password)
+        sys.exit(0 if success else 1)
+
+    elif command == 'decrypt_all_secrets':
+        password = sys.argv[2] if len(sys.argv) > 2 else None
+        success = decrypt_all_secrets(password=password)
+        sys.exit(0 if success else 1)
+
+    elif command == 'encrypt_all_secrets':
+        if len(sys.argv) < 3:
+            print("[SECRET_MANAGER] ERROR: Source directory is required")
+            sys.exit(1)
+
+        source_dir = Path(sys.argv[2])
+        password = sys.argv[3] if len(sys.argv) > 3 else None
+        success = encrypt_all_secrets(source_dir, password)
+        sys.exit(0 if success else 1)
+
+    else:
+        print(f"[SECRET_MANAGER] ERROR: Unknown command: {command}")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

@@ -131,6 +131,8 @@ import { useToast } from '../composables_app_pymatrix/useToast';
 import type { KeyboardShortcut } from '../composables_app_pymatrix/useKeyboardShortcuts';
 import type { DeviceConfig } from '@/types/pymatrix';
 import type { ThemeMode } from '../stores_app_pymatrix/uiPreferencesStore';
+import { getWsBaseUrl } from '../utils_app_pymatrix/api-urls';
+import { pyMatrixDeviceAPI } from '@/services/api/pymatrix/pymatrix-device-api';
 
 import PyMatrixTopBar from '../components_app_pymatrix/PyMatrixTopBar.vue';
 import PyMatrixLeftPanel from '../components_app_pymatrix/PyMatrixLeftPanel.vue';
@@ -148,7 +150,8 @@ const uiPreferencesStore = useUIPreferencesStore();
 const { connect: connectDevice } = useConnectDevice();
 const toast = useToast();
 
-const baseUrl = ref('ws://localhost:8000');
+// ✅ Using centralized config from api-urls
+const baseUrl = ref(getWsBaseUrl());
 const showConnectDialog = ref(false);
 const showSettings = ref(false);
 const showShortcutsHelp = ref(false);
@@ -253,8 +256,8 @@ const allShortcuts = computed<KeyboardShortcut[]>(() => [
     category: 'Device',
     action: async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/devices');
-        const data = await response.json();
+        // ✅ Using pyMatrixDeviceAPI instead of hardcoded URL
+        const data = await pyMatrixDeviceAPI.getDeviceList();
         toast.success('Device list refreshed', 'Device Control');
       } catch (error) {
         toast.error('Failed to refresh device list', 'Device Control');
@@ -535,21 +538,20 @@ onMounted(async () => {
   }
 
   try {
-    const response = await fetch('http://localhost:8000/api/devices');
-    const data = await response.json();
+    // ✅ Using pyMatrixDeviceAPI instead of hardcoded URLs
+    const data = await pyMatrixDeviceAPI.getDeviceList();
 
-    if (data.success && Array.isArray(data.devices)) {
+    if (data && Array.isArray(data.devices)) {
       for (const device of data.devices) {
-        if (device.state === 'device') {
-          const infoRes = await fetch(`http://localhost:8000/api/devices/${device.serial}/info`);
-          const info = await infoRes.json();
+        if (device.state === 'connected') {
+          const info = await pyMatrixDeviceAPI.getDeviceInfo(device.serial);
 
-          if (info.success) {
+          if (info && info.device) {
             deviceStore.addDevice({
-              serial: device.serial,
-              name: device.model || device.serial,
-              model: device.model,
-              state: 'connected',
+              serial: info.device.serial,
+              name: info.device.name,
+              model: info.device.model,
+              state: info.device.state,
               resolution: info.device.resolution,
               streaming: false,
               controllable: true

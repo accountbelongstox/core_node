@@ -18,7 +18,11 @@ Examples:
 
 import sys
 import json
+import os
 from pathlib import Path
+
+# Skip pycore dependency checks to avoid INFO logs
+os.environ['PYCORE_SKIP_DEP_CHECK'] = '1'
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent
@@ -142,6 +146,12 @@ def main():
 
         elif field == "post_install_commands":
             print(";".join(config.get_post_install_commands()))
+
+        elif field == "icon_file":
+            print(config.get_icon_file() or "")
+
+        elif field == "small_icon_file":
+            print(config.get_small_icon_file() or "")
 
         else:
             print(f"Unknown field: {field}", file=sys.stderr)

@@ -44,7 +44,7 @@ MAX_APP_NAME_WIDTH=0
 SCRIPT_FILES=("start.sh" "install.sh" "deploy.sh")
 
 # Native startup types
-NATIVE_STARTUPS=("ncoreStart" "ncoreStart&Installer" "pycoreStart" "pycoreStart&Installer" "Ncore/Pycore/Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
+NATIVE_STARTUPS=("ncoreStart" "pycoreStart" "Ncore/Pycore/Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
 
 # Debug output for paths
 echo "Script Path: $SCRIPT_PATH"
@@ -268,29 +268,8 @@ step3_generate_native_startup() {
         # Check native files
         read -r has_main_py has_main_js has_pubspec has_composer has_nuxt_config has_index_php <<< "$(check_native_files "$app_path")"
         
-        # Priority 1: ncoreStart for ncoreApp with main.js
-        if [ "$app_type" = "ncoreApp" ] && [ "$has_main_js" -eq 1 ]; then
-            local cmd="$(get_ncore_start_command "$app_path")"
-            if [ -n "$cmd" ]; then
-                available_scripts+=("ncoreStart&Installer")
-                current_script="ncoreStart&Installer"
-                script_index=0
-                found_native=1
-                echo -e "  \033[35m$app_name: ncoreStart&Installer - $cmd\033[0m" >&2
-            fi
-        fi
-
-        # Priority 1.5: pycoreStart for pycoreApp
-        if [ "$app_type" = "pycoreApp" ]; then
-            local cmd="$(get_pycore_start_command "$app_path")"
-            if [ -n "$cmd" ]; then
-                available_scripts+=("pycoreStart&Installer")
-                current_script="pycoreStart&Installer"
-                script_index=0
-                found_native=1
-                echo -e "  \033[35m$app_name: pycoreStart&Installer - $cmd\033[0m" >&2
-            fi
-        fi
+        # Priority 1: Removed - ncoreStart&Installer merged into Ncore/Pycore/Installer
+        # Priority 1.5: Removed - pycoreStart&Installer merged into Ncore/Pycore/Installer
 
         # Priority 1.9: Add Ncore/Pycore/Installer for both ncoreApp and pycoreApp
         if [ "$app_type" = "ncoreApp" ] || [ "$app_type" = "pycoreApp" ]; then
@@ -825,7 +804,9 @@ launch_current_app() {
             fi
 
             # Create temporary shell script
-            local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${current_script}.sh"
+            # Clean script name for use in filename (replace invalid characters)
+            local clean_script_name="${current_script//[\/\\:*?\"<>|]/_}"
+            local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${clean_script_name}.sh"
 
             if [ $needs_install -eq 1 ]; then
                 # Check if this is Ncore/Pycore/Installer for enhanced installation
