@@ -62,6 +62,7 @@ Author: Extracted from d3-check, adapted for pycore
 
 import json
 import os
+import locale
 import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
@@ -106,14 +107,16 @@ class I18nManager:
     def initialize(
         self,
         config_dir: str,
-        default_language: Optional[str] = None
+        default_language: Optional[str] = None,
+        use_system_language: bool = True
     ) -> bool:
         """
         Initialize i18n manager with configuration directory
 
         Args:
             config_dir: Path to i18n configuration directory
-            default_language: Default language code (overrides config)
+            default_language: Default language code (overrides config and system)
+            use_system_language: If True, detect and use system language (default: True)
 
         Returns:
             True if initialized successfully, False otherwise
@@ -133,7 +136,14 @@ class I18nManager:
             # Load base configuration
             self._load_base_config()
 
-            # Override default language if specified
+            # Detect system language if enabled and no default specified
+            if use_system_language and not default_language:
+                system_lang = self._detect_system_language()
+                if system_lang in self._supported_languages:
+                    self._current_language = system_lang
+                    ColorPrint.print_info(f"[I18nManager] Detected system language: {system_lang}")
+
+            # Override with default language if specified
             if default_language:
                 self._current_language = default_language
 
@@ -195,6 +205,26 @@ class I18nManager:
                     f"[I18nManager] Translation file not found: {translation_file}"
                 )
                 self._translations[lang] = {}
+
+    def _detect_system_language(self) -> str:
+        """
+        Detect system language
+
+        Returns:
+            Language code (e.g., 'en', 'zh', 'ja')
+        """
+        try:
+            # Get system locale
+            system_locale = locale.getdefaultlocale()[0]
+            if system_locale:
+                # Extract language code (e.g., 'zh_CN' -> 'zh')
+                lang_code = system_locale.split('_')[0].lower()
+                ColorPrint.print_info(f"[I18nManager] System locale detected: {system_locale} -> {lang_code}")
+                return lang_code
+        except Exception as e:
+            ColorPrint.print_warn(f"[I18nManager] Failed to detect system language: {e}")
+
+        return "en"  # Default fallback
 
     def _create_default_config(self):
         """Create default configuration"""

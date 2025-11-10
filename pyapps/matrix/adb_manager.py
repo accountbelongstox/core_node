@@ -1,11 +1,14 @@
 """
-ADB Manager - ADB 自动扫描、安装和管理
+ADB Installer - ADB 自动扫描、安装和管理
 
 Responsibilities:
 - Scan system for existing ADB installations
 - Auto-download and install ADB on Windows/Linux
 - Verify ADB availability
 - Manage ADB path configuration
+
+Note: This is different from pycore.ADBManager which provides ADB command execution.
+This class focuses on ADB installation and path management.
 """
 
 import os
@@ -19,7 +22,7 @@ import urllib.request
 import tempfile
 
 
-class ADBManager:
+class ADBInstaller:
     """ADB 管理器"""
 
     # Android SDK Platform Tools 下载链接（官方）
@@ -424,7 +427,7 @@ Method 3: Install Android Studio
             return []
 
 
-# 简化的 ADBManager 类供 main.py 使用
+# 简化的 ADBInstaller 类供 main.py 使用
 class ADBQuickSetup:
     """ADB 快速设置工具（简化版）"""
 
@@ -436,7 +439,7 @@ class ADBQuickSetup:
         Returns:
             (是否成功, 消息, ADB 路径)
         """
-        manager = ADBManager(resources_dir)
+        manager = ADBInstaller(resources_dir)
         return manager.auto_setup_adb()
 
 

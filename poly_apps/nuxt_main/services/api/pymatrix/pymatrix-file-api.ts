@@ -72,7 +72,7 @@ export class PyMatrixFileAPI {
     request: FilePushRequest,
     onProgress?: (progress: FileUploadProgress) => void
   ): Promise<FilePushResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const formData = new FormData();
 
       // If filePath is a File object
@@ -117,7 +117,6 @@ export class PyMatrixFileAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixFileAPI] Push file error:', error);
       return {
         success: false,
@@ -134,7 +133,7 @@ export class PyMatrixFileAPI {
     request: ApkInstallRequest,
     onProgress?: (progress: ApkInstallProgress) => void
   ): Promise<ApkInstallResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const formData = new FormData();
 
       // If apkPath is a File object
@@ -186,7 +185,6 @@ export class PyMatrixFileAPI {
       }
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixFileAPI] Install APK error:', error);
 
       if (onProgress) {
@@ -213,7 +211,7 @@ export class PyMatrixFileAPI {
     serial: string,
     packageName: string
   ): Promise<{ success: boolean; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; error?: string }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/apk/uninstall`,
         {
@@ -229,7 +227,6 @@ export class PyMatrixFileAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixFileAPI] Uninstall app error:', error);
       return {
         success: false,
@@ -245,7 +242,7 @@ export class PyMatrixFileAPI {
     serial: string,
     systemApps: boolean = false
   ): Promise<{ success: boolean; packages?: string[]; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; packages?: string[]; error?: string }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/packages`,
         {
@@ -260,7 +257,6 @@ export class PyMatrixFileAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixFileAPI] List packages error:', error);
       return {
         success: false,
@@ -277,7 +273,7 @@ export class PyMatrixFileAPI {
     remotePath: string,
     localPath: string
   ): Promise<{ success: boolean; filePath?: string; fileSize?: number; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; filePath?: string; fileSize?: number; error?: string }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/files/pull`,
         {
@@ -294,7 +290,6 @@ export class PyMatrixFileAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixFileAPI] Pull file error:', error);
       return {
         success: false,

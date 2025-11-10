@@ -1,0 +1,46 @@
+{
+  "ui": {
+    "title_bar": {
+      "minimize": "最小化",
+      "maximize": "最大化",
+      "restore": "还原",
+      "close": "关闭",
+      "restart": "重启"
+    },
+    "tray": {
+      "show": "显示窗口",
+      "hide": "隐藏窗口",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "restart": "重启应用",
+      "exit": "退出",
+      "language": "语言",
+      "current_language": "当前: {0}"
+    },
+    "language_menu": {
+      "title": "选择语言",
+      "current": "当前: {0}"
+    }
+  },
+  "common": {
+    "ok": "确定",
+    "cancel": "取消",
+    "yes": "是",
+    "no": "否",
+    "apply": "应用",
+    "save": "保存",
+    "close": "关闭"
+  },
+  "languages": {
+    "zh": "中文",
+    "en": "English"
+  },
+  "messages": {
+    "language_changed": "语言已切换为: {0}",
+    "window_minimized": "窗口已最小化",
+    "window_maximized": "窗口已最大化",
+    "window_restored": "窗口已还原",
+    "app_restarting": "应用正在重启...",
+    "app_closing": "应用正在关闭..."
+  }
+}

@@ -24,7 +24,11 @@
     - PowerShell Command: claude
     - File Number: 5
     - File Name: claude5.ps1
+<<<<<<< HEAD
     - Generation Time: 2025-11-10 07:16:54
+=======
+    - Generation Time: 2025-11-10 20:39:20
+>>>>>>> 51d8f3dd22a74061344d5d427a72963462027c94
 #>
 
 Set-StrictMode -Version Latest
@@ -55,8 +59,7 @@ $projectRootPath = Split-Path $scriptsDirPath -Parent
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\.tmp\Users\时间戳
-# Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
+# Automatically generates user directory at D:\.tmp\Users\时间�?# Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
 # ============================================================================
 
 # Generate timestamp for directory name

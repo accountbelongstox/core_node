@@ -57,7 +57,7 @@ export class PyMatrixGroupAPI {
     groupId: string,
     options: BatchScreenshotRequest = {}
   ): Promise<BatchOperationResult> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<BatchOperationResult>(
         `${this.baseUrl}${this.apiPrefix}/groups/${groupId}/batch/screenshot`,
         {
@@ -73,7 +73,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixGroupAPI] Batch screenshot error:', error);
       throw error;
     }
@@ -86,7 +85,7 @@ export class PyMatrixGroupAPI {
     groupId: string,
     request: BatchRecordingRequest
   ): Promise<BatchOperationResult> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<BatchOperationResult>(
         `${this.baseUrl}${this.apiPrefix}/groups/${groupId}/batch/recording`,
         {
@@ -105,7 +104,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixGroupAPI] Batch recording error:', error);
       throw error;
     }
@@ -118,7 +116,7 @@ export class PyMatrixGroupAPI {
     groupId: string,
     request: BatchSystemKeyRequest
   ): Promise<BatchOperationResult> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<BatchOperationResult>(
         `${this.baseUrl}${this.apiPrefix}/groups/${groupId}/batch/systemkey`,
         {
@@ -134,7 +132,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixGroupAPI] Batch system key error:', error);
       throw error;
     }
@@ -147,7 +144,7 @@ export class PyMatrixGroupAPI {
     groupId: string,
     request: BatchScreenPowerRequest
   ): Promise<BatchOperationResult> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<BatchOperationResult>(
         `${this.baseUrl}${this.apiPrefix}/groups/${groupId}/batch/screen/power`,
         {
@@ -163,7 +160,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixGroupAPI] Batch screen power error:', error);
       throw error;
     }
@@ -176,7 +172,7 @@ export class PyMatrixGroupAPI {
     groupId: string,
     request: BatchBrightnessRequest
   ): Promise<BatchOperationResult> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<BatchOperationResult>(
         `${this.baseUrl}${this.apiPrefix}/groups/${groupId}/batch/screen/brightness`,
         {
@@ -192,7 +188,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-    } catch (error) {
       console.error('[PyMatrixGroupAPI] Batch brightness error:', error);
       throw error;
     }
