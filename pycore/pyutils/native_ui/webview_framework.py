@@ -5,10 +5,6 @@ Native UI Framework - WebView Extension
 Specialized framework for HTML/CSS/JS UIs with Python-JavaScript bridge
 """
 
-# Check and install dependencies before importing
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 # Import ColorPrint for logging
 from pycore.pyfoundations.color_print import ColorPrint
 

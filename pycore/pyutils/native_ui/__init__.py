@@ -100,6 +100,10 @@ from pycore.pyutils.native_ui.system_tray import (
     create_system_tray
 )
 
+# Startup Window and Launcher
+from pycore.pyutils.native_ui.startup_window import StartupWindow, ColorPrintCapture
+from pycore.pyutils.native_ui.launcher_with_startup import launch_app_with_startup, launch_matrix_with_startup
+
 # Tkinter UI Components (if available)
 try:
     from pycore.pyutils.native_ui.tkinter import ThemeSystem, StyledWidgets
@@ -147,6 +151,12 @@ __all__ = [
     'SystemTray',
     'TrayMenuItem',
     'create_system_tray',
+
+    # Startup Window and Launcher
+    'StartupWindow',
+    'ColorPrintCapture',
+    'launch_app_with_startup',
+    'launch_matrix_with_startup',
 ]
 
 # Add Tkinter exports if available

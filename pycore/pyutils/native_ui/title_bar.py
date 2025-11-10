@@ -5,10 +5,6 @@ Native UI Framework - Custom Title Bar Module
 Custom title bar module
 """
 
-# Check and install dependencies before importing
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 # Import ColorPrint for logging
 from pycore.pyfoundations.color_print import ColorPrint
 

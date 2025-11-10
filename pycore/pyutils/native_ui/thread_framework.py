@@ -17,10 +17,6 @@ Usage:
     ui_thread.stop()   # Stops the UI thread
 """
 
-# Check and install dependencies before importing
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 import threading
 import tkinter as tk
 import time
