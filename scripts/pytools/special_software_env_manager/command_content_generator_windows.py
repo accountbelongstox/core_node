@@ -147,9 +147,17 @@ Write-Host ""
         """Generate custom user directory configuration section"""
         return """
 #region Initialize Path Variables
-$scriptCurrentPath = $PSScriptRoot
+$scriptActualPath = $PSCommandPath
+$item = Get-Item -LiteralPath $PSCommandPath
+if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+    $scriptActualPath = $item.Target
+}
+$scriptCurrentPath = Split-Path $scriptActualPath -Parent
 if (-not $scriptCurrentPath) {
-    $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $scriptCurrentPath = $PSScriptRoot
+    if (-not $scriptCurrentPath) {
+        $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
 $shellsDirPath = Join-Path $scriptsDirPath "shells"
@@ -157,7 +165,12 @@ $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
-$projectRootPath = Split-Path $scriptsDirPath -Parent
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
+Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
+#endregion
 # Path resolution algorithm:
 #   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
@@ -303,33 +316,43 @@ Write-Host ""
 """
 
         load_secret_manager = f"""
-#region Load SecretManager
-$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
-
-if (Test-Path $secretManagerPath) {{
-    . $secretManagerPath
-    Write-Host "[INFO] SecretManager loaded successfully" -ForegroundColor Green
-}} else {{
-    Write-Host "[WARNING] SecretManager not found at: $secretManagerPath" -ForegroundColor Yellow
-    Write-Host "[WARNING] Environment variables will not be loaded" -ForegroundColor Yellow
-}}
-#endregion
-
-#region Load Environment Variables from SecretManager
+#region Load Environment Variables via PyCore caller
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
+$pythonExecutable = "python3"
+if (-not (Get-Command $pythonExecutable -ErrorAction SilentlyContinue)) {{
+    if (Get-Command python -ErrorAction SilentlyContinue) {{
+        $pythonExecutable = "python"
+    }} else {{
+        Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
+        exit 1
+    }}
+}}
+
+$pycoreCaller = Join-Path $projectRootPath "pycore_module_caller.py"
+Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
+Write-Host "[DEBUG] PyCore module caller: $pycoreCaller" -ForegroundColor DarkGray
+
+function Get-SecretValue {{
+    param([string]$KeyName)
+    Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
+    $arguments = @($pycoreCaller, '--module', 'pyfoundations.secret_manager', '--call', 'get_secret_key', $KeyName)
+    $value = & $pythonExecutable $arguments 2>$null
+    return $value
+}}
+
 """
 
         var_loading_code = ""
         for var in variables:
             secret_key_name = f"{var['Name']}_{file_number}"
-            var_loading_code += f"""$env:{var['Name']} = Get-SecretKey -KeyName "{secret_key_name}"
+            var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
 if ($env:{var['Name']}) {{
-    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']})" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded {var['Name']}" -ForegroundColor Green
 }} else {{
     Write-Host "[WARNING] Failed to load {var['Name']}" -ForegroundColor Yellow
 }}
@@ -451,18 +474,7 @@ Write-Host ""
 """
 
         load_secret_manager = f"""
-#region Load SecretManager
-$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
-
-if (Test-Path $secretManagerPath) {{
-    . $secretManagerPath
-    Write-Host "[INFO] SecretManager loaded successfully" -ForegroundColor Green
-}} else {{
-    Write-Host "[WARNING] SecretManager not found at: $secretManagerPath" -ForegroundColor Yellow
-}}
-#endregion
-
-#region Load SSH Configuration
+#region Load SSH Configuration via PyCore caller
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
@@ -472,16 +484,33 @@ Write-Host ""
 $sshConnection = "{ssh_connection}"
 Write-Host "[INFO] SSH Connection: $sshConnection" -ForegroundColor Green
 
-$sshPassword = $null
-if (Get-Command Get-SecretKey -ErrorAction SilentlyContinue) {{
-    $sshPassword = Get-SecretKey -KeyName "{password_key_name}"
-    if ($sshPassword) {{
-        Write-Host "[SUCCESS] SSH password loaded from SecretManager" -ForegroundColor Green
+$pythonExecutable = "python3"
+if (-not (Get-Command $pythonExecutable -ErrorAction SilentlyContinue)) {{
+    if (Get-Command python -ErrorAction SilentlyContinue) {{
+        $pythonExecutable = "python"
     }} else {{
-        Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
+        Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
+        $pythonExecutable = $null
     }}
+}}
+
+$pycoreCaller = Join-Path $projectRootPath "pycore_module_caller.py"
+Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
+Write-Host "[DEBUG] PyCore module caller: $pycoreCaller" -ForegroundColor DarkGray
+
+function Get-SSHSecret {{
+    param([string]$KeyName)
+    if (-not $pythonExecutable) {{ return $null }}
+    Write-Host "[DEBUG] Loading SSH secret key: $KeyName" -ForegroundColor DarkGray
+    $args = @($pycoreCaller, '--module', 'pyfoundations.secret_manager', '--call', 'get_secret_key', $KeyName)
+    return (& $pythonExecutable $args 2>$null)
+}}
+
+$sshPassword = Get-SSHSecret "{password_key_name}"
+if ($sshPassword) {{
+    Write-Host "[SUCCESS] SSH password loaded" -ForegroundColor Green
 }} else {{
-    Write-Host "[INFO] SecretManager not available" -ForegroundColor Yellow
+    Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
 }}
 #endregion
 

@@ -230,7 +230,6 @@ class SpecialSoftwareEnvManager:
         self.action_to_config = {
             'claude': 'Claude AI',
             'droid': 'Factory AI Droid',
-            'openai': 'OpenAI',
             'ssh': 'SSH Connection'
         }
 
