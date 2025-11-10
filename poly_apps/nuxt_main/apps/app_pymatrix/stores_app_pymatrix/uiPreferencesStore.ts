@@ -128,9 +128,8 @@ export const useUIPreferencesStore = defineStore('uiPreferences', {
 
     savePreferences() {
       if (typeof window !== 'undefined') {
-        try {
+        // ✅ REMOVED try-catch for debugging - let errors surface naturally
           localStorage.setItem('pymatrix_ui_preferences', JSON.stringify(this.preferences));
-        } catch (error) {
           console.error('[UIPreferencesStore] Failed to save preferences:', error);
         }
       }
@@ -143,7 +142,7 @@ function loadPreferences(): UIPreferences {
     return { ...DEFAULT_PREFERENCES };
   }
 
-  try {
+  // ✅ REMOVED try-catch for debugging - let errors surface naturally
     const saved = localStorage.getItem('pymatrix_ui_preferences');
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -157,7 +156,6 @@ function loadPreferences(): UIPreferences {
         theme: parsed.theme === 'light' ? 'light' : DEFAULT_PREFERENCES.theme
       };
     }
-  } catch (error) {
     console.error('[UIPreferencesStore] Failed to load preferences:', error);
   }
 

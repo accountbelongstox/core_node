@@ -42,7 +42,7 @@ export function useAudioStream(options: UseAudioStreamOptions) {
       return false;
     }
 
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       installing.value = true;
       audioStore.setAudioStatus(options.deviceSerial, { state: 'installing' });
 
@@ -58,16 +58,13 @@ export function useAudioStream(options: UseAudioStreamOptions) {
         audioStore.setError(options.deviceSerial, response.message || 'Installation failed');
         return false;
       }
-    } catch (error: any) {
       console.error('Failed to install sndcpy:', error);
       audioStore.setError(
         options.deviceSerial,
         error?.message || 'Failed to install sndcpy'
       );
       return false;
-    } finally {
-      installing.value = false;
-    }
+    installing.value = false;
   }
 
   async function startStreaming(): Promise<boolean> {
@@ -75,7 +72,7 @@ export function useAudioStream(options: UseAudioStreamOptions) {
       return false;
     }
 
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       starting.value = true;
       audioStore.setAudioStatus(options.deviceSerial, { state: 'starting' });
 
@@ -91,16 +88,13 @@ export function useAudioStream(options: UseAudioStreamOptions) {
         audioStore.setError(options.deviceSerial, response.message || 'Failed to start audio streaming');
         return false;
       }
-    } catch (error: any) {
       console.error('Failed to start audio streaming:', error);
       audioStore.setError(
         options.deviceSerial,
         error?.message || 'Failed to start audio streaming'
       );
       return false;
-    } finally {
-      starting.value = false;
-    }
+    starting.value = false;
   }
 
   async function stopStreaming(): Promise<boolean> {
@@ -108,7 +102,7 @@ export function useAudioStream(options: UseAudioStreamOptions) {
       return false;
     }
 
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       stopping.value = true;
       audioStore.setAudioStatus(options.deviceSerial, { state: 'stopping' });
 
@@ -124,20 +118,17 @@ export function useAudioStream(options: UseAudioStreamOptions) {
         audioStore.setError(options.deviceSerial, response.message || 'Failed to stop audio streaming');
         return false;
       }
-    } catch (error: any) {
       console.error('Failed to stop audio streaming:', error);
       audioStore.setError(
         options.deviceSerial,
         error?.message || 'Failed to stop audio streaming'
       );
       return false;
-    } finally {
-      stopping.value = false;
-    }
+    stopping.value = false;
   }
 
   async function checkInstallStatus(): Promise<boolean> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const url = buildApiUrl(`/audio/status/${options.deviceSerial}`);
       const response = await $fetch<{
         success: boolean;
@@ -155,7 +146,6 @@ export function useAudioStream(options: UseAudioStreamOptions) {
         return response.installed;
       }
       return false;
-    } catch (error: any) {
       console.error('Failed to check audio status:', error);
       return false;
     }

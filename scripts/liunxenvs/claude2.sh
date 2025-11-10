@@ -28,7 +28,7 @@
 #     - Command: claude
 #     - File Number: 2
 #     - File Name: claude2.sh
-#     - Generation Time: 2025-11-10 05:39:17
+#     - Generation Time: 2025-11-10 20:39:20
 #
 # Environment Variables:
 #     Environment variables are loaded from encrypted storage using secret_manager.sh
@@ -58,7 +58,7 @@ projectRootPath="$(dirname "$scriptsDirPath")"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间�?
+# Automatically generates user directory at /tmp/Users/时间戳
 # Format: /tmp/Users/YYYYMMDD_HHMMSS
 # ============================================================================
 

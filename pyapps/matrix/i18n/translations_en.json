@@ -1,0 +1,23 @@
+{
+  "app": {
+    "name": "Xingcan Media Technology - Cloud Matrix",
+    "short_name": "Cloud Matrix"
+  },
+  "menu": {
+    "open_frontend": "Open Frontend",
+    "open_api_docs": "Open API Documentation"
+  },
+  "service": {
+    "starting": "Starting services...",
+    "frontend": "Frontend Service",
+    "backend": "Backend Service",
+    "matrix": "Matrix Service",
+    "ready": "Ready"
+  },
+  "status": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "initializing": "Initializing...",
+    "loading": "Loading..."
+  }
+}

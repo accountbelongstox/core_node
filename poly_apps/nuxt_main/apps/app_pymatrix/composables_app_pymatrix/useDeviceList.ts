@@ -33,18 +33,15 @@ export function useDeviceList(options: UseDeviceListOptions = {}) {
     loading.value = true;
     error.value = null;
 
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await pyMatrixDeviceAPI.getDeviceList();
       devices.value = response.devices;
       lastUpdateTime.value = new Date();
 
       console.log('[useDeviceList] Fetched devices:', response.devices.length);
-    } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch devices';
       console.error('[useDeviceList] Error fetching devices:', err);
-    } finally {
-      loading.value = false;
-    }
+    loading.value = false;
   }
 
   /**

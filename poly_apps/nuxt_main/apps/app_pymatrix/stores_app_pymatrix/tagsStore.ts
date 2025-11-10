@@ -291,7 +291,7 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Import tags from JSON
      */
     importTags(jsonString: string): { success: boolean; imported: number; skipped: number } {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const importedTags: DeviceTag[] = JSON.parse(jsonString);
         let imported = 0;
         let skipped = 0;
@@ -313,7 +313,6 @@ export const useTagsStore = defineStore('pymatrix-tags', {
         });
 
         return { success: true, imported, skipped };
-      } catch (error) {
         console.error('Failed to import tags:', error);
         return { success: false, imported: 0, skipped: 0 };
       }
@@ -323,9 +322,8 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Save tags to localStorage
      */
     saveToLocalStorage() {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         localStorage.setItem('pymatrix-tags', JSON.stringify(this.tags));
-      } catch (error) {
         console.error('Failed to save tags to localStorage:', error);
       }
     },
@@ -334,12 +332,11 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Load tags from localStorage
      */
     loadFromLocalStorage() {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const stored = localStorage.getItem('pymatrix-tags');
         if (stored) {
           this.tags = JSON.parse(stored);
         }
-      } catch (error) {
         console.error('Failed to load tags from localStorage:', error);
       }
     }
