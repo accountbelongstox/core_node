@@ -195,12 +195,12 @@ echo "[DEBUG] projectRootPath:  $projectRootPath"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Uses fixed user directory at /tmp/Users/default
+# Uses fixed user directory at /var/_core_node/Users/default
 # Note: No timestamp to avoid git conflicts on regeneration
 # ============================================================================
 
 # Use fixed directory name (no timestamp)
-baseTempDir="/tmp/Users"
+baseTempDir="/var/_core_node/Users"
 CustomUserDirectory="$baseTempDir/default"
 
 # Create the directory if it doesn't exist

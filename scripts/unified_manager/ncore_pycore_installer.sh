@@ -239,10 +239,10 @@ if [ "$SKIP_PYCORE_INIT" = "true" ]; then
     echo -e "\033[33mSkipping pycore initialization (configured in build_config.ini)\033[0m"
     echo ""
 else
-    PYCORE_INIT_SCRIPT="$ROOT_DIR/pycore_init.py"
-    echo -e "\033[90mRunning: python \"$PYCORE_INIT_SCRIPT\"\033[0m"
+    PYCORE_MODULE_CALLER="$ROOT_DIR/pycore_module_caller.py"
+    echo -e "\033[90mRunning: python \"$PYCORE_MODULE_CALLER\" --module pycore --call check_and_install_dependencies\033[0m"
     echo ""
-    python "$PYCORE_INIT_SCRIPT"
+    python "$PYCORE_MODULE_CALLER" --module pycore --call check_and_install_dependencies
     EXIT_CODE=$?
     echo ""
     if [ $EXIT_CODE -eq 0 ]; then
