@@ -55,7 +55,7 @@ $projectRootPath = Split-Path $scriptsDirPath -Parent
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\.tmp\Users\时间戳
+# Automatically generates user directory at D:\.tmp\Users\时间�?
 # Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
 # ============================================================================
 
