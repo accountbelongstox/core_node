@@ -93,12 +93,9 @@ from pycore.pyutils.native_ui.shutdown_manager import (
     get_shutdown_manager
 )
 
-# System Tray
-from pycore.pyutils.native_ui.system_tray import (
-    SystemTray,
-    TrayMenuItem,
-    create_system_tray
-)
+# System Tray (now in pyside6 package)
+# Legacy tkinter system tray has been removed
+# Use: from pycore.pyutils.native_ui.pyside6 import PySide6SystemTray
 
 # Startup Window and Launcher
 from pycore.pyutils.native_ui.startup_window import StartupWindow, ColorPrintCapture
@@ -111,22 +108,28 @@ try:
 except ImportError:
     _TKINTER_AVAILABLE = False
 
-# UI Framework Components (if available)
+# Base components (always available)
 try:
     from pycore.pyutils.native_ui.config import UIConfig, WindowState
     from pycore.pyutils.native_ui.signals import SignalManager, SignalType, Signal, TaskTimer, MainThreadExecutor
-    from pycore.pyutils.native_ui.title_bar import CustomTitleBar
-    from pycore.pyutils.native_ui.threads import UIThread, MainThread, TaskThread, ThreadManager
-    from pycore.pyutils.native_ui.framework import NativeUIFramework, create_ui_framework
-    from pycore.pyutils.native_ui.framework_v2 import NativeUIFrameworkV2, create_ui_framework_v2
-    from pycore.pyutils.native_ui.webview_framework import WebViewFramework
-
-    # New Thread Mode (SeleniumThread-like pattern)
-    from pycore.pyutils.native_ui.thread_framework import NativeUIThread, NativeUIThreadConfig, ActionType, ActionQueue, ActionContext
-
-    _FRAMEWORK_AVAILABLE = True
+    _BASE_AVAILABLE = True
 except ImportError:
-    _FRAMEWORK_AVAILABLE = False
+    _BASE_AVAILABLE = False
+
+# PySide6 Framework (recommended)
+try:
+    from pycore.pyutils.native_ui.pyside6 import (
+        PySide6Framework,
+        PySide6UIConfig,
+        PySide6MainWindow,
+        PySide6TitleBar,
+        PySide6SystemTray,
+        PySide6WebView,
+        create_framework
+    )
+    _PYSIDE6_AVAILABLE = True
+except ImportError:
+    _PYSIDE6_AVAILABLE = False
 
 __all__ = [
     # Timer Manager
@@ -147,10 +150,10 @@ __all__ = [
     'ShutdownHook',
     'get_shutdown_manager',
 
-    # System Tray
-    'SystemTray',
-    'TrayMenuItem',
-    'create_system_tray',
+    # System Tray - moved to pyside6 package
+    # 'SystemTray',  # DEPRECATED - use PySide6SystemTray
+    # 'TrayMenuItem',  # DEPRECATED - use PySide6TrayMenuItem
+    # 'create_system_tray',  # DEPRECATED
 
     # Startup Window and Launcher
     'StartupWindow',
@@ -167,40 +170,27 @@ if _TKINTER_AVAILABLE:
         'StyledWidgets',
     ])
 
-# Add framework exports if available
-if _FRAMEWORK_AVAILABLE:
+# Add base component exports if available
+if _BASE_AVAILABLE:
     __all__.extend([
-        # Config
         'UIConfig',
         'WindowState',
-
-        # Signals
         'SignalManager',
         'SignalType',
         'Signal',
         'TaskTimer',
         'MainThreadExecutor',
+    ])
 
-        # UI Components
-        'CustomTitleBar',
-
-        # Threads
-        'UIThread',
-        'MainThread',
-        'TaskThread',
-        'ThreadManager',
-
-        # Frameworks (original mode)
-        'NativeUIFramework',
-        'create_ui_framework',
-        'NativeUIFrameworkV2',
-        'create_ui_framework_v2',
-        'WebViewFramework',
-
-        # Thread Mode (new, SeleniumThread-like)
-        'NativeUIThread',
-        'NativeUIThreadConfig',
-        'ActionType',
-        'ActionQueue',
-        'ActionContext',
+# Add PySide6 framework exports if available
+if _PYSIDE6_AVAILABLE:
+    __all__.extend([
+        # PySide6 Framework (RECOMMENDED)
+        'PySide6Framework',
+        'PySide6UIConfig',
+        'PySide6MainWindow',
+        'PySide6TitleBar',
+        'PySide6SystemTray',
+        'PySide6WebView',
+        'create_framework',
     ])
