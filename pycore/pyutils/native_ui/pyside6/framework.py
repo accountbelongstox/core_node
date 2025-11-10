@@ -34,7 +34,7 @@ from startup_window import StartupWindow, ColorPrintCapture
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType
 from .main_window import PySide6MainWindow
 from .title_bar import PySide6TitleBar
-from .system_tray import PySide6SystemTray, TrayMenuItem, create_default_tray_menu
+from .system_tray import PySide6SystemTray, PySide6TrayMenuItem, create_default_tray_menu
 from .webview import PySide6WebView
 
 

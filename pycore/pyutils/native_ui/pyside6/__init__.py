@@ -27,7 +27,7 @@ if _PYSIDE6_AVAILABLE:
     from .config import PySide6UIConfig, StartupWindowConfig, ActionType, WindowState, WebViewEngine
     from .main_window import PySide6MainWindow, MainWindowContainer
     from .title_bar import PySide6TitleBar, TitleBarButton
-    from .system_tray import PySide6SystemTray, TrayMenuItem, create_default_tray_menu
+    from .system_tray import PySide6SystemTray, PySide6TrayMenuItem, create_default_tray_menu
     from .webview import PySide6WebView
     from .framework import PySide6Framework, TickTimer, create_framework
 
@@ -49,7 +49,7 @@ if _PYSIDE6_AVAILABLE:
 
         # System Tray
         'PySide6SystemTray',
-        'TrayMenuItem',
+        'PySide6TrayMenuItem',
         'create_default_tray_menu',
 
         # WebView

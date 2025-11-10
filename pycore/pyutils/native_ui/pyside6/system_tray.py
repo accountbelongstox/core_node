@@ -16,15 +16,15 @@ from dataclasses import dataclass
 
 
 @dataclass
-class TrayMenuItem:
-    """System tray menu item configuration."""
+class PySide6TrayMenuItem:
+    """System tray menu item configuration for PySide6."""
     text: str
     callback: Optional[Callable] = None
     icon_path: Optional[str] = None
     checkable: bool = False
     checked: bool = False
     separator: bool = False
-    submenu: Optional[List['TrayMenuItem']] = None
+    submenu: Optional[List['PySide6TrayMenuItem']] = None
     enabled: bool = True
 
 
@@ -69,7 +69,7 @@ class PySide6SystemTray(QObject):
         self.tray_menu: Optional[QMenu] = None
 
         # Menu items storage
-        self.menu_items: List[TrayMenuItem] = []
+        self.menu_items: List[PySide6TrayMenuItem] = []
 
         # Create tray icon
         self._create_tray_icon()
@@ -103,7 +103,7 @@ class PySide6SystemTray(QObject):
         self.tray_menu = QMenu()
         self.tray_icon.setContextMenu(self.tray_menu)
 
-    def set_menu_items(self, items: List[TrayMenuItem]):
+    def set_menu_items(self, items: List[PySide6TrayMenuItem]):
         """
         Set tray menu items.
 
@@ -125,7 +125,7 @@ class PySide6SystemTray(QObject):
         for item in self.menu_items:
             self._add_menu_item(self.tray_menu, item)
 
-    def _add_menu_item(self, menu: QMenu, item: TrayMenuItem):
+    def _add_menu_item(self, menu: QMenu, item: PySide6TrayMenuItem):
         """
         Add menu item to menu.
 
@@ -259,7 +259,7 @@ def create_default_tray_menu(
     show_callback: Optional[Callable] = None,
     hide_callback: Optional[Callable] = None,
     quit_callback: Optional[Callable] = None
-) -> List[TrayMenuItem]:
+) -> List[PySide6TrayMenuItem]:
     """
     Create default tray menu items.
 
@@ -269,27 +269,27 @@ def create_default_tray_menu(
         quit_callback: Callback for "Quit" action
 
     Returns:
-        List of TrayMenuItem configurations
+        List of PySide6TrayMenuItem configurations
     """
     items = []
 
     if show_callback:
-        items.append(TrayMenuItem(
+        items.append(PySide6TrayMenuItem(
             text="Show Window",
             callback=show_callback
         ))
 
     if hide_callback:
-        items.append(TrayMenuItem(
+        items.append(PySide6TrayMenuItem(
             text="Hide Window",
             callback=hide_callback
         ))
 
     if show_callback or hide_callback:
-        items.append(TrayMenuItem(separator=True))
+        items.append(PySide6TrayMenuItem(separator=True))
 
     if quit_callback:
-        items.append(TrayMenuItem(
+        items.append(PySide6TrayMenuItem(
             text="Quit",
             callback=quit_callback
         ))
