@@ -266,11 +266,11 @@ if ($configExists -and $buildConfig.installation.skip_pycore_init) {
 }
 
 if (-not $skipPycoreInit) {
-    $pycoreInitScript = Join-Path $RootDir "pycore_init.py"
-    Write-Host "Running: python `"$pycoreInitScript`"" -ForegroundColor Gray
+    $pycoreModuleCaller = Join-Path $RootDir "pycore_module_caller.py"
+    Write-Host "Running: python `"$pycoreModuleCaller`" --module pycore --call check_and_install_dependencies" -ForegroundColor Gray
     Write-Host ""
     try {
-        python "$pycoreInitScript"
+        python "$pycoreModuleCaller" --module pycore --call check_and_install_dependencies
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
             Write-Host "pycore initialized successfully" -ForegroundColor Green

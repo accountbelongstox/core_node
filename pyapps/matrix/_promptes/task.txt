@@ -31,3 +31,8 @@ D:\programing\core_node\pyapps\matrix\ai_briage\AI_COLLABORATION_BRIDGE.json
 
 现在，读取源码， D:\programing\core_node\pyapps\matrix\scrcpy_source 然后查看前端端点有那些不规范
   的，逐一更新、同时更新桥接文件，并修正桥接文件和代码的一致性。
+
+  
+    优点: 工业标准,更可靠
+    修改: 大规模重构 当然当你更新后，要实时检测桥接文件中的一致性、注意分析桥接文件可能
+  多个端点重复定义，同时桥接文件只定义桥点。对桥接文件进行说明并更新。

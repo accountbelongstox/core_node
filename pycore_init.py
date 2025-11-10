@@ -5,6 +5,7 @@ Pycore Package Initialization Entry Point
 
 This script initializes the pycore package and installs all required dependencies.
 It is designed to be called by the ncore_pycore_installer scripts.
+This is a wrapper that uses pycore_module_caller.py for actual module loading.
 
 Usage:
     python pycore_init.py
@@ -14,11 +15,17 @@ Usage:
 
 import sys
 import argparse
+import os
+import importlib
+import traceback
 from pathlib import Path
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# Import pycore_module_caller infrastructure
+import pycore_module_caller
 
 def main():
     """Main entry point for pycore initialization"""
@@ -49,13 +56,12 @@ def main():
         print()
 
     try:
-        # Import pycore package
-        # This will automatically trigger check_and_install_dependencies()
-        # via the code at the bottom of pycore/__init__.py
+        # Import pycore package using pycore_module_caller infrastructure
+        # The pycore_module_caller ensures proper path setup
         if args.verbose:
-            print('[INFO] Importing pycore package...')
+            print('[INFO] Importing pycore package via pycore_module_caller...')
 
-        import pycore
+        pycore = importlib.import_module('pycore')
 
         if args.verbose:
             print('[INFO] Pycore package imported successfully')
@@ -123,7 +129,6 @@ def main():
         print('=' * 70)
         print(f'Error: {e}')
         print()
-        import traceback
         traceback.print_exc()
         print('=' * 70)
         print()
