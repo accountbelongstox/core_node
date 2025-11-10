@@ -396,36 +396,6 @@ Method 3: Install Android Studio
 
         return "Unsupported platform"
 
-    @staticmethod
-    def list_devices(adb_path: str) -> list:
-        """
-        列出已连接设备
-
-        Args:
-            adb_path: ADB 可执行文件路径
-
-        Returns:
-            设备序列号列表
-        """
-        try:
-            result = subprocess.run(
-                [adb_path, "devices"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')[1:]  # 跳过第一行 "List of devices attached"
-                devices = []
-                for line in lines:
-                    if line.strip() and '\t' in line:
-                        serial = line.split('\t')[0]
-                        devices.append(serial)
-                return devices
-            return []
-        except Exception:
-            return []
-
 
 # 简化的 ADBInstaller 类供 main.py 使用
 class ADBQuickSetup:
