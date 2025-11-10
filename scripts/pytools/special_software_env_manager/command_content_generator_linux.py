@@ -187,14 +187,13 @@ projectRootPath="$(dirname "$scriptsDirPath")"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间戳
-# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Uses fixed user directory at /tmp/Users/default
+# Note: No timestamp to avoid git conflicts on regeneration
 # ============================================================================
 
-# Generate timestamp for directory name
-timestamp=$(date +"%Y%m%d_%H%M%S")
+# Use fixed directory name (no timestamp)
 baseTempDir="/tmp/Users"
-CustomUserDirectory="$baseTempDir/$timestamp"
+CustomUserDirectory="$baseTempDir/default"
 
 # Create the directory if it doesn't exist
 if [ ! -d "$baseTempDir" ]; then
@@ -391,7 +390,6 @@ echo ""
 #     - Command: {ps_command}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #
 # Environment Variables:
 #     Environment variables are loaded from encrypted storage using secret_manager.sh
@@ -550,7 +548,6 @@ echo ""
 #     - SSH Connection: {ssh_connection}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # =============================================================================
 
 set -e
