@@ -23,7 +23,7 @@ class GitManager:
         self.PROJECT_ROOT = Path(project_root)
         self.git_repositorie_name = self.PROJECT_ROOT.name
         self.remote_urls = {
-            'local': 'git@127.0.0.1:adminroot/core_node.git',
+            'local': 'git@192.168.2.1:adminroot/core_node.git',
             'gitee': f'git@gitee.com:accountbelongstox/{self.git_repositorie_name}.git',
             'github': f'git@github.com:accountbelongstox/{self.git_repositorie_name}.git'
         }
