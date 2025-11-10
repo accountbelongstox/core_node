@@ -253,7 +253,7 @@ const allShortcuts = computed<KeyboardShortcut[]>(() => [
     category: 'Device',
     action: async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/devices/list');
+        const response = await fetch('http://localhost:8000/api/devices');
         const data = await response.json();
         toast.success('Device list refreshed', 'Device Control');
       } catch (error) {
@@ -535,7 +535,7 @@ onMounted(async () => {
   }
 
   try {
-    const response = await fetch('http://localhost:8000/api/devices/list');
+    const response = await fetch('http://localhost:8000/api/devices');
     const data = await response.json();
 
     if (data.success && Array.isArray(data.devices)) {

@@ -58,20 +58,38 @@ from pycore.pyutils.stream import FMP4EncoderComplete, H264Frame
 # API utilities
 from pycore.pyutils.api import WebSocketManager
 
-# Native UI Framework
+# Native UI Framework - Base Components
 from pycore.pyutils.native_ui import (
-    NativeUIFramework,
     UIConfig,
     SignalType,
     Signal,
     WindowState,
     SignalManager,
-    CustomTitleBar,
-    create_ui_framework,
     TaskTimer,
     TimerTask,
-    MainThreadExecutor
+    MainThreadExecutor,
+    # Startup window (tkinter, no dependencies)
+    StartupWindow,
+    ColorPrintCapture,
+    launch_app_with_startup,
 )
+
+# PySide6 Framework (recommended for main applications)
+# Import conditionally to avoid dependency errors if PySide6 not installed
+_PYSIDE6_AVAILABLE = False
+try:
+    from pycore.pyutils.native_ui.pyside6 import (
+        PySide6Framework,
+        PySide6UIConfig,
+        PySide6MainWindow,
+        PySide6TitleBar,
+        PySide6SystemTray,
+        PySide6WebView,
+        create_framework as create_pyside6_framework
+    )
+    _PYSIDE6_AVAILABLE = True
+except ImportError:
+    pass
 
 __all__ = [
     # Device Management

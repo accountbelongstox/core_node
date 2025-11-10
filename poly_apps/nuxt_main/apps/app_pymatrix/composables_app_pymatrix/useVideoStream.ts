@@ -67,9 +67,69 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     }
   }
 
+  /**
+   * Parse binary frame according to scrcpy_web_test specification
+   * Frame format: [serial_length(1)][serial(N)][pts(8)][size(4)][h264_data(N)]
+   */
+  function parseBinaryFrame(data: ArrayBuffer) {
+    const view = new DataView(data);
+    let offset = 0;
+
+    // 1. Read serial length (1 byte)
+    const serialLength = view.getUint8(offset);
+    offset += 1;
+
+    // 2. Read serial (N bytes)
+    const serialBytes = new Uint8Array(data, offset, serialLength);
+    const serial = new TextDecoder('utf-8').decode(serialBytes);
+    offset += serialLength;
+
+    // 3. Read PTS (8 bytes, Big Endian)
+    const ptsHigh = view.getUint32(offset, false);  // Big Endian
+    const ptsLow = view.getUint32(offset + 4, false);
+    const pts = (BigInt(ptsHigh) << 32n) | BigInt(ptsLow);
+    offset += 8;
+
+    // Extract flags from PTS
+    const PTS_MASK = 0x3FFFFFFFFFFFFFFFn;
+    const FLAG_CONFIG_FRAME = 0x8000000000000000n;
+    const FLAG_KEY_FRAME = 0x4000000000000000n;
+
+    const isConfigFrame = !!(pts & FLAG_CONFIG_FRAME);
+    const isKeyFrame = !!(pts & FLAG_KEY_FRAME);
+    const actualPts = pts & PTS_MASK;
+
+    // 4. Read size (4 bytes, Big Endian)
+    const size = view.getUint32(offset, false);
+    offset += 4;
+
+    // 5. Extract H.264 data
+    const h264Data = data.slice(offset, offset + size);
+
+    console.log(`[Frame] serial=${serial}, pts=${actualPts}, size=${size}, config=${isConfigFrame}, key=${isKeyFrame}`);
+
+    return {
+      serial,
+      pts: actualPts,
+      size,
+      isConfigFrame,
+      isKeyFrame,
+      h264Data
+    };
+  }
+
   function handleBinaryMessage(data: ArrayBuffer) {
-    // console.log('[useVideoStream] Received binary data:', data.byteLength, 'bytes');
-    bufferQueue.push(data);
+    // Parse frame header
+    const frame = parseBinaryFrame(data);
+    
+    // Verify serial matches expected device
+    if (frame.serial !== options.deviceSerial) {
+      console.warn(`[useVideoStream] Frame serial mismatch: expected ${options.deviceSerial}, got ${frame.serial}`);
+      return;
+    }
+
+    // Push H.264 data to buffer queue
+    bufferQueue.push(frame.h264Data);
     processBufferQueue();
   }
 
@@ -106,7 +166,7 @@ export function useVideoStream(options: UseVideoStreamOptions) {
         return;
       }
 
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         sourceBuffer.value = mediaSource.value.addSourceBuffer(codec);
         sourceBuffer.value.mode = 'sequence';
 
@@ -121,10 +181,6 @@ export function useVideoStream(options: UseVideoStreamOptions) {
         });
 
         console.log('[useVideoStream] ✓ SourceBuffer created successfully');
-      } catch (e) {
-        console.error('[useVideoStream] Failed to create SourceBuffer:', e);
-        alert(`Failed to create video buffer: ${e}`);
-      }
     });
 
     mediaSource.value.addEventListener('sourceclose', () => {
@@ -148,13 +204,9 @@ export function useVideoStream(options: UseVideoStreamOptions) {
 
     const chunk = bufferQueue.shift();
     if (chunk) {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         isAppending = true;
         sourceBuffer.value.appendBuffer(chunk);
-      } catch (e) {
-        console.error('Failed to append buffer:', e);
-        isAppending = false;
-      }
     }
   }
 
@@ -199,24 +251,18 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     isAppending = false;
 
     if (sourceBuffer.value) {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         if (mediaSource.value && mediaSource.value.readyState === 'open') {
           mediaSource.value.removeSourceBuffer(sourceBuffer.value);
         }
-      } catch (e) {
-        console.error('Error removing source buffer:', e);
-      }
       sourceBuffer.value = null;
     }
 
     if (mediaSource.value) {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         if (mediaSource.value.readyState === 'open') {
           mediaSource.value.endOfStream();
         }
-      } catch (e) {
-        console.error('Error ending media source:', e);
-      }
       mediaSource.value = null;
     }
 

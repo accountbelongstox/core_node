@@ -17,7 +17,7 @@ export function useConnectDevice() {
   async function connect(payload: ConnectPayload, afterConnect?: () => Promise<void> | void) {
     connecting.value = true;
     error.value = null;
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await pyMatrixDeviceAPI.connectDevice(payload.serial, {
         deviceName: payload.deviceName,
         maxSize: payload.config.max_size,
@@ -47,12 +47,9 @@ export function useConnectDevice() {
       if (afterConnect) {
         await afterConnect();
       }
-    } catch (err) {
       error.value = err instanceof Error ? err.message : String(err);
       throw err;
-    } finally {
-      connecting.value = false;
-    }
+    connecting.value = false;
   }
 
   return {

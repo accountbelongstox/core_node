@@ -36,8 +36,8 @@ export class PyMatrixDeviceAPI {
    * Get list of all devices (connected and available)
    */
   async getDeviceList(): Promise<DeviceListResponse> {
-    try {
-      const response = await $fetch<{ devices: any[] }>(`${this.baseUrl}${this.apiPrefix}/devices/list`, {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      const response = await $fetch<{ devices: any[] }>(`${this.baseUrl}${this.apiPrefix}/devices`, {
         method: 'GET',
         headers: {
           'X-App-Namespace': 'pymatrix',
@@ -64,7 +64,6 @@ export class PyMatrixDeviceAPI {
         devices,
         total: devices.length
       };
-    } catch (error) {
       console.error('[PyMatrixDeviceAPI] Failed to get device list:', error);
       throw error;
     }
@@ -74,7 +73,7 @@ export class PyMatrixDeviceAPI {
    * Get information about a specific device
    */
   async getDeviceInfo(serial: string): Promise<DeviceInfoResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ device: any }>(`${this.baseUrl}${this.apiPrefix}/devices/${serial}/info`, {
         method: 'GET',
         headers: {
@@ -98,7 +97,6 @@ export class PyMatrixDeviceAPI {
       };
 
       return { device };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to get device info for ${serial}:`, error);
       throw error;
     }
@@ -119,7 +117,7 @@ export class PyMatrixDeviceAPI {
       deviceName?: string;
     }
   ): Promise<DeviceActionResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const body: Record<string, unknown> = {
         device_name: options?.deviceName,
         max_size: options?.maxSize,
@@ -170,7 +168,6 @@ export class PyMatrixDeviceAPI {
         message: response.message,
         device
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to connect device ${serial}:`, error);
       throw error;
     }
@@ -180,7 +177,7 @@ export class PyMatrixDeviceAPI {
    * Disconnect from a device
    */
   async disconnectDevice(serial: string): Promise<DeviceActionResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; message: string }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/disconnect`,
         {
@@ -196,7 +193,6 @@ export class PyMatrixDeviceAPI {
         success: response.success,
         message: response.message
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to disconnect device ${serial}:`, error);
       throw error;
     }
@@ -206,7 +202,7 @@ export class PyMatrixDeviceAPI {
    * Get device clipboard content
    */
   async getClipboard(serial: string): Promise<{ success: boolean; text?: string; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ text: string }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/clipboard`,
         {
@@ -222,7 +218,6 @@ export class PyMatrixDeviceAPI {
         success: true,
         text: response.text
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to get clipboard for ${serial}:`, error);
       return {
         success: false,
@@ -238,7 +233,7 @@ export class PyMatrixDeviceAPI {
     serial: string,
     text: string
   ): Promise<{ success: boolean; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       await $fetch(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/clipboard`,
         {
@@ -252,7 +247,6 @@ export class PyMatrixDeviceAPI {
       );
 
       return { success: true };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to set clipboard for ${serial}:`, error);
       return {
         success: false,
@@ -268,7 +262,7 @@ export class PyMatrixDeviceAPI {
     serial: string,
     action: 'on' | 'off' | 'toggle'
   ): Promise<{ success: boolean; state?: string; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; state: string }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/power`,
         {
@@ -285,7 +279,6 @@ export class PyMatrixDeviceAPI {
         success: true,
         state: response.state
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to control screen power for ${serial}:`, error);
       return {
         success: false,
@@ -301,7 +294,7 @@ export class PyMatrixDeviceAPI {
     serial: string,
     level: number
   ): Promise<{ success: boolean; level?: number; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; level: number }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/brightness`,
         {
@@ -318,7 +311,6 @@ export class PyMatrixDeviceAPI {
         success: true,
         level: response.level
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to set brightness for ${serial}:`, error);
       return {
         success: false,
@@ -334,7 +326,7 @@ export class PyMatrixDeviceAPI {
     serial: string,
     rotation: 0 | 90 | 180 | 270
   ): Promise<{ success: boolean; rotation?: number; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean; rotation: number }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/rotation`,
         {
@@ -351,7 +343,6 @@ export class PyMatrixDeviceAPI {
         success: true,
         rotation: response.rotation
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to set rotation for ${serial}:`, error);
       return {
         success: false,
@@ -364,7 +355,7 @@ export class PyMatrixDeviceAPI {
    * Enable automatic screen rotation
    */
   async enableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/auto-rotation/enable`,
         {
@@ -379,7 +370,6 @@ export class PyMatrixDeviceAPI {
       return {
         success: true
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to enable auto-rotation for ${serial}:`, error);
       return {
         success: false,
@@ -392,7 +382,7 @@ export class PyMatrixDeviceAPI {
    * Disable automatic screen rotation
    */
   async disableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await $fetch<{ success: boolean }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/auto-rotation/disable`,
         {
@@ -407,7 +397,6 @@ export class PyMatrixDeviceAPI {
       return {
         success: true
       };
-    } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to disable auto-rotation for ${serial}:`, error);
       return {
         success: false,

@@ -153,7 +153,7 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
      * Load presets from localStorage
      */
     loadPresets() {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           const data = JSON.parse(stored);
@@ -167,7 +167,6 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
           this.savePresets();
           console.log('[ConnectionPresetsStore] Initialized with default presets');
         }
-      } catch (error) {
         console.error('[ConnectionPresetsStore] Failed to load presets:', error);
         this.presets = DEFAULT_PRESETS;
         this.activePresetId = 'preset-balanced';
@@ -178,14 +177,13 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
      * Save presets to localStorage
      */
     savePresets() {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const data = {
           presets: this.presets,
           activePresetId: this.activePresetId
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         console.log('[ConnectionPresetsStore] Presets saved');
-      } catch (error) {
         console.error('[ConnectionPresetsStore] Failed to save presets:', error);
       }
     },
@@ -308,7 +306,7 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
      * Import presets from JSON
      */
     importPresets(json: string): { success: number; failed: number } {
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const imported = JSON.parse(json) as ConnectionPreset[];
 
         if (!Array.isArray(imported)) {
@@ -319,7 +317,7 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
         let failed = 0;
 
         imported.forEach(preset => {
-          try {
+          // ✅ REMOVED try-catch for debugging - let errors surface naturally
             // Validate preset structure
             if (!preset.name || !preset.config) {
               failed++;
@@ -343,7 +341,6 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
             });
 
             success++;
-          } catch (error) {
             console.error('[ConnectionPresetsStore] Failed to import preset:', error);
             failed++;
           }
@@ -351,7 +348,6 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
 
         console.log('[ConnectionPresetsStore] Import completed:', { success, failed });
         return { success, failed };
-      } catch (error) {
         console.error('[ConnectionPresetsStore] Failed to import presets:', error);
         return { success: 0, failed: 1 };
       }
