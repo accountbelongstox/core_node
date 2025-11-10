@@ -81,24 +81,23 @@ async def startup_event():
     # ============================================================
     print("\nChecking ADB availability...")
 
-    from pyapps.matrix.adb_manager import ADBManager
+    from pyapps.matrix.adb_manager import ADBInstaller
 
     # Try auto setup
-    manager = ADBManager(Config.RESOURCES_DIR)
+    manager = ADBInstaller(Config.RESOURCES_DIR)
     success, message, adb_path = manager.auto_setup_adb()
 
     if success and adb_path:
         # ADB available, check for devices
-        try:
-            devices = ADBManager.list_devices(adb_path)
-            print(f"\n✓ ADB is ready: {adb_path}")
-            print(f"✓ Connected devices: {len(devices)}")
-            if devices:
-                for i, device in enumerate(devices, 1):
-                    print(f"  {i}. {device}")
-        except Exception as e:
-            print(f"\n✓ ADB is available: {adb_path}")
-            print(f"⚠ Warning: Could not list devices: {e}")
+        # Use pycore.ADBManager for device listing (not ADBInstaller)
+        from pycore.pyutils.adb import ADBManager as CoreADBManager
+
+        devices = CoreADBManager.list_devices(adb_path)
+        print(f"\n✓ ADB is ready: {adb_path}")
+        print(f"✓ Connected devices: {len(devices)}")
+        if devices:
+            for i, device in enumerate(devices, 1):
+                print(f"  {i}. {device.serial} ({device.state})")
     else:
         print(f"\n✗ ADB is not available: {message}")
         print("⚠ pyMatrix will start but device features will be unavailable")
