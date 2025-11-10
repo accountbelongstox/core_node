@@ -165,14 +165,13 @@ $projectRootPath = Split-Path $scriptsDirPath -Parent
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\\.tmp\\Users\\时间戳
-# Format: D:\\.tmp\\Users\\YYYYMMDD_HHMMSS
+# Uses fixed user directory at D:\\.tmp\\Users\\default
+# Note: No timestamp to avoid git conflicts on regeneration
 # ============================================================================
 
-# Generate timestamp for directory name
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+# Use fixed directory name (no timestamp)
 $baseTempDir = "D:\\.tmp\\Users"
-$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+$CustomUserDirectory = Join-Path $baseTempDir "default"
 
 # Create the directory if it doesn't exist
 try {
@@ -285,7 +284,6 @@ Write-Host ""
     - PowerShell Command: {ps_command}
     - File Number: {file_number}
     - File Name: {file_name}
-    - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #>
 
 Set-StrictMode -Version Latest
@@ -433,7 +431,6 @@ pause
     - SSH Connection: {ssh_connection}
     - File Number: {file_number}
     - File Name: {file_name}
-    - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #>
 
 Set-StrictMode -Version Latest

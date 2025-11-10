@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import ttk
 import queue
 import threading
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 import sys
 import io
 
