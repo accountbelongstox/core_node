@@ -24,7 +24,11 @@
     - PowerShell Command: claude
     - File Number: 6
     - File Name: claude6.ps1
+<<<<<<< HEAD
+    - Generation Time: 2025-11-10 07:16:54
+=======
     - Generation Time: 2025-11-10 20:39:20
+>>>>>>> 51d8f3dd22a74061344d5d427a72963462027c94
 #>
 
 Set-StrictMode -Version Latest

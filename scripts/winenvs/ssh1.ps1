@@ -24,7 +24,11 @@
     - PowerShell Command: ssh
     - File Number: 1
     - File Name: ssh1.ps1
+<<<<<<< HEAD
+    - Generation Time: 2025-11-10 07:16:54
+=======
     - Generation Time: 2025-11-10 20:39:21
+>>>>>>> 51d8f3dd22a74061344d5d427a72963462027c94
 #>
 
 Set-StrictMode -Version Latest
