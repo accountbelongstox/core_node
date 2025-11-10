@@ -24,11 +24,6 @@
     - PowerShell Command: claude
     - File Number: 4
     - File Name: claude4.ps1
-<<<<<<< HEAD
-    - Generation Time: 2025-11-10 07:16:54
-=======
-    - Generation Time: 2025-11-10 20:39:20
->>>>>>> 51d8f3dd22a74061344d5d427a72963462027c94
 #>
 
 Set-StrictMode -Version Latest
@@ -41,17 +36,31 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 #region Initialize Path Variables
-$scriptCurrentPath = $PSScriptRoot
+$scriptActualPath = $PSCommandPath
+$item = Get-Item -LiteralPath $PSCommandPath
+if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+    $scriptActualPath = $item.Target
+}
+$scriptCurrentPath = Split-Path $scriptActualPath -Parent
 if (-not $scriptCurrentPath) {
-    $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $scriptCurrentPath = $PSScriptRoot
+    if (-not $scriptCurrentPath) {
+        $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
 $shellsDirPath = Join-Path $scriptsDirPath "shells"
 $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
-$projectRootPath = Split-Path $scriptsDirPath -Parent
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
+Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
+#endregion
 # Path resolution algorithm:
 #   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
@@ -59,13 +68,13 @@ $projectRootPath = Split-Path $scriptsDirPath -Parent
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\.tmp\Users\时间�?# Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
+# Uses fixed user directory at D:\.tmp\Users\default
+# Note: No timestamp to avoid git conflicts on regeneration
 # ============================================================================
 
-# Generate timestamp for directory name
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+# Use fixed directory name (no timestamp)
 $baseTempDir = "D:\.tmp\Users"
-$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+$CustomUserDirectory = Join-Path $baseTempDir "default"
 
 # Create the directory if it doesn't exist
 try {
@@ -146,42 +155,114 @@ Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
 Write-Host ""
 #endregion
 
-#region Load SecretManager
-$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
-
-if (Test-Path $secretManagerPath) {
-    . $secretManagerPath
-    Write-Host "[INFO] SecretManager loaded successfully" -ForegroundColor Green
-} else {
-    Write-Host "[WARNING] SecretManager not found at: $secretManagerPath" -ForegroundColor Yellow
-    Write-Host "[WARNING] Environment variables will not be loaded" -ForegroundColor Yellow
-}
-#endregion
-
-#region Load Environment Variables from SecretManager
+#region Load Environment Variables via PyCore caller
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$env:ANTHROPIC_BASE_URL = Get-SecretKey -KeyName "ANTHROPIC_BASE_URL_4"
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    $pythonExecutable = "python"
+} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+    $pythonExecutable = "python3"
+} else {
+    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
+    exit 1
+}
+
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
+Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
+
+function Get-SecretValue {
+    param([string]$KeyName)
+    Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    $arguments = @($secretManagerScript, 'get_secret_key', $KeyName)
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable $($arguments -join ' ')" -ForegroundColor DarkGray
+
+    # Capture both stdout and stderr
+    $output = & $pythonExecutable $arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
+
+    # Check if output contains error messages
+    $errorOutput = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+    if ($errorOutput) {
+        Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
+        $errorOutput | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    }
+
+    # Get the actual value (non-error output)
+    $value = ($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n"
+
+    if ($value) {
+        Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
+        # Show masked preview (first 4 chars + *** + last 4 chars)
+        if ($value.Length -gt 8) {
+            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
+            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host "[DEBUG] Returned empty value" -ForegroundColor Yellow
+    }
+
+    return $value
+}
+
+$env:ANTHROPIC_BASE_URL = Get-SecretValue "ANTHROPIC_BASE_URL_4"
 if ($env:ANTHROPIC_BASE_URL) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_BASE_URL = $($env:ANTHROPIC_BASE_URL)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded ANTHROPIC_BASE_URL (Length: $($env:ANTHROPIC_BASE_URL.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($env:ANTHROPIC_BASE_URL.Length -gt 8) {
+        $maskedValue = $env:ANTHROPIC_BASE_URL.Substring(0, 4) + "***" + $env:ANTHROPIC_BASE_URL.Substring($env:ANTHROPIC_BASE_URL.Length - 4)
+        Write-Host "[INFO] ANTHROPIC_BASE_URL: $maskedValue" -ForegroundColor Cyan
+    } else {
+        Write-Host "[INFO] ANTHROPIC_BASE_URL: ****" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_BASE_URL" -ForegroundColor Yellow
 }
 
-$env:ANTHROPIC_AUTH_TOKEN = Get-SecretKey -KeyName "ANTHROPIC_AUTH_TOKEN_4"
+$env:ANTHROPIC_AUTH_TOKEN = Get-SecretValue "ANTHROPIC_AUTH_TOKEN_4"
 if ($env:ANTHROPIC_AUTH_TOKEN) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_AUTH_TOKEN = $($env:ANTHROPIC_AUTH_TOKEN)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded ANTHROPIC_AUTH_TOKEN (Length: $($env:ANTHROPIC_AUTH_TOKEN.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($env:ANTHROPIC_AUTH_TOKEN.Length -gt 8) {
+        $maskedValue = $env:ANTHROPIC_AUTH_TOKEN.Substring(0, 4) + "***" + $env:ANTHROPIC_AUTH_TOKEN.Substring($env:ANTHROPIC_AUTH_TOKEN.Length - 4)
+        Write-Host "[INFO] ANTHROPIC_AUTH_TOKEN: $maskedValue" -ForegroundColor Cyan
+    } else {
+        Write-Host "[INFO] ANTHROPIC_AUTH_TOKEN: ****" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_AUTH_TOKEN" -ForegroundColor Yellow
 }
 
-$env:ANTHROPIC_API_KEY = Get-SecretKey -KeyName "ANTHROPIC_API_KEY_4"
+$env:ANTHROPIC_API_KEY = Get-SecretValue "ANTHROPIC_API_KEY_4"
 if ($env:ANTHROPIC_API_KEY) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_API_KEY = $($env:ANTHROPIC_API_KEY)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded ANTHROPIC_API_KEY (Length: $($env:ANTHROPIC_API_KEY.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($env:ANTHROPIC_API_KEY.Length -gt 8) {
+        $maskedValue = $env:ANTHROPIC_API_KEY.Substring(0, 4) + "***" + $env:ANTHROPIC_API_KEY.Substring($env:ANTHROPIC_API_KEY.Length - 4)
+        Write-Host "[INFO] ANTHROPIC_API_KEY: $maskedValue" -ForegroundColor Cyan
+    } else {
+        Write-Host "[INFO] ANTHROPIC_API_KEY: ****" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_API_KEY" -ForegroundColor Yellow
 }

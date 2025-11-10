@@ -243,15 +243,286 @@ Use context managers for resource management.
 ### 7.4 Dataclasses
 Use dataclasses or Pydantic models for data structures.
 
-## 8. Web and Database
+## 8. Multi-Threading Standards
 
-### 8.1 Web Framework
+### 8.1 Core Threading Principles
+
+**CRITICAL RULE: All threaded components MUST inherit from threading.Thread directly**
+
+```python
+# ✅ CORRECT - Direct Thread inheritance
+class MyWorkerThread(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.daemon = False  # Explicitly set daemon status
+
+    def run(self):
+        # Thread logic here
+        pass
+
+# Usage
+worker = MyWorkerThread()
+worker.start()
+
+# ❌ FORBIDDEN - Using Thread to wrap function
+def worker_function():
+    pass
+
+thread = threading.Thread(target=worker_function)  # DO NOT DO THIS
+thread.start()
+```
+
+### 8.2 Thread Architecture
+
+**Main Thread** - Always active, manages all child threads
+- Never blocks on child threads
+- Coordinates thread lifecycle
+- Monitors global queue
+
+**Child Threads** - Inherit from Thread
+- TkinterStartupThread - Startup window UI
+- PySide6MainThread - Main application UI
+- TickTimerThread - Periodic tasks
+- Custom worker threads
+
+### 8.3 Inter-Thread Communication
+
+**FORBIDDEN: Direct parameter passing between threads**
+
+```python
+# ❌ FORBIDDEN - Passing parameters between threads
+def thread_a():
+    result = do_work()
+    thread_b_callback(result)  # Cross-thread call - FORBIDDEN
+
+# ❌ FORBIDDEN - Shared mutable state
+shared_data = {"status": "idle"}
+def thread_a():
+    shared_data["status"] = "working"  # Race condition risk
+```
+
+**REQUIRED: Use global queue or signals**
+
+```python
+# ✅ CORRECT - Use ENCYCLOPEDIA global queue
+from pycore import ENCYCLOPEDIA
+
+class WorkerThread(threading.Thread):
+    def run(self):
+        result = do_work()
+        # Write to global queue
+        ENCYCLOPEDIA.add('worker_result', result)
+        # Send signal
+        ENCYCLOPEDIA.add('worker_complete_signal', True)
+
+# Main thread reads from queue
+result = ENCYCLOPEDIA.get('worker_result')
+```
+
+### 8.4 Global Queue System
+
+**ENCYCLOPEDIA Thread-Safe Queue**
+
+Located in: `pycore/pyfoundations/encyclopedia.py`
+
+```python
+from pycore import ENCYCLOPEDIA
+
+# Thread-safe operations
+ENCYCLOPEDIA.add('key', value)           # Write
+value = ENCYCLOPEDIA.get('key')          # Read
+value = ENCYCLOPEDIA.get('key', default) # Read with default
+ENCYCLOPEDIA.remove('key')               # Delete
+```
+
+**Signal Queue Pattern**
+
+```python
+# Thread A - Producer
+ENCYCLOPEDIA.add('task_queue', {
+    'action': 'process_data',
+    'data': {'id': 123}
+})
+
+# Thread B - Consumer
+task = ENCYCLOPEDIA.get('task_queue')
+if task:
+    process(task['data'])
+    ENCYCLOPEDIA.add('task_complete', True)
+```
+
+### 8.5 Thread Lifecycle Management
+
+**Startup Pattern**
+
+```python
+class MyThread(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.daemon = False  # Non-daemon - main waits for completion
+        self._stop_event = threading.Event()
+
+    def run(self):
+        # Signal ready
+        ENCYCLOPEDIA.add('mythread_ready', True)
+
+        while not self._stop_event.is_set():
+            # Thread work
+            pass
+
+        # Signal stopped
+        ENCYCLOPEDIA.add('mythread_stopped', True)
+
+    def stop(self):
+        self._stop_event.set()
+```
+
+**Main Thread Coordination**
+
+```python
+def main():
+    # Start all threads
+    thread_a = ThreadA()
+    thread_b = ThreadB()
+
+    thread_a.start()
+    thread_b.start()
+
+    # Wait for initialization via queue
+    while not ENCYCLOPEDIA.get('thread_a_ready'):
+        time.sleep(0.1)
+
+    while not ENCYCLOPEDIA.get('thread_b_ready'):
+        time.sleep(0.1)
+
+    # Main thread continues, manages threads
+    # Does NOT block on thread.join() unless shutting down
+```
+
+### 8.6 Thread Naming Convention
+
+```python
+class TkinterStartupThread(threading.Thread):  # ✅ Descriptive name
+    pass
+
+class PySide6MainThread(threading.Thread):     # ✅ Indicates purpose
+    pass
+
+class TickTimerThread(threading.Thread):       # ✅ Clear function
+    pass
+```
+
+### 8.7 Daemon vs Non-Daemon
+
+**Non-Daemon (default)** - Main thread waits for completion
+```python
+thread.daemon = False  # Program waits for this thread
+```
+
+**Daemon** - Dies when main thread exits
+```python
+thread.daemon = True   # For background tasks only
+```
+
+### 8.8 Thread Debugging
+
+**Required Logging**
+
+```python
+class MyThread(threading.Thread):
+    def run(self):
+        ColorPrint.blue(f"[{self.__class__.__name__}] Thread starting")
+
+        try:
+            # Work here
+            pass
+        finally:
+            ColorPrint.blue(f"[{self.__class__.__name__}] Thread stopping")
+```
+
+**Thread State Tracking**
+
+```python
+# Write state to ENCYCLOPEDIA
+ENCYCLOPEDIA.add('mythread_state', {
+    'status': 'running',
+    'started_at': time.time(),
+    'pid': os.getpid(),
+    'thread_id': threading.get_ident()
+})
+```
+
+### 8.9 Common Patterns
+
+**Producer-Consumer**
+
+```python
+# Producer thread
+class ProducerThread(threading.Thread):
+    def run(self):
+        while True:
+            item = produce_item()
+            queue = ENCYCLOPEDIA.get('work_queue', [])
+            queue.append(item)
+            ENCYCLOPEDIA.add('work_queue', queue)
+
+# Consumer thread
+class ConsumerThread(threading.Thread):
+    def run(self):
+        while True:
+            queue = ENCYCLOPEDIA.get('work_queue', [])
+            if queue:
+                item = queue.pop(0)
+                ENCYCLOPEDIA.add('work_queue', queue)
+                process(item)
+```
+
+**Event-Driven**
+
+```python
+# Sender
+ENCYCLOPEDIA.add('event_name', {
+    'timestamp': time.time(),
+    'data': {'key': 'value'}
+})
+
+# Receiver
+def check_events():
+    event = ENCYCLOPEDIA.get('event_name')
+    if event:
+        handle_event(event)
+        ENCYCLOPEDIA.remove('event_name')
+```
+
+### 8.10 Anti-Patterns to Avoid
+
+```python
+# ❌ FORBIDDEN - Thread pool
+executor = ThreadPoolExecutor()  # Use Thread subclasses instead
+
+# ❌ FORBIDDEN - threading.Timer
+timer = threading.Timer(5.0, callback)  # Use Thread subclass with Event
+
+# ❌ FORBIDDEN - Queue module
+from queue import Queue  # Use ENCYCLOPEDIA instead
+q = Queue()
+
+# ❌ FORBIDDEN - Locks/Semaphores
+lock = threading.Lock()  # ENCYCLOPEDIA is already thread-safe
+
+# ❌ FORBIDDEN - Thread-local storage
+thread_local = threading.local()  # Use ENCYCLOPEDIA instead
+```
+
+## 9. Web and Database
+
+### 9.1 Web Framework
 - Use Flask or FastAPI for HTTP servers
 - HTTP utilities in pyutils
 - Routes in app `routes/` directory
 - Middleware in app `middleware/` directory
 
-### 8.2 Database
+### 9.2 Database
 - Prioritize SQLite
 - Database utilities in pyutils
 - Models in app `model/` directory (only if using database)
@@ -265,7 +536,7 @@ All scripts in `scripts/` directory:
 - stop.ps1 - Graceful shutdown
 - deploy.ps1 - Deployment automation
 
-## 10. pycore vs ncore Comparison
+## 14. pycore vs ncore Comparison
 
 | Feature | Node.js (ncore) | Python (pycore) |
 |---------|-----------------|-----------------|
@@ -279,23 +550,23 @@ All scripts in `scripts/` directory:
 | Logging | logger.js | ColorPrint |
 | Constants | global_vars/index.js | pygvar/__init__.py |
 
-## 11. Quick Reference
+## 14. Quick Reference
 
-### 11.1 Common Imports
+### 14.1 Common Imports
 **Foundation**: ColorPrint, ENCYCLOPEDIA, EventBus, GlobalVarManager
 **Devices**: AndroidDevice, ScrcpyDevice, DeviceInfo
 **Utilities**: DeviceManager, ADBManager, H264Decoder, GroupController
 **Utils**: MediaCompressor, WebSocketManager, VideoFrame, TouchEvent
 
-### 11.2 Directory Paths
+### 14.2 Directory Paths
 APP_NAME, CACHE_DIR, TMP_DIR, APP_LARGE_FILES_CACHE_DIR, APP_LARGE_FILES_TMP_DIR, APP_RUNTIME_CACHE_DIR, APP_RUNTIME_TMP_DIR
 
-### 11.3 ColorPrint Methods
+### 14.3 ColorPrint Methods
 **Available methods**: blue, green, yellow, red, white, gray, debug
 
-## 12. Version Control
+## 14. Version Control
 
-### 12.1 Commit Messages
+### 14.1 Commit Messages
 Format: `type(scope): message`
 
 Examples:
@@ -303,12 +574,12 @@ Examples:
 - `fix(pycore): handle encoding errors`
 - `docs(guide): update development guide`
 
-### 12.2 .gitignore
+### 14.2 .gitignore
 Exclude: __pycache__, *.pyc, *.pyo, .env, secrets/, venv/, env/
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
-### 13.1 Common Issues
+### 14.1 Common Issues
 - **Import errors**: Use absolute imports, check __init__.py exports
 - **Encoding errors**: Always specify encoding='utf-8'
 - **App not detected**: Ensure {appname}_main.py exists

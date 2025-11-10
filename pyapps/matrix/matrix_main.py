@@ -95,6 +95,7 @@ def main_app_entry():
     - PySide6 UI (webview showing frontend)
     - System tray menu
     """
+    print("[DEBUG] main_app_entry() called")
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(" MATRIX - STARTING SERVICES")
     ColorPrint.blue("=" * 70)
@@ -104,6 +105,7 @@ def main_app_entry():
     launcher_ref = [None]
 
     try:
+        print("[DEBUG] Importing PySide6 components...")
         # Import PySide6 components (after dependencies are installed)
         from pycore.pyutils.native_ui.pyside6 import (
             PySide6Framework,
@@ -111,6 +113,7 @@ def main_app_entry():
             PySide6TrayMenuItem,
             create_default_tray_menu
         )
+        print("[DEBUG] PySide6 components imported successfully")
         # Create launcher configuration
         ColorPrint.blue("Creating launcher configuration...")
         launcher_config = create_launcher_config()

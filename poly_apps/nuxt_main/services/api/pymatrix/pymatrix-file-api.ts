@@ -1,3 +1,4 @@
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
 /**
  * PyMatrix File Operations API Service
  * Handles file push and APK installation operations to pyMatrix backend
@@ -60,7 +61,7 @@ export class PyMatrixFileAPI {
 
   constructor() {
     // Get from pymatrix config
-    this.baseUrl = 'http://localhost:8000';
+    this.baseUrl = getHttpBaseUrl();
     this.apiPrefix = '/api';
   }
 

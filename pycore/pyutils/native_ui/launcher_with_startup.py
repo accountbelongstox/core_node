@@ -116,13 +116,27 @@ def launch_app_with_startup(
     # Close startup window
     startup.log("Launching main application...", "info")
     time.sleep(0.5)
+
+    print("[DEBUG] About to close startup window...")
     startup.close()
 
-    # Small delay to ensure startup window is fully closed
-    time.sleep(0.3)
+    # Wait for startup window to be fully closed using event
+    print("[DEBUG] Waiting for startup window to be fully closed...")
+    if startup._closed_event.wait(timeout=3.0):
+        print("[DEBUG] Startup window closed successfully")
+    else:
+        print("[DEBUG] WARNING: Startup window close timeout")
 
     # Launch main application
-    main_entry()
+    print("[DEBUG] Calling main_entry()...")
+    try:
+        main_entry()
+        print("[DEBUG] main_entry() completed")
+    except Exception as e:
+        print(f"[ERROR] main_entry() failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def launch_matrix_with_startup():

@@ -3,6 +3,8 @@
  * Handles video recording and screenshot capture operations
  */
 
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+
 export interface RecordingStartRequest {
   format?: 'mp4' | 'mkv';
   mode?: 'normal' | 'background';
@@ -45,8 +47,9 @@ export interface ApiErrorResponse {
 class PyMatrixRecordingAPI {
   private baseUrl: string;
 
-  constructor(baseUrl = 'http://localhost:8000') {
-    this.baseUrl = baseUrl;
+  constructor() {
+    // ✅ Using centralized config from api-urls
+    this.baseUrl = getHttpBaseUrl();
   }
 
   /**
@@ -83,12 +86,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-      console.error('[PyMatrixRecordingAPI] Start recording error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 
   /**
@@ -118,12 +115,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-      console.error('[PyMatrixRecordingAPI] Stop recording error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 
   /**
@@ -157,12 +148,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-      console.error('[PyMatrixRecordingAPI] Screenshot error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 
   /**
@@ -192,12 +177,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-      console.error('[PyMatrixRecordingAPI] Get recording status error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 }
 

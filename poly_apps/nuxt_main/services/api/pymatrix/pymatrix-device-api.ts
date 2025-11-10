@@ -6,6 +6,7 @@
  */
 
 import type { Device } from '../../types/pymatrix';
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
 
 export interface DeviceListResponse {
   devices: Device[];
@@ -22,13 +23,48 @@ export interface DeviceActionResponse {
   device?: Device;
 }
 
+/**
+ * Transform backend device response to frontend Device type
+ * Single source of truth for device transformation logic
+ */
+function transformBackendDevice(backendDevice: any, state?: 'connected' | 'disconnected' | 'connecting'): Device {
+  return {
+    serial: backendDevice.serial,
+    name: backendDevice.model || backendDevice.serial,
+    model: backendDevice.model || 'Unknown',
+    state: state || mapDeviceStateHelper(backendDevice.state),
+    resolution: {
+      width: backendDevice.resolution?.width || 1080,
+      height: backendDevice.resolution?.height || 2340
+    },
+    streaming: false,
+    controllable: backendDevice.state === 'device' || state === 'connected',
+    isHost: false
+  };
+}
+
+/**
+ * Helper function to map backend device state
+ */
+function mapDeviceStateHelper(backendState: string): 'connected' | 'disconnected' | 'connecting' {
+  switch (backendState) {
+    case 'device':
+      return 'connected';
+    case 'offline':
+    case 'unauthorized':
+      return 'disconnected';
+    default:
+      return 'disconnected';
+  }
+}
+
 export class PyMatrixDeviceAPI {
   private baseUrl: string;
   private apiPrefix: string;
 
   constructor() {
-    // Get from pymatrix config
-    this.baseUrl = 'http://localhost:8000';
+    // ✅ Using centralized config from api-urls
+    this.baseUrl = getHttpBaseUrl();
     this.apiPrefix = '/api';
   }
 
@@ -46,27 +82,12 @@ export class PyMatrixDeviceAPI {
       });
 
       // Transform backend response to frontend Device type
-      const devices: Device[] = response.devices.map((d: any) => ({
-        serial: d.serial,
-        name: d.model || d.serial,
-        model: d.model || 'Unknown',
-        state: this.mapDeviceState(d.state),
-        resolution: {
-          width: d.resolution?.width || 1080,
-          height: d.resolution?.height || 2340
-        },
-        streaming: false,
-        controllable: d.state === 'device',
-        isHost: false
-      }));
+      const devices: Device[] = response.devices.map((d: any) => transformBackendDevice(d));
 
       return {
         devices,
         total: devices.length
       };
-      console.error('[PyMatrixDeviceAPI] Failed to get device list:', error);
-      throw error;
-    }
   }
 
   /**
@@ -82,24 +103,9 @@ export class PyMatrixDeviceAPI {
         }
       });
 
-      const device: Device = {
-        serial: response.device.serial,
-        name: response.device.model || response.device.serial,
-        model: response.device.model || 'Unknown',
-        state: this.mapDeviceState(response.device.state),
-        resolution: {
-          width: response.device.resolution?.width || 1080,
-          height: response.device.resolution?.height || 2340
-        },
-        streaming: false,
-        controllable: response.device.state === 'device',
-        isHost: false
-      };
+      const device: Device = transformBackendDevice(response.device);
 
       return { device };
-      console.error(`[PyMatrixDeviceAPI] Failed to get device info for ${serial}:`, error);
-      throw error;
-    }
   }
 
   /**
@@ -148,19 +154,7 @@ export class PyMatrixDeviceAPI {
 
       let device: Device | undefined;
       if (response.device) {
-        device = {
-          serial: response.device.serial,
-          name: response.device.model || response.device.serial,
-          model: response.device.model || 'Unknown',
-          state: 'connected',
-          resolution: {
-            width: response.device.resolution?.width || 1080,
-            height: response.device.resolution?.height || 2340
-          },
-          streaming: false,
-          controllable: true,
-          isHost: false
-        };
+        device = transformBackendDevice(response.device, 'connected');
       }
 
       return {
@@ -168,9 +162,6 @@ export class PyMatrixDeviceAPI {
         message: response.message,
         device
       };
-      console.error(`[PyMatrixDeviceAPI] Failed to connect device ${serial}:`, error);
-      throw error;
-    }
   }
 
   /**
@@ -193,9 +184,6 @@ export class PyMatrixDeviceAPI {
         success: response.success,
         message: response.message
       };
-      console.error(`[PyMatrixDeviceAPI] Failed to disconnect device ${serial}:`, error);
-      throw error;
-    }
   }
 
   /**
@@ -218,12 +206,6 @@ export class PyMatrixDeviceAPI {
         success: true,
         text: response.text
       };
-      console.error(`[PyMatrixDeviceAPI] Failed to get clipboard for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
   }
 
   /**
@@ -247,12 +229,6 @@ export class PyMatrixDeviceAPI {
       );
 
       return { success: true };
-      console.error(`[PyMatrixDeviceAPI] Failed to set clipboard for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
   }
 
   /**
@@ -279,12 +255,6 @@ export class PyMatrixDeviceAPI {
         success: true,
         state: response.state
       };
-      console.error(`[PyMatrixDeviceAPI] Failed to control screen power for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
   }
 
   /**
@@ -300,126 +270,4 @@ export class PyMatrixDeviceAPI {
         {
           method: 'POST',
           headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          },
-          body: { level }
-        }
-      );
-
-      return {
-        success: true,
-        level: response.level
-      };
-      console.error(`[PyMatrixDeviceAPI] Failed to set brightness for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  /**
-   * Set screen rotation
-   */
-  async setScreenRotation(
-    serial: string,
-    rotation: 0 | 90 | 180 | 270
-  ): Promise<{ success: boolean; rotation?: number; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await $fetch<{ success: boolean; rotation: number }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/rotation`,
-        {
-          method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          },
-          body: { rotation }
-        }
-      );
-
-      return {
-        success: true,
-        rotation: response.rotation
-      };
-      console.error(`[PyMatrixDeviceAPI] Failed to set rotation for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  /**
-   * Enable automatic screen rotation
-   */
-  async enableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await $fetch<{ success: boolean }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/auto-rotation/enable`,
-        {
-          method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      return {
-        success: true
-      };
-      console.error(`[PyMatrixDeviceAPI] Failed to enable auto-rotation for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  /**
-   * Disable automatic screen rotation
-   */
-  async disableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await $fetch<{ success: boolean }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/auto-rotation/disable`,
-        {
-          method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      return {
-        success: true
-      };
-      console.error(`[PyMatrixDeviceAPI] Failed to disable auto-rotation for ${serial}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  /**
-   * Map backend device state to frontend state
-   */
-  private mapDeviceState(backendState: string): 'connected' | 'disconnected' | 'connecting' {
-    switch (backendState) {
-      case 'device':
-        return 'connected';
-      case 'offline':
-      case 'unauthorized':
-        return 'disconnected';
-      default:
-        return 'disconnected';
-    }
-  }
-}
-
-// Export singleton instance
-export const pyMatrixDeviceAPI = new PyMatrixDeviceAPI();
+            'X-App-Namespace'

@@ -83,6 +83,7 @@ class StartupWindow:
         self._running = False
         self._log_queue = queue.Queue()
         self._thread: Optional[threading.Thread] = None
+        self._closed_event = threading.Event()  # Event to signal window closed
 
     def show(self):
         """
@@ -93,7 +94,8 @@ class StartupWindow:
             return
 
         self._running = True
-        self._thread = threading.Thread(target=self._run_ui, daemon=True)
+        # Use non-daemon thread so main thread waits for it
+        self._thread = threading.Thread(target=self._run_ui, daemon=False)
         self._thread.start()
 
     def _run_ui(self):
@@ -102,6 +104,9 @@ class StartupWindow:
         self.root = tk.Tk()
         self.root.title(f"{self.app_name} - Initializing...")
         self.root.geometry(f"{self.width}x{self.height}")
+
+        # Hide window initially to prevent flash
+        self.root.withdraw()
 
         # Set window icon if provided
         if self.icon_path:
@@ -118,14 +123,17 @@ class StartupWindow:
             except Exception as e:
                 pass  # Ignore icon errors
 
-        # Center window
-        self._center_window()
-
         # Prevent window close during startup
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_attempt)
 
         # Create UI
         self._create_ui()
+
+        # Center window (after UI is created)
+        self._center_window()
+
+        # Show window after everything is ready
+        self.root.deiconify()
 
         # Start log processing
         self._process_logs()
@@ -349,6 +357,13 @@ class StartupWindow:
         # Call completion callback
         if self.on_complete:
             self.on_complete()
+
+        # Stop progress bar animation to prevent "after" errors
+        if self.progress_bar:
+            try:
+                self.progress_bar.stop()
+            except:
+                pass
 
         # Close window
         if self.root:

@@ -24,11 +24,6 @@
     - PowerShell Command: ssh
     - File Number: 1
     - File Name: ssh1.ps1
-<<<<<<< HEAD
-    - Generation Time: 2025-11-10 07:16:54
-=======
-    - Generation Time: 2025-11-10 20:39:21
->>>>>>> 51d8f3dd22a74061344d5d427a72963462027c94
 #>
 
 Set-StrictMode -Version Latest
@@ -41,17 +36,31 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 #region Initialize Path Variables
-$scriptCurrentPath = $PSScriptRoot
+$scriptActualPath = $PSCommandPath
+$item = Get-Item -LiteralPath $PSCommandPath
+if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+    $scriptActualPath = $item.Target
+}
+$scriptCurrentPath = Split-Path $scriptActualPath -Parent
 if (-not $scriptCurrentPath) {
-    $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $scriptCurrentPath = $PSScriptRoot
+    if (-not $scriptCurrentPath) {
+        $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
 $shellsDirPath = Join-Path $scriptsDirPath "shells"
 $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
-$projectRootPath = Split-Path $scriptsDirPath -Parent
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
+Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
+#endregion
 # Path resolution algorithm:
 #   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
@@ -59,13 +68,13 @@ $projectRootPath = Split-Path $scriptsDirPath -Parent
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\.tmp\Users\时间�?# Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
+# Uses fixed user directory at D:\.tmp\Users\default
+# Note: No timestamp to avoid git conflicts on regeneration
 # ============================================================================
 
-# Generate timestamp for directory name
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+# Use fixed directory name (no timestamp)
 $baseTempDir = "D:\.tmp\Users"
-$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+$CustomUserDirectory = Join-Path $baseTempDir "default"
 
 # Create the directory if it doesn't exist
 try {
@@ -146,35 +155,100 @@ Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
 Write-Host ""
 #endregion
 
-#region Load SecretManager
-$secretManagerPath = Join-Path $winCommonDirPath "SecretManager.ps1"
-
-if (Test-Path $secretManagerPath) {
-    . $secretManagerPath
-    Write-Host "[INFO] SecretManager loaded successfully" -ForegroundColor Green
-} else {
-    Write-Host "[WARNING] SecretManager not found at: $secretManagerPath" -ForegroundColor Yellow
-    Write-Host "[WARNING] Environment variables will not be loaded" -ForegroundColor Yellow
-}
-#endregion
-
-#region Load Environment Variables from SecretManager
+#region Load Environment Variables via PyCore caller
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$env:SSH_CONNECTION = Get-SecretKey -KeyName "SSH_CONNECTION_1"
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    $pythonExecutable = "python"
+} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+    $pythonExecutable = "python3"
+} else {
+    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
+    exit 1
+}
+
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
+Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
+
+function Get-SecretValue {
+    param([string]$KeyName)
+    Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    $arguments = @($secretManagerScript, 'get_secret_key', $KeyName)
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable $($arguments -join ' ')" -ForegroundColor DarkGray
+
+    # Capture both stdout and stderr
+    $output = & $pythonExecutable $arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
+
+    # Check if output contains error messages
+    $errorOutput = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+    if ($errorOutput) {
+        Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
+        $errorOutput | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    }
+
+    # Get the actual value (non-error output)
+    $value = ($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n"
+
+    if ($value) {
+        Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
+        # Show masked preview (first 4 chars + *** + last 4 chars)
+        if ($value.Length -gt 8) {
+            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
+            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host "[DEBUG] Returned empty value" -ForegroundColor Yellow
+    }
+
+    return $value
+}
+
+$env:SSH_CONNECTION = Get-SecretValue "SSH_CONNECTION_1"
 if ($env:SSH_CONNECTION) {
-    Write-Host "[SUCCESS] Loaded SSH_CONNECTION = $($env:SSH_CONNECTION)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded SSH_CONNECTION (Length: $($env:SSH_CONNECTION.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($env:SSH_CONNECTION.Length -gt 8) {
+        $maskedValue = $env:SSH_CONNECTION.Substring(0, 4) + "***" + $env:SSH_CONNECTION.Substring($env:SSH_CONNECTION.Length - 4)
+        Write-Host "[INFO] SSH_CONNECTION: $maskedValue" -ForegroundColor Cyan
+    } else {
+        Write-Host "[INFO] SSH_CONNECTION: ****" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "[WARNING] Failed to load SSH_CONNECTION" -ForegroundColor Yellow
 }
 
-$env:SSH_PASSWORD = Get-SecretKey -KeyName "SSH_PASSWORD_1"
+$env:SSH_PASSWORD = Get-SecretValue "SSH_PASSWORD_1"
 if ($env:SSH_PASSWORD) {
-    Write-Host "[SUCCESS] Loaded SSH_PASSWORD = $($env:SSH_PASSWORD)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded SSH_PASSWORD (Length: $($env:SSH_PASSWORD.Length))" -ForegroundColor Green
+    # Show masked value for verification
+    if ($env:SSH_PASSWORD.Length -gt 8) {
+        $maskedValue = $env:SSH_PASSWORD.Substring(0, 4) + "***" + $env:SSH_PASSWORD.Substring($env:SSH_PASSWORD.Length - 4)
+        Write-Host "[INFO] SSH_PASSWORD: $maskedValue" -ForegroundColor Cyan
+    } else {
+        Write-Host "[INFO] SSH_PASSWORD: ****" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "[WARNING] Failed to load SSH_PASSWORD" -ForegroundColor Yellow
 }

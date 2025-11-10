@@ -261,7 +261,7 @@ def get_winenvs_dir() -> Path:
 
 def get_linuxenvs_dir() -> Path:
     """Get the Linux environment scripts directory"""
-    return get_project_root() / 'scripts' / 'liunxenvs'
+    return get_project_root() / 'scripts' / 'linuxenvs'
 
 
 def clear_screen():
