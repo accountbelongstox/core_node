@@ -177,11 +177,29 @@ function Get-NuxtStartCommand {
 # Generate phpStart command
 function Get-PhpStartCommand {
     param([string]$AppPath)
-    
+
     $indexPhpPath = Join-Path $AppPath "index.php"
     if (Test-Path $indexPhpPath) {
         $absolutePath = (Resolve-Path $indexPhpPath).Path
         return "php -S localhost:8000 -t `"$(Split-Path $absolutePath)`""
+    }
+    return $null
+}
+
+# Generate Ncore/Pycore/Installer command (unified installer for both ncore and pycore)
+function Get-TInstallerCommand {
+    param([string]$AppPath, [string]$AppType)
+
+    if ($AppType -eq "ncoreApp") {
+        $startCommand = Get-NcoreStartCommand -AppPath $AppPath
+        if ($startCommand) {
+            return $startCommand
+        }
+    } elseif ($AppType -eq "pycoreApp") {
+        $startCommand = Get-PycoreStartCommand -AppPath $AppPath
+        if ($startCommand) {
+            return $startCommand
+        }
     }
     return $null
 }
@@ -296,6 +314,15 @@ function Step3-GenerateNativeStartup {
                 $app.ScriptIndex = 0
                 $foundNative = $true
                 Write-Host "  $($app.Name): pycoreStart&Installer - $startCommand" -ForegroundColor Magenta
+            }
+        }
+
+        # Priority 1.9: Add Ncore/Pycore/Installer for both ncoreApp and pycoreApp
+        if ($app.AppType -eq "ncoreApp" -or $app.AppType -eq "pycoreApp") {
+            $tCommand = Get-TInstallerCommand -AppPath $app.Path -AppType $app.AppType
+            if ($tCommand) {
+                $app.AvailableScripts += "Ncore/Pycore/Installer"
+                Write-Host "  $($app.Name): Ncore/Pycore/Installer (unified) - $tCommand" -ForegroundColor Magenta
             }
         }
         
@@ -687,7 +714,7 @@ function Launch-CurrentApp {
     Write-Host ""
     
     # Check if it's a native startup
-    $nativeStartups = @("ncoreStart", "ncoreStart&Installer", "pycoreStart", "pycoreStart&Installer", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
+    $nativeStartups = @("ncoreStart", "ncoreStart&Installer", "pycoreStart", "pycoreStart&Installer", "Ncore/Pycore/Installer", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
     $isNativeStartup = $nativeStartups -contains $app.CurrentScript
 
     if ($isNativeStartup) {
@@ -702,6 +729,11 @@ function Launch-CurrentApp {
         }
 
         switch -Wildcard ($app.CurrentScript) {
+            "Ncore/Pycore/Installer" {
+                $command = Get-TInstallerCommand -AppPath $app.Path -AppType $app.AppType
+                $workingDir = $rootDir
+                $needsInstall = $true
+            }
             "ncoreStart*" {
                 $command = Get-NcoreStartCommand -AppPath $app.Path
                 $workingDir = $rootDir
@@ -750,8 +782,21 @@ function Launch-CurrentApp {
 
             # Generate batch file content
             if ($needsInstall) {
-                # Include installation step
-                $batContent = @"
+                # Check if this is Ncore/Pycore/Installer for enhanced installation
+                $isFullInstaller = ($app.CurrentScript -eq "Ncore/Pycore/Installer")
+
+                if ($isFullInstaller) {
+                    # Ncore/Pycore/Installer: Call the standalone installer script
+                    $installerScript = Join-Path $scriptPath "ncore_pycore_installer.ps1"
+                    $batContent = @"
+@echo off
+echo Launching unified installer...
+powershell -ExecutionPolicy Bypass -File "$installerScript" -AppName "$($app.Name)" -AppType "$($app.AppType)" -StartCommand "$command" -WorkingDir "$workingDir" -RootDir "$rootDir"
+pause
+"@
+                } else {
+                    # Standard &Installer: Basic pnpm install only
+                    $batContent = @"
 @echo off
 echo ========================================
 echo Installing dependencies...
@@ -782,6 +827,7 @@ echo.
 $command
 pause
 "@
+                }
             } else {
                 # No installation needed
                 $batContent = @"

@@ -8,6 +8,8 @@ import os
 import platform
 from pathlib import Path
 
+from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
+
 
 class Config:
     """Matrix Application Configuration"""
@@ -16,8 +18,13 @@ class Config:
     APP_NAME = "matrix"
 
     # ==================== Project Paths ====================
-    PROJECT_ROOT = Path(__file__).parent
-    RESOURCES_DIR = PROJECT_ROOT / "resources"
+    # Use pycore PROJECT_ROOT for consistency
+    PROJECT_ROOT = Path(PYCORE_PROJECT_ROOT)
+    APP_ROOT = PROJECT_ROOT / "pyapps" / "matrix"
+    RESOURCES_DIR = APP_ROOT / "resources"
+
+    # Use pycore CACHE_DIR for consistency
+    CACHE_DIR_PATH = Path(CACHE_DIR)
 
     # ==================== ADB Configuration ====================
     @staticmethod
@@ -33,22 +40,23 @@ class Config:
         Returns:
             ADB executable path
         """
+        import shutil
+
         system = platform.system()
+        adb_exe = "adb.exe" if system == 'Windows' else "adb"
 
         # 1. Check local ADB
         if system == 'Windows':
-            adb_path = Config.RESOURCES_DIR / "adb" / "windows" / "adb.exe"
+            adb_path = Config.RESOURCES_DIR / "adb" / "windows" / adb_exe
         elif system == 'Darwin':  # macOS
-            adb_path = Config.RESOURCES_DIR / "adb" / "macos" / "adb"
+            adb_path = Config.RESOURCES_DIR / "adb" / "macos" / adb_exe
         else:  # Linux
-            adb_path = Config.RESOURCES_DIR / "adb" / "linux" / "adb"
+            adb_path = Config.RESOURCES_DIR / "adb" / "linux" / adb_exe
 
         if adb_path.exists():
             return str(adb_path)
 
         # 2. Check system PATH
-        import shutil
-        adb_exe = "adb.exe" if system == 'Windows' else "adb"
         adb_in_path = shutil.which(adb_exe)
         if adb_in_path:
             return adb_in_path
@@ -65,12 +73,12 @@ class Config:
     WEB_PORT = 8000
 
     # Frontend configuration
-    FRONTEND_DIR = PROJECT_ROOT.parent.parent / "poly_apps" / "nuxt_main"
+    FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "nuxt_main"
     FRONTEND_PORT = 3007  # Matrix frontend port (from app-config.json)
     FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
     # Static files directory (production mode)
-    STATIC_DIR = PROJECT_ROOT / "static"
+    STATIC_DIR = APP_ROOT / "static"
 
     # ==================== Video Stream Configuration ====================
     DEFAULT_MAX_SIZE = 720          # Max resolution (short side)
@@ -90,7 +98,8 @@ class Config:
 
     # ==================== Logging Configuration ====================
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-    LOG_DIR = PROJECT_ROOT / "logs"
+    # Use pycore CACHE_DIR for logs (following pycore standards)
+    LOG_DIR = CACHE_DIR_PATH / "matrix" / "logs"
 
     # ==================== Runtime Mode ====================
     MODE = os.getenv("MATRIX_MODE", "dev")  # dev | production

@@ -1,0 +1,9 @@
+{
+  "default_language": "zh",
+  "supported_languages": ["en", "zh", "ja"],
+  "language_names": {
+    "en": "English",
+    "zh": "简体中文",
+    "ja": "日本語"
+  }
+}

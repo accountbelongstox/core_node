@@ -30,7 +30,7 @@ export function useScriptExecutor() {
 
     console.log(`[Script Executor] Executing step: ${step.type} - ${step.name}`);
 
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       switch (step.type) {
         case 'touch':
           if (step.data.action === 'tap' && step.data.x !== undefined && step.data.y !== undefined) {
@@ -102,7 +102,6 @@ export function useScriptExecutor() {
       }
 
       return true;
-    } catch (error) {
       console.error(`[Script Executor] Error executing step ${step.name}:`, error);
       return false;
     }

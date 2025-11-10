@@ -3,11 +3,12 @@
   "documentType": "AI_COLLABORATION_BRIDGE_INDEX",
   "purpose": "Bridge index consolidating multi-stage collaboration files for pyMatrix front-end Nuxt app and Python backend",
   "createdFrom": [
-    "docs/bridge_with_nuxt_pyMatrix/stage1_core_collaboration.json",
-    "docs/bridge_with_nuxt_pyMatrix/stage2_audio_feature_update.json",
-    "docs/bridge_with_nuxt_pyMatrix/stage3_patch_update.json"
+    "ai_briage/bridge_with_nuxt_pyMatrix/stage1_core_collaboration.json",
+    "ai_briage/bridge_with_nuxt_pyMatrix/stage2_audio_feature_update.json",
+    "ai_briage/bridge_with_nuxt_pyMatrix/stage3_patch_update.json",
+    "ai_briage/bridge_with_nuxt_pyMatrix/stage4_api_specification.json"
   ],
-  "lastUpdate": "2025-11-04T18:00:00Z",
+  "lastUpdate": "2025-11-10T20:30:00Z",
   "maintainers": {
     "frontendAI": "Frontend AI",
     "backendAI": "Backend AI",
@@ -19,7 +20,7 @@
       {
         "stageId": "S1",
         "title": "Core Collaboration Bridge",
-        "file": "docs/bridge_with_nuxt_pyMatrix/stage1_core_collaboration.json",
+        "file": "ai_briage/bridge_with_nuxt_pyMatrix/stage1_core_collaboration.json",
         "focus": [
           "Full bi-directional coordination between Nuxt frontend modules and Python backend services",
           "Feature completion tracking: 61/61 verified with centralization compliance",
@@ -31,7 +32,7 @@
       {
         "stageId": "S2",
         "title": "Audio Feature Integration",
-        "file": "docs/bridge_with_nuxt_pyMatrix/stage2_audio_feature_update.json",
+        "file": "ai_briage/bridge_with_nuxt_pyMatrix/stage2_audio_feature_update.json",
         "focus": [
           "sndcpy audio streaming feature (F062) implementation details",
           "Frontend Vue components, composables, Pinia store, and backend API tasks",
@@ -43,7 +44,7 @@
       {
         "stageId": "S3",
         "title": "Patch Update V2",
-        "file": "docs/bridge_with_nuxt_pyMatrix/stage3_patch_update.json",
+        "file": "ai_briage/bridge_with_nuxt_pyMatrix/stage3_patch_update.json",
         "focus": [
           "Architecture compliance verification reports (data/API/theme)",
           "Implementation tracking document references and codebase statistics",
@@ -51,12 +52,28 @@
         ],
         "lastUpdate": "2025-11-04T16:45:00Z",
         "status": "completed"
+      },
+      {
+        "stageId": "S4",
+        "title": "API Specification & Device Stream Integration",
+        "file": "ai_briage/bridge_with_nuxt_pyMatrix/stage4_api_specification.json",
+        "focus": [
+          "Complete API endpoint specification based on scrcpy_web_test",
+          "Device acquisition using ADB scanning (adb devices -l)",
+          "WebSocket video streaming with binary frame protocol",
+          "Touch event injection and screenshot push",
+          "Frontend and backend implementation requirements"
+        ],
+        "lastUpdate": "2025-11-10T20:30:00Z",
+        "status": "active",
+        "specificationDoc": "ai_briage/bridge_with_nuxt_pyMatrix/FRONTEND_API_SPECIFICATION.md",
+        "referenceImplementation": "pyapps/scrcpy_web_test/server.py"
       }
     ]
   },
   "usage": {
     "read": "Consult individual stage files for full JSON payloads and detailed task matrices.",
-    "update": "Add or update stages by appending to stagePipeline.stages and writing corresponding files under docs/bridge_with_nuxt_pyMatrix.",
+    "update": "Add or update stages by appending to stagePipeline.stages and writing corresponding files under ai_briage/bridge_with_nuxt_pyMatrix.",
     "notes": "This index replaces the former monolithic AI_COLLABORATION_BRIDGE.json to avoid oversized single-file updates."
   }
 }

@@ -65,36 +65,30 @@ export const useConfigStore = defineStore('pymatrix-config', {
     async fetchConfig() {
       this.loading = true;
       this.error = null;
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const response = await pyMatrixConfigAPI.getConfig();
         this.global = response.config.global;
         this.devices = response.config.devices || {};
-      } catch (error) {
         this.error = error instanceof Error ? error.message : 'Failed to load configuration';
         throw error;
-      } finally {
-        this.loading = false;
-      }
+      this.loading = false;
     },
 
     async saveGlobal(payload: Partial<DeviceConfig>) {
       this.loading = true;
       this.error = null;
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const updated = await pyMatrixConfigAPI.updateGlobal(payload);
         this.global = updated;
-      } catch (error) {
         this.error = error instanceof Error ? error.message : 'Failed to save global configuration';
         throw error;
-      } finally {
-        this.loading = false;
-      }
+      this.loading = false;
     },
 
     async saveDevice(deviceName: string, payload: Partial<DeviceConfig>) {
       this.loading = true;
       this.error = null;
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         const updated = await pyMatrixConfigAPI.updateDevice(deviceName, payload);
         const existingKey =
           Object.keys(this.devices).find((key) => key.toLowerCase() === deviceName.toLowerCase()) || deviceName;
@@ -102,30 +96,24 @@ export const useConfigStore = defineStore('pymatrix-config', {
           ...this.devices,
           [existingKey]: updated,
         };
-      } catch (error) {
         this.error = error instanceof Error ? error.message : 'Failed to save device configuration';
         throw error;
-      } finally {
-        this.loading = false;
-      }
+      this.loading = false;
     },
 
     async removeDevice(deviceName: string) {
       this.loading = true;
       this.error = null;
-      try {
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
         await pyMatrixConfigAPI.deleteDevice(deviceName);
         const next = { ...this.devices };
         const existingKey =
           Object.keys(next).find((key) => key.toLowerCase() === deviceName.toLowerCase()) || deviceName;
         delete next[existingKey];
         this.devices = next;
-      } catch (error) {
         this.error = error instanceof Error ? error.message : 'Failed to delete device configuration';
         throw error;
-      } finally {
-        this.loading = false;
-      }
+      this.loading = false;
     },
   },
 });

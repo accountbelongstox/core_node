@@ -29,7 +29,7 @@ Usage:
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 
 # Import startup window (Python native, no dependencies required)
 from pycore.pyutils.native_ui.startup_window import StartupWindow, ColorPrintCapture
@@ -40,7 +40,11 @@ def launch_app_with_startup(
     main_entry: Callable,
     startup_width: int = 600,
     startup_height: int = 500,
-    min_display_time: float = 2.0
+    min_display_time: float = 2.0,
+    icon_path: Optional[str] = None,
+    logo_path: Optional[str] = None,
+    enable_language_selector: bool = True,
+    i18n_manager: Optional[Any] = None
 ):
     """
     Launch application with startup window
@@ -57,6 +61,10 @@ def launch_app_with_startup(
         startup_width: Startup window width
         startup_height: Startup window height
         min_display_time: Minimum time to display startup window (seconds)
+        icon_path: Path to window icon (.ico or .png) (optional)
+        logo_path: Path to logo image displayed before title (.png) (optional)
+        enable_language_selector: Enable language selector in startup window (default: True)
+        i18n_manager: I18nManager instance for multi-language support (optional)
     """
     # Track startup time
     start_time = time.time()
@@ -65,7 +73,11 @@ def launch_app_with_startup(
     startup = StartupWindow(
         app_name=app_name,
         width=startup_width,
-        height=startup_height
+        height=startup_height,
+        icon_path=icon_path,
+        logo_path=logo_path,
+        enable_language_selector=enable_language_selector,
+        i18n_manager=i18n_manager
     )
 
     # Show startup window

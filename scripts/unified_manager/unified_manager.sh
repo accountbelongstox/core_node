@@ -44,7 +44,7 @@ MAX_APP_NAME_WIDTH=0
 SCRIPT_FILES=("start.sh" "install.sh" "deploy.sh")
 
 # Native startup types
-NATIVE_STARTUPS=("ncoreStart" "ncoreStart&Installer" "pycoreStart" "pycoreStart&Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
+NATIVE_STARTUPS=("ncoreStart" "ncoreStart&Installer" "pycoreStart" "pycoreStart&Installer" "Ncore/Pycore/Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
 
 # Debug output for paths
 echo "Script Path: $SCRIPT_PATH"
@@ -132,9 +132,21 @@ get_nuxt_start_command() {
 get_php_start_command() {
     local app_path="$1"
     local index_php="$app_path/index.php"
-    
+
     if [ -f "$index_php" ]; then
         echo "php -S localhost:8000 -t \"$app_path\""
+    fi
+}
+
+# Generate Ncore/Pycore/Installer command (unified installer for both ncore and pycore)
+get_t_installer_command() {
+    local app_path="$1"
+    local app_type="$2"
+
+    if [ "$app_type" = "ncoreApp" ]; then
+        get_ncore_start_command "$app_path"
+    elif [ "$app_type" = "pycoreApp" ]; then
+        get_pycore_start_command "$app_path"
     fi
 }
 
@@ -279,7 +291,16 @@ step3_generate_native_startup() {
                 echo -e "  \033[35m$app_name: pycoreStart&Installer - $cmd\033[0m" >&2
             fi
         fi
-        
+
+        # Priority 1.9: Add Ncore/Pycore/Installer for both ncoreApp and pycoreApp
+        if [ "$app_type" = "ncoreApp" ] || [ "$app_type" = "pycoreApp" ]; then
+            local t_cmd="$(get_t_installer_command "$app_path" "$app_type")"
+            if [ -n "$t_cmd" ]; then
+                available_scripts+=("Ncore/Pycore/Installer")
+                echo -e "  \033[35m$app_name: Ncore/Pycore/Installer (unified) - $t_cmd\033[0m" >&2
+            fi
+        fi
+
         # Priority 2: Framework-specific starts for poly_apps
         if [ "$app_type" = "poly_apps" ]; then
             # Flutter
@@ -755,6 +776,11 @@ launch_current_app() {
         fi
 
         case "$current_script" in
+            "Ncore/Pycore/Installer")
+                command="$(get_t_installer_command "$app_path" "$app_type")"
+                working_dir="$ROOT_DIR"
+                needs_install=1
+                ;;
             ncoreStart*)
                 command="$(get_ncore_start_command "$app_path")"
                 working_dir="$ROOT_DIR"
@@ -802,8 +828,18 @@ launch_current_app() {
             local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${current_script}.sh"
 
             if [ $needs_install -eq 1 ]; then
-                # Include installation step
-                cat > "$temp_script" << EOF
+                # Check if this is Ncore/Pycore/Installer for enhanced installation
+                if [ "$current_script" = "Ncore/Pycore/Installer" ]; then
+                    # Ncore/Pycore/Installer: Call the standalone installer script
+                    local installer_script="$SCRIPT_PATH/ncore_pycore_installer.sh"
+                    cat > "$temp_script" << EOF
+#!/bin/bash
+echo "Launching unified installer..."
+bash "$installer_script" "$app_name" "$app_type" "$command" "$working_dir" "$ROOT_DIR"
+EOF
+                else
+                    # Standard &Installer: Basic pnpm install only
+                    cat > "$temp_script" << EOF
 #!/bin/bash
 echo "========================================"
 echo "Installing dependencies..."
@@ -834,6 +870,7 @@ echo ""
 $command
 read -p "Press Enter to exit..."
 EOF
+                fi
             else
                 # No installation needed
                 cat > "$temp_script" << EOF
