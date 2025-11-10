@@ -28,7 +28,11 @@
 #     - Command: claude
 #     - File Number: 3
 #     - File Name: claude3.sh
+<<<<<<< HEAD
+#     - Generation Time: 2025-11-10 07:16:54
+=======
 #     - Generation Time: 2025-11-10 20:39:20
+>>>>>>> 51d8f3dd22a74061344d5d427a72963462027c94
 #
 # Environment Variables:
 #     Environment variables are loaded from encrypted storage using secret_manager.sh
@@ -44,13 +48,17 @@ echo ""
 
 #region Initialize Path Variables
 scriptCurrentPath="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scriptsDirPath="$(dirname "$scriptCurrentPath")"
+if [ -L "${BASH_SOURCE[0]}" ]; then
+    scriptRealPath="$(readlink -f "${BASH_SOURCE[0]}")"
+    scriptCurrentPath="$(cd "$(dirname "$scriptRealPath")" && pwd)"
+fi
+scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
 shellsDirPath="$scriptsDirPath/shells"
 linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
 aiToolsDirPath="$pytoolsDirPath/ai_tools"
-projectRootPath="$(dirname "$scriptsDirPath")"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
 # Path resolution algorithm:
 #   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
@@ -113,19 +121,6 @@ echo "  USER_DIR = $USER_DIR"
 echo ""
 #endregion
 
-# Test path resolution (can be removed in production)
-echo "[DEBUG] Path Resolution Test:"
-echo "  Script Path: $scriptCurrentPath"
-echo "  Scripts Dir: $scriptsDirPath"
-echo "  Shells Dir: $shellsDirPath"
-echo "  Linux Dir: $linuxDirPath"
-echo "  Linux Common Dir: $linuxCommonDirPath"
-echo "  PyTools Dir: $pytoolsDirPath"
-echo "  AI Tools Dir: $aiToolsDirPath"
-echo "  User Profile: $userProfilePath"
-echo "  User Home: $userHomePath"
-echo "  Users Directory: $usersDirectoryPath"
-echo ""
 #endregion
 
 # =============================================================================
@@ -137,20 +132,17 @@ echo "Loading Environment Variables"
 echo "============================================================"
 echo ""
 
-secretManagerScript="$shellsDirPath/secret_manager/secret_manager.sh"
-secretManagerReady=false
-
-if [ -f "$secretManagerScript" ]; then
-    source "$secretManagerScript"
-    if type secret_get_key &> /dev/null; then
-        secretManagerReady=true
-        echo "[INFO] Secret manager loaded successfully"
+python_exec="python3"
+if ! command -v "$python_exec" &> /dev/null; then
+    if command -v python &> /dev/null; then
+        python_exec="python"
     else
-        echo "[WARNING] secret_get_key function is unavailable after loading $secretManagerScript"
+        echo "[ERROR] Python is required to load secrets"
+        exit 1
     fi
-else
-    echo "[WARNING] Secret manager script not found: $secretManagerScript"
 fi
+
+pycore_launcher="/www/programing/core_node/pycore_module_caller.py"
 
 load_secret_value() {
     local key_name="$1"
@@ -158,18 +150,13 @@ load_secret_value() {
     local display_name="$3"
     local value=""
 
-    if [ "$secretManagerReady" != true ]; then
-        echo "[WARNING] Secret manager is not initialized. Cannot load $display_name"
-        return 1
-    fi
+    value=$($python_exec "$pycore_launcher"         --module pyfoundations.secret_manager         --call get_secret_key         "$key_name" 2>/dev/null)
 
-    if value="$(secret_get_key "$key_name" 2>/dev/null)"; then
-        if [ -n "$value" ]; then
-            printf -v "$env_name" '%s' "$value"
-            export "$env_name"
-            echo "[SUCCESS] Loaded $display_name"
-            return 0
-        fi
+    if [ -n "$value" ]; then
+        printf -v "$env_name" '%s' "$value"
+        export "$env_name"
+        echo "[SUCCESS] Loaded $display_name"
+        return 0
     fi
 
     echo "[WARNING] Failed to load $display_name"

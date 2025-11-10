@@ -5,6 +5,7 @@ Main package file for pytools.
 Contains the dependency management logic.
 """
 
+import os
 import sys
 import subprocess
 import importlib.util
@@ -92,6 +93,11 @@ def check_and_install_dependencies(enable_gpu_setup: bool = True, auto_install_g
 
     Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
     """
+    # Allow callers to skip dependency checks via environment variable
+    if os.environ.get('PYCORE_SKIP_DEP_CHECK') == '1':
+        ENCYCLOPEDIA['pycore_dependencies_checked'] = True
+        return
+
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
