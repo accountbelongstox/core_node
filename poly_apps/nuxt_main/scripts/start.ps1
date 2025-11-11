@@ -48,6 +48,215 @@ $multiSelectionRequested = $false
 $multiAppInputBuffer = @()
 $multiSelectedApps = @()
 $multiModeEnabled = $false
+$factoryPlatformSegment = ""
+$factoryRootPath = ""
+$factoryTargetDir = ""
+$deploymentScriptPaths = @()
+$originalDirectoryRestored = $false
+$isWindowsPlatform = $false
+$factoryMirrorNoticeLines = @(
+    "[NOTICE] Nuxt factory sync mirrors the source workspace to D:/programing/.build_dir/nuxt_factory.",
+    "         When sharing build errors (especially with AI), convert mirrored paths back to",
+    "         the original source under D:/programing/core_node/poly_apps/nuxt_main.",
+    "         Example: D:/programing/.build_dir/nuxt_factory/_app_pymatrix/apps/app_pymatrix",
+    "                  /stores_app_pymatrix/scriptStore.ts ->",
+    "                  D:/programing/core_node/poly_apps/nuxt_main/apps/app_pymatrix",
+    "                  /stores_app_pymatrix/scriptStore.ts"
+)
+
+if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    $isWindowsPlatform = $true
+    $factoryPlatformSegment = "windows"
+}
+else {
+    $isWindowsPlatform = $false
+    $factoryPlatformSegment = "linux"
+}
+
+function Get-FactoryBaseDirectory {
+    if ($env:NUXT_FACTORY_BASE_DIR -and (Test-Path $env:NUXT_FACTORY_BASE_DIR)) {
+        try {
+            return (Resolve-Path $env:NUXT_FACTORY_BASE_DIR).Path
+        }
+        catch {
+            # Fall through to candidate list
+        }
+    }
+
+    $candidates = @()
+
+    if ($isWindowsPlatform) {
+        $candidates += @("D:/programing", "D:/", "C:/programing")
+    }
+    else {
+        $candidates += @("/mnt/d/programing", "/mnt/d", "/www")
+    }
+
+    if ($env:USERPROFILE) {
+        $candidates += (Join-Path $env:USERPROFILE "nuxt_factory")
+    }
+
+    $currentLocation = (Get-Location).ProviderPath
+    $candidates += $currentLocation
+
+    foreach ($candidate in $candidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
+            try {
+                return (Resolve-Path $candidate).Path
+            }
+            catch {
+                continue
+            }
+        }
+    }
+
+    return $currentLocation
+}
+
+function Get-FactoryRootPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PlatformSegment
+    )
+
+    $baseDirectory = Get-FactoryBaseDirectory
+    $buildSegment = if ($PlatformSegment -eq "linux") { "_build_dir" } else { ".build_dir" }
+    $rootCandidate = Join-Path (Join-Path $baseDirectory $buildSegment) "nuxt_factory"
+
+    if (-not (Test-Path $rootCandidate)) {
+        New-Item -ItemType Directory -Path $rootCandidate -Force | Out-Null
+    }
+
+    return $rootCandidate
+}
+
+function Get-FactoryTargetDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FactoryRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$PlatformSegment,
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace
+    )
+
+    $appSegment = "_app_{0}" -f $Namespace
+    if ($PlatformSegment -eq "linux") {
+        $platformRoot = Join-Path $FactoryRoot "linux"
+        if (-not (Test-Path $platformRoot)) {
+            New-Item -ItemType Directory -Path $platformRoot -Force | Out-Null
+        }
+        $targetDirectory = Join-Path $platformRoot $appSegment
+    }
+    else {
+        $targetDirectory = Join-Path $FactoryRoot $appSegment
+    }
+
+    if (-not (Test-Path $targetDirectory)) {
+        New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
+    }
+
+    return $targetDirectory
+}
+
+function Restore-OriginalDirectory {
+    param(
+        [switch]$Silent
+    )
+
+    if ($script:originalDirectoryRestored) {
+        return
+    }
+
+    $script:originalDirectoryRestored = $true
+
+    if (-not $Silent) {
+        Write-Host "" 
+        Write-Host "===============================================================================" -ForegroundColor Cyan
+        Write-Host "  RESTORING ORIGINAL WORKING DIRECTORY" -ForegroundColor Cyan
+        Write-Host "===============================================================================" -ForegroundColor Cyan
+        Write-Host "Original directory: $ORIGINAL_WORKING_DIR" -ForegroundColor Green
+        Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+        Write-Host "Switching back to original directory..." -ForegroundColor Cyan
+    }
+
+    try {
+        $targetPath = (Resolve-Path $ORIGINAL_WORKING_DIR).Path
+        $currentPath = (Get-Location).ProviderPath
+        if ($currentPath -ne $targetPath) {
+            Set-Location $targetPath
+        }
+    }
+    catch {
+        if (-not $Silent) {
+            Write-Host "[WARNING] Failed to restore directory: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        return
+    }
+
+    if (-not $Silent) {
+        Write-Host "Restored to: $(Get-Location)" -ForegroundColor Green
+        Write-Host "===============================================================================" -ForegroundColor Cyan
+    }
+}
+
+function New-DeployScripts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TargetDirectory,
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace,
+        [Parameter(Mandatory = $true)]
+        [int]$Port
+    )
+
+    $deployPsPath = Join-Path $TargetDirectory "deploy.ps1"
+    $deployShPath = Join-Path $TargetDirectory "deploy.sh"
+
+    $psTemplate = @'
+param(
+    [int]$Port = __PORT__,
+    [string]$Host = "0.0.0.0"
+)
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $scriptDir
+
+$env:NUXT_PORT = $Port
+$env:NUXT_HOST = $Host
+$env:APP_ENTRY = "__APP__"
+
+Write-Host "Starting Nuxt production server on $Host:$Port" -ForegroundColor Green
+node ".output/server/index.mjs"
+'@
+
+    $psContent = $psTemplate.Replace("__PORT__", [string]$Port).Replace("__APP__", $Namespace)
+    Set-Content -Path $deployPsPath -Value $psContent -Encoding UTF8
+
+    $shTemplate = @'
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PORT="${1:-__PORT__}"
+HOST="${2:-0.0.0.0}"
+
+cd "$SCRIPT_DIR"
+export NUXT_PORT="$PORT"
+export NUXT_HOST="$HOST"
+export APP_ENTRY="__APP__"
+
+echo "Starting Nuxt production server on ${HOST}:${PORT}"
+node .output/server/index.mjs
+'@
+
+    $shContent = $shTemplate.Replace("__PORT__", [string]$Port).Replace("__APP__", $Namespace)
+    Set-Content -Path $deployShPath -Value $shContent -Encoding UTF8
+
+    return @($deployPsPath, $deployShPath)
+}
+
+$null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Restore-OriginalDirectory -Silent } | Out-Null
 
 Write-Host ""
 Write-Host "===============================================================================" -ForegroundColor Cyan
@@ -94,6 +303,11 @@ Write-Host "[TRACE] Checking Prerequisites..." -ForegroundColor Yellow
 Test-Prerequisites -AppDirectory $APP_DIR
 Write-Host "  [OK] Prerequisites verified" -ForegroundColor Green
 Write-Host ""
+Write-Host "===============================================================================" -ForegroundColor Cyan
+
+foreach ($line in $factoryMirrorNoticeLines) {
+    Write-Host $line -ForegroundColor Yellow
+}
 Write-Host "===============================================================================" -ForegroundColor Cyan
 
 Initialize-AppConfigs -AppDirectory $APP_DIR
@@ -659,45 +873,52 @@ if ($mode -eq "debug") {
     }
 }
 else {
-    Write-Host "[INFO] Mode: BUILD (Production Build)" -ForegroundColor Cyan
+    Write-Host "[INFO] Mode: BUILD (Factory Mirror + Production Build)" -ForegroundColor Cyan
     Write-Host "[INFO] Port: $($selectedApp.Port)" -ForegroundColor Cyan
     Write-Host ""
 
-    $pnpmCommand = "pnpm $($selectedApp.BuildCommand)"
+    $factoryRootPath = Get-FactoryRootPath -PlatformSegment $factoryPlatformSegment
+    $factoryTargetDir = Get-FactoryTargetDirectory -FactoryRoot $factoryRootPath -PlatformSegment $factoryPlatformSegment -Namespace $appNamespace
+    $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app-entry-plus.js"
+
+    Write-Host "[INFO] Factory Root     : $factoryRootPath" -ForegroundColor Gray
+    Write-Host "[INFO] Target Directory : $factoryTargetDir" -ForegroundColor Gray
+    Write-Host ""
 
     Write-Host "[COMMAND TRACE] Environment Variables:" -ForegroundColor Yellow
     Write-Host "  > `$env:NUXT_PORT = $($selectedApp.Port)" -ForegroundColor White
+    Write-Host "  > `$env:NUXT_HOST = 0.0.0.0" -ForegroundColor White
     Write-Host "  > `$env:APP_ENTRY = $appNamespace" -ForegroundColor White
     Write-Host ""
-    Write-Host "[COMMAND TRACE] Executing pnpm Command:" -ForegroundColor Yellow
-    Write-Host "  > $pnpmCommand" -ForegroundColor White
+    Write-Host "[COMMAND TRACE] Executing Factory Build:" -ForegroundColor Yellow
+    Write-Host "  > node $plusScriptPath $appNamespace --mode build --factory-root $factoryRootPath --platform $factoryPlatformSegment" -ForegroundColor White
     Write-Host ""
-    Write-Host "[COMMAND TRACE] Package.json Script Resolution:" -ForegroundColor Yellow
-    Write-Host "  > Script Name: $($selectedApp.BuildCommand)" -ForegroundColor White
-    Write-Host "  > Full Script: pnpm switch-app $appNamespace && cross-env APP_ENTRY=$appNamespace nuxt build" -ForegroundColor White
-    Write-Host ""
-    Write-Host "[INFO] Starting build process..." -ForegroundColor Green
+    Write-Host "[INFO] switch-app-entry-plus.js will mirror the workspace, sync entry files, then run pnpm build from the mirrored tree." -ForegroundColor Green
     Write-Host "===============================================================================" -ForegroundColor Magenta
     Write-Host ""
 
     Invoke-CommandWithErrorHandling -Command {
         $env:NUXT_PORT = $selectedApp.Port
-        Write-Host "[EXEC] pnpm $($selectedApp.BuildCommand)" -ForegroundColor DarkYellow
-        pnpm $selectedApp.BuildCommand
-    } -CommandDescription "Build $($selectedApp.DisplayName)" -PauseOnError $true
+        $env:NUXT_HOST = "0.0.0.0"
+        Write-Host "[EXEC] node $plusScriptPath $appNamespace --mode build --factory-root $factoryRootPath --platform $factoryPlatformSegment" -ForegroundColor DarkYellow
+        node $plusScriptPath $appNamespace --mode build --factory-root $factoryRootPath --platform $factoryPlatformSegment
+    } -CommandDescription "Factory build for $($selectedApp.DisplayName)" -PauseOnError $true
+
+    $outputPath = Join-Path $factoryTargetDir ".output"
+    if (-not (Test-Path $outputPath)) {
+        Write-Host "[WARNING] Build completed but '.output' was not found at $factoryTargetDir" -ForegroundColor Yellow
+    }
+    else {
+        $deploymentScriptPaths = New-DeployScripts -TargetDirectory $factoryTargetDir -Namespace $appNamespace -Port $selectedApp.Port
+        Write-Host "[INFO] Deploy scripts created for Nuxt production server:" -ForegroundColor Green
+        foreach ($deployPath in $deploymentScriptPaths) {
+            Write-Host "  - $deployPath" -ForegroundColor Cyan
+        }
+        Write-Host "[INFO] Run deploy.ps1 or deploy.sh to start the built app on port $($selectedApp.Port)." -ForegroundColor Green
+    }
 }
 
 # Restore original working directory
 Write-Host ""
-Write-Host "===============================================================================" -ForegroundColor Cyan
-Write-Host "  RESTORING ORIGINAL WORKING DIRECTORY" -ForegroundColor Cyan
-Write-Host "===============================================================================" -ForegroundColor Cyan
-Write-Host "Original directory: $ORIGINAL_WORKING_DIR" -ForegroundColor Green
-Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-Write-Host "Switching back to original directory..." -ForegroundColor Cyan
-
-Set-Location $ORIGINAL_WORKING_DIR
-
-Write-Host "Restored to: $(Get-Location)" -ForegroundColor Green
-Write-Host "===============================================================================" -ForegroundColor Cyan
+Restore-OriginalDirectory
 Write-Host ""

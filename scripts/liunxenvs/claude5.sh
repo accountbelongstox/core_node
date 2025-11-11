@@ -28,10 +28,10 @@
 #     - Command: claude
 #     - File Number: 5
 #     - File Name: claude5.sh
-#     - Generation Time: 2025-11-07 18:02:55
+#     - Generation Time: 2025-11-10 21:40:08
 #
 # Environment Variables:
-#     Environment variables are loaded from encrypted storage using Python secret_manager
+#     Environment variables are loaded from encrypted storage using secret_manager.sh
 # =============================================================================
 
 set -e
@@ -50,13 +50,15 @@ linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
 aiToolsDirPath="$pytoolsDirPath/ai_tools"
+projectRootPath="$(dirname "$scriptsDirPath")"
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间�?
-# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Automatically generates user directory at /tmp/Users/时间�?# Format: /tmp/Users/YYYYMMDD_HHMMSS
 # ============================================================================
 
 # Generate timestamp for directory name
@@ -127,7 +129,7 @@ echo ""
 #endregion
 
 # =============================================================================
-# Load Environment Variables from Encrypted Storage
+# Load Environment Variables from Secret Manager
 # =============================================================================
 echo ""
 echo "============================================================"
@@ -135,79 +137,48 @@ echo "Loading Environment Variables"
 echo "============================================================"
 echo ""
 
-# Python script to load secrets
-PYCORE_PATH="D:/programing/core_node/pycore"
-LOAD_SECRETS_SCRIPT=$(cat <<'PYTHON_SCRIPT'
-import sys
-from pathlib import Path
+secretManagerScript="$shellsDirPath/secret_manager/secret_manager.sh"
+secretManagerReady=false
 
-# Add pycore to path
-pycore_path = Path("D:/programing/core_node/pycore")
-sys.path.insert(0, str(pycore_path))
-
-try:
-    from pyfoundations import get_secret_key
-
-    # Load all secrets
-    secrets = {}
-    try:
-        value = get_secret_key('ANTHROPIC_BASE_URL_5')
-        if value:
-            secrets['ANTHROPIC_BASE_URL'] = value
-            print('[SUCCESS] Loaded ANTHROPIC_BASE_URL', file=sys.stderr)
-        else:
-            print('[WARNING] Failed to load ANTHROPIC_BASE_URL', file=sys.stderr)
-    except Exception as e:
-        print(f'[WARNING] Error loading ANTHROPIC_BASE_URL: {e}', file=sys.stderr)
-    try:
-        value = get_secret_key('ANTHROPIC_AUTH_TOKEN_5')
-        if value:
-            secrets['ANTHROPIC_AUTH_TOKEN'] = value
-            print('[SUCCESS] Loaded ANTHROPIC_AUTH_TOKEN', file=sys.stderr)
-        else:
-            print('[WARNING] Failed to load ANTHROPIC_AUTH_TOKEN', file=sys.stderr)
-    except Exception as e:
-        print(f'[WARNING] Error loading ANTHROPIC_AUTH_TOKEN: {e}', file=sys.stderr)
-    try:
-        value = get_secret_key('ANTHROPIC_API_KEY_5')
-        if value:
-            secrets['ANTHROPIC_API_KEY'] = value
-            print('[SUCCESS] Loaded ANTHROPIC_API_KEY', file=sys.stderr)
-        else:
-            print('[WARNING] Failed to load ANTHROPIC_API_KEY', file=sys.stderr)
-    except Exception as e:
-        print(f'[WARNING] Error loading ANTHROPIC_API_KEY: {e}', file=sys.stderr)
-
-    # Output secrets in format: VAR_NAME=value
-    for key, value in secrets.items():
-        print(f"{key}={value}")
-
-except ImportError as e:
-    print(f'[ERROR] Failed to import secret_manager: {e}', file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'[ERROR] Unexpected error: {e}', file=sys.stderr)
-    sys.exit(1)
-PYTHON_SCRIPT
-)
-
-# Execute Python script and load environment variables
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
+if [ -f "$secretManagerScript" ]; then
+    source "$secretManagerScript"
+    if type secret_get_key &> /dev/null; then
+        secretManagerReady=true
+        echo "[INFO] Secret manager loaded successfully"
+    else
+        echo "[WARNING] secret_get_key function is unavailable after loading $secretManagerScript"
+    fi
 else
-    echo "[ERROR] Python not found"
-    exit 1
+    echo "[WARNING] Secret manager script not found: $secretManagerScript"
 fi
 
-# Load secrets into environment variables
-while IFS='=' read -r key value; do
-    if [ -n "$key" ] && [ -n "$value" ]; then
-        export "$key=$value"
-        echo "[SUCCESS] Set $key"
+load_secret_value() {
+    local key_name="$1"
+    local env_name="$2"
+    local display_name="$3"
+    local value=""
+
+    if [ "$secretManagerReady" != true ]; then
+        echo "[WARNING] Secret manager is not initialized. Cannot load $display_name"
+        return 1
     fi
-done < <($PYTHON_CMD -c "$LOAD_SECRETS_SCRIPT" 2>&1 | grep -v '^\[')
+
+    if value="$(secret_get_key "$key_name" 2>/dev/null)"; then
+        if [ -n "$value" ]; then
+            printf -v "$env_name" '%s' "$value"
+            export "$env_name"
+            echo "[SUCCESS] Loaded $display_name"
+            return 0
+        fi
+    fi
+
+    echo "[WARNING] Failed to load $display_name"
+    return 1
+}
+
+load_secret_value "ANTHROPIC_BASE_URL_5" "ANTHROPIC_BASE_URL" "ANTHROPIC_BASE_URL"
+load_secret_value "ANTHROPIC_AUTH_TOKEN_5" "ANTHROPIC_AUTH_TOKEN" "ANTHROPIC_AUTH_TOKEN"
+load_secret_value "ANTHROPIC_API_KEY_5" "ANTHROPIC_API_KEY" "ANTHROPIC_API_KEY"
 
 echo ""
 
@@ -224,12 +195,13 @@ echo "Claude AI - Pre-Launch Tasks"
 echo ""
 
 # Execute pre-launch script if it exists
-if [ -f "D:/programing/core_node/scripts/pytools/ai_tools/claude_pre_launch.sh" ]; then
+preLaunchScript="$aiToolsDirPath/claude_pre_launch.sh"
+if [ -f "$preLaunchScript" ]; then
     current_working_dir="$(pwd)"
-    echo "[INFO] Executing pre-launch script: D:/programing/core_node/scripts/pytools/ai_tools/claude_pre_launch.sh"
+    echo "[INFO] Executing pre-launch script: $preLaunchScript"
     echo "[INFO] Working Directory: $current_working_dir"
     echo ""
-    bash "D:/programing/core_node/scripts/pytools/ai_tools/claude_pre_launch.sh" "$current_working_dir"
+    bash "$preLaunchScript" "$current_working_dir"
     echo ""
 fi
 
@@ -242,18 +214,19 @@ read -p "Do you want to upgrade Claude AI? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
     echo "[INFO] Launching Claude AI upgrade in separate terminal..."
-    if [ -f "D:/programing/core_node/scripts/pytools/ai_tools/claude_update.sh" ]; then
+    upgrade_script="$aiToolsDirPath/claude_update.sh"
+    if [ -f "$upgrade_script" ]; then
         # Launch in background to avoid blocking current environment
         if command -v gnome-terminal &> /dev/null; then
-            gnome-terminal -- bash -c "D:/programing/core_node/scripts/pytools/ai_tools/claude_update.sh; read -p 'Press Enter to close'"
+            gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
         elif command -v xterm &> /dev/null; then
-            xterm -e "bash D:/programing/core_node/scripts/pytools/ai_tools/claude_update.sh; read -p 'Press Enter to close'" &
+            xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
         else
-            bash "D:/programing/core_node/scripts/pytools/ai_tools/claude_update.sh" &
+            bash "$upgrade_script" &
         fi
         echo "[SUCCESS] Upgrade terminal opened"
     else
-        echo "[WARNING] Upgrade script not found: D:/programing/core_node/scripts/pytools/ai_tools/claude_update.sh"
+        echo "[WARNING] Upgrade script not found: $upgrade_script"
     fi
 else
     echo "[INFO] Skipping upgrade"
@@ -264,8 +237,9 @@ current_working_dir="$(pwd)"
 echo ""
 echo "Syncing MCP Server Configurations..."
 echo ""
-if [ -f "D:/programing/core_node/scripts/pytools/ai_tools/claude_sync_mcp_servers.py" ]; then
-    echo "[INFO] Executing: python -u 'D:/programing/core_node/scripts/pytools/ai_tools/claude_sync_mcp_servers.py' --target claude --working-dir '$current_working_dir'"
+sync_script="$aiToolsDirPath/claude_sync_mcp_servers.py"
+if [ -f "$sync_script" ]; then
+    echo "[INFO] Executing: python -u '$sync_script' --target claude --working-dir '$current_working_dir'"
     echo "[INFO] Working Directory: $current_working_dir"
     echo ""
 
@@ -279,9 +253,9 @@ if [ -f "D:/programing/core_node/scripts/pytools/ai_tools/claude_sync_mcp_server
         exit 1
     fi
 
-    $PYTHON_CMD -u "D:/programing/core_node/scripts/pytools/ai_tools/claude_sync_mcp_servers.py" --target claude --working-dir "$current_working_dir"
+    $PYTHON_CMD -u "$sync_script" --target claude --working-dir "$current_working_dir"
 else
-    echo "[WARNING] MCP sync script not found: D:/programing/core_node/scripts/pytools/ai_tools/claude_sync_mcp_servers.py"
+    echo "[WARNING] MCP sync script not found: $sync_script"
     echo "[INFO] Skipping MCP synchronization"
 fi
 

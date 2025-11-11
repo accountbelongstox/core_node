@@ -1,7 +1,7 @@
 """Push scrcpy-server.jar to device"""
 
 from pathlib import Path
-from pycore.pyutils.adb import ADBManager
+from pycore.pyutils.device import ADBManager
 
 jar_path = Path("poly_apps/pyMatrix/resources/scrcpy-server.jar")
 serial = "LZUWEIONHUAUHUMR"

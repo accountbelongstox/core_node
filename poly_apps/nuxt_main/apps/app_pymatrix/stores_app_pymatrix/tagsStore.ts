@@ -15,6 +15,8 @@ interface TagsState {
   selectedTagIds: string[];
 }
 
+const TAGS_STORAGE_KEY = 'pymatrix-tags';
+
 export const useTagsStore = defineStore('pymatrix-tags', {
   state: (): TagsState => ({
     tags: [],
@@ -297,13 +299,11 @@ export const useTagsStore = defineStore('pymatrix-tags', {
         let skipped = 0;
 
         importedTags.forEach(tag => {
-          // Skip if tag with same name already exists
           if (this.getTagByName(tag.name)) {
             skipped++;
             return;
           }
 
-          // Create new tag with new ID
           this.createTag({
             name: tag.name,
             color: tag.color,
@@ -323,8 +323,12 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Save tags to localStorage
      */
     saveToLocalStorage() {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
       try {
-        localStorage.setItem('pymatrix-tags', JSON.stringify(this.tags));
+        localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(this.tags));
       } catch (error) {
         console.error('Failed to save tags to localStorage:', error);
       }
@@ -334,8 +338,12 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Load tags from localStorage
      */
     loadFromLocalStorage() {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
       try {
-        const stored = localStorage.getItem('pymatrix-tags');
+        const stored = localStorage.getItem(TAGS_STORAGE_KEY);
         if (stored) {
           this.tags = JSON.parse(stored);
         }

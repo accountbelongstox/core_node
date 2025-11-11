@@ -20,7 +20,6 @@ class LinuxCommandContentGenerator:
     def __init__(self):
         self.project_root = self._get_project_root()
         self.scripts_dir = self.project_root / 'scripts'
-        self.pycore_path = self.project_root / 'pycore'
         self.ai_tools_dir = self.scripts_dir / 'pytools' / 'ai_tools'
 
     @staticmethod
@@ -54,17 +53,18 @@ class LinuxCommandContentGenerator:
             support_upgrade: Whether to include upgrade option
             support_npm_update: Whether to include npm/npx update option
         """
-        update_script_path = self.get_update_script_path(tool_type)
-        sync_script_path = self.get_mcp_sync_script_path(tool_type)
-        pre_launch_script_path = self.get_pre_launch_script_path(tool_type)
+        update_script_name = self.get_update_script_path(tool_type).name
+        sync_script_name = self.get_mcp_sync_script_path(tool_type).name
+        pre_launch_script_name = self.get_pre_launch_script_path(tool_type).name
 
         pre_launch_section = f"""# Execute pre-launch script if it exists
-if [ -f "{pre_launch_script_path.as_posix()}" ]; then
+preLaunchScript="$aiToolsDirPath/{pre_launch_script_name}"
+if [ -f "$preLaunchScript" ]; then
     current_working_dir="$(pwd)"
-    echo "[INFO] Executing pre-launch script: {pre_launch_script_path.as_posix()}"
+    echo "[INFO] Executing pre-launch script: $preLaunchScript"
     echo "[INFO] Working Directory: $current_working_dir"
     echo ""
-    bash "{pre_launch_script_path.as_posix()}" "$current_working_dir"
+    bash "$preLaunchScript" "$current_working_dir"
     echo ""
 fi"""
 
@@ -80,18 +80,19 @@ read -p "Do you want to upgrade {tool_display_name}? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
     echo "[INFO] Launching {tool_display_name} upgrade in separate terminal..."
-    if [ -f "{update_script_path.as_posix()}" ]; then
+    upgrade_script="$aiToolsDirPath/{update_script_name}"
+    if [ -f "$upgrade_script" ]; then
         # Launch in background to avoid blocking current environment
         if command -v gnome-terminal &> /dev/null; then
-            gnome-terminal -- bash -c "{update_script_path.as_posix()}; read -p 'Press Enter to close'"
+            gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
         elif command -v xterm &> /dev/null; then
-            xterm -e "bash {update_script_path.as_posix()}; read -p 'Press Enter to close'" &
+            xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
         else
-            bash "{update_script_path.as_posix()}" &
+            bash "$upgrade_script" &
         fi
         echo "[SUCCESS] Upgrade terminal opened"
     else
-        echo "[WARNING] Upgrade script not found: {update_script_path.as_posix()}"
+        echo "[WARNING] Upgrade script not found: $upgrade_script"
     fi
 else
     echo "[INFO] Skipping upgrade"
@@ -130,8 +131,9 @@ fi
 echo ""
 echo "Syncing MCP Server Configurations..."
 echo ""
-if [ -f "{sync_script_path.as_posix()}" ]; then
-    echo "[INFO] Executing: python -u '{sync_script_path.as_posix()}' --target {target_name} --working-dir '$current_working_dir'"
+sync_script="$aiToolsDirPath/{sync_script_name}"
+if [ -f "$sync_script" ]; then
+    echo "[INFO] Executing: python -u '$sync_script' --target {target_name} --working-dir '$current_working_dir'"
     echo "[INFO] Working Directory: $current_working_dir"
     echo ""
 
@@ -145,9 +147,9 @@ if [ -f "{sync_script_path.as_posix()}" ]; then
         exit 1
     fi
 
-    $PYTHON_CMD -u "{sync_script_path.as_posix()}" --target {target_name} --working-dir "$current_working_dir"
+    $PYTHON_CMD -u "$sync_script" --target {target_name} --working-dir "$current_working_dir"
 else
-    echo "[WARNING] MCP sync script not found: {sync_script_path.as_posix()}"
+    echo "[WARNING] MCP sync script not found: $sync_script"
     echo "[INFO] Skipping MCP synchronization"
 fi
 
@@ -170,26 +172,112 @@ echo ""
         """Generate custom user directory configuration section for Linux"""
         return """
 #region Initialize Path Variables
-scriptCurrentPath="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scriptsDirPath="$(dirname "$scriptCurrentPath")"
+# Resolve script real path (handle symlinks)
+# When script is executed via symlink, BASH_SOURCE[0] returns symlink path
+# We need to resolve it to actual file path to get correct directory
+scriptSource="${BASH_SOURCE[0]}"
+# Check if scriptSource is a symlink and resolve it
+if [ -L "$scriptSource" ]; then
+    # Resolve symlink to actual file path
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
+fi
+# Get absolute path of script directory
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
+
+# Calculate project structure paths
+# Expected structure: project_root/scripts/linuxenvs/script.sh
+scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+
+# Additional paths (optional, for compatibility)
 shellsDirPath="$scriptsDirPath/shells"
 linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
 aiToolsDirPath="$pytoolsDirPath/ai_tools"
 
+# Path resolution algorithm:
+#   Script (resolve symlink) -> Script Dir (linuxenvs) -> Scripts Dir -> Project Root
+
+echo "[DEBUG] scriptRealPath:    $scriptRealPath"
+echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
+echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
+echo "[DEBUG] projectRootPath:   $projectRootPath"
+
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间戳
-# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Auto-scans /var/_core_node/Users/ for existing MyBest1, MyBest2, etc.
+# Usage: script.sh [number|MyBestX]
+#   - If number is provided: uses /var/_core_node/Users/MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses /var/_core_node/Users/MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
 # ============================================================================
 
-# Generate timestamp for directory name
-timestamp=$(date +"%Y%m%d_%H%M%S")
-baseTempDir="/tmp/Users"
-CustomUserDirectory="$baseTempDir/$timestamp"
+baseTempDir="/var/_core_node/Users"
+userDirPrefix="MyBest"
+
+# Get directory name/number from command line argument (if provided)
+userDirName=""
+if [ $# -gt 0 ]; then
+    argValue="$1"
+    # Check if it's a number
+    if [[ "$argValue" =~ ^[0-9]+$ ]]; then
+        userDirName="${userDirPrefix}${argValue}"
+        echo "[INFO] Using specified number: $argValue -> $userDirName"
+    # Check if it's a full name (MyBestX format)
+    elif [[ "$argValue" =~ ^${userDirPrefix}[0-9]+$ ]]; then
+        userDirName="$argValue"
+        echo "[INFO] Using specified full name: $userDirName"
+    fi
+fi
+
+# If no argument specified, auto-scan for existing MyBest directories
+if [ -z "$userDirName" ]; then
+    echo "[INFO] Auto-scanning for existing MyBest directories..."
+    
+    # Create base directory if it doesn't exist
+    if [ ! -d "$baseTempDir" ]; then
+        echo "[INFO] Creating base directory: $baseTempDir"
+        mkdir -p "$baseTempDir"
+    fi
+    
+    # Find existing MyBest directories
+    existingNumbers=()
+    if [ -d "$baseTempDir" ]; then
+        for dir in "$baseTempDir"/${userDirPrefix}[0-9]*; do
+            if [ -d "$dir" ]; then
+                dirName=$(basename "$dir")
+                if [[ "$dirName" =~ ^${userDirPrefix}([0-9]+)$ ]]; then
+                    num="${BASH_REMATCH[1]}"
+                    existingNumbers+=("$num")
+                fi
+            fi
+        done
+    fi
+    
+    # Find next available number
+    if [ ${#existingNumbers[@]} -gt 0 ]; then
+        # Find max number
+        maxNumber=0
+        for num in "${existingNumbers[@]}"; do
+            if [ "$num" -gt "$maxNumber" ]; then
+                maxNumber="$num"
+            fi
+        done
+        nextNumber=$((maxNumber + 1))
+        userDirName="${userDirPrefix}${nextNumber}"
+        echo "[INFO] Found existing MyBest directories: ${existingNumbers[*]}"
+        echo "[INFO] Using next available number: $nextNumber -> $userDirName"
+    else
+        userDirName="${userDirPrefix}1"
+        echo "[INFO] No existing MyBest directories found, starting with: $userDirName"
+    fi
+fi
+
+# Build directory path
+CustomUserDirectory="$baseTempDir/$userDirName"
 
 # Create the directory if it doesn't exist
 if [ ! -d "$baseTempDir" ]; then
@@ -205,7 +293,7 @@ fi
 # Verify directory was created successfully
 if [ -d "$CustomUserDirectory" ]; then
     userProfilePath="$CustomUserDirectory"
-    echo "[SUCCESS] Using auto-generated custom user directory: $userProfilePath"
+    echo "[SUCCESS] Using MyBest directory: $userProfilePath"
 else
     echo "[WARNING] Failed to create custom directory, falling back to system default"
     userProfilePath="$HOME"
@@ -238,101 +326,28 @@ echo "  USER_DIR = $USER_DIR"
 echo ""
 #endregion
 
-# Test path resolution (can be removed in production)
-echo "[DEBUG] Path Resolution Test:"
-echo "  Script Path: $scriptCurrentPath"
-echo "  Scripts Dir: $scriptsDirPath"
-echo "  Shells Dir: $shellsDirPath"
-echo "  Linux Dir: $linuxDirPath"
-echo "  Linux Common Dir: $linuxCommonDirPath"
-echo "  PyTools Dir: $pytoolsDirPath"
-echo "  AI Tools Dir: $aiToolsDirPath"
-echo "  User Profile: $userProfilePath"
-echo "  User Home: $userHomePath"
-echo "  Users Directory: $usersDirectoryPath"
-echo ""
 #endregion
 """
 
-    def _generate_python_secret_loader(self, variables: List[Dict[str, Any]], file_number: int) -> str:
-        """
-        Generate Python script to load secrets from encrypted storage
-
-        Args:
-            variables: List of variable definitions
-            file_number: File number to append to secret keys
-
-        Returns:
-            Python script as string
-        """
-        script_lines = [
-            "import sys",
-            "from pathlib import Path",
-            "",
-            "# Add pycore to path",
-            f"pycore_path = Path(\"{self.pycore_path.as_posix()}\")",
-            "sys.path.insert(0, str(pycore_path))",
-            "",
-            "try:",
-            "    from pyfoundations import get_secret_key",
-            "",
-            "    # Load all secrets",
-            "    secrets = {}"
-        ]
-
-        # Add loading code for each variable
-        for var in variables:
-            var_name = var['Name']
-            display_name = var['DisplayName']
-            secret_key_name = f"{var_name}_{file_number}"
-
-            script_lines.extend([
-                f"    try:",
-                f"        value = get_secret_key('{secret_key_name}')",
-                f"        if value:",
-                f"            secrets['{var_name}'] = value",
-                f"            print('[SUCCESS] Loaded {display_name}', file=sys.stderr)",
-                f"        else:",
-                f"            print('[WARNING] Failed to load {display_name}', file=sys.stderr)",
-                f"    except Exception as e:",
-                f"        print(f'[WARNING] Error loading {display_name}: {{e}}', file=sys.stderr)"
-            ])
-
-        script_lines.extend([
-            "",
-            "    # Output secrets in format: VAR_NAME=value",
-            "    for key, value in secrets.items():",
-            "        print(f\"{key}={value}\")",
-            "",
-            "except ImportError as e:",
-            "    print(f'[ERROR] Failed to import secret_manager: {e}', file=sys.stderr)",
-            "    sys.exit(1)",
-            "except Exception as e:",
-            "    print(f'[ERROR] Unexpected error: {e}', file=sys.stderr)",
-            "    sys.exit(1)"
-        ])
-
-        return "\n".join(script_lines)
-
     def _generate_env_loading_section(self, variables: List[Dict[str, Any]], file_number: int) -> str:
-        """
-        Generate bash section to load environment variables from encrypted storage
+        """Generate bash section to load environment variables via secret_manager.sh"""
 
-        Args:
-            variables: List of variable definitions
-            file_number: File number to append to secret keys
-
-        Returns:
-            Bash script section as string
-        """
         if not variables:
             return ""
 
-        python_script = self._generate_python_secret_loader(variables, file_number)
+        load_calls = []
+        for var in variables:
+            secret_key_name = f"{var['Name']}_{file_number}"
+            display_name = var.get('DisplayName', var['Name'])
+            load_calls.append(
+                f"load_secret_value \"{secret_key_name}\" \"{var['Name']}\" \"{display_name}\""
+            )
+
+        load_commands = "\n".join(load_calls)
 
         return f"""
 # =============================================================================
-# Load Environment Variables from Encrypted Storage
+# Load Environment Variables from Secret Manager
 # =============================================================================
 echo ""
 echo "============================================================"
@@ -340,30 +355,73 @@ echo "Loading Environment Variables"
 echo "============================================================"
 echo ""
 
-# Python script to load secrets
-PYCORE_PATH="{self.pycore_path.as_posix()}"
-LOAD_SECRETS_SCRIPT=$(cat <<'PYTHON_SCRIPT'
-{python_script}
-PYTHON_SCRIPT
-)
-
-# Execute Python script and load environment variables
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
-else
-    echo "[ERROR] Python not found"
-    exit 1
+python_exec="python3"
+if ! command -v "$python_exec" &> /dev/null; then
+    if command -v python &> /dev/null; then
+        python_exec="python"
+    else
+        echo "[ERROR] Python is required to load secrets"
+        exit 1
+    fi
 fi
 
-# Load secrets into environment variables
-while IFS='=' read -r key value; do
-    if [ -n "$key" ] && [ -n "$value" ]; then
-        export "$key=$value"
-        echo "[SUCCESS] Set $key"
+# Use relative path from script location to project root
+secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
+
+echo "[DEBUG] Python executable: $python_exec"
+echo "[DEBUG] Project root: $projectRootPath"
+echo "[DEBUG] Secret manager script: $secret_manager_script"
+echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
+
+load_secret_value() {{
+    local key_name="$1"
+    local env_name="$2"
+    local display_name="$3"
+    local value=""
+
+    echo "[DEBUG] Loading secret key: $key_name -> $env_name"
+    echo "[DEBUG] Working directory: $projectRootPath"
+    echo "[DEBUG] Command: cd \"$projectRootPath\" && $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
+
+    # Capture stderr to temp file for debugging
+    local tmp_err=$(mktemp)
+    # Switch to project root before calling Python
+    value=$(cd "$projectRootPath" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    local exit_code=$?
+
+    # Show stderr if there were errors
+    if [ -s "$tmp_err" ]; then
+        echo "[DEBUG] Python stderr:"
+        cat "$tmp_err"
     fi
-done < <($PYTHON_CMD -c "$LOAD_SECRETS_SCRIPT" 2>&1 | grep -v '^\[')
+    rm -f "$tmp_err"
+
+    echo "[DEBUG] Exit code: $exit_code"
+    echo "[DEBUG] Returned value length: ${{#value}}"
+
+    if [ -n "$value" ]; then
+        export "$env_name"=\"$value\"
+        echo "[SUCCESS] Loaded $display_name = $value"
+        echo "[INFO] Command executed: export $env_name=\"$value\""
+        
+        # Verify environment variable is correctly set
+        current_value="${{!env_name}}"
+        if [ "$current_value" = "$value" ]; then
+            echo "[VERIFY] Environment variable $env_name is correctly set"
+            echo "[VERIFY] Current value: $current_value"
+        else
+            echo "[WARNING] Environment variable $env_name verification failed"
+            echo "[WARNING] Expected: $value"
+            echo "[WARNING] Actual: $current_value"
+        fi
+        return 0
+    fi
+
+    echo "[WARNING] Failed to load $display_name (empty value returned)"
+    return 1
+}}
+
+{load_commands}
 
 echo ""
 """
@@ -430,10 +488,9 @@ echo ""
 #     - Command: {ps_command}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #
 # Environment Variables:
-#     Environment variables are loaded from encrypted storage using Python secret_manager
+#     Environment variables are loaded from encrypted storage using secret_manager.sh
 # =============================================================================
 
 set -e
@@ -589,7 +646,6 @@ echo ""
 #     - SSH Connection: {ssh_connection}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # =============================================================================
 
 set -e
@@ -649,15 +705,15 @@ echo ""
         return f"{header}{password_section}{file_name_display}{connection_section}"
 
     def write_linux_script(self, content: str, command_prefix: str, file_number: int) -> bool:
-        """Write Linux script to liunxenvs directory"""
-        liunxenvs_dir = self.scripts_dir / 'liunxenvs'
+        """Write Linux script to linuxenvs directory"""
+        linuxenvs_dir = self.scripts_dir / 'linuxenvs'
 
-        if not liunxenvs_dir.exists():
-            liunxenvs_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Created liunxenvs directory: {liunxenvs_dir}")
+        if not linuxenvs_dir.exists():
+            linuxenvs_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Created linuxenvs directory: {linuxenvs_dir}")
 
         file_name = f"{command_prefix}{file_number}.sh"
-        target_path = liunxenvs_dir / file_name
+        target_path = linuxenvs_dir / file_name
 
         try:
             with open(target_path, 'w', encoding='utf-8') as f:

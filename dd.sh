@@ -973,6 +973,7 @@ set_global_var() {
 initialize_liunxenvs() {
     local liunxenvs_dir="$SCRIPT_DIR/liunxenvs"
     local linux_path_function="$COMMON_SHELLS_DIR/linux_path_function.sh"
+    local link_dir="/usr/local/bin"
 
     if [ ! -f "$linux_path_function" ]; then
         return 0
@@ -985,23 +986,120 @@ initialize_liunxenvs() {
     source "$linux_path_function"
 
     for script_file in "$liunxenvs_dir"/*.sh; do
+        [ -e "$script_file" ] || continue
         if [ -f "$script_file" ]; then
-            local filename=$(basename "$script_file")
+            local filename="$(basename "$script_file")"
             local basename_without_ext="${filename%.sh}"
-            local link_path="/usr/local/bin/$basename_without_ext"
+            local link_path="$link_dir/$basename_without_ext"
+            local target_path="$liunxenvs_dir/$filename"
 
-            if [ ! -L "$link_path" ] && [ ! -f "$link_path" ]; then
-                local target_path="$liunxenvs_dir/$filename"
-                chmod +x "$target_path" 2>/dev/null || $sudo chmod +x "$target_path"
+            chmod +x "$target_path" 2>/dev/null || $sudo chmod +x "$target_path"
 
-                if [ -w "/usr/local/bin" ]; then
-                    ln -sf "$target_path" "$link_path" 2>/dev/null
+            if [ -e "$link_path" ] || [ -L "$link_path" ]; then
+                if [ -w "$link_dir" ]; then
+                    rm -f "$link_path" 2>/dev/null
                 else
-                    $sudo ln -sf "$target_path" "$link_path" 2>/dev/null
+                    $sudo rm -f "$link_path" 2>/dev/null
                 fi
+            fi
+
+            if [ -w "$link_dir" ]; then
+                ln -sf "$target_path" "$link_path" 2>/dev/null
+            else
+                $sudo ln -sf "$target_path" "$link_path" 2>/dev/null
             fi
         fi
     done
+}
+
+# Copy scripts from ./scripts/linuxenvs to /usr/local/bin and create symlinks
+sync_linuxenvs_to_bin() {
+    local linuxenvs_dir="$CORE_NODE_ROOT_DIR/scripts/linuxenvs"
+    local bin_dir="/usr/local/bin"
+
+    if [ ! -d "$linuxenvs_dir" ]; then
+        echo -e "\033[33m[SYNC] Directory $linuxenvs_dir does not exist, skipping\033[0m"
+        return 0
+    fi
+
+    echo -e "\033[36m[SYNC] Syncing scripts from $linuxenvs_dir to $bin_dir\033[0m"
+
+    local script_count=0
+    for script_file in "$linuxenvs_dir"/*.sh; do
+        [ -e "$script_file" ] || continue
+        if [ ! -f "$script_file" ]; then
+            continue
+        fi
+
+        local filename="$(basename "$script_file")"
+        local basename_without_ext="${filename%.sh}"
+        local bin_script_path="$bin_dir/$filename"
+        local bin_link_path="$bin_dir/$basename_without_ext"
+        local source_script_path="$(readlink -f "$script_file")"
+
+        echo -e "\033[33m[SYNC] Processing: $filename\033[0m"
+
+        # Set execute permission on source file
+        chmod +x "$script_file" 2>/dev/null || $sudo chmod +x "$script_file"
+
+        # Remove existing files/symlinks if they exist
+        if [ -e "$bin_script_path" ] || [ -L "$bin_script_path" ]; then
+            if [ -w "$bin_dir" ]; then
+                rm -f "$bin_script_path" 2>/dev/null
+            else
+                $sudo rm -f "$bin_script_path" 2>/dev/null
+            fi
+        fi
+
+        if [ -e "$bin_link_path" ] || [ -L "$bin_link_path" ]; then
+            if [ -w "$bin_dir" ]; then
+                rm -f "$bin_link_path" 2>/dev/null
+            else
+                $sudo rm -f "$bin_link_path" 2>/dev/null
+            fi
+        fi
+
+        # Copy script to /usr/local/bin (replace if exists)
+        if [ -w "$bin_dir" ]; then
+            cp -f "$script_file" "$bin_script_path" 2>/dev/null
+        else
+            $sudo cp -f "$script_file" "$bin_script_path" 2>/dev/null
+        fi
+
+        if [ $? -eq 0 ]; then
+            # Set execute permission on copied file
+            if [ -w "$bin_dir" ]; then
+                chmod +x "$bin_script_path" 2>/dev/null
+            else
+                $sudo chmod +x "$bin_script_path" 2>/dev/null
+            fi
+            echo -e "\033[32m[SYNC]   Copied: $bin_script_path\033[0m"
+        else
+            echo -e "\033[31m[SYNC]   Failed to copy: $bin_script_path\033[0m"
+            continue
+        fi
+
+        # Create symlink for xxx (without .sh extension) pointing to xxx.sh
+        if [ -w "$bin_dir" ]; then
+            ln -sf "$bin_script_path" "$bin_link_path" 2>/dev/null
+        else
+            $sudo ln -sf "$bin_script_path" "$bin_link_path" 2>/dev/null
+        fi
+
+        if [ $? -eq 0 ]; then
+            echo -e "\033[32m[SYNC]   Created symlink: $bin_link_path -> $bin_script_path\033[0m"
+        else
+            echo -e "\033[31m[SYNC]   Failed to create symlink\033[0m"
+        fi
+
+        ((script_count++))
+    done
+
+    if [ $script_count -eq 0 ]; then
+        echo -e "\033[33m[SYNC] No .sh scripts found in $linuxenvs_dir\033[0m"
+    else
+        echo -e "\033[32m[SYNC] Successfully synced $script_count script(s) to $bin_dir\033[0m"
+    fi
 }
 
 show_special_software_env_menu() {
@@ -1010,11 +1108,161 @@ show_special_software_env_menu() {
     if [ -f "$special_env_manager_script" ]; then
         # Export USE_SUDO for child script
         export USE_SUDO
-        # Source the script to allow it to modify the current environment
-        . "$special_env_manager_script"
+        # Execute the script to launch the Python manager
+        bash "$special_env_manager_script"
     else
         echo "Error: special_software_env_manager.sh script not found at: $special_env_manager_script"
         echo "Please check if the special software environment manager is properly installed"
+    fi
+}
+
+read_secret_input() {
+    local prompt="$1"
+    local password=""
+    local char=""
+    local old_stty=""
+    local tty_device="/dev/tty"
+    local stty_failed=false
+
+    if [ ! -t 0 ] && [ ! -w "$tty_device" ]; then
+        return 1
+    fi
+
+    if ! exec 3<> "$tty_device" 2>/dev/null; then
+        return 1
+    fi
+
+    if ! old_stty=$(stty -g <&3 2>/dev/null); then
+        stty_failed=true
+    fi
+
+    printf "%s" "$prompt" >&3
+
+    stty -echo <&3 2>/dev/null || stty_failed=true
+    while IFS= read -r -n1 char <&3; do
+        if [ -z "$char" ]; then
+            printf "\n" >&3
+            break
+        elif [[ $char == $'\n' || $char == $'\r' ]]; then
+            printf "\n" >&3
+            break
+        elif [[ $char == $'\x7f' || $char == $'\b' ]]; then
+            if [ -n "$password" ]; then
+                password="${password%?}"
+                printf "\b \b" >&3
+            fi
+        else
+            password+="$char"
+            printf "*" >&3
+        fi
+    done
+    if [ "$stty_failed" = false ] && [ -n "$old_stty" ]; then
+        stty "$old_stty" <&3 2>/dev/null
+    else
+        stty echo <&3 2>/dev/null
+    fi
+    exec 3>&- 3<&-
+
+    echo "$password"
+}
+
+ensure_secret_keys_ready() {
+    local secret_root="$CORE_NODE_ROOT_DIR/.secret_keys"
+    local encrypted_dir="$secret_root/already_encrypted"
+    local raw_dir="$secret_root/.secret_ignore"
+    local node_cmd=""
+    local password=""
+    local password_confirm=""
+    local success_count=0
+    local -a pending_files=()
+    local base_name=""
+    local raw_file=""
+    local output=""
+    local file_name=""
+    local enc_file=""
+
+    if [ ! -d "$encrypted_dir" ]; then
+        return 0
+    fi
+
+    if [ ! -d "$raw_dir" ]; then
+        if ! mkdir -p "$raw_dir" 2>/dev/null; then
+            echo -e "\033[31m[SECRETS] Failed to create decrypted secrets directory: $raw_dir\033[0m"
+            return 1
+        fi
+    fi
+
+    while IFS= read -r -d '' enc_file; do
+        base_name="$(basename "$enc_file")"
+        base_name="${base_name%.js}"
+        base_name="${base_name%.JS}"
+        raw_file="$raw_dir/$base_name"
+        if [ ! -f "$raw_file" ]; then
+            pending_files+=("$enc_file")
+        fi
+    done < <(find "$encrypted_dir" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
+
+    if [ ${#pending_files[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    echo -e "\033[36m[SECRETS] Detected ${#pending_files[@]} encrypted secret files without decrypted copies\033[0m"
+
+    if command -v node >/dev/null 2>&1; then
+        node_cmd="node"
+    elif command -v nodejs >/dev/null 2>&1; then
+        node_cmd="nodejs"
+    else
+        echo -e "\033[31m[SECRETS] Node.js not found. Install node to decrypt secret files.\033[0m"
+        return 1
+    fi
+
+    if [ ! -t 0 ]; then
+        echo -e "\033[33m[SECRETS] Skipping decryption (non-interactive session).\033[0m"
+        return 1
+    fi
+
+    echo -e "\033[36m[SECRETS] Password input is hidden and shows * for each character.\033[0m"
+    password="$(read_secret_input "Please enter password: ")"
+    if [ $? -ne 0 ]; then
+        echo -e "\033[33m[SECRETS] Unable to capture password (non-interactive session).\033[0m"
+        return 1
+    fi
+    if [ -z "$password" ]; then
+        echo -e "\033[33m[SECRETS] Empty password provided. Skipping decryption.\033[0m"
+        return 1
+    fi
+
+    password_confirm="$(read_secret_input "Please confirm password: ")"
+    if [ $? -ne 0 ]; then
+        echo -e "\033[33m[SECRETS] Unable to capture password confirmation.\033[0m"
+        return 1
+    fi
+    if [ -z "$password_confirm" ] || [ "$password" != "$password_confirm" ]; then
+        echo -e "\033[31m[SECRETS] Passwords do not match. Skipping decryption.\033[0m"
+        return 1
+    fi
+
+    for enc_file in "${pending_files[@]}"; do
+        file_name="$(basename "$enc_file")"
+        echo -e "\033[36m[SECRETS] Decrypting $file_name...\033[0m"
+        if output=$("$node_cmd" "$enc_file" pwd "$password" "$raw_dir" 2>&1); then
+            ((success_count++))
+            echo -e "\033[32m[SECRETS]   OK\033[0m"
+        else
+            echo -e "\033[33m[SECRETS]   Failed\033[0m"
+            if [ -n "$output" ]; then
+                echo -e "\033[33m[SECRETS]   $output\033[0m"
+            fi
+        fi
+    done
+
+    password=""
+
+    if [ $success_count -eq ${#pending_files[@]} ]; then
+        echo -e "\033[32m[SECRETS] All secret files decrypted successfully\033[0m"
+    else
+        echo -e "\033[33m[SECRETS] Decrypted $success_count/${#pending_files[@]} secret files\033[0m"
     fi
 }
 
@@ -1352,6 +1600,8 @@ main() {
         echo -e "\033[31m[ERROR] Failed to download required files. Exiting.\033[0m"
         exit 1
     fi
+
+    ensure_secret_keys_ready
 
     # Clean up expired behavior cache
     cleanup_behavior_cache

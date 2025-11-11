@@ -24,7 +24,6 @@
     - PowerShell Command: claude
     - File Number: 6
     - File Name: claude6.ps1
-    - Generation Time: 2025-11-07 17:43:55
 #>
 
 Set-StrictMode -Version Latest
@@ -37,29 +36,102 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 #region Initialize Path Variables
-$scriptCurrentPath = $PSScriptRoot
+$scriptActualPath = $PSCommandPath
+$item = Get-Item -LiteralPath $PSCommandPath
+if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+    $scriptActualPath = $item.Target
+}
+$scriptCurrentPath = Split-Path $scriptActualPath -Parent
 if (-not $scriptCurrentPath) {
-    $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $scriptCurrentPath = $PSScriptRoot
+    if (-not $scriptCurrentPath) {
+        $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
 $shellsDirPath = Join-Path $scriptsDirPath "shells"
 $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
+Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
+#endregion
+# Path resolution algorithm:
+#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\.tmp\Users\时间�?
-# Format: D:\.tmp\Users\YYYYMMDD_HHMMSS
+# Auto-scans D:\.tmp\Users\ for existing MyBest1, MyBest2, etc.
+# Usage: script.ps1 [number|MyBestX]
+#   - If number is provided: uses D:\.tmp\Users\MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses D:\.tmp\Users\MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
 # ============================================================================
 
-# Generate timestamp for directory name
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $baseTempDir = "D:\.tmp\Users"
-$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+$userDirPrefix = "MyBest"
+
+# Get directory name/number from command line argument (if provided)
+$userDirName = $null
+if ($args.Count -gt 0) {
+    $argValue = $args[0]
+    # Check if it's a number
+    if ($argValue -match '^\d+$') {
+        $userDirName = "$userDirPrefix$argValue"
+        Write-Host "[INFO] Using specified number: $argValue -> $userDirName" -ForegroundColor Cyan
+    }
+    # Check if it's a full name (MyBestX format)
+    elseif ($argValue -match "^$userDirPrefix\d+$") {
+        $userDirName = $argValue
+        Write-Host "[INFO] Using specified full name: $userDirName" -ForegroundColor Cyan
+    }
+}
+
+# If no argument specified, auto-scan for existing MyBest directories
+if ($null -eq $userDirName) {
+    Write-Host "[INFO] Auto-scanning for existing MyBest directories..." -ForegroundColor Cyan
+    
+    # Create base directory if it doesn't exist
+    if (-not (Test-Path $baseTempDir)) {
+        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
+    }
+    
+    # Find existing MyBest directories
+    $existingNumbers = @()
+    if (Test-Path $baseTempDir) {
+        $existingDirs = Get-ChildItem -Path $baseTempDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "^$userDirPrefix(\d+)$" }
+        foreach ($dir in $existingDirs) {
+            if ($dir.Name -match "^$userDirPrefix(\d+)$") {
+                $num = [int]$matches[1]
+                $existingNumbers += $num
+            }
+        }
+    }
+    
+    # Find next available number
+    if ($existingNumbers.Count -gt 0) {
+        $existingNumbers = $existingNumbers | Sort-Object
+        $maxNumber = $existingNumbers[-1]
+        $nextNumber = $maxNumber + 1
+        $userDirName = "$userDirPrefix$nextNumber"
+        Write-Host "[INFO] Found existing MyBest directories: $($existingNumbers -join ', ')" -ForegroundColor Gray
+        Write-Host "[INFO] Using next available number: $nextNumber -> $userDirName" -ForegroundColor Cyan
+    } else {
+        $userDirName = "$userDirPrefix" + "1"
+        Write-Host "[INFO] No existing MyBest directories found, starting with: $userDirName" -ForegroundColor Cyan
+    }
+}
+
+# Build directory path
+$CustomUserDirectory = Join-Path $baseTempDir $userDirName
 
 # Create the directory if it doesn't exist
 try {
@@ -76,7 +148,7 @@ try {
     # Verify directory was created successfully
     if (Test-Path $CustomUserDirectory) {
         $userProfilePath = $CustomUserDirectory
-        Write-Host "[SUCCESS] Using auto-generated custom user directory: $userProfilePath" -ForegroundColor Green
+        Write-Host "[SUCCESS] Using MyBest directory: $userProfilePath" -ForegroundColor Green
     } else {
         Write-Host "[WARNING] Failed to create custom directory, falling back to system default" -ForegroundColor Yellow
         $userProfilePath = $env:USERPROFILE
@@ -140,40 +212,179 @@ Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
 Write-Host ""
 #endregion
 
-#region Load SecretManager
-$secretManagerPath = "D:\programing\core_node\scripts\shells\win\win_common\SecretManager.ps1"
-
-if (Test-Path $secretManagerPath) {
-    . $secretManagerPath
-    Write-Host "[INFO] SecretManager loaded successfully" -ForegroundColor Green
-} else {
-    Write-Host "[WARNING] SecretManager not found at: $secretManagerPath" -ForegroundColor Yellow
-    Write-Host "[WARNING] Environment variables will not be loaded" -ForegroundColor Yellow
-}
-#endregion
-
-#region Load Environment Variables from SecretManager
+#region Load Environment Variables via PyCore caller
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$env:ANTHROPIC_BASE_URL = Get-SecretKey -KeyName "ANTHROPIC_BASE_URL_6"
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    $pythonExecutable = "python"
+} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+    $pythonExecutable = "python3"
+} else {
+    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
+    exit 1
+}
+
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
+Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
+
+function Get-SecretValue {
+    param([string]$KeyName)
+    Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    # Use -ArgumentList for proper parameter passing
+    $argumentList = @(
+        $secretManagerScript,
+        'get_secret_key',
+        $KeyName
+    )
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable -ArgumentList $($argumentList -join ', ')" -ForegroundColor DarkGray
+
+    # Use ProcessStartInfo for reliable output capture with proper argument handling
+    $value = $null
+    $errorOutput = $null
+    $exitCode = 0
+    
+    try {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $pythonExecutable
+        $psi.Arguments = ($argumentList | ForEach-Object { 
+            if ($_ -match ' ') { "`"$_`"" } 
+            else { $_ } 
+        }) -join ' '
+        $psi.WorkingDirectory = $projectRootPath
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+        
+        # Set environment variables to force Python to use UTF-8 encoding
+        $psi.Environment["PYTHONIOENCODING"] = "utf-8"
+        $psi.Environment["PYTHONUTF8"] = "1"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $psi
+        
+        [void]$process.Start()
+        $value = $process.StandardOutput.ReadToEnd().Trim()
+        $errorOutput = $process.StandardError.ReadToEnd().Trim()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        $process.Dispose()
+        
+        # Remove BOM character if present
+        if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
+            $value = $value.Substring(1)
+        }
+        
+    } catch {
+        # Fallback: use direct call with proper argument escaping
+        try {
+            # Set environment variables for UTF-8 encoding
+            $env:PYTHONIOENCODING = "utf-8"
+            $env:PYTHONUTF8 = "1"
+            
+            # Build command with proper quoting
+            $cmdParts = @($pythonExecutable)
+            foreach ($arg in $argumentList) {
+                if ($arg -match ' ') {
+                    $cmdParts += "`"$arg`""
+                } else {
+                    $cmdParts += $arg
+                }
+            }
+            $cmd = $cmdParts -join ' '
+            
+            # Execute and capture output
+            $allOutput = Invoke-Expression $cmd 2>&1
+            $exitCode = $LASTEXITCODE
+            
+            # Separate stdout and stderr
+            $stdoutLines = @()
+            $stderrLines = @()
+            
+            foreach ($item in $allOutput) {
+                if ($item -is [System.Management.Automation.ErrorRecord]) {
+                    $stderrLines += $item.ToString()
+                } else {
+                    $line = $item.ToString().Trim()
+                    # Filter out traceback lines
+                    if ($line -and -not ($line -match '^Traceback|^File "|^    |^Error:|^Warning:')) {
+                        $stdoutLines += $line
+                    }
+                }
+            }
+            
+            $value = $stdoutLines -join "`n"
+            $errorOutput = $stderrLines -join "`n"
+            
+            # Remove BOM character if present
+            if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
+                $value = $value.Substring(1)
+            }
+            
+        } catch {
+            Write-Host "[ERROR] Failed to execute Python: $($_.Exception.Message)" -ForegroundColor Red
+            $exitCode = 1
+        }
+    }
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
+
+    # Show error output if any (only for real errors)
+    if ($errorOutput -and $exitCode -ne 0) {
+        Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
+        Write-Host $errorOutput -ForegroundColor Yellow
+    }
+
+    if ($value) {
+        Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
+        # Show masked preview (first 4 chars + *** + last 4 chars)
+        if ($value.Length -gt 8) {
+            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
+            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host "[DEBUG] Returned empty value" -ForegroundColor Yellow
+    }
+
+    return $value
+}
+
+$env:ANTHROPIC_BASE_URL = Get-SecretValue "ANTHROPIC_BASE_URL_6"
 if ($env:ANTHROPIC_BASE_URL) {
     Write-Host "[SUCCESS] Loaded ANTHROPIC_BASE_URL = $($env:ANTHROPIC_BASE_URL)" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_BASE_URL" -ForegroundColor Yellow
 }
 
-$env:ANTHROPIC_AUTH_TOKEN = Get-SecretKey -KeyName "ANTHROPIC_AUTH_TOKEN_6"
+$env:ANTHROPIC_AUTH_TOKEN = Get-SecretValue "ANTHROPIC_AUTH_TOKEN_6"
 if ($env:ANTHROPIC_AUTH_TOKEN) {
     Write-Host "[SUCCESS] Loaded ANTHROPIC_AUTH_TOKEN = $($env:ANTHROPIC_AUTH_TOKEN)" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_AUTH_TOKEN" -ForegroundColor Yellow
 }
 
-$env:ANTHROPIC_API_KEY = Get-SecretKey -KeyName "ANTHROPIC_API_KEY_6"
+$env:ANTHROPIC_API_KEY = Get-SecretValue "ANTHROPIC_API_KEY_6"
 if ($env:ANTHROPIC_API_KEY) {
     Write-Host "[SUCCESS] Loaded ANTHROPIC_API_KEY = $($env:ANTHROPIC_API_KEY)" -ForegroundColor Green
 } else {
@@ -216,14 +427,16 @@ Write-Host "Claude AI - Pre-Launch Tasks" -ForegroundColor Yellow
 Write-Host ""
 
 # Execute pre-launch script if it exists
-if (Test-Path "D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1") {
+$preLaunchScript = Join-Path $aiToolsDirPath "claude_pre_launch.ps1"
+if (Test-Path $preLaunchScript) {
     $currentWorkingDir = Get-Location
-    Write-Host "[INFO] Executing pre-launch script: D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1" -ForegroundColor Cyan
+    Write-Host "[INFO] Executing pre-launch script: $preLaunchScript" -ForegroundColor Cyan
     Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
     Write-Host ""
-    & "D:\programing\core_node\scripts\pytools\ai_tools\claude_pre_launch.ps1" -WorkingDirectory "$currentWorkingDir"
+    & $preLaunchScript -WorkingDirectory "$currentWorkingDir"
     Write-Host ""
 }
+
 
 Write-Host "Available tasks:" -ForegroundColor White
 Write-Host "  [1] Upgrade Claude AI to latest version (runs in separate window)" -ForegroundColor White
@@ -232,10 +445,11 @@ Write-Host ""
 
 $upgradeChoice = Read-Host "Do you want to upgrade Claude AI? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
+    $upgradeScript = Join-Path $aiToolsDirPath "claude_update.bat"
     Write-Host ""
     Write-Host "[INFO] Launching Claude AI upgrade in separate window..." -ForegroundColor Yellow
     # Use Start-Process to launch in new window, preventing environment pollution
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"D:\programing\core_node\scripts\pytools\ai_tools\claude_update.bat`"" -WindowStyle Normal
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
     Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
 } else {
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
@@ -243,14 +457,15 @@ if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
 
 
 $currentWorkingDir = Get-Location
+$syncScript = Join-Path $aiToolsDirPath "claude_sync_mcp_servers.py"
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python -u `"$syncScript`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
 Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "D:\programing\core_node\scripts\pytools\ai_tools\claude_sync_mcp_servers.py" --target claude --working-dir "$currentWorkingDir"
+python -u "$syncScript" --target claude --working-dir "$currentWorkingDir"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

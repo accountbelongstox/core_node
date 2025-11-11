@@ -21,6 +21,9 @@ interface ScriptStoreState {
   selectedScriptIds: string[];
 }
 
+const SCRIPTS_STORAGE_KEY = 'pymatrix_scripts';
+const CATEGORIES_STORAGE_KEY = 'pymatrix_script_categories';
+
 const DEFAULT_CATEGORIES: ScriptCategory[] = [
   {
     id: 'testing',
@@ -590,7 +593,6 @@ export const useScriptStore = defineStore('script', {
       try {
         const scriptData = JSON.parse(json) as Script;
 
-        // Generate new ID and timestamps
         const imported = this.createScript({
           ...scriptData,
           name: `${scriptData.name} (Imported)`
@@ -708,9 +710,13 @@ export const useScriptStore = defineStore('script', {
      * Save to localStorage
      */
     saveToLocalStorage() {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
       try {
-        localStorage.setItem('pymatrix_scripts', JSON.stringify(this.scripts));
-        localStorage.setItem('pymatrix_script_categories', JSON.stringify(this.categories));
+        localStorage.setItem(SCRIPTS_STORAGE_KEY, JSON.stringify(this.scripts));
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.categories));
         console.log('[ScriptStore] Saved to localStorage');
       } catch (error) {
         console.error('[ScriptStore] Save to localStorage failed:', error);
@@ -721,14 +727,18 @@ export const useScriptStore = defineStore('script', {
      * Load from localStorage
      */
     loadFromLocalStorage() {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
       try {
-        const scriptsJson = localStorage.getItem('pymatrix_scripts');
+        const scriptsJson = localStorage.getItem(SCRIPTS_STORAGE_KEY);
         if (scriptsJson) {
           this.scripts = JSON.parse(scriptsJson);
           console.log('[ScriptStore] Loaded scripts from localStorage:', this.scripts.length);
         }
 
-        const categoriesJson = localStorage.getItem('pymatrix_script_categories');
+        const categoriesJson = localStorage.getItem(CATEGORIES_STORAGE_KEY);
         if (categoriesJson) {
           this.categories = JSON.parse(categoriesJson);
           console.log('[ScriptStore] Loaded categories from localStorage:', this.categories.length);

@@ -184,30 +184,35 @@ export const useConnectionHistoryStore = defineStore('connectionHistory', () => 
    * Save to localStorage
    */
   function saveToStorage(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
         history: history.value,
         recentDevices: recentDevices.value
-      }));
-    } catch (error) {
-      console.error('[ConnectionHistory] Failed to save to storage:', error);
-    }
+      })
+    );
   }
 
   /**
    * Load from localStorage
    */
   function loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        history.value = data.history || [];
-        recentDevices.value = data.recentDevices || [];
-        console.log('[ConnectionHistory] Loaded from storage:', history.value.length, 'entries');
-      }
-    } catch (error) {
-      console.error('[ConnectionHistory] Failed to load from storage:', error);
+    if (typeof window === 'undefined') {
+      history.value = [];
+      recentDevices.value = [];
+      return;
+    }
+
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const data = JSON.parse(stored);
+      history.value = data.history || [];
+      recentDevices.value = data.recentDevices || [];
+      console.log('[ConnectionHistory] Loaded from storage:', history.value.length, 'entries');
     }
   }
 

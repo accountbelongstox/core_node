@@ -103,6 +103,60 @@ class ScriptGenerator:
         
         return bat_path
     
+    def create_ubuntu_bat(self, index, x, y, term_cols, term_rows, ubuntu_shortcut):
+        """
+        Create batch file for Ubuntu terminal
+        
+        Args:
+            index: Window index (for filename)
+            x: Window X position
+            y: Window Y position
+            term_cols: Terminal columns
+            term_rows: Terminal rows
+            ubuntu_shortcut: Dictionary with Ubuntu shortcut info (from UbuntuFinder)
+        
+        Returns:
+            Path: Path to created batch file
+        """
+        bat_path = self.temp_dir / f'launch_ubuntu_{index}.bat'
+        
+        # Get Ubuntu shortcut target and arguments
+        target = ubuntu_shortcut.get('target', '')
+        arguments = ubuntu_shortcut.get('arguments', '')
+        
+        # Build command: Use Windows Terminal to launch Ubuntu with position and size
+        # Format: wt.exe --pos "x,y" --size "cols.rows" <target> <arguments>
+        if target:
+            # Combine target and arguments
+            if arguments:
+                ubuntu_cmd = f'{target} {arguments}'.strip()
+            else:
+                ubuntu_cmd = target
+            
+            # Use Windows Terminal to launch with position and size
+            cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}" {ubuntu_cmd}'
+        else:
+            # Fallback: try to launch shortcut directly (won't have position/size control)
+            shortcut_path = ubuntu_shortcut.get('path', '')
+            if shortcut_path:
+                cmd = f'start "" "{shortcut_path}"'
+            else:
+                # Last resort: try wsl.exe
+                cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}" wsl.exe'
+        
+        lines = [
+            '@echo off',
+            f'if {index} gtr 1 timeout /t 0 /nobreak >nul',
+            cmd
+        ]
+        
+        with open(bat_path, 'w', encoding='utf-8', newline='\r\n') as f:
+            f.write('\r\n'.join(lines) + '\r\n')
+        
+        print(f"  Command: {cmd}")
+        
+        return bat_path
+    
     def get_temp_dir(self):
         """Get temporary directory path"""
         return self.temp_dir

@@ -397,7 +397,7 @@ function handleFullscreenDeviceChange(device: Device) {
 
     <!-- Group Tree View -->
     <GroupTreeView
-      :show="showGroupTreeView"
+      :model-value="showGroupTreeView"
       @close="showGroupTreeView = false"
       @apply="handleTreeApply"
       @refresh="handleTreeRefresh"
@@ -439,14 +439,14 @@ function handleFullscreenDeviceChange(device: Device) {
 
     <!-- Script Manager -->
     <PyMatrixScriptManager
-      :show="showScriptManager"
+      :model-value="showScriptManager"
       :available-devices="devices"
       @close="showScriptManager = false"
     />
 
     <!-- System Health Monitor -->
     <SystemHealthMonitor
-      :show="showHealthMonitor"
+      :model-value="showHealthMonitor"
       @close="showHealthMonitor = false"
     />
   </div>

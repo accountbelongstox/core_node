@@ -37,6 +37,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
 
 # Initialize global variables
 init_global_vars
@@ -52,12 +53,15 @@ GITEA_ARCH="linux-amd64"
 GITEA_BINARY_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-${GITEA_ARCH}"
 
 # Set up Gitea directories
-APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
-GITEA_INSTALL_DIR="$APPLICATIONS_DIR/gitea"
+WWWROOT_DIR=$(map_web_path "wwwroot")
+GITEA_BASE_DIR="$WWWROOT_DIR/data/gitea"
 GITEA_BINARY="/usr/local/bin/gitea"
-GITEA_DATA_DIR="/var/lib/gitea"
-GITEA_CONFIG_DIR="/etc/gitea"
-GITEA_INSTALLED_FLAG="$GITEA_INSTALL_DIR/.installed"
+GITEA_DATA_DIR="$GITEA_BASE_DIR/data"
+GITEA_CONFIG_DIR="$GITEA_BASE_DIR/config"
+GITEA_CUSTOM_DIR="$GITEA_BASE_DIR/custom"
+GITEA_LOG_DIR="$GITEA_BASE_DIR/log"
+GITEA_INSTALLED_FLAG="$GITEA_BASE_DIR/.installed"
+GITEA_CACHE_DIR="$GITEA_BASE_DIR/cache"
 GITEA_USER="git"
 GITEA_PORT="3000"
 
@@ -219,18 +223,109 @@ create_gitea_user() {
 
     if id "$GITEA_USER" &>/dev/null; then
         print_info_from_common_functions "User $GITEA_USER already exists"
-        return 0
+    else
+        $USE_SUDO useradd --system --shell /bin/bash --comment 'Git Version Control' --create-home --home-dir /home/$GITEA_USER $GITEA_USER
+        print_success_from_common_functions "User $GITEA_USER created"
     fi
 
-    $USE_SUDO useradd --system --shell /bin/bash --comment 'Git Version Control' --create-home --home-dir /home/$GITEA_USER $GITEA_USER
-    print_success_from_common_functions "User $GITEA_USER created"
+    ensure_gitea_user_privileges
 
+    return 0
+}
+
+ensure_gitea_user_privileges() {
+    print_step_from_common_functions "Ensuring $GITEA_USER user permissions..."
+
+    local user_home="/home/$GITEA_USER"
+    local required_groups=("sudo")
+    local current_shell
+
+    if [[ ! -d "$user_home" ]]; then
+        $USE_SUDO mkdir -p "$user_home"
+        print_info_from_common_functions "Created home directory at $user_home"
+    fi
+
+    $USE_SUDO chown $GITEA_USER:$GITEA_USER "$user_home"
+    $USE_SUDO chmod 750 "$user_home"
+
+    current_shell=$(getent passwd "$GITEA_USER" | cut -d: -f7)
+    if [[ "$current_shell" != "/bin/bash" ]]; then
+        $USE_SUDO usermod --shell /bin/bash "$GITEA_USER"
+        print_info_from_common_functions "Updated $GITEA_USER shell to /bin/bash"
+    fi
+
+    for group in "${required_groups[@]}"; do
+        if getent group "$group" >/dev/null 2>&1; then
+            if ! id -nG "$GITEA_USER" 2>/dev/null | tr ' ' '\n' | grep -Fxq "$group"; then
+                $USE_SUDO usermod -aG "$group" "$GITEA_USER"
+                print_info_from_common_functions "Added $GITEA_USER to $group group"
+            else
+                print_info_from_common_functions "$GITEA_USER already in $group group"
+            fi
+        else
+            print_warning_from_common_functions "Required group $group not found on system"
+        fi
+    done
+
+    if [[ -d "$GITEA_BASE_DIR" ]]; then
+        $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
+    fi
+
+    print_success_from_common_functions "$GITEA_USER user permissions verified"
+}
+
+verify_cached_binary() {
+    local binary_path="$1"
+    local expected_version="$2"
+
+    if [[ ! -f "$binary_path" ]]; then
+        return 1
+    fi
+
+    if [[ ! -s "$binary_path" ]]; then
+        return 1
+    fi
+
+    $USE_SUDO chmod +x "$binary_path" 2>/dev/null || true
+
+    local version=$("$binary_path" --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+
+    if [[ -z "$version" ]]; then
+        return 1
+    fi
+
+    if [[ "$version" != "$expected_version" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+install_cached_binary() {
+    local source_binary="$1"
+
+    if [[ ! -f "$source_binary" ]]; then
+        print_error_from_common_functions "Cached binary not found at $source_binary"
+        return 1
+    fi
+
+    if ! $USE_SUDO cp "$source_binary" "$GITEA_BINARY"; then
+        print_error_from_common_functions "Failed to copy cached binary to $GITEA_BINARY"
+        return 1
+    fi
+
+    if ! $USE_SUDO chmod +x "$GITEA_BINARY"; then
+        print_error_from_common_functions "Failed to set execute permission on $GITEA_BINARY"
+        return 1
+    fi
+
+    print_success_from_common_functions "Gitea binary installed from cache"
     return 0
 }
 
 # Download Gitea binary
 download_gitea() {
-    print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
+    print_step_from_common_functions "Checking Gitea binary..."
 
     # Detect architecture
     GITEA_ARCH=$(detect_architecture)
@@ -239,33 +334,80 @@ download_gitea() {
     fi
 
     GITEA_BINARY_URL="https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-${GITEA_ARCH}"
+    local cached_binary_filename="gitea-${GITEA_VERSION}-${GITEA_ARCH}"
+    local cached_binary="$GITEA_CACHE_DIR/$cached_binary_filename"
+
+    $USE_SUDO mkdir -p "$GITEA_CACHE_DIR"
+    $USE_SUDO chmod 750 "$GITEA_CACHE_DIR" 2>/dev/null || true
+
+    # Check if binary already exists and matches target version
+    if [[ -f "$GITEA_BINARY" ]]; then
+        local current_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+        print_info_from_common_functions "DEBUG: Existing binary found, version: $current_version"
+        print_info_from_common_functions "DEBUG: Target version: $GITEA_VERSION"
+
+        if [[ "$current_version" == "$GITEA_VERSION" ]]; then
+            print_success_from_common_functions "Gitea binary already exists with correct version ($GITEA_VERSION)"
+            print_info_from_common_functions "DEBUG: Skipping download, using existing binary at $GITEA_BINARY"
+            return 0
+        else
+            print_warning_from_common_functions "Existing binary version ($current_version) differs from target ($GITEA_VERSION)"
+            print_info_from_common_functions "DEBUG: Will download new version..."
+        fi
+    else
+        print_info_from_common_functions "DEBUG: Binary not found at $GITEA_BINARY, will download..."
+    fi
+
+    if verify_cached_binary "$cached_binary" "$GITEA_VERSION"; then
+        print_success_from_common_functions "Using cached Gitea binary at $cached_binary"
+        install_cached_binary "$cached_binary"
+        return $?
+    elif [[ -f "$cached_binary" ]]; then
+        print_warning_from_common_functions "Cached binary at $cached_binary is invalid, removing..."
+        $USE_SUDO rm -f "$cached_binary"
+    fi
+
+    # Download binary
+    print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
+    print_info_from_common_functions "DEBUG: Download URL: $GITEA_BINARY_URL"
 
     # Create temp download directory
     local temp_dir=$(mktemp -d)
     local temp_binary="$temp_dir/gitea"
+    print_info_from_common_functions "DEBUG: Temp directory: $temp_dir"
 
-    # Download binary
     if wget -O "$temp_binary" "$GITEA_BINARY_URL"; then
         print_success_from_common_functions "Gitea binary downloaded"
 
-        # Verify binary
         if [[ ! -s "$temp_binary" ]]; then
             print_error_from_common_functions "Downloaded binary is empty"
             rm -rf "$temp_dir"
             return 1
         fi
 
-        # Install binary
-        $USE_SUDO mv "$temp_binary" "$GITEA_BINARY"
-        $USE_SUDO chmod +x "$GITEA_BINARY"
+        $USE_SUDO chmod +x "$temp_binary"
 
-        # Cleanup
+        if ! verify_cached_binary "$temp_binary" "$GITEA_VERSION"; then
+            print_error_from_common_functions "Downloaded binary verification failed"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+
+        local binary_size=$(stat -c%s "$temp_binary" 2>/dev/null || stat -f%z "$temp_binary" 2>/dev/null)
+        print_info_from_common_functions "DEBUG: Downloaded binary size: $binary_size bytes"
+
+        print_info_from_common_functions "DEBUG: Saving binary to cache at $cached_binary"
+        $USE_SUDO mv "$temp_binary" "$cached_binary"
+        $USE_SUDO chmod 755 "$cached_binary"
+
         rm -rf "$temp_dir"
+        print_info_from_common_functions "DEBUG: Cleaned up temp directory"
 
-        print_success_from_common_functions "Gitea binary installed to $GITEA_BINARY"
-        return 0
+        install_cached_binary "$cached_binary"
+        return $?
     else
         print_error_from_common_functions "Failed to download Gitea binary"
+        print_error_from_common_functions "DEBUG: wget failed for URL: $GITEA_BINARY_URL"
         rm -rf "$temp_dir"
         return 1
     fi
@@ -274,19 +416,102 @@ download_gitea() {
 # Create directories
 create_directories() {
     print_step_from_common_functions "Creating Gitea directories..."
+    print_info_from_common_functions "DEBUG: Base directory: $GITEA_BASE_DIR"
+    print_info_from_common_functions "DEBUG: Data directory: $GITEA_DATA_DIR"
+    print_info_from_common_functions "DEBUG: Config directory: $GITEA_CONFIG_DIR"
+    print_info_from_common_functions "DEBUG: Custom directory: $GITEA_CUSTOM_DIR"
+    print_info_from_common_functions "DEBUG: Log directory: $GITEA_LOG_DIR"
 
-    # Create directories
-    $USE_SUDO mkdir -p "$GITEA_INSTALL_DIR"
-    $USE_SUDO mkdir -p "$GITEA_DATA_DIR"/{custom,data,log}
+    # Create base directory structure
+    $USE_SUDO mkdir -p "$GITEA_BASE_DIR"
+    $USE_SUDO mkdir -p "$GITEA_DATA_DIR"
     $USE_SUDO mkdir -p "$GITEA_CONFIG_DIR"
+    $USE_SUDO mkdir -p "$GITEA_CUSTOM_DIR"
+    $USE_SUDO mkdir -p "$GITEA_LOG_DIR"
+    print_info_from_common_functions "DEBUG: All directories created successfully"
 
-    # Set ownership
-    $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_DATA_DIR"
-    $USE_SUDO chown -R root:$GITEA_USER "$GITEA_CONFIG_DIR"
-    $USE_SUDO chmod -R 750 "$GITEA_DATA_DIR"
+    # Set ownership and permissions
+    print_info_from_common_functions "DEBUG: Setting ownership to $GITEA_USER:$GITEA_USER"
+    $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
+    $USE_SUDO chmod -R 750 "$GITEA_BASE_DIR"
     $USE_SUDO chmod 770 "$GITEA_CONFIG_DIR"
+    print_info_from_common_functions "DEBUG: Ownership and permissions set"
 
-    print_success_from_common_functions "Gitea directories created"
+    print_success_from_common_functions "Gitea directories created at $GITEA_BASE_DIR"
+    return 0
+}
+
+# Create Gitea configuration file
+create_gitea_config() {
+    print_step_from_common_functions "Creating Gitea configuration..."
+
+    local config_file="$GITEA_CONFIG_DIR/app.ini"
+
+    # Check if configuration already exists
+    if [[ -f "$config_file" ]]; then
+        print_info_from_common_functions "Configuration file already exists, updating paths only..."
+
+        # Update directory paths in existing config (idempotent)
+        $USE_SUDO sed -i "s|^HTTP_PORT.*=.*|HTTP_PORT = $GITEA_PORT|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^PATH.*=.*gitea\.db|PATH = $GITEA_DATA_DIR/gitea.db|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^ROOT.*=.*repositories|ROOT = $GITEA_DATA_DIR/repositories|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^ROOT_PATH.*=.*|ROOT_PATH = $GITEA_LOG_DIR|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^AVATAR_UPLOAD_PATH.*=.*|AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/avatars|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^REPOSITORY_AVATAR_UPLOAD_PATH.*=.*|REPOSITORY_AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/repo-avatars|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^PATH.*=.*attachments|PATH = $GITEA_DATA_DIR/attachments|" "$config_file" 2>/dev/null || true
+        $USE_SUDO sed -i "s|^PROVIDER_CONFIG.*=.*|PROVIDER_CONFIG = $GITEA_DATA_DIR/sessions|" "$config_file" 2>/dev/null || true
+
+        print_success_from_common_functions "Gitea configuration updated with current paths"
+        return 0
+    fi
+
+    # Generate SECRET_KEY only once
+    local secret_key=$(openssl rand -base64 32 2>/dev/null || echo "CHANGE_THIS_SECRET_KEY_$(date +%s)")
+
+    # Create new configuration file
+    cat <<EOF | $USE_SUDO tee "$config_file" > /dev/null
+[server]
+HTTP_PORT = $GITEA_PORT
+ROOT_URL = http://localhost:$GITEA_PORT/
+DOMAIN = localhost
+
+[database]
+DB_TYPE = sqlite3
+PATH = $GITEA_DATA_DIR/gitea.db
+
+[repository]
+ROOT = $GITEA_DATA_DIR/repositories
+
+[log]
+ROOT_PATH = $GITEA_LOG_DIR
+MODE = console, file
+LEVEL = info
+
+[security]
+INSTALL_LOCK = false
+SECRET_KEY = $secret_key
+
+[service]
+DISABLE_REGISTRATION = false
+REQUIRE_SIGNIN_VIEW = false
+
+[picture]
+AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/avatars
+REPOSITORY_AVATAR_UPLOAD_PATH = $GITEA_DATA_DIR/repo-avatars
+
+[attachment]
+PATH = $GITEA_DATA_DIR/attachments
+
+[session]
+PROVIDER = file
+PROVIDER_CONFIG = $GITEA_DATA_DIR/sessions
+EOF
+
+    # Set ownership and permissions
+    $USE_SUDO chown $GITEA_USER:$GITEA_USER "$config_file"
+    $USE_SUDO chmod 640 "$config_file"
+
+    print_success_from_common_functions "Gitea configuration created"
     return 0
 }
 
@@ -307,7 +532,7 @@ Type=simple
 User=$GITEA_USER
 Group=$GITEA_USER
 WorkingDirectory=$GITEA_DATA_DIR
-ExecStart=$GITEA_BINARY web --config $GITEA_CONFIG_DIR/app.ini
+ExecStart=$GITEA_BINARY web --config $GITEA_CONFIG_DIR/app.ini --work-path $GITEA_DATA_DIR --custom-path $GITEA_CUSTOM_DIR
 Restart=always
 Environment=USER=$GITEA_USER HOME=/home/$GITEA_USER GITEA_WORK_DIR=$GITEA_DATA_DIR
 
@@ -319,6 +544,26 @@ EOF
     $USE_SUDO systemctl daemon-reload
 
     print_success_from_common_functions "Systemd service created"
+    return 0
+}
+
+# Configure firewall for Gitea
+configure_firewall() {
+    print_step_from_common_functions "Configuring firewall for Gitea..."
+    print_info_from_common_functions "DEBUG: Port to open: $GITEA_PORT/tcp"
+    print_info_from_common_functions "DEBUG: Calling firewall_allow_port from firewall_manager.sh"
+
+    # Use firewall_manager.sh library to handle firewall configuration
+    # This automatically detects and configures UFW, firewalld, or iptables
+    # If no firewall is active, it does nothing (never installs a firewall)
+    if firewall_allow_port "$GITEA_PORT" "tcp" "Gitea Web Service"; then
+        print_success_from_common_functions "Firewall configured successfully for port $GITEA_PORT/tcp"
+        print_info_from_common_functions "DEBUG: Firewall rule added successfully"
+    else
+        print_warning_from_common_functions "Firewall configuration may have issues, but port may still be accessible"
+        print_info_from_common_functions "DEBUG: Firewall configuration returned error or no firewall detected"
+    fi
+
     return 0
 }
 
@@ -364,13 +609,20 @@ display_web_access_info() {
     echo ""
     print_info_from_common_functions "Default configuration:"
     echo "  - Port: $GITEA_PORT"
+    echo "  - Base directory: $GITEA_BASE_DIR"
     echo "  - Data directory: $GITEA_DATA_DIR"
-    echo "  - Config directory: $GITEA_CONFIG_DIR"
+    echo "  - Config file: $GITEA_CONFIG_DIR/app.ini"
+    echo "  - Log directory: $GITEA_LOG_DIR"
     echo ""
     print_info_from_common_functions "First-time setup:"
     echo "  1. Open any of the URLs above in your browser"
     echo "  2. Complete the initial configuration wizard"
     echo "  3. Create your administrator account"
+    echo ""
+    print_warning_from_common_functions "Important notes:"
+    echo "  - Ensure firewall allows port $GITEA_PORT"
+    echo "  - Configuration is stored in: $GITEA_CONFIG_DIR/app.ini"
+    echo "  - All data is stored under: $GITEA_BASE_DIR"
     echo ""
 }
 
@@ -426,26 +678,14 @@ cleanup_gitea() {
         $USE_SUDO rm -f "$GITEA_BINARY"
     fi
 
-    # Remove directories
-    if [[ -d "$GITEA_DATA_DIR" ]]; then
-        print_step_from_common_functions "Removing data directory: $GITEA_DATA_DIR"
-        $USE_SUDO rm -rf "$GITEA_DATA_DIR"
-    fi
+    # Remove firewall rule using firewall_manager.sh
+    print_step_from_common_functions "Removing firewall rule..."
+    firewall_remove_port "$GITEA_PORT" "tcp" 2>/dev/null || true
 
-    if [[ -d "$GITEA_CONFIG_DIR" ]]; then
-        print_step_from_common_functions "Removing config directory: $GITEA_CONFIG_DIR"
-        $USE_SUDO rm -rf "$GITEA_CONFIG_DIR"
-    fi
-
-    if [[ -d "$GITEA_INSTALL_DIR" ]]; then
-        print_step_from_common_functions "Removing installation directory: $GITEA_INSTALL_DIR"
-        robust_remove_directory "$GITEA_INSTALL_DIR"
-    fi
-
-    # Remove installation flag
-    if [[ -f "$GITEA_INSTALLED_FLAG" ]]; then
-        print_step_from_common_functions "Removing installation flag: $GITEA_INSTALLED_FLAG"
-        $USE_SUDO rm -f "$GITEA_INSTALLED_FLAG"
+    # Remove base directory (contains data, config, custom, and log)
+    if [[ -d "$GITEA_BASE_DIR" ]]; then
+        print_step_from_common_functions "Removing Gitea base directory: $GITEA_BASE_DIR"
+        $USE_SUDO rm -rf "$GITEA_BASE_DIR"
     fi
 
     # Note: We don't remove the git user as it may be used by other services
@@ -485,10 +725,18 @@ install_gitea() {
         return 1
     fi
 
+    # Create Gitea configuration
+    if ! create_gitea_config; then
+        return 1
+    fi
+
     # Create systemd service
     if ! create_systemd_service; then
         return 1
     fi
+
+    # Configure firewall
+    configure_firewall
 
     # Start service
     if ! start_gitea_service; then
@@ -507,6 +755,60 @@ install_gitea() {
 }
 
 # Interactive cleanup prompt with version check
+# Repair Gitea configuration without removing data
+repair_gitea_configuration() {
+    print_header_from_common_functions "Repairing Gitea Configuration"
+    print_info_from_common_functions "This will update configuration and service files without touching your data"
+    echo ""
+
+    # Download/update binary if version mismatch
+    local current_binary_version=""
+    if [[ -f "$GITEA_BINARY" ]]; then
+        current_binary_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
+    fi
+
+    if [[ "$current_binary_version" != "$GITEA_VERSION" ]]; then
+        print_step_from_common_functions "Updating Gitea binary from $current_binary_version to $GITEA_VERSION..."
+        if ! download_gitea; then
+            print_warning_from_common_functions "Failed to update binary, keeping current version"
+        fi
+    else
+        print_info_from_common_functions "Gitea binary is already up-to-date (version $GITEA_VERSION)"
+    fi
+
+    # Ensure directories exist with correct permissions
+    print_step_from_common_functions "Verifying directory structure..."
+    create_directories
+
+    # Update configuration file (preserves existing config, only updates paths)
+    print_step_from_common_functions "Updating configuration file..."
+    create_gitea_config
+
+    # Recreate systemd service (idempotent)
+    print_step_from_common_functions "Updating systemd service..."
+    create_systemd_service
+
+    # Ensure firewall rules are in place
+    print_step_from_common_functions "Verifying firewall rules..."
+    configure_firewall
+
+    # Restart service to apply changes
+    print_step_from_common_functions "Restarting Gitea service..."
+    $USE_SUDO systemctl restart gitea 2>/dev/null || start_gitea_service
+
+    # Update installation info
+    save_installation_info "$GITEA_VERSION"
+
+    print_success_from_common_functions "Gitea configuration repaired successfully!"
+    print_info_from_common_functions "All your repositories and data are preserved"
+    echo ""
+
+    # Display access info
+    display_web_access_info
+
+    return 0
+}
+
 prompt_cleanup_reinstall() {
     if is_gitea_installed; then
         print_warning_from_common_functions "Gitea is already installed"
@@ -514,39 +816,48 @@ prompt_cleanup_reinstall() {
         local installed_version=$(get_installed_version)
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
+            print_info_from_common_functions "Target version: $GITEA_VERSION"
         else
             print_info_from_common_functions "No version metadata found for current installation"
         fi
 
-        if [[ -n "$installed_version" ]] && [[ "$installed_version" != "$GITEA_VERSION" ]]; then
-            echo -n "Upgrade to version $GITEA_VERSION? (Y/n): "
-            read -r response
-            case "$response" in
-                [nN]|[nN][oO])
-                    print_info_from_common_functions "Keeping current installation"
-                    return 1
-                    ;;
-                *)
-                    print_info_from_common_functions "Upgrading Gitea..."
+        echo ""
+        print_info_from_common_functions "Available actions:"
+        echo "  1) Repair configuration (recommended - preserves all data)"
+        echo "  2) Full reinstall (WARNING: deletes all repositories and data)"
+        echo "  3) Keep current installation and exit"
+        echo ""
+        echo -n "Select action (1/2/3) [1]: "
+        read -r response
+
+        case "$response" in
+            2)
+                print_warning_from_common_functions "Full reinstall will DELETE all repositories and data!"
+                echo -n "Are you sure? Type 'yes' to confirm: "
+                read -r confirm
+                if [[ "$confirm" == "yes" ]]; then
+                    print_info_from_common_functions "Performing full reinstall..."
                     cleanup_gitea
                     return 0
-                    ;;
-            esac
-        else
-            echo -n "Reinstall Gitea? (y/N): "
-            read -r response
-            case "$response" in
-                [yY]|[yY][eE][sS])
-                    print_info_from_common_functions "Reinstalling Gitea..."
-                    cleanup_gitea
-                    return 0
-                    ;;
-                *)
-                    print_info_from_common_functions "Keeping existing installation"
+                else
+                    print_info_from_common_functions "Reinstall cancelled"
                     return 1
-                    ;;
-            esac
-        fi
+                fi
+                ;;
+            3|[nN]|[nN][oO])
+                print_info_from_common_functions "Keeping current installation"
+                return 1
+                ;;
+            1|""|[yY]|[yY][eE][sS])
+                print_info_from_common_functions "Repairing configuration..."
+                repair_gitea_configuration
+                return 1
+                ;;
+            *)
+                print_info_from_common_functions "Invalid choice, exiting"
+                return 1
+                ;;
+        esac
     fi
     return 0
 }

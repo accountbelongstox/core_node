@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineComponent, onMounted } from 'vue';
+import { ref, computed, defineComponent, onMounted, h } from 'vue';
 import type { Tool } from '../../../types_app_ittools';
 import { ItToolsMainAPI } from '../../../services_app_ittools/ittools-main-api';
 
@@ -153,12 +153,10 @@ const TempCard = defineComponent({
       return `${props.value.toFixed(2)} ${props.unit}`;
     });
 
-    return () => (
-      <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
-        <p class="text-xs text-slate-500">{props.label}</p>
-        <p class="text-lg font-semibold text-slate-800">{displayValue.value}</p>
-      </div>
-    );
+    return () => h('div', { class: 'bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2' }, [
+      h('p', { class: 'text-xs text-slate-500' }, props.label),
+      h('p', { class: 'text-lg font-semibold text-slate-800' }, displayValue.value)
+    ]);
   }
 });
 

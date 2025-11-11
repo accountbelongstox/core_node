@@ -1,3 +1,4 @@
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
 /**
  * PyMatrix Health Check API
  * API service for system health monitoring and status checks
@@ -47,8 +48,8 @@ export interface DetailedHealthResponse {
 class PyMatrixHealthAPI {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://localhost:8000') {
-    this.baseUrl = baseUrl;
+  constructor() {
+    this.baseUrl = getHttpBaseUrl();
   }
 
   /**

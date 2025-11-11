@@ -1,8 +1,14 @@
-<!-- AI WARNING: Edit components under apps/app_pymatrix/components_app_pymatrix/pymatrix_index/ instead of this entry file -->
-<template>
-  <PyMatrixApp />
-</template>
-
+<!--
+  REDIRECT TO PYMATRIX MAIN PAGE
+  This file redirects to the correct PyMatrix entry point at /pymatrix
+-->
 <script setup lang="ts">
-import PyMatrixApp from '@/apps/app_pymatrix/components_app_pymatrix/pymatrix_index/PyMatrixApp.vue';
+// Redirect to the correct PyMatrix page
+await navigateTo('/pymatrix', { replace: true });
 </script>
+
+<template>
+  <div style="display: flex; align-items: center; justify-content: center; height: 100vh;">
+    <p>Redirecting to PyMatrix...</p>
+  </div>
+</template>

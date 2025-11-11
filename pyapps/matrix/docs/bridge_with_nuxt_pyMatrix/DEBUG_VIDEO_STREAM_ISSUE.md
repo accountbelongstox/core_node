@@ -334,7 +334,7 @@ function retryConnect() {
 # test_video_stream.py
 import asyncio
 from pycore.pyutils.device_manager import DeviceManager
-from pycore.pyutils.stream import VideoStreamHandler
+from pycore.pyutils.video_stream import VideoStreamHandler
 
 async def test_stream():
     dm = DeviceManager.instance()

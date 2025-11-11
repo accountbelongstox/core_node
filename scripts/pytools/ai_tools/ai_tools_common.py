@@ -20,8 +20,190 @@ Provides shared functions used across multiple AI tools synchronization scripts.
 import os
 import sys
 import copy
+import subprocess
 from pathlib import Path
-from typing import Dict, Any, Set
+from typing import Dict, Any, Set, List, Optional
+
+
+def ensure_dependencies(package_map: Dict[str, str], install_strategies: Optional[List[List[str]]] = None) -> bool:
+    """
+    Ensure required Python packages are installed with real-time output.
+    
+    This function checks all packages using key-value mapping (pip_name -> import_name),
+    and immediately installs any missing packages.
+    
+    Args:
+        package_map: Dictionary mapping pip package names to Python import names.
+            Key: pip package name (e.g., "tomli-w")
+            Value: Python import name (e.g., "tomli_w")
+            Example: {"tomli": "tomli", "tomli-w": "tomli_w"}
+        install_strategies: List of pip install command strategies to try.
+            Each strategy is a list of additional arguments for pip install.
+            Default strategies:
+            1. ["--user"] - Install to user directory
+            2. ["--break-system-packages"] - Override externally-managed-environment
+            3. [] - Standard installation (last resort)
+    
+    Returns:
+        True if all packages are successfully installed, False otherwise
+    
+    Example:
+        >>> packages = {"tomli": "tomli", "tomli-w": "tomli_w"}
+        >>> if not ensure_dependencies(packages):
+        ...     sys.exit(1)
+        >>> import tomli
+        >>> import tomli_w
+    """
+    if install_strategies is None:
+        # Detect OS and adjust strategy order
+        # On Linux with externally-managed-environment, --break-system-packages should be tried first
+        if sys.platform == "linux":
+            install_strategies = [
+                ["--break-system-packages"],
+                ["--user"],
+                []
+            ]
+        elif sys.platform == "win32":
+            # Windows doesn't need --user or --break-system-packages
+            install_strategies = [
+                []
+            ]
+        else:
+            install_strategies = [
+                ["--user"],
+                ["--break-system-packages"],
+                []
+            ]
+    
+    # Check all packages and collect missing ones
+    missing_packages = {}
+    for pip_name, import_name in package_map.items():
+        try:
+            __import__(import_name)
+            print(f"[OK] Package '{pip_name}' (import: {import_name}) is already installed")
+        except ImportError:
+            missing_packages[pip_name] = import_name
+            print(f"[MISSING] Package '{pip_name}' (import: {import_name}) not found")
+    
+    if not missing_packages:
+        print("[INFO] All required packages are installed")
+        return True
+    
+    print()
+    print(f"[INFO] Found {len(missing_packages)} missing package(s). Installing...")
+    print()
+    
+    # Install each missing package immediately
+    failed_packages = []
+    for pip_name, import_name in missing_packages.items():
+        print(f"[INSTALL] Installing package: {pip_name} (import: {import_name})")
+        
+        package_installed = False
+        for strategy_idx, strategy_args in enumerate(install_strategies, 1):
+            strategy_name = " ".join(strategy_args) if strategy_args else "standard"
+            print(f"  [STRATEGY {strategy_idx}/{len(install_strategies)}] Trying: {strategy_name or 'standard'}")
+            
+            cmd = [sys.executable, "-m", "pip", "install"] + strategy_args + [pip_name]
+            
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    bufsize=1
+                )
+                
+                for line in process.stdout:
+                    print(f"  {line}", end='', flush=True)
+                
+                return_code = process.wait()
+                
+                if return_code == 0:
+                    # Verify installation by trying to import
+                    try:
+                        __import__(import_name)
+                        print()
+                        print(f"  [SUCCESS] Package '{pip_name}' installed and verified")
+                        print()
+                        package_installed = True
+                        break
+                    except ImportError:
+                        print()
+                        print(f"  [WARNING] Package '{pip_name}' installed but import '{import_name}' still fails")
+                        print()
+                else:
+                    print()
+                    print(f"  [WARNING] Strategy {strategy_idx} failed with return code {return_code}")
+                    print()
+            
+            except Exception as e:
+                print()
+                print(f"  [WARNING] Strategy {strategy_idx} raised exception: {e}")
+                print()
+                continue
+        
+        if not package_installed:
+            failed_packages.append((pip_name, import_name))
+            print(f"  [ERROR] Failed to install package: {pip_name}")
+            print()
+    
+    if failed_packages:
+        print("[ERROR] Some packages failed to install:")
+        for pip_name, import_name in failed_packages:
+            print(f"  - {pip_name} (import: {import_name})")
+        print()
+        
+        # Provide platform-specific solutions
+        if sys.platform == "linux":
+            print("[INFO] Linux environment detected. Try these solutions:")
+            print()
+            print("Option 1: Use --break-system-packages (recommended for externally-managed environments):")
+            for pip_name, _ in failed_packages:
+                print(f"  {sys.executable} -m pip install --break-system-packages {pip_name}")
+            print()
+            print("Option 2: Install to user directory:")
+            for pip_name, _ in failed_packages:
+                print(f"  {sys.executable} -m pip install --user {pip_name}")
+            print()
+            print("Option 3: Install system packages (if available):")
+            print("  sudo apt update")
+            for pip_name, _ in failed_packages:
+                # Try to suggest system package name
+                module_name = pip_name.replace("-", "_")
+                print(f"  sudo apt install python3-{module_name}  # May not be available")
+            print()
+            print("Option 4: Use virtual environment:")
+            print("  python3 -m venv venv")
+            print("  source venv/bin/activate")
+            for pip_name, _ in failed_packages:
+                print(f"  pip install {pip_name}")
+            print()
+            print("Option 5: Use pipx (for applications):")
+            print("  sudo apt install pipx")
+            for pip_name, _ in failed_packages:
+                print(f"  pipx install {pip_name}")
+        elif sys.platform == "win32":
+            print("[INFO] Windows environment detected. Try this solution:")
+            print()
+            print("Standard installation:")
+            for pip_name, _ in failed_packages:
+                print(f"  {sys.executable} -m pip install {pip_name}")
+        else:
+            print("Please install manually:")
+            for pip_name, _ in failed_packages:
+                print(f"  {sys.executable} -m pip install {pip_name}")
+            print()
+            print("Or use one of these options:")
+            for pip_name, _ in failed_packages:
+                print(f"  {sys.executable} -m pip install --user {pip_name}")
+                print(f"  {sys.executable} -m pip install --break-system-packages {pip_name}")
+        print()
+        return False
+    
+    print("[SUCCESS] All packages installed successfully")
+    print()
+    return True
 
 
 def get_user_home_directory() -> Path:
