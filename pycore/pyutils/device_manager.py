@@ -9,9 +9,8 @@ from typing import Dict, Optional, Set, Callable
 from dataclasses import dataclass
 import asyncio
 
-from pycore.pyfoundations.device import AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, VideoCodec
-from pycore.pyfoundations.gvar import GlobalVarManager
-from pycore.pyutils.adb import ADBManager, ADBDevice
+from pycore.pyutils.device import AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, VideoCodec, ADBManager, ADBDevice
+from pycore.pygvar import GlobalVarManager
 
 
 @dataclass

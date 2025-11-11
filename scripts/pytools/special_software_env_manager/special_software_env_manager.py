@@ -16,6 +16,9 @@ import json
 import stat
 import subprocess
 import traceback
+import shutil
+import getpass
+from typing import List, Dict, Any, Set
 from pathlib import Path
 from datetime import datetime
 
@@ -45,15 +48,172 @@ from smart_recognition import (
     get_value_for_input_type
 )
 
-# Import secret manager from pycore
+# Import secret manager from pycore (read-only)
 try:
-    from pyfoundations import get_secret_key, set_secret_key, get_all_secret_keys
-    from pyfoundations.secret_manager import _get_password
+    from pyfoundations import get_secret_key, get_all_secret_keys
     SECRET_MANAGER_AVAILABLE = True
-except ImportError:
+except Exception as exc:  # noqa: BLE001 - need to handle all import-time failures
     SECRET_MANAGER_AVAILABLE = False
-    _get_password = None
-    ColorMessage.write("WARNING: Secret manager not available from pycore", 'warning')
+    ColorMessage.write(
+        f"WARNING: Secret manager not available from pycore ({exc})",
+        'warning'
+    )
+
+
+class LocalSecretManager:
+    """Lightweight secret loader that works directly with encrypted files"""
+
+    def __init__(self):
+        self.project_root = get_project_root()
+        self.secret_keys_dir = self.project_root / '.secret_keys'
+        self.raw_dir = self.secret_keys_dir / '.secret_ignore'
+        self.encrypted_dir = self.secret_keys_dir / 'already_encrypted'
+        self.batch_attempted = False
+        self.node_command = self._detect_node_command()
+
+    def _detect_node_command(self):
+        for candidate in ('node', 'nodejs'):
+            if shutil.which(candidate):
+                return candidate
+        return None
+
+    def _read_raw_value(self, key_name):
+        target_file = self.raw_dir / key_name
+        if target_file.exists():
+            try:
+                content = target_file.read_text(encoding='utf-8').strip()
+                if content:
+                    return content
+            except OSError:
+                return None
+        return None
+
+    def _encrypted_file_exists(self, key_name):
+        lower = self.encrypted_dir / f"{key_name}.js"
+        upper = self.encrypted_dir / f"{key_name}.JS"
+        return lower.exists() or upper.exists()
+
+    def _gather_pending_files(self):
+        if not self.encrypted_dir.exists():
+            return []
+
+        files = list(self.encrypted_dir.glob('*.js')) + list(self.encrypted_dir.glob('*.JS'))
+        pending = []
+        for enc_file in files:
+            if not enc_file.is_file():
+                continue
+            if not (self.raw_dir / enc_file.stem).exists():
+                pending.append(enc_file)
+        return pending
+
+    def _prompt_for_password(self):
+        try:
+            return getpass.getpass('Enter password to decrypt secret files: ')
+        except (EOFError, KeyboardInterrupt):
+            return None
+
+    def _trigger_batch_decryption(self):
+        pending_files = self._gather_pending_files()
+        if not pending_files:
+            self.batch_attempted = True
+            return True
+
+        if not self.node_command:
+            ColorMessage.write('Node.js is required to decrypt secret files. Please install node.', 'warning')
+            self.batch_attempted = True
+            return False
+
+        if not sys.stdin.isatty():
+            ColorMessage.write('Cannot prompt for secret password (non-interactive session).', 'warning')
+            self.batch_attempted = True
+            return False
+
+        ColorMessage.write('Encrypted secret files detected. A password is required to decrypt them.', 'info')
+        password = self._prompt_for_password()
+        if not password:
+            ColorMessage.write('No password provided. Skipping decryption.', 'warning')
+            self.batch_attempted = True
+            return False
+
+        try:
+            self.raw_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            ColorMessage.write(f'Unable to create {self.raw_dir}: {exc}', 'error')
+            self.batch_attempted = True
+            return False
+
+        success_count = 0
+        for enc_file in pending_files:
+            ColorMessage.write(f'  Decrypting {enc_file.name} ...', 'info')
+            result = subprocess.run(
+                [self.node_command, str(enc_file), 'pwd', password, str(self.raw_dir)],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            if result.returncode == 0:
+                success_count += 1
+                ColorMessage.write('    OK', 'success')
+            else:
+                ColorMessage.write('    FAILED', 'warning')
+                details = (result.stderr or result.stdout or '').strip()
+                if details:
+                    ColorMessage.write(f'    {details}', 'warning')
+
+        password = None  # best-effort cleanup
+        self.batch_attempted = True
+
+        if success_count == len(pending_files):
+            ColorMessage.write('All secret files decrypted successfully.', 'success')
+            return True
+
+        ColorMessage.write(
+            f'Decrypted {success_count}/{len(pending_files)} secret files. Missing values may persist.',
+            'warning'
+        )
+        return False
+
+    def get_secret(self, key_name):
+        if not key_name or not self.secret_keys_dir.exists():
+            return None
+
+        value = self._read_raw_value(key_name)
+        if value:
+            return value
+
+        if not self._encrypted_file_exists(key_name):
+            return None
+
+        if not self.batch_attempted:
+            self._trigger_batch_decryption()
+            return self._read_raw_value(key_name)
+
+        return self._read_raw_value(key_name)
+
+
+LOCAL_SECRET_MANAGER = LocalSecretManager()
+
+
+def resolve_secret_value(secret_key_name):
+    """Load a secret value using pyfoundations or the local fallback"""
+
+    if not secret_key_name:
+        return None
+
+    value = None
+
+    if SECRET_MANAGER_AVAILABLE:
+        try:
+            value = get_secret_key(secret_key_name)
+        except Exception as exc:  # noqa: BLE001 - propagate fallback instead of crashing
+            ColorMessage.write(f"Secret manager error for {secret_key_name}: {exc}", 'warning')
+            value = None
+
+    if value:
+        return value
+
+    return LOCAL_SECRET_MANAGER.get_secret(secret_key_name)
 
 
 class SpecialSoftwareEnvManager:
@@ -68,7 +228,6 @@ class SpecialSoftwareEnvManager:
         self.action_to_config = {
             'claude': 'Claude AI',
             'droid': 'Factory AI Droid',
-            'openai': 'OpenAI',
             'ssh': 'SSH Connection'
         }
 
@@ -100,32 +259,19 @@ class SpecialSoftwareEnvManager:
                 var_info = var.copy()
                 
                 # If file_number is provided, try to load encrypted value
-                if file_number is not None and SECRET_MANAGER_AVAILABLE:
+                if file_number is not None:
                     var_name = var.get('Name', '')
                     secret_key_name = f"{var_name}_{file_number}"
-                    
-                    try:
-                        # Try to get the secret key (this may require password, so we catch exceptions)
-                        encrypted_value = get_secret_key(secret_key_name)
-                        if encrypted_value:
-                            # Value exists in encrypted storage
-                            var_info['EncryptedValue'] = True
-                            # Show partial value for display (first 8 chars + ...)
-                            if len(encrypted_value) > 8:
-                                var_info['ValuePreview'] = encrypted_value[:8] + "..."
-                            else:
-                                var_info['ValuePreview'] = "***"
+                    encrypted_value = resolve_secret_value(secret_key_name)
+
+                    if encrypted_value:
+                        var_info['EncryptedValue'] = True
+                        if len(encrypted_value) > 8:
+                            var_info['ValuePreview'] = encrypted_value[:8] + "..."
                         else:
-                            var_info['EncryptedValue'] = False
-                    except Exception as e:
-                        # Failed to load - could be password required or doesn't exist
-                        # Check if it's a password-related error
-                        error_msg = str(e).lower()
-                        if 'password' in error_msg or 'decrypt' in error_msg or 'key' in error_msg:
-                            var_info['EncryptedValue'] = True  # Exists but needs password
-                            var_info['ValuePreview'] = "[Password Required]"
-                        else:
-                            var_info['EncryptedValue'] = False
+                            var_info['ValuePreview'] = "***"
+                    else:
+                        var_info['EncryptedValue'] = False
                 else:
                     var_info['EncryptedValue'] = False
                 
@@ -174,7 +320,7 @@ class SpecialSoftwareEnvManager:
         """Get the next available file number for a command prefix"""
         platform_type = get_platform_type()
 
-        # Check both winenvs and liunxenvs directories
+        # Check both winenvs and linuxenvs directories
         directories = []
         if platform_type == 'windows':
             directories.append(get_winenvs_dir())
@@ -432,6 +578,7 @@ class SpecialSoftwareEnvManager:
 
             # Add utility items
             menu_items.extend([
+                {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
                 {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
                 {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
@@ -448,6 +595,8 @@ class SpecialSoftwareEnvManager:
                 self.show_all_environment_variables()
             elif action == 'refresh':
                 self.refresh_current_terminal_environment()
+            elif action == 'restore_scripts':
+                self.restore_scripts_from_secrets()
             elif action == 'back':
                 continue
             elif action == 'exit':
@@ -635,14 +784,10 @@ class SpecialSoftwareEnvManager:
                 display_name = var['DisplayName']
                 existing_value = None
                 
-                # Try to load from encrypted storage
-                if SECRET_MANAGER_AVAILABLE:
-                    secret_key_name = f"{var_name}_{file_number}"
-                    try:
-                        existing_value = get_secret_key(secret_key_name)
-                    except Exception:
-                        existing_value = None
-                
+                # Try to load from encrypted or decrypted storage
+                secret_key_name = f"{var_name}_{file_number}"
+                existing_value = resolve_secret_value(secret_key_name)
+
                 # Fallback to environment variable
                 if not existing_value:
                     existing_value = os.environ.get(var_name, '')
@@ -780,85 +925,62 @@ class SpecialSoftwareEnvManager:
         # Generate script file name
         file_name = f"{command_prefix}{file_number}"
 
-        # First, save secrets to encrypted storage BEFORE generating scripts
-        if SECRET_MANAGER_AVAILABLE and user_inputs:
-            ColorMessage.write("Saving secrets to encrypted storage...", 'info')
-            print()
-
-            # Get password once for all secrets (with confirmation)
-            if not SECRET_MANAGER_AVAILABLE or _get_password is None:
-                raise ImportError("Secret manager not available")
-            
-            encryption_password = None
-            max_attempts = 3
-            attempts = 0
-            
-            while attempts < max_attempts:
-                ColorMessage.write("Enter encryption password for all secrets:", 'info')
-                password1 = _get_password("[SECRET_MANAGER] Password: ")
+        # Save secrets directly to .secret_ignore directory (no encryption)
+        if user_inputs:
+            try:
+                from pyfoundations.secret_manager import get_secret_directories
+                dirs = get_secret_directories()
+                raw_dir = dirs['RAW_DIR']
                 
-                if not password1:
-                    ColorMessage.write("No password provided, skipping encryption", 'warning')
-                    break
+                # Create directory if needed
+                if not raw_dir.exists():
+                    raw_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Confirm password
-                password2 = _get_password("[SECRET_MANAGER] Confirm Password: ")
-                
-                if password1 == password2:
-                    encryption_password = password1
-                    ColorMessage.write("Password confirmed.", 'success')
-                    print()
-                    break
-                else:
-                    attempts += 1
-                    remaining = max_attempts - attempts
-                    if remaining > 0:
-                        ColorMessage.write("Passwords do not match. Please try again.", 'error')
-                        ColorMessage.write(f"Remaining attempts: {remaining}", 'warning')
-                        print()
-                    else:
-                        ColorMessage.write("Maximum attempts reached. Skipping encryption.", 'error')
-                        print()
-                        break
-            
-            if not encryption_password:
-                ColorMessage.write("No password provided, skipping encryption", 'warning')
-            else:
                 saved_count = 0
                 for var_name, var_value in user_inputs.items():
                     # Create key name with file number suffix
                     secret_key_name = f"{var_name}_{file_number}"
+                    secret_file = raw_dir / secret_key_name
 
                     try:
-                        # Pass the same password to all saves
-                        if set_secret_key(secret_key_name, var_value, password=encryption_password):
-                            ColorMessage.write(f"[OK] Saved {var_name} to encrypted storage", 'success')
-                            saved_count += 1
-                        else:
-                            ColorMessage.write(f"[X] Failed to save {var_name}", 'warning')
+                        # Write directly to .secret_ignore directory
+                        secret_file.write_text(var_value, encoding='utf-8')
+                        ColorMessage.write(f"[OK] Saved {var_name} to .secret_ignore", 'success')
+                        saved_count += 1
                     except Exception as e:
                         ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
 
-                # Clear password from memory
-                encryption_password = None
-
-                print()
                 if saved_count > 0:
-                    ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to encrypted storage", 'success')
-                    ColorMessage.write("Location: .secret_keys/already_encrypted/", 'info')
+                    ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to .secret_ignore", 'success')
+                    ColorMessage.write(f"Location: {raw_dir}", 'info')
+            except Exception as e:
+                ColorMessage.write(f"Warning: Could not save secrets: {e}", 'warning')
             print()
 
-        # Now generate and save scripts (after secrets are encrypted)
+        script_paths = self._generate_scripts_for_config(config_name, file_number, show_next_steps=True)
+
+        print()
+        input("Press Enter to continue...")
+
+    def _generate_scripts_for_config(self, config_name: str, file_number: int, show_next_steps: bool = True):
+        """Generate Windows/Linux scripts for a configuration"""
+
+        config = self.config_manager.get_config(config_name)
+        if not config:
+            ColorMessage.write(f"Configuration '{config_name}' not found", 'error')
+            return []
+
+        command_prefix = config.get('CommandPrefix', config_name.lower().replace(' ', ''))
+        file_name = f"{command_prefix}{file_number}"
+
         ColorMessage.write("Generating scripts...", 'info')
         print()
 
-        success_count = 0
         script_paths = []
+        success_count = 0
 
-        # Always generate Windows script
-        ps_command = config.get('WindowsCommand', f'{command_prefix}')
-
-        # Always generate MCP section (with file existence checks inside)
+        # Generate Windows script
+        ps_command = config.get('WindowsCommand', command_prefix)
         mcp_section = self.windows_generator.generate_mcp_section(
             command_prefix,
             config['DisplayName'],
@@ -866,7 +988,7 @@ class SpecialSoftwareEnvManager:
             support_upgrade=True
         )
 
-        content = self.windows_generator.generate_command_content(
+        windows_content = self.windows_generator.generate_command_content(
             config_name,
             command_prefix,
             ps_command,
@@ -876,24 +998,21 @@ class SpecialSoftwareEnvManager:
             f"{file_name}.ps1"
         )
 
-        # Save Windows script
         winenvs_dir = get_winenvs_dir()
         ensure_directory_exists(str(winenvs_dir))
         win_script_path = winenvs_dir / f"{file_name}.ps1"
 
         try:
             with open(win_script_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+                f.write(windows_content)
             ColorMessage.write(f"[OK] Windows script: {win_script_path}", 'success')
             script_paths.append(win_script_path)
             success_count += 1
         except Exception as e:
             ColorMessage.write(f"[X] Failed to create Windows script: {e}", 'error')
 
-        # Always generate Linux script
+        # Generate Linux script
         bash_command = config.get('LinuxCommand', command_prefix)
-
-        # Always generate MCP section for Linux (with file existence checks inside)
         linux_mcp_section = self.linux_generator.generate_mcp_section(
             command_prefix,
             config['DisplayName'],
@@ -901,7 +1020,7 @@ class SpecialSoftwareEnvManager:
             support_upgrade=True
         )
 
-        content = self.linux_generator.generate_command_content(
+        linux_content = self.linux_generator.generate_command_content(
             config_name,
             command_prefix,
             bash_command,
@@ -911,18 +1030,23 @@ class SpecialSoftwareEnvManager:
             f"{file_name}.sh"
         )
 
-        # Save Linux script
         linuxenvs_dir = get_linuxenvs_dir()
         ensure_directory_exists(str(linuxenvs_dir))
         linux_script_path = linuxenvs_dir / f"{file_name}.sh"
 
         try:
             with open(linux_script_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+                f.write(linux_content)
 
-            # Make script executable on Linux
+            # Always try to set execute permission (works on Linux/Mac, no-op on Windows)
+            try:
+                os.chmod(linux_script_path, 0o755)
+            except Exception:
+                pass
+
+            # Try to create symlink on Linux/Mac
             if platform.system() != 'Windows':
-                os.chmod(linux_script_path, os.stat(linux_script_path).st_mode | stat.S_IEXEC)
+                self._ensure_linux_symlink(linux_script_path)
 
             ColorMessage.write(f"[OK] Linux script: {linux_script_path}", 'success')
             script_paths.append(linux_script_path)
@@ -930,13 +1054,14 @@ class SpecialSoftwareEnvManager:
         except Exception as e:
             ColorMessage.write(f"[X] Failed to create Linux script: {e}", 'error')
 
-        print()
-        success = success_count > 0
+        if success_count == 0:
+            ColorMessage.write("No scripts were generated.", 'error')
+            return script_paths
 
-        if success:
+        if show_next_steps:
+            print()
             ColorMessage.write("Script generation completed successfully!", 'success')
             ColorMessage.write("", 'info')
-
             ColorMessage.write("Next steps:", 'info')
 
             if SECRET_MANAGER_AVAILABLE:
@@ -946,8 +1071,199 @@ class SpecialSoftwareEnvManager:
                 ColorMessage.write("1. Use SecretManager to store environment variables securely", 'info')
 
             ColorMessage.write("3. Run the scripts:", 'info')
-            for i, script_path in enumerate(script_paths):
+            for script_path in script_paths:
                 ColorMessage.write(f"   {script_path}", 'info')
+
+        return script_paths
+
+    def _generate_symlink_script(self):
+        """Generate a helper script to create symlinks on Linux"""
+        linuxenvs_dir = get_linuxenvs_dir()
+        script_path = linuxenvs_dir / "create_symlinks.sh"
+
+        # Find all .sh scripts in linuxenvs directory
+        sh_scripts = sorted(linuxenvs_dir.glob("*.sh"))
+        if not sh_scripts:
+            return
+
+        # Build script content
+        script_lines = [
+            "#!/bin/bash",
+            "# Auto-generated script to create symlinks for Linux environment scripts",
+            "# This script should be run on Linux to create symlinks in /usr/local/bin",
+            "",
+            "set -e",
+            "",
+            "# Get script directory (handle symlinks)",
+            "# Resolve symlink to actual file path if needed",
+            "scriptSource=\"${BASH_SOURCE[0]}\"",
+            "if [ -L \"$scriptSource\" ]; then",
+            "    scriptSource=\"$(readlink -f \"$scriptSource\" 2>/dev/null || echo \"$scriptSource\")\"",
+            "fi",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"$scriptSource\")\" && pwd)\"",
+            "",
+            "echo \"Creating symlinks in /usr/local/bin...\"",
+            "echo \"\"",
+            "",
+            "# Check if we need sudo",
+            "if [ -w /usr/local/bin ]; then",
+            "    USE_SUDO=\"\"",
+            "else",
+            "    USE_SUDO=\"sudo\"",
+            "fi",
+            "",
+        ]
+
+        # Add symlink commands for each script
+        for script in sh_scripts:
+            if script.name == "create_symlinks.sh":
+                continue
+            script_name = script.stem
+            script_lines.append(f"# Link {script_name}")
+            script_lines.append(f"$USE_SUDO chmod +x \"$SCRIPT_DIR/{script.name}\"")
+            script_lines.append(f"$USE_SUDO ln -sf \"$SCRIPT_DIR/{script.name}\" /usr/local/bin/{script_name}")
+            script_lines.append(f"echo \"[LINK] {script_name} -> $SCRIPT_DIR/{script.name}\"")
+            script_lines.append("")
+
+        script_lines.extend([
+            "echo \"\"",
+            "echo \"Symlinks created successfully!\"",
+            "echo \"You can now run these commands from anywhere:\"",
+            ""
+        ])
+
+        # Add command list
+        for script in sh_scripts:
+            if script.name != "create_symlinks.sh":
+                script_lines.append(f"echo \"  {script.stem}\"")
+
+        # Write script
+        try:
+            with open(script_path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write('\n'.join(script_lines) + '\n')
+
+            # Try to set execute permission
+            try:
+                os.chmod(script_path, 0o755)
+            except Exception:
+                pass
+
+            ColorMessage.write(f"\n[CREATED] Symlink helper: {script_path}", 'success')
+        except Exception as e:
+            ColorMessage.write(f"[WARNING] Failed to create symlink helper script: {e}", 'warning')
+
+    def _ensure_linux_symlink(self, script_path: Path):
+        """Ensure /usr/local/bin links to the given script"""
+
+        if platform.system() == 'Windows':
+            return
+
+        link_dir = Path('/usr/local/bin')
+        link_path = link_dir / script_path.stem
+
+        try:
+            if not link_dir.exists():
+                parent = link_dir.parent
+                if parent.exists() and os.access(parent, os.W_OK):
+                    link_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    subprocess.run(['sudo', 'mkdir', '-p', str(link_dir)], check=True)
+
+            if os.access(link_dir, os.W_OK):
+                os.chmod(script_path, os.stat(script_path).st_mode | stat.S_IEXEC)
+                subprocess.run(['ln', '-sf', str(script_path), str(link_path)], check=True)
+            else:
+                subprocess.run(['sudo', 'chmod', '+x', str(script_path)], check=True)
+                subprocess.run(['sudo', 'ln', '-sf', str(script_path), str(link_path)], check=True)
+
+            ColorMessage.write(f"[LINK] {link_path} -> {script_path}", 'success')
+        except Exception as e:
+            ColorMessage.write(f"[LINK] Failed to update symlink for {script_path.name}: {e}", 'warning')
+
+    def _collect_secret_file_numbers(self, config: dict) -> List[int]:
+        """Collect file numbers from secret storage for a config"""
+
+        numbers: Set[int] = set()
+        directories = [
+            (LOCAL_SECRET_MANAGER.raw_dir, False),
+            (LOCAL_SECRET_MANAGER.encrypted_dir, True)
+        ]
+
+        var_names = [var['Name'] for var in config.get('Variables', [])]
+
+        for var_name in var_names:
+            prefix = f"{var_name}_"
+            prefix_upper = prefix.upper()
+
+            for directory, is_encrypted in directories:
+                if not directory or not directory.exists():
+                    continue
+
+                for entry in directory.iterdir():
+                    if not entry.is_file():
+                        continue
+
+                    name = entry.name
+                    if is_encrypted and name.lower().endswith('.js'):
+                        name = name[:-3]
+
+                    if name.upper().startswith(prefix_upper):
+                        suffix = name[len(prefix):]
+                        if suffix.isdigit():
+                            numbers.add(int(suffix))
+
+        return sorted(numbers)
+
+    def restore_scripts_from_secrets(self):
+        """Restore winenvs/linuxenvs scripts based on stored secrets"""
+
+        clear_screen()
+        ColorMessage.write("Restore Scripts from Secret Storage", 'info')
+        ColorMessage.write("=" * 60, 'info')
+        print()
+
+        if not is_admin():
+            ColorMessage.write("Administrator/root privileges are required to restore scripts.", 'error')
+            input("Press Enter to continue...")
+            return
+
+        if not LOCAL_SECRET_MANAGER.secret_keys_dir.exists():
+            ColorMessage.write("Secret storage directory not found.", 'error')
+            input("Press Enter to continue...")
+            return
+
+        total_sets = 0
+        for config_name, config in self.config_manager.get_all_configs().items():
+            file_numbers = self._collect_secret_file_numbers(config)
+            if not file_numbers:
+                continue
+
+            ColorMessage.write(
+                f"{config['DisplayName']}: found versions {', '.join(str(n) for n in file_numbers)}",
+                'info'
+            )
+
+            for number in file_numbers:
+                ColorMessage.write(f"  Restoring #{number}...", 'info')
+                script_paths = self._generate_scripts_for_config(config_name, number, show_next_steps=False)
+                if script_paths:
+                    total_sets += 1
+
+            print()
+
+        if total_sets == 0:
+            ColorMessage.write("No matching secrets were found to restore scripts.", 'warning')
+        else:
+            ColorMessage.write(f"Restored {total_sets} script set(s) from secret storage.", 'success')
+
+            # Generate symlink creation script for Linux
+            self._generate_symlink_script()
+
+            if platform.system() == 'Windows':
+                ColorMessage.write("\nTo use Linux scripts, run this on Linux:", 'info')
+                ColorMessage.write("  bash scripts/linuxenvs/create_symlinks.sh", 'info')
+            else:
+                ColorMessage.write("Linux commands were linked into /usr/local/bin.", 'info')
 
         print()
         input("Press Enter to continue...")

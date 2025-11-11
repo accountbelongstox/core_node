@@ -438,7 +438,7 @@ class UnifiedMCPServer(SingletonRpcBackend):
         }
 
 def main():
-    """Main entry point for Unified MCP Server"""
+    """Main entry point for Unified MCP Server - Launches with Tkinter Tray"""
     # Immediate startup output
     print("\n" + "=" * 70)
     print("MCP Server Main - Entry Point Called")
@@ -450,7 +450,27 @@ def main():
     print("=" * 70 + "\n")
 
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue("Unified MCP Server - Singleton Pattern + WebSocket RPC")
+    ColorPrint.blue("MCP Server - Launching with Tkinter Tray Mode")
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue("")
+    ColorPrint.blue("Starting minimal Tkinter UI (Debug Window + Tray)...")
+    ColorPrint.blue("MCP Server backend will start after initialization")
+    ColorPrint.blue("")
+
+    # Import and launch Tkinter tray version
+    from pyapps.mcpserver.mcpserver_tray import main as tray_main
+
+    ColorPrint.green("✓ Tkinter tray module loaded, launching...")
+    ColorPrint.blue("")
+
+    # Launch Tkinter tray mode (debug window + tray menu)
+    tray_main()
+
+
+def _start_cli_mode():
+    """Fallback: Start server in command-line mode (no UI)"""
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue("Unified MCP Server - Command-Line Mode")
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("")
     ColorPrint.blue("All MCP services integrated into single backend:")

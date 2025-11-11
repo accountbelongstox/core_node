@@ -131,6 +131,8 @@ import { useToast } from '../composables_app_pymatrix/useToast';
 import type { KeyboardShortcut } from '../composables_app_pymatrix/useKeyboardShortcuts';
 import type { DeviceConfig } from '@/types/pymatrix';
 import type { ThemeMode } from '../stores_app_pymatrix/uiPreferencesStore';
+import { getWsBaseUrl } from '../utils_app_pymatrix/api-urls';
+import { pyMatrixDeviceAPI } from '@/services/api/pymatrix/pymatrix-device-api';
 
 import PyMatrixTopBar from '../components_app_pymatrix/PyMatrixTopBar.vue';
 import PyMatrixLeftPanel from '../components_app_pymatrix/PyMatrixLeftPanel.vue';
@@ -148,10 +150,11 @@ const uiPreferencesStore = useUIPreferencesStore();
 const { connect: connectDevice } = useConnectDevice();
 const toast = useToast();
 
-const baseUrl = ref('ws://localhost:8000');
-const showConnectDialog = ref(false);
+// ✅ Using centralized config from api-urls
+const baseUrl = ref(getWsBaseUrl());
+const showConnectDialog = useState<boolean>('pymatrix-connect-dialog', () => false);
 const showSettings = ref(false);
-const showShortcutsHelp = ref(false);
+const showShortcutsHelp = useState<boolean>('pymatrix-shortcuts-help', () => false);
 const showConnectionHistory = ref(false);
 const showLeftPanel = ref(true);
 const showRightPanel = ref(true);
@@ -253,8 +256,8 @@ const allShortcuts = computed<KeyboardShortcut[]>(() => [
     category: 'Device',
     action: async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/devices/list');
-        const data = await response.json();
+        // ✅ Using pyMatrixDeviceAPI instead of hardcoded URL
+        const data = await pyMatrixDeviceAPI.getDeviceList();
         toast.success('Device list refreshed', 'Device Control');
       } catch (error) {
         toast.error('Failed to refresh device list', 'Device Control');
@@ -421,15 +424,23 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
-async function handleConnect(payload: { serial: string; deviceName?: string; config: DeviceConfig }) {
-  // ✅ REMOVED try-catch for debugging - let errors surface
-  await connectDevice(payload);
-  showConnectDialog.value = false;
-  toast.success('Device connected successfully', 'Connection Success');
+function handleConnect(payload: { serial: string; deviceName?: string; config: DeviceConfig }) {
+  return connectDevice(payload).then(
+    () => {
+      showConnectDialog.value = false;
+      toast.success('Device connected successfully', 'Connection Success');
+      return true;
+    },
+    (error) => {
+      console.error('[PyMatrixLayout] Device connect failed:', error);
+      const message = error instanceof Error ? error.message : 'Failed to connect device';
+      toast.error(message, 'Connection Error');
+      return false;
+    }
+  );
 }
 
-async function handleQuickConnect(device: { serial: string; deviceName: string; lastConfig?: any }) {
-  // ✅ REMOVED try-catch for debugging - let errors surface
+function handleQuickConnect(device: { serial: string; deviceName: string; lastConfig?: any }) {
   const config: DeviceConfig = device.lastConfig || {
     max_fps: 30,
     bit_rate: 8000000,
@@ -439,14 +450,16 @@ async function handleQuickConnect(device: { serial: string; deviceName: string; 
     locked_video_orientation: -1
   };
 
-  await handleConnect({
+  return handleConnect({
     serial: device.serial,
     deviceName: device.deviceName,
     config
+  }).then((connected) => {
+    if (connected) {
+      showConnectionHistory.value = false;
+      toast.success(`Quick connect to ${device.deviceName}`, 'Quick Connect');
+    }
   });
-
-  showConnectionHistory.value = false;
-  toast.success(`Quick connect to ${device.deviceName}`, 'Quick Connect');
 }
 
 function toggleGroupControl() {
@@ -535,21 +548,20 @@ onMounted(async () => {
   }
 
   try {
-    const response = await fetch('http://localhost:8000/api/devices/list');
-    const data = await response.json();
+    // ✅ Using pyMatrixDeviceAPI instead of hardcoded URLs
+    const data = await pyMatrixDeviceAPI.getDeviceList();
 
-    if (data.success && Array.isArray(data.devices)) {
+    if (data && Array.isArray(data.devices)) {
       for (const device of data.devices) {
-        if (device.state === 'device') {
-          const infoRes = await fetch(`http://localhost:8000/api/devices/${device.serial}/info`);
-          const info = await infoRes.json();
+        if (device.state === 'connected') {
+          const info = await pyMatrixDeviceAPI.getDeviceInfo(device.serial);
 
-          if (info.success) {
+          if (info && info.device) {
             deviceStore.addDevice({
-              serial: device.serial,
-              name: device.model || device.serial,
-              model: device.model,
-              state: 'connected',
+              serial: info.device.serial,
+              name: info.device.name,
+              model: info.device.model,
+              state: info.device.state,
               resolution: info.device.resolution,
               streaming: false,
               controllable: true
@@ -621,7 +633,10 @@ body {
   position: relative;
 }
 
+/* Fixed: Added proper spacing and border handling */
 .pm-app__content {
+  flex: 1;
+  min-height: 0;
   border-radius: var(--pm-radius-xl);
   overflow: hidden;
   background: var(--pm-color-surface);
@@ -629,6 +644,8 @@ body {
   box-shadow: var(--pm-shadow-sm);
   display: flex;
   flex-direction: column;
+  /* Add internal padding to prevent content from touching edges */
+  padding: 0;
 }
 
 .pm-side-panel {
@@ -639,6 +656,7 @@ body {
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
+/* Fixed: Improved positioning to prevent misalignment when panels toggle */
 .pm-panel-toggle {
   position: absolute;
   top: 50%;
@@ -656,7 +674,7 @@ body {
   font-weight: 700;
   cursor: pointer;
   z-index: 5;
-  transition: background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
+  transition: left 0.3s ease, right 0.3s ease, background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
 }
 

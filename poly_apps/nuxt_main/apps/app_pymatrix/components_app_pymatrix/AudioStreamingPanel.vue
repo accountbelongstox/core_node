@@ -1,6 +1,6 @@
 <template>
   <BasePanel
-    :show="show"
+    :model-value="show"
     title="Audio Streaming (sndcpy)"
     @close="$emit('close')"
     class="audio-streaming-panel"

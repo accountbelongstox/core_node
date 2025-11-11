@@ -13,7 +13,7 @@
 ================================================================================
 Nuxt App Directory Snapshot
 ================================================================================
-Generated: 2025-11-10 01:59:25
+Generated: 2025-11-12 05:00:22
 App: pymatrix
 Mode: code_assets
 Nuxt Root: D:/programing/core_node/poly_apps/nuxt_main
@@ -22,9 +22,15 @@ Architecture Guide: development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
 
 pymatrix [code_assets]
 ├── apps/app_pymatrix/
+│   ├── ARCHITECTURE_REFACTORING_REPORT.md
+│   ├── ARCHITECTURE_VALIDATION.md
 │   ├── IMPLEMENTATION_PROGRESS.json
 │   ├── IMPLEMENTATION_TRACKING_V2.json
+│   ├── QUICK_REFERENCE.md
 │   ├── README.md
+│   ├── REFACTORING_SUMMARY.md
+│   ├── _prompts
+│   │   └── error.txt
 │   ├── app-config.json
 │   ├── app_pymatrix_tree_code_assets.txt
 │   ├── assets
@@ -70,7 +76,11 @@ pymatrix [code_assets]
 │   │   ├── VideoControlPanel.vue
 │   │   ├── VideoPlayer.vue
 │   │   ├── check_all_vue.py
-│   │   └── check_tags.py
+│   │   ├── check_tags.py
+│   │   ├── pymatrix_index
+│   │   │   └── PyMatrixApp.vue
+│   │   └── pymatrix_index_components
+│   │       └── README.md
 │   ├── composables_app_pymatrix
 │   │   ├── useAudioStream.ts
 │   │   ├── useConnectDevice.ts
@@ -83,10 +93,14 @@ pymatrix [code_assets]
 │   │   ├── useScriptExecutor.ts
 │   │   ├── useScriptRecorder.ts
 │   │   ├── useToast.ts
-│   │   └── useVideoStream.ts
+│   │   ├── useVideoStream.ts
+│   │   └── useVideoStream.ts.backup
 │   ├── config_app_pymatrix
 │   │   ├── deviceConfigFields.ts
 │   │   └── index.ts
+│   ├── constants_app_pymatrix
+│   │   └── initial-state.ts
+│   ├── css.txt
 │   ├── docs
 │   │   ├── func_screenshot
 │   │   │   ├── FEATURE_LIST.md
@@ -264,12 +278,15 @@ pymatrix [code_assets]
 │   │       ├── fa.json
 │   │       ├── ja.json
 │   │       └── zh.json
+│   ├── index_prompt.txt
 │   ├── layouts_app_pymatrix
 │   │   └── default.vue
 │   ├── services
 │   │   ├── api
 │   │   │   └── pymatrix
 │   │   │       └── pymatrix-config-api.ts
+│   │   └── api-client.ts
+│   ├── services_app_pymatrix
 │   │   └── api-client.ts
 │   ├── stores_app_pymatrix
 │   │   ├── audioStore.ts

@@ -22,8 +22,8 @@ from datetime import datetime
 # Add pycore to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'pycore'))
 
-from pyfoundations.device.scrcpy_device import ScrcpyDevice
-from pyfoundations.device.server_params import ServerParams
+from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
+from pycore.pyutils.device.server_params import ServerParams
 from pycore.pyutils.control import TouchEvent, TouchAction, MessageBuilder
 
 # UTF-8 encoding already handled by ScrcpyDevice import

@@ -153,24 +153,23 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
      * Load presets from localStorage
      */
     loadPresets() {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const data = JSON.parse(stored);
-          this.presets = data.presets || [];
-          this.activePresetId = data.activePresetId || null;
-          console.log('[ConnectionPresetsStore] Presets loaded:', this.presets.length);
-        } else {
-          // Initialize with default presets
-          this.presets = DEFAULT_PRESETS;
-          this.activePresetId = 'preset-balanced';
-          this.savePresets();
-          console.log('[ConnectionPresetsStore] Initialized with default presets');
-        }
-      } catch (error) {
-        console.error('[ConnectionPresetsStore] Failed to load presets:', error);
+      if (typeof window === 'undefined') {
         this.presets = DEFAULT_PRESETS;
         this.activePresetId = 'preset-balanced';
+        return;
+      }
+
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        this.presets = data.presets || [];
+        this.activePresetId = data.activePresetId || null;
+        console.log('[ConnectionPresetsStore] Presets loaded:', this.presets.length);
+      } else {
+        this.presets = DEFAULT_PRESETS;
+        this.activePresetId = 'preset-balanced';
+        this.savePresets();
+        console.log('[ConnectionPresetsStore] Initialized with default presets');
       }
     },
 
@@ -178,16 +177,16 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
      * Save presets to localStorage
      */
     savePresets() {
-      try {
-        const data = {
-          presets: this.presets,
-          activePresetId: this.activePresetId
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        console.log('[ConnectionPresetsStore] Presets saved');
-      } catch (error) {
-        console.error('[ConnectionPresetsStore] Failed to save presets:', error);
+      if (typeof window === 'undefined') {
+        return;
       }
+
+      const data = {
+        presets: this.presets,
+        activePresetId: this.activePresetId
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      console.log('[ConnectionPresetsStore] Presets saved');
     },
 
     /**
@@ -308,53 +307,44 @@ export const useConnectionPresetsStore = defineStore('connectionPresets', {
      * Import presets from JSON
      */
     importPresets(json: string): { success: number; failed: number } {
-      try {
-        const imported = JSON.parse(json) as ConnectionPreset[];
+      const imported = JSON.parse(json) as ConnectionPreset[];
 
-        if (!Array.isArray(imported)) {
-          throw new Error('Invalid preset format');
-        }
-
-        let success = 0;
-        let failed = 0;
-
-        imported.forEach(preset => {
-          try {
-            // Validate preset structure
-            if (!preset.name || !preset.config) {
-              failed++;
-              return;
-            }
-
-            // Check for name conflict
-            let name = preset.name;
-            let counter = 1;
-            while (this.presetNameExists(name)) {
-              name = `${preset.name} (${counter})`;
-              counter++;
-            }
-
-            // Create preset
-            this.createPreset({
-              name,
-              description: preset.description,
-              config: preset.config,
-              isDefault: false
-            });
-
-            success++;
-          } catch (error) {
-            console.error('[ConnectionPresetsStore] Failed to import preset:', error);
-            failed++;
-          }
-        });
-
-        console.log('[ConnectionPresetsStore] Import completed:', { success, failed });
-        return { success, failed };
-      } catch (error) {
-        console.error('[ConnectionPresetsStore] Failed to import presets:', error);
+      if (!Array.isArray(imported)) {
+        console.error('[ConnectionPresetsStore] Invalid preset format');
         return { success: 0, failed: 1 };
       }
+
+      let success = 0;
+      let failed = 0;
+
+      imported.forEach(preset => {
+        // Validate preset structure
+        if (!preset.name || !preset.config) {
+          failed++;
+          return;
+        }
+
+        // Check for name conflict
+        let name = preset.name;
+        let counter = 1;
+        while (this.presetNameExists(name)) {
+          name = `${preset.name} (${counter})`;
+          counter++;
+        }
+
+        // Create preset
+        this.createPreset({
+          name,
+          description: preset.description,
+          config: preset.config,
+          isDefault: false
+        });
+
+        success++;
+      });
+
+      console.log('[ConnectionPresetsStore] Import completed:', { success, failed });
+      return { success, failed };
     },
 
     /**

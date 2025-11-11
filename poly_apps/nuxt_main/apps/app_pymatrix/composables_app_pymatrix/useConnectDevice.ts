@@ -17,42 +17,62 @@ export function useConnectDevice() {
   async function connect(payload: ConnectPayload, afterConnect?: () => Promise<void> | void) {
     connecting.value = true;
     error.value = null;
-    try {
-      const response = await pyMatrixDeviceAPI.connectDevice(payload.serial, {
-        deviceName: payload.deviceName,
-        maxSize: payload.config.max_size,
-        bitRate: payload.config.bit_rate,
-        maxFps: payload.config.max_fps,
-        codec: payload.config.codec,
-        control: payload.config.control,
-        lockedVideoOrientation: payload.config.locked_video_orientation,
-      });
 
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to connect device');
-      }
+    const connectionResult = await pyMatrixDeviceAPI.connectDevice(payload.serial, {
+      deviceName: payload.deviceName,
+      maxSize: payload.config.max_size,
+      bitRate: payload.config.bit_rate,
+      maxFps: payload.config.max_fps,
+      codec: payload.config.codec,
+      control: payload.config.control,
+      lockedVideoOrientation: payload.config.locked_video_orientation
+    }).then(
+      (response) => ({ status: 'success' as const, response }),
+      (err) => ({ status: 'error' as const, error: err })
+    );
 
-      const info = await pyMatrixDeviceAPI.getDeviceInfo(payload.serial);
-      const device: Device = {
-        serial: payload.serial,
-        name: info.device?.name || payload.deviceName || payload.serial,
-        model: info.device?.model || payload.deviceName || payload.serial,
-        state: 'connected',
-        resolution: info.device?.resolution || { width: 0, height: 0 },
-        streaming: true,
-        controllable: true,
-      };
-
-      deviceStore.addDevice(device);
-      if (afterConnect) {
-        await afterConnect();
-      }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
+    if (connectionResult.status === 'error') {
+      const message = connectionResult.error instanceof Error
+        ? connectionResult.error.message
+        : 'Failed to connect device';
+      error.value = message;
       connecting.value = false;
+      return Promise.reject(new Error(message));
     }
+
+    if (!connectionResult.response.success) {
+      const message = connectionResult.response.message || 'Failed to connect device';
+      error.value = message;
+      connecting.value = false;
+      return Promise.reject(new Error(message));
+    }
+
+    const infoResult = await pyMatrixDeviceAPI.getDeviceInfo(payload.serial).then(
+      (info) => ({ status: 'success' as const, info }),
+      (err) => ({ status: 'error' as const, error: err })
+    );
+
+    const fallbackDevice: Device = {
+      serial: payload.serial,
+      name: payload.deviceName || payload.serial,
+      model: payload.deviceName || payload.serial,
+      state: 'connected',
+      resolution: { width: 0, height: 0 },
+      streaming: true,
+      controllable: true
+    };
+
+    const device: Device = infoResult.status === 'success' && infoResult.info.device
+      ? infoResult.info.device
+      : fallbackDevice;
+
+    deviceStore.addDevice(device);
+
+    if (afterConnect) {
+      await afterConnect();
+    }
+
+    connecting.value = false;
   }
 
   return {

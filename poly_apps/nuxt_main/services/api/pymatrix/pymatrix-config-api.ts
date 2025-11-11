@@ -1,3 +1,4 @@
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
 import type { DeviceConfig, PyMatrixConfigResponse } from '../../../types/pymatrix';
 
 interface ConfigUpdatePayload {
@@ -14,7 +15,7 @@ class PyMatrixConfigAPI {
   private apiPrefix: string;
 
   constructor() {
-    this.baseUrl = 'http://localhost:8000';
+    this.baseUrl = getHttpBaseUrl();
     this.apiPrefix = '/api';
   }
 

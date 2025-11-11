@@ -71,7 +71,7 @@
           <header class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h3 class="text-sm font-semibold text-slate-700">Generated Markup</h3>
-              <p class="text-xs text-slate-500">Copy and paste into your HTML `<head>`.</p>
+              <p class="text-xs text-slate-500">Copy and paste into your HTML &lt;head&gt;.</p>
             </div>
             <div class="flex items-center space-x-2 text-xs text-slate-400">
               <span v-if="executionTime"><i class="fas fa-stopwatch mr-1"></i>{{ executionTime }} ms</span>

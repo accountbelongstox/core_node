@@ -19,7 +19,6 @@ class ConfigManager:
         """Initialize all tool configurations"""
         self.configs['Claude AI'] = self.get_claude_config()
         self.configs['Codex CLI'] = self.get_codex_config()
-        self.configs['OpenAI'] = self.get_openai_config()
         self.configs['Factory AI Droid'] = self.get_droid_config()
         self.configs['SSH Connection'] = self.get_ssh_config()
 
@@ -116,42 +115,6 @@ class ConfigManager:
                     'Description': 'OpenAI API base URL',
                     'IsSecret': False,
                     'InputType': 'Url'
-                }
-            ]
-        }
-
-    @staticmethod
-    def get_openai_config() -> Dict[str, Any]:
-        """Get OpenAI configuration"""
-        return {
-            'Title': 'OpenAI Environment Variables',
-            'Description': 'Set up OpenAI environment variables for API access',
-            'Common': 'openai',
-            'CommandPrefix': 'openai',
-            'DisplayName': 'OpenAI',
-            'WindowsCommand': 'openai',
-            'LinuxCommand': 'openai',
-            'SmartRecognition': {
-                'Enabled': True,
-                'AllowedTypes': ['token', 'url']
-            },
-            'MCPSupport': {
-                'Enabled': False
-            },
-            'Variables': [
-                {
-                    'Name': 'OPENAI_API_BASE',
-                    'DisplayName': 'OPENAI_API_BASE',
-                    'Description': 'OpenAI API base URL',
-                    'IsSecret': False,
-                    'InputType': 'Url'
-                },
-                {
-                    'Name': 'OPENAI_API_KEY',
-                    'DisplayName': 'OPENAI_API_KEY',
-                    'Description': 'OpenAI API key',
-                    'IsSecret': True,
-                    'InputType': 'Token'
                 }
             ]
         }

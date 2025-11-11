@@ -62,6 +62,7 @@ Author: Extracted from d3-check, adapted for pycore
 
 import json
 import os
+import locale
 import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
@@ -100,20 +101,22 @@ class I18nManager:
         self._language_change_listeners: List[Callable[[str], None]] = []
         self._is_configured = False
 
-        ColorPrint.print_info("[I18nManager] Initialized (singleton)")
+        ColorPrint.blue("[I18nManager] Initialized (singleton)")
         self._initialized = True
 
     def initialize(
         self,
         config_dir: str,
-        default_language: Optional[str] = None
+        default_language: Optional[str] = None,
+        use_system_language: bool = True
     ) -> bool:
         """
         Initialize i18n manager with configuration directory
 
         Args:
             config_dir: Path to i18n configuration directory
-            default_language: Default language code (overrides config)
+            default_language: Default language code (overrides config and system)
+            use_system_language: If True, detect and use system language (default: True)
 
         Returns:
             True if initialized successfully, False otherwise
@@ -121,7 +124,7 @@ class I18nManager:
         self._config_dir = Path(config_dir)
 
         if not self._config_dir.exists():
-            ColorPrint.print_warn(
+            ColorPrint.yellow(
                 f"[I18nManager] Config directory not found: {config_dir}, "
                 f"using default settings"
             )
@@ -133,7 +136,14 @@ class I18nManager:
             # Load base configuration
             self._load_base_config()
 
-            # Override default language if specified
+            # Detect system language if enabled and no default specified
+            if use_system_language and not default_language:
+                system_lang = self._detect_system_language()
+                if system_lang in self._supported_languages:
+                    self._current_language = system_lang
+                    ColorPrint.blue(f"[I18nManager] Detected system language: {system_lang}")
+
+            # Override with default language if specified
             if default_language:
                 self._current_language = default_language
 
@@ -141,13 +151,13 @@ class I18nManager:
             self._load_translations()
 
             self._is_configured = True
-            ColorPrint.print_success(
+            ColorPrint.green(
                 f"[I18nManager] Initialized with language: {self._current_language}"
             )
             return True
 
         except Exception as e:
-            ColorPrint.print_error(f"[I18nManager] Failed to initialize: {e}")
+            ColorPrint.red(f"[I18nManager] Failed to initialize: {e}")
             self._create_default_config()
             self._is_configured = True
             return False
@@ -163,7 +173,7 @@ class I18nManager:
             self._current_language = base_config.get('default_language', 'en')
             self._supported_languages = base_config.get('supported_languages', ['en'])
         else:
-            ColorPrint.print_warn(
+            ColorPrint.yellow(
                 f"[I18nManager] Base config not found: {base_config_path}"
             )
             self._current_language = "en"
@@ -181,20 +191,40 @@ class I18nManager:
                     with open(translation_file, 'r', encoding='utf-8') as f:
                         self._translations[lang] = json.load(f)
 
-                    ColorPrint.print_info(
+                    ColorPrint.blue(
                         f"[I18nManager] Loaded translations for language: {lang}"
                     )
 
                 except Exception as e:
-                    ColorPrint.print_error(
+                    ColorPrint.red(
                         f"[I18nManager] Failed to load translations for {lang}: {e}"
                     )
                     self._translations[lang] = {}
             else:
-                ColorPrint.print_warn(
+                ColorPrint.yellow(
                     f"[I18nManager] Translation file not found: {translation_file}"
                 )
                 self._translations[lang] = {}
+
+    def _detect_system_language(self) -> str:
+        """
+        Detect system language
+
+        Returns:
+            Language code (e.g., 'en', 'zh', 'ja')
+        """
+        try:
+            # Get system locale
+            system_locale = locale.getdefaultlocale()[0]
+            if system_locale:
+                # Extract language code (e.g., 'zh_CN' -> 'zh')
+                lang_code = system_locale.split('_')[0].lower()
+                ColorPrint.blue(f"[I18nManager] System locale detected: {system_locale} -> {lang_code}")
+                return lang_code
+        except Exception as e:
+            ColorPrint.yellow(f"[I18nManager] Failed to detect system language: {e}")
+
+        return "en"  # Default fallback
 
     def _create_default_config(self):
         """Create default configuration"""
@@ -202,7 +232,7 @@ class I18nManager:
         self._supported_languages = ["en"]
         self._translations = {"en": {}}
 
-        ColorPrint.print_warn("[I18nManager] Using default configuration")
+        ColorPrint.yellow("[I18nManager] Using default configuration")
 
     def get(
         self,
@@ -229,7 +259,7 @@ class I18nManager:
         lang = language or self._current_language
 
         if lang not in self._translations:
-            ColorPrint.print_warn(f"[I18nManager] Language not found: {lang}")
+            ColorPrint.yellow(f"[I18nManager] Language not found: {lang}")
             return default or key
 
         # Navigate nested keys
@@ -254,7 +284,7 @@ class I18nManager:
             True if language changed successfully, False otherwise
         """
         if language not in self._supported_languages:
-            ColorPrint.print_warn(
+            ColorPrint.yellow(
                 f"[I18nManager] Unsupported language: {language}, "
                 f"supported: {self._supported_languages}"
             )
@@ -264,7 +294,7 @@ class I18nManager:
             return True
 
         self._current_language = language
-        ColorPrint.print_success(f"[I18nManager] Language changed to: {language}")
+        ColorPrint.green(f"[I18nManager] Language changed to: {language}")
 
         # Notify listeners
         self._notify_listeners(language)
@@ -288,13 +318,13 @@ class I18nManager:
         """
         if listener not in self._language_change_listeners:
             self._language_change_listeners.append(listener)
-            ColorPrint.print_info("[I18nManager] Added language change listener")
+            ColorPrint.blue("[I18nManager] Added language change listener")
 
     def remove_listener(self, listener: Callable[[str], None]):
         """Remove language change listener"""
         if listener in self._language_change_listeners:
             self._language_change_listeners.remove(listener)
-            ColorPrint.print_info("[I18nManager] Removed language change listener")
+            ColorPrint.blue("[I18nManager] Removed language change listener")
 
     def _notify_listeners(self, language: str):
         """Notify all listeners of language change"""
@@ -302,7 +332,7 @@ class I18nManager:
             try:
                 listener(language)
             except Exception as e:
-                ColorPrint.print_error(
+                ColorPrint.red(
                     f"[I18nManager] Error in language change listener: {e}"
                 )
 
@@ -321,7 +351,7 @@ class I18nManager:
             merge: If True, merge with existing translations; otherwise replace
         """
         if language not in self._supported_languages:
-            ColorPrint.print_warn(
+            ColorPrint.yellow(
                 f"[I18nManager] Adding unsupported language: {language}"
             )
             self._supported_languages.append(language)
@@ -331,7 +361,7 @@ class I18nManager:
         else:
             self._translations[language] = translations
 
-        ColorPrint.print_success(
+        ColorPrint.green(
             f"[I18nManager] Added/updated translations for language: {language}"
         )
 
@@ -343,18 +373,18 @@ class I18nManager:
             True if reloaded successfully, False otherwise
         """
         if not self._config_dir or not self._config_dir.exists():
-            ColorPrint.print_warn("[I18nManager] Cannot reload: no config directory")
+            ColorPrint.yellow("[I18nManager] Cannot reload: no config directory")
             return False
 
         try:
             self._load_base_config()
             self._load_translations()
 
-            ColorPrint.print_success("[I18nManager] Reloaded translations")
+            ColorPrint.green("[I18nManager] Reloaded translations")
             return True
 
         except Exception as e:
-            ColorPrint.print_error(f"[I18nManager] Failed to reload: {e}")
+            ColorPrint.red(f"[I18nManager] Failed to reload: {e}")
             return False
 
 

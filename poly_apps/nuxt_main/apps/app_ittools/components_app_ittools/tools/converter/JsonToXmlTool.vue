@@ -115,10 +115,10 @@ const emit = defineEmits<{
   executed: [result: any];
 }>();
 
-const jsonInput = ref('{
+const jsonInput = ref(`{
   "name": "John",
   "age": 30
-}');
+}`);
 const xmlOutput = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);

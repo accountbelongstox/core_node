@@ -17,6 +17,8 @@ interface UIPreferencesState {
   preferences: UIPreferences;
 }
 
+const STORAGE_KEY = 'pymatrix_ui_preferences';
+
 const DEFAULT_PREFERENCES: UIPreferences = {
   gridLayout: {
     columns: 0, // 0 means auto-detect based on device count
@@ -25,6 +27,18 @@ const DEFAULT_PREFERENCES: UIPreferences = {
   toastPosition: 'top-right',
   theme: 'dark'
 };
+
+const VALID_TOAST_POSITIONS: UIPreferences['toastPosition'][] = [
+  'top-right',
+  'top-left',
+  'bottom-right',
+  'bottom-left',
+  'top-center',
+  'bottom-center'
+];
+
+const isValidToastPosition = (position: unknown): position is UIPreferences['toastPosition'] =>
+  typeof position === 'string' && VALID_TOAST_POSITIONS.includes(position as UIPreferences['toastPosition']);
 
 export const useUIPreferencesStore = defineStore('uiPreferences', {
   state: (): UIPreferencesState => ({
@@ -127,12 +141,14 @@ export const useUIPreferencesStore = defineStore('uiPreferences', {
     },
 
     savePreferences() {
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('pymatrix_ui_preferences', JSON.stringify(this.preferences));
-        } catch (error) {
-          console.error('[UIPreferencesStore] Failed to save preferences:', error);
-        }
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.preferences));
+      } catch (error) {
+        console.error('[UIPreferencesStore] Failed to save preferences:', error);
       }
     }
   }
@@ -144,22 +160,28 @@ function loadPreferences(): UIPreferences {
   }
 
   try {
-    const saved = localStorage.getItem('pymatrix_ui_preferences');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Merge with defaults to ensure all properties exist
-      return {
-        gridLayout: {
-          ...DEFAULT_PREFERENCES.gridLayout,
-          ...parsed.gridLayout
-        },
-        toastPosition: parsed.toastPosition || DEFAULT_PREFERENCES.toastPosition,
-        theme: parsed.theme === 'light' ? 'light' : DEFAULT_PREFERENCES.theme
-      };
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) {
+      return { ...DEFAULT_PREFERENCES };
     }
+
+    const parsed = JSON.parse(saved) as Partial<UIPreferences>;
+    const toastPosition = parsed.toastPosition;
+    const theme = parsed.theme;
+
+    return {
+      gridLayout: {
+        ...DEFAULT_PREFERENCES.gridLayout,
+        ...(parsed.gridLayout ?? {})
+      },
+      toastPosition:
+        isValidToastPosition(toastPosition)
+          ? toastPosition
+          : DEFAULT_PREFERENCES.toastPosition,
+      theme: theme === 'light' ? 'light' : DEFAULT_PREFERENCES.theme
+    };
   } catch (error) {
     console.error('[UIPreferencesStore] Failed to load preferences:', error);
+    return { ...DEFAULT_PREFERENCES };
   }
-
-  return { ...DEFAULT_PREFERENCES };
 }

@@ -3,6 +3,8 @@
  * Handles video recording and screenshot capture operations
  */
 
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+
 export interface RecordingStartRequest {
   format?: 'mp4' | 'mkv';
   mode?: 'normal' | 'background';
@@ -45,8 +47,9 @@ export interface ApiErrorResponse {
 class PyMatrixRecordingAPI {
   private baseUrl: string;
 
-  constructor(baseUrl = 'http://localhost:8000') {
-    this.baseUrl = baseUrl;
+  constructor() {
+    // ✅ Using centralized config from api-urls
+    this.baseUrl = getHttpBaseUrl();
   }
 
   /**
@@ -56,7 +59,7 @@ class PyMatrixRecordingAPI {
     serial: string,
     options: RecordingStartRequest = {}
   ): Promise<RecordingStartResponse | ApiErrorResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await fetch(
         `${this.baseUrl}/api/devices/${serial}/recording/start`,
         {
@@ -83,13 +86,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-    } catch (error) {
-      console.error('[PyMatrixRecordingAPI] Start recording error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 
   /**
@@ -98,7 +94,7 @@ class PyMatrixRecordingAPI {
   async stopRecording(
     serial: string
   ): Promise<RecordingStopResponse | ApiErrorResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await fetch(
         `${this.baseUrl}/api/devices/${serial}/recording/stop`,
         {
@@ -119,13 +115,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-    } catch (error) {
-      console.error('[PyMatrixRecordingAPI] Stop recording error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 
   /**
@@ -135,7 +124,7 @@ class PyMatrixRecordingAPI {
     serial: string,
     options: ScreenshotRequest = {}
   ): Promise<ScreenshotResponse | ApiErrorResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await fetch(
         `${this.baseUrl}/api/devices/${serial}/screenshot`,
         {
@@ -159,13 +148,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-    } catch (error) {
-      console.error('[PyMatrixRecordingAPI] Screenshot error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 
   /**
@@ -174,7 +156,7 @@ class PyMatrixRecordingAPI {
   async getRecordingStatus(
     serial: string
   ): Promise<{ isRecording: boolean; recordingId?: string } | ApiErrorResponse> {
-    try {
+    // ✅ REMOVED try-catch for debugging - let errors surface naturally
       const response = await fetch(
         `${this.baseUrl}/api/devices/${serial}/recording/status`,
         {
@@ -195,13 +177,6 @@ class PyMatrixRecordingAPI {
       }
 
       return data;
-    } catch (error) {
-      console.error('[PyMatrixRecordingAPI] Get recording status error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
   }
 }
 

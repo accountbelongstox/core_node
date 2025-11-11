@@ -67,8 +67,25 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     }
   }
 
+  /**
+   * Handle binary message - Standard MSE Protocol
+   *
+   * Backend sends standard fMP4 (Fragmented MP4) format:
+   * - First message: fMP4 init segment [ftyp][moov] boxes
+   * - Subsequent messages: fMP4 media segments [moof][mdat] boxes
+   *
+   * No custom frame parsing needed - MediaSource API handles fMP4 natively
+   *
+   * Reference: BRIDGE_FILE_SPECIFICATION.md - Standard MSE Protocol
+   */
   function handleBinaryMessage(data: ArrayBuffer) {
-    // console.log('[useVideoStream] Received binary data:', data.byteLength, 'bytes');
+    // ✅ Standard MSE: Direct fMP4 segment push
+    // Backend already sends proper fMP4 format via VideoStreamHandler
+
+    console.log(`[useVideoStream] Received fMP4 segment: ${data.byteLength} bytes`);
+
+    // Push fMP4 segment directly to buffer queue
+    // MediaSource API will parse fMP4 boxes ([ftyp][moov][moof][mdat])
     bufferQueue.push(data);
     processBufferQueue();
   }
@@ -90,25 +107,60 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     mediaSource.value.addEventListener('sourceopen', () => {
       if (!mediaSource.value) return;
 
-      // Use fMP4 codec for H.264
-      const codec = 'video/mp4; codecs="avc1.64001F"';
+      /**
+       * H.264 Codec String Selection for fMP4
+       *
+       * Format: avc1.PPCCLL
+       *   PP = Profile (42=Baseline, 4D=Main, 64=High)
+       *   CC = Constraint flags
+       *   LL = Level (28=4.0, 1F=3.1, 1E=3.0)
+       *
+       * Scrcpy uses High Profile by default, but we try fallback for compatibility:
+       * 1. avc1.640028 - High Profile Level 4.0 (best quality, scrcpy default)
+       * 2. avc1.64001F - High Profile Level 3.1 (good quality)
+       * 3. avc1.4D401F - Main Profile Level 3.1 (good balance)
+       * 4. avc1.42E01E - Baseline Profile Level 3.0 (maximum compatibility)
+       *
+       * Reference: BRIDGE_FILE_SPECIFICATION.md - MediaSource Configuration
+       */
+      const codecCandidates = [
+        'video/mp4; codecs="avc1.640028"',  // High Profile Level 4.0
+        'video/mp4; codecs="avc1.64001F"',  // High Profile Level 3.1
+        'video/mp4; codecs="avc1.4D401F"',  // Main Profile Level 3.1
+        'video/mp4; codecs="avc1.42E01E"',  // Baseline Profile Level 3.0
+      ];
 
-      console.log('[useVideoStream] Checking codec support:', codec);
+      let codec: string | null = null;
+      for (const candidate of codecCandidates) {
+        if (MediaSource.isTypeSupported(candidate)) {
+          codec = candidate;
+          console.log('[useVideoStream] Selected codec:', codec);
+          break;
+        }
+      }
 
-      if (!MediaSource.isTypeSupported(codec)) {
-        console.error('[useVideoStream] Codec not supported:', codec);
-        console.log('[useVideoStream] Supported types:', [
-          'video/mp4; codecs="avc1.42E01E"',
-          'video/mp4; codecs="avc1.64001F"',
-          'video/mp4; codecs="avc1.640028"'
-        ].filter(MediaSource.isTypeSupported));
-        alert('Video codec not supported by your browser. Please try a different browser.');
+      if (!codec) {
+        console.error('[useVideoStream] No supported H.264 codec found');
+        console.log('[useVideoStream] Tested codecs:', codecCandidates);
+        alert('Video codec not supported by your browser. Please try Chrome, Firefox, or Edge.');
         return;
       }
 
-      try {
-        sourceBuffer.value = mediaSource.value.addSourceBuffer(codec);
-        sourceBuffer.value.mode = 'sequence';
+      // Create SourceBuffer with selected codec
+      sourceBuffer.value = mediaSource.value.addSourceBuffer(codec);
+
+      /**
+       * SourceBuffer mode: 'sequence'
+       *
+       * In sequence mode:
+       * - Timestamps are ignored, frames play in arrival order
+       * - Best for real-time streaming (live video)
+       * - Better error tolerance
+       * - Automatically manages buffer
+       *
+       * Alternative 'segments' mode would require accurate PTS in fMP4
+       */
+      sourceBuffer.value.mode = 'sequence';
 
         sourceBuffer.value.addEventListener('updateend', () => {
           isAppending = false;
@@ -121,10 +173,6 @@ export function useVideoStream(options: UseVideoStreamOptions) {
         });
 
         console.log('[useVideoStream] ✓ SourceBuffer created successfully');
-      } catch (e) {
-        console.error('[useVideoStream] Failed to create SourceBuffer:', e);
-        alert(`Failed to create video buffer: ${e}`);
-      }
     });
 
     mediaSource.value.addEventListener('sourceclose', () => {
@@ -148,13 +196,9 @@ export function useVideoStream(options: UseVideoStreamOptions) {
 
     const chunk = bufferQueue.shift();
     if (chunk) {
-      try {
-        isAppending = true;
-        sourceBuffer.value.appendBuffer(chunk);
-      } catch (e) {
-        console.error('Failed to append buffer:', e);
-        isAppending = false;
-      }
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      isAppending = true;
+      sourceBuffer.value.appendBuffer(chunk);
     }
   }
 
@@ -199,23 +243,17 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     isAppending = false;
 
     if (sourceBuffer.value) {
-      try {
-        if (mediaSource.value && mediaSource.value.readyState === 'open') {
-          mediaSource.value.removeSourceBuffer(sourceBuffer.value);
-        }
-      } catch (e) {
-        console.error('Error removing source buffer:', e);
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      if (mediaSource.value && mediaSource.value.readyState === 'open') {
+        mediaSource.value.removeSourceBuffer(sourceBuffer.value);
       }
       sourceBuffer.value = null;
     }
 
     if (mediaSource.value) {
-      try {
-        if (mediaSource.value.readyState === 'open') {
-          mediaSource.value.endOfStream();
-        }
-      } catch (e) {
-        console.error('Error ending media source:', e);
+      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      if (mediaSource.value.readyState === 'open') {
+        mediaSource.value.endOfStream();
       }
       mediaSource.value = null;
     }

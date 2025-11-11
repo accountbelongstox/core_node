@@ -1,11 +1,9 @@
-/**
- * PyMatrix File Operations API Service
- * Handles file push and APK installation operations to pyMatrix backend
- * Following Nuxt multi-app namespace architecture
- */
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+
+const APP_NAMESPACE = 'pymatrix';
 
 export interface FilePushRequest {
-  filePath: string;
+  filePath: File | Blob | string;
   targetPath: string;
   overwrite?: boolean;
 }
@@ -20,7 +18,7 @@ export interface FilePushResponse {
 }
 
 export interface ApkInstallRequest {
-  apkPath: string;
+  apkPath: File | Blob | string;
   reinstall?: boolean;
   grantPermissions?: boolean;
 }
@@ -39,34 +37,38 @@ export interface FileUploadProgress {
   fileName: string;
   fileSize: number;
   uploadedBytes: number;
-  progress: number; // 0-100
-  speed: number; // bytes/second
-  estimatedTimeRemaining: number; // seconds
-  status: 'uploading' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  speed: number;
+  estimatedTimeRemaining: number;
+  status: 'uploading' | 'completed' | 'failed';
 }
 
 export interface ApkInstallProgress {
   serial: string;
   packageName: string;
   status: 'uploading' | 'installing' | 'completed' | 'failed';
-  progress: number; // 0-100
+  progress: number;
   message?: string;
   error?: string;
 }
 
 export class PyMatrixFileAPI {
-  private baseUrl: string;
-  private apiPrefix: string;
+  private readonly baseUrl: string;
+  private readonly apiPrefix = '/api';
 
   constructor() {
-    // Get from pymatrix config
-    this.baseUrl = 'http://localhost:8000';
-    this.apiPrefix = '/api';
+    this.baseUrl = getHttpBaseUrl();
   }
 
-  /**
-   * Push a file to device
-   */
+  private buildUrl(path: string) {
+    return `${this.baseUrl}${this.apiPrefix}${path}`;
+  }
+
+  private formatError(message: string, error: unknown): string {
+    console.error(`[PyMatrixFileAPI] ${message}`, error);
+    return error instanceof Error ? error.message : 'Unknown error';
+  }
+
   async pushFile(
     serial: string,
     request: FilePushRequest,
@@ -74,61 +76,81 @@ export class PyMatrixFileAPI {
   ): Promise<FilePushResponse> {
     try {
       const formData = new FormData();
+      let fileSize = 0;
+      let fileName = typeof request.filePath === 'string' ? request.filePath : 'file';
 
-      // If filePath is a File object
-      if (request.filePath instanceof File) {
+      if (request.filePath instanceof File || request.filePath instanceof Blob) {
         formData.append('file', request.filePath);
+        fileSize = request.filePath.size ?? 0;
+        fileName = request.filePath instanceof File ? request.filePath.name : fileName;
       } else {
-        // If filePath is a string path, we need to handle it differently
-        // This might require server-side file reading
         formData.append('filePath', request.filePath);
       }
 
       formData.append('targetPath', request.targetPath);
-      if (request.overwrite !== undefined) {
+      if (typeof request.overwrite === 'boolean') {
         formData.append('overwrite', String(request.overwrite));
       }
 
+      if (onProgress) {
+        onProgress({
+          serial,
+          fileName,
+          fileSize,
+          uploadedBytes: 0,
+          progress: 0,
+          speed: 0,
+          estimatedTimeRemaining: 0,
+          status: 'uploading'
+        });
+      }
+
       const response = await $fetch<FilePushResponse>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/files/push`,
+        this.buildUrl(`/devices/${serial}/files/push`),
         {
           method: 'POST',
           headers: {
-            'X-App-Namespace': 'pymatrix'
+            'X-App-Namespace': APP_NAMESPACE
           },
-          body: formData,
-          // TODO: Add progress tracking when supported
-          onUploadProgress: (progress) => {
-            if (onProgress && progress.total) {
-              const uploadProgress: FileUploadProgress = {
-                serial,
-                fileName: request.filePath instanceof File ? request.filePath.name : request.filePath,
-                fileSize: progress.total,
-                uploadedBytes: progress.loaded,
-                progress: Math.round((progress.loaded / progress.total) * 100),
-                speed: 0, // Calculate from time delta
-                estimatedTimeRemaining: 0,
-                status: progress.loaded === progress.total ? 'completed' : 'uploading'
-              };
-              onProgress(uploadProgress);
-            }
-          }
+          body: formData
         }
       );
 
+      if (onProgress) {
+        onProgress({
+          serial,
+          fileName,
+          fileSize,
+          uploadedBytes: fileSize,
+          progress: 100,
+          speed: 0,
+          estimatedTimeRemaining: 0,
+          status: response.success ? 'completed' : 'failed'
+        });
+      }
+
       return response;
     } catch (error) {
-      console.error('[PyMatrixFileAPI] Push file error:', error);
+      const errorMessage = this.formatError(`Failed to push file to ${serial}`, error);
+      if (onProgress) {
+        onProgress({
+          serial,
+          fileName: typeof request.filePath === 'string' ? request.filePath : 'file',
+          fileSize: 0,
+          uploadedBytes: 0,
+          progress: 0,
+          speed: 0,
+          estimatedTimeRemaining: 0,
+          status: 'failed'
+        });
+      }
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage
       };
     }
   }
 
-  /**
-   * Install APK on device
-   */
   async installApk(
     serial: string,
     request: ApkInstallRequest,
@@ -136,154 +158,128 @@ export class PyMatrixFileAPI {
   ): Promise<ApkInstallResponse> {
     try {
       const formData = new FormData();
+      let packageName = '';
 
-      // If apkPath is a File object
-      if (request.apkPath instanceof File) {
+      if (request.apkPath instanceof File || request.apkPath instanceof Blob) {
         formData.append('apk', request.apkPath);
+        packageName = request.apkPath instanceof File ? request.apkPath.name : '';
       } else {
         formData.append('apkPath', request.apkPath);
+        packageName = request.apkPath;
       }
 
-      if (request.reinstall !== undefined) {
-        formData.append('reinstall', String(request.reinstall));
-      }
-      if (request.grantPermissions !== undefined) {
-        formData.append('grantPermissions', String(request.grantPermissions));
+      formData.append('reinstall', String(Boolean(request.reinstall)));
+      formData.append('grantPermissions', String(Boolean(request.grantPermissions)));
+
+      if (onProgress) {
+        onProgress({
+          serial,
+          packageName,
+          status: 'uploading',
+          progress: 10,
+          message: 'Uploading APK'
+        });
       }
 
       const response = await $fetch<ApkInstallResponse>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/apk/install`,
+        this.buildUrl(`/devices/${serial}/apk/install`),
         {
           method: 'POST',
           headers: {
-            'X-App-Namespace': 'pymatrix'
+            'X-App-Namespace': APP_NAMESPACE
           },
-          body: formData,
-          onUploadProgress: (progress) => {
-            if (onProgress && progress.total) {
-              const installProgress: ApkInstallProgress = {
-                serial,
-                packageName: '',
-                status: progress.loaded === progress.total ? 'installing' : 'uploading',
-                progress: Math.round((progress.loaded / progress.total) * 50), // 50% for upload
-                message: progress.loaded === progress.total ? 'Installing APK...' : 'Uploading APK...'
-              };
-              onProgress(installProgress);
-            }
-          }
+          body: formData
         }
       );
 
-      // Final progress update
-      if (onProgress && response.success) {
+      if (onProgress) {
         onProgress({
           serial,
-          packageName: response.packageName || '',
-          status: 'completed',
-          progress: 100,
-          message: 'Installation completed'
+          packageName: response.packageName || packageName,
+          status: response.success ? 'completed' : 'failed',
+          progress: response.success ? 100 : 0,
+          message: response.success ? 'Installation completed' : 'Installation failed',
+          error: response.success ? undefined : response.error
         });
       }
 
       return response;
     } catch (error) {
-      console.error('[PyMatrixFileAPI] Install APK error:', error);
-
+      const errorMessage = this.formatError(`Failed to install APK on ${serial}`, error);
       if (onProgress) {
         onProgress({
           serial,
           packageName: '',
           status: 'failed',
           progress: 0,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: errorMessage
         });
       }
-
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage
       };
     }
   }
 
-  /**
-   * Uninstall app from device
-   */
-  async uninstallApp(
-    serial: string,
-    packageName: string
-  ): Promise<{ success: boolean; error?: string }> {
+  async uninstallApp(serial: string, packageName: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await $fetch<{ success: boolean; error?: string }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/apk/uninstall`,
+      return await $fetch<{ success: boolean; error?: string }>(
+        this.buildUrl(`/devices/${serial}/apk/uninstall`),
         {
           method: 'POST',
           headers: {
-            'X-App-Namespace': 'pymatrix',
+            'X-App-Namespace': APP_NAMESPACE,
             'Content-Type': 'application/json'
           },
-          body: {
-            packageName
-          }
+          body: { packageName }
         }
       );
-
-      return response;
     } catch (error) {
-      console.error('[PyMatrixFileAPI] Uninstall app error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: this.formatError(`Failed to uninstall ${packageName} on ${serial}`, error)
       };
     }
   }
 
-  /**
-   * List installed packages on device
-   */
   async listPackages(
     serial: string,
-    systemApps: boolean = false
+    systemApps = false
   ): Promise<{ success: boolean; packages?: string[]; error?: string }> {
     try {
-      const response = await $fetch<{ success: boolean; packages?: string[]; error?: string }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/packages`,
+      return await $fetch<{ success: boolean; packages?: string[]; error?: string }>(
+        this.buildUrl(`/devices/${serial}/packages`),
         {
           method: 'GET',
           headers: {
-            'X-App-Namespace': 'pymatrix'
+            'X-App-Namespace': APP_NAMESPACE
           },
           query: {
             system: systemApps
           }
         }
       );
-
-      return response;
     } catch (error) {
-      console.error('[PyMatrixFileAPI] List packages error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: this.formatError(`Failed to list packages for ${serial}`, error)
       };
     }
   }
 
-  /**
-   * Pull file from device
-   */
   async pullFile(
     serial: string,
     remotePath: string,
     localPath: string
   ): Promise<{ success: boolean; filePath?: string; fileSize?: number; error?: string }> {
     try {
-      const response = await $fetch<{ success: boolean; filePath?: string; fileSize?: number; error?: string }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/files/pull`,
+      return await $fetch<{ success: boolean; filePath?: string; fileSize?: number; error?: string }>(
+        this.buildUrl(`/devices/${serial}/files/pull`),
         {
           method: 'POST',
           headers: {
-            'X-App-Namespace': 'pymatrix',
+            'X-App-Namespace': APP_NAMESPACE,
             'Content-Type': 'application/json'
           },
           body: {
@@ -292,17 +288,13 @@ export class PyMatrixFileAPI {
           }
         }
       );
-
-      return response;
     } catch (error) {
-      console.error('[PyMatrixFileAPI] Pull file error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: this.formatError(`Failed to pull file from ${serial}`, error)
       };
     }
   }
 }
 
-// Export singleton instance
 export const pyMatrixFileAPI = new PyMatrixFileAPI();
