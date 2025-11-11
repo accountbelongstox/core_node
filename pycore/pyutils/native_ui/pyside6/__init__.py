@@ -25,8 +25,20 @@ __all__ = ['_PYSIDE6_AVAILABLE']
 # Import components if PySide6 is available
 if _PYSIDE6_AVAILABLE:
     from .config import PySide6UIConfig, StartupWindowConfig, ActionType, WindowState, WebViewEngine
-    from .main_window import PySide6MainWindow, MainWindowContainer
+    from .main_window import PySide6MainWindow, MainWindowContainer, ResizeEdge
+    from .window_state import WindowStateManager, WindowState as WindowStateData
     from .title_bar import PySide6TitleBar, TitleBarButton
+    from .title_bar_styles import (
+        TitleBarStyles,
+        get_default_style,
+        get_dark_style,
+        get_light_style,
+        get_vibrant_style,
+        get_minimal_style,
+        merge_styles,
+        create_custom_style,
+        StyleSheetGenerator,
+    )
     from .system_tray import PySide6SystemTray, PySide6TrayMenuItem, create_default_tray_menu
     from .webview import PySide6WebView
     from .framework import PySide6Framework, TickTimer, create_framework
@@ -42,10 +54,26 @@ if _PYSIDE6_AVAILABLE:
         # Main Window
         'PySide6MainWindow',
         'MainWindowContainer',
+        'ResizeEdge',
+
+        # Window State Management
+        'WindowStateManager',
+        'WindowStateData',
 
         # Title Bar
         'PySide6TitleBar',
         'TitleBarButton',
+
+        # Title Bar Styles
+        'TitleBarStyles',
+        'get_default_style',
+        'get_dark_style',
+        'get_light_style',
+        'get_vibrant_style',
+        'get_minimal_style',
+        'merge_styles',
+        'create_custom_style',
+        'StyleSheetGenerator',
 
         # System Tray
         'PySide6SystemTray',

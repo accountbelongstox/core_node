@@ -10,7 +10,7 @@
 
 ### 1.2 Architecture Principles
 - All constants managed centrally in pygvar
-- All logging, file operations, network functionality, subprocess execution use pyfoundations/pyutils
+- All logging, file operations, network functionality use pyfoundations/pyutils
 - Avoid relative imports, use absolute paths
 - Preserve backward compatibility in pycore modifications
 
@@ -24,51 +24,12 @@
 **Import Statement Rules**
 - All import statements **must be at file top**
 - Order: stdlib → third-party → project internal
-- Example:
-  ```python
-  # ✅ Correct - all imports at top
-  import os
-  import sys
-  from pathlib import Path
-
-  import numpy as np
-  from PIL import Image
-
-  from pycore import ColorPrint
-  from pycore.pyutils import DeviceManager
-
-  def my_function():
-      pass
-
-  # ❌ Wrong - import inside function
-  def my_function():
-      import inspect  # Forbidden
-  ```
+- **Forbidden**: import statements inside functions
 
 **Try-Except Block Rules (AI Code Only)**
 - **AI-generated code must NOT use try-except blocks**
 - Reason: try-except hides errors, makes debugging difficult
-- Alternative solutions:
-  - Use conditional checks instead of exception catching
-  - Return error status instead of raising exceptions
-  - Use ColorPrint for error output
-  - Let errors propagate naturally for easier root cause identification
-- Example:
-  ```python
-  # ❌ Forbidden in AI code
-  try:
-      result = risky_operation()
-  except Exception as e:
-      ColorPrint.red(f"Error: {e}")
-      return None
-
-  # ✅ Recommended approach
-  if not is_valid_input(data):
-      ColorPrint.red("Invalid input data")
-      return None
-
-  result = risky_operation()  # Let errors surface naturally
-  ```
+- Alternatives: conditional checks, return error status, use ColorPrint, let errors propagate naturally
 
 ## 2. pycore Architecture
 
@@ -78,42 +39,21 @@
 - `pycore/pygvar` - Global constants and variables (appname, paths, binary locations)
 - `pyapps` - Applications using pycore as base services
 
-### 2.2 Directory Structure
-```
-pycore/
-├── pyfoundations/          # Core foundation
-│   ├── color_print.py      # Colored console output
-│   ├── encyclopedia.py     # Global key-value cache
-│   ├── event_bus.py        # Event pub/sub system
-│   ├── secret_manager.py   # AES-256 secret management
-│   ├── file_lock_manager.py
-│   ├── split_file_store.py
-│   ├── app_launcher.py     # Application launcher
-│   ├── gvar/               # Global variable management
-│   └── device/             # Device abstractions
-├── pygvar/                 # Global variables
-├── pyutils/                # Utility modules
-│   ├── adb/                # ADB device communication
-│   ├── control/            # Input/control events
-│   ├── group/              # Device group management
-│   ├── stream/             # Video stream processing
-│   ├── launcher/           # Application launching
-│   ├── web/                # Web and GUI
-│   ├── wsrpc/              # WebSocket RPC
-│   ├── pybrowser/          # Browser automation
-│   ├── native_ui/          # Native UI framework
-│   └── [25+ modules]       # Various utilities
-├── pyadb/                  # ADB communication layer
-└── pydevice/               # Device abstraction
-```
+### 2.2 Unified Module Structure (Post-Refactoring)
+
+**Migration Summary:**
+- ❌ `pyfoundations/device/` → ✅ `pyutils/device/` (device utilities belong in utils)
+- ❌ `pyfoundations/gvar/` → ✅ `pygvar/` (merged into unified global vars)
+- ❌ `pyutils/adb/` → ✅ `pyutils/device/` (merged with device module)
+- ❌ `pygvar/pyglobal_vars.py` → ✅ `pygvar/constants.py` (clearer naming)
 
 ## 3. Module Development Rules
 
 ### 3.1 pyfoundations Rules
-- Store most basic modules (ColorPrint, Encyclopedia, EventBus, SecretManager)
+- Store most basic modules (ColorPrint, Encyclopedia, EventBus, ThreadBus, SecretManager)
 - Only use Python standard library, no third-party packages
 - Can only import from other pyfoundations modules
-- Provides foundational functions, not classes
+- Provides foundational functions and base classes
 
 ### 3.2 pyutils Rules
 - Can reference pyfoundations and pygvar
@@ -125,109 +65,149 @@ pycore/
 ### 3.3 pygvar Usage
 - Central location for all constants and variables
 - Import pattern: `from pycore.pygvar import CONSTANT_NAME`
+- Exports system constants, global variable manager, and WS RPC constants
 
 ## 4. Import Patterns
 
-### 4.1 pycore/__init__.py
-Only add widely used components to __init__.py. For others, use direct imports.
+### 4.1 Foundation Imports
+- ColorPrint, ENCYCLOPEDIA, EventBus, THREAD_BUS from `pycore`
+- GlobalVarManager, IS_WINDOWS, PROJECT_ROOT from `pycore.pygvar`
+- get_secret_key, set_secret_key from `pycore.pyfoundations`
 
-### 4.2 Foundation Imports
-```python
-from pycore import ColorPrint, ENCYCLOPEDIA, EventBus, GlobalVarManager
-from pycore.pyfoundations import get_secret_key, set_secret_key
-from pycore.pyfoundations.device import AndroidDevice, ScrcpyDevice
-```
+### 4.2 Device & ADB Imports (Unified)
+- All device and ADB functionality in `pycore.pyutils.device`
+- AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, Resolution
+- ADBManager, ADBDevice, ADBDeviceState, ADBExecuteResult
 
-### 4.3 Utility Imports
-```python
-from pycore import DeviceManager, ADBManager, H264Decoder
-from pycore.pyutils import MediaCompressor, WebSocketManager
-from pycore.pyutils.stream import VideoFrame, VideoFormat
-```
+### 4.3 Import Rules Summary
+- Only add widely used components to `pycore/__init__.py`
+- For specialized modules, use direct imports
+- Never use relative imports
+- All import statements at file top
 
 ## 5. Application Development Standards
 
 ### 5.1 App Directory Structure
-``` 
-pyapps/
-└── {appname}/
-    ├── {appname}_main.py   # STANDARD entry point
-    ├── main.py             # FALLBACK entry point (optional)
-    ├── config/             # App-specific configuration
-    │   └── __init__.py
-    ├── controller/         # Business logic controllers
-    ├── service/            # [Optional] Service layer
-    ├── routes/             # [Optional] HTTP routes
-    ├── model/              # [Optional] Data models
-    ├── middleware/         # [Optional] Framework middleware
-    └── scripts/            # Deployment scripts
-        ├── install.ps1
-        ├── start.ps1
-        ├── stop.ps1
-        └── deploy.ps1
 ```
+pyapps/{appname}/
+├── {appname}_main.py       # STANDARD entry point
+├── main.py                 # FALLBACK entry point
+├── config/                 # App configuration
+├── {appname}_config/       # [Optional] UI configuration
+├── {appname}_i18n/         # [Optional] Multi-language
+├── controller/             # Business logic
+├── service/                # [Optional] Service layer
+├── routes/                 # [Optional] HTTP routes
+├── model/                  # [Optional] Data models
+└── scripts/                # Deployment scripts
+```
+
+**Directory Naming:** All optional directories use `{appname}_` prefix as namespace
 
 ### 5.2 Entry Point Convention
 - STANDARD: `{appname}_main.py` - Primary entry point
 - FALLBACK: `main.py` - Secondary entry point
 - Must define `start()` or `main()` function
-- Launcher checks {appname}_main.py first, then main.py
 
-### 5.3 App Launch Methods
-```bash
-python pymain.py app={appname}                    # Using launcher
-python -m pyapps.{appname}.{appname}_main         # Direct module
-python pymain.py app=keyword                      # Fuzzy matching
-```
-
-### 5.4 Development Process
-- Pre-development: Scan pycore to evaluate requirements
-- Output analysis to `pyapps/{appname}/development_analysis.md`
-- Determine app vs pyutils code distribution
-- Archive prompts in app directory for incremental development
-
-### 5.5 Configuration
+### 5.3 Configuration Management
 - Config in `config/` directory, export via `__init__.py`
 - Absolute imports: `from pyapps.{appname}.config import Config`
 - Support environment variables
+- No hardcoded paths or credentials
+
+### 5.4 UI Configuration (PySide6/Tkinter)
+**Directory:** `{appname}_config/` with namespace prefix
+**Purpose:** Centralizes PySide6/Tkinter UI configuration
+**Key Functions:** `get_default_window_size()`, `create_ui_config()`
+
+### 5.5 Multi-Language (i18n)
+
+**Translation Key Namespace:**
+- All keys **MUST** use `{appname}.` prefix
+- Format: `{appname}.category.key_name`
+- Examples: `matrix.app_name`, `matrix.tray.open_frontend`
+
+**Key Principles:**
+- **Singleton Pattern - NO Parameter Passing**
+- **NEVER pass i18n_manager as parameter**
+- **ALWAYS call `get_i18n_manager()` directly**
+- **Initialize Once** at application start
+- **No Hardcoded Text** - All UI text must use i18n keys
+- **NO Default Values** - Do NOT use `i18n.get(key, default)`
+- **Complete Translation** - All languages must have ALL keys
+
+**Language Switching:**
+- `i18n.set_language(lang)` - Switch language
+- `i18n.add_listener(callback)` - Listen for changes
 
 ### 5.6 Directory and Resource Usage
-**Static Files**
-- Use `public/` folder in project root
-
-**Large Files (>10MB)**
-- APP_LARGE_FILES_CACHE_DIR - Long-term storage
-- APP_LARGE_FILES_TMP_DIR - Temporary large files
-
-**Runtime Temporary (<10MB)**
-- APP_RUNTIME_CACHE_DIR - Runtime cache
-- APP_RUNTIME_TMP_DIR - Runtime temporary files
+**Static Files:** `public/` folder in project root
+**Large Files (>10MB):** APP_LARGE_FILES_CACHE_DIR, APP_LARGE_FILES_TMP_DIR
+**Runtime Temporary (<10MB):** APP_RUNTIME_CACHE_DIR, APP_RUNTIME_TMP_DIR
 
 All paths exported from pygvar, auto-created by pycore.
 
 ### 5.7 Development Guidelines
 - Follow minimal app code principle - main functionality in pyutils
 - No requirements.txt in app directory (use project root)
-- No Dockerfile in app directory
-- Avoid secondary encapsulation of pycore
 - File operations: Use pyfoundations
 - Logging: Use ColorPrint
 - Constants: From pygvar
 
-## 6. Third-party Package Guidelines
+## 6. Multi-Threading Standards
 
-### 6.1 Package Selection
-- Ensure package supports latest Python or updated within 2 years
-- If uncertain, implement with native Python
-- Document in root README.md with pip install command
+### 6.1 Core Threading Principles
+**CRITICAL RULE: All threaded components MUST inherit from threading.Thread directly**
+**Naming Convention:** Use descriptive names ending with "Thread"
 
-### 6.2 Dependency Management
-- All dependencies in project root requirements.txt
-- Optional dependencies documented separately
-- Use dependency groups (dev, prod, test)
+### 6.2 Thread Architecture
+**Main Thread** - Always active, manages all child threads
+**Child Threads** - TkinterStartupThread, PySide6MainThread, TickTimerThread
 
-### 6.3 Auto-install
-pycore supports auto-install via DEPENDENCY_MAP in pygvar.
+### 6.3 Inter-Thread Communication
+**FORBIDDEN:** Direct parameter passing, cross-thread callbacks, shared mutable state
+**REQUIRED:** Use THREAD_BUS for thread communication
+
+### 6.4 THREAD_BUS - Global Thread Communication System
+Located in: `pycore/pyfoundations/thread_bus.py`
+
+**Key Features:**
+- **Signal Operations** - Send/receive signals with timeout support
+- **Thread State Management** - Track thread states and lifecycle
+- **Message Queue** - Producer-consumer pattern support
+- **Event Handlers** - Priority-based event handling
+
+**Core Operations:**
+- Signal: `signal()`, `wait_signal()`, `has_signal()`, `clear_signal()`
+- Thread State: `set_thread_state()`, `get_thread_state()`, `wait_thread_state()`
+- Message Queue: `send_message()`, `receive_message()`, `queue_size()`
+- Event Handlers: `register_event_handler()`, `trigger_event()`
+
+### 6.5 ENCYCLOPEDIA vs THREAD_BUS
+**ENCYCLOPEDIA:** General key-value cache, application state, configuration
+**THREAD_BUS:** Dedicated thread communication, signals, queues, state tracking
+
+### 6.6 Thread Lifecycle Pattern
+**Required Implementation:**
+1. Inherit from threading.Thread
+2. Set daemon status explicitly
+3. Signal thread state changes via THREAD_BUS
+4. Use _stop_event for graceful shutdown
+5. Log lifecycle events with ColorPrint
+
+**Thread States:** 'starting', 'running', 'stopping', 'stopped'
+
+### 6.7 Daemon vs Non-Daemon
+**Non-Daemon (default):** Main thread waits for completion (UI, services)
+**Daemon:** Dies when main thread exits (background tasks only)
+
+### 6.8 Common Thread Patterns
+**Producer-Consumer:** Use `send_message()` and `receive_message(block=True)`
+**Event-Driven:** Use `signal()` and `wait_signal()`
+**State Synchronization:** Use `set_thread_state()` and `wait_thread_state()`
+
+### 6.9 Forbidden Patterns
+**DO NOT USE:** ThreadPoolExecutor, threading.Timer, Queue module, manual locks, thread-local storage, lambda in Thread()
 
 ## 7. Quality Standards
 
@@ -243,300 +223,43 @@ Use context managers for resource management.
 ### 7.4 Dataclasses
 Use dataclasses or Pydantic models for data structures.
 
-## 8. Multi-Threading Standards
-
-### 8.1 Core Threading Principles
-
-**CRITICAL RULE: All threaded components MUST inherit from threading.Thread directly**
-
-```python
-# ✅ CORRECT - Direct Thread inheritance
-class MyWorkerThread(threading.Thread):
-    def __init__(self):
-        super().__init__()
-        self.daemon = False  # Explicitly set daemon status
-
-    def run(self):
-        # Thread logic here
-        pass
-
-# Usage
-worker = MyWorkerThread()
-worker.start()
-
-# ❌ FORBIDDEN - Using Thread to wrap function
-def worker_function():
-    pass
-
-thread = threading.Thread(target=worker_function)  # DO NOT DO THIS
-thread.start()
-```
-
-### 8.2 Thread Architecture
-
-**Main Thread** - Always active, manages all child threads
-- Never blocks on child threads
-- Coordinates thread lifecycle
-- Monitors global queue
-
-**Child Threads** - Inherit from Thread
-- TkinterStartupThread - Startup window UI
-- PySide6MainThread - Main application UI
-- TickTimerThread - Periodic tasks
-- Custom worker threads
-
-### 8.3 Inter-Thread Communication
-
-**FORBIDDEN: Direct parameter passing between threads**
-
-```python
-# ❌ FORBIDDEN - Passing parameters between threads
-def thread_a():
-    result = do_work()
-    thread_b_callback(result)  # Cross-thread call - FORBIDDEN
-
-# ❌ FORBIDDEN - Shared mutable state
-shared_data = {"status": "idle"}
-def thread_a():
-    shared_data["status"] = "working"  # Race condition risk
-```
-
-**REQUIRED: Use global queue or signals**
-
-```python
-# ✅ CORRECT - Use ENCYCLOPEDIA global queue
-from pycore import ENCYCLOPEDIA
-
-class WorkerThread(threading.Thread):
-    def run(self):
-        result = do_work()
-        # Write to global queue
-        ENCYCLOPEDIA.add('worker_result', result)
-        # Send signal
-        ENCYCLOPEDIA.add('worker_complete_signal', True)
-
-# Main thread reads from queue
-result = ENCYCLOPEDIA.get('worker_result')
-```
-
-### 8.4 Global Queue System
-
-**ENCYCLOPEDIA Thread-Safe Queue**
-
-Located in: `pycore/pyfoundations/encyclopedia.py`
-
-```python
-from pycore import ENCYCLOPEDIA
-
-# Thread-safe operations
-ENCYCLOPEDIA.add('key', value)           # Write
-value = ENCYCLOPEDIA.get('key')          # Read
-value = ENCYCLOPEDIA.get('key', default) # Read with default
-ENCYCLOPEDIA.remove('key')               # Delete
-```
-
-**Signal Queue Pattern**
-
-```python
-# Thread A - Producer
-ENCYCLOPEDIA.add('task_queue', {
-    'action': 'process_data',
-    'data': {'id': 123}
-})
-
-# Thread B - Consumer
-task = ENCYCLOPEDIA.get('task_queue')
-if task:
-    process(task['data'])
-    ENCYCLOPEDIA.add('task_complete', True)
-```
-
-### 8.5 Thread Lifecycle Management
-
-**Startup Pattern**
-
-```python
-class MyThread(threading.Thread):
-    def __init__(self):
-        super().__init__()
-        self.daemon = False  # Non-daemon - main waits for completion
-        self._stop_event = threading.Event()
-
-    def run(self):
-        # Signal ready
-        ENCYCLOPEDIA.add('mythread_ready', True)
-
-        while not self._stop_event.is_set():
-            # Thread work
-            pass
-
-        # Signal stopped
-        ENCYCLOPEDIA.add('mythread_stopped', True)
-
-    def stop(self):
-        self._stop_event.set()
-```
-
-**Main Thread Coordination**
-
-```python
-def main():
-    # Start all threads
-    thread_a = ThreadA()
-    thread_b = ThreadB()
-
-    thread_a.start()
-    thread_b.start()
-
-    # Wait for initialization via queue
-    while not ENCYCLOPEDIA.get('thread_a_ready'):
-        time.sleep(0.1)
-
-    while not ENCYCLOPEDIA.get('thread_b_ready'):
-        time.sleep(0.1)
-
-    # Main thread continues, manages threads
-    # Does NOT block on thread.join() unless shutting down
-```
-
-### 8.6 Thread Naming Convention
-
-```python
-class TkinterStartupThread(threading.Thread):  # ✅ Descriptive name
-    pass
-
-class PySide6MainThread(threading.Thread):     # ✅ Indicates purpose
-    pass
-
-class TickTimerThread(threading.Thread):       # ✅ Clear function
-    pass
-```
-
-### 8.7 Daemon vs Non-Daemon
-
-**Non-Daemon (default)** - Main thread waits for completion
-```python
-thread.daemon = False  # Program waits for this thread
-```
-
-**Daemon** - Dies when main thread exits
-```python
-thread.daemon = True   # For background tasks only
-```
-
-### 8.8 Thread Debugging
-
-**Required Logging**
-
-```python
-class MyThread(threading.Thread):
-    def run(self):
-        ColorPrint.blue(f"[{self.__class__.__name__}] Thread starting")
-
-        try:
-            # Work here
-            pass
-        finally:
-            ColorPrint.blue(f"[{self.__class__.__name__}] Thread stopping")
-```
-
-**Thread State Tracking**
-
-```python
-# Write state to ENCYCLOPEDIA
-ENCYCLOPEDIA.add('mythread_state', {
-    'status': 'running',
-    'started_at': time.time(),
-    'pid': os.getpid(),
-    'thread_id': threading.get_ident()
-})
-```
-
-### 8.9 Common Patterns
-
-**Producer-Consumer**
-
-```python
-# Producer thread
-class ProducerThread(threading.Thread):
-    def run(self):
-        while True:
-            item = produce_item()
-            queue = ENCYCLOPEDIA.get('work_queue', [])
-            queue.append(item)
-            ENCYCLOPEDIA.add('work_queue', queue)
-
-# Consumer thread
-class ConsumerThread(threading.Thread):
-    def run(self):
-        while True:
-            queue = ENCYCLOPEDIA.get('work_queue', [])
-            if queue:
-                item = queue.pop(0)
-                ENCYCLOPEDIA.add('work_queue', queue)
-                process(item)
-```
-
-**Event-Driven**
-
-```python
-# Sender
-ENCYCLOPEDIA.add('event_name', {
-    'timestamp': time.time(),
-    'data': {'key': 'value'}
-})
-
-# Receiver
-def check_events():
-    event = ENCYCLOPEDIA.get('event_name')
-    if event:
-        handle_event(event)
-        ENCYCLOPEDIA.remove('event_name')
-```
-
-### 8.10 Anti-Patterns to Avoid
-
-```python
-# ❌ FORBIDDEN - Thread pool
-executor = ThreadPoolExecutor()  # Use Thread subclasses instead
-
-# ❌ FORBIDDEN - threading.Timer
-timer = threading.Timer(5.0, callback)  # Use Thread subclass with Event
-
-# ❌ FORBIDDEN - Queue module
-from queue import Queue  # Use ENCYCLOPEDIA instead
-q = Queue()
-
-# ❌ FORBIDDEN - Locks/Semaphores
-lock = threading.Lock()  # ENCYCLOPEDIA is already thread-safe
-
-# ❌ FORBIDDEN - Thread-local storage
-thread_local = threading.local()  # Use ENCYCLOPEDIA instead
-```
+## 8. Third-party Packages
+
+### 8.1 Package Selection
+- Ensure package supports latest Python or updated within 2 years
+- If uncertain, implement with native Python
+- Document in root README.md
+
+### 8.2 Dependency Management
+- All dependencies in project root requirements.txt
+- Optional dependencies documented separately
+- Use dependency groups (dev, prod, test)
+
+### 8.3 Auto-install
+pycore supports auto-install via DEPENDENCY_MAP in pygvar.
 
 ## 9. Web and Database
 
 ### 9.1 Web Framework
 - Use Flask or FastAPI for HTTP servers
-- HTTP utilities in pyutils
 - Routes in app `routes/` directory
 - Middleware in app `middleware/` directory
 
 ### 9.2 Database
 - Prioritize SQLite
 - Database utilities in pyutils
-- Models in app `model/` directory (only if using database)
+- Models in app `model/` directory
 
-## 9. Deployment
+## 10. Deployment
 
-### 9.1 Deployment Scripts
+### 10.1 Deployment Scripts
 All scripts in `scripts/` directory:
 - install.ps1 - Dependency installation
 - start.ps1 - Application startup
 - stop.ps1 - Graceful shutdown
 - deploy.ps1 - Deployment automation
 
-## 14. pycore vs ncore Comparison
+## 11. pycore vs ncore Comparison
 
 | Feature | Node.js (ncore) | Python (pycore) |
 |---------|-----------------|-----------------|
@@ -550,37 +273,65 @@ All scripts in `scripts/` directory:
 | Logging | logger.js | ColorPrint |
 | Constants | global_vars/index.js | pygvar/__init__.py |
 
-## 14. Quick Reference
+## 12. Quick Reference
 
-### 14.1 Common Imports
-**Foundation**: ColorPrint, ENCYCLOPEDIA, EventBus, GlobalVarManager
-**Devices**: AndroidDevice, ScrcpyDevice, DeviceInfo
-**Utilities**: DeviceManager, ADBManager, H264Decoder, GroupController
-**Utils**: MediaCompressor, WebSocketManager, VideoFrame, TouchEvent
+### 12.1 Common Imports (Unified)
+**Foundation:** ColorPrint, ENCYCLOPEDIA, EventBus, EventTypes, THREAD_BUS
+**Global Vars:** GlobalVarManager, IS_WINDOWS, PROJECT_ROOT, CPU_COUNT
+**Device & ADB:** AndroidDevice, ScrcpyDevice, DeviceInfo, ADBManager, ADBDevice
+**Utilities:** DeviceManager, H264Decoder, GroupController, MediaCompressor
 
-### 14.2 Directory Paths
-APP_NAME, CACHE_DIR, TMP_DIR, APP_LARGE_FILES_CACHE_DIR, APP_LARGE_FILES_TMP_DIR, APP_RUNTIME_CACHE_DIR, APP_RUNTIME_TMP_DIR
+### 12.2 Directory Paths (from pygvar)
+APP_NAME, PROJECT_ROOT, CACHE_DIR, TMP_DIR, APP_LARGE_FILES_CACHE_DIR, APP_LARGE_FILES_TMP_DIR, APP_RUNTIME_CACHE_DIR, APP_RUNTIME_TMP_DIR
 
-### 14.3 ColorPrint Methods
-**Available methods**: blue, green, yellow, red, white, gray, debug
+### 12.3 ColorPrint Methods
+**Available:** blue, green, yellow, red, white, gray, debug
+**Usage:** For logging only, no console interaction
 
-## 14. Version Control
+### 12.4 THREAD_BUS Signal Naming
+- Format: `{component}_{event}` (e.g., `tk_window_ready`)
+- Use lowercase with underscores
+- Be descriptive and specific
 
-### 14.1 Commit Messages
+## 13. Version Control
+
+### 13.1 Commit Messages
 Format: `type(scope): message`
+Types: feat, fix, docs, style, refactor, test, chore
 
-Examples:
-- `feat(pymatrix): add video streaming`
-- `fix(pycore): handle encoding errors`
-- `docs(guide): update development guide`
-
-### 14.2 .gitignore
+### 13.2 .gitignore
 Exclude: __pycache__, *.pyc, *.pyo, .env, secrets/, venv/, env/
 
 ## 14. Troubleshooting
 
 ### 14.1 Common Issues
-- **Import errors**: Use absolute imports, check __init__.py exports
-- **Encoding errors**: Always specify encoding='utf-8'
-- **App not detected**: Ensure {appname}_main.py exists
-- **ColorPrint**: Only use blue, green, yellow, red, white, gray, debug
+- **Import errors:** Check absolute imports, __init__.py exports, unified module paths
+- **Encoding errors:** Always specify encoding='utf-8'
+- **App not detected:** Ensure {appname}_main.py exists with start() function
+- **ColorPrint:** Only use blue, green, yellow, red, white, gray, debug
+- **Thread deadlocks:** Use THREAD_BUS with timeout
+- **Module not found:** Check for old paths (pyfoundations.device, pyutils.adb)
+
+### 14.2 Migration Guide
+For detailed migration information, refer to: `pycore/UNIFIED_UTILS_MIGRATION_GUIDE.md`
+
+## 15. Architecture Evolution
+
+### 15.1 Recent Refactoring (2025)
+**Unified Module Structure:**
+- Merged `pyutils/device` and `pyutils/adb` into single module
+- Merged `pyfoundations/gvar` into `pygvar`
+- Moved device utilities from `pyfoundations/device` to `pyutils/device`
+- Renamed `pygvar/pyglobal_vars.py` to `pygvar/constants.py`
+
+**Benefits:**
+- Single import path for device/ADB operations
+- Clear separation: foundations (stdlib) vs utilities (third-party)
+- Eliminated redundancy and confusion
+- Better maintainability
+
+### 15.2 Future Considerations
+- Keep foundations minimal (stdlib only)
+- Add new utilities to pyutils, not foundations
+- Maintain unified module approach
+- Document breaking changes in migration guide

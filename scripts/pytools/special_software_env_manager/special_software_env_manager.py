@@ -48,14 +48,12 @@ from smart_recognition import (
     get_value_for_input_type
 )
 
-# Import secret manager from pycore
+# Import secret manager from pycore (read-only)
 try:
-    from pyfoundations import get_secret_key, set_secret_key, get_all_secret_keys
-    from pyfoundations.secret_manager import _get_password
+    from pyfoundations import get_secret_key, get_all_secret_keys
     SECRET_MANAGER_AVAILABLE = True
 except Exception as exc:  # noqa: BLE001 - need to handle all import-time failures
     SECRET_MANAGER_AVAILABLE = False
-    _get_password = None
     ColorMessage.write(
         f"WARNING: Secret manager not available from pycore ({exc})",
         'warning'
@@ -927,72 +925,36 @@ class SpecialSoftwareEnvManager:
         # Generate script file name
         file_name = f"{command_prefix}{file_number}"
 
-        # First, save secrets to encrypted storage BEFORE generating scripts
-        if SECRET_MANAGER_AVAILABLE and user_inputs:
-            ColorMessage.write("Saving secrets to encrypted storage...", 'info')
-            print()
-
-            # Get password once for all secrets (with confirmation)
-            if not SECRET_MANAGER_AVAILABLE or _get_password is None:
-                raise ImportError("Secret manager not available")
-            
-            encryption_password = None
-            max_attempts = 3
-            attempts = 0
-            
-            while attempts < max_attempts:
-                ColorMessage.write("Enter encryption password for all secrets:", 'info')
-                password1 = _get_password("[SECRET_MANAGER] Password: ")
+        # Save secrets directly to .secret_ignore directory (no encryption)
+        if user_inputs:
+            try:
+                from pyfoundations.secret_manager import get_secret_directories
+                dirs = get_secret_directories()
+                raw_dir = dirs['RAW_DIR']
                 
-                if not password1:
-                    ColorMessage.write("No password provided, skipping encryption", 'warning')
-                    break
+                # Create directory if needed
+                if not raw_dir.exists():
+                    raw_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Confirm password
-                password2 = _get_password("[SECRET_MANAGER] Confirm Password: ")
-                
-                if password1 == password2:
-                    encryption_password = password1
-                    ColorMessage.write("Password confirmed.", 'success')
-                    print()
-                    break
-                else:
-                    attempts += 1
-                    remaining = max_attempts - attempts
-                    if remaining > 0:
-                        ColorMessage.write("Passwords do not match. Please try again.", 'error')
-                        ColorMessage.write(f"Remaining attempts: {remaining}", 'warning')
-                        print()
-                    else:
-                        ColorMessage.write("Maximum attempts reached. Skipping encryption.", 'error')
-                        print()
-                        break
-            
-            if not encryption_password:
-                ColorMessage.write("No password provided, skipping encryption", 'warning')
-            else:
                 saved_count = 0
                 for var_name, var_value in user_inputs.items():
                     # Create key name with file number suffix
                     secret_key_name = f"{var_name}_{file_number}"
+                    secret_file = raw_dir / secret_key_name
 
                     try:
-                        # Pass the same password to all saves
-                        if set_secret_key(secret_key_name, var_value, password=encryption_password):
-                            ColorMessage.write(f"[OK] Saved {var_name} to encrypted storage", 'success')
-                            saved_count += 1
-                        else:
-                            ColorMessage.write(f"[X] Failed to save {var_name}", 'warning')
+                        # Write directly to .secret_ignore directory
+                        secret_file.write_text(var_value, encoding='utf-8')
+                        ColorMessage.write(f"[OK] Saved {var_name} to .secret_ignore", 'success')
+                        saved_count += 1
                     except Exception as e:
                         ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
 
-                # Clear password from memory
-                encryption_password = None
-
-                print()
                 if saved_count > 0:
-                    ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to encrypted storage", 'success')
-                    ColorMessage.write("Location: .secret_keys/already_encrypted/", 'info')
+                    ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to .secret_ignore", 'success')
+                    ColorMessage.write(f"Location: {raw_dir}", 'info')
+            except Exception as e:
+                ColorMessage.write(f"Warning: Could not save secrets: {e}", 'warning')
             print()
 
         script_paths = self._generate_scripts_for_config(config_name, file_number, show_next_steps=True)
@@ -1132,8 +1094,13 @@ class SpecialSoftwareEnvManager:
             "",
             "set -e",
             "",
-            "# Get script directory",
-            "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"",
+            "# Get script directory (handle symlinks)",
+            "# Resolve symlink to actual file path if needed",
+            "scriptSource=\"${BASH_SOURCE[0]}\"",
+            "if [ -L \"$scriptSource\" ]; then",
+            "    scriptSource=\"$(readlink -f \"$scriptSource\" 2>/dev/null || echo \"$scriptSource\")\"",
+            "fi",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"$scriptSource\")\" && pwd)\"",
             "",
             "echo \"Creating symlinks in /usr/local/bin...\"",
             "echo \"\"",

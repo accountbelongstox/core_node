@@ -19,6 +19,146 @@
   animation: pm-fade-in 0.3s ease-out;
 }
 
+/* Control panels - Now inside sidebar-tools zone
+   Positioning is handled by parent .pm-sidebar-tools */
+.pm-panel--fire,
+.pm-panel--blue {
+  position: relative; /* Changed from absolute - now in flexbox */
+  width: 100%;
+  font-size: 10px;
+  padding: 12px 8px;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.2s ease;
+}
+
+.pm-panel--fire:hover,
+.pm-panel--blue:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Panel titles */
+.pm-panel--fire .panel-title,
+.pm-panel--blue .panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Sidebar internal layout */
+.pm-panel--fire .control-section,
+.pm-panel--blue .control-section {
+  padding: 8px 6px;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.pm-panel--fire .section-label,
+.pm-panel--blue .section-label {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pm-panel--fire .control-buttons,
+.pm-panel--blue .quality-buttons,
+.pm-panel--blue .playback-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pm-panel--fire .pm-button,
+.pm-panel--blue .pm-button {
+  padding: 6px 10px;
+  font-size: 10px;
+  min-width: auto;
+  flex: 1;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.pm-panel--fire .btn-label {
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.pm-panel--blue .metrics-section {
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.pm-panel--blue .metrics-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pm-panel--blue .metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.pm-panel--blue .metric-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.2;
+}
+
+.pm-panel--blue .metric-value {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.2;
+}
+
+.pm-panel--fire .settings-section {
+  padding: 8px 6px;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.pm-panel--fire .setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.pm-panel--fire .setting-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.pm-panel--fire .setting-select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+}
+
 .pm-panel__header {
   display: flex;
   align-items: center;

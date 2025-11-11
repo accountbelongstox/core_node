@@ -251,20 +251,27 @@ class PySide6Framework(QObject):
         # Main window
         self.main_window = PySide6MainWindow(
             app_name=self.config.app_name,
+            app_id=self.config.app_id or self.config.app_name.lower().replace(' ', '_'),
             width=self.config.window_size[0],
             height=self.config.window_size[1],
-            frameless=self.config.frameless
+            frameless=self.config.frameless,
+            cache_window_state=self.config.cache_window_state
         )
 
         # Title bar
         if self.config.enable_title_bar:
+            # Create custom styles from config
+            custom_styles = {
+                'bar_height': self.config.title_bar_height,
+                'bar_bg_color': self.config.title_bar_bg,
+                'title_color': self.config.title_bar_fg,
+            }
+
             self.title_bar = PySide6TitleBar(
                 app_name=self.config.app_name,
-                height=self.config.title_bar_height,
-                bg_color=self.config.title_bar_bg,
-                fg_color=self.config.title_bar_fg,
                 show_menu=self.config.show_menu_button,
-                logo_path=self.config.logo_path
+                logo_path=self.config.logo_path,
+                custom_styles=custom_styles
             )
             self.main_window.set_title_bar(self.title_bar)
 

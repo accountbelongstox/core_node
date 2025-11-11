@@ -14,6 +14,14 @@ from typing import Optional, Callable, List, Dict, Any
 from pathlib import Path
 from dataclasses import dataclass
 
+# Import THREAD_BUS for event-driven architecture
+try:
+    from pycore import THREAD_BUS
+    HAS_THREAD_BUS = True
+except ImportError:
+    THREAD_BUS = None
+    HAS_THREAD_BUS = False
+
 
 @dataclass
 class PySide6TrayMenuItem:
@@ -293,5 +301,93 @@ def create_default_tray_menu(
             text="Quit",
             callback=quit_callback
         ))
+
+    return items
+
+
+def create_event_driven_tray_menu(
+    app_name: str = "Application",
+    enable_show_hide: bool = True,
+    enable_maximize: bool = True,
+    enable_restart: bool = True
+) -> List[PySide6TrayMenuItem]:
+    """
+    Create event-driven tray menu items using THREAD_BUS.
+
+    This function creates menu items that trigger global events through THREAD_BUS
+    instead of calling functions directly. This follows the signal-driven architecture.
+
+    Args:
+        app_name: Application name for display
+        enable_show_hide: Enable show/hide window options
+        enable_maximize: Enable maximize/minimize options
+        enable_restart: Enable restart option
+
+    Returns:
+        List of PySide6TrayMenuItem configurations
+
+    Global Events Triggered:
+        - window.show: Show window
+        - window.hide: Hide window
+        - window.maximize: Maximize window
+        - window.minimize: Minimize window
+        - window.restore: Restore window
+        - app.restart: Restart application
+        - app.close: Close application
+
+    Example:
+        menu_items = create_event_driven_tray_menu(app_name="MyApp")
+        tray.set_menu_items(menu_items)
+
+        # In main window, listen to events:
+        THREAD_BUS.register_event_handler('window.show', lambda e: window.show())
+        THREAD_BUS.register_event_handler('app.close', lambda e: app.quit())
+    """
+    if not HAS_THREAD_BUS:
+        raise RuntimeError("THREAD_BUS not available. Cannot create event-driven menu.")
+
+    items = []
+
+    # Show/Hide actions
+    if enable_show_hide:
+        items.append(PySide6TrayMenuItem(
+            text="Show Window",
+            callback=lambda: THREAD_BUS.trigger_event('window.show')
+        ))
+        items.append(PySide6TrayMenuItem(
+            text="Hide Window",
+            callback=lambda: THREAD_BUS.trigger_event('window.hide')
+        ))
+        items.append(PySide6TrayMenuItem(separator=True))
+
+    # Window state actions
+    if enable_maximize:
+        items.append(PySide6TrayMenuItem(
+            text="Maximize",
+            callback=lambda: THREAD_BUS.trigger_event('window.maximize')
+        ))
+        items.append(PySide6TrayMenuItem(
+            text="Minimize to Tray",
+            callback=lambda: THREAD_BUS.trigger_event('window.minimize')
+        ))
+        items.append(PySide6TrayMenuItem(
+            text="Restore",
+            callback=lambda: THREAD_BUS.trigger_event('window.restore')
+        ))
+        items.append(PySide6TrayMenuItem(separator=True))
+
+    # Restart action
+    if enable_restart:
+        items.append(PySide6TrayMenuItem(
+            text="Restart",
+            callback=lambda: THREAD_BUS.trigger_event('app.restart')
+        ))
+        items.append(PySide6TrayMenuItem(separator=True))
+
+    # Quit action (always enabled)
+    items.append(PySide6TrayMenuItem(
+        text=f"Quit {app_name}",
+        callback=lambda: THREAD_BUS.trigger_event('app.close', {'source': 'tray_menu'})
+    ))
 
     return items

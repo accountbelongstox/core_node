@@ -18,21 +18,26 @@ from pycore.pyfoundations.encyclopedia import Encyclopedia, ENCYCLOPEDIA
 # Event bus
 from pycore.pyfoundations.event_bus import EventBus, EventTypes, Event
 
-# Global variables
-from pycore.pyfoundations.gvar import GlobalVarManager
-
-# Device abstractions
-from pycore.pyfoundations.device import DeviceInfo, Resolution, ServerParams, VideoCodec, AndroidDevice, ScrcpyDevice
-
 # Secret management
 from pycore.pyfoundations.secret_manager import (
-    get_core_node_dir,
     get_secret_directories,
-    decrypt_all_secrets,
-    encrypt_all_secrets,
     get_secret_key,
-    get_all_secret_keys,
-    set_secret_key
+    get_all_secret_keys
+)
+
+# System information
+from pycore.pyfoundations.system_info import (
+    ScreenInfo,
+    MemoryInfo,
+    DiskInfo,
+    get_screen_resolution,
+    get_memory_info,
+    get_disk_info,
+    get_system_summary,
+    SCREEN_RESOLUTION,
+    MEMORY_INFO,
+    DISK_INFO,
+    SYSTEM_SUMMARY
 )
 
 __all__ = [
@@ -46,25 +51,23 @@ __all__ = [
     'EventTypes',
     'Event',
 
-    # Global vars
-    'GlobalVarManager',
-
-    # Devices
-    'DeviceInfo',
-    'Resolution',
-    'ServerParams',
-    'VideoCodec',
-    'AndroidDevice',
-    'ScrcpyDevice',
-
     # Secret management
-    'get_core_node_dir',
     'get_secret_directories',
-    'decrypt_all_secrets',
-    'encrypt_all_secrets',
     'get_secret_key',
     'get_all_secret_keys',
-    'set_secret_key',
+
+    # System information
+    'ScreenInfo',
+    'MemoryInfo',
+    'DiskInfo',
+    'get_screen_resolution',
+    'get_memory_info',
+    'get_disk_info',
+    'get_system_summary',
+    'SCREEN_RESOLUTION',
+    'MEMORY_INFO',
+    'DISK_INFO',
+    'SYSTEM_SUMMARY',
 ]
 
 __version__ = '1.0.0'

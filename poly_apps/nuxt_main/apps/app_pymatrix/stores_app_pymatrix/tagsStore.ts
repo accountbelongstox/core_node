@@ -15,6 +15,8 @@ interface TagsState {
   selectedTagIds: string[];
 }
 
+const TAGS_STORAGE_KEY = 'pymatrix-tags';
+
 export const useTagsStore = defineStore('pymatrix-tags', {
   state: (): TagsState => ({
     tags: [],
@@ -291,19 +293,17 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Import tags from JSON
      */
     importTags(jsonString: string): { success: boolean; imported: number; skipped: number } {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      try {
         const importedTags: DeviceTag[] = JSON.parse(jsonString);
         let imported = 0;
         let skipped = 0;
 
         importedTags.forEach(tag => {
-          // Skip if tag with same name already exists
           if (this.getTagByName(tag.name)) {
             skipped++;
             return;
           }
 
-          // Create new tag with new ID
           this.createTag({
             name: tag.name,
             color: tag.color,
@@ -313,6 +313,7 @@ export const useTagsStore = defineStore('pymatrix-tags', {
         });
 
         return { success: true, imported, skipped };
+      } catch (error) {
         console.error('Failed to import tags:', error);
         return { success: false, imported: 0, skipped: 0 };
       }
@@ -322,8 +323,13 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Save tags to localStorage
      */
     saveToLocalStorage() {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        localStorage.setItem('pymatrix-tags', JSON.stringify(this.tags));
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        localStorage.setItem(TAGS_STORAGE_KEY, JSON.stringify(this.tags));
+      } catch (error) {
         console.error('Failed to save tags to localStorage:', error);
       }
     },
@@ -332,11 +338,16 @@ export const useTagsStore = defineStore('pymatrix-tags', {
      * Load tags from localStorage
      */
     loadFromLocalStorage() {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        const stored = localStorage.getItem('pymatrix-tags');
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        const stored = localStorage.getItem(TAGS_STORAGE_KEY);
         if (stored) {
           this.tags = JSON.parse(stored);
         }
+      } catch (error) {
         console.error('Failed to load tags from localStorage:', error);
       }
     }

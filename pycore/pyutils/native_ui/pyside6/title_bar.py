@@ -6,25 +6,37 @@ PySide6 Title Bar - Custom Title Bar for Frameless Window
 Custom title bar with window controls and drag support.
 """
 
-from PySide6.QtCore import Qt, QPoint, QSize, Signal, Slot
+from PySide6.QtCore import (
+    Qt, QPoint, QSize, Signal, Slot,
+    QPropertyAnimation, QEasingCurve, Property
+)
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton,
-    QSpacerItem, QSizePolicy
+    QSpacerItem, QSizePolicy, QGraphicsDropShadowEffect
 )
 from PySide6.QtGui import QIcon, QPixmap, QMouseEvent, QPainter, QColor
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from pathlib import Path
+
+# 导入样式系统
+from .title_bar_styles import (
+    TitleBarStyles,
+    get_default_style,
+    StyleSheetGenerator,
+    merge_styles
+)
 
 
 class TitleBarButton(QPushButton):
-    """Custom styled button for title bar."""
+    """Custom styled button for title bar with modern design."""
 
     def __init__(
         self,
         icon_text: str = "",
         tooltip: str = "",
-        hover_color: str = "#3d5569",
+        button_type: str = "normal",
+        styles: Optional[TitleBarStyles] = None,
         parent: Optional[QWidget] = None
     ):
         """
@@ -33,39 +45,39 @@ class TitleBarButton(QPushButton):
         Args:
             icon_text: Text to display (or icon)
             tooltip: Tooltip text
-            hover_color: Hover background color
+            button_type: Button type ("normal", "minimize", "maximize", "close")
+            styles: Style configuration (use default if None)
             parent: Parent widget
         """
         super().__init__(icon_text, parent)
 
-        self.hover_color = hover_color
-        self.normal_color = "transparent"
+        self.button_type = button_type
+        self.styles = styles or get_default_style()
 
         # Button properties
-        self.setFixedSize(45, 32)
+        self.setFixedSize(self.styles.button_width, self.styles.button_height)
         self.setToolTip(tooltip)
         self.setFlat(True)
+        self.setCursor(Qt.PointingHandCursor)
+
+        # Add shadow effect for close button
+        if button_type == "close":
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(8)
+            shadow.setColor(QColor(0, 0, 0, 80))
+            shadow.setOffset(0, 2)
+            self.setGraphicsEffect(shadow)
 
         # Apply stylesheet
         self.update_stylesheet()
 
     def update_stylesheet(self):
-        """Update button stylesheet."""
-        self.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {self.normal_color};
-                border: none;
-                color: #ecf0f1;
-                font-size: 14px;
-                font-family: 'Segoe MDL2 Assets', 'Microsoft YaHei UI';
-            }}
-            QPushButton:hover {{
-                background-color: {self.hover_color};
-            }}
-            QPushButton:pressed {{
-                background-color: #2c3e50;
-            }}
-        """)
+        """Update button stylesheet using style generator."""
+        stylesheet = StyleSheetGenerator.generate_button_stylesheet(
+            self.styles,
+            self.button_type
+        )
+        self.setStyleSheet(stylesheet)
 
 
 class PySide6TitleBar(QWidget):
@@ -88,11 +100,10 @@ class PySide6TitleBar(QWidget):
     def __init__(
         self,
         app_name: str = "Application",
-        height: int = 32,
-        bg_color: str = "#2c3e50",
-        fg_color: str = "#ecf0f1",
         show_menu: bool = True,
         logo_path: Optional[str] = None,
+        styles: Optional[TitleBarStyles] = None,
+        custom_styles: Optional[Dict[str, Any]] = None,
         parent: Optional[QWidget] = None
     ):
         """
@@ -100,21 +111,42 @@ class PySide6TitleBar(QWidget):
 
         Args:
             app_name: Application name to display
-            height: Title bar height
-            bg_color: Background color
-            fg_color: Foreground/text color
             show_menu: Show menu button
             logo_path: Path to logo image
+            styles: Base style configuration (use default if None)
+            custom_styles: Custom style overrides (dict format)
             parent: Parent widget
+
+        Example:
+            # Use default style
+            title_bar = PySide6TitleBar("My App")
+
+            # Use predefined style
+            from title_bar_styles import get_light_style
+            title_bar = PySide6TitleBar("My App", styles=get_light_style())
+
+            # Use custom overrides
+            title_bar = PySide6TitleBar(
+                "My App",
+                custom_styles={"bar_height": 50, "title_color": "#00ff00"}
+            )
+
+            # Combine base style + custom overrides
+            title_bar = PySide6TitleBar(
+                "My App",
+                styles=get_dark_style(),
+                custom_styles={"close_hover_color": "#ff0000"}
+            )
         """
         super().__init__(parent)
 
         self.app_name = app_name
-        self.height = height
-        self.bg_color = bg_color
-        self.fg_color = fg_color
         self.show_menu = show_menu
         self.logo_path = logo_path
+
+        # Merge styles: base style + custom overrides
+        base_style = styles or get_default_style()
+        self.styles = base_style.merge(custom_styles)
 
         # Mouse dragging
         self._drag_position: Optional[QPoint] = None
@@ -124,70 +156,88 @@ class PySide6TitleBar(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
-        """Setup title bar UI."""
-        # Set fixed height
-        self.setFixedHeight(self.height)
+        """Setup title bar UI using style system."""
+        # Set fixed height from styles
+        self.setFixedHeight(self.styles.bar_height)
 
-        # Set background color
-        self.setStyleSheet(f"""
-            QWidget {{
-                background-color: {self.bg_color};
-            }}
-        """)
+        # Apply title bar stylesheet
+        stylesheet = StyleSheetGenerator.generate_title_bar_stylesheet(self.styles)
+        self.setStyleSheet(stylesheet)
 
-        # Main layout
+        # Main layout with padding from styles
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(
+            self.styles.bar_padding_left, 0,
+            self.styles.bar_padding_right, 0
+        )
+        layout.setSpacing(self.styles.bar_spacing)
 
-        # Logo (if provided)
+        # Logo (if provided) using styles
         if self.logo_path and Path(self.logo_path).exists():
             logo_label = QLabel()
+            logo_stylesheet = StyleSheetGenerator.generate_logo_stylesheet(self.styles)
+            logo_label.setStyleSheet(logo_stylesheet)
+
             pixmap = QPixmap(self.logo_path)
             if not pixmap.isNull():
                 scaled_pixmap = pixmap.scaled(
-                    24, 24,
+                    self.styles.logo_size, self.styles.logo_size,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
                 logo_label.setPixmap(scaled_pixmap)
                 layout.addWidget(logo_label)
-                layout.addSpacing(8)
+                layout.addSpacing(self.styles.logo_spacing_right)
 
         # Menu button (optional)
         if self.show_menu:
-            self.menu_btn = TitleBarButton("☰", "Menu")
+            self.menu_btn = TitleBarButton(
+                self.styles.menu_icon,
+                "Menu",
+                button_type="normal",
+                styles=self.styles
+            )
             self.menu_btn.clicked.connect(self.menu_clicked.emit)
             layout.addWidget(self.menu_btn)
-            layout.addSpacing(5)
+            layout.addSpacing(4)
 
-        # Application name
+        # Application name with typography from styles
         self.title_label = QLabel(self.app_name)
-        self.title_label.setStyleSheet(f"""
-            QLabel {{
-                color: {self.fg_color};
-                font-size: 10pt;
-                font-family: 'Microsoft YaHei UI';
-            }}
-        """)
+        title_stylesheet = StyleSheetGenerator.generate_title_label_stylesheet(self.styles)
+        self.title_label.setStyleSheet(title_stylesheet)
         layout.addWidget(self.title_label)
 
         # Spacer
         layout.addStretch()
 
-        # Window control buttons
+        # Window control buttons using styles
         # Minimize button
-        self.minimize_btn = TitleBarButton("−", "Minimize")
+        self.minimize_btn = TitleBarButton(
+            self.styles.minimize_icon,
+            "Minimize",
+            button_type="minimize",
+            styles=self.styles
+        )
         self.minimize_btn.clicked.connect(self.minimize_clicked.emit)
         layout.addWidget(self.minimize_btn)
 
         # Maximize/Restore button
-        self.maximize_btn = TitleBarButton("□", "Maximize")
+        self.maximize_btn = TitleBarButton(
+            self.styles.maximize_icon,
+            "Maximize",
+            button_type="maximize",
+            styles=self.styles
+        )
         self.maximize_btn.clicked.connect(self.maximize_clicked.emit)
         layout.addWidget(self.maximize_btn)
 
-        # Close button (red hover)
-        self.close_btn = TitleBarButton("✕", "Close", hover_color="#e74c3c")
+        # Close button
+        self.close_btn = TitleBarButton(
+            self.styles.close_icon,
+            "Close",
+            button_type="close",
+            styles=self.styles
+        )
         self.close_btn.clicked.connect(self.close_clicked.emit)
         layout.addWidget(self.close_btn)
 
@@ -208,10 +258,10 @@ class PySide6TitleBar(QWidget):
             maximized: True if window is maximized
         """
         if maximized:
-            self.maximize_btn.setText("❐")  # Restore icon
+            self.maximize_btn.setText(self.styles.maximize_icon_restore)
             self.maximize_btn.setToolTip("Restore")
         else:
-            self.maximize_btn.setText("□")  # Maximize icon
+            self.maximize_btn.setText(self.styles.maximize_icon)
             self.maximize_btn.setToolTip("Maximize")
 
     # ========== Mouse Events for Dragging ==========

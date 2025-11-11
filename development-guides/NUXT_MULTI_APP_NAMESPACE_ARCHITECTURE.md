@@ -78,6 +78,13 @@ poly_apps/nuxt_main/
 └── pages/index.{namespace}.vue     # App entry pages
 ```
 
+### Location Example
+- **Project Root:** `D:/programing/core_node/poly_apps/nuxt_main`
+- **Sample File:** `apps/app_pymatrix/stores_app_pymatrix/scriptStore.ts`
+  - Full path: `D:/programing/core_node/poly_apps/nuxt_main/apps/app_pymatrix/stores_app_pymatrix/scriptStore.ts`
+  - Factory mirror path: `D:/programing/.build_dir/nuxt_factory/_app_pymatrix/apps/app_pymatrix/stores_app_pymatrix/scriptStore.ts`
+  - Use the factory mirror mapping rules below whenever logs reference the mirrored path.
+
 ---
 
 ## 📐 Architecture Layers
@@ -124,8 +131,7 @@ export type RegisteredNamespace =
 ### 6. Entry Point & Build System
 
 #### Entry Pages
-**Location:** `pages/index.{namespace}.vue`
-**Pattern:** Import single app component from `components_app_{namespace}/{namespace}_index/{Namespace}App.vue`
+Follow the **Entry Point Pattern** described earlier: each `pages/index.{namespace}.vue` only imports the matching `{Namespace}App` component from `components_app_{namespace}/{namespace}_index/` and contains no additional logic.
 
 #### Launcher Scripts
 **Development:** `.\scripts\start.ps1 [namespace]` or `node scripts/switch-app-entry-plus.js [namespace]`
@@ -155,12 +161,20 @@ node scripts/switch-app-entry-plus.js ittools --mode build
 - Windows: `D:/programing/.build_dir/nuxt_factory/_app_{namespace}/`
 - Linux: `{base}/_build_dir/nuxt_factory/linux/_app_{namespace}/`
 
+### Factory Mirror Path Mapping
+- The factory sync runtime is a **1:1 mirror** of `poly_apps/nuxt_main` stored under `.build_dir/nuxt_factory/_app_{namespace}/`.
+- **Always translate mirrored paths back to source paths** when filing issues or sharing logs (especially with AI assistants) so fixes happen in the real workspace.
+- Conversion rule: Replace the factory prefix `D:/programing/.build_dir/nuxt_factory/_app_{namespace}` with `D:/programing/core_node/poly_apps/nuxt_main` and keep the remainder of the path.
+- **Example:**
+  - Error path: `D:/programing/.build_dir/nuxt_factory/_app_pymatrix/apps/app_pymatrix/stores_app_pymatrix/scriptStore.ts`
+  - Source path: `D:/programing/core_node/poly_apps/nuxt_main/apps/app_pymatrix/stores_app_pymatrix/scriptStore.ts`
+- This mapping also applies when debugging services (`services/api/**`), composables, or any generated asset living inside the mirrored runtime.
+
 ### 7. i18n Namespace System
 
 #### Global Layer
 **Location:** `i18n/locales/`
-**Content:** Common translations (save, cancel, settings, theme, etc.)
-**Languages:** en, zh, ja, fa, es, fr, de, ru, pt, it, pl, tr, sv, hu, da, el
+**Content:** Common translations (save, cancel, settings, theme, etc.) — match the language set defined in the i18n standards below.
 
 #### App-Specific Layer
 **Location:** `apps/app_{namespace}/i18n_app_{namespace}/locales/`
@@ -260,36 +274,12 @@ node scripts/switch-app-entry-plus.js ittools --mode build
 ## ✅ Validation Checklist
 
 ### For Each App
-**Required Structure:**
-1. Namespace registered in `utils/namespace-registry.ts`
-2. Route mapping in `composables/useRouteNamespace.ts`
-3. Config file created in `configs/{namespace}.config.ts`
-4. API service directory in `services/api/{namespace}/`
-5. Entry page `pages/index.{namespace}.vue` (imports single component only)
-6. Main app component `apps/app_{namespace}/components_app_{namespace}/{namespace}_index/{Namespace}App.vue`
-7. Layout wrapper `layouts/{namespace}.vue`
-8. App layout (optional) `apps/app_{namespace}/layouts_app_{namespace}/`
-9. i18n directory `apps/app_{namespace}/i18n_app_{namespace}/locales/`
-10. All global languages supported in app i18n (en, zh, ja, fa, etc.)
-11. No duplicate translation keys between global and app i18n
+Confirm that every namespace is registered (`utils/namespace-registry.ts`, `useRouteNamespace.ts`), owns its config plus API directory, and exposes the entry stack described earlier (single entry page, `{Namespace}App` component, layout wrapper, optional internal layouts). Each app must ship `i18n_app_{namespace}/locales/` covering the full global language set with unique keys.
 
-**Component Naming:**
-- Main component: `{namespace}_index/{Namespace}App.vue`
-- Sub-components: `{namespace}_index_components/`
-- Feature modules: organized in subdirectories
+Use the component naming conventions in the **App-Specific Layer Standards** section (main file under `{namespace}_index/`, supporting modules grouped by feature).
 
 ### Global Standards
-**Common Layer:**
-1. Generic, reusable code in `common/`
-2. Global translations in `i18n/locales/`
-3. All apps use consistent language set (16 languages)
-4. No app-specific code in global layers
-5. Common components are props-driven and configurable
-
-**Services Layer:**
-1. API services organized by namespace: `services/api/{namespace}/`
-2. All API requests include `X-App-Namespace` header
-3. No cross-namespace API imports
+Re-use the guidance from **Common vs App-Specific Architecture**: keep shared logic under `common/`, enforce the i18n language set once in `i18n/locales/`, and structure API clients by namespace with the `X-App-Namespace` header.
 
 ---
 
@@ -327,12 +317,7 @@ cat utils/namespace-registry.ts | grep "RegisteredNamespace"
 ```
 
 **Expected App Structure:**
-Each discovered app should have:
-- `apps/app_{namespace}/` - App directory
-- `pages/index.{namespace}.vue` - Entry page
-- `apps/app_{namespace}/components_app_{namespace}/{namespace}_index/{Namespace}App.vue` - Main component
-- `apps/app_{namespace}/i18n_app_{namespace}/locales/` - Translation files
-- `services/api/{namespace}/` - API services (optional)
+Every discovered namespace must satisfy the validation checklist above (directory scaffold, entry page, primary component, i18n files, and API surface when applicable).
 
 **Example Apps:** example, codemart, dev, admin, dashboard, pymatrix, ittools, main
 

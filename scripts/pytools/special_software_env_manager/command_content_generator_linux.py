@@ -173,11 +173,16 @@ echo ""
         return """
 #region Initialize Path Variables
 # Resolve script real path (handle symlinks)
-scriptRealPath="${BASH_SOURCE[0]}"
-if [ -L "$scriptRealPath" ]; then
-    scriptRealPath="$(readlink -f "$scriptRealPath")"
+# When script is executed via symlink, BASH_SOURCE[0] returns symlink path
+# We need to resolve it to actual file path to get correct directory
+scriptSource="${BASH_SOURCE[0]}"
+# Check if scriptSource is a symlink and resolve it
+if [ -L "$scriptSource" ]; then
+    # Resolve symlink to actual file path
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
 fi
-scriptCurrentPath="$(cd "$(dirname "$scriptRealPath")" && pwd)"
+# Get absolute path of script directory
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 
 # Calculate project structure paths
 # Expected structure: project_root/scripts/linuxenvs/script.sh
@@ -203,13 +208,76 @@ echo "[DEBUG] projectRootPath:   $projectRootPath"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Uses fixed user directory at /var/_core_node/Users/default
-# Note: No timestamp to avoid git conflicts on regeneration
+# Auto-scans /var/_core_node/Users/ for existing MyBest1, MyBest2, etc.
+# Usage: script.sh [number|MyBestX]
+#   - If number is provided: uses /var/_core_node/Users/MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses /var/_core_node/Users/MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
 # ============================================================================
 
-# Use fixed directory name (no timestamp)
 baseTempDir="/var/_core_node/Users"
-CustomUserDirectory="$baseTempDir/default"
+userDirPrefix="MyBest"
+
+# Get directory name/number from command line argument (if provided)
+userDirName=""
+if [ $# -gt 0 ]; then
+    argValue="$1"
+    # Check if it's a number
+    if [[ "$argValue" =~ ^[0-9]+$ ]]; then
+        userDirName="${userDirPrefix}${argValue}"
+        echo "[INFO] Using specified number: $argValue -> $userDirName"
+    # Check if it's a full name (MyBestX format)
+    elif [[ "$argValue" =~ ^${userDirPrefix}[0-9]+$ ]]; then
+        userDirName="$argValue"
+        echo "[INFO] Using specified full name: $userDirName"
+    fi
+fi
+
+# If no argument specified, auto-scan for existing MyBest directories
+if [ -z "$userDirName" ]; then
+    echo "[INFO] Auto-scanning for existing MyBest directories..."
+    
+    # Create base directory if it doesn't exist
+    if [ ! -d "$baseTempDir" ]; then
+        echo "[INFO] Creating base directory: $baseTempDir"
+        mkdir -p "$baseTempDir"
+    fi
+    
+    # Find existing MyBest directories
+    existingNumbers=()
+    if [ -d "$baseTempDir" ]; then
+        for dir in "$baseTempDir"/${userDirPrefix}[0-9]*; do
+            if [ -d "$dir" ]; then
+                dirName=$(basename "$dir")
+                if [[ "$dirName" =~ ^${userDirPrefix}([0-9]+)$ ]]; then
+                    num="${BASH_REMATCH[1]}"
+                    existingNumbers+=("$num")
+                fi
+            fi
+        done
+    fi
+    
+    # Find next available number
+    if [ ${#existingNumbers[@]} -gt 0 ]; then
+        # Find max number
+        maxNumber=0
+        for num in "${existingNumbers[@]}"; do
+            if [ "$num" -gt "$maxNumber" ]; then
+                maxNumber="$num"
+            fi
+        done
+        nextNumber=$((maxNumber + 1))
+        userDirName="${userDirPrefix}${nextNumber}"
+        echo "[INFO] Found existing MyBest directories: ${existingNumbers[*]}"
+        echo "[INFO] Using next available number: $nextNumber -> $userDirName"
+    else
+        userDirName="${userDirPrefix}1"
+        echo "[INFO] No existing MyBest directories found, starting with: $userDirName"
+    fi
+fi
+
+# Build directory path
+CustomUserDirectory="$baseTempDir/$userDirName"
 
 # Create the directory if it doesn't exist
 if [ ! -d "$baseTempDir" ]; then
@@ -225,7 +293,7 @@ fi
 # Verify directory was created successfully
 if [ -d "$CustomUserDirectory" ]; then
     userProfilePath="$CustomUserDirectory"
-    echo "[SUCCESS] Using auto-generated custom user directory: $userProfilePath"
+    echo "[SUCCESS] Using MyBest directory: $userProfilePath"
 else
     echo "[WARNING] Failed to create custom directory, falling back to system default"
     userProfilePath="$HOME"
@@ -332,16 +400,19 @@ load_secret_value() {{
     echo "[DEBUG] Returned value length: ${{#value}}"
 
     if [ -n "$value" ]; then
-        printf -v "$env_name" '%s' "$value"
-        export "$env_name"
-        echo "[SUCCESS] Loaded $display_name (value length: ${{#value}})"
-
-        # Show masked preview (first 4 chars + *** + last 4 chars)
-        if [ ${{#value}} -gt 8 ]; then
-            local masked="${{value:0:4}}***${{value: -4}}"
-            echo "[INFO] $display_name: $masked"
+        export "$env_name"=\"$value\"
+        echo "[SUCCESS] Loaded $display_name = $value"
+        echo "[INFO] Command executed: export $env_name=\"$value\""
+        
+        # Verify environment variable is correctly set
+        current_value="${{!env_name}}"
+        if [ "$current_value" = "$value" ]; then
+            echo "[VERIFY] Environment variable $env_name is correctly set"
+            echo "[VERIFY] Current value: $current_value"
         else
-            echo "[INFO] $display_name: ****"
+            echo "[WARNING] Environment variable $env_name verification failed"
+            echo "[WARNING] Expected: $value"
+            echo "[WARNING] Actual: $current_value"
         fi
         return 0
     fi

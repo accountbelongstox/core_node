@@ -314,7 +314,4 @@ const copyCode = async () => {
     console.error('Copy failed:', err);
   }
 };
-
-</script>
-
 </script>

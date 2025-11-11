@@ -25,66 +25,18 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pylauncher import UnifiedLauncher, LauncherConfig
-from pycore.pyutils.native_ui import launch_app_with_startup, StartupWindow
+from pycore.pylauncher import NativeUILauncher, LaunchMode
 
-# Import matrix controllers
-from pyapps.matrix.controller import (
-    MatrixService,
-    MatrixServiceConfig
-)
-
-
-def create_launcher_config() -> LauncherConfig:
-    """
-    Create launcher configuration for Matrix application
-
-    Returns:
-        Configured LauncherConfig instance
-    """
-    # Create launcher configuration with all default services disabled
-    config = LauncherConfig(
-        project_root=PROJECT_ROOT,
-        auto_start_all=False,  # We'll start services manually
-        startup_delay=0.5
-    )
-
-    # Disable all default services (we're using custom services)
-    config.web_service.enabled = False
-    config.mcp_service.enabled = False
-    config.ui_service.enabled = False  # Don't use default UI service
-    config.selenium_service.enabled = False
-
-    return config
-
-
-def create_matrix_service_config() -> MatrixServiceConfig:
-    """
-    Create Matrix service configuration
-
-    Returns:
-        Configured MatrixServiceConfig instance
-    """
-    from pyapps.matrix.config import Config
-
-    return MatrixServiceConfig(
-        project_root=PROJECT_ROOT,
-        frontend_port=Config.FRONTEND_PORT,
-        frontend_timeout=120,
-        backend_host=Config.WEB_HOST,
-        backend_port=Config.WEB_PORT,
-        backend_mode=Config.MODE,
-        enable_ui=True,
-        enable_tray=True,
-        enabled=True
-    )
+# Import matrix controllers (needed by main_app_entry)
+from pyapps.matrix.controller import MatrixService, MatrixServiceConfig
+from pyapps.matrix.matrix_config import create_ui_config
 
 
 def main_app_entry():
     """
     Main application entry point (called after startup window closes)
 
-    This function is called by launch_app_with_startup after:
+    This function is called by NativeUILauncher after:
     - Startup window is shown
     - Dependencies are checked/installed
     - Startup window is closed
@@ -95,52 +47,48 @@ def main_app_entry():
     - PySide6 UI (webview showing frontend)
     - System tray menu
     """
-    print("[DEBUG] main_app_entry() called")
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(" MATRIX - STARTING SERVICES")
     ColorPrint.blue("=" * 70)
     ColorPrint.white("")
 
-    # Store launcher reference for cleanup
-    launcher_ref = [None]
+    # Store matrix service reference for cleanup
+    matrix_service_ref = [None]
 
     try:
-        print("[DEBUG] Importing PySide6 components...")
         # Import PySide6 components (after dependencies are installed)
         from pycore.pyutils.native_ui.pyside6 import (
             PySide6Framework,
             PySide6UIConfig,
-            PySide6TrayMenuItem,
-            create_default_tray_menu
+            PySide6TrayMenuItem
         )
-        print("[DEBUG] PySide6 components imported successfully")
-        # Create launcher configuration
-        ColorPrint.blue("Creating launcher configuration...")
-        launcher_config = create_launcher_config()
-        launcher = UnifiedLauncher(launcher_config)
-        launcher_ref[0] = launcher  # Store for cleanup
+
+        # Import Matrix service
+        from pyapps.matrix.controller.matrix_service import MatrixService
+        from pyapps.matrix.config import Config
 
         # Create Matrix service configuration
         ColorPrint.blue("Creating Matrix service configuration...")
-        matrix_config = create_matrix_service_config()
-
-        # Register Matrix service
-        from pyapps.matrix.controller.matrix_service import matrix_service_entry
-
-        ColorPrint.blue("Registering Matrix service...")
-        launcher.register_custom_service(
-            service_name='matrix_service',
-            entry_point=matrix_service_entry,
-            config=matrix_config,
-            daemon=True
+        matrix_config = MatrixServiceConfig(
+            project_root=PROJECT_ROOT,
+            frontend_port=Config.FRONTEND_PORT,
+            frontend_timeout=120,
+            backend_host=Config.WEB_HOST,
+            backend_port=Config.WEB_PORT,
+            backend_mode=Config.MODE,
+            enable_ui=True,
+            enable_tray=True,
+            enabled=True
         )
 
-        # Start Matrix service
+        # Create and start Matrix service
         ColorPrint.green("Starting Matrix service (Frontend + Backend)...")
-        launcher.start_service('matrix_service')
+        matrix_service = MatrixService(matrix_config)
+        matrix_service_ref[0] = matrix_service  # Store for cleanup
 
-        # Wait for Matrix service to initialize
-        ColorPrint.yellow("Waiting for services to start...")
+        matrix_service.start()
+
+        ColorPrint.yellow("Waiting for services to initialize...")
         time.sleep(5)
 
         # Create PySide6 UI
@@ -153,7 +101,11 @@ def main_app_entry():
             webbrowser.open(url)
             ColorPrint.blue(f"[Matrix] Opened in browser: {url}")
 
-        # Custom tray menu items
+        # Get i18n manager for tray menu text
+        from pycore.pyutils.native_ui.i18n import get_i18n_manager
+        i18n = get_i18n_manager()
+
+        # Custom tray menu items (using i18n keys)
         def _tray_open_frontend():
             _open_browser(f"http://localhost:{matrix_config.frontend_port}")
 
@@ -162,65 +114,30 @@ def main_app_entry():
 
         tray_menu_items = [
             PySide6TrayMenuItem(
-                text="打开前端页面",
+                text=i18n.get("matrix.tray.open_frontend"),
                 callback=_tray_open_frontend
             ),
             PySide6TrayMenuItem(
-                text="打开API文档",
+                text=i18n.get("matrix.tray.open_api_docs"),
                 callback=_tray_open_api_docs
             ),
         ]
 
-        # Cleanup callback when app closes
+        # Cleanup callback when app closes (using i18n, NO default value)
         def on_closing():
             """Called before window closes"""
-            ColorPrint.yellow("[Matrix] Closing - stopping all services...")
-            if launcher_ref[0]:
-                launcher_ref[0].stop_all()
-
-        # Icon and logo paths
-        icon_path = str(PROJECT_ROOT / "pyapps" / "matrix" / "icon.png")
-        logo_path = str(PROJECT_ROOT / "pyapps" / "matrix" / "icon.png")
+            ColorPrint.yellow(f"[Matrix] {i18n.get('matrix.closing')}")
+            if matrix_service_ref[0]:
+                matrix_service_ref[0].stop()
 
         # Create PySide6 UI configuration
-        ui_config = PySide6UIConfig(
-            app_name="星灿传媒科技-云矩阵",
-            window_size=(1280, 900),
-
-            # Icons
-            icon_path=icon_path,
-            logo_path=logo_path,
-            logo_size=24,
-
-            # Window settings
-            frameless=True,
-            show_on_start=True,
-
-            # WebView settings
-            enable_webview=True,
-            webview_url=f"http://localhost:{matrix_config.frontend_port}",
-            enable_loading_page=True,
-            loading_style=1,  # Loading animation style
-            loading_text="加载中...",
-
-            # System tray
-            enable_tray=True,
-            tray_icon_path=icon_path,
-            tray_menu_items=tray_menu_items,
-            minimize_to_tray=True,
-
-            # Tick timer
-            enable_tick_timer=True,
-            tick_interval=1.0,
-
-            # Callbacks
-            on_ready=lambda: ColorPrint.green("[Matrix] UI is ready!"),
-            on_closing=on_closing,
-            on_closed=lambda: ColorPrint.yellow("[Matrix] UI closed"),
-
-            # Debug
-            debug=False
+        ui_config = create_ui_config(
+            frontend_port=matrix_config.frontend_port,
+            tray_menu_items=tray_menu_items
         )
+
+        # Set closing callback
+        ui_config.on_closing = on_closing
 
         # Create PySide6 framework
         ColorPrint.blue("Creating PySide6 framework...")
@@ -228,15 +145,15 @@ def main_app_entry():
 
         ColorPrint.white("")
         ColorPrint.green("=" * 70)
-        ColorPrint.green(" MATRIX APPLICATION READY")
+        ColorPrint.green(f" {i18n.get('matrix.ready')}")
         ColorPrint.green("=" * 70)
         ColorPrint.white("")
-        ColorPrint.green("Services:")
-        ColorPrint.white(f"  - Matrix Service: Running")
-        ColorPrint.white(f"  - Frontend: http://localhost:{matrix_config.frontend_port}")
-        ColorPrint.white(f"  - Backend API: http://{matrix_config.backend_host}:{matrix_config.backend_port}")
+        ColorPrint.green(f"{i18n.get('matrix.services')}:")
+        ColorPrint.white(f"  - {i18n.get('matrix.service_running')}: Running")
+        ColorPrint.white(f"  - {i18n.get('matrix.frontend')}: http://localhost:{matrix_config.frontend_port}")
+        ColorPrint.white(f"  - {i18n.get('matrix.backend_api')}: http://{matrix_config.backend_host}:{matrix_config.backend_port}")
         ColorPrint.white("")
-        ColorPrint.yellow("Close window to stop")
+        ColorPrint.yellow(i18n.get('matrix.close_window'))
         ColorPrint.white("")
         ColorPrint.green("=" * 70)
         ColorPrint.white("")
@@ -247,14 +164,14 @@ def main_app_entry():
 
     except KeyboardInterrupt:
         ColorPrint.yellow("\nKeyboard interrupt received, shutting down...")
-        if launcher_ref[0]:
-            launcher_ref[0].stop_all()
+        if matrix_service_ref[0]:
+            matrix_service_ref[0].stop()
     except Exception as e:
         ColorPrint.red(f"\n[ERROR] Application error: {e}")
         import traceback
         traceback.print_exc()
-        if launcher_ref[0]:
-            launcher_ref[0].stop_all()
+        if matrix_service_ref[0]:
+            matrix_service_ref[0].stop()
 
 
 def start():
@@ -262,17 +179,32 @@ def start():
     Standard entry point for pymain.py launcher
 
     Workflow:
-    1. Shows startup window (tkinter - Python native)
-    2. Checks/installs dependencies
-    3. Closes startup window
-    4. Calls main_app_entry() to start PySide6 UI
+    1. Initialize I18nManager (FIRST - before any text output)
+    2. Shows startup window (tkinter - Python native)
+    3. Checks/installs dependencies
+    4. Closes startup window
+    5. Calls main_app_entry() to start PySide6 UI
     """
-    # Filter out app=xxx arguments
-    original_argv = sys.argv.copy()
-    sys.argv = [arg for arg in sys.argv if not arg.startswith('app=')]
+    # STEP 1: Initialize i18n manager FIRST (before any UI text)
+    from pycore.pyutils.native_ui.i18n import get_i18n_manager
+    i18n = get_i18n_manager()
 
+    # Initialize with Matrix's i18n directory
+    matrix_i18n_dir = PROJECT_ROOT / "pyapps" / "matrix" / "matrix_i18n"
+    if matrix_i18n_dir.exists():
+        i18n.initialize(
+            config_dir=str(matrix_i18n_dir),
+            use_system_language=True  # Auto-detect system language
+        )
+        ColorPrint.blue(f"[Matrix] Initialized i18n with language: {i18n.get_current_language()}")
+    else:
+        ColorPrint.yellow(f"[Matrix] i18n directory not found: {matrix_i18n_dir}")
+        # Create default config
+        i18n._create_default_config()
+
+    # STEP 2: Print startup banner (using i18n, NO default values)
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" MATRIX APPLICATION - STARTING")
+    ColorPrint.blue(f" {i18n.get('matrix.app_name')} - STARTING")
     ColorPrint.blue("=" * 70)
     ColorPrint.white("")
 
@@ -280,41 +212,44 @@ def start():
     icon_path = str(PROJECT_ROOT / "pyapps" / "matrix" / "icon.png")
     logo_path = str(PROJECT_ROOT / "pyapps" / "matrix" / "icon.png")
 
-    # Initialize i18n manager for Matrix application
-    from pycore.pyutils.native_ui.i18n import I18nManager
-    i18n_manager = I18nManager()
-
-    # Initialize with Matrix's i18n directory (if exists)
-    matrix_i18n_dir = PROJECT_ROOT / "pyapps" / "matrix" / "i18n"
-    if matrix_i18n_dir.exists():
-        i18n_manager.initialize(
-            config_dir=str(matrix_i18n_dir),
-            use_system_language=True  # Auto-detect system language
-        )
-        ColorPrint.blue(f"[Matrix] Initialized i18n with language: {i18n_manager.get_current_language()}")
-    else:
-        # Fallback to native_ui i18n
-        native_ui_i18n_dir = PROJECT_ROOT / "pycore" / "pyutils" / "native_ui" / "i18n" / "translations"
-        if native_ui_i18n_dir.exists():
-            i18n_manager.initialize(
-                config_dir=str(native_ui_i18n_dir),
-                use_system_language=True
-            )
-            ColorPrint.yellow(f"[Matrix] Using native_ui i18n (Matrix i18n not found)")
-
     try:
-        # Launch with startup window
-        launch_app_with_startup(
-            app_name="星灿传媒科技-云矩阵",
+        # Create Native UI Launcher with singleton detection
+        launcher = NativeUILauncher(
+            app_id="matrix",
+            port_start=54100,  # Matrix uses 54100-54199 range
+            port_range=100,
+            debug=True
+        )
+
+        # Launch with startup window and singleton detection (using i18n, NO default)
+        result = launcher.launch(
+            app_name=i18n.get("matrix.app_name"),
             main_entry=main_app_entry,
+            mode=LaunchMode.DEBUG_WITH_TRAY,
             startup_width=650,
             startup_height=500,
             min_display_time=2.0,
             icon_path=icon_path,
             logo_path=logo_path,
             enable_language_selector=True,
-            i18n_manager=i18n_manager
+            force=False  # Don't force shutdown existing instance
         )
+
+        # Check launch result
+        if not result.success:
+            if result.existing_instance:
+                ColorPrint.yellow("")
+                ColorPrint.yellow("=" * 70)
+                ColorPrint.yellow("Matrix is already running!")
+                ColorPrint.yellow(f"Existing instance detected at port {result.existing_port}")
+                ColorPrint.yellow("Please close the existing instance first.")
+                ColorPrint.yellow("=" * 70)
+            else:
+                ColorPrint.red("")
+                ColorPrint.red("=" * 70)
+                ColorPrint.red(f"Failed to launch Matrix: {result.message}")
+                ColorPrint.red("=" * 70)
+            sys.exit(0)
 
     except KeyboardInterrupt:
         ColorPrint.yellow("\nKeyboard interrupt received, shutting down...")
@@ -322,9 +257,6 @@ def start():
         ColorPrint.red(f"\n[ERROR] Startup error: {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        # Restore original argv
-        sys.argv = original_argv
 
 
 def main():

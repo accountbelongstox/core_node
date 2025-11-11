@@ -121,13 +121,20 @@ class PySide6WebView(QWidget):
         """)
         layout.addWidget(label)
 
-    def load_url(self, url: str):
+    def load_url(self, url: str, show_loading: bool = True, loading_style: int = 1):
         """
-        Load URL.
+        Load URL with optional loading animation.
 
         Args:
             url: URL to load (http:// or file://)
+            show_loading: Show loading animation while loading (default: True)
+            loading_style: Loading animation style (1-14, default: 1)
         """
+        # Show loading page first
+        if show_loading:
+            self._show_default_loading_page(loading_style)
+
+        # Load URL
         if url.startswith("http://") or url.startswith("https://"):
             self.web_view.load(QUrl(url))
         elif Path(url).exists():
@@ -137,18 +144,51 @@ class PySide6WebView(QWidget):
         else:
             self.web_view.load(QUrl(url))
 
-    def load_html(self, html: str, base_url: Optional[str] = None):
+    def load_html(self, html: str, base_url: Optional[str] = None, show_loading: bool = True, loading_style: int = 1):
         """
-        Load HTML content.
+        Load HTML content with optional loading animation.
 
         Args:
             html: HTML content
             base_url: Base URL for resolving relative paths
+            show_loading: Show loading animation while loading (default: True)
+            loading_style: Loading animation style (1-14, default: 1)
         """
+        # Show loading page first
+        if show_loading:
+            self._show_default_loading_page(loading_style)
+
+        # Load HTML
         if base_url:
             self.web_view.setHtml(html, QUrl(base_url))
         else:
             self.web_view.setHtml(html)
+
+    def _show_default_loading_page(self, style: int = 1):
+        """Show default loading page from resource folder.
+
+        Uses loadin{style}.html files (loadin1.html to loadin14.html).
+        Falls back to loading.html or generated HTML if specific style not found.
+
+        Args:
+            style: Loading animation style (1-14), defaults to 1
+        """
+        resource_dir = Path(__file__).parent.parent / "resource"
+
+        # Try to find loadin{style}.html first (new naming convention)
+        loading_html_path = resource_dir / f"loadin{style}.html"
+
+        if loading_html_path.exists():
+            # Load resource loadin{style}.html
+            self.show_loading_page(str(loading_html_path), style=style)
+        else:
+            # Fallback to loading.html (legacy)
+            legacy_loading_html = resource_dir / "loading.html"
+            if legacy_loading_html.exists():
+                self.show_loading_page(str(legacy_loading_html), style=style)
+            else:
+                # Final fallback to generated HTML
+                self.show_loading_page(style=style)
 
     def execute_javascript(self, script: str, callback: Optional[callable] = None):
         """
@@ -198,21 +238,33 @@ class PySide6WebView(QWidget):
             background: Background color
         """
         if html_path and Path(html_path).exists():
-            # Load custom loading page
-            with open(html_path, 'r', encoding='utf-8') as f:
-                html_content = f.read()
+            # Load custom loading page with parameters
+            file_path = Path(html_path)
+            # Build URL with query parameters
+            url = QUrl.fromLocalFile(str(file_path.absolute()))
+            # Add query parameters
+            from PySide6.QtCore import QUrlQuery
+            query = QUrlQuery()
+            query.addQueryItem("style", str(style))
+            query.addQueryItem("text", text)
+            query.addQueryItem("bg", background)
+            url.setQuery(query)
+
+            # Load in loading widget
+            temp_web = QWebEngineView(self.loading_widget)
+            temp_web.load(url)
         else:
             # Use built-in loading page
             html_content = self._generate_loading_html(style, text, background)
 
-        # Create temp loading page
-        temp_file = Path(tempfile.gettempdir()) / "loading.html"
-        with open(temp_file, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+            # Create temp loading page
+            temp_file = Path(tempfile.gettempdir()) / "loading.html"
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                f.write(html_content)
 
-        # Load in web view
-        temp_web = QWebEngineView(self.loading_widget)
-        temp_web.load(QUrl.fromLocalFile(str(temp_file)))
+            # Load in web view
+            temp_web = QWebEngineView(self.loading_widget)
+            temp_web.load(QUrl.fromLocalFile(str(temp_file)))
 
         # Replace loading widget layout
         layout = self.loading_widget.layout()

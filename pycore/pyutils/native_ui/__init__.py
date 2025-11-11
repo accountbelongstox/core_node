@@ -97,9 +97,26 @@ from pycore.pyutils.native_ui.shutdown_manager import (
 # Legacy tkinter system tray has been removed
 # Use: from pycore.pyutils.native_ui.pyside6 import PySide6SystemTray
 
+# THREAD_BUS Manager (scoped access)
+from pycore.pyutils.native_ui.thread_bus_manager import (
+    NativeUIBusManager,
+    get_bus_manager,
+    BusNamespaces,
+    BusKeys,
+    BusSignals,
+    DependencyInfo
+)
+
 # Startup Window and Launcher
 from pycore.pyutils.native_ui.startup_window import StartupWindow, ColorPrintCapture
-from pycore.pyutils.native_ui.launcher_with_startup import launch_app_with_startup, launch_matrix_with_startup
+from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
+from pycore.pyutils.native_ui.launcher_with_startup import launch_app_with_startup
+
+# NEW: Simplified Native App Launcher (RECOMMENDED)
+from pycore.pyutils.native_ui.app_config import NativeUIConfig, TrayMenuItem
+from pycore.pyutils.native_ui.launch_native_app import launch_native_app, launch
+from pycore.pyutils.native_ui.port_allocator import get_port_range
+from pycore.pyutils.native_ui.url_handler import URLHandler, process_url
 
 # Tkinter UI Components (if available)
 try:
@@ -150,6 +167,14 @@ __all__ = [
     'ShutdownHook',
     'get_shutdown_manager',
 
+    # THREAD_BUS Manager (NEW - recommended for all UI components)
+    'NativeUIBusManager',
+    'get_bus_manager',
+    'BusNamespaces',
+    'BusKeys',
+    'BusSignals',
+    'DependencyInfo',
+
     # System Tray - moved to pyside6 package
     # 'SystemTray',  # DEPRECATED - use PySide6SystemTray
     # 'TrayMenuItem',  # DEPRECATED - use PySide6TrayMenuItem
@@ -157,9 +182,18 @@ __all__ = [
 
     # Startup Window and Launcher
     'StartupWindow',
+    'TkinterStartupThread',
     'ColorPrintCapture',
     'launch_app_with_startup',
-    'launch_matrix_with_startup',
+
+    # NEW: Simplified Native App Launcher (RECOMMENDED)
+    'NativeUIConfig',
+    'TrayMenuItem',
+    'launch_native_app',
+    'launch',
+    'get_port_range',
+    'URLHandler',
+    'process_url',
 ]
 
 # Add Tkinter exports if available

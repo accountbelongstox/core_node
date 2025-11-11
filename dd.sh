@@ -1012,6 +1012,96 @@ initialize_liunxenvs() {
     done
 }
 
+# Copy scripts from ./scripts/linuxenvs to /usr/local/bin and create symlinks
+sync_linuxenvs_to_bin() {
+    local linuxenvs_dir="$CORE_NODE_ROOT_DIR/scripts/linuxenvs"
+    local bin_dir="/usr/local/bin"
+
+    if [ ! -d "$linuxenvs_dir" ]; then
+        echo -e "\033[33m[SYNC] Directory $linuxenvs_dir does not exist, skipping\033[0m"
+        return 0
+    fi
+
+    echo -e "\033[36m[SYNC] Syncing scripts from $linuxenvs_dir to $bin_dir\033[0m"
+
+    local script_count=0
+    for script_file in "$linuxenvs_dir"/*.sh; do
+        [ -e "$script_file" ] || continue
+        if [ ! -f "$script_file" ]; then
+            continue
+        fi
+
+        local filename="$(basename "$script_file")"
+        local basename_without_ext="${filename%.sh}"
+        local bin_script_path="$bin_dir/$filename"
+        local bin_link_path="$bin_dir/$basename_without_ext"
+        local source_script_path="$(readlink -f "$script_file")"
+
+        echo -e "\033[33m[SYNC] Processing: $filename\033[0m"
+
+        # Set execute permission on source file
+        chmod +x "$script_file" 2>/dev/null || $sudo chmod +x "$script_file"
+
+        # Remove existing files/symlinks if they exist
+        if [ -e "$bin_script_path" ] || [ -L "$bin_script_path" ]; then
+            if [ -w "$bin_dir" ]; then
+                rm -f "$bin_script_path" 2>/dev/null
+            else
+                $sudo rm -f "$bin_script_path" 2>/dev/null
+            fi
+        fi
+
+        if [ -e "$bin_link_path" ] || [ -L "$bin_link_path" ]; then
+            if [ -w "$bin_dir" ]; then
+                rm -f "$bin_link_path" 2>/dev/null
+            else
+                $sudo rm -f "$bin_link_path" 2>/dev/null
+            fi
+        fi
+
+        # Copy script to /usr/local/bin (replace if exists)
+        if [ -w "$bin_dir" ]; then
+            cp -f "$script_file" "$bin_script_path" 2>/dev/null
+        else
+            $sudo cp -f "$script_file" "$bin_script_path" 2>/dev/null
+        fi
+
+        if [ $? -eq 0 ]; then
+            # Set execute permission on copied file
+            if [ -w "$bin_dir" ]; then
+                chmod +x "$bin_script_path" 2>/dev/null
+            else
+                $sudo chmod +x "$bin_script_path" 2>/dev/null
+            fi
+            echo -e "\033[32m[SYNC]   Copied: $bin_script_path\033[0m"
+        else
+            echo -e "\033[31m[SYNC]   Failed to copy: $bin_script_path\033[0m"
+            continue
+        fi
+
+        # Create symlink for xxx (without .sh extension) pointing to xxx.sh
+        if [ -w "$bin_dir" ]; then
+            ln -sf "$bin_script_path" "$bin_link_path" 2>/dev/null
+        else
+            $sudo ln -sf "$bin_script_path" "$bin_link_path" 2>/dev/null
+        fi
+
+        if [ $? -eq 0 ]; then
+            echo -e "\033[32m[SYNC]   Created symlink: $bin_link_path -> $bin_script_path\033[0m"
+        else
+            echo -e "\033[31m[SYNC]   Failed to create symlink\033[0m"
+        fi
+
+        ((script_count++))
+    done
+
+    if [ $script_count -eq 0 ]; then
+        echo -e "\033[33m[SYNC] No .sh scripts found in $linuxenvs_dir\033[0m"
+    else
+        echo -e "\033[32m[SYNC] Successfully synced $script_count script(s) to $bin_dir\033[0m"
+    fi
+}
+
 show_special_software_env_menu() {
     local special_env_manager_script="$SHELLS_DIR/linux/menu_itemshells/special_software_env_manager.sh"
 
