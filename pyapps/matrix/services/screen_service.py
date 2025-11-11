@@ -10,7 +10,7 @@ except ImportError:
 
 import asyncio
 from typing import Optional, Dict
-from pycore.pyutils.adb import ADBManager
+from pycore.pyutils.device import ADBManager
 from pycore.pyutils.device_manager import DeviceManager
 from pyapps.matrix.config import Config
 

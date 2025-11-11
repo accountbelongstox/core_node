@@ -1,6 +1,6 @@
 <template>
   <BasePanel
-    v-if="show"
+    v-if="modelValue"
     title="Script Manager"
     size="full"
     color="default"
@@ -573,7 +573,7 @@
 
     <!-- Step Editor Dialog -->
     <PyMatrixScriptStepEditor
-      :show="showStepEditor"
+      :model-value="showStepEditor"
       :step="editingStep"
       :edit-mode="stepEditorMode === 'edit'"
       @close="handleCloseStepEditor"
@@ -593,7 +593,7 @@ import PyMatrixScriptStepEditor from './PyMatrixScriptStepEditor.vue';
 import type { Device, Script, ScriptStep, ScriptStepType } from '@/types/pymatrix';
 
 interface Props {
-  show: boolean;
+  modelValue: boolean;
   availableDevices: Device[];
 }
 

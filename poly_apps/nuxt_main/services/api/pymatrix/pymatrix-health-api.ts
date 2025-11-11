@@ -49,7 +49,7 @@ class PyMatrixHealthAPI {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = baseUrl;
+    this.baseUrl = getHttpBaseUrl();
   }
 
   /**

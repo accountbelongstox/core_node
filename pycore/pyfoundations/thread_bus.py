@@ -25,7 +25,7 @@ Usage:
 
 import time
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 from collections import deque
 
 
@@ -55,6 +55,10 @@ class ThreadBus:
 
         # Events for blocking wait: {signal_name: threading.Event}
         self._events: Dict[str, threading.Event] = {}
+
+        # Event handlers: {event_name: [(priority, handler_func), ...]}
+        # Handlers are called in priority order (lower number = higher priority)
+        self._event_handlers: Dict[str, List[tuple]] = {}
 
     # ============ Signal Operations ============
 
@@ -334,6 +338,170 @@ class ThreadBus:
             if queue_name in self._queues:
                 self._queues[queue_name].clear()
 
+    # ============ Event Handler Operations ============
+
+    def register_event_handler(
+        self,
+        event_name: str,
+        handler: Callable,
+        priority: int = 100
+    ) -> None:
+        """
+        Register event handler for global events
+
+        Args:
+            event_name: Event name (e.g., 'app.close', 'app.restart', 'window.minimize')
+            handler: Handler function that receives event data
+            priority: Execution priority (lower = higher priority, default: 100)
+
+        Example:
+            def on_close(event_data):
+                print("Cleaning up before close...")
+                stopserver()
+
+            THREAD_BUS.register_event_handler('app.close', on_close, priority=10)
+        """
+        with self._lock:
+            if event_name not in self._event_handlers:
+                self._event_handlers[event_name] = []
+
+            # Add handler with priority
+            self._event_handlers[event_name].append((priority, handler))
+
+            # Sort by priority (lower number = higher priority)
+            self._event_handlers[event_name].sort(key=lambda x: x[0])
+
+    def unregister_event_handler(
+        self,
+        event_name: str,
+        handler: Callable
+    ) -> bool:
+        """
+        Unregister event handler
+
+        Args:
+            event_name: Event name
+            handler: Handler function to remove
+
+        Returns:
+            True if handler was removed
+        """
+        with self._lock:
+            if event_name not in self._event_handlers:
+                return False
+
+            handlers = self._event_handlers[event_name]
+            original_len = len(handlers)
+
+            # Remove handler
+            self._event_handlers[event_name] = [
+                (p, h) for p, h in handlers if h != handler
+            ]
+
+            return len(self._event_handlers[event_name]) < original_len
+
+    def trigger_event(
+        self,
+        event_name: str,
+        event_data: Any = None,
+        async_mode: bool = False
+    ) -> bool:
+        """
+        Trigger event and execute all registered handlers
+
+        Args:
+            event_name: Event name
+            event_data: Data to pass to handlers
+            async_mode: If True, execute handlers in separate thread
+
+        Returns:
+            True if event was triggered successfully
+
+        Example:
+            # Trigger app close event
+            THREAD_BUS.trigger_event('app.close', {'reason': 'user_request'})
+
+            # Trigger window maximize event
+            THREAD_BUS.trigger_event('window.maximize')
+        """
+        with self._lock:
+            handlers = self._event_handlers.get(event_name, [])
+            if not handlers:
+                return True  # No handlers, event succeeds
+
+            # Copy handlers list
+            handlers_copy = list(handlers)
+
+        # Execute handlers
+        def _execute_handlers():
+            for priority, handler in handlers_copy:
+                try:
+                    handler(event_data)
+                except Exception as e:
+                    # Log error but continue with other handlers
+                    print(f"Error in event handler for '{event_name}': {e}")
+
+        if async_mode:
+            # Execute in separate thread
+            thread = threading.Thread(
+                target=_execute_handlers,
+                name=f"EventHandler-{event_name}",
+                daemon=True
+            )
+            thread.start()
+        else:
+            # Execute synchronously
+            _execute_handlers()
+
+        return True
+
+    def list_event_handlers(self, event_name: Optional[str] = None) -> Dict:
+        """
+        List registered event handlers
+
+        Args:
+            event_name: Optional event name to filter
+
+        Returns:
+            Dictionary of event handlers
+        """
+        with self._lock:
+            if event_name:
+                handlers = self._event_handlers.get(event_name, [])
+                return {
+                    event_name: [
+                        {
+                            'priority': p,
+                            'handler': h.__name__ if hasattr(h, '__name__') else str(h)
+                        }
+                        for p, h in handlers
+                    ]
+                }
+
+            return {
+                name: [
+                    {
+                        'priority': p,
+                        'handler': h.__name__ if hasattr(h, '__name__') else str(h)
+                    }
+                    for p, h in handlers
+                ]
+                for name, handlers in self._event_handlers.items()
+            }
+
+    def clear_event_handlers(self, event_name: Optional[str] = None) -> None:
+        """
+        Clear event handlers
+
+        Args:
+            event_name: Optional event name to clear (if None, clear all)
+        """
+        with self._lock:
+            if event_name:
+                self._event_handlers.pop(event_name, None)
+            else:
+                self._event_handlers.clear()
+
     # ============ Utility Operations ============
 
     def reset(self) -> None:
@@ -345,6 +513,7 @@ class ThreadBus:
             for event in self._events.values():
                 event.clear()
             self._events.clear()
+            self._event_handlers.clear()
 
     def stats(self) -> Dict[str, Any]:
         """
@@ -359,9 +528,13 @@ class ThreadBus:
                 'threads_count': len(self._thread_states),
                 'queues_count': len(self._queues),
                 'events_count': len(self._events),
+                'event_handlers_count': len(self._event_handlers),
                 'active_threads': list(self._thread_states.keys()),
                 'active_signals': list(self._signals.keys()),
-                'active_queues': {name: len(q) for name, q in self._queues.items()}
+                'active_queues': {name: len(q) for name, q in self._queues.items()},
+                'active_event_handlers': {
+                    name: len(handlers) for name, handlers in self._event_handlers.items()
+                }
             }
 
     def __repr__(self) -> str:

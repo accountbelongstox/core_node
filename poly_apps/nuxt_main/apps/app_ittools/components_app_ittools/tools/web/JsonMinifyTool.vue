@@ -110,12 +110,12 @@ const emit = defineEmits<{
   executed: [result: any];
 }>();
 
-const jsonInput = ref('{
+const jsonInput = ref(`{
   "products": [
     { "id": 1, "name": "Laptop", "price": 1299 },
     { "id": 2, "name": "Monitor", "price": 399 }
   ]
-}');
+}`);
 const output = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);

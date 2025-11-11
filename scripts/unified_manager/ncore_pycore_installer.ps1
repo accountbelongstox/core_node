@@ -2,10 +2,6 @@
 # This script handles complete installation and initialization
 # Usage: .\ncore_pycore_installer.ps1 -AppName "app_name" -AppType "ncoreApp|pycoreApp" -StartCommand "command" -WorkingDir "path"
 
-# Set console encoding to UTF-8 to prevent garbled text
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
 param(
     [Parameter(Mandatory=$true)]
     [string]$AppName,
@@ -23,6 +19,10 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$RootDir
 )
+
+# Set console encoding to UTF-8 to prevent garbled text
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Get script directory and root directory
 $scriptPath = $PSScriptRoot
@@ -52,6 +52,8 @@ if ($AppType -eq "pycoreApp") {
 
 Write-Host "Checking for build_config.ini..." -ForegroundColor Gray
 try {
+    # Skip pycore dependency check to avoid polluting output
+    $env:PYCORE_SKIP_DEP_CHECK = '1'
     $configExistsOutput = python -m pycore.pyutils.build_config_parser "$appDir" "exists" 2>$null
     $configExists = ($configExistsOutput -eq "true")
 

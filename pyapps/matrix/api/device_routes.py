@@ -1,20 +1,21 @@
 """Device management API routes"""
 
-# Setup path
-try:
-    from .. import _path_setup
-except ImportError:
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+import sys
+from pathlib import Path
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
+from pycore import ColorPrint
 from pyapps.matrix.services import DeviceService
 
-router = APIRouter(prefix="/devices", tags=["devices"])
+router = APIRouter(prefix="/api", tags=["devices"])
 
 
 class DeviceConnectRequest(BaseModel):
@@ -28,62 +29,73 @@ class DeviceConnectRequest(BaseModel):
     locked_video_orientation: Optional[int] = None
 
 
-@router.get("/list")
+@router.get("/devices")
 async def list_devices():
     """
-    List all ADB devices
+    List all ADB devices (API Specification compliant)
+
+    Endpoint: GET /api/devices
 
     Returns:
-        Device list
+        Device list in format: {"devices": [...], "count": N}
     """
     service = DeviceService.instance()
-    devices = await service.list_devices()
+    adb_devices = await service.list_devices()
+
+    devices_list = []
+    for device in adb_devices:
+        device_dict = {
+            "serial": device.serial,
+            "status": device.state.value,
+            "model": device.model if hasattr(device, 'model') else "Unknown",
+            "manufacturer": device.product if hasattr(device, 'product') else None,
+            "android_version": None  # Will be populated from device info if available
+        }
+        devices_list.append(device_dict)
 
     return {
-        "success": True,
-        "devices": [
-            {
-                "serial": device.serial,
-                "state": device.state.value,
-                "model": device.model,
-                "product": device.product
-            }
-            for device in devices
-        ]
+        "devices": devices_list,
+        "count": len(devices_list)
     }
 
 
-@router.get("/{serial}/info")
+@router.get("/devices/{serial}/info")
 async def get_device_info(serial: str):
     """
-    Get device detailed information
+    Get device detailed information (API Specification compliant)
+
+    Endpoint: GET /api/devices/{serial}/info
 
     Args:
         serial: Device serial number
+
+    Returns:
+        Device detailed info in format: {"device": {...}}
     """
     service = DeviceService.instance()
     device_info = await service.get_device_info(serial)
 
     if not device_info:
+        ColorPrint.red(f"[API] Device {serial} not found or offline")
         raise HTTPException(status_code=404, detail="Device not found or offline")
 
     return {
-        "success": True,
         "device": {
             "serial": device_info.serial,
             "model": device_info.model,
+            "manufacturer": device_info.manufacturer if hasattr(device_info, 'manufacturer') else None,
+            "android_version": device_info.android_version,
+            "sdk_version": device_info.sdk_version,
             "resolution": {
                 "width": device_info.resolution.width,
                 "height": device_info.resolution.height
             },
-            "dpi": device_info.dpi,
-            "android_version": device_info.android_version,
-            "sdk_version": device_info.sdk_version
+            "dpi": device_info.dpi
         }
     }
 
 
-@router.post("/{serial}/connect")
+@router.post("/devices/{serial}/connect")
 async def connect_device(serial: str, request: DeviceConnectRequest):
     """
     Connect device
@@ -107,6 +119,7 @@ async def connect_device(serial: str, request: DeviceConnectRequest):
     success = await service.connect_device(serial, params)
 
     if not success:
+        ColorPrint.red(f"[API] Failed to connect device {serial}")
         raise HTTPException(status_code=500, detail="Failed to connect device")
 
     return {
@@ -115,7 +128,7 @@ async def connect_device(serial: str, request: DeviceConnectRequest):
     }
 
 
-@router.post("/{serial}/disconnect")
+@router.post("/devices/{serial}/disconnect")
 async def disconnect_device(serial: str):
     """
     Disconnect device
@@ -127,6 +140,7 @@ async def disconnect_device(serial: str):
     success = await service.disconnect_device(serial)
 
     if not success:
+        ColorPrint.red(f"[API] Failed to disconnect device {serial}")
         raise HTTPException(status_code=500, detail="Failed to disconnect device")
 
     return {
@@ -141,7 +155,7 @@ class BatchConfigRequest(BaseModel):
     config: Dict[str, Any]  # Configuration to apply
 
 
-@router.post("/batch/configure")
+@router.post("/devices/batch/configure")
 async def batch_configure_devices(request: BatchConfigRequest):
     """
     Apply configuration to multiple devices in batch
@@ -153,9 +167,11 @@ async def batch_configure_devices(request: BatchConfigRequest):
         Results for each device
     """
     if not request.devices:
+        ColorPrint.red("[API] No devices specified for batch configuration")
         raise HTTPException(status_code=400, detail="No devices specified")
 
     if not request.config:
+        ColorPrint.red("[API] No configuration specified for batch configuration")
         raise HTTPException(status_code=400, detail="No configuration specified")
 
     service = DeviceService.instance()
@@ -164,9 +180,8 @@ async def batch_configure_devices(request: BatchConfigRequest):
     failed = 0
 
     # Import services based on config keys
-    from .screen_routes import router as screen_router
-    from ..services.screen_service import ScreenService
-    from ..services.control_service import ControlService
+    from pyapps.matrix.services.screen_service import ScreenService
+    from pyapps.matrix.services.control_service import ControlService
 
     screen_service = ScreenService.instance()
     control_service = ControlService.instance()
@@ -180,67 +195,49 @@ async def batch_configure_devices(request: BatchConfigRequest):
             "errors": []
         }
 
-        try:
-            # Apply video quality settings
-            if "videoQuality" in request.config or "maxFps" in request.config or "bitrate" in request.config:
-                # These would need to be applied via reconnection with new params
-                # For now, just log that we would apply them
-                device_result["applied"].append("video_settings")
-                print(f"[BatchConfig] Would apply video settings to {device_serial}")
+        # Apply video quality settings
+        if "videoQuality" in request.config or "maxFps" in request.config or "bitrate" in request.config:
+            # These would need to be applied via reconnection with new params
+            # For now, just log that we would apply them
+            device_result["applied"].append("video_settings")
+            ColorPrint.blue(f"[BatchConfig] Would apply video settings to {device_serial}")
 
-            # Apply screen power control
-            if "screenPower" in request.config:
-                action = request.config["screenPower"]
-                try:
-                    result = await screen_service.control_screen_power(device_serial, action)
-                    if result.get("success"):
-                        device_result["applied"].append("screen_power")
-                    else:
-                        device_result["failed"].append("screen_power")
-                        device_result["errors"].append(result.get("error", "Unknown error"))
-                except Exception as e:
-                    device_result["failed"].append("screen_power")
-                    device_result["errors"].append(str(e))
-
-            # Apply screen brightness
-            if "brightness" in request.config:
-                level = int(request.config["brightness"])
-                try:
-                    result = await screen_service.control_screen_brightness(device_serial, level)
-                    if result.get("success"):
-                        device_result["applied"].append("brightness")
-                    else:
-                        device_result["failed"].append("brightness")
-                        device_result["errors"].append(result.get("error", "Unknown error"))
-                except Exception as e:
-                    device_result["failed"].append("brightness")
-                    device_result["errors"].append(str(e))
-
-            # Apply screen rotation
-            if "screenRotation" in request.config:
-                rotation = int(request.config["screenRotation"])
-                try:
-                    result = await screen_service.control_screen_rotation(device_serial, rotation)
-                    if result.get("success"):
-                        device_result["applied"].append("screen_rotation")
-                    else:
-                        device_result["failed"].append("screen_rotation")
-                        device_result["errors"].append(result.get("error", "Unknown error"))
-                except Exception as e:
-                    device_result["failed"].append("screen_rotation")
-                    device_result["errors"].append(str(e))
-
-            # Check if any operations failed
-            if len(device_result["failed"]) > 0:
-                device_result["success"] = False
-                failed += 1
+        # Apply screen power control
+        if "screenPower" in request.config:
+            action = request.config["screenPower"]
+            result = await screen_service.control_screen_power(device_serial, action)
+            if result.get("success"):
+                device_result["applied"].append("screen_power")
             else:
-                successful += 1
+                device_result["failed"].append("screen_power")
+                device_result["errors"].append(result.get("error", "Unknown error"))
 
-        except Exception as e:
+        # Apply screen brightness
+        if "brightness" in request.config:
+            level = int(request.config["brightness"])
+            result = await screen_service.control_screen_brightness(device_serial, level)
+            if result.get("success"):
+                device_result["applied"].append("brightness")
+            else:
+                device_result["failed"].append("brightness")
+                device_result["errors"].append(result.get("error", "Unknown error"))
+
+        # Apply screen rotation
+        if "screenRotation" in request.config:
+            rotation = int(request.config["screenRotation"])
+            result = await screen_service.control_screen_rotation(device_serial, rotation)
+            if result.get("success"):
+                device_result["applied"].append("screen_rotation")
+            else:
+                device_result["failed"].append("screen_rotation")
+                device_result["errors"].append(result.get("error", "Unknown error"))
+
+        # Check if any operations failed
+        if len(device_result["failed"]) > 0:
             device_result["success"] = False
-            device_result["errors"].append(f"Device error: {str(e)}")
             failed += 1
+        else:
+            successful += 1
 
         results.append(device_result)
 

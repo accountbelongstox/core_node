@@ -117,11 +117,11 @@ const emit = defineEmits<{
   executed: [result: any];
 }>();
 
-const jsonInput = ref('{
+const jsonInput = ref(`{
   "name": "Grace Hopper",
   "roles": ["engineer", "navy"],
   "active": true
-}');
+}`);
 const indent = ref(2);
 const output = ref('');
 const loading = ref(false);

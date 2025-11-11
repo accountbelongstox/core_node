@@ -290,6 +290,34 @@ function shouldPathBeIgnored(srcDir, targetPath) {
     return segments.some(segment => WATCH_IGNORE.includes(segment));
 }
 
+function detectEntryAppFromPath(changedPath, runtimes) {
+    if (!changedPath) {
+        return null;
+    }
+
+    let absolutePath;
+    try {
+        absolutePath = path.resolve(changedPath);
+    } catch (err) {
+        return null;
+    }
+
+    const relativePath = path.relative(SOURCE_ROOT, absolutePath);
+    if (!relativePath || relativePath.startsWith('..')) {
+        return null;
+    }
+
+    const normalized = relativePath.replace(/\\/g, '/');
+    const match = normalized.match(/^pages\/index\.([^.]+)\.vue$/);
+    if (!match) {
+        return null;
+    }
+
+    const namespace = match[1];
+    const isRuntimeTracked = runtimes.some(runtime => runtime.app === namespace);
+    return isRuntimeTracked ? namespace : null;
+}
+
 function startWatcher(srcDir, runtimes) {
     if (watcherInstance) {
         return watcherInstance;
@@ -301,7 +329,16 @@ function startWatcher(srcDir, runtimes) {
         persistent: true
     });
 
-    const scheduleSync = () => {
+    const pendingEntryApps = new Set();
+
+    const scheduleSync = changedPath => {
+        if (changedPath) {
+            const entryApp = detectEntryAppFromPath(changedPath, runtimes);
+            if (entryApp) {
+                pendingEntryApps.add(entryApp);
+            }
+        }
+
         if (debounceTimer) {
             return;
         }
@@ -319,6 +356,12 @@ function startWatcher(srcDir, runtimes) {
                     await runSwitchScript(runtime.targetDir, runtime.app);
                     await syncAppIndexFiles(runtime);
                 }
+                const entryApps = Array.from(pendingEntryApps);
+                pendingEntryApps.clear();
+                for (const entryApp of entryApps) {
+                    console.log(`[Watcher] Updating source placeholder for ${entryApp}`);
+                    await runSwitchScript(SOURCE_ROOT, entryApp);
+                }
                 console.log('[Watcher] Sync complete');
             } catch (err) {
                 console.error('[Watcher] Sync error:', err.message);
@@ -328,11 +371,13 @@ function startWatcher(srcDir, runtimes) {
         }, WATCH_DEBOUNCE_MS);
     };
 
-    watcherInstance.on('all', scheduleSync);
+    watcherInstance.on('all', (event, changedPath) => scheduleSync(changedPath));
     return watcherInstance;
 }
 
 function startPnpmProcesses(runtimes, mode) {
+    const exitPromises = [];
+
     for (const runtime of runtimes) {
         if (pnpmProcesses.has(runtime.app)) {
             continue;
@@ -369,11 +414,18 @@ function startPnpmProcesses(runtimes, mode) {
         const proc = spawn(command, args, spawnOptions);
         pnpmProcesses.set(runtime.app, proc);
 
-        proc.on('exit', code => {
-            console.log(`[PNPM][${runtime.app}] process exited with code ${code}`);
-            pnpmProcesses.delete(runtime.app);
+        const exitPromise = new Promise(resolve => {
+            proc.on('exit', code => {
+                console.log(`[PNPM][${runtime.app}] process exited with code ${code}`);
+                pnpmProcesses.delete(runtime.app);
+                resolve({ app: runtime.app, code });
+            });
         });
+
+        exitPromises.push(exitPromise);
     }
+
+    return exitPromises;
 }
 
 function setupCleanup() {
@@ -440,11 +492,37 @@ async function main() {
         console.log('[WorkingDir] Retaining original working directory for multi-app mode');
     }
 
-    startWatcher(SOURCE_ROOT, runtimes);
-    console.log(`[Watch] File watcher initialized (2s debounce interval) for ${runtimes.length} app(s)`);
+    if (options.mode === 'dev') {
+        startWatcher(SOURCE_ROOT, runtimes);
+        console.log(`[Watch] File watcher initialized (2s debounce interval) for ${runtimes.length} app(s)`);
+    } else {
+        console.log('[Watch] Skipped file watcher initialization for build mode');
+    }
+
     console.log(`[PNPM] Starting ${options.mode} pipelines for ${options.apps.join(', ')}`);
-    startPnpmProcesses(runtimes, options.mode);
+    const exitPromises = startPnpmProcesses(runtimes, options.mode);
     setupCleanup();
+
+    if (options.mode === 'build') {
+        const results = await Promise.all(exitPromises);
+        const failed = results.filter(result => result.code !== 0);
+        if (failed.length > 0) {
+            console.error(`[Build] ${failed.length} pipeline(s) failed.`);
+            failed.forEach(result => {
+                console.error(`  - ${result.app} exited with code ${result.code}`);
+            });
+            process.exit(1);
+        }
+
+        console.log('[Build] All pipelines completed successfully.');
+        try {
+            process.chdir(ORIGINAL_CWD);
+            console.log(`[Build] Restored working directory to ${ORIGINAL_CWD}`);
+        } catch (err) {
+            console.error('[Build] Failed to restore working directory:', err.message);
+        }
+        process.exit(0);
+    }
 }
 
 main().catch(err => {

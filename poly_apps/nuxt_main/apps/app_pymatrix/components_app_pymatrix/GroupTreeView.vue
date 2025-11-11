@@ -1,6 +1,6 @@
 <template>
   <BasePanel
-    :show="show"
+    :model-value="modelValue"
     size="lg"
     title="Group Tree Management"
     title-icon="🌳"
@@ -168,7 +168,7 @@ import GroupTreeNode from './GroupTreeNode.vue';
 import type { GroupTreeNode as TreeNode } from '@/types/pymatrix';
 
 interface Props {
-  show?: boolean;
+  modelValue?: boolean;
 }
 
 interface Emits {
@@ -178,7 +178,7 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  show: false
+  modelValue: false
 });
 
 const emit = defineEmits<Emits>();

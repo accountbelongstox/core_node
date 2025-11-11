@@ -1,12 +1,11 @@
-/**
- * PyMatrix Device API Service
- *
- * Handles all device-related HTTP API calls to pyMatrix backend
- * Following Nuxt multi-app namespace architecture
- */
-
-import type { Device } from '../../types/pymatrix';
 import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import type { Device } from '@/types/pymatrix';
+
+const APP_NAMESPACE = 'pymatrix';
+const JSON_HEADERS = {
+  'X-App-Namespace': APP_NAMESPACE,
+  'Content-Type': 'application/json'
+};
 
 export interface DeviceListResponse {
   devices: Device[];
@@ -14,103 +13,96 @@ export interface DeviceListResponse {
 }
 
 export interface DeviceInfoResponse {
-  device: Device;
+  device: Device | null;
+  error?: string;
 }
 
 export interface DeviceActionResponse {
   success: boolean;
-  message: string;
+  message?: string;
+  error?: string;
   device?: Device;
 }
 
-/**
- * Transform backend device response to frontend Device type
- * Single source of truth for device transformation logic
- */
-function transformBackendDevice(backendDevice: any, state?: 'connected' | 'disconnected' | 'connecting'): Device {
-  return {
-    serial: backendDevice.serial,
-    name: backendDevice.model || backendDevice.serial,
-    model: backendDevice.model || 'Unknown',
-    state: state || mapDeviceStateHelper(backendDevice.state),
-    resolution: {
-      width: backendDevice.resolution?.width || 1080,
-      height: backendDevice.resolution?.height || 2340
-    },
-    streaming: false,
-    controllable: backendDevice.state === 'device' || state === 'connected',
-    isHost: false
-  };
-}
-
-/**
- * Helper function to map backend device state
- */
-function mapDeviceStateHelper(backendState: string): 'connected' | 'disconnected' | 'connecting' {
+const mapDeviceState = (backendState: string): 'connected' | 'disconnected' | 'connecting' => {
   switch (backendState) {
     case 'device':
       return 'connected';
-    case 'offline':
-    case 'unauthorized':
-      return 'disconnected';
+    case 'connecting':
+      return 'connecting';
     default:
       return 'disconnected';
   }
-}
+};
+
+const transformBackendDevice = (
+  backendDevice: Record<string, any>,
+  overrideState?: 'connected' | 'disconnected' | 'connecting'
+): Device => ({
+  serial: backendDevice.serial,
+  name: backendDevice.model || backendDevice.serial,
+  model: backendDevice.model || 'Unknown',
+  state: overrideState ?? mapDeviceState(backendDevice.state),
+  resolution: {
+    width: backendDevice.resolution?.width ?? 1080,
+    height: backendDevice.resolution?.height ?? 2340
+  },
+  streaming: Boolean(backendDevice.streaming),
+  controllable: backendDevice.state === 'device' || overrideState === 'connected',
+  isHost: Boolean(backendDevice.isHost)
+});
 
 export class PyMatrixDeviceAPI {
-  private baseUrl: string;
-  private apiPrefix: string;
+  private readonly baseUrl: string;
+  private readonly apiPrefix = '/api';
 
   constructor() {
-    // ✅ Using centralized config from api-urls
     this.baseUrl = getHttpBaseUrl();
-    this.apiPrefix = '/api';
   }
 
-  /**
-   * Get list of all devices (connected and available)
-   */
-  async getDeviceList(): Promise<DeviceListResponse> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await $fetch<{ devices: any[] }>(`${this.baseUrl}${this.apiPrefix}/devices`, {
-        method: 'GET',
-        headers: {
-          'X-App-Namespace': 'pymatrix',
-          'Content-Type': 'application/json'
-        }
-      });
+  private buildUrl(path: string) {
+    return `${this.baseUrl}${this.apiPrefix}${path}`;
+  }
 
-      // Transform backend response to frontend Device type
-      const devices: Device[] = response.devices.map((d: any) => transformBackendDevice(d));
+  private formatError(message: string, error: unknown): string {
+    console.error(`[PyMatrixDeviceAPI] ${message}`, error);
+    return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  async getDeviceList(): Promise<DeviceListResponse> {
+    const response = await $fetch<{ devices: Record<string, any>[] }>(this.buildUrl('/devices'), {
+      method: 'GET',
+      headers: JSON_HEADERS
+    });
+
+    const devices = (response.devices ?? []).map((device) => transformBackendDevice(device));
+    return {
+      devices,
+      total: devices.length
+    };
+  }
+
+  async getDeviceInfo(serial: string): Promise<DeviceInfoResponse> {
+    try {
+      const response = await $fetch<{ device: Record<string, any> }>(
+        this.buildUrl(`/devices/${serial}/info`),
+        {
+          method: 'GET',
+          headers: JSON_HEADERS
+        }
+      );
 
       return {
-        devices,
-        total: devices.length
+        device: transformBackendDevice(response.device)
       };
+    } catch (error) {
+      return {
+        device: null,
+        error: this.formatError(`Failed to fetch device info for ${serial}`, error)
+      };
+    }
   }
 
-  /**
-   * Get information about a specific device
-   */
-  async getDeviceInfo(serial: string): Promise<DeviceInfoResponse> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await $fetch<{ device: any }>(`${this.baseUrl}${this.apiPrefix}/devices/${serial}/info`, {
-        method: 'GET',
-        headers: {
-          'X-App-Namespace': 'pymatrix',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const device: Device = transformBackendDevice(response.device);
-
-      return { device };
-  }
-
-  /**
-   * Connect to a device
-   */
   async connectDevice(
     serial: string,
     options?: {
@@ -123,7 +115,7 @@ export class PyMatrixDeviceAPI {
       deviceName?: string;
     }
   ): Promise<DeviceActionResponse> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
+    try {
       const body: Record<string, unknown> = {
         device_name: options?.deviceName,
         max_size: options?.maxSize,
@@ -131,52 +123,40 @@ export class PyMatrixDeviceAPI {
         max_fps: options?.maxFps,
         codec: options?.codec,
         control: options?.control,
-        locked_video_orientation: options?.lockedVideoOrientation,
+        locked_video_orientation: options?.lockedVideoOrientation
       };
 
-      Object.keys(body).forEach((key) => {
-        if (body[key] === undefined) {
-          delete body[key];
-        }
-      });
+      Object.keys(body).forEach((key) => body[key] === undefined && delete body[key]);
 
-      const response = await $fetch<{ success: boolean; message: string; device?: any }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/connect`,
+      const response = await $fetch<{ success: boolean; message: string; device?: Record<string, any> }>(
+        this.buildUrl(`/devices/${serial}/connect`),
         {
           method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          },
+          headers: JSON_HEADERS,
           body
         }
       );
 
-      let device: Device | undefined;
-      if (response.device) {
-        device = transformBackendDevice(response.device, 'connected');
-      }
-
       return {
         success: response.success,
         message: response.message,
-        device
+        device: response.device ? transformBackendDevice(response.device, 'connected') : undefined
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to connect device ${serial}`, error)
+      };
+    }
   }
 
-  /**
-   * Disconnect from a device
-   */
   async disconnectDevice(serial: string): Promise<DeviceActionResponse> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
+    try {
       const response = await $fetch<{ success: boolean; message: string }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/disconnect`,
+        this.buildUrl(`/devices/${serial}/disconnect`),
         {
           method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          }
+          headers: JSON_HEADERS
         }
       );
 
@@ -184,90 +164,156 @@ export class PyMatrixDeviceAPI {
         success: response.success,
         message: response.message
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to disconnect device ${serial}`, error)
+      };
+    }
   }
 
-  /**
-   * Get device clipboard content
-   */
   async getClipboard(serial: string): Promise<{ success: boolean; text?: string; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await $fetch<{ text: string }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/clipboard`,
-        {
-          method: 'GET',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+    try {
+      const response = await $fetch<{ text: string }>(this.buildUrl(`/devices/${serial}/clipboard`), {
+        method: 'GET',
+        headers: JSON_HEADERS
+      });
 
       return {
         success: true,
         text: response.text
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to get clipboard for ${serial}`, error)
+      };
+    }
   }
 
-  /**
-   * Set device clipboard content
-   */
-  async setClipboard(
-    serial: string,
-    text: string
-  ): Promise<{ success: boolean; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      await $fetch(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/clipboard`,
-        {
-          method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          },
-          body: { text }
-        }
-      );
-
+  async setClipboard(serial: string, text: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await $fetch(this.buildUrl(`/devices/${serial}/clipboard`), {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: { text }
+      });
       return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to set clipboard for ${serial}`, error)
+      };
+    }
   }
 
-  /**
-   * Control screen power
-   */
   async controlScreenPower(
     serial: string,
     action: 'on' | 'off' | 'toggle'
   ): Promise<{ success: boolean; state?: string; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
+    try {
       const response = await $fetch<{ success: boolean; state: string }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/power`,
+        this.buildUrl(`/devices/${serial}/screen/power`),
         {
           method: 'POST',
-          headers: {
-            'X-App-Namespace': 'pymatrix',
-            'Content-Type': 'application/json'
-          },
+          headers: JSON_HEADERS,
           body: { action }
         }
       );
 
       return {
-        success: true,
+        success: response.success,
         state: response.state
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to control screen power for ${serial}`, error)
+      };
+    }
   }
 
-  /**
-   * Set screen brightness
-   */
   async setScreenBrightness(
     serial: string,
     level: number
   ): Promise<{ success: boolean; level?: number; error?: string }> {
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
+    try {
       const response = await $fetch<{ success: boolean; level: number }>(
-        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/brightness`,
+        this.buildUrl(`/devices/${serial}/screen/brightness`),
         {
           method: 'POST',
-          headers: {
-            'X-App-Namespace'
+          headers: JSON_HEADERS,
+          body: { level }
+        }
+      );
+
+      return {
+        success: response.success,
+        level: response.level
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to set brightness for ${serial}`, error)
+      };
+    }
+  }
+
+  async setScreenRotation(
+    serial: string,
+    rotation: 0 | 90 | 180 | 270
+  ): Promise<{ success: boolean; rotation?: number; error?: string }> {
+    try {
+      const response = await $fetch<{ success: boolean; rotation: number }>(
+        this.buildUrl(`/devices/${serial}/screen/rotation`),
+        {
+          method: 'POST',
+          headers: JSON_HEADERS,
+          body: { rotation }
+        }
+      );
+
+      return {
+        success: response.success,
+        rotation: response.rotation
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to set rotation for ${serial}`, error)
+      };
+    }
+  }
+
+  async enableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await $fetch(this.buildUrl(`/devices/${serial}/screen/auto-rotation/enable`), {
+        method: 'POST',
+        headers: JSON_HEADERS
+      });
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to enable auto-rotation for ${serial}`, error)
+      };
+    }
+  }
+
+  async disableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await $fetch(this.buildUrl(`/devices/${serial}/screen/auto-rotation/disable`), {
+        method: 'POST',
+        headers: JSON_HEADERS
+      });
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.formatError(`Failed to disable auto-rotation for ${serial}`, error)
+      };
+    }
+  }
+}
+
+export const pyMatrixDeviceAPI = new PyMatrixDeviceAPI();

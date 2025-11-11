@@ -152,9 +152,9 @@ const toast = useToast();
 
 // ✅ Using centralized config from api-urls
 const baseUrl = ref(getWsBaseUrl());
-const showConnectDialog = ref(false);
+const showConnectDialog = useState<boolean>('pymatrix-connect-dialog', () => false);
 const showSettings = ref(false);
-const showShortcutsHelp = ref(false);
+const showShortcutsHelp = useState<boolean>('pymatrix-shortcuts-help', () => false);
 const showConnectionHistory = ref(false);
 const showLeftPanel = ref(true);
 const showRightPanel = ref(true);
@@ -424,15 +424,23 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
-async function handleConnect(payload: { serial: string; deviceName?: string; config: DeviceConfig }) {
-  // ✅ REMOVED try-catch for debugging - let errors surface
-  await connectDevice(payload);
-  showConnectDialog.value = false;
-  toast.success('Device connected successfully', 'Connection Success');
+function handleConnect(payload: { serial: string; deviceName?: string; config: DeviceConfig }) {
+  return connectDevice(payload).then(
+    () => {
+      showConnectDialog.value = false;
+      toast.success('Device connected successfully', 'Connection Success');
+      return true;
+    },
+    (error) => {
+      console.error('[PyMatrixLayout] Device connect failed:', error);
+      const message = error instanceof Error ? error.message : 'Failed to connect device';
+      toast.error(message, 'Connection Error');
+      return false;
+    }
+  );
 }
 
-async function handleQuickConnect(device: { serial: string; deviceName: string; lastConfig?: any }) {
-  // ✅ REMOVED try-catch for debugging - let errors surface
+function handleQuickConnect(device: { serial: string; deviceName: string; lastConfig?: any }) {
   const config: DeviceConfig = device.lastConfig || {
     max_fps: 30,
     bit_rate: 8000000,
@@ -442,14 +450,16 @@ async function handleQuickConnect(device: { serial: string; deviceName: string; 
     locked_video_orientation: -1
   };
 
-  await handleConnect({
+  return handleConnect({
     serial: device.serial,
     deviceName: device.deviceName,
     config
+  }).then((connected) => {
+    if (connected) {
+      showConnectionHistory.value = false;
+      toast.success(`Quick connect to ${device.deviceName}`, 'Quick Connect');
+    }
   });
-
-  showConnectionHistory.value = false;
-  toast.success(`Quick connect to ${device.deviceName}`, 'Quick Connect');
 }
 
 function toggleGroupControl() {
@@ -623,7 +633,10 @@ body {
   position: relative;
 }
 
+/* Fixed: Added proper spacing and border handling */
 .pm-app__content {
+  flex: 1;
+  min-height: 0;
   border-radius: var(--pm-radius-xl);
   overflow: hidden;
   background: var(--pm-color-surface);
@@ -631,6 +644,8 @@ body {
   box-shadow: var(--pm-shadow-sm);
   display: flex;
   flex-direction: column;
+  /* Add internal padding to prevent content from touching edges */
+  padding: 0;
 }
 
 .pm-side-panel {
@@ -641,6 +656,7 @@ body {
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
+/* Fixed: Improved positioning to prevent misalignment when panels toggle */
 .pm-panel-toggle {
   position: absolute;
   top: 50%;
@@ -658,7 +674,7 @@ body {
   font-weight: 700;
   cursor: pointer;
   z-index: 5;
-  transition: background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
+  transition: left 0.3s ease, right 0.3s ease, background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
 }
 

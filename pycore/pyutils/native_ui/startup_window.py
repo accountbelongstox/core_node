@@ -352,23 +352,39 @@ class StartupWindow:
         if not self._running:
             return
 
+        # Set flag first to stop all loops
         self._running = False
 
         # Call completion callback
         if self.on_complete:
             self.on_complete()
 
-        # Stop progress bar animation to prevent "after" errors
-        if self.progress_bar:
-            try:
-                self.progress_bar.stop()
-            except:
-                pass
-
-        # Close window
+        # Close window with proper cleanup
         if self.root:
-            self.root.after(0, self.root.quit)
-            self.root.after(0, self.root.destroy)
+            def _safe_close():
+                # Stop progress bar animation BEFORE destroying window
+                if self.progress_bar:
+                    try:
+                        self.progress_bar.stop()
+                    except:
+                        pass
+
+                # Cancel all pending after() callbacks
+                try:
+                    for after_id in self.root.tk.call('after', 'info'):
+                        self.root.after_cancel(after_id)
+                except:
+                    pass
+
+                # Destroy window
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass
+
+            # Schedule cleanup in main thread
+            self.root.after(0, _safe_close)
 
     def _create_language_selector(self, parent):
         """Create language selector with radio buttons"""
@@ -480,30 +496,37 @@ class StartupWindow:
 
 class ColorPrintCapture:
     """
-    Capture ColorPrint output and redirect to StartupWindow.
+    Capture ColorPrint output and redirect to StartupWindow or TkinterStartupThread.
 
     This allows ColorPrint messages to appear in the startup window.
 
     Usage:
+        # With StartupWindow
         startup = StartupWindow()
         startup.show()
-
         capture = ColorPrintCapture(startup)
         capture.start()
 
+        # Or with TkinterStartupThread
+        from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
+        startup_thread = TkinterStartupThread()
+        startup_thread.start()
+        capture = ColorPrintCapture(startup_thread)
+        capture.start()
+
         # Now ColorPrint messages will appear in startup window
-        ColorPrint.print_info("Installing...")
+        ColorPrint.blue("Installing...")
 
         capture.stop()
         startup.close()
     """
 
-    def __init__(self, startup_window: StartupWindow):
+    def __init__(self, startup_window):
         """
         Initialize capture.
 
         Args:
-            startup_window: StartupWindow instance to send logs to
+            startup_window: StartupWindow or TkinterStartupThread instance with log() method
         """
         self.startup_window = startup_window
         self._original_stdout = None
@@ -537,9 +560,16 @@ class ColorPrintCapture:
         self._capturing = False
 
     class _StreamCapture(io.StringIO):
-        """Custom stream that captures output to StartupWindow."""
+        """Custom stream that captures output to startup window."""
 
-        def __init__(self, startup_window: StartupWindow, level: str):
+        def __init__(self, startup_window, level: str):
+            """
+            Initialize stream capture.
+
+            Args:
+                startup_window: StartupWindow or TkinterStartupThread with log() method
+                level: Log level (info, error, etc.)
+            """
             super().__init__()
             self.startup_window = startup_window
             self.level = level

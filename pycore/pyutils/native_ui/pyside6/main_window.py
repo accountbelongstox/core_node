@@ -7,15 +7,37 @@ This is the main window framework using PySide6.
 IMPORTANT: This should be used AFTER dependencies are installed.
 """
 
-from PySide6.QtCore import Qt, QPoint, QSize, Signal, Slot, QTimer
+from PySide6.QtCore import Qt, QPoint, QSize, QRect, Signal, Slot, QTimer, QEvent
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QApplication, QFrame
 )
-from PySide6.QtGui import QMouseEvent, QIcon, QPalette, QColor
+from PySide6.QtGui import QMouseEvent, QIcon, QPalette, QColor, QCursor
 
 from typing import Optional, Tuple
 from pathlib import Path
+from enum import Enum
+
+# Import THREAD_BUS for event-driven architecture
+try:
+    from pycore import THREAD_BUS
+    HAS_THREAD_BUS = True
+except ImportError:
+    THREAD_BUS = None
+    HAS_THREAD_BUS = False
+
+# Import window state manager
+from .window_state import WindowStateManager
+
+
+class ResizeEdge(Enum):
+    """Window resize edge enumeration"""
+    NONE = 0
+    LEFT = 1
+    RIGHT = 2
+    BOTTOM = 3
+    BOTTOM_LEFT = 4
+    BOTTOM_RIGHT = 5
 
 
 class PySide6MainWindow(QMainWindow):
@@ -40,9 +62,11 @@ class PySide6MainWindow(QMainWindow):
     def __init__(
         self,
         app_name: str = "Application",
+        app_id: str = "default",
         width: int = 1280,
         height: int = 800,
         frameless: bool = True,
+        cache_window_state: bool = True,
         parent: Optional[QWidget] = None
     ):
         """
@@ -50,32 +74,67 @@ class PySide6MainWindow(QMainWindow):
 
         Args:
             app_name: Application name
-            width: Window width
-            height: Window height
+            app_id: Unique app identifier for state persistence
+            width: Default window width (used if no cached state)
+            height: Default window height (used if no cached state)
             frameless: Enable frameless window
+            cache_window_state: Enable window state caching
             parent: Parent widget
         """
         super().__init__(parent)
 
         self.app_name = app_name
+        self.app_id = app_id
         self._frameless = frameless
         self._is_maximized = False
+        self._cache_window_state = cache_window_state
+
+        # Window state manager
+        self._state_manager = WindowStateManager(app_id=app_id) if cache_window_state else None
 
         # Window dragging
         self._drag_pos: Optional[QPoint] = None
         self._dragging = False
 
-        # Setup window
+        # Resize handling
+        self._resize_edge: ResizeEdge = ResizeEdge.NONE
+        self._resize_start_pos: Optional[QPoint] = None
+        self._resize_start_geometry: Optional[QRect] = None
+        self._resize_margin = 8  # Pixel margin for edge detection
+        self._min_width = 800
+        self._min_height = 600
+
+        # Setup window (will load cached state if available)
         self._setup_window(width, height)
         self._create_ui()
+
+        # Enable mouse tracking for resize cursor
+        self.setMouseTracking(True)
+
+        # Register event handlers for event-driven architecture
+        self._register_event_handlers()
 
     def _setup_window(self, width: int, height: int):
         """Setup window properties."""
         # Set window title
         self.setWindowTitle(self.app_name)
 
-        # Set window size
-        self.resize(width, height)
+        # Load cached window state if available
+        loaded_state = None
+        if self._state_manager and self._state_manager.has_state():
+            loaded_state = self._state_manager.load_state()
+
+        # Set window size (use cached or default)
+        if loaded_state:
+            self.resize(loaded_state.width, loaded_state.height)
+            if loaded_state.x is not None and loaded_state.y is not None:
+                self.move(loaded_state.x, loaded_state.y)
+            self._is_maximized = loaded_state.is_maximized
+        else:
+            self.resize(width, height)
+
+        # Set minimum size
+        self.setMinimumSize(self._min_width, self._min_height)
 
         # Enable frameless if configured
         if self._frameless:
@@ -87,11 +146,19 @@ class PySide6MainWindow(QMainWindow):
                 Qt.WindowCloseButtonHint
             )
 
-        # Set window attributes
-        self.setAttribute(Qt.WA_TranslucentBackground, self._frameless)
+        # Set window attributes - ensure opaque background
+        # DO NOT use WA_TranslucentBackground as it causes transparency issues
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
 
-        # Center window
-        self._center_window()
+        # Set opaque background color
+        palette = self.palette()
+        palette.setColor(QPalette.Window, QColor("#0f1419"))  # Dark background
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
+
+        # Center window if no cached position
+        if not (loaded_state and loaded_state.x is not None):
+            self._center_window()
 
     def _center_window(self):
         """Center window on screen."""
@@ -116,6 +183,22 @@ class PySide6MainWindow(QMainWindow):
 
         # Title bar will be added by external component
         # Content area will be added by external component
+
+    def _register_event_handlers(self):
+        """Register global event handlers for event-driven architecture."""
+        if not HAS_THREAD_BUS:
+            return
+
+        # Window show/hide events
+        THREAD_BUS.register_event_handler('window.show', lambda e: self.show_window(), priority=50)
+        THREAD_BUS.register_event_handler('window.hide', lambda e: self.hide_window(), priority=50)
+
+        # Window state events
+        THREAD_BUS.register_event_handler('window.maximize', lambda e: self.maximize_window(), priority=50)
+        THREAD_BUS.register_event_handler('window.minimize', lambda e: self.minimize_window(), priority=50)
+        THREAD_BUS.register_event_handler('window.restore', lambda e: self.restore_window(), priority=50)
+
+        # App events - close will be handled by closeEvent
 
     def set_title_bar(self, title_bar: QWidget):
         """
@@ -206,10 +289,168 @@ class PySide6MainWindow(QMainWindow):
         self._dragging = False
         self._drag_pos = None
 
+    # ========== Window Resize Handling ==========
+
+    def _get_resize_edge(self, pos: QPoint) -> ResizeEdge:
+        """
+        Determine which resize edge the mouse is on.
+
+        Args:
+            pos: Mouse position relative to window
+
+        Returns:
+            ResizeEdge enum value
+        """
+        if self._is_maximized or not self._frameless:
+            return ResizeEdge.NONE
+
+        rect = self.rect()
+        margin = self._resize_margin
+
+        # Check corners first (higher priority)
+        if pos.x() <= margin and pos.y() >= rect.height() - margin:
+            return ResizeEdge.BOTTOM_LEFT
+        if pos.x() >= rect.width() - margin and pos.y() >= rect.height() - margin:
+            return ResizeEdge.BOTTOM_RIGHT
+
+        # Check edges
+        if pos.x() <= margin:
+            return ResizeEdge.LEFT
+        if pos.x() >= rect.width() - margin:
+            return ResizeEdge.RIGHT
+        if pos.y() >= rect.height() - margin:
+            return ResizeEdge.BOTTOM
+
+        return ResizeEdge.NONE
+
+    def _update_cursor_shape(self, edge: ResizeEdge):
+        """
+        Update cursor shape based on resize edge.
+
+        Args:
+            edge: Resize edge
+        """
+        cursor_map = {
+            ResizeEdge.LEFT: Qt.CursorShape.SizeHorCursor,
+            ResizeEdge.RIGHT: Qt.CursorShape.SizeHorCursor,
+            ResizeEdge.BOTTOM: Qt.CursorShape.SizeVerCursor,
+            ResizeEdge.BOTTOM_LEFT: Qt.CursorShape.SizeBDiagCursor,
+            ResizeEdge.BOTTOM_RIGHT: Qt.CursorShape.SizeFDiagCursor,
+        }
+
+        if edge in cursor_map:
+            self.setCursor(cursor_map[edge])
+        else:
+            self.unsetCursor()
+
+    def _save_window_state(self):
+        """Save current window state to cache"""
+        if not self._state_manager or self._is_maximized:
+            return
+
+        geometry = self.geometry()
+        self._state_manager.save_state(
+            width=geometry.width(),
+            height=geometry.height(),
+            x=geometry.x(),
+            y=geometry.y(),
+            is_maximized=self._is_maximized
+        )
+
+    # ========== Mouse Events for Resize ==========
+
+    def mousePressEvent(self, event: QMouseEvent):
+        """Handle mouse press for resize start"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._resize_edge = self._get_resize_edge(event.pos())
+
+            if self._resize_edge != ResizeEdge.NONE:
+                self._resize_start_pos = event.globalPos()
+                self._resize_start_geometry = self.geometry()
+                event.accept()
+                return
+
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        """Handle mouse move for resize cursor and operation"""
+        # If resizing, perform resize
+        if self._resize_edge != ResizeEdge.NONE and self._resize_start_pos:
+            self._perform_resize(event.globalPos())
+            event.accept()
+            return
+
+        # Update cursor based on edge
+        edge = self._get_resize_edge(event.pos())
+        self._update_cursor_shape(edge)
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        """Handle mouse release for resize end"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._resize_edge != ResizeEdge.NONE:
+                self._resize_edge = ResizeEdge.NONE
+                self._resize_start_pos = None
+                self._resize_start_geometry = None
+
+                # Save window state after resize
+                self._save_window_state()
+
+                event.accept()
+                return
+
+        super().mouseReleaseEvent(event)
+
+    def _perform_resize(self, global_pos: QPoint):
+        """
+        Perform window resize operation.
+
+        Args:
+            global_pos: Global mouse position
+        """
+        if not self._resize_start_geometry or not self._resize_start_pos:
+            return
+
+        delta = global_pos - self._resize_start_pos
+        geo = self._resize_start_geometry
+        new_geo = QRect(geo)
+
+        edge = self._resize_edge
+
+        # Left edge
+        if edge in (ResizeEdge.LEFT, ResizeEdge.BOTTOM_LEFT):
+            new_width = max(self._min_width, geo.width() - delta.x())
+            new_x = geo.x() + (geo.width() - new_width)
+            new_geo.setLeft(new_x)
+
+        # Right edge
+        if edge in (ResizeEdge.RIGHT, ResizeEdge.BOTTOM_RIGHT):
+            new_width = max(self._min_width, geo.width() + delta.x())
+            new_geo.setWidth(new_width)
+
+        # Bottom edge
+        if edge in (ResizeEdge.BOTTOM, ResizeEdge.BOTTOM_LEFT, ResizeEdge.BOTTOM_RIGHT):
+            new_height = max(self._min_height, geo.height() + delta.y())
+            new_geo.setHeight(new_height)
+
+        self.setGeometry(new_geo)
+
     # ========== Window Events ==========
 
     def closeEvent(self, event):
         """Handle window close event."""
+        # Save window state before closing
+        self._save_window_state()
+
+        # Trigger app.close event first (allows handlers to cleanup)
+        if HAS_THREAD_BUS:
+            # Trigger synchronously to ensure cleanup completes
+            THREAD_BUS.trigger_event('app.close', {
+                'source': 'window_close',
+                'window': self
+            }, async_mode=False)
+
         # Emit closing signal
         self.window_closing.emit()
 
@@ -221,10 +462,10 @@ class PySide6MainWindow(QMainWindow):
 
     def changeEvent(self, event):
         """Handle window state change event."""
-        if event.type() == event.WindowStateChange:
-            if self.windowState() & Qt.WindowMaximized:
+        if event.type() == QEvent.Type.WindowStateChange:
+            if self.windowState() & Qt.WindowState.WindowMaximized:
                 self._is_maximized = True
-            elif self.windowState() & Qt.WindowNoState:
+            elif self.windowState() & Qt.WindowState.WindowNoState:
                 self._is_maximized = False
 
         super().changeEvent(event)

@@ -68,13 +68,70 @@ Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Uses fixed user directory at D:\.tmp\Users\default
-# Note: No timestamp to avoid git conflicts on regeneration
+# Auto-scans D:\.tmp\Users\ for existing MyBest1, MyBest2, etc.
+# Usage: script.ps1 [number|MyBestX]
+#   - If number is provided: uses D:\.tmp\Users\MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses D:\.tmp\Users\MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
 # ============================================================================
 
-# Use fixed directory name (no timestamp)
 $baseTempDir = "D:\.tmp\Users"
-$CustomUserDirectory = Join-Path $baseTempDir "default"
+$userDirPrefix = "MyBest"
+
+# Get directory name/number from command line argument (if provided)
+$userDirName = $null
+if ($args.Count -gt 0) {
+    $argValue = $args[0]
+    # Check if it's a number
+    if ($argValue -match '^\d+$') {
+        $userDirName = "$userDirPrefix$argValue"
+        Write-Host "[INFO] Using specified number: $argValue -> $userDirName" -ForegroundColor Cyan
+    }
+    # Check if it's a full name (MyBestX format)
+    elseif ($argValue -match "^$userDirPrefix\d+$") {
+        $userDirName = $argValue
+        Write-Host "[INFO] Using specified full name: $userDirName" -ForegroundColor Cyan
+    }
+}
+
+# If no argument specified, auto-scan for existing MyBest directories
+if ($null -eq $userDirName) {
+    Write-Host "[INFO] Auto-scanning for existing MyBest directories..." -ForegroundColor Cyan
+    
+    # Create base directory if it doesn't exist
+    if (-not (Test-Path $baseTempDir)) {
+        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
+    }
+    
+    # Find existing MyBest directories
+    $existingNumbers = @()
+    if (Test-Path $baseTempDir) {
+        $existingDirs = Get-ChildItem -Path $baseTempDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "^$userDirPrefix(\d+)$" }
+        foreach ($dir in $existingDirs) {
+            if ($dir.Name -match "^$userDirPrefix(\d+)$") {
+                $num = [int]$matches[1]
+                $existingNumbers += $num
+            }
+        }
+    }
+    
+    # Find next available number
+    if ($existingNumbers.Count -gt 0) {
+        $existingNumbers = $existingNumbers | Sort-Object
+        $maxNumber = $existingNumbers[-1]
+        $nextNumber = $maxNumber + 1
+        $userDirName = "$userDirPrefix$nextNumber"
+        Write-Host "[INFO] Found existing MyBest directories: $($existingNumbers -join ', ')" -ForegroundColor Gray
+        Write-Host "[INFO] Using next available number: $nextNumber -> $userDirName" -ForegroundColor Cyan
+    } else {
+        $userDirName = "$userDirPrefix" + "1"
+        Write-Host "[INFO] No existing MyBest directories found, starting with: $userDirName" -ForegroundColor Cyan
+    }
+}
+
+# Build directory path
+$CustomUserDirectory = Join-Path $baseTempDir $userDirName
 
 # Create the directory if it doesn't exist
 try {
@@ -91,7 +148,7 @@ try {
     # Verify directory was created successfully
     if (Test-Path $CustomUserDirectory) {
         $userProfilePath = $CustomUserDirectory
-        Write-Host "[SUCCESS] Using auto-generated custom user directory: $userProfilePath" -ForegroundColor Green
+        Write-Host "[SUCCESS] Using MyBest directory: $userProfilePath" -ForegroundColor Green
     } else {
         Write-Host "[WARNING] Failed to create custom directory, falling back to system default" -ForegroundColor Yellow
         $userProfilePath = $env:USERPROFILE
@@ -187,29 +244,117 @@ function Get-SecretValue {
     $originalLocation = Get-Location
     Set-Location $projectRootPath
 
-    $arguments = @($secretManagerScript, 'get_secret_key', $KeyName)
+    # Use -ArgumentList for proper parameter passing
+    $argumentList = @(
+        $secretManagerScript,
+        'get_secret_key',
+        $KeyName
+    )
 
     Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
-    Write-Host "[DEBUG] Command: $pythonExecutable $($arguments -join ' ')" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable -ArgumentList $($argumentList -join ', ')" -ForegroundColor DarkGray
 
-    # Capture both stdout and stderr
-    $output = & $pythonExecutable $arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    # Use ProcessStartInfo for reliable output capture with proper argument handling
+    $value = $null
+    $errorOutput = $null
+    $exitCode = 0
+    
+    try {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $pythonExecutable
+        $psi.Arguments = ($argumentList | ForEach-Object { 
+            if ($_ -match ' ') { "`"$_`"" } 
+            else { $_ } 
+        }) -join ' '
+        $psi.WorkingDirectory = $projectRootPath
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+        
+        # Set environment variables to force Python to use UTF-8 encoding
+        $psi.Environment["PYTHONIOENCODING"] = "utf-8"
+        $psi.Environment["PYTHONUTF8"] = "1"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $psi
+        
+        [void]$process.Start()
+        $value = $process.StandardOutput.ReadToEnd().Trim()
+        $errorOutput = $process.StandardError.ReadToEnd().Trim()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        $process.Dispose()
+        
+        # Remove BOM character if present
+        if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
+            $value = $value.Substring(1)
+        }
+        
+    } catch {
+        # Fallback: use direct call with proper argument escaping
+        try {
+            # Set environment variables for UTF-8 encoding
+            $env:PYTHONIOENCODING = "utf-8"
+            $env:PYTHONUTF8 = "1"
+            
+            # Build command with proper quoting
+            $cmdParts = @($pythonExecutable)
+            foreach ($arg in $argumentList) {
+                if ($arg -match ' ') {
+                    $cmdParts += "`"$arg`""
+                } else {
+                    $cmdParts += $arg
+                }
+            }
+            $cmd = $cmdParts -join ' '
+            
+            # Execute and capture output
+            $allOutput = Invoke-Expression $cmd 2>&1
+            $exitCode = $LASTEXITCODE
+            
+            # Separate stdout and stderr
+            $stdoutLines = @()
+            $stderrLines = @()
+            
+            foreach ($item in $allOutput) {
+                if ($item -is [System.Management.Automation.ErrorRecord]) {
+                    $stderrLines += $item.ToString()
+                } else {
+                    $line = $item.ToString().Trim()
+                    # Filter out traceback lines
+                    if ($line -and -not ($line -match '^Traceback|^File "|^    |^Error:|^Warning:')) {
+                        $stdoutLines += $line
+                    }
+                }
+            }
+            
+            $value = $stdoutLines -join "`n"
+            $errorOutput = $stderrLines -join "`n"
+            
+            # Remove BOM character if present
+            if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
+                $value = $value.Substring(1)
+            }
+            
+        } catch {
+            Write-Host "[ERROR] Failed to execute Python: $($_.Exception.Message)" -ForegroundColor Red
+            $exitCode = 1
+        }
+    }
 
     # Restore original directory
     Set-Location $originalLocation
 
     Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
 
-    # Check if output contains error messages
-    $errorOutput = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-    if ($errorOutput) {
+    # Show error output if any (only for real errors)
+    if ($errorOutput -and $exitCode -ne 0) {
         Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
-        $errorOutput | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        Write-Host $errorOutput -ForegroundColor Yellow
     }
-
-    # Get the actual value (non-error output)
-    $value = ($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n"
 
     if ($value) {
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
@@ -227,42 +372,21 @@ function Get-SecretValue {
 
 $env:ANTHROPIC_BASE_URL = Get-SecretValue "ANTHROPIC_BASE_URL_6"
 if ($env:ANTHROPIC_BASE_URL) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_BASE_URL (Length: $($env:ANTHROPIC_BASE_URL.Length))" -ForegroundColor Green
-    # Show masked value for verification
-    if ($env:ANTHROPIC_BASE_URL.Length -gt 8) {
-        $maskedValue = $env:ANTHROPIC_BASE_URL.Substring(0, 4) + "***" + $env:ANTHROPIC_BASE_URL.Substring($env:ANTHROPIC_BASE_URL.Length - 4)
-        Write-Host "[INFO] ANTHROPIC_BASE_URL: $maskedValue" -ForegroundColor Cyan
-    } else {
-        Write-Host "[INFO] ANTHROPIC_BASE_URL: ****" -ForegroundColor Cyan
-    }
+    Write-Host "[SUCCESS] Loaded ANTHROPIC_BASE_URL = $($env:ANTHROPIC_BASE_URL)" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_BASE_URL" -ForegroundColor Yellow
 }
 
 $env:ANTHROPIC_AUTH_TOKEN = Get-SecretValue "ANTHROPIC_AUTH_TOKEN_6"
 if ($env:ANTHROPIC_AUTH_TOKEN) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_AUTH_TOKEN (Length: $($env:ANTHROPIC_AUTH_TOKEN.Length))" -ForegroundColor Green
-    # Show masked value for verification
-    if ($env:ANTHROPIC_AUTH_TOKEN.Length -gt 8) {
-        $maskedValue = $env:ANTHROPIC_AUTH_TOKEN.Substring(0, 4) + "***" + $env:ANTHROPIC_AUTH_TOKEN.Substring($env:ANTHROPIC_AUTH_TOKEN.Length - 4)
-        Write-Host "[INFO] ANTHROPIC_AUTH_TOKEN: $maskedValue" -ForegroundColor Cyan
-    } else {
-        Write-Host "[INFO] ANTHROPIC_AUTH_TOKEN: ****" -ForegroundColor Cyan
-    }
+    Write-Host "[SUCCESS] Loaded ANTHROPIC_AUTH_TOKEN = $($env:ANTHROPIC_AUTH_TOKEN)" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_AUTH_TOKEN" -ForegroundColor Yellow
 }
 
 $env:ANTHROPIC_API_KEY = Get-SecretValue "ANTHROPIC_API_KEY_6"
 if ($env:ANTHROPIC_API_KEY) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_API_KEY (Length: $($env:ANTHROPIC_API_KEY.Length))" -ForegroundColor Green
-    # Show masked value for verification
-    if ($env:ANTHROPIC_API_KEY.Length -gt 8) {
-        $maskedValue = $env:ANTHROPIC_API_KEY.Substring(0, 4) + "***" + $env:ANTHROPIC_API_KEY.Substring($env:ANTHROPIC_API_KEY.Length - 4)
-        Write-Host "[INFO] ANTHROPIC_API_KEY: $maskedValue" -ForegroundColor Cyan
-    } else {
-        Write-Host "[INFO] ANTHROPIC_API_KEY: ****" -ForegroundColor Cyan
-    }
+    Write-Host "[SUCCESS] Loaded ANTHROPIC_API_KEY = $($env:ANTHROPIC_API_KEY)" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Failed to load ANTHROPIC_API_KEY" -ForegroundColor Yellow
 }

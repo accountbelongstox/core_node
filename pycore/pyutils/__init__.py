@@ -17,8 +17,8 @@ Quick Imports:
 # Device Manager (centralized singleton)
 from pycore.pyutils.device_manager import DeviceManager, DeviceState
 
-# ADB utilities
-from pycore.pyutils.adb import ADBManager, ADBDevice
+# ADB utilities (now unified in device module)
+from pycore.pyutils.device import ADBManager, ADBDevice
 
 # Control utilities
 from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
@@ -32,8 +32,8 @@ from pycore.pyutils.group import (
     SyncEvent
 )
 
-# Stream utilities
-from pycore.pyutils.stream import (
+# Video Stream utilities
+from pycore.pyutils.video_stream import (
     VideoDecoder,
     H264Decoder,
     FMP4Encoder,
@@ -53,7 +53,7 @@ from pycore.pyutils.media_compressor import (
 )
 
 # Import complete FMP4 encoder - import directly, let error propagate if unavailable
-from pycore.pyutils.stream import FMP4EncoderComplete, H264Frame
+from pycore.pyutils.video_stream import FMP4EncoderComplete, H264Frame
 
 # API utilities
 from pycore.pyutils.api import WebSocketManager

@@ -1,6 +1,6 @@
 <template>
   <BasePanel
-    :show="show"
+    :model-value="modelValue"
     title="System Health Monitor"
     icon="💊"
     size="lg"
@@ -196,9 +196,10 @@ import BasePanel from '~/common/components/ui/BasePanel.vue';
 import BaseButton from '~/common/components/ui/BaseButton.vue';
 import BaseToggle from '~/common/components/ui/BaseToggle.vue';
 import { pyMatrixHealthAPI, type DetailedHealthResponse } from '~/services/api/pymatrix/pymatrix-health-api';
+import { FALLBACK_HEALTH_RESPONSE } from '@/apps/app_pymatrix/constants_app_pymatrix/initial-state';
 
 const props = defineProps<{
-  show: boolean;
+  modelValue: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -271,18 +272,27 @@ function formatMetricValue(value: any): string {
   return String(value);
 }
 
-async function refreshHealth() {
+function refreshHealth() {
   loading.value = true;
   error.value = '';
 
-  try {
-    healthData.value = await pyMatrixHealthAPI.getDetailedHealth();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to fetch health data';
-    console.error('[SystemHealthMonitor] Error:', err);
-  } finally {
-    loading.value = false;
-  }
+  pyMatrixHealthAPI.getDetailedHealth().then(
+    (data) => {
+      healthData.value = data;
+      loading.value = false;
+    },
+    (err) => {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch health data';
+      console.warn('[SystemHealthMonitor] Using fallback telemetry');
+      if (!healthData.value) {
+        healthData.value = {
+          ...FALLBACK_HEALTH_RESPONSE,
+          timestamp: new Date().toISOString()
+        };
+      }
+      loading.value = false;
+    }
+  );
 }
 
 function startAutoRefresh() {

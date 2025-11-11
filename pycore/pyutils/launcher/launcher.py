@@ -146,9 +146,26 @@ class WindowLauncher:
         
         return windows
     
+    def calculate_ubuntu_count(self, total_windows):
+        """
+        Calculate number of Ubuntu terminals to launch
+        
+        Args:
+            total_windows: Total number of windows
+        
+        Returns:
+            int: Number of Ubuntu terminals (at least 2, 4 if 16 windows)
+        """
+        if total_windows >= 16:
+            return 4
+        elif total_windows >= 2:
+            return 2
+        else:
+            return 0
+    
     def launch_windows(self, delay=0.2):
         """
-        Launch windows in grid layout
+        Launch windows in grid layout (Windows Terminal and Ubuntu terminals)
         
         Args:
             delay: Delay between window launches in seconds
@@ -159,17 +176,26 @@ class WindowLauncher:
         # Get screen dimensions
         screen_x, screen_y, screen_width, screen_height = self.screen_manager.get_screen_dimensions()
         
-        # Calculate window layout
+        # Calculate total windows
+        total_windows = self.grid_columns * self.grid_rows
+        
+        # Calculate Ubuntu count (at least 2, 4 if 16 windows)
+        ubuntu_count = self.calculate_ubuntu_count(total_windows)
+        
+        # Calculate window layout (all windows, including Ubuntu positions)
         windows = self.calculate_window_layout(screen_x, screen_y, screen_width, screen_height)
         
         # Prepare windows config for launcher
         windows_config = [(x, y, term_cols, term_rows) for x, y, term_cols, term_rows, _, _ in windows]
         
-        # Launch Windows Terminal windows
-        bat_files = self.wt_launcher.launch_windows(windows_config, delay)
+        # Launch Windows Terminal and Ubuntu windows
+        bat_files = self.wt_launcher.launch_windows(windows_config, delay, ubuntu_count)
         
-        total_windows = self.grid_columns * self.grid_rows
-        print(f"\nAll {total_windows} terminal windows launched.")
+        wt_count = total_windows - ubuntu_count
+        print(f"\nAll {total_windows} terminal windows launched:")
+        print(f"  - {wt_count} Windows Terminal windows")
+        if ubuntu_count > 0:
+            print(f"  - {ubuntu_count} Ubuntu terminals")
         
         return bat_files
     
@@ -401,7 +427,17 @@ def main():
         print(f"  Row ratio: {measured_rows} rows = {measured_height_px}px")
         if calibration_height and calibration_rows:
             print(f"  Calibration: {calibration_rows} rows = {calibration_height}px (actual)")
-        print(f"Grid layout: {grid_columns} columns x {grid_rows} rows = {grid_columns * grid_rows} windows")
+        
+        total_windows = grid_columns * grid_rows
+        ubuntu_count = WindowLauncher().calculate_ubuntu_count(total_windows)
+        wt_count = total_windows - ubuntu_count
+        
+        print(f"Grid layout: {grid_columns} columns x {grid_rows} rows = {total_windows} windows")
+        if ubuntu_count > 0:
+            print(f"  - {wt_count} Windows Terminal windows")
+            print(f"  - {ubuntu_count} Ubuntu terminals (auto-reserved)")
+        else:
+            print(f"  - {total_windows} Windows Terminal windows")
         print(f"Calculation: Window size = Screen / Grid, then convert to columns.rows using column/row ratios")
         print("=" * 60)
         

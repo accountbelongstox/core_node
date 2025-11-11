@@ -197,8 +197,8 @@ export function useVideoStream(options: UseVideoStreamOptions) {
     const chunk = bufferQueue.shift();
     if (chunk) {
       // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        isAppending = true;
-        sourceBuffer.value.appendBuffer(chunk);
+      isAppending = true;
+      sourceBuffer.value.appendBuffer(chunk);
     }
   }
 
@@ -244,17 +244,17 @@ export function useVideoStream(options: UseVideoStreamOptions) {
 
     if (sourceBuffer.value) {
       // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        if (mediaSource.value && mediaSource.value.readyState === 'open') {
-          mediaSource.value.removeSourceBuffer(sourceBuffer.value);
-        }
+      if (mediaSource.value && mediaSource.value.readyState === 'open') {
+        mediaSource.value.removeSourceBuffer(sourceBuffer.value);
+      }
       sourceBuffer.value = null;
     }
 
     if (mediaSource.value) {
       // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        if (mediaSource.value.readyState === 'open') {
-          mediaSource.value.endOfStream();
-        }
+      if (mediaSource.value.readyState === 'open') {
+        mediaSource.value.endOfStream();
+      }
       mediaSource.value = null;
     }
 

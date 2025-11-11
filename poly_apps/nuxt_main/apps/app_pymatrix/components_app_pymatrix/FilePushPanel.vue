@@ -1,6 +1,6 @@
 <template>
   <BasePanel
-    :show="show"
+    :model-value="show"
     title="Push File to Device"
     icon="📁"
     size="md"
