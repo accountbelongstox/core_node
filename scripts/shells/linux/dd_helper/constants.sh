@@ -34,6 +34,7 @@ INSTALL_TEST_MENU_SCRIPT_RELATIVE="scripts/shells/linux/common/install_test_menu
 SYSTEM_INFO_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/system_info_display.sh"
 UNIFIED_MANAGER_SCRIPT_RELATIVE="scripts/unified_manager/unified_manager.sh"
 ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/101_lnxrouter.sh"
+DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh"
 
 # File Paths (relative to CORE_NODE_ROOT_DIR)
 GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"

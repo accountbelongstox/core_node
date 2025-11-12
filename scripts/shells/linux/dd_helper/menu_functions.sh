@@ -18,6 +18,9 @@
 # Source constants (backup copy)
 source "$DD_HELPER_DIR/constants.sh"
 
+# Source linux management functions
+source "$DD_HELPER_DIR/linux_management.sh"
+
 # Build full paths from constants
 SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_RELATIVE"
 SERVICE_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SERVICE_MANAGER_SCRIPT_RELATIVE"
@@ -74,31 +77,34 @@ handle_menu_action() {
             echo "Press Enter to continue..."
             read
             ;;
-        "push_git")
-            echo "Starting Git Push Operations..."
-            echo "Target: $value"
-            echo "Using unified git push script: $GITPUT_UNIFIED_SCRIPT_PATH"
-            cd "$CORE_NODE_ROOT_DIR"
-            if [ "$value" = "all" ]; then
-                bash "$GITPUT_UNIFIED_SCRIPT_PATH"
-            else
-                bash "$GITPUT_UNIFIED_SCRIPT_PATH" "$value"
-            fi
-            if [ $? -eq 0 ]; then
-                echo "Git push operations completed successfully"
-            else
-                echo "Git push operations failed"
-            fi
-            echo ""
-            echo "Press Enter to continue..."
-            read
-            ;;
-        "exit_script")
-            echo "Exiting the script."
-            exit 0
-            ;;
-    esac
-}
+                "push_git")
+                    echo "Starting Git Push Operations..."
+                    echo "Target: $value"
+                    echo "Using unified git push script: $GITPUT_UNIFIED_SCRIPT_PATH"
+                    cd "$CORE_NODE_ROOT_DIR"
+                    if [ "$value" = "all" ]; then
+                        bash "$GITPUT_UNIFIED_SCRIPT_PATH"
+                    else
+                        bash "$GITPUT_UNIFIED_SCRIPT_PATH" "$value"
+                    fi
+                    if [ $? -eq 0 ]; then
+                        echo "Git push operations completed successfully"
+                    else
+                        echo "Git push operations failed"
+                    fi
+                    echo ""
+                    echo "Press Enter to continue..."
+                    read
+                    ;;
+                "show_linux_management_submenu")
+                    show_linux_management_submenu
+                    ;;
+                "exit_script")
+                    echo "Exiting the script."
+                    exit 0
+                    ;;
+            esac
+        }
 
 load_saved_values() {
     for key in "${menu_order[@]}"; do
