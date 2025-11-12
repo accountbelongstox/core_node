@@ -468,6 +468,25 @@ class I18nManager:
         """Get list of supported language codes"""
         return self._supported_languages.copy()
 
+    def get_language_name_key(self, language_code: str) -> str:
+        """
+        Get i18n key for language name (e.g., "language.name.en")
+        
+        Args:
+            language_code: Language code (e.g., "en", "zh", "ja")
+            
+        Returns:
+            I18n key for language name (e.g., "language.name.en")
+        """
+        # Check if language_names exists in base_config
+        language_names = self._base_config.get('language_names', {})
+        if language_code in language_names:
+            # Return the i18n key format
+            return f"language.name.{language_code}"
+        else:
+            # Fallback: return key format anyway (translation may exist in translation files)
+            return f"language.name.{language_code}"
+
     def add_listener(self, listener: Callable[[str], None]):
         """
         Add language change listener
