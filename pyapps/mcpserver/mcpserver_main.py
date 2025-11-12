@@ -72,6 +72,27 @@ def _create_tray_menu_items():
     return menu_items
 
 
+def _create_language_submenu():
+    """Create language selection submenu"""
+    supported_languages = i18n.get_supported_languages()
+    current_language = i18n.get_current_language()
+    
+    submenu_items = []
+    for lang in supported_languages:
+        # Get language name key from i18n_manager (dynamically from base_config)
+        name_key = i18n.get_language_name_key(lang)
+        
+        # Use unique signal per language: signal.{lang} to pass language code
+        signal = f"{MCPServerBusKeys.TRAY_SET_LANGUAGE}.{lang}"
+        
+        submenu_items.append(TrayMenuItem(
+            text_key=name_key,
+            signal=signal,
+            checkable=True,
+            checked=(lang == current_language)
+        ))
+    
+    return submenu_items
 
 
 def _append_original_menu_items(menu_items):
