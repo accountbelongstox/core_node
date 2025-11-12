@@ -17,7 +17,6 @@ import threading
 from typing import Optional, Callable, List, Dict
 from pathlib import Path
 
-from .device_discovery_udp import DeviceDiscoveryUDP
 from .device_discovery_scanner import DeviceDiscoveryScanner
 from .unified_server import UnifiedServer, DEFAULT_PORT
 from .http_sync_client import HTTPFileSyncClient
@@ -45,30 +44,24 @@ class DeviceManager:
     Coordinates device discovery, WebSocket communication, and sync control.
     """
 
-    def __init__(self, root_dir: str, http_port: int = DEFAULT_HTTP_PORT, use_scanner: bool = True):
+    def __init__(self, root_dir: str, http_port: int = DEFAULT_HTTP_PORT):
         """
         Initialize device manager.
 
         Args:
             root_dir: Root directory for file sync
             http_port: HTTP/WebSocket port
-            use_scanner: Use TCP scanner instead of UDP broadcast (default: True)
         """
         self.root_dir = Path(root_dir)
         self.http_port = http_port
-        self.use_scanner = use_scanner
 
         # Device state
         self.mode: Optional[str] = None  # 'primary' or 'secondary'
         self.sync_enabled = False
 
-        # Components - Choose discovery method
-        if use_scanner:
-            logger.info("Using TCP Scanner for device discovery")
-            self.device_discovery = DeviceDiscoveryScanner(http_port=http_port)
-        else:
-            logger.info("Using UDP Broadcast for device discovery")
-            self.device_discovery = DeviceDiscoveryUDP(http_port=http_port)
+        # Components - Use TCP Scanner for device discovery
+        logger.info("Using TCP Scanner for device discovery")
+        self.device_discovery = DeviceDiscoveryScanner(http_port=http_port)
 
         self.unified_server = UnifiedServer(port=http_port, root_dir=str(self.root_dir))
         self.http_client: Optional[HTTPFileSyncClient] = None
@@ -138,6 +131,11 @@ class DeviceManager:
         old_mode = self.mode
         self.mode = mode
 
+        # If setting as PRIMARY, build file cache
+        if mode == 'primary':
+            logger.info("Building file cache for PRIMARY mode...")
+            self.unified_server.build_file_cache_if_needed()
+
         # Update discovery info
         self.device_discovery.update_status(mode, self.sync_enabled)
 
@@ -167,7 +165,7 @@ class DeviceManager:
 
         # Primary devices don't need sync (they serve files, not receive)
         if self.mode == 'primary':
-            logger.warning("Primary devices cannot enable sync (they only serve files)")
+            logger.warning("PRIMARY devices cannot enable sync (they only serve files)")
             return False
 
         # Mode must be set
@@ -186,7 +184,7 @@ class DeviceManager:
         # Update discovery info
         self.device_discovery.update_status(self.mode, self.sync_enabled)
 
-        # Start sync based on mode
+        # Start sync based on mode (only SECONDARY)
         if self.mode == 'secondary':
             self._start_sync_client()
 

@@ -1,0 +1,28 @@
+Launching manager from: /mnt/d/programing/core_node/scripts/pytools/special_software_env_manager/main.py
+
+WARNING: Secret manager not available from pycore (No module named 'pycore')
+================================================================================
+Special Software Environment Variables Manager
+================================================================================
+Script Location: /mnt/d/programing/core_node/scripts/pytools/special_software_env_manager/special_software_env_manager.py
+Working Directory: /mnt/d/programing/core_node
+================================================================================
+Special Software Environment Variables Manager
+Use Up/Down arrows to navigate, Enter to select
+==============================================
+
+> Claude AI >
+  Codex CLI >
+  Factory AI Droid >
+  SSH Connection >
+  Restore Scripts from Secret Storage
+  Add Scripts Directory to PATH
+  View All Environment Variables
+  Refresh Current Terminal Environment
+  Back to Main Menu
+  Exit
+
+跳到了错误的菜单。
+
+
+ 现在的，继续根据D:\programing\core_node\dd.sh   D:\programing\core_node\scripts\shells\linux\dd_helper D:\programing\core_node\scripts\shells\linux\dd_helper\dd_logic.txt 调整逻辑。
