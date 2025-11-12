@@ -196,6 +196,40 @@ def _setup_tray_signal_handlers():
         ColorPrint.green("  • WebSocket RPC: ws://localhost:8767")
         ColorPrint.green("  • Singleton Port: 19997")
     
+    def handle_set_language(event_data):
+        """Handle language change request"""
+        # Extract language code from signal name (format: mcpserver.tray.set_language.{lang})
+        # The signal name is passed in event_data['signal'] or we can get it from the text
+        text = event_data.get('text', '')
+        signal = event_data.get('signal', '')
+        
+        # Try to extract language from signal name
+        language = None
+        if signal and signal.startswith(MCPServerBusKeys.TRAY_SET_LANGUAGE + '.'):
+            language = signal.split('.')[-1]
+        elif text:
+            # Fallback: try to match language name to code
+            language_map = {
+                i18n.get(I18nKeys.LANGUAGE_NAME_EN): "en",
+                i18n.get(I18nKeys.LANGUAGE_NAME_ZH): "zh",
+                i18n.get(I18nKeys.LANGUAGE_NAME_JA): "ja",
+            }
+            language = language_map.get(text)
+        
+        if language:
+            ColorPrint.blue(f"[MCP Server] Language change requested: {language}")
+            # Use bus manager to set language (triggers I18N_SET_LANGUAGE signal)
+            bus_mgr = get_bus_manager()
+            bus_mgr.set_language(language)
+        else:
+            ColorPrint.yellow(f"[MCP Server] Could not determine language from event_data: {event_data}")
+    
+    # Register handlers for all language signals (dynamic registration)
+    supported_languages = i18n.get_supported_languages()
+    for lang in supported_languages:
+        signal = f"{MCPServerBusKeys.TRAY_SET_LANGUAGE}.{lang}"
+        THREAD_BUS.register_event_handler(signal, handle_set_language)
+    
     THREAD_BUS.register_event_handler(MCPServerBusKeys.TRAY_START_MCP_SERVER, handle_start_mcp_server)
     THREAD_BUS.register_event_handler(MCPServerBusKeys.TRAY_START_MAIN_SERVER, handle_start_main_server)
     THREAD_BUS.register_event_handler(MCPServerBusKeys.TRAY_START_AS_CLIENT, handle_start_as_client)
