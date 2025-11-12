@@ -54,9 +54,9 @@ class TrayMenuItem:
     Communication happens via THREAD_BUS signals.
 
     Attributes:
-        text: Display text for menu item (or i18n key if i18n_key is not set)
+        text_key: I18n translation key constant (e.g., I18nKeys.TRAY_MENU_SHOW or MCPServerI18nKeys.APP_NAME)
+                 Text will be dynamically translated from i18n.get(text_key) based on current language when building menu
         signal: Signal name to emit via THREAD_BUS when clicked
-        i18n_key: Optional i18n translation key (if set, text will be translated dynamically)
         icon: Optional icon path or name
         enabled: Whether the item is enabled
         default: Whether this is the default action (double-click)
@@ -64,9 +64,8 @@ class TrayMenuItem:
         checked: Initial checked state (if checkable)
         submenu: Optional list of sub-menu items
     """
-    text: str
+    text_key: str  # I18n key constant - text will be dynamically translated via i18n.get(text_key)
     signal: str = ""
-    i18n_key: Optional[str] = None  # If set, text will be translated from this key
     icon: Optional[str] = None
     enabled: bool = True
     default: bool = False
@@ -80,9 +79,8 @@ class TrayMenuItem:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for THREAD_BUS storage"""
         return {
-            "text": self.text,
+            "text_key": self.text_key,
             "signal": self.signal,
-            "i18n_key": self.i18n_key,
             "icon": self.icon,
             "enabled": self.enabled,
             "default": self.default,
@@ -98,9 +96,8 @@ class TrayMenuItem:
         submenu = [TrayMenuItem.from_dict(item) for item in submenu_data] if submenu_data else None
 
         return TrayMenuItem(
-            text=data.get('text', ''),
+            text_key=data.get('text_key', ''),
             signal=data.get('signal', ''),
-            i18n_key=data.get('i18n_key'),
             icon=data.get('icon'),
             enabled=data.get('enabled', True),
             default=data.get('default', False),
@@ -111,7 +108,7 @@ class TrayMenuItem:
 
 
 # Set separator constant
-TrayMenuItem.SEPARATOR = TrayMenuItem(text="---", signal="", enabled=False)
+TrayMenuItem.SEPARATOR = TrayMenuItem(text_key="---", signal="", enabled=False)
 
 
 @dataclass
