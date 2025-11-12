@@ -160,6 +160,10 @@ class NativeUIConfig:
     Example: [stop_services, cleanup_resources, save_state]
     """
 
+    # ========== Timer Management ==========
+    enable_timer: bool = False
+    """Enable built-in timer manager (singleton, auto-started)"""
+
     # ========== Restart Support ==========
     enable_restart: bool = False
     """Enable restart functionality"""
@@ -222,7 +226,7 @@ class NativeUIConfig:
         """
         if self.project_root is None:
             # Auto-detect project root (4 levels up from this file)
-            self.project_root = Path(__file__).parent.parent.parent.parent
+            self.project_root = Path(__file__).parent.parent.parent.parent.parent
 
         app_dir = self.project_root / "pyapps" / self.app_id
 

@@ -341,6 +341,158 @@ def show_admin_permission_warning():
     print("=" * 60 + "\n")
 
 
+def launch_device_sync():
+    """
+    Launch device sync in background mode.
+
+    This starts the device synchronization service which allows:
+    - Setting device as primary (file server)
+    - Setting device as secondary (sync client)
+    - Auto-discovery of primary device on network
+    - File synchronization control
+
+    The process runs in background (detached from launcher):
+    - Windows: Uses pythonw.exe
+    - Linux: Uses subprocess with start_new_session=True
+    """
+    import subprocess
+    import platform
+
+    print("[Launcher] Starting Device Sync in background...")
+
+    # Get project root directory
+    project_root = Path(__file__).parent.parent.parent.parent
+
+    try:
+        # Create log file for debugging
+        log_dir = Path(tempfile.gettempdir()) / 'device_sync'
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / 'device_sync_launcher.log'
+
+        print(f"[Launcher] Project root: {project_root}")
+        print(f"[Launcher] Log file: {log_file}")
+
+        if platform.system() == 'Windows':
+            # Windows: Use pythonw.exe for no console window
+            python_dir = Path(sys.executable).parent
+            pythonw_exe = python_dir / 'pythonw.exe'
+
+            print(f"[Launcher] Python directory: {python_dir}")
+            print(f"[Launcher] pythonw.exe exists: {pythonw_exe.exists()}")
+
+            if pythonw_exe.exists():
+                cmd = [str(pythonw_exe), '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
+
+                print(f"[Launcher] Command: {' '.join(cmd)}")
+
+                # Set up environment with PYTHONPATH
+                env = os.environ.copy()
+
+                # Add project root to PYTHONPATH
+                pythonpath = str(project_root)
+                if 'PYTHONPATH' in env:
+                    pythonpath = f"{pythonpath};{env['PYTHONPATH']}"
+                env['PYTHONPATH'] = pythonpath
+
+                print(f"[Launcher] PYTHONPATH: {pythonpath}")
+
+                # Start detached process with log file
+                DETACHED_PROCESS = 0x00000008
+                CREATE_NEW_PROCESS_GROUP = 0x00000200
+
+                log_handle = open(log_file, 'w', encoding='utf-8')
+
+                proc = subprocess.Popen(
+                    cmd,
+                    env=env,
+                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                    close_fds=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_handle,
+                    stderr=log_handle
+                )
+
+                print(f"[Launcher] Process started with PID: {proc.pid}")
+            else:
+                # Fallback: Use python.exe
+                print("[Launcher] WARNING: pythonw.exe not found, using python.exe")
+                cmd = [sys.executable, '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
+
+                print(f"[Launcher] Command: {' '.join(cmd)}")
+
+                # Set up environment with PYTHONPATH
+                env = os.environ.copy()
+
+                # Add project root to PYTHONPATH
+                pythonpath = str(project_root)
+                if 'PYTHONPATH' in env:
+                    pythonpath = f"{pythonpath};{env['PYTHONPATH']}"
+                env['PYTHONPATH'] = pythonpath
+
+                print(f"[Launcher] PYTHONPATH: {pythonpath}")
+
+                log_handle = open(log_file, 'w', encoding='utf-8')
+
+                proc = subprocess.Popen(
+                    cmd,
+                    env=env,
+                    close_fds=True,
+                    stdout=log_handle,
+                    stderr=log_handle
+                )
+
+                print(f"[Launcher] Process started with PID: {proc.pid}")
+
+        else:
+            # Linux/Unix: Use subprocess with start_new_session
+            cmd = [sys.executable, '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
+
+            print(f"[Launcher] Command: {' '.join(cmd)}")
+
+            # Set up environment with PYTHONPATH
+            env = os.environ.copy()
+
+            # Add project root to PYTHONPATH (Linux uses : separator)
+            pythonpath = str(project_root)
+            if 'PYTHONPATH' in env:
+                pythonpath = f"{pythonpath}:{env['PYTHONPATH']}"
+            env['PYTHONPATH'] = pythonpath
+
+            print(f"[Launcher] PYTHONPATH: {pythonpath}")
+
+            log_handle = open(log_file, 'w', encoding='utf-8')
+
+            proc = subprocess.Popen(
+                cmd,
+                env=env,
+                start_new_session=True,
+                close_fds=True,
+                stdin=subprocess.DEVNULL,
+                stdout=log_handle,
+                stderr=log_handle
+            )
+
+            print(f"[Launcher] Process started with PID: {proc.pid}")
+
+        print("[Launcher] Device Sync started in background")
+        print("[Launcher] Process will continue running after launcher exits")
+
+        # Check if already running
+        import time
+        time.sleep(0.5)  # Give it time to start
+
+        from pycore.pyutils.launcher.device_sync.ipc_server import check_single_instance
+        if check_single_instance(45678):
+            print("[Launcher] Verified: Device Sync is running")
+        else:
+            print("[Launcher] Warning: Could not verify Device Sync status")
+
+    except Exception as e:
+        print(f"[Launcher] Failed to start Device Sync: {e}")
+        print("[Launcher] You can start manually with:")
+        print(f"[Launcher]   python -m pycore.pyutils.launcher.device_sync")
+
+
 def main():
     """Main entry point"""
     # Check and create desktop shortcut if needed
@@ -385,25 +537,73 @@ def main():
     
     # Show prompt
     print("\n" + "=" * 60)
-    print("Window Launcher")
+    print("Window Launcher - Startup Options")
     print("=" * 60)
-    user_input = input("Press Enter or Y to continue, M for menu: ").strip().upper()
-    
-    if user_input == 'M':
+    print("Options:")
+    print("  [1] - Launch Window Layout Only")
+    print("  [2] - Launch Device Sync Only")
+    print("  [3] - Launch Both (Window Layout + Device Sync)")
+    print("  [M] - Configuration Menu")
+    print("  [Enter] - Default (Launch Both)")
+    print("=" * 60)
+    user_input = input("Select option: ").strip().upper()
+
+    launch_windows = True
+    launch_sync = False
+
+    if user_input == '1':
+        # Launch windows only
+        launch_windows = True
+        launch_sync = False
+        print("\n[Launcher] Mode: Window Layout Only")
+    elif user_input == '2':
+        # Launch device sync only
+        launch_windows = False
+        launch_sync = True
+        print("\n[Launcher] Mode: Device Sync Only")
+    elif user_input == '3' or user_input == '':
+        # Launch both
+        launch_windows = True
+        launch_sync = True
+        print("\n[Launcher] Mode: Both (Window Layout + Device Sync)")
+    elif user_input == 'M':
         # Show interactive menu
         menu = InteractiveMenu(config_manager, app_finder)
         menu.run()
         print("\nContinuing with launcher...")
+        # Default to launch both after menu
+        launch_windows = True
+        launch_sync = True
+    else:
+        # Unknown option, default to both
+        print("\n[Launcher] Unknown option, using default (Both)")
+        launch_windows = True
+        launch_sync = True
+
+    # Launch device sync if requested
+    if launch_sync:
+        launch_device_sync()
+        print("[Launcher] Device Sync started in background")
+        import time
+        time.sleep(0.5)  # Give it time to start
     
+    # Skip window layout if not requested
+    if not launch_windows:
+        print("\n[Launcher] Skipping window layout (Device Sync only mode)")
+        print("[Launcher] Check system tray for Device Sync icon")
+        print("\n" + "=" * 60)
+        input("Press Enter to exit...")
+        return
+
     print("=" * 60)
     print("Window Layout Calculator - Step by Step")
     print("=" * 60)
-    
+
     # Use configuration
     term_config = config_manager.get_terminal_config()
     measurements_config = config_manager.get_measurements_config()
     calibration_config = config_manager.get_calibration_config()
-    
+
     if term_config.get('enabled', True) and term_config.get('toggle') != 'DISABLE':
         # Update grid columns and rows from config
         grid_columns = term_config.get('columns', 3)
@@ -411,7 +611,7 @@ def main():
     else:
         grid_columns = 0
         grid_rows = 0
-    
+
     # Launch based on configuration
     if grid_columns > 0 and grid_rows > 0:
         measured_columns = measurements_config.get('columns', 67)

@@ -120,6 +120,8 @@ pyapps/{appname}/
 **Purpose:** Centralizes PySide6/Tkinter UI configuration
 **Key Functions:** `get_default_window_size()`, `create_ui_config()`
 
+**Native UI Launcher:** Use `NativeUIConfig` + `launch_native_app()` for simplified launch. Auto-handles: ports, i18n, singleton detection, tray, timer. Import from `pycore.pyutils.native_ui`.
+
 ### 5.5 Multi-Language (i18n)
 
 **Translation Key Namespace:**
