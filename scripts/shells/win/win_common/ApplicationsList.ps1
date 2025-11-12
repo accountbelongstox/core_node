@@ -869,6 +869,27 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
+    PuTTY           = @{
+        PackageId            = "PuTTY.PuTTY"
+        Exec                = "putty.exe"
+        Name                = "PuTTY"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description         = "PuTTY - Free SSH and Telnet client"
+        InstallType         = "winget"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AppCustomInstallDir = ""
+        DesktopShortcuts    = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     NotepadPlusPlus = @{
         PackageId          = "Notepad++.Notepad++"
         Exec              = "notepad++.exe"

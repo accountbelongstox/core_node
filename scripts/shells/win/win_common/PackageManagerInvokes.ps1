@@ -2932,7 +2932,7 @@ function Invoke-PowerShellCommand {
             $env:USERPROFILE
         )
         $searchPaths += $systemPaths
-        
+
         # PowerShell module paths
         $psModulePaths = $env:PSModulePath -split ';'
         foreach ($path in $psModulePaths) {

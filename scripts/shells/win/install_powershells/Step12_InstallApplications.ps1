@@ -362,10 +362,10 @@ function Install-AdditionalPackages {
         foreach ($packageToInstall in $installPackages) {
             # Handle both string and object formats for pip packages
             if ($installType -eq "pip" -and $packageToInstall -is [hashtable]) {
-                # Object format: extract packageName for installation and pass full object
+                # Object format: extract packageName for installation
                 $packageName = $packageToInstall.packageName
                 $keyword = if ($packageToInstall.validationType -eq "import") { $packageToInstall.importName } else { $packageName }
-                Install-SinglePackageViaManager -InstallType $installType -PackageName $packageToInstall -Keyword $keyword -AdditionalKeywords @($keyword) -ForceInstall $false | Out-Null
+                Install-SinglePackageViaManager -InstallType $installType -PackageName $packageName -Keyword $keyword -AdditionalKeywords @($keyword) -ForceInstall $false | Out-Null
             }
             else {
                 # String format: use as-is (original behavior)

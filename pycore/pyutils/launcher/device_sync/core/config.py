@@ -59,7 +59,7 @@ class GlobalConfig:
 
         # Directory settings
         self.root_dir: Optional[Path] = None
-        self.file_cache: list = []  # Cached file list
+        self._file_cache: list = []  # Cached file list (private)
 
         # Device info
         self.device_id: Optional[str] = None
@@ -90,6 +90,33 @@ class GlobalConfig:
         # Scan statistics
         self.last_scan_time: Optional[float] = None  # Last file scan timestamp
         self.total_scans: int = 0  # Total number of scans performed
+
+    @property
+    def file_cache(self) -> list:
+        """Get file cache (safe property access)"""
+        return self._file_cache if hasattr(self, '_file_cache') else []
+
+    @file_cache.setter
+    def file_cache(self, value: list):
+        """Set file cache with validation"""
+        if not isinstance(value, list):
+            raise TypeError(f"file_cache must be a list, got {type(value)}")
+        self._file_cache = value
+
+    @property
+    def file_cache_count(self) -> int:
+        """Get number of cached files (computed property for backward compatibility)"""
+        return len(self.file_cache)
+
+    @property
+    def connected_clients_count(self) -> int:
+        """Get number of connected clients (computed property)"""
+        return len(self.connected_clients)
+
+    @property
+    def online_devices_count(self) -> int:
+        """Get number of online devices (computed property)"""
+        return len(self.online_devices)
 
     def set_as_primary(self):
         """Set this device as PRIMARY server"""
@@ -239,38 +266,50 @@ class GlobalConfig:
         import time
 
         if not self.root_dir or not self.root_dir.exists():
+            print(f"[Config] Cannot build file cache: root_dir not set or doesn't exist")
             return
 
-        start_time = time.time()
-        self.file_cache = []
-        excluded_count = 0
+        try:
+            start_time = time.time()
+            cache = []
+            excluded_count = 0
 
-        for file_path in self.root_dir.rglob('*'):
-            if file_path.is_file():
-                try:
-                    # Check if path should be excluded
-                    if self._should_exclude_path(file_path):
-                        excluded_count += 1
+            for file_path in self.root_dir.rglob('*'):
+                if file_path.is_file():
+                    try:
+                        # Check if path should be excluded
+                        if self._should_exclude_path(file_path):
+                            excluded_count += 1
+                            continue
+
+                        stat = file_path.stat()
+                        rel_path = file_path.relative_to(self.root_dir)
+
+                        cache.append({
+                            'path': str(rel_path).replace('\\', '/'),
+                            'size': stat.st_size,
+                            'mtime': stat.st_mtime
+                        })
+
+                    except Exception as e:
+                        # Skip files we can't read
                         continue
 
-                    stat = file_path.stat()
-                    rel_path = file_path.relative_to(self.root_dir)
+            # Update file cache atomically
+            self.file_cache = cache
 
-                    self.file_cache.append({
-                        'path': str(rel_path).replace('\\', '/'),
-                        'size': stat.st_size,
-                        'mtime': stat.st_mtime
-                    })
+            # Update scan statistics
+            self.last_scan_time = time.time()
+            self.total_scans += 1
+            duration = self.last_scan_time - start_time
 
-                except Exception:
-                    continue
+            print(f"[Config] File cache built: {len(self.file_cache)} files (excluded: {excluded_count}, took {duration:.2f}s)")
 
-        # Update scan statistics
-        self.last_scan_time = time.time()
-        self.total_scans += 1
-        duration = self.last_scan_time - start_time
-
-        print(f"[Config] File cache built: {len(self.file_cache)} files (excluded: {excluded_count}, took {duration:.2f}s)")
+        except Exception as e:
+            print(f"[Config] Error building file cache: {e}")
+            # Don't clear existing cache on error
+            import traceback
+            traceback.print_exc()
 
     def get_status(self) -> dict:
         """Get current configuration status"""
