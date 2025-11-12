@@ -120,15 +120,21 @@ class GlobalConfig:
 
     def set_as_primary(self):
         """Set this device as PRIMARY server"""
+        print(f"[Config] set_as_primary() called")
+        print(f"[Config] BEFORE: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
         self.isPrimaryServer = True
         self.sync_enabled = False  # Primary doesn't sync, it serves
-        print(f"[Config] Set as PRIMARY server")
+        print(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
+        print(f"[Config] Set as PRIMARY server (id={id(self)})")
 
     def set_as_secondary(self):
         """Set this device as SECONDARY (client)"""
+        print(f"[Config] set_as_secondary() called")
+        print(f"[Config] BEFORE: isPrimaryServer={self.isPrimaryServer}")
         self.isPrimaryServer = False
         # sync_enabled is controlled separately
-        print(f"[Config] Set as SECONDARY")
+        print(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}")
+        print(f"[Config] Set as SECONDARY (id={id(self)})")
 
     def enable_sync(self):
         """Enable sync (only for SECONDARY)"""

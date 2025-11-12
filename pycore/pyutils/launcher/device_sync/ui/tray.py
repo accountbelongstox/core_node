@@ -365,9 +365,12 @@ class SimpleTrayMenu:
     def _on_set_primary(self):
         """Handle 'Set as PRIMARY' menu click (unified architecture)"""
         logger.info("User clicked: Set as PRIMARY")
+        logger.info(f"  BEFORE: isPrimaryServer={self.config.isPrimaryServer}, api_enabled={self.config.api_enabled}")
 
         # Update config (HTTP server continues running)
         self.config.set_as_primary()
+
+        logger.info(f"  AFTER: isPrimaryServer={self.config.isPrimaryServer}, api_enabled={self.config.api_enabled}")
 
         # Disable sync if it was enabled
         if self.config.sync_enabled:
@@ -378,6 +381,8 @@ class SimpleTrayMenu:
             self.icon.title = self._get_title()
 
         logger.info("✓ Set as PRIMARY server (HTTP server continues running)")
+        logger.info(f"  GlobalConfig id: {id(self.config)}")
+        logger.info(f"  Config device_id: {self.config.device_id}")
 
     def _on_set_secondary(self):
         """Handle 'Set as SECONDARY' menu click (unified architecture)"""
