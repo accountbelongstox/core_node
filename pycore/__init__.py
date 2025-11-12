@@ -53,6 +53,7 @@ DEPENDENCY_MAP = {
 
     # For HTTP requests
     "requests": "requests",
+    "aiohttp": "aiohttp",
 
     # For WebView GUI (pyutils.web, pyutils.native_ui)
     "webview": "pywebview",
