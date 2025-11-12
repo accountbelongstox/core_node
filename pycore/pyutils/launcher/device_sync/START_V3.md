@@ -155,15 +155,16 @@ http://192.168.x.x:58923
 
 **✅ 正确：**
 ```
-设备A: Primary (Sync: ON)
+设备A: Primary (提供文件服务)
 设备B: Secondary (Sync: ON)
 设备C: Secondary (Sync: OFF)
 ```
 
 **❌ 错误 - 多主设备：**
 ```
-设备A: Primary (Sync: ON)  ← 冲突！
-设备B: Primary (Sync: ON)  ← 冲突！
+设备A: Primary (提供文件服务)  ← 冲突！
+设备B: Primary (提供文件服务)  ← 冲突！
+设备C: Secondary 尝试启用同步 → 失败（检测到多个主设备）
 ```
 
 **结果：** 所有副设备无法启用同步，显示错误
