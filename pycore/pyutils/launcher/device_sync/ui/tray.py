@@ -60,25 +60,40 @@ class SimpleTrayMenu:
         """Start tray menu with periodic network scanning"""
         logger.info("Starting tray menu...")
 
-        # Create tray icon
-        logger.info("Creating tray icon image...")
-        icon_image = self._create_icon_image()
+        try:
+            # Create tray icon
+            logger.info("Creating tray icon image...")
+            icon_image = self._create_icon_image()
+            logger.info(f"Icon image created: {icon_image.size} {icon_image.mode}")
 
-        logger.info("Creating tray menu...")
-        menu = self._create_menu()
+            logger.info("Creating tray menu...")
+            menu = self._create_menu()
+            logger.info(f"Menu created: {menu}")
 
-        logger.info("Creating pystray.Icon instance...")
-        self.icon = pystray.Icon(
-            name="DeviceSync",
-            icon=icon_image,
-            title=self._get_title(),
-            menu=menu
-        )
+            logger.info("Creating pystray.Icon instance...")
+            self.icon = pystray.Icon(
+                name="DeviceSync",
+                icon=icon_image,
+                title=self._get_title(),
+                menu=menu
+            )
+            logger.info(f"pystray.Icon instance created: {self.icon}")
 
-        # Setup periodic network scanning
-        logger.info("Starting tray icon event loop (blocking)...")
-        self.icon.run(setup=self._setup_periodic_scan)
-        logger.info("Tray icon event loop ended")
+            # Setup periodic network scanning
+            logger.info("Starting tray icon event loop (blocking)...")
+            logger.info(f"  setup callback: {self._setup_periodic_scan}")
+
+            try:
+                self.icon.run(setup=self._setup_periodic_scan)
+            except Exception as e:
+                logger.error(f"ERROR in icon.run(): {e}", exc_info=True)
+                raise
+
+            logger.info("Tray icon event loop ended")
+
+        except Exception as e:
+            logger.error(f"FATAL ERROR in start(): {e}", exc_info=True)
+            raise
 
     def stop(self):
         """Stop tray menu"""
@@ -96,21 +111,43 @@ class SimpleTrayMenu:
 
         This runs in the tray icon thread and schedules periodic scans.
         """
-        def periodic_scan():
-            while icon.visible:
-                # Scan if in SECONDARY mode
-                self.scanner.scan_if_needed(interval=self.SCAN_INTERVAL)
+        logger.info("=== _setup_periodic_scan called ===")
+        logger.info(f"  icon parameter: {icon}")
+        logger.info(f"  icon.visible: {icon.visible}")
 
-                # Update icon title
-                icon.title = self._get_title()
+        try:
+            def periodic_scan():
+                logger.info(">>> Periodic scan thread started")
+                try:
+                    while icon.visible:
+                        logger.debug("Periodic scan tick...")
+                        # Scan if in SECONDARY mode
+                        self.scanner.scan_if_needed(interval=self.SCAN_INTERVAL)
 
-                # Sleep for a bit
-                time.sleep(5)
+                        # Update icon title
+                        icon.title = self._get_title()
 
-        # Run periodic scan in a separate thread
-        import threading
-        scan_thread = threading.Thread(target=periodic_scan, daemon=True)
-        scan_thread.start()
+                        # Sleep for a bit
+                        time.sleep(5)
+                except Exception as e:
+                    logger.error(f"ERROR in periodic_scan loop: {e}", exc_info=True)
+                logger.info("<<< Periodic scan thread ended")
+
+            # Run periodic scan in a separate thread
+            logger.info("Creating periodic scan thread...")
+            import threading
+            scan_thread = threading.Thread(target=periodic_scan, daemon=True)
+            logger.info(f"Scan thread created: {scan_thread}")
+
+            logger.info("Starting scan thread...")
+            scan_thread.start()
+            logger.info("Scan thread started successfully")
+
+            logger.info("=== _setup_periodic_scan completed ===")
+
+        except Exception as e:
+            logger.error(f"ERROR in _setup_periodic_scan: {e}", exc_info=True)
+            raise
 
     def _get_title(self) -> str:
         """Get tray icon title based on current mode"""

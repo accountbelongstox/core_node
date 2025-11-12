@@ -83,18 +83,27 @@ def main():
 
     # Start tray menu (blocking)
     try:
+        logger.info("Creating SimpleTrayMenu instance...")
         tray = SimpleTrayMenu(server, scanner)
+        logger.info("SimpleTrayMenu instance created, calling start()...")
+
         tray.start()
 
+        logger.info("Tray menu start() returned (should not happen - blocking call)")
+
     except KeyboardInterrupt:
-        logger.info("Interrupted by user")
+        logger.info("Interrupted by user (Ctrl+C)")
 
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logger.error(f"FATAL ERROR in main: {e}", exc_info=True)
+        import traceback
+        traceback.print_exc()
 
     finally:
         # Cleanup
+        logger.info("Cleanup: stopping server...")
         server.stop()
+        logger.info("Exiting...")
         sys.exit(0)
 
 
