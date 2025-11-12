@@ -58,7 +58,7 @@ projectRootPath="$(dirname "$scriptsDirPath")"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间�?# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Automatically generates user directory at /tmp/Users/时间�?# Format: /tmp/Users/YYYYMMDD_HHMMSS
 # ============================================================================
 
 # Generate timestamp for directory name
