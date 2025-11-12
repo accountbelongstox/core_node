@@ -16,19 +16,41 @@
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 21
+$STEP_NUMBER = 5
+
+# Create complete Git package object
+$GitPackage = @{
+    Name                  = "Git"
+    PackageId             = "Git.Git"
+    Exec                  = "git.exe"
+    Category              = "Developer Tools"
+    Description           = "Git distributed version control system"
+    InstallType           = "winget"
+    ForceToInstallDir     = $true
+    IncludeSystemPaths    = $false
+    AdditionalKeywords    = @()
+    AppCustomInstallDir   = $GIT_INSTALL_DIR
+}
 
 # Function to install Git
 function Install-Git {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Git using winget..." -Type "Warning"
-    # Create install directory if it doesn't exist
+
     if (-not (Test-Path $GIT_INSTALL_DIR)) {
         New-Item -ItemType Directory -Path $GIT_INSTALL_DIR -Force | Out-Null
     }
 
-    # Install Git using winget
-    if (Invoke-WingetCommand -Id $GIT_WINGET_ID -InstallDir $GIT_INSTALL_DIR) {
-        # Verify installation
+    $result = Invoke-WingetCommand `
+        -Id $GitPackage.PackageId `
+        -InstallDir $GitPackage.AppCustomInstallDir `
+        -Keyword $GitPackage.Exec `
+        -AdditionalKeywords $GitPackage.AdditionalKeywords `
+        -ForceToInstallDir $GitPackage.ForceToInstallDir `
+        -IncludeSystemPaths $GitPackage.IncludeSystemPaths `
+        -OnlyCheckFlag $false `
+        -ForceInstall $false
+
+    if ($result) {
         if (Test-Path $GIT_EXE_PATH) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully installed Git" -Type "Success"
             New-Item -ItemType File -Path $GIT_FLAG_FILE -Force | Out-Null
@@ -47,13 +69,18 @@ function Install-Git {
 
 # Function to configure Git
 function Configure-Git {
+    if (-not (Test-Path $GIT_EXE_PATH)) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git executable not found, skipping configuration..." -Type "Warning"
+        return
+    }
+
     if (-not (Test-Path $GIT_FLAG_FILE)) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Git configuration not found, skipping..." -Type "Info"
         return
     }
 
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking Git configuration..." -Type "Info"
-    
+
     # Check user name
     $currentUser = & $GIT_EXE_PATH config --global user.name
     if (-not $currentUser) {
@@ -145,6 +172,9 @@ function Step21_InstallGit {
         $gitInstalled = Install-Git
         if (-not $gitInstalled) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Failed to install Git" -Type "Error"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping Git configuration and verification" -Type "Warning"
+            Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
+            return
         }
     }
 
@@ -177,31 +207,47 @@ function SetGetEnvGit {
 }
 
 function PringInstallResult {
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Verifying Git installation and configuration..." -Type "Info"
-    $gitVersion = & $GIT_EXE_PATH --version
-    if ($gitVersion) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git version: $gitVersion" -Type "Success"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git installation path: $GIT_EXE_PATH" -Type "Success"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Current Git configuration:" -Type "Info"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] - User name: $(& $GIT_EXE_PATH config --global user.name)" -Type "Success"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] - Email: $(& $GIT_EXE_PATH config --global user.email)" -Type "Success"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] - Default branch: $(& $GIT_EXE_PATH config --global init.defaultBranch)" -Type "Success"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] - AutoCRLF: $(& $GIT_EXE_PATH config --global core.autocrlf)" -Type "Success"
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] - SafeCRLF: $(& $GIT_EXE_PATH config --global core.safecrlf)" -Type "Success"
+    if (-not (Test-Path $GIT_EXE_PATH)) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git executable not found, skipping verification..." -Type "Warning"
+        return
     }
-    else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Failed to verify Git installation" -Type "Error"
+
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Verifying Git installation and configuration..." -Type "Info"
+
+    try {
+        $gitVersion = & $GIT_EXE_PATH --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $gitVersion) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Git version: $gitVersion" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Git installation path: $GIT_EXE_PATH" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Current Git configuration:" -Type "Info"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] - User name: $(& $GIT_EXE_PATH config --global user.name)" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Email: $(& $GIT_EXE_PATH config --global user.email)" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Default branch: $(& $GIT_EXE_PATH config --global init.defaultBranch)" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] - AutoCRLF: $(& $GIT_EXE_PATH config --global core.autocrlf)" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] - SafeCRLF: $(& $GIT_EXE_PATH config --global core.safecrlf)" -Type "Success"
+        }
+        else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Failed to verify Git installation" -Type "Error"
+        }
+    }
+    catch {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Error verifying Git: $($_.Exception.Message)" -Type "Error"
     }
 }
 
 # Function to ensure Git context menu entries exist
 function Ensure-GitContextMenu {
+    if (-not (Test-Path $GIT_EXE_PATH)) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git not installed, skipping context menu setup..." -Type "Warning"
+        return
+    }
+
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting up Git Bash context menu..." -Type "Info"
 
     # Get Git Bash executable path
     $gitBashExe = Join-Path $GIT_INSTALL_DIR "git-bash.exe"
     if (-not (Test-Path $gitBashExe)) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git Bash not found at $gitBashExe" -Type "Error"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git Bash not found at $gitBashExe" -Type "Warning"
         return
     }
 

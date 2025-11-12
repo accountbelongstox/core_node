@@ -173,9 +173,9 @@ class TkinterSystemTray:
         # Create menu item with callback
         def callback(icon, menu_item):
             """Callback that triggers THREAD_BUS event"""
-            if item.signal:
-                ColorPrint.blue(f"[TRAY] Menu item clicked: {item.text} -> signal: {item.signal}")
-                THREAD_BUS.trigger_event(item.signal, {"text": item.text})
+            if item.action_signal:
+                ColorPrint.blue(f"[TRAY] Menu item clicked: {item.text} -> signal: {item.action_signal}")
+                THREAD_BUS.trigger_event(item.action_signal, {"text": item.text})
 
         return pystray.MenuItem(
             text=item.text,

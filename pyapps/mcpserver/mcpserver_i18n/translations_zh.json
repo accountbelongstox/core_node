@@ -1,0 +1,15 @@
+{
+  "mcpserver.app_name": "MCP Server",
+  "mcpserver.loading": "加载中...",
+  "mcpserver.ui_ready": "界面已就绪",
+  "mcpserver.ui_closed": "界面已关闭",
+  "mcpserver.closing": "正在关闭 - 停止所有服务...",
+  "mcpserver.service_running": "MCP Server 服务运行中",
+  "mcpserver.tray.start_mcp_server": "启动MCP服务器",
+  "mcpserver.tray.start_main_server": "启动主服务器",
+  "mcpserver.tray.start_as_client": "启动为Client",
+  "mcpserver.tray.open_web_ui": "打开Web UI",
+  "mcpserver.tray.restart": "重启",
+  "mcpserver.tray.exit": "退出"
+}
+

@@ -111,10 +111,10 @@ Interactive Mode:
 
 Resource Management:
   - Commands are automatically limited to 20% CPU and calculated memory
-  - Memory limits: 200M (â‰¤2GB RAM), 300M (2-4GB), 500M (4-8GB), 1G (>8GB)
+  - Memory limits: 200M (â‰?GB RAM), 300M (2-4GB), 500M (4-8GB), 1G (>8GB)
   - Auto-detects best resource limiting method available
   - Supported methods: systemd-run, cgroup, cpulimit, ulimit
-  - Generates temporary scripts in /tmp/.core_node/dd_scripts/
+  - Generates temporary scripts in /var/_core_node/_tmp/dd_scripts/
   - Automatic dependency installation and cleanup
 
 EOF

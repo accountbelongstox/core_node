@@ -614,7 +614,7 @@ pause
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:
         """Generate SSH connection PowerShell script"""
-        ssh_connection = user_inputs.get('SSH_CONNECTION', '')
+        ssh_conn_key = f"SSH_CONNECTION_{file_number}"
         password_key_name = f"SSH_PASSWORD_{file_number}"
 
         header = f"""# ### AI SPECIAL ATTENTION RULES START ###
@@ -639,7 +639,7 @@ pause
 
 .NOTES
     - Configuration: {config_name}
-    - SSH Connection: {ssh_connection}
+    - SSH Connection: Loaded dynamically from secret key {ssh_conn_key}
     - File Number: {file_number}
     - File Name: {file_name}
 #>
@@ -658,6 +658,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 """
 
+
         load_secret_manager = f"""
 #region Load SSH Configuration via PyCore caller
 Write-Host ""
@@ -665,9 +666,6 @@ Write-Host "============================================================" -Foreg
 Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
-
-$sshConnection = "{ssh_connection}"
-Write-Host "[INFO] SSH Connection: $sshConnection" -ForegroundColor Green
 
 # Detect Python executable (Windows prioritizes 'python' over 'python3')
 $pythonExecutable = $null
@@ -698,10 +696,25 @@ function Get-SSHSecret {{
     $args = @($secretManagerScript, 'get_secret_key', $KeyName)
     $result = (& $pythonExecutable $args 2>$null)
 
+    # Remove BOM character if present
+    if ($result -and $result.Length -gt 0 -and [int][char]$result[0] -eq 0xFEFF) {{
+        $result = $result.Substring(1)
+    }}
+
     # Restore original directory
     Set-Location $originalLocation
 
     return $result
+}}
+
+$sshConnection = Get-SSHSecret "{ssh_conn_key}"
+if ($sshConnection) {{
+    Write-Host "[SUCCESS] SSH Connection loaded = $sshConnection" -ForegroundColor Green
+}} else {{
+    Write-Host "[ERROR] SSH_CONNECTION not found" -ForegroundColor Red
+    Write-Host "Press any key to exit..." -ForegroundColor Yellow
+    $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
 }}
 
 $sshPassword = Get-SSHSecret "{password_key_name}"
@@ -726,27 +739,26 @@ if ([string]::IsNullOrWhiteSpace($sshConnection)) {{
     exit 1
 }}
 
-Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
-Write-Host ""
-
 if ($sshPassword) {{
-    Write-Host "[INFO] Password authentication enabled" -ForegroundColor Yellow
-    Write-Host "[INFO] Note: You may need sshpass or similar tool for password authentication" -ForegroundColor Yellow
+    # Display password for copy-paste
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host "  SSH PASSWORD (Copy this to clipboard):" -ForegroundColor Yellow
+    Write-Host "  $sshPassword" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "[INFO] SSH will prompt for password. Please paste the password above when prompted." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
     Write-Host ""
 
-    if (Get-Command sshpass -ErrorAction SilentlyContinue) {{
-        Write-Host "[INFO] Using sshpass for password authentication" -ForegroundColor Green
-        $env:SSHPASS = $sshPassword
-        & sshpass -e ssh $sshConnection
-    }} else {{
-        Write-Host "[WARNING] sshpass not found, falling back to interactive password prompt" -ForegroundColor Yellow
-        Write-Host "[INFO] Please enter password when prompted" -ForegroundColor Yellow
-        Write-Host ""
-        & ssh $sshConnection
-    }}
-
-    $env:SSHPASS = $null
+    # Execute SSH connection - it will prompt for password
+    & ssh $sshConnection
 }} else {{
+    # No password configured, use SSH key authentication
+    Write-Host "[INFO] No password configured, using SSH key authentication" -ForegroundColor Cyan
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
+    Write-Host ""
+
     & ssh $sshConnection
 }}
 

@@ -1,5 +1,5 @@
 ===================================================================
-LIUNXENVS Directory - Linux Environment Scripts
+LINUXENVS Directory - Linux Environment Scripts
 ===================================================================
 
 This directory contains user-created scripts that are automatically
@@ -52,17 +52,17 @@ Enter connection: user@hostname
 Command created and available globally
 
 Creating Custom Command:
-cat > scripts/liunxenvs/mycommand.sh << 'EOFSCRIPT'
+cat > scripts/linuxenvs/mycommand.sh << 'EOFSCRIPT'
 #!/bin/bash
 echo "My custom command"
 EOFSCRIPT
-chmod +x scripts/liunxenvs/mycommand.sh
-sudo ln -sf $(pwd)/scripts/liunxenvs/mycommand.sh /usr/local/bin/mycommand
+chmod +x scripts/linuxenvs/mycommand.sh
+sudo ln -sf $(pwd)/scripts/linuxenvs/mycommand.sh /usr/local/bin/mycommand
 
 DIRECTORY STRUCTURE:
 --------------------
 scripts/
-├── liunxenvs/              # This directory
+├── linuxenvs/              # This directory
 │   ├── ssh1.sh             # Example: SSH connection 1
 │   ├── ssh2.sh             # Example: SSH connection 2
 │   └── ...

@@ -57,6 +57,11 @@ $USE_SUDO chmod +x "$SCRIPT_DIR/codex1.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/codex1.sh" /usr/local/bin/codex1
 echo "[LINK] codex1 -> $SCRIPT_DIR/codex1.sh"
 
+# Link openai1
+$USE_SUDO chmod +x "$SCRIPT_DIR/openai1.sh"
+$USE_SUDO ln -sf "$SCRIPT_DIR/openai1.sh" /usr/local/bin/openai1
+echo "[LINK] openai1 -> $SCRIPT_DIR/openai1.sh"
+
 # Link ssh1
 $USE_SUDO chmod +x "$SCRIPT_DIR/ssh1.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/ssh1.sh" /usr/local/bin/ssh1
@@ -73,4 +78,5 @@ echo "  claude4"
 echo "  claude5"
 echo "  claude6"
 echo "  codex1"
+echo "  openai1"
 echo "  ssh1"

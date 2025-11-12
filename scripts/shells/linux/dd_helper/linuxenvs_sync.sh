@@ -20,7 +20,6 @@ source "$DD_HELPER_DIR/constants.sh"
 
 # Build full paths from constants
 LINUXENVS_DIR_PATH="$CORE_NODE_ROOT_DIR/$LINUXENVS_DIR_RELATIVE"
-LIUNXENVS_DIR_PATH="$CORE_NODE_ROOT_DIR/$LIUNXENVS_DIR_RELATIVE"
 
 # Linuxenvs Permission and Sync Functions
 sync_linuxenvs_to_bin() {
@@ -34,13 +33,8 @@ sync_linuxenvs_to_bin() {
         directory_labels+=("linuxenvs")
     fi
 
-    if [ -d "$LIUNXENVS_DIR_PATH" ]; then
-        directories+=("$LIUNXENVS_DIR_PATH")
-        directory_labels+=("liunxenvs")
-    fi
-
     if [ ${#directories[@]} -eq 0 ]; then
-        echo -e "\033[33m[SYNC] No linuxenv directories found. Checked: $LINUXENVS_DIR_PATH and $LIUNXENVS_DIR_PATH\033[0m"
+        echo -e "\033[33m[SYNC] No linuxenv directories found. Checked: $LINUXENVS_DIR_PATH\033[0m"
         return 0
     fi
 

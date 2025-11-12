@@ -20,20 +20,16 @@
 SCRIPT_ACTUAL_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_ACTUAL_DIR="$(dirname "$SCRIPT_ACTUAL_PATH")"
 
-# Determine if running in installation mode (from /usr/tmp or /tmp)
+# Determine if running in installation mode
+# Initial installation may run from system temporary directories (/usr/tmp or /tmp)
+# Once installed, dd.sh runs from project directory
 IS_INSTALLATION_MODE=false
 if [[ "$SCRIPT_ACTUAL_DIR" == /usr/tmp* ]] || [[ "$SCRIPT_ACTUAL_DIR" == /tmp* ]]; then
     IS_INSTALLATION_MODE=true
 fi
 
-# Set CORE_NODE_ROOT_DIR based on mode
-if [ "$IS_INSTALLATION_MODE" = true ]; then
-    # Installation mode - running from temporary location
-    CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
-else
-    # Normal mode - dd.sh is in actual project directory
-    CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
-fi
+# Set CORE_NODE_ROOT_DIR (same in both installation and normal mode)
+CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
 
 # Directory Path Variables
 SCRIPT_DIR="$CORE_NODE_ROOT_DIR/scripts"
@@ -62,7 +58,8 @@ GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
 SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/2_setting_base.sh"
 PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_validator.sh"
 
-# All .sh script files used in dd.sh
+# Menu script paths (called via bash from menu_functions.sh, NOT sourced)
+# These scripts are executed when user selects corresponding menu items
 SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT="$SHELLS_DIR/linux/menu_itemshells/special_software_env_manager.sh"
 SERVICE_MANAGER_SCRIPT="$SHELLS_DIR/linux/menu_itemshells/service_manager.sh"
 INSTALL_TEST_MENU_SCRIPT="$COMMON_SHELLS_DIR/install_test_menu.sh"
@@ -96,14 +93,6 @@ declare -a SOURCE_FILES=(
     "$DD_HELPER_DIR/secret_functions.sh"
     "$DD_HELPER_DIR/main_execution.sh"
     "$GVAR_COMMON_FILE"
-    "$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT"
-    "$SERVICE_MANAGER_SCRIPT"
-    "$INSTALL_TEST_MENU_SCRIPT"
-    "$SYSTEM_INFO_SCRIPT"
-    "$UNIFIED_MANAGER_SCRIPT"
-    "$GITPUT_UNIFIED_SCRIPT"
-    "$RESOURCE_LIMITER_SCRIPT"
-    "$ROUTER_SCRIPT"
 )
 
 
@@ -182,15 +171,19 @@ source_file_with_dos2unix() {
 
 # Source first files (constants.sh and system_functions.sh) to get check_and_install_sudo
 # (needed before ensure_dos2unix which requires $sudo)
+local first_file_count=0
+local first_file_total=${#SOURCE_FIRSTFILES[@]}
 for source_file in "${SOURCE_FIRSTFILES[@]}"; do
+    ((first_file_count++))
+    local basename_file="$(basename "$source_file")"
     sed -i 's/\r$//' "$source_file" 2>/dev/null
     source "$source_file" 2>/dev/null
-            if [ $? -eq 0 ]; then
-        echo "[LOADED] $source_file"
-            else
-        echo "[WARNING] Failed to load: $source_file"
-            fi
-        done
+    if [ $? -eq 0 ]; then
+        echo "[$first_file_count/$first_file_total] $basename_file - [OK]"
+    else
+        echo "[$first_file_count/$first_file_total] $basename_file - [FAILED]"
+    fi
+done
 
 # Ensure sudo is available before ensure_dos2unix
 check_and_install_sudo
@@ -200,14 +193,18 @@ ensure_dos2unix
 check_and_install_git
 
 # Source all required files (with dos2unix processing)
+local file_count=0
+local file_total=${#SOURCE_FILES[@]}
 for source_file in "${SOURCE_FILES[@]}"; do
+    ((file_count++))
+    local basename_file="$(basename "$source_file")"
     source_file_with_dos2unix "$source_file"
-                if [ $? -eq 0 ]; then
-        echo "[LOADED] $source_file"
+    if [ $? -eq 0 ]; then
+        echo "[$file_count/$file_total] $basename_file - [OK]"
     else
-        echo "[WARNING] Failed to load: $source_file"
-            fi
-        done
+        echo "[$file_count/$file_total] $basename_file - [FAILED]"
+    fi
+done
 
 # Set GLOBAL_VAR_DIR using the determine_global_var_dir function (after source main_functions.sh)
 GLOBAL_VAR_DIR=$(determine_global_var_dir)
@@ -215,8 +212,9 @@ GLOBAL_VAR_DIR=$(determine_global_var_dir)
 # Main Execution
 main() {
     # Display initial information
-    echo "CORE_NODE_ROOT_DIR:" $CORE_NODE_ROOT_DIR
-    echo "SHELLS_DIR:        " $SHELLS_DIR
+    echo "CORE_NODE_ROOT_DIR: $CORE_NODE_ROOT_DIR"
+    echo "SHELLS_DIR:         $SHELLS_DIR"
+    echo ""
 
     # Step 1: Check and download required files
     echo -e "\033[36m[FILE CHECK] Checking for required files...\033[0m"
@@ -241,6 +239,7 @@ main() {
     cleanup_file_cache
 
     # Step 3: Process shell files (dos2unix conversion and set +x permissions with cache)
+    echo ""
     echo -e "\033[36m[FILE PROCESSING] Starting scan and conversion of .sh files\033[0m"
 
     # Use IS_INSTALLATION_MODE variable instead of checking path again
@@ -290,10 +289,12 @@ main() {
 
 
     # Make shell files executable (root level)
+    echo ""
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
 
     # Step 4: Create and initialize global variable directory
+    echo ""
     if [ ! -d "$GLOBAL_VAR_DIR" ]; then
         $sudo mkdir -p "$GLOBAL_VAR_DIR"
         echo "Created global variable directory: $GLOBAL_VAR_DIR"
@@ -318,6 +319,7 @@ main() {
     fi
 
     # Step 5-1: Validate project location using 8_project_validator.sh
+    echo ""
     echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
     if [ -s "$PROJECT_VALIDATOR_FILE" ]; then
         bash "$PROJECT_VALIDATOR_FILE"
@@ -333,6 +335,7 @@ main() {
     # Step 5-2: Check encrypted secret files (already done in step 2, no action needed here)
 
     # Step 5-3: Run base system setup (disk detection and mount management based on wsl/server/desktop)
+    echo ""
     echo -e "\033[36m[BASE SETUP] Checking if base system setup is needed...\033[0m"
 
     local disk_setup_flag="$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
@@ -397,15 +400,8 @@ main() {
         fi
     fi
 
-    # Ensure dos2unix and git are installed (already checked before file loading, but double-check)
-    if ! command -v dos2unix &>/dev/null; then
-        check_and_install_dos2unix
-    fi
-    if ! command -v git &>/dev/null; then
-        check_and_install_git
-    fi
-
     # Create symlink to /usr/local/bin/dd.sh if not in installation mode
+    echo ""
     if [ "$IS_INSTALLATION_MODE" = false ]; then
         local symlink_target="/usr/local/bin/dd.sh"
         if [ -L "$symlink_target" ]; then
@@ -440,9 +436,11 @@ main() {
     fi
 
     # Sync scripts from scripts/linuxenvs to /usr/local/bin using symlinks
+    echo ""
     sync_linuxenvs_to_bin
 
     # Step 5-4: Initialize and show interactive menu
+    echo ""
     detect_system_version
     initialize_menu_items
     show_interactive_menu

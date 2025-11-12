@@ -40,8 +40,13 @@ download_file() {
 
     local download_url="$base_url/$relative_path"
 
-    # Improved temp file path logic - always use /tmp for downloads
-    local temp_file="/tmp/core_node_download_$(basename "$file_path").$$"
+    # Ensure temporary directory exists
+    if [ ! -d "$CORE_NODE_TMP_DIR" ]; then
+        $sudo mkdir -p "$CORE_NODE_TMP_DIR"
+    fi
+
+    # Use core_node temporary directory for downloads
+    local temp_file="$CORE_NODE_TMP_DIR/core_node_download_$(basename "$file_path").$$"
 
     echo "Downloading $relative_path..."
     echo "Source URL: $download_url"

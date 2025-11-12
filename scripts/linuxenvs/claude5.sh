@@ -69,7 +69,7 @@ aiToolsDirPath="$pytoolsDirPath/ai_tools"
 # Path resolution algorithm:
 #   Script (resolve symlink) -> Script Dir (linuxenvs) -> Scripts Dir -> Project Root
 
-echo "[DEBUG] scriptRealPath:    $scriptRealPath"
+echo "[DEBUG] scriptSource:      $scriptSource"
 echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
 echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
 echo "[DEBUG] projectRootPath:   $projectRootPath"

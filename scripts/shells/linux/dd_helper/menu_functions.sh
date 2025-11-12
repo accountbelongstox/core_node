@@ -38,8 +38,6 @@ show_special_software_env_menu() {
 show_service_manager() {
     export USE_SUDO
     bash "$SERVICE_MANAGER_SCRIPT_PATH"
-    echo "Press Enter to continue..."
-    read
 }
 
 handle_menu_action() {
@@ -73,9 +71,6 @@ handle_menu_action() {
             ;;
         "unified_manager")
             bash "$UNIFIED_MANAGER_SCRIPT_PATH"
-            echo ""
-            echo "Press Enter to continue..."
-            read
             ;;
                 "push_git")
                     echo "Starting Git Push Operations..."
@@ -92,9 +87,6 @@ handle_menu_action() {
                     else
                         echo "Git push operations failed"
                     fi
-                    echo ""
-                    echo "Press Enter to continue..."
-                    read
                     ;;
                 "show_linux_management_submenu")
                     show_linux_management_submenu

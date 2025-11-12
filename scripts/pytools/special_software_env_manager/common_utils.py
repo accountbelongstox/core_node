@@ -10,6 +10,8 @@ import re
 import platform
 import sys
 import io
+import time
+import subprocess
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
 
@@ -266,18 +268,24 @@ def get_linuxenvs_dir() -> Path:
 
 def clear_screen():
     """Clear the console screen"""
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    try:
+        print('\033c', end='', flush=True)
+    except Exception:
+        pass
+
     try:
         if platform.system() == 'Windows':
-            # Use ANSI escape codes for better compatibility
-            print('\033[2J\033[H', end='', flush=True)
-            # Fallback to cls if ANSI doesn't work
             os.system('cls')
         else:
-            # Use ANSI escape codes for Linux/Mac
-            print('\033[2J\033[H', end='', flush=True)
-    except:
-        # Final fallback
-        os.system('cls' if platform.system() == 'Windows' else 'clear')
+            os.system('clear')
+    except Exception:
+        pass
+
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 
 def get_key_press():
@@ -303,7 +311,6 @@ def get_arrow_key():
     """Get arrow key input (cross-platform) - blocks until valid key is pressed"""
     if platform.system() == 'Windows':
         import msvcrt
-        import time
 
         # Block and wait for valid key press
         while True:
@@ -370,18 +377,18 @@ def get_arrow_key():
                 ch = input_stream.read(1)
 
                 if ch == '\x1b':  # ESC sequence
-                    ready, _, _ = select.select([fd], [], [], 0.5)
+                    ready, _, _ = select.select([fd], [], [], 1.0)
                     if not ready:
-                        return 'esc'
+                        continue
 
                     second = input_stream.read(1)
                     if not second:
-                        return 'esc'
+                        continue
 
                     if second in ('[', 'O'):
-                        ready, _, _ = select.select([fd], [], [], 0.5)
+                        ready, _, _ = select.select([fd], [], [], 1.0)
                         if not ready:
-                            return 'esc'
+                            continue
 
                         third = input_stream.read(1)
                         if third == 'A':
@@ -392,9 +399,9 @@ def get_arrow_key():
                             return 'right'
                         if third == 'D':
                             return 'left'
-                        return 'esc'
+                        continue
 
-                    return 'esc'
+                    continue
 
                 elif ch == '\r' or ch == '\n':
                     return 'enter'
@@ -405,6 +412,8 @@ def get_arrow_key():
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             if close_stream:
                 input_stream.close()
+            sys.stdout.flush()
+            sys.stderr.flush()
 
 
 def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> str:
@@ -422,6 +431,7 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> str:
 
     while True:
         clear_screen()
+        time.sleep(0.05)
 
         # Print title and instructions
         ColorMessage.write(title, 'info')

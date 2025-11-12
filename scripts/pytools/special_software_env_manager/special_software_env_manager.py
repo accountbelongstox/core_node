@@ -582,7 +582,7 @@ class SpecialSoftwareEnvManager:
                 {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
                 {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
-                {'Text': 'Back to Main Menu', 'Action': 'back', 'HasSubMenu': False},
+                {'Text': 'Back to dd.sh Main Menu', 'Action': 'back', 'HasSubMenu': False},
                 {'Text': 'Exit', 'Action': 'exit', 'HasSubMenu': False}
             ])
 
@@ -598,7 +598,8 @@ class SpecialSoftwareEnvManager:
             elif action == 'restore_scripts':
                 self.restore_scripts_from_secrets()
             elif action == 'back':
-                continue
+                # Exit Python script and return control to dd.sh
+                return
             elif action == 'exit':
                 sys.exit(0)
             elif action in self.action_to_config:
@@ -979,24 +980,48 @@ class SpecialSoftwareEnvManager:
         script_paths = []
         success_count = 0
 
+        # Check if this is SSH Connection config (special handling)
+        is_ssh = (config_name == 'SSH Connection')
+
+        # Check if MCP support is enabled
+        mcp_support = config.get('MCPSupport', {})
+        mcp_enabled = mcp_support.get('Enabled', False) and not is_ssh
+
+        # For SSH, scripts will load both SSH_CONNECTION and SSH_PASSWORD dynamically
+        # No need to pre-load values here
+        user_inputs = {}
+
         # Generate Windows script
         ps_command = config.get('WindowsCommand', command_prefix)
-        mcp_section = self.windows_generator.generate_mcp_section(
-            command_prefix,
-            config['DisplayName'],
-            command_prefix,
-            support_upgrade=True
-        )
+        if is_ssh:
+            # Use dedicated SSH generator for SSH connections
+            windows_content = self.windows_generator.generate_ssh_command_content(
+                config_name,
+                file_number,
+                user_inputs,
+                f"{file_name}.ps1"
+            )
+        else:
+            # Use standard generator for AI tools
+            if mcp_enabled:
+                mcp_section = self.windows_generator.generate_mcp_section(
+                    command_prefix,
+                    config['DisplayName'],
+                    command_prefix,
+                    support_upgrade=True
+                )
+            else:
+                mcp_section = ""
 
-        windows_content = self.windows_generator.generate_command_content(
-            config_name,
-            command_prefix,
-            ps_command,
-            file_number,
-            config['Variables'],
-            mcp_section,
-            f"{file_name}.ps1"
-        )
+            windows_content = self.windows_generator.generate_command_content(
+                config_name,
+                command_prefix,
+                ps_command,
+                file_number,
+                config['Variables'],
+                mcp_section,
+                f"{file_name}.ps1"
+            )
 
         winenvs_dir = get_winenvs_dir()
         ensure_directory_exists(str(winenvs_dir))
@@ -1013,22 +1038,35 @@ class SpecialSoftwareEnvManager:
 
         # Generate Linux script
         bash_command = config.get('LinuxCommand', command_prefix)
-        linux_mcp_section = self.linux_generator.generate_mcp_section(
-            command_prefix,
-            config['DisplayName'],
-            command_prefix,
-            support_upgrade=True
-        )
+        if is_ssh:
+            # Use dedicated SSH generator for SSH connections
+            linux_content = self.linux_generator.generate_ssh_command_content(
+                config_name,
+                file_number,
+                user_inputs,
+                f"{file_name}.sh"
+            )
+        else:
+            # Use standard generator for AI tools
+            if mcp_enabled:
+                linux_mcp_section = self.linux_generator.generate_mcp_section(
+                    command_prefix,
+                    config['DisplayName'],
+                    command_prefix,
+                    support_upgrade=True
+                )
+            else:
+                linux_mcp_section = ""
 
-        linux_content = self.linux_generator.generate_command_content(
-            config_name,
-            command_prefix,
-            bash_command,
-            file_number,
-            config['Variables'],
-            linux_mcp_section,
-            f"{file_name}.sh"
-        )
+            linux_content = self.linux_generator.generate_command_content(
+                config_name,
+                command_prefix,
+                bash_command,
+                file_number,
+                config['Variables'],
+                linux_mcp_section,
+                f"{file_name}.sh"
+            )
 
         linuxenvs_dir = get_linuxenvs_dir()
         ensure_directory_exists(str(linuxenvs_dir))

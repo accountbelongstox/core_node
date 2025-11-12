@@ -65,7 +65,7 @@ process_sh_files() {
 
     for file in "${files_to_convert[@]}"; do
         ((converted_files++))
-        printf "\r\033[33m[%d/%d]\033[0m Converting: \033[35m%s\033[0m" "$converted_files" "$files_need_conversion" "$(basename "$file")"
+        local basename_file="$(basename "$file")"
 
         local conversion_status=""
         if command -v dos2unix >/dev/null 2>&1; then
@@ -87,11 +87,9 @@ process_sh_files() {
             exec_status="[FAIL] exec"
         fi
 
-        printf "\r\033[33m[%d/%d]\033[0m \033[35m%s\033[0m - %s, %s" "$converted_files" "$files_need_conversion" "$(basename "$file")" "$conversion_status" "$exec_status"
+        echo -e "\033[33m[$converted_files/$files_need_conversion]\033[0m \033[35m$basename_file\033[0m - $conversion_status, $exec_status"
         set_file_cache "$file"
     done
-
-    echo ""
 
     local end_time=$(date +%s.%N)
     local duration

@@ -23,8 +23,10 @@ GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 
 # Directory Paths (relative to CORE_NODE_ROOT_DIR)
 LINUXENVS_DIR_RELATIVE="scripts/linuxenvs"
-LIUNXENVS_DIR_RELATIVE="scripts/liunxenvs"
 BIN_DIR_PATH="/usr/local/bin"
+
+# Temporary directory for core_node operations
+CORE_NODE_TMP_DIR="/var/_core_node/_tmp"
 
 # Script Paths (relative to CORE_NODE_ROOT_DIR)
 GITPUT_UNIFIED_SCRIPT_RELATIVE="scripts/git/gitput_unified.sh"
