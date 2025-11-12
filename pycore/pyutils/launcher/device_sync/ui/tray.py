@@ -35,8 +35,8 @@ class SimpleTrayMenu:
     Network scanning runs automatically in SECONDARY mode.
     """
 
-    # Network scan interval (seconds)
-    SCAN_INTERVAL = 30.0
+    # Network scan interval (seconds) - increased to reduce CPU usage
+    SCAN_INTERVAL = 60.0
 
     def __init__(self, server: UnifiedHTTPServer, scanner: SimpleDeviceScanner):
         """
@@ -174,8 +174,8 @@ class SimpleTrayMenu:
                 # Update icon title
                 icon.title = self._get_title()
 
-                # Sleep for a bit
-                time.sleep(5)
+                # Sleep for a bit (increased to reduce CPU usage)
+                time.sleep(10)
 
             logger.info(f"<<< Periodic scan thread ENDED after {counter} ticks")
             logger.info(f"    Final: self.running={self.running}, icon.visible={icon.visible}")

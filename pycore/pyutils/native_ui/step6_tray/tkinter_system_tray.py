@@ -70,12 +70,14 @@ class TrayMenuItem:
         icon_name: Optional icon name (not implemented yet)
         enabled: Whether the item is enabled (default: True)
         default: Whether this is the default action (double-click) (default: False)
+        submenu: Optional list of submenu items
     """
     text: str
     action_signal: str
     icon_name: Optional[str] = None
     enabled: bool = True
     default: bool = False
+    submenu: Optional[List['TrayMenuItem']] = None
 
     # Separator constant
     SEPARATOR = None  # Will be set after class definition
@@ -173,12 +175,26 @@ class TkinterSystemTray:
         # Get signal name - support both 'signal' (from tray_config) and 'action_signal' (from tkinter_system_tray)
         signal_name = getattr(item, 'action_signal', None) or getattr(item, 'signal', None)
 
+        # Handle submenu if present
+        submenu_items = getattr(item, 'submenu', None)
+        if submenu_items:
+            # Create submenu items recursively
+            submenu = pystray.Menu(*[self._create_menu_item(sub_item) for sub_item in submenu_items])
+            return pystray.MenuItem(
+                text=item.text,
+                submenu=submenu,
+                enabled=item.enabled
+            )
+
         # Create menu item with callback
         def callback(icon, menu_item):
             """Callback that triggers THREAD_BUS event"""
             if signal_name:
                 ColorPrint.blue(f"[TRAY] Menu item clicked: {item.text} -> signal: {signal_name}")
-                THREAD_BUS.trigger_event(signal_name, {"text": item.text})
+                THREAD_BUS.trigger_event(signal_name, {
+                    "text": item.text,
+                    "signal": signal_name  # Include signal name in event_data
+                })
 
         return pystray.MenuItem(
             text=item.text,
