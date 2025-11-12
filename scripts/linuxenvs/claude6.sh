@@ -43,11 +43,16 @@ echo ""
 
 #region Initialize Path Variables
 # Resolve script real path (handle symlinks)
-scriptRealPath="${BASH_SOURCE[0]}"
-if [ -L "$scriptRealPath" ]; then
-    scriptRealPath="$(readlink -f "$scriptRealPath")"
+# When script is executed via symlink, BASH_SOURCE[0] returns symlink path
+# We need to resolve it to actual file path to get correct directory
+scriptSource="${BASH_SOURCE[0]}"
+# Check if scriptSource is a symlink and resolve it
+if [ -L "$scriptSource" ]; then
+    # Resolve symlink to actual file path
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
 fi
-scriptCurrentPath="$(cd "$(dirname "$scriptRealPath")" && pwd)"
+# Get absolute path of script directory
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 
 # Calculate project structure paths
 # Expected structure: project_root/scripts/linuxenvs/script.sh

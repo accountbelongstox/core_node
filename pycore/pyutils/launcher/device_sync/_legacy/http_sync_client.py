@@ -26,6 +26,8 @@ from pathlib import Path
 import urllib.request
 import urllib.error
 
+from .simple_device_scanner import SimpleDeviceScanner
+
 DEFAULT_HTTP_PORT = 58923
 SYNC_INTERVAL = 5  # seconds
 
@@ -88,16 +90,14 @@ class HTTPFileSyncClient:
         Returns:
             True if primary found
         """
-        from .http_discovery import HTTPDeviceDiscovery
-
         print("[HTTPClient] Discovering primary device...")
 
-        discovery = HTTPDeviceDiscovery(http_port=self.port)
-        primary = discovery.find_primary_device()
+        scanner = SimpleDeviceScanner(port=self.port)
+        primary = scanner.find_primary_device()
 
         if primary:
-            self.primary_host = primary['host']
-            self.port = primary['port']
+            self.primary_host = primary['ip']
+            self.port = primary['http_port']
             print(f"[HTTPClient] Found primary: {self.primary_host}:{self.port}")
             return True
         else:
@@ -339,17 +339,16 @@ class HTTPFileSyncClient:
         Returns:
             True if conflict detected
         """
-        from .http_discovery import HTTPDeviceDiscovery
-
         try:
-            discovery = HTTPDeviceDiscovery(http_port=self.port)
-            primary = discovery.find_primary_device(use_cache=False)
+            scanner = SimpleDeviceScanner(port=self.port)
+            devices = scanner.scan_devices()
+            primary_devices = scanner.get_primary_devices(devices)
 
-            if primary and primary.get('conflict', False):
+            if len(primary_devices) > 1:
                 self.conflict_detected = True
                 self.conflict_info = {
-                    'count': primary.get('conflict_count', 0),
-                    'hosts': primary.get('conflict_hosts', []),
+                    'count': len(primary_devices),
+                    'hosts': [d['ip'] for d in primary_devices],
                     'detected_at': time.time()
                 }
                 return True

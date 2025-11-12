@@ -62,9 +62,9 @@ class UnifiedServer:
         # Device manager reference (will be set externally)
         self.device_manager = None
 
-        # File cache for sync
+        # File cache for sync (delay build until PRIMARY mode set)
         self.file_cache: Dict[str, Dict] = {}
-        self._build_file_cache()
+        self.file_cache_built = False
 
     def start(self):
         """Start unified server in separate thread."""
@@ -266,16 +266,30 @@ class UnifiedServer:
 
         self.ws_clients -= disconnected
 
+    def build_file_cache_if_needed(self):
+        """
+        Build file cache if not already built.
+
+        This is called when device is set as PRIMARY.
+        """
+        if self.file_cache_built:
+            logger.info("File cache already built, skipping")
+            return
+
+        self._build_file_cache()
+
     def _build_file_cache(self):
-        """Build file metadata cache."""
+        """Build file metadata cache (internal)."""
         logger.info(f"Building file cache from {self.root_dir}")
 
         try:
+            file_count = 0
+
             for file_path in self.root_dir.rglob('*'):
                 if not file_path.is_file():
                     continue
 
-                # Skip hidden files
+                # Skip hidden files and directories
                 if any(part.startswith('.') for part in file_path.parts):
                     continue
 
@@ -288,7 +302,15 @@ class UnifiedServer:
                     'mtime': stat.st_mtime
                 }
 
-            logger.info(f"Cached {len(self.file_cache)} files")
+                file_count += 1
+
+                # Log progress every 10000 files
+                if file_count % 10000 == 0:
+                    logger.info(f"Cached {file_count} files...")
+
+            self.file_cache_built = True
+            logger.info(f"File cache complete: {len(self.file_cache)} files")
+
         except Exception as e:
             logger.error(f"File cache error: {e}", exc_info=True)
 
