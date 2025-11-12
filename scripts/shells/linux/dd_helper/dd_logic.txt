@@ -1,0 +1,42 @@
+TR433A.ORE NODE ROOT DIR:/mnt/d/programing/core nodeHELLS DIR:/mnt/d/programing/core node/scripts/shellssudo is available and will be used.
+00.5
+FILE CHECK] Checking for required files...hecking for required files...var common.sh already exists and is validsetting base.sh already exists and is validproject validator.sh already exists and is validAll required files are available and validFILE PROCESSING] starting scan and conversion of .sh filesINF0] Found 3 directories to scan: apps ncore scripts
+DIR 1/31Processing directory:appsSCAN] Starting to scan directory: /mnt/d/programing/core_node/appsINFO] scanningfor .sh files that need conversion...SCAN COMPLETE]Found 28 .sh files totalCONVERSION] 0 files need conversionCACHE] 28 files skipped(already converted)COMPLETE] All files are up to date! scan completed in 5.032044800s
+DIR 2/3] Processing directory: ncoreSCAN]Starting to scan directory: /mnt/d/programing/core_node/ncoreINF0]Scanning for .sh files that need conversion...SCAN COMPLETEl Found 3 .sh files totalCONVERSIONl 0 files need conversionCACHE] 3 files skipped (already converted)COMPLETE] All files are up to date! scan completed in .118146100s
+DIR 3/3]Processing directory: scriptsSCAN]Starting to scan directory: /mnt/d/programing/core_node/scriptsINF0] Scanning for .sh files that need conversion...SCAN COMPLETEl Found 232 .sh files totalCONVERSIoN] 0 files need conversionCACHE] 232 files skipped(already converted)COMPLETE] All files are up to date! Scan completed in 6.115061200s
+COMPLETE] All .sh files processed!Directories processed:3/3Total processing time: 11.341775600s
+script rootdirectory path in global variablesstoredstoredcommon shells directory path in global variablestoredcommon scripts directory path in global variablescriptis executed from: /mnt/d/programing/core nodeBASFSETUP1Checking if base system setup is needed...BASE SETUP] WSL environment detected - skipping disk setupBASE SETUP] WSL manages disk mounts automatically via /mnt/c, /mnt/d, etcPROJECT VALIDATION] Running project validation..Isblk: failed to access sysfs directory: /sys/dev/block: No such file or directory
+Environment Detection Summary
+8]
+8
+-三三--------------:
+8】
+System Environment:IS WSL: true
+- IS PRODUCTION: false-IS DESKTOP WITH_WINDOWS: falseHAS DESKTOP ENVIRONMENT: false
+8
+中
+8)
+Storage Detection:Base Data Directory: /mnt/dNTFS Disk: Not found
+8
+8
+8
+Project configuration:-CORE NODE PROJECT RooT:/mnt/d/programing/core_nodeProject Type:Development(programing)
+8
+8
+8
+8
+8]Project correctly positioned at: /mnt/d/programing/core nodePROJECT VALIDATIONl Project validation completed successfullysymlink already correct: /usr/local/bin/dd.sh -> /mnt/d/programing/core node/dd.sh
+
+Current system: UBUNTU_24
+Select an option (Up/Down to move, Left/Right to change value, Enter to select):
+Press Ctrl+C to exit
+
+> Install and Test Environment
+  Enable Router Forwarding
+  Get the latest git version
+  System Information & Variables
+  Unified App Manager
+  Set Special Software Environment Variables (like AI)
+  Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH)
+  Push to git                             [all]
+  Exit

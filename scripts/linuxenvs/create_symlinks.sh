@@ -4,8 +4,13 @@
 
 set -e
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get script directory (handle symlinks)
+# Resolve symlink to actual file path if needed
+scriptSource="${BASH_SOURCE[0]}"
+if [ -L "$scriptSource" ]; then
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$scriptSource")" && pwd)"
 
 echo "Creating symlinks in /usr/local/bin..."
 echo ""

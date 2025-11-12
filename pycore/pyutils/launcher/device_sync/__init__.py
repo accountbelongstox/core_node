@@ -5,32 +5,107 @@ Device Sync - Independent Device Synchronization Module
 This module provides device synchronization capabilities without
 depending on other pycore.pyutils modules.
 
-Architecture:
-- Primary Device: Serves file updates and metadata
-- Secondary Device: Syncs code from primary device
-- Discovery: Auto-discover primary device on network
-- IPC: Single instance control via socket
+Architecture (Version 3.0 - Restructured):
+- core/: Core functionality (config, logging, scanner, IPC)
+- server/: PRIMARY server components
+- client/: SECONDARY client components
+- ui/: User interface (tray menu, main entry)
+- utils/: Utility tools (status check, diagnostics, shortcuts)
 
 Features:
-- Tkinter tray menu
+- Modular architecture with clear separation of concerns
+- System tray interface
 - File synchronization
 - Network discovery
 - Single instance enforcement
-- Remote control (restart, shutdown)
+- Status monitoring and diagnostics
 """
 
-from .tray_menu import DeviceSyncTrayMenu
-from .sync_server import FileSyncServer
-from .sync_client import FileSyncClient
-from .discovery import DeviceDiscovery
-from .ipc_server import IPCServer
+# Core module exports
+from .core import (
+    GlobalConfig,
+    get_global_config,
+    init_global_config,
+    get_cache_dir,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_SYNC_INTERVAL,
+    DEFAULT_ROOT_DIR,
+    setup_logging,
+    SimpleDeviceScanner,
+    IPCServer,
+    DEFAULT_IPC_PORT,
+)
 
-__version__ = '1.0.0'
+# Server module exports
+from .server import SimplePrimaryServer
+
+# Client module exports
+from .client import SimpleClient
+
+# UI module exports
+from .ui import SimpleTrayMenu, main
+
+# Utils module exports
+from .utils import (
+    check_status,
+    diagnose,
+    create_desktop_shortcut,
+)
+
+# Legacy imports (moved to _legacy/)
+try:
+    from ._legacy.tray_menu import DeviceSyncTrayMenu
+    from ._legacy.device_manager import DeviceManager
+    from ._legacy.unified_server import UnifiedServer
+    from ._legacy.http_sync_client import HTTPFileSyncClient
+    from ._legacy.device_discovery_scanner import DeviceDiscoveryScanner
+    from ._legacy.network_cache import NetworkCache
+    LEGACY_AVAILABLE = True
+except ImportError:
+    LEGACY_AVAILABLE = False
+
+__version__ = '3.0.0'
 
 __all__ = [
-    'DeviceSyncTrayMenu',
-    'FileSyncServer',
-    'FileSyncClient',
-    'DeviceDiscovery',
+    # Core
+    'GlobalConfig',
+    'get_global_config',
+    'init_global_config',
+    'get_cache_dir',
+    'DEFAULT_HTTP_PORT',
+    'DEFAULT_SYNC_INTERVAL',
+    'DEFAULT_ROOT_DIR',
+    'setup_logging',
+    'SimpleDeviceScanner',
     'IPCServer',
+    'DEFAULT_IPC_PORT',
+
+    # Server
+    'SimplePrimaryServer',
+
+    # Client
+    'SimpleClient',
+
+    # UI
+    'SimpleTrayMenu',
+    'main',
+
+    # Utils
+    'check_status',
+    'diagnose',
+    'create_desktop_shortcut',
+
+    # Meta
+    'LEGACY_AVAILABLE',
 ]
+
+# Legacy exports (if available)
+if LEGACY_AVAILABLE:
+    __all__.extend([
+        'DeviceSyncTrayMenu',
+        'DeviceManager',
+        'UnifiedServer',
+        'HTTPFileSyncClient',
+        'DeviceDiscoveryScanner',
+        'NetworkCache',
+    ])
