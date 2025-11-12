@@ -59,6 +59,7 @@ DEPENDENCY_MAP = {
     "webview": "pywebview",
     "tkinterweb": "tkinterweb",
     "tkhtmlview": "tkhtmlview",
+    "pystray": "pystray",
 
     # For logging
     "loguru": "loguru",
