@@ -55,10 +55,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
             f"[NativeLauncher] Phase 1: Port range allocated: {port_start}-{port_start+port_range-1}"
         )
 
-    # ========== Phase 2: Auto i18n Initialization ==========
-    _initialize_i18n(config)
-
-    # ========== Phase 3: Process URL ==========
+    # ========== Phase 2: Process URL ==========
     final_url, detected_url_type, url_metadata = process_url(
         config.url, config.url_type, project_root=config.project_root, debug=config.debug
     )
@@ -138,36 +135,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
         enable_language_selector=config.enable_language_selector,
         enable_tray=config.enable_tray
     )
-
-
-def _initialize_i18n(config: NativeUIConfig) -> None:
-    """
-    Initialize i18n manager for the application
-
-    Auto-detects {app_id}_i18n directory and initializes i18n.
-    """
-    try:
-        from pycore.pyutils.native_ui.step9_i18n import get_i18n_manager
-
-        i18n_manager = get_i18n_manager()
-
-        # Detect i18n directory
-        i18n_dir = config.project_root / "pyapps" / config.app_id / f"{config.app_id}_i18n"
-
-        if i18n_dir.exists():
-            i18n_manager.initialize(
-                config_dir=str(i18n_dir),
-                use_system_language=True
-            )
-            if config.debug:
-                ColorPrint.blue(f"[NativeLauncher] Phase 2: i18n initialized from {i18n_dir}")
-        else:
-            i18n_manager._create_default_config()
-            if config.debug:
-                ColorPrint.yellow(f"[NativeLauncher] Phase 2: No i18n directory found, using defaults")
-    except Exception as e:
-        if config.debug:
-            ColorPrint.yellow(f"[NativeLauncher] Phase 2: i18n initialization skipped: {e}")
 
 
 def _initialize_timer_manager(config: NativeUIConfig) -> None:

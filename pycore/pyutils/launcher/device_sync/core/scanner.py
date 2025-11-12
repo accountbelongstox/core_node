@@ -42,6 +42,7 @@ class SimpleDeviceScanner:
     - Use cached network configuration (fast startup)
     - Only scan device sync service port (58923)
     - No full network scan every time
+    - Integrates with global_config
 
     Usage:
         scanner = SimpleDeviceScanner()
@@ -61,6 +62,7 @@ class SimpleDeviceScanner:
         self.port = port
         self.local_ip = None
         self.network_prefix = None
+        self.last_scan_time: float = 0
 
         # Network cache
         self.network_cache = NetworkCache()
@@ -111,6 +113,14 @@ class SimpleDeviceScanner:
 
         elapsed = time.time() - start_time
         logger.info(f"Scan complete: Found {len(devices)} device(s) in {elapsed:.2f}s")
+
+        # Update last scan time
+        self.last_scan_time = time.time()
+
+        # Update global config
+        from .config import get_global_config
+        config = get_global_config()
+        config.update_online_devices(devices)
 
         return devices
 
@@ -242,3 +252,38 @@ class SimpleDeviceScanner:
         primary = primary_devices[0]
         logger.info(f"Found primary device: {primary['hostname']} ({primary['ip']})")
         return primary
+
+    def scan_if_needed(self, force: bool = False, interval: float = 30.0):
+        """
+        Scan network if needed (only in SECONDARY mode)
+
+        Args:
+            force: Force scan even if recently scanned
+            interval: Minimum interval between scans (seconds)
+        """
+        from .config import get_global_config
+        config = get_global_config()
+
+        # Only scan in SECONDARY mode
+        if config.isPrimaryServer:
+            return
+
+        # Check if we need to scan
+        current_time = time.time()
+        time_since_last_scan = current_time - self.last_scan_time
+
+        # Scan every interval seconds, or if forced
+        if force or time_since_last_scan > interval:
+            self.scan_devices()
+
+
+# Global scanner instance
+_scanner: SimpleDeviceScanner | None = None
+
+
+def get_network_scanner() -> SimpleDeviceScanner:
+    """Get or create global network scanner singleton"""
+    global _scanner
+    if _scanner is None:
+        _scanner = SimpleDeviceScanner()
+    return _scanner

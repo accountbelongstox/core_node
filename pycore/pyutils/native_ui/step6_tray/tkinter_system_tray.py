@@ -161,7 +161,7 @@ class TkinterSystemTray:
         Create pystray menu item from TrayMenuItem
 
         Args:
-            item: TrayMenuItem configuration
+            item: TrayMenuItem configuration (from tray_config or tkinter_system_tray)
 
         Returns:
             pystray.MenuItem
@@ -170,12 +170,15 @@ class TkinterSystemTray:
         if item.text == "---":
             return pystray.Menu.SEPARATOR
 
+        # Get signal name - support both 'signal' (from tray_config) and 'action_signal' (from tkinter_system_tray)
+        signal_name = getattr(item, 'action_signal', None) or getattr(item, 'signal', None)
+
         # Create menu item with callback
         def callback(icon, menu_item):
             """Callback that triggers THREAD_BUS event"""
-            if item.action_signal:
-                ColorPrint.blue(f"[TRAY] Menu item clicked: {item.text} -> signal: {item.action_signal}")
-                THREAD_BUS.trigger_event(item.action_signal, {"text": item.text})
+            if signal_name:
+                ColorPrint.blue(f"[TRAY] Menu item clicked: {item.text} -> signal: {signal_name}")
+                THREAD_BUS.trigger_event(signal_name, {"text": item.text})
 
         return pystray.MenuItem(
             text=item.text,

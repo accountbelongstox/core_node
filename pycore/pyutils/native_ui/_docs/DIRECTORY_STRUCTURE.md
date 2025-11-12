@@ -19,7 +19,7 @@ native_ui/
 ├── step6_tray/                 # System Tray (Phase 6)
 ├── step7_managers/             # Lifecycle Managers (Phase 7)
 ├── step8_utils/                # Utility Functions (Phase 8)
-├── step9_i18n/                 # Internationalization (Phase 9)
+├── step0_i18n/                 # Internationalization (Initialization Phase)
 └── step10_resource/            # Static Resources (Phase 10)
 ```
 
@@ -102,7 +102,7 @@ Files:
 
 Purpose: Utility functions and helper classes.
 
-### Step 9: I18n (step9_i18n/)
+### Step 0: I18n (step0_i18n/) - Initialization Phase
 **Phase**: Internationalization
 
 Files:
@@ -190,7 +190,7 @@ signals.py → step8_utils/signals.py
 image_converter.py → step8_utils/image_converter.py
 resize_handles.py → step8_utils/resize_handles.py
 embedded_images.py → step8_utils/embedded_images.py
-i18n/ → step9_i18n/
+i18n/ → step0_i18n/
 resource/ → step10_resource/
 ```
 

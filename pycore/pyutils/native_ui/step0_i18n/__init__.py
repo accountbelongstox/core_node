@@ -11,8 +11,10 @@ Usage:
     # Get singleton instance
     i18n = I18nManager()
 
-    # Initialize with config
-    i18n.initialize(config_dir="path/to/i18n/config")
+    # Extend with app translations (base translations already loaded)
+    from pathlib import Path
+    app_dir = Path(__file__).parent  # Current app directory
+    i18n.extend_translations(app_dir=str(app_dir), app_name="myapp")
 
     # Get translation
     text = i18n.get("welcome_message")
@@ -24,9 +26,13 @@ Usage:
     i18n.add_listener(lambda lang: print(f"Language changed to {lang}"))
 """
 
-from pycore.pyutils.native_ui.step9_i18n.i18n_manager import I18nManager, get_i18n_manager
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import I18nManager, get_i18n_manager
+
+# Initialize i18n manager as global variable (singleton, accessible everywhere)
+i18n = get_i18n_manager()
 
 __all__ = [
     'I18nManager',
-    'get_i18n_manager'
+    'get_i18n_manager',
+    'i18n'
 ]

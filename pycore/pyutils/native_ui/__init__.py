@@ -36,9 +36,14 @@ Timer Management (Built-in Singleton):
     # That's it! The timer is already running if enabled
 
 I18n Management (Singleton):
-    from pycore.pyutils.native_ui import get_i18n_manager
-
-    i18n = get_i18n_manager()
+    from pycore.pyutils.native_ui.step0_i18n import i18n
+    from pathlib import Path
+    
+    # i18n is pre-initialized with base translations
+    # Extend with app translations in start() function (auto-detects {appname}_i18n or i18n)
+    app_dir = Path(__file__).parent
+    i18n.extend_translations(app_dir=str(app_dir), app_name="myapp")
+    
     text = i18n.get("welcome_message")
     i18n.set_language("zh")
 
@@ -58,9 +63,10 @@ from pycore.pyutils.native_ui.step7_managers.timer_manager import (
 )
 
 # I18n Manager
-from pycore.pyutils.native_ui.step9_i18n import (
+from pycore.pyutils.native_ui.step0_i18n import (
     I18nManager,
-    get_i18n_manager
+    get_i18n_manager,
+    i18n
 )
 
 # File Monitor (DEPRECATED - Not UI related, will be moved to pyutils)
