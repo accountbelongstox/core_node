@@ -185,7 +185,9 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
     Returns:
         List of TrayMenuItem objects
     """
-    if I18nKeys:
+    # Import I18nKeys here to avoid circular import
+    try:
+        from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
         return [
             TrayMenuItem(
                 text_key=I18nKeys.TRAY_MENU_SHOW,
@@ -198,7 +200,7 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
                 signal="tray_exit"
             )
         ]
-    else:
+    except ImportError:
         # Fallback if I18nKeys not available
         return [
             TrayMenuItem(
