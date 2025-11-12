@@ -10,6 +10,9 @@
   "mcpserver.tray.start_as_client": "Start as Client",
   "mcpserver.tray.open_web_ui": "Open Web UI",
   "mcpserver.tray.restart": "Restart",
+  "mcpserver.tray.show_status": "Show Status",
+  "mcpserver.tray.show_info": "MCP Server Info",
+  "mcpserver.tray.language": "Language",
   "mcpserver.tray.exit": "Exit"
 }
 

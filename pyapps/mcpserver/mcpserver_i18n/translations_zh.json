@@ -10,6 +10,9 @@
   "mcpserver.tray.start_as_client": "启动为Client",
   "mcpserver.tray.open_web_ui": "打开Web UI",
   "mcpserver.tray.restart": "重启",
+  "mcpserver.tray.show_status": "显示状态",
+  "mcpserver.tray.show_info": "MCP服务器信息",
+  "mcpserver.tray.language": "语言",
   "mcpserver.tray.exit": "退出"
 }
 

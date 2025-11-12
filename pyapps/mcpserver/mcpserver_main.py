@@ -19,6 +19,7 @@ from pycore.pylauncher import NativeUILauncher, LaunchMode
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayMenuItem, TrayBackend
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
 from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pyapps.mcpserver.config import Config
 from pyapps.mcpserver.mcpserver_bus_keys import MCPServerBusKeys, register_bus_keys
 from pyapps.mcpserver.mcpserver_i18n import MCPServerI18nKeys
@@ -72,19 +73,59 @@ def _create_tray_menu_items():
     return menu_items
 
 
+def _create_language_submenu():
+    """Create language selection submenu"""
+    supported_languages = i18n.get_supported_languages()
+    current_language = i18n.get_current_language()
+    
+    # Language name mapping
+    language_names = {
+        "en": I18nKeys.LANGUAGE_NAME_EN,
+        "zh": I18nKeys.LANGUAGE_NAME_ZH,
+        "ja": I18nKeys.LANGUAGE_NAME_JA,
+    }
+    
+    submenu_items = []
+    for lang in supported_languages:
+        # Get language name key (fallback to lang code if not found)
+        name_key = language_names.get(lang, f"language.name.{lang}")
+        
+        # Use unique signal per language: signal.{lang} to pass language code
+        # The handler will extract language from signal name
+        signal = f"{MCPServerBusKeys.TRAY_SET_LANGUAGE}.{lang}"
+        
+        submenu_items.append(TrayMenuItem(
+            text_key=name_key,
+            signal=signal,
+            checkable=True,
+            checked=(lang == current_language)
+        ))
+    
+    return submenu_items
+
+
 def _append_original_menu_items(menu_items):
     """Append original menu items from mcpserver_old"""
-    # These items don't have i18n keys yet, use hardcoded keys for now
     menu_items.append(TrayMenuItem(
-        text_key="mcpserver.tray.show_status",  # TODO: Add to MCPServerI18nKeys
+        text_key=MCPServerI18nKeys.TRAY_SHOW_STATUS,
         signal=MCPServerBusKeys.TRAY_SHOW_STATUS
     ))
     menu_items.append(TrayMenuItem.SEPARATOR)
     menu_items.append(TrayMenuItem(
-        text_key="mcpserver.tray.show_info",  # TODO: Add to MCPServerI18nKeys
+        text_key=MCPServerI18nKeys.TRAY_SHOW_INFO,
         signal=MCPServerBusKeys.TRAY_SHOW_INFO
     ))
     menu_items.append(TrayMenuItem.SEPARATOR)
+    
+    # Add language selection menu with submenu
+    language_submenu = _create_language_submenu()
+    menu_items.append(TrayMenuItem(
+        text_key=MCPServerI18nKeys.TRAY_LANGUAGE,
+        signal="",  # No direct action, only submenu
+        submenu=language_submenu
+    ))
+    menu_items.append(TrayMenuItem.SEPARATOR)
+    
     menu_items.append(TrayMenuItem(
         text_key=MCPServerI18nKeys.TRAY_EXIT,
         signal=MCPServerBusKeys.TRAY_EXIT

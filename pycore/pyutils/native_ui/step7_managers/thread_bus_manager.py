@@ -115,7 +115,8 @@ class BusSignals:
     STARTUP_STOPPED = "ui.startup.stopped"
 
     # UI i18n signals
-    I18N_LANGUAGE_CHANGED = "ui.i18n.language_changed"
+    I18N_SET_LANGUAGE = "ui.i18n.set_language"  # Request to change language (via bus)
+    I18N_LANGUAGE_CHANGED = "ui.i18n.language_changed"  # Language changed notification
     UI_REDRAW = "ui.redraw"  # Generic UI redraw signal (triggered by language change)
 
 
@@ -347,6 +348,15 @@ class NativeUIBusManager:
                      Receives dict with: reason, language (if language changed)
         """
         self._bus.register_event_handler(BusSignals.UI_REDRAW, callback)
+
+    def set_language(self, language: str):
+        """
+        Request language change via THREAD_BUS
+
+        Args:
+            language: Language code to switch to (e.g., "en", "zh")
+        """
+        self._bus.trigger_event(BusSignals.I18N_SET_LANGUAGE, {"language": language})
 
     # ========================================================
     # Utility Methods

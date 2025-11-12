@@ -180,23 +180,38 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
     - 'tray_exit': Exit application
 
     Args:
-        app_name: Application name
+        app_name: Application name (not used, kept for compatibility)
 
     Returns:
         List of TrayMenuItem objects
     """
-    return [
-        TrayMenuItem(
-            text=f"Show {app_name}",
-            signal="tray_show",
-            default=True
-        ),
-        TrayMenuItem.SEPARATOR,
-        TrayMenuItem(
-            text="Exit",
-            signal="tray_exit"
-        )
-    ]
+    if I18nKeys:
+        return [
+            TrayMenuItem(
+                text_key=I18nKeys.TRAY_MENU_SHOW,
+                signal="tray_show",
+                default=True
+            ),
+            TrayMenuItem.SEPARATOR,
+            TrayMenuItem(
+                text_key=I18nKeys.TRAY_MENU_EXIT,
+                signal="tray_exit"
+            )
+        ]
+    else:
+        # Fallback if I18nKeys not available
+        return [
+            TrayMenuItem(
+                text_key="tray.menu.show",
+                signal="tray_show",
+                default=True
+            ),
+            TrayMenuItem.SEPARATOR,
+            TrayMenuItem(
+                text_key="tray.menu.exit",
+                signal="tray_exit"
+            )
+        ]
 
 
 # DEPRECATED: Use thread_bus_manager.BusKeys and BusSignals instead

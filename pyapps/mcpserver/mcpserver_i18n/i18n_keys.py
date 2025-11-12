@@ -39,6 +39,9 @@ class MCPServerI18nKeys(I18nKeys):
     TRAY_START_AS_CLIENT = "mcpserver.tray.start_as_client"
     TRAY_OPEN_WEB_UI = "mcpserver.tray.open_web_ui"
     TRAY_RESTART = "mcpserver.tray.restart"
+    TRAY_SHOW_STATUS = "mcpserver.tray.show_status"
+    TRAY_SHOW_INFO = "mcpserver.tray.show_info"
+    TRAY_LANGUAGE = "mcpserver.tray.language"
     TRAY_EXIT = "mcpserver.tray.exit"
     
     @classmethod

@@ -115,6 +115,16 @@ class I18nManager:
         THREAD_BUS.signal(BusKeys.I18N_CURRENT_LANGUAGE, self._current_language)
         THREAD_BUS.signal(BusKeys.I18N_SUPPORTED_LANGUAGES, self._supported_languages.copy())
 
+        # Register bus event handler for language change requests
+        def on_set_language_request(event_data: Dict[str, Any]):
+            """Handle language change request from THREAD_BUS"""
+            language = event_data.get('language')
+            if language:
+                self.set_language(language)
+
+        THREAD_BUS.register_event_handler(BusSignals.I18N_SET_LANGUAGE, on_set_language_request)
+        ColorPrint.blue("[I18nManager] Registered I18N_SET_LANGUAGE event handler")
+
         ColorPrint.blue("[I18nManager] Initialized (singleton)")
         self._initialized = True
 
