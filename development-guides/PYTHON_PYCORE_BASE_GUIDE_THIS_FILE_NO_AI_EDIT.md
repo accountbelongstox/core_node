@@ -102,6 +102,9 @@ pyapps/{appname}/
 ├── config/                 # App configuration
 ├── {appname}_config/       # [Optional] UI configuration
 ├── {appname}_i18n/         # [Optional] Multi-language
+│   ├── i18n_keys.py       # App-specific i18n key constants (extends I18nKeys)
+│   ├── translations_en.json
+│   └── translations_zh.json
 ├── {appname}_bus_keys/     # [Required] BusKeys registration
 ├── controller/             # Business logic
 ├── service/                # [Optional] Service layer
@@ -132,18 +135,17 @@ pyapps/{appname}/
 
 ### 5.5 Multi-Language (i18n)
 
-**Translation Key Namespace:**
-- All keys **MUST** use `{appname}.` prefix
-- Format: `{appname}.category.key_name`
-- Examples: `matrix.app_name`, `matrix.tray.open_frontend`
+**Translation Key Constants:**
+- Base keys: Defined in `pycore.pyutils.native_ui.step0_i18n.i18n_keys.I18nKeys` (e.g., `I18nKeys.WINDOW_TITLE_INITIALIZING`, `I18nKeys.TRAY_MENU_SHOW`)
+- App keys: Defined in `{appname}_i18n/i18n_keys.py` extending `I18nKeys` (e.g., `MCPServerI18nKeys.APP_NAME`, `MCPServerI18nKeys.TRAY_START_MCP_SERVER`)
+- **NEVER use hardcoded strings** - always use key constants from `I18nKeys` or app-specific `{AppName}I18nKeys`
+- **App keys only used in app code** - App-specific keys are NOT used in pycore libraries
 
 **Key Principles:**
-- **Singleton Pattern - NO Parameter Passing**
-- **NEVER pass i18n_manager as parameter**
-- **Global i18n Pre-initialized in step0_i18n** - `i18n` is pre-initialized with base translations as global variable in `pycore.pyutils.native_ui.step0_i18n` module (exports instantiated instance)
-- **Import Pattern** - Always import: `from pycore.pyutils.native_ui.step0_i18n import i18n` (NOT `get_i18n_manager()`)
-- **No Hardcoded Text** - All UI text must use i18n keys
-- **NO Default Values** - Do NOT use `i18n.get(key, default)`
+- **Singleton Pattern - NO Parameter Passing** - `i18n` is pre-initialized with base translations as global variable
+- **Import Pattern** - Base: `from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys`, App: `from pyapps.{appname}.{appname}_i18n import {AppName}I18nKeys`
+- **Usage** - `i18n.get(I18nKeys.WINDOW_TITLE_INITIALIZING)` for base keys, `i18n.get(MCPServerI18nKeys.APP_NAME)` for app keys
+- **NO Default Values** - Do NOT use `i18n.get(key, default)` - use key constants directly
 - **Complete Translation** - All languages must have ALL keys
 - **App Extension** - App translations must be extended in app's `start()` function using `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname", use_system_language=True)` to extend base translations. Auto-detects `{appname}_i18n` or `i18n` directory.
 
@@ -151,7 +153,7 @@ pyapps/{appname}/
 - `i18n.set_language(lang)` - Switch language
 - `i18n.add_listener(callback)` - Listen for changes
 
-**Directory Structure:** `{appname}_i18n/` or `i18n/` contains translation files. File naming: `translations_{lang}.json` (e.g., `translations_en.json`, `translations_zh.json`). **Base translations** are auto-loaded from `step0_i18n/translations/` when `i18n` instance is created (pre-initialized). **App translations** must be extended in app's `start()` function using `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname", use_system_language=True)` - auto-detects `{appname}_i18n` or `i18n` directory. Access via `from pycore.pyutils.native_ui.step0_i18n import i18n` (exports pre-initialized instance). **Extension Interface:** Use `i18n.add_translations(language, translations, merge=True)` to add/update translations programmatically.
+**Directory Structure:** `{appname}_i18n/` or `i18n/` contains translation files (`translations_{lang}.json`) and `i18n_keys.py` (app-specific key constants). File naming: `translations_{lang}.json` (e.g., `translations_en.json`, `translations_zh.json`). **Base translations** are auto-loaded from `step0_i18n/translations/` when `i18n` instance is created (pre-initialized). **App translations** must be extended in app's `start()` function using `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname", use_system_language=True)` - auto-detects `{appname}_i18n` or `i18n` directory. **Key Constants:** Base keys in `pycore.pyutils.native_ui.step0_i18n.i18n_keys.I18nKeys`, app keys in `{appname}_i18n/i18n_keys.py` extending `I18nKeys`. App keys are only used within the app, not in pycore libraries.
 
 ### 5.5.1 BusKeys Registration
 

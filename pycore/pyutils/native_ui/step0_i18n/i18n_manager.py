@@ -130,6 +130,7 @@ class I18nManager:
 
         Note: i18n manager is already initialized with base translations from step0_i18n/translations/
         This method extends/merges app translations with existing base translations.
+        App-specific i18n keys should be defined in {appname}_i18n_keys.py and imported in app code.
 
         Args:
             app_dir: Path to app directory (e.g., Path(__file__).parent)
@@ -383,8 +384,17 @@ class I18nManager:
             ColorPrint.yellow(f"[I18nManager] Language not found: {lang}")
             return default or key
 
-        # Navigate nested keys
-        value = self._translations[lang]
+        # Try to get value - support both flat keys and nested keys
+        translations = self._translations[lang]
+        
+        # First, try as flat key (e.g., "mcpserver.tray.start_mcp_server")
+        if key in translations:
+            value = translations[key]
+            if not isinstance(value, dict):
+                return str(value) if value is not None else (default or key)
+        
+        # If not found as flat key, try nested navigation (e.g., "window.title.initializing")
+        value = translations
         for part in key.split('.'):
             if isinstance(value, dict) and part in value:
                 value = value[part]

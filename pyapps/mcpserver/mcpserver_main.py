@@ -21,6 +21,7 @@ from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_m
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pyapps.mcpserver.config import Config
 from pyapps.mcpserver.mcpserver_bus_keys import MCPServerBusKeys, register_bus_keys
+from pyapps.mcpserver.mcpserver_i18n import MCPServerI18nKeys
 
 
 def main_app_entry():
@@ -38,7 +39,7 @@ def main_app_entry():
 
 def on_closing():
     """Cleanup callback when app closes"""
-    ColorPrint.yellow(f"[MCP Server] {i18n.get('mcpserver.closing')}")
+    ColorPrint.yellow(f"[MCP Server] {i18n.get(MCPServerI18nKeys.CLOSING)}")
     ColorPrint.yellow("Stopping all services...")
 
 
@@ -46,28 +47,23 @@ def _create_tray_menu_items():
     """Create tray menu items using TrayMenuItem from tray_config"""
     menu_items = [
         TrayMenuItem(
-            text="",  # Will be translated from i18n_key
-            i18n_key="mcpserver.tray.start_mcp_server",
+            text_key=MCPServerI18nKeys.TRAY_START_MCP_SERVER,
             signal=MCPServerBusKeys.TRAY_START_MCP_SERVER
         ),
         TrayMenuItem(
-            text="",
-            i18n_key="mcpserver.tray.start_main_server",
+            text_key=MCPServerI18nKeys.TRAY_START_MAIN_SERVER,
             signal=MCPServerBusKeys.TRAY_START_MAIN_SERVER
         ),
         TrayMenuItem(
-            text="",
-            i18n_key="mcpserver.tray.start_as_client",
+            text_key=MCPServerI18nKeys.TRAY_START_AS_CLIENT,
             signal=MCPServerBusKeys.TRAY_START_AS_CLIENT
         ),
         TrayMenuItem(
-            text="",
-            i18n_key="mcpserver.tray.open_web_ui",
+            text_key=MCPServerI18nKeys.TRAY_OPEN_WEB_UI,
             signal=MCPServerBusKeys.TRAY_OPEN_WEB_UI
         ),
         TrayMenuItem(
-            text="",
-            i18n_key="mcpserver.tray.restart",
+            text_key=MCPServerI18nKeys.TRAY_RESTART,
             signal=MCPServerBusKeys.TRAY_RESTART
         ),
         TrayMenuItem.SEPARATOR,
@@ -78,18 +74,19 @@ def _create_tray_menu_items():
 
 def _append_original_menu_items(menu_items):
     """Append original menu items from mcpserver_old"""
+    # These items don't have i18n keys yet, use hardcoded keys for now
     menu_items.append(TrayMenuItem(
-        text="Show Status",
+        text_key="mcpserver.tray.show_status",  # TODO: Add to MCPServerI18nKeys
         signal=MCPServerBusKeys.TRAY_SHOW_STATUS
     ))
     menu_items.append(TrayMenuItem.SEPARATOR)
     menu_items.append(TrayMenuItem(
-        text="MCP Server Info",
+        text_key="mcpserver.tray.show_info",  # TODO: Add to MCPServerI18nKeys
         signal=MCPServerBusKeys.TRAY_SHOW_INFO
     ))
     menu_items.append(TrayMenuItem.SEPARATOR)
     menu_items.append(TrayMenuItem(
-        text="Exit",
+        text_key=MCPServerI18nKeys.TRAY_EXIT,
         signal=MCPServerBusKeys.TRAY_EXIT
     ))
     
@@ -106,7 +103,7 @@ def _configure_tray_menu():
     tray_config = TrayConfig(
         enabled=True,
         backend=TrayBackend.TKINTER,
-        app_name=i18n.get("mcpserver.app_name"),
+        app_name=i18n.get(MCPServerI18nKeys.APP_NAME),
         icon_path=icon_path if Path(icon_path).exists() else None,
         menu_items=menu_items,
         show_on_minimize=True,
@@ -197,7 +194,7 @@ def start():
     
     # Launch using NativeUILauncher.launch() method
     result = launcher.launch(
-        app_name=i18n.get("mcpserver.app_name"),
+        app_name=i18n.get(MCPServerI18nKeys.APP_NAME),
         main_entry=main_app_entry,
         mode=LaunchMode.TRAY_ONLY,
         startup_width=600,

@@ -56,7 +56,7 @@ from tkinter import ttk
 # Import after tkinter to avoid circular import
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyutils.native_ui.step0_i18n import i18n
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
 from PIL import Image, ImageTk
@@ -514,6 +514,8 @@ class TkinterStartupThread(threading.Thread):
         """
         Build tray menu items from tray_config
         
+        Dynamically translates text_key using i18n.get() based on current language.
+        
         Args:
             tray_config: TrayConfig object
             
@@ -522,25 +524,14 @@ class TkinterStartupThread(threading.Thread):
         """
         menu_items = []
         for item in tray_config.menu_items:
-            if item.text == "---":
-                menu_items.append(TrayMenuItem.SEPARATOR)
+            if item.text_key == "---":
+                menu_items.append(TkinterTrayMenuItem.SEPARATOR)
             else:
-                # Get display text: use i18n_key if set, otherwise use text as-is
-                # If i18n_key is set, translate it; if not, check if text looks like a key
-                display_text = item.text
+                # Dynamically get translation from i18n.get(text_key) based on current language
+                display_text = i18n.get(item.text_key)
                 
-                # Priority: i18n_key > text (if text looks like a key)
-                i18n_key = getattr(item, 'i18n_key', None)
-                if i18n_key:
-                    display_text = i18n.get(i18n_key, default=item.text)
-                elif '.' in item.text and (item.text.startswith('mcpserver.') or item.text.startswith('app.')):
-                    # Text looks like an i18n key, try to translate it
-                    translated = i18n.get(item.text, default=item.text)
-                    if translated != item.text:
-                        display_text = translated
-                
-                # Create TrayMenuItem with action_signal (tkinter_system_tray format)
-                menu_item = TrayMenuItem(
+                # Create TkinterTrayMenuItem with action_signal (tkinter_system_tray format)
+                menu_item = TkinterTrayMenuItem(
                     text=display_text,
                     action_signal=item.signal,  # Convert 'signal' to 'action_signal'
                     enabled=item.enabled,

@@ -53,55 +53,90 @@ class SimpleTrayMenu:
         # Tray icon
         self.icon: Optional[pystray.Icon] = None
 
+        # Running flag (don't rely on icon.visible which may be False during setup)
+        self.running = False
+
         # Last scan time
         self.last_scan_time = time.time()
 
     def start(self):
         """Start tray menu with periodic network scanning"""
-        logger.info("Starting tray menu...")
+        logger.info("=" * 70)
+        logger.info("STARTING TRAY MENU")
+        logger.info("=" * 70)
 
-        try:
-            # Create tray icon
-            logger.info("Creating tray icon image...")
-            icon_image = self._create_icon_image()
-            logger.info(f"Icon image created: {icon_image.size} {icon_image.mode}")
+        # Set running flag BEFORE creating icon
+        self.running = True
+        logger.info(f"  self.running = {self.running}")
 
-            logger.info("Creating tray menu...")
-            menu = self._create_menu()
-            logger.info(f"Menu created: {menu}")
+        # Create tray icon
+        logger.info("[1/5] Creating tray icon image...")
+        logger.info(f"  Calling _create_icon_image()...")
+        icon_image = self._create_icon_image()
+        logger.info(f"  ✓ Icon image created: size={icon_image.size} mode={icon_image.mode}")
 
-            logger.info("Creating pystray.Icon instance...")
-            self.icon = pystray.Icon(
-                name="DeviceSync",
-                icon=icon_image,
-                title=self._get_title(),
-                menu=menu
-            )
-            logger.info(f"pystray.Icon instance created: {self.icon}")
+        logger.info("[2/5] Creating tray menu...")
+        logger.info(f"  Calling _create_menu()...")
+        menu = self._create_menu()
+        logger.info(f"  ✓ Menu created: {menu}")
 
-            # Setup periodic network scanning
-            logger.info("Starting tray icon event loop (blocking)...")
-            logger.info(f"  setup callback: {self._setup_periodic_scan}")
+        logger.info("[3/5] Getting icon title...")
+        logger.info(f"  Calling _get_title()...")
+        title = self._get_title()
+        logger.info(f"  ✓ Title: '{title}'")
 
-            try:
-                self.icon.run(setup=self._setup_periodic_scan)
-            except Exception as e:
-                logger.error(f"ERROR in icon.run(): {e}", exc_info=True)
-                raise
+        logger.info("[4/5] Creating pystray.Icon instance...")
+        logger.info(f"  name='DeviceSync'")
+        logger.info(f"  icon={icon_image}")
+        logger.info(f"  title='{title}'")
+        logger.info(f"  menu={menu}")
+        self.icon = pystray.Icon(
+            name="DeviceSync",
+            icon=icon_image,
+            title=title,
+            menu=menu
+        )
+        logger.info(f"  ✓ pystray.Icon instance created: {self.icon}")
 
-            logger.info("Tray icon event loop ended")
+        # Setup periodic network scanning
+        logger.info("[5/5] Starting tray icon event loop (BLOCKING CALL)...")
+        logger.info("  >> IMPORTANT: Starting WITHOUT setup callback to test")
+        logger.info("  >> Will start periodic scan thread manually after icon.run_detached()")
 
-        except Exception as e:
-            logger.error(f"FATAL ERROR in start(): {e}", exc_info=True)
-            raise
+        # Start icon in detached mode (non-blocking)
+        logger.info("  Calling icon.run_detached()...")
+        self.icon.run_detached()
+        logger.info("  ✓ icon.run_detached() returned")
+
+        # Now manually start periodic scan thread
+        logger.info("  Calling _setup_periodic_scan manually...")
+        self._setup_periodic_scan(self.icon)
+        logger.info("  ✓ _setup_periodic_scan completed")
+
+        logger.info("  >> Check system tray for icon!")
+        logger.info("  >> Main thread will now block indefinitely...")
+
+        # Keep main thread alive (no except block per user request)
+        logger.info("  Entering infinite loop to keep main thread alive...")
+        logger.info("  (Use Exit menu item to quit)")
+        while self.running:
+            time.sleep(1)
+
+        logger.info("!!! Tray icon main loop ENDED (self.running=False) !!!")
 
     def stop(self):
         """Stop tray menu"""
         logger.info("Stopping tray menu...")
 
+        # Clear running flag to stop periodic scan thread
+        self.running = False
+        logger.info(f"  self.running = {self.running}")
+
         # Stop tray icon
         if self.icon:
+            logger.info("  Stopping tray icon...")
             self.icon.stop()
+            logger.info("  Tray icon stopped")
 
         logger.info("Tray menu stopped")
 
@@ -110,44 +145,56 @@ class SimpleTrayMenu:
         Setup periodic network scanning (called after tray icon is ready)
 
         This runs in the tray icon thread and schedules periodic scans.
+
+        NOTE: icon.visible may be False during setup callback, so we use
+        self.running flag instead of relying on icon.visible.
         """
-        logger.info("=== _setup_periodic_scan called ===")
+        logger.info("=" * 70)
+        logger.info("SETUP CALLBACK INVOKED")
+        logger.info("=" * 70)
         logger.info(f"  icon parameter: {icon}")
-        logger.info(f"  icon.visible: {icon.visible}")
+        logger.info(f"  icon type: {type(icon)}")
+        logger.info(f"  icon.visible: {icon.visible}  <<< May be False during setup!")
+        logger.info(f"  icon.name: {icon.name}")
+        logger.info(f"  self.running: {self.running}  <<< Using this flag instead")
 
-        try:
-            def periodic_scan():
-                logger.info(">>> Periodic scan thread started")
-                try:
-                    while icon.visible:
-                        logger.debug("Periodic scan tick...")
-                        # Scan if in SECONDARY mode
-                        self.scanner.scan_if_needed(interval=self.SCAN_INTERVAL)
+        def periodic_scan():
+            logger.info(">>> Periodic scan thread STARTED")
+            logger.info(f"    Initial: self.running={self.running}, icon.visible={icon.visible}")
+            counter = 0
 
-                        # Update icon title
-                        icon.title = self._get_title()
+            # Use self.running instead of icon.visible (which may be False during setup)
+            while self.running:
+                counter += 1
+                logger.debug(f"Periodic scan tick #{counter} (running={self.running})")
 
-                        # Sleep for a bit
-                        time.sleep(5)
-                except Exception as e:
-                    logger.error(f"ERROR in periodic_scan loop: {e}", exc_info=True)
-                logger.info("<<< Periodic scan thread ended")
+                # Scan if in SECONDARY mode
+                self.scanner.scan_if_needed(interval=self.SCAN_INTERVAL)
 
-            # Run periodic scan in a separate thread
-            logger.info("Creating periodic scan thread...")
-            import threading
-            scan_thread = threading.Thread(target=periodic_scan, daemon=True)
-            logger.info(f"Scan thread created: {scan_thread}")
+                # Update icon title
+                icon.title = self._get_title()
 
-            logger.info("Starting scan thread...")
-            scan_thread.start()
-            logger.info("Scan thread started successfully")
+                # Sleep for a bit
+                time.sleep(5)
 
-            logger.info("=== _setup_periodic_scan completed ===")
+            logger.info(f"<<< Periodic scan thread ENDED after {counter} ticks")
+            logger.info(f"    Final: self.running={self.running}, icon.visible={icon.visible}")
 
-        except Exception as e:
-            logger.error(f"ERROR in _setup_periodic_scan: {e}", exc_info=True)
-            raise
+        # Run periodic scan in a separate thread
+        logger.info("Creating periodic scan thread...")
+        import threading
+        scan_thread = threading.Thread(target=periodic_scan, daemon=True)
+        logger.info(f"  Thread created: {scan_thread}")
+        logger.info(f"  Thread name: {scan_thread.name}")
+        logger.info(f"  Thread daemon: {scan_thread.daemon}")
+
+        logger.info("Starting scan thread...")
+        scan_thread.start()
+        logger.info(f"  ✓ Thread started, is_alive={scan_thread.is_alive()}")
+
+        logger.info("=" * 70)
+        logger.info("SETUP CALLBACK COMPLETED")
+        logger.info("=" * 70)
 
     def _get_title(self) -> str:
         """Get tray icon title based on current mode"""
@@ -170,62 +217,130 @@ class SimpleTrayMenu:
 
     def _create_menu(self):
         """Create tray menu (unified architecture)"""
-        return pystray.Menu(
-            pystray.MenuItem(
-                "Mode",
-                pystray.Menu(
-                    pystray.MenuItem(
-                        "Set as PRIMARY",
-                        self._on_set_primary,
-                        checked=lambda item: self.config.isPrimaryServer
-                    ),
-                    pystray.MenuItem(
-                        "Set as SECONDARY",
-                        self._on_set_secondary,
-                        checked=lambda item: not self.config.isPrimaryServer
-                    )
-                )
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Enable API Access",
-                self._on_toggle_api,
-                checked=lambda item: self.config.api_enabled,
-                enabled=lambda item: self.config.isPrimaryServer
-            ),
-            pystray.MenuItem(
-                "Scan node_modules",
-                self._on_toggle_scan_node_modules,
-                checked=lambda item: self.config.scan_node_modules,
-                enabled=lambda item: self.config.isPrimaryServer
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Enable Sync",
-                self._on_toggle_sync,
-                checked=lambda item: self.config.sync_enabled,
-                enabled=lambda item: not self.config.isPrimaryServer
-            ),
-            pystray.MenuItem(
-                "Scan Network",
-                self._on_scan_network,
-                enabled=lambda item: not self.config.isPrimaryServer
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Open Web UI",
-                self._on_open_web
-            ),
-            pystray.MenuItem(
-                "Status",
-                self._on_show_status
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Exit",
-                self._on_exit
-            )
+        logger.info("  >> _create_menu() called")
+        logger.info("  >> Using method references instead of lambda")
+
+        # Create Mode submenu
+        logger.info("  [a] Creating 'Set as PRIMARY' menu item...")
+        item_primary = pystray.MenuItem(
+            "Set as PRIMARY",
+            self._on_set_primary,
+            checked=self._is_primary_checked
         )
+        logger.info(f"      ✓ Created: {item_primary}")
+
+        logger.info("  [b] Creating 'Set as SECONDARY' menu item...")
+        item_secondary = pystray.MenuItem(
+            "Set as SECONDARY",
+            self._on_set_secondary,
+            checked=self._is_secondary_checked
+        )
+        logger.info(f"      ✓ Created: {item_secondary}")
+
+        logger.info("  [c] Creating Mode submenu...")
+        mode_menu = pystray.Menu(item_primary, item_secondary)
+        logger.info(f"      ✓ Mode submenu: {mode_menu}")
+
+        # Create other menu items
+        logger.info("  [d] Creating 'Enable API Access' item...")
+        item_api = pystray.MenuItem(
+            "Enable API Access",
+            self._on_toggle_api,
+            checked=self._is_api_enabled_checked,
+            enabled=self._is_primary_mode_enabled
+        )
+        logger.info(f"      ✓ Created: {item_api}")
+
+        logger.info("  [e] Creating 'Scan node_modules' item...")
+        item_scan_nm = pystray.MenuItem(
+            "Scan node_modules",
+            self._on_toggle_scan_node_modules,
+            checked=self._is_scan_nm_checked,
+            enabled=self._is_primary_mode_enabled
+        )
+        logger.info(f"      ✓ Created: {item_scan_nm}")
+
+        logger.info("  [f] Creating 'Enable Sync' item...")
+        item_sync = pystray.MenuItem(
+            "Enable Sync",
+            self._on_toggle_sync,
+            checked=self._is_sync_enabled_checked,
+            enabled=self._is_secondary_mode_enabled
+        )
+        logger.info(f"      ✓ Created: {item_sync}")
+
+        logger.info("  [g] Creating 'Scan Network' item...")
+        item_scan_net = pystray.MenuItem(
+            "Scan Network",
+            self._on_scan_network,
+            enabled=self._is_secondary_mode_enabled
+        )
+        logger.info(f"      ✓ Created: {item_scan_net}")
+
+        logger.info("  [h] Creating 'Open Web UI' item...")
+        item_web = pystray.MenuItem("Open Web UI", self._on_open_web)
+        logger.info(f"      ✓ Created: {item_web}")
+
+        logger.info("  [i] Creating 'Status' item...")
+        item_status = pystray.MenuItem("Status", self._on_show_status)
+        logger.info(f"      ✓ Created: {item_status}")
+
+        logger.info("  [j] Creating 'Exit' item...")
+        item_exit = pystray.MenuItem("Exit", self._on_exit)
+        logger.info(f"      ✓ Created: {item_exit}")
+
+        # Assemble main menu
+        logger.info("  [k] Assembling main menu...")
+        menu = pystray.Menu(
+            pystray.MenuItem("Mode", mode_menu),
+            pystray.Menu.SEPARATOR,
+            item_api,
+            item_scan_nm,
+            pystray.Menu.SEPARATOR,
+            item_sync,
+            item_scan_net,
+            pystray.Menu.SEPARATOR,
+            item_web,
+            item_status,
+            pystray.Menu.SEPARATOR,
+            item_exit
+        )
+        logger.info(f"      ✓ Main menu assembled: {menu}")
+
+        logger.info("  << _create_menu() returning")
+        return menu
+
+    # ========== Menu State Check Methods (replace lambda) ==========
+
+    def _is_primary_checked(self, item):
+        """Check if PRIMARY mode is active"""
+        return self.config.isPrimaryServer
+
+    def _is_secondary_checked(self, item):
+        """Check if SECONDARY mode is active"""
+        return not self.config.isPrimaryServer
+
+    def _is_api_enabled_checked(self, item):
+        """Check if API access is enabled"""
+        return self.config.api_enabled
+
+    def _is_scan_nm_checked(self, item):
+        """Check if node_modules scanning is enabled"""
+        return self.config.scan_node_modules
+
+    def _is_sync_enabled_checked(self, item):
+        """Check if sync is enabled"""
+        return self.config.sync_enabled
+
+    def _is_primary_mode_enabled(self, item):
+        """Check if menu item should be enabled in PRIMARY mode"""
+        return self.config.isPrimaryServer
+
+    def _is_secondary_mode_enabled(self, item):
+        """Check if menu item should be enabled in SECONDARY mode"""
+        return not self.config.isPrimaryServer
+
+    # ========== Icon Creation ==========
 
     def _create_icon_image(self):
         """Create tray icon image"""

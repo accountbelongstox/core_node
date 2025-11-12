@@ -27,6 +27,7 @@ Usage:
 """
 
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import I18nManager, get_i18n_manager
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 
 # Initialize i18n manager as global variable (singleton, accessible everywhere)
 i18n = get_i18n_manager()
@@ -34,5 +35,6 @@ i18n = get_i18n_manager()
 __all__ = [
     'I18nManager',
     'get_i18n_manager',
-    'i18n'
+    'i18n',
+    'I18nKeys'
 ]
