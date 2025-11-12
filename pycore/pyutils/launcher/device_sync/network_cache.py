@@ -286,10 +286,12 @@ class NetworkCache:
         try:
             if system == 'windows':
                 # Windows: ping -n 1 -w 1000 192.168.1.1
+                # Use CREATE_NO_WINDOW to prevent black console window from appearing
                 result = subprocess.run(
                     ['ping', '-n', '1', '-w', str(timeout * 1000), ip],
                     capture_output=True,
-                    timeout=timeout + 1
+                    timeout=timeout + 1,
+                    creationflags=subprocess.CREATE_NO_WINDOW  # Prevent black window
                 )
             else:
                 # Linux/Mac: ping -c 1 -W 1 192.168.1.1

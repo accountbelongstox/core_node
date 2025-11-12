@@ -35,6 +35,7 @@ class MCPServerBusKeys:
     TRAY_RESTART = "mcpserver.tray.restart"
     TRAY_SHOW_STATUS = "mcpserver.tray.show_status"
     TRAY_SHOW_INFO = "mcpserver.tray.show_info"
+    TRAY_SET_LANGUAGE = "mcpserver.tray.set_language"  # Language change signal (language code in event_data)
     TRAY_EXIT = "mcpserver.tray.exit"
 
 
