@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Callable, Optional, Any
 
 from pycore import THREAD_BUS, ColorPrint
-from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
+from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 
 
 def launch_app_with_startup(
