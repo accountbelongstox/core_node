@@ -177,7 +177,9 @@ class DeviceDiscoveryUDP:
         self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-        logger.info("Broadcast loop started")
+        # Calculate directed broadcast address for local network
+        broadcast_addr = self._get_broadcast_address()
+        logger.info(f"Broadcast loop started, using broadcast address: {broadcast_addr}")
 
         while self.running:
             try:
@@ -196,13 +198,13 @@ class DeviceDiscoveryUDP:
                 # Serialize to JSON
                 message = json.dumps(device_info).encode('utf-8')
 
-                # Broadcast to network
+                # Broadcast to network using directed broadcast address
                 self.broadcast_socket.sendto(
                     message,
-                    ('<broadcast>', self.discovery_port)
+                    (broadcast_addr, self.discovery_port)
                 )
 
-                logger.debug(f"Broadcasted device info: {device_info}")
+                logger.debug(f"Broadcasted device info to {broadcast_addr}: {device_info}")
 
             except Exception as e:
                 if self.running:
@@ -309,6 +311,36 @@ class DeviceDiscoveryUDP:
                 return socket.gethostbyname(self.hostname)
             except Exception:
                 return '127.0.0.1'
+
+    def _get_broadcast_address(self) -> str:
+        """
+        Calculate directed broadcast address for local network.
+
+        For IP 192.168.50.22 with /24 subnet, returns 192.168.50.255
+        This ensures broadcasts reach all devices on the same subnet.
+
+        Returns:
+            Broadcast address string (e.g., '192.168.50.255')
+        """
+        try:
+            ip = self.local_ip
+
+            # Parse IP address
+            ip_parts = ip.split('.')
+            if len(ip_parts) != 4:
+                logger.warning(f"Invalid IP format: {ip}, using limited broadcast")
+                return '255.255.255.255'
+
+            # Assume /24 subnet (most common for home/office networks)
+            # For 192.168.50.22, broadcast is 192.168.50.255
+            broadcast = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}.255"
+
+            logger.info(f"Calculated broadcast address: {broadcast} for IP: {ip}")
+            return broadcast
+
+        except Exception as e:
+            logger.error(f"Failed to calculate broadcast address: {e}", exc_info=True)
+            return '255.255.255.255'  # Fallback to limited broadcast
 
     def _get_or_create_device_id(self) -> str:
         """Get or create persistent device ID."""
