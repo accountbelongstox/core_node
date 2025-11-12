@@ -30,8 +30,8 @@ DEVICE_SYNC_PORT = 58923
 # Scan timeout (seconds)
 SCAN_TIMEOUT = 0.3
 
-# Max concurrent scan threads
-MAX_THREADS = 100
+# Max concurrent scan threads (reduced from 100 to avoid Windows performance issues)
+MAX_THREADS = 30
 
 
 class SimpleDeviceScanner:

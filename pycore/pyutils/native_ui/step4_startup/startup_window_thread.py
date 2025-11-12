@@ -515,6 +515,7 @@ class TkinterStartupThread(threading.Thread):
         Build tray menu items from tray_config
         
         Dynamically translates text_key using i18n.get() based on current language.
+        Supports submenus and recursively builds nested menu items.
         
         Args:
             tray_config: TrayConfig object
@@ -530,6 +531,33 @@ class TkinterStartupThread(threading.Thread):
                 # Dynamically get translation from i18n.get(text_key) based on current language
                 display_text = i18n.get(item.text_key)
                 
+                # Handle submenu if present
+                submenu_items = None
+                if item.submenu:
+                    submenu_items = []
+                    for sub_item in item.submenu:
+                        if sub_item.text_key == "---":
+                            submenu_items.append(TkinterTrayMenuItem.SEPARATOR)
+                        else:
+                            sub_display_text = i18n.get(sub_item.text_key)
+                            # For checkable items, update checked state based on current language
+                            checked = False
+                            if sub_item.checkable:
+                                # Extract language from signal (format: mcpserver.tray.set_language.{lang})
+                                if sub_item.signal and '.set_language.' in sub_item.signal:
+                                    lang_code = sub_item.signal.split('.')[-1]
+                                    checked = (lang_code == i18n.get_current_language())
+                                else:
+                                    checked = sub_item.checked
+                            
+                            submenu_item = TkinterTrayMenuItem(
+                                text=sub_display_text,
+                                action_signal=sub_item.signal,
+                                enabled=sub_item.enabled,
+                                default=sub_item.default
+                            )
+                            submenu_items.append(submenu_item)
+                
                 # Create TkinterTrayMenuItem with action_signal (tkinter_system_tray format)
                 menu_item = TkinterTrayMenuItem(
                     text=display_text,
@@ -537,6 +565,10 @@ class TkinterStartupThread(threading.Thread):
                     enabled=item.enabled,
                     default=item.default
                 )
+                # Add submenu if present (TkinterTrayMenuItem needs submenu support)
+                if submenu_items:
+                    menu_item.submenu = submenu_items
+                
                 menu_items.append(menu_item)
         
         return menu_items
