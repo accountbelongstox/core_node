@@ -358,6 +358,54 @@ class NativeUIBusManager:
         """
         self._bus.trigger_event(BusSignals.I18N_SET_LANGUAGE, {"language": language})
 
+    def setup_language_change_handler(self, tray_set_language_signal: str):
+        """
+        Setup language change handler for tray menu
+        
+        This is a library function that can be used by any app to handle language
+        change requests from tray menu. It automatically registers handlers for all
+        language signals in the format: {tray_set_language_signal}.{lang}
+        
+        Args:
+            tray_set_language_signal: Base signal name for language change (e.g., "mcpserver.tray.set_language")
+                                      Must match the signal used in create_language_submenu()
+                                      
+        Usage:
+            from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager
+            
+            bus_mgr = get_bus_manager()
+            bus_mgr.setup_language_change_handler("myapp.tray.set_language")
+        """
+        from pycore.pyutils.native_ui.step0_i18n import i18n
+        from pycore import ColorPrint
+        
+        def handle_set_language(event_data):
+            """Handle language change request"""
+            # Extract language code from signal name (format: {base_signal}.{lang})
+            signal = event_data.get('signal', '')
+            
+            language = None
+            if signal and signal.startswith(tray_set_language_signal + '.'):
+                language = signal.split('.')[-1]
+            else:
+                # Fallback: try to get language from event_data
+                language = event_data.get('language')
+            
+            if language:
+                ColorPrint.blue(f"[BusManager] Language change requested: {language}")
+                # Use bus manager to set language (triggers I18N_SET_LANGUAGE signal)
+                self.set_language(language)
+            else:
+                ColorPrint.yellow(f"[BusManager] Could not determine language from event_data: {event_data}")
+        
+        # Register handlers for all language signals (dynamic registration)
+        supported_languages = i18n.get_supported_languages()
+        for lang in supported_languages:
+            signal = f"{tray_set_language_signal}.{lang}"
+            self._bus.register_event_handler(signal, handle_set_language)
+        
+        ColorPrint.green(f"[BusManager] Registered language change handlers for {len(supported_languages)} languages")
+
     # ========================================================
     # Utility Methods
     # ========================================================
