@@ -15,6 +15,8 @@ Platform: Windows (pystray for system tray)
 """
 
 import sys
+import socket
+import webbrowser
 import threading
 import tkinter as tk
 from tkinter import messagebox
@@ -589,7 +591,6 @@ class DeviceSyncTrayMenu:
 
     def _get_local_ip(self) -> str:
         """Get local IP address."""
-        import socket
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.settimeout(1)
@@ -606,7 +607,6 @@ class DeviceSyncTrayMenu:
 
     def _open_web_ui(self, url: str):
         """Open Web UI in browser."""
-        import webbrowser
         logger.info(f"Opening Web UI: {url}")
         webbrowser.open(url)
 
@@ -796,8 +796,6 @@ class DeviceSyncTrayMenu:
 # Main entry point
 def main():
     """Main entry point."""
-    import sys
-
     # Get root directory from command line or use default
     if len(sys.argv) > 1:
         root_dir = sys.argv[1]

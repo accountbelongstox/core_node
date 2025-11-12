@@ -15,8 +15,8 @@ Auto-Background Mode:
         python -m pycore.pyutils.launcher.device_sync
 """
 
-from .tray_menu import main
-from .daemon import auto_background_wrapper
+from .ui import main
+from .utils.daemon import auto_background_wrapper
 
 # Wrap main with auto-background decorator
 main = auto_background_wrapper(main)

@@ -187,18 +187,24 @@ class DeviceDiscoveryScanner:
 
                 for device in devices:
                     device_id = device['device_id']
+
+                    # Skip self (don't add current device to online devices list)
+                    if device_id == self.device_id:
+                        logger.debug(f"Skipping self device: {device['hostname']}")
+                        continue
+
                     scanned_device_ids.add(device_id)
 
-                    # 更新last_seen时间
+                    # Update last_seen time
                     device['last_seen'] = current_time
 
-                    # 检查是否是新设备
+                    # Check if new device
                     is_new = device_id not in self.online_devices
 
-                    # 更新设备信息
+                    # Update device info
                     self.online_devices[device_id] = device
 
-                    # 触发回调
+                    # Trigger callbacks
                     if is_new:
                         logger.info(f"Device online: {device['hostname']} ({device['ip']})")
                         if self.on_device_online:
