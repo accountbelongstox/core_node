@@ -38,11 +38,13 @@ Translation File Format:
     }
 
 Usage:
-    from pycore.pyutils.i18n import I18nManager
-
-    # Initialize
-    i18n = I18nManager()
-    i18n.initialize(config_dir="/path/to/i18n")
+    from pycore.pyutils.native_ui.step0_i18n import i18n
+    from pathlib import Path
+    
+    # i18n is pre-initialized with base translations
+    # Extend with app translations (auto-detects {appname}_i18n or i18n directory)
+    app_dir = Path(__file__).parent  # Current app directory
+    i18n.extend_translations(app_dir=str(app_dir), app_name="myapp")
 
     # Get translations
     text = i18n.get("welcome")  # "Welcome"
@@ -67,7 +69,11 @@ import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusKeys, BusSignals
+
+# Base translations directory (step0_i18n/translations/)
+_BASE_I18N_DIR = Path(__file__).parent / "translations"
 
 
 class I18nManager:
@@ -100,37 +106,55 @@ class I18nManager:
         self._translations: Dict[str, Dict[str, Any]] = {}
         self._language_change_listeners: List[Callable[[str], None]] = []
         self._is_configured = False
+        self._base_config: Dict[str, Any] = {}  # Store base config for merging
+
+        # Load base translations from step0_i18n/translations/
+        self._load_base_translations()
+
+        # Initialize THREAD_BUS with i18n state
+        THREAD_BUS.signal(BusKeys.I18N_CURRENT_LANGUAGE, self._current_language)
+        THREAD_BUS.signal(BusKeys.I18N_SUPPORTED_LANGUAGES, self._supported_languages.copy())
 
         ColorPrint.blue("[I18nManager] Initialized (singleton)")
         self._initialized = True
 
-    def initialize(
+    def extend_translations(
         self,
-        config_dir: str,
+        app_dir: str,
+        app_name: str,
         default_language: Optional[str] = None,
         use_system_language: bool = True
     ) -> bool:
         """
-        Initialize i18n manager with configuration directory
+        Extend i18n manager with app-specific translations
+
+        Note: i18n manager is already initialized with base translations from step0_i18n/translations/
+        This method extends/merges app translations with existing base translations.
 
         Args:
-            config_dir: Path to i18n configuration directory
+            app_dir: Path to app directory (e.g., Path(__file__).parent)
+            app_name: App name (e.g., "mcpserver")
             default_language: Default language code (overrides config and system)
             use_system_language: If True, detect and use system language (default: True)
 
         Returns:
-            True if initialized successfully, False otherwise
+            True if extended successfully, False otherwise
         """
-        self._config_dir = Path(config_dir)
-
-        if not self._config_dir.exists():
+        app_dir_path = Path(app_dir)
+        
+        # Auto-detect i18n directory: try {appname}_i18n first, then i18n
+        i18n_dir = app_dir_path / f"{app_name}_i18n"
+        if not i18n_dir.exists():
+            i18n_dir = app_dir_path / "i18n"
+        
+        if not i18n_dir.exists():
             ColorPrint.yellow(
-                f"[I18nManager] Config directory not found: {config_dir}, "
-                f"using default settings"
+                f"[I18nManager] No i18n directory found in {app_dir_path} "
+                f"(tried {app_name}_i18n and i18n), skipping app translations"
             )
-            self._create_default_config()
-            self._is_configured = True
             return False
+        
+        self._config_dir = i18n_dir
 
         try:
             # Load base configuration
@@ -150,61 +174,158 @@ class I18nManager:
             # Load translations for all supported languages
             self._load_translations()
 
+            # Update THREAD_BUS with current language and supported languages
+            THREAD_BUS.signal(BusKeys.I18N_CURRENT_LANGUAGE, self._current_language)
+            THREAD_BUS.signal(BusKeys.I18N_SUPPORTED_LANGUAGES, self._supported_languages.copy())
+
             self._is_configured = True
             ColorPrint.green(
-                f"[I18nManager] Initialized with language: {self._current_language}"
+                f"[I18nManager] Extended with app translations, current language: {self._current_language}"
             )
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[I18nManager] Failed to initialize: {e}")
+            ColorPrint.red(f"[I18nManager] Failed to extend translations: {e}")
             self._create_default_config()
             self._is_configured = True
             return False
 
     def _load_base_config(self):
-        """Load base configuration from i18n_base.json"""
+        """Load app configuration from app i18n_base.json (deep merges with base config)"""
         base_config_path = self._config_dir / "i18n_base.json"
 
         if base_config_path.exists():
-            with open(base_config_path, 'r', encoding='utf-8') as f:
-                base_config = json.load(f)
+            try:
+                with open(base_config_path, 'r', encoding='utf-8') as f:
+                    app_config = json.load(f)
 
-            self._current_language = base_config.get('default_language', 'en')
-            self._supported_languages = base_config.get('supported_languages', ['en'])
+                # Deep merge app config with base config (preserve base values, extend with app values)
+                # Use stored base config for merging
+                base_config_dict = self._base_config.copy() if self._base_config else {
+                    'default_language': self._current_language,
+                    'supported_languages': self._supported_languages.copy()
+                }
+                
+                # Deep merge app config into base config
+                merged_config = self._deep_merge_dict(base_config_dict, app_config)
+                
+                # Apply merged config
+                self._current_language = merged_config.get('default_language', self._current_language)
+                
+                # Merge supported_languages list (union, preserve order)
+                base_langs = merged_config.get('supported_languages', self._supported_languages)
+                app_langs = app_config.get('supported_languages', [])
+                merged_langs = list(base_langs) if isinstance(base_langs, list) else []
+                for lang in app_langs:
+                    if lang not in merged_langs:
+                        merged_langs.append(lang)
+                self._supported_languages = merged_langs
+                
+                ColorPrint.blue(
+                    f"[I18nManager] Merged app config with base config, supported languages: {self._supported_languages}"
+                )
+            except Exception as e:
+                ColorPrint.yellow(
+                    f"[I18nManager] Failed to load app config: {base_config_path}, {e}"
+                )
         else:
             ColorPrint.yellow(
-                f"[I18nManager] Base config not found: {base_config_path}"
+                f"[I18nManager] App config not found: {base_config_path}, using base config"
             )
-            self._current_language = "en"
-            self._supported_languages = ["en"]
+
+    def _load_base_translations(self):
+        """Load base translations from step0_i18n/translations/ directory"""
+        if not _BASE_I18N_DIR.exists():
+            ColorPrint.yellow(
+                f"[I18nManager] Base translations directory not found: {_BASE_I18N_DIR}"
+            )
+            return
+
+        # Load base config
+        base_config_path = _BASE_I18N_DIR / "i18n_base.json"
+        if base_config_path.exists():
+            try:
+                with open(base_config_path, 'r', encoding='utf-8') as f:
+                    self._base_config = json.load(f)
+                self._current_language = self._base_config.get('default_language', 'en')
+                self._supported_languages = self._base_config.get('supported_languages', ['en'])
+            except Exception as e:
+                ColorPrint.yellow(f"[I18nManager] Failed to load base config: {e}")
+                self._base_config = {}
+
+        # Load base translations for all supported languages
+        for lang in self._supported_languages:
+            translation_file = _BASE_I18N_DIR / f"translations_{lang}.json"
+            if translation_file.exists():
+                try:
+                    with open(translation_file, 'r', encoding='utf-8') as f:
+                        self._translations[lang] = json.load(f)
+                    ColorPrint.blue(
+                        f"[I18nManager] Loaded base translations for language: {lang}"
+                    )
+                except Exception as e:
+                    ColorPrint.yellow(
+                        f"[I18nManager] Failed to load base translations for {lang}: {e}"
+                    )
+                    self._translations[lang] = {}
+
+    def _deep_merge_dict(self, base: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Deep merge two dictionaries (recursive merge for nested dicts)
+        
+        Args:
+            base: Base dictionary (base translations)
+            update: Update dictionary (app translations)
+            
+        Returns:
+            Merged dictionary (base + update, with update taking precedence for conflicts)
+        """
+        result = base.copy()
+        for key, value in update.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dictionaries
+                result[key] = self._deep_merge_dict(result[key], value)
+            else:
+                # Override or add new key
+                result[key] = value
+        return result
 
     def _load_translations(self):
-        """Load translation files for all supported languages"""
-        self._translations = {}
-
+        """Load translation files for all supported languages from app directory"""
+        # Note: This deep merges with existing base translations, not replacing them
         for lang in self._supported_languages:
             translation_file = self._config_dir / f"translations_{lang}.json"
 
             if translation_file.exists():
                 try:
                     with open(translation_file, 'r', encoding='utf-8') as f:
-                        self._translations[lang] = json.load(f)
+                        app_translations = json.load(f)
+
+                    # Deep merge with existing translations (base translations)
+                    if lang in self._translations:
+                        self._translations[lang] = self._deep_merge_dict(
+                            self._translations[lang], 
+                            app_translations
+                        )
+                    else:
+                        self._translations[lang] = app_translations
 
                     ColorPrint.blue(
-                        f"[I18nManager] Loaded translations for language: {lang}"
+                        f"[I18nManager] Loaded and merged app translations for language: {lang}"
                     )
 
                 except Exception as e:
                     ColorPrint.red(
-                        f"[I18nManager] Failed to load translations for {lang}: {e}"
+                        f"[I18nManager] Failed to load app translations for {lang}: {e}"
                     )
-                    self._translations[lang] = {}
+                    if lang not in self._translations:
+                        self._translations[lang] = {}
             else:
                 ColorPrint.yellow(
-                    f"[I18nManager] Translation file not found: {translation_file}"
+                    f"[I18nManager] App translation file not found: {translation_file}"
                 )
-                self._translations[lang] = {}
+                if lang not in self._translations:
+                    self._translations[lang] = {}
 
     def _detect_system_language(self) -> str:
         """
@@ -293,8 +414,26 @@ class I18nManager:
         if self._current_language == language:
             return True
 
+        previous_language = self._current_language
         self._current_language = language
         ColorPrint.green(f"[I18nManager] Language changed to: {language}")
+
+        # Update THREAD_BUS with current language
+        THREAD_BUS.signal(BusKeys.I18N_CURRENT_LANGUAGE, language)
+        THREAD_BUS.signal(BusKeys.I18N_SUPPORTED_LANGUAGES, self._supported_languages.copy())
+
+        # Emit language changed signal
+        THREAD_BUS.signal(BusSignals.I18N_LANGUAGE_CHANGED, {
+            "language": language,
+            "previous_language": previous_language,
+            "supported_languages": self._supported_languages.copy()
+        })
+
+        # Emit UI redraw signal (for both Tkinter and PySide6)
+        THREAD_BUS.signal(BusSignals.UI_REDRAW, {
+            "reason": "language_changed",
+            "language": language
+        })
 
         # Notify listeners
         self._notify_listeners(language)

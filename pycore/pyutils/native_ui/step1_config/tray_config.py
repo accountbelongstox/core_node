@@ -54,8 +54,9 @@ class TrayMenuItem:
     Communication happens via THREAD_BUS signals.
 
     Attributes:
-        text: Display text for menu item
+        text: Display text for menu item (or i18n key if i18n_key is not set)
         signal: Signal name to emit via THREAD_BUS when clicked
+        i18n_key: Optional i18n translation key (if set, text will be translated dynamically)
         icon: Optional icon path or name
         enabled: Whether the item is enabled
         default: Whether this is the default action (double-click)
@@ -65,6 +66,7 @@ class TrayMenuItem:
     """
     text: str
     signal: str = ""
+    i18n_key: Optional[str] = None  # If set, text will be translated from this key
     icon: Optional[str] = None
     enabled: bool = True
     default: bool = False
@@ -80,6 +82,7 @@ class TrayMenuItem:
         return {
             "text": self.text,
             "signal": self.signal,
+            "i18n_key": self.i18n_key,
             "icon": self.icon,
             "enabled": self.enabled,
             "default": self.default,
@@ -97,6 +100,7 @@ class TrayMenuItem:
         return TrayMenuItem(
             text=data.get('text', ''),
             signal=data.get('signal', ''),
+            i18n_key=data.get('i18n_key'),
             icon=data.get('icon'),
             enabled=data.get('enabled', True),
             default=data.get('default', False),

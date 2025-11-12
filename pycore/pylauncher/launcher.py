@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.singleton_detector import SingletonDetector
-from pycore.pyutils.native_ui import get_bus_manager, BusKeys
+from pycore.pyutils.native_ui import get_bus_manager
 
 
 # ============================================================
@@ -137,9 +137,9 @@ class NativeUILauncher:
         enable_tray = (mode == LaunchMode.DEBUG_WITH_TRAY or mode == LaunchMode.TRAY_ONLY)
 
         # Store launcher info in THREAD_BUS
-        self._bus_mgr.signal(BusKeys.LAUNCHER_STATE, "starting")
-        self._bus_mgr.signal("ui.launcher.port", detection.port)
-        self._bus_mgr.signal("ui.launcher.app_id", self.app_id)
+        THREAD_BUS.signal("ui.launcher.state", "starting")
+        THREAD_BUS.signal("ui.launcher.port", detection.port)
+        THREAD_BUS.signal("ui.launcher.app_id", self.app_id)
 
         # Forward to native_ui
         launch_app_with_startup(
@@ -155,7 +155,7 @@ class NativeUILauncher:
         )
 
         # Step 3: Return result
-        self._bus_mgr.signal(BusKeys.LAUNCHER_STATE, "running")
+        THREAD_BUS.signal("ui.launcher.state", "running")
 
         return LaunchResult(
             success=True,

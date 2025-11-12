@@ -58,6 +58,9 @@ class BusNamespaces:
     # Startup window namespace
     UI_STARTUP = "ui.startup"
 
+    # UI i18n namespace
+    UI_I18N = "ui.i18n"
+
 
 class BusKeys:
     """Standardized THREAD_BUS keys with namespaces"""
@@ -79,6 +82,10 @@ class BusKeys:
     # Startup window keys
     STARTUP_MODE = f"{BusNamespaces.UI_STARTUP}.mode"  # "debug_only" | "debug_with_tray"
     STARTUP_THREAD_ID = f"{BusNamespaces.UI_STARTUP}.thread_id"
+
+    # I18n keys
+    I18N_CURRENT_LANGUAGE = f"{BusNamespaces.UI_I18N}.current_language"
+    I18N_SUPPORTED_LANGUAGES = f"{BusNamespaces.UI_I18N}.supported_languages"
 
 
 class BusSignals:
@@ -106,6 +113,10 @@ class BusSignals:
     STARTUP_READY = "ui.startup.ready"
     STARTUP_CLOSED = "ui.startup.closed"
     STARTUP_STOPPED = "ui.startup.stopped"
+
+    # UI i18n signals
+    I18N_LANGUAGE_CHANGED = "ui.i18n.language_changed"
+    UI_REDRAW = "ui.redraw"  # Generic UI redraw signal (triggered by language change)
 
 
 # ============================================================
@@ -304,6 +315,38 @@ class NativeUIBusManager:
             True if ready, False if timeout
         """
         return self._bus.wait_signal("TkinterStartup_ready", timeout=timeout)
+
+    # ========================================================
+    # I18n Methods
+    # ========================================================
+
+    def get_current_language(self) -> Optional[str]:
+        """Get current language from THREAD_BUS"""
+        return self._bus.get_signal(BusKeys.I18N_CURRENT_LANGUAGE)
+
+    def get_supported_languages(self) -> List[str]:
+        """Get supported languages from THREAD_BUS"""
+        return self._bus.get_signal(BusKeys.I18N_SUPPORTED_LANGUAGES, [])
+
+    def on_language_changed(self, callback: Callable[[Dict], None]):
+        """
+        Listen for language change events
+
+        Args:
+            callback: Function to call when language changes
+                     Receives dict with: language, previous_language, supported_languages
+        """
+        self._bus.register_event_handler(BusSignals.I18N_LANGUAGE_CHANGED, callback)
+
+    def on_ui_redraw(self, callback: Callable[[Dict], None]):
+        """
+        Listen for UI redraw events (triggered by language change or other UI updates)
+
+        Args:
+            callback: Function to call when UI needs redraw
+                     Receives dict with: reason, language (if language changed)
+        """
+        self._bus.register_event_handler(BusSignals.UI_REDRAW, callback)
 
     # ========================================================
     # Utility Methods

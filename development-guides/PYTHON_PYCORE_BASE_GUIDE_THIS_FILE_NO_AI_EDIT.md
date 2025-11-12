@@ -25,6 +25,13 @@
 - All import statements **must be at file top**
 - Order: stdlib → third-party → project internal
 - **Forbidden**: import statements inside functions
+- **Forbidden**: import statements in try-except blocks (direct import, handle ImportError at usage if needed)
+
+**Global Variable Pattern for Singleton Managers**
+- Singleton managers (i18n, bus_manager, etc.) should be initialized as **global variables** at module level
+- **i18n Pattern**: `from pycore.pyutils.native_ui.step0_i18n import i18n` (i18n is pre-initialized instance exported from step0_i18n module, base translations already loaded)
+- **Forbidden**: Storing as instance variable (`self.i18n`) - use global `i18n` directly
+- **Extension Pattern**: Use `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname")` in app's `start()` function to extend base translations with app-specific translations (auto-detects `{appname}_i18n` or `i18n` directory)
 
 **Try-Except Block Rules (AI Code Only)**
 - **AI-generated code must NOT use try-except blocks**
@@ -95,6 +102,7 @@ pyapps/{appname}/
 ├── config/                 # App configuration
 ├── {appname}_config/       # [Optional] UI configuration
 ├── {appname}_i18n/         # [Optional] Multi-language
+├── {appname}_bus_keys/     # [Required] BusKeys registration
 ├── controller/             # Business logic
 ├── service/                # [Optional] Service layer
 ├── routes/                 # [Optional] HTTP routes
@@ -132,15 +140,26 @@ pyapps/{appname}/
 **Key Principles:**
 - **Singleton Pattern - NO Parameter Passing**
 - **NEVER pass i18n_manager as parameter**
-- **ALWAYS call `get_i18n_manager()` directly**
-- **Initialize Once** at application start
+- **Global i18n Pre-initialized in step0_i18n** - `i18n` is pre-initialized with base translations as global variable in `pycore.pyutils.native_ui.step0_i18n` module (exports instantiated instance)
+- **Import Pattern** - Always import: `from pycore.pyutils.native_ui.step0_i18n import i18n` (NOT `get_i18n_manager()`)
 - **No Hardcoded Text** - All UI text must use i18n keys
 - **NO Default Values** - Do NOT use `i18n.get(key, default)`
 - **Complete Translation** - All languages must have ALL keys
+- **App Extension** - App translations must be extended in app's `start()` function using `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname", use_system_language=True)` to extend base translations. Auto-detects `{appname}_i18n` or `i18n` directory.
 
 **Language Switching:**
 - `i18n.set_language(lang)` - Switch language
 - `i18n.add_listener(callback)` - Listen for changes
+
+**Directory Structure:** `{appname}_i18n/` or `i18n/` contains translation files. File naming: `translations_{lang}.json` (e.g., `translations_en.json`, `translations_zh.json`). **Base translations** are auto-loaded from `step0_i18n/translations/` when `i18n` instance is created (pre-initialized). **App translations** must be extended in app's `start()` function using `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname", use_system_language=True)` - auto-detects `{appname}_i18n` or `i18n` directory. Access via `from pycore.pyutils.native_ui.step0_i18n import i18n` (exports pre-initialized instance). **Extension Interface:** Use `i18n.add_translations(language, translations, merge=True)` to add/update translations programmatically.
+
+### 5.5.1 BusKeys Registration
+
+**Purpose:** Register app-specific THREAD_BUS keys for inter-thread communication. Directory: `{appname}_bus_keys/` with `__init__.py` exporting `{AppName}BusKeys` class and `register_bus_keys()` function.
+
+**Key Naming:** All app-specific keys **MUST** use `{appname}.` prefix. Format: `{appname}.category.key_name`. Use standard namespaces from `BusNamespaces` for common keys.
+
+**Registration:** **REQUIRED** for apps using THREAD_BUS. Call `register_bus_keys()` at the start of `start()` function. All keys must be documented in the BusKeys class.
 
 ### 5.6 Directory and Resource Usage
 **Static Files:** `public/` folder in project root

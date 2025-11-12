@@ -55,6 +55,11 @@ from tkinter import ttk
 
 # Import after tkinter to avoid circular import
 from pycore import THREAD_BUS, ColorPrint
+from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
+from PIL import Image, ImageTk
 
 
 class TkinterStartupThread(threading.Thread):
@@ -216,8 +221,6 @@ class TkinterStartupThread(threading.Thread):
         # Logo + Title
         if self.logo_path and Path(self.logo_path).exists():
             try:
-                from PIL import Image, ImageTk
-
                 title_container = tk.Frame(title_frame, bg="#2c3e50")
                 title_container.pack(expand=True)
 
@@ -362,8 +365,6 @@ class TkinterStartupThread(threading.Thread):
         auto_radio.pack(anchor=tk.W, padx=5)
 
         # Language options
-        from pycore.pyutils.native_ui.i18n import get_i18n_manager
-        i18n = get_i18n_manager()
         supported_languages = i18n.get_supported_languages()
         lang_display = {
             "en": "🇬🇧 English",
@@ -391,9 +392,6 @@ class TkinterStartupThread(threading.Thread):
 
     def _on_language_change(self):
         """Handle language change"""
-        from pycore.pyutils.native_ui.i18n import get_i18n_manager
-        i18n = get_i18n_manager()
-
         selected = self.language_var.get()
 
         if selected == "auto":
@@ -454,11 +452,6 @@ class TkinterStartupThread(threading.Thread):
         Gets tray configuration from THREAD_BUS manager and runs system tray.
         Blocks until tray.stop() is called.
         """
-        # Import tray modules
-        from pycore.pyutils.native_ui.tkinter_system_tray import TkinterSystemTray
-        from pycore.pyutils.native_ui.tray_config import TrayMenuItem
-        from pycore.pyutils.native_ui.thread_bus_manager import get_bus_manager, BusSignals
-
         # Get tray configuration from THREAD_BUS manager
         bus_mgr = get_bus_manager()
         tray_config = bus_mgr.get_tray_config()
@@ -469,18 +462,11 @@ class TkinterStartupThread(threading.Thread):
 
         ColorPrint.green("[TkinterStartupThread] Tray config found in THREAD_BUS")
 
-        # Convert tray_config.menu_items to TkinterSystemTray menu items
-        menu_items = []
-        for item in tray_config.menu_items:
-            if item.text == "---":
-                menu_items.append(TrayMenuItem.SEPARATOR)
-            else:
-                menu_items.append(TrayMenuItem(
-                    text=item.text,
-                    signal=item.signal,
-                    enabled=item.enabled,
-                    default=item.default
-                ))
+        # Store original tray_config for language updates
+        self._tray_config = tray_config
+
+        # Build initial menu items
+        menu_items = self._build_tray_menu_items(tray_config)
 
         # Create tray
         self.tray = TkinterSystemTray(
@@ -500,6 +486,20 @@ class TkinterStartupThread(threading.Thread):
         THREAD_BUS.register_event_handler(BusSignals.TRAY_STOP, on_tray_stop, priority=20)
         ColorPrint.green("[TkinterStartupThread] Registered TRAY_STOP event handler")
 
+        # Register event handler for UI redraw (language change)
+        def on_ui_redraw(event_data):
+            """Handle UI redraw event - update tray menu when language changes"""
+            reason = event_data.get('reason', '')
+            if reason == 'language_changed' and self.tray and self._tray_config:
+                ColorPrint.blue("[TkinterStartupThread] Language changed, updating tray menu...")
+                # Rebuild menu items with new translations
+                new_menu_items = self._build_tray_menu_items(self._tray_config)
+                self.tray.update_menu(new_menu_items)
+                ColorPrint.green("[TkinterStartupThread] Tray menu updated with new language")
+
+        bus_mgr.on_ui_redraw(on_ui_redraw)
+        ColorPrint.green("[TkinterStartupThread] Registered UI redraw event handler")
+
         ColorPrint.blue("[TkinterStartupThread] Starting system tray...")
 
         # Signal that tray is starting
@@ -509,6 +509,46 @@ class TkinterStartupThread(threading.Thread):
         self.tray.run()
 
         ColorPrint.blue("[TkinterStartupThread] Tray stopped")
+
+    def _build_tray_menu_items(self, tray_config):
+        """
+        Build tray menu items from tray_config
+        
+        Args:
+            tray_config: TrayConfig object
+            
+        Returns:
+            List of TrayMenuItem objects for TkinterSystemTray
+        """
+        menu_items = []
+        for item in tray_config.menu_items:
+            if item.text == "---":
+                menu_items.append(TrayMenuItem.SEPARATOR)
+            else:
+                # Get display text: use i18n_key if set, otherwise use text as-is
+                # If i18n_key is set, translate it; if not, check if text looks like a key
+                display_text = item.text
+                
+                # Priority: i18n_key > text (if text looks like a key)
+                i18n_key = getattr(item, 'i18n_key', None)
+                if i18n_key:
+                    display_text = i18n.get(i18n_key, default=item.text)
+                elif '.' in item.text and (item.text.startswith('mcpserver.') or item.text.startswith('app.')):
+                    # Text looks like an i18n key, try to translate it
+                    translated = i18n.get(item.text, default=item.text)
+                    if translated != item.text:
+                        display_text = translated
+                
+                # Create TrayMenuItem with action_signal (tkinter_system_tray format)
+                menu_item = TrayMenuItem(
+                    text=display_text,
+                    action_signal=item.signal,  # Convert 'signal' to 'action_signal'
+                    enabled=item.enabled,
+                    default=item.default
+                )
+                menu_items.append(menu_item)
+        
+        return menu_items
 
     def _cleanup(self):
         """Cleanup resources"""
