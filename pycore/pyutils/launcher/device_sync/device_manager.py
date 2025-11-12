@@ -18,6 +18,7 @@ from typing import Optional, Callable, List, Dict
 from pathlib import Path
 
 from .device_discovery_udp import DeviceDiscoveryUDP
+from .device_discovery_scanner import DeviceDiscoveryScanner
 from .unified_server import UnifiedServer, DEFAULT_PORT
 from .http_sync_client import HTTPFileSyncClient
 from .logging_config import setup_logging
@@ -44,23 +45,31 @@ class DeviceManager:
     Coordinates device discovery, WebSocket communication, and sync control.
     """
 
-    def __init__(self, root_dir: str, http_port: int = DEFAULT_HTTP_PORT):
+    def __init__(self, root_dir: str, http_port: int = DEFAULT_HTTP_PORT, use_scanner: bool = True):
         """
         Initialize device manager.
 
         Args:
             root_dir: Root directory for file sync
             http_port: HTTP/WebSocket port
+            use_scanner: Use TCP scanner instead of UDP broadcast (default: True)
         """
         self.root_dir = Path(root_dir)
         self.http_port = http_port
+        self.use_scanner = use_scanner
 
         # Device state
         self.mode: Optional[str] = None  # 'primary' or 'secondary'
         self.sync_enabled = False
 
-        # Components
-        self.device_discovery = DeviceDiscoveryUDP(http_port=http_port)
+        # Components - Choose discovery method
+        if use_scanner:
+            logger.info("Using TCP Scanner for device discovery")
+            self.device_discovery = DeviceDiscoveryScanner(http_port=http_port)
+        else:
+            logger.info("Using UDP Broadcast for device discovery")
+            self.device_discovery = DeviceDiscoveryUDP(http_port=http_port)
+
         self.unified_server = UnifiedServer(port=http_port, root_dir=str(self.root_dir))
         self.http_client: Optional[HTTPFileSyncClient] = None
 
