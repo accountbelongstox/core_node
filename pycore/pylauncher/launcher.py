@@ -132,7 +132,7 @@ class NativeUILauncher:
             )
 
         # Step 2: Forward parameters to native_ui
-        from pycore.pyutils.native_ui.launcher_with_startup import launch_app_with_startup
+        from pycore.pyutils.native_ui import launch_app_with_startup
 
         enable_tray = (mode == LaunchMode.DEBUG_WITH_TRAY or mode == LaunchMode.TRAY_ONLY)
 

@@ -24,7 +24,7 @@ Usage:
     i18n.add_listener(lambda lang: print(f"Language changed to {lang}"))
 """
 
-from pycore.pyutils.native_ui.i18n.i18n_manager import I18nManager, get_i18n_manager
+from pycore.pyutils.native_ui.step9_i18n.i18n_manager import I18nManager, get_i18n_manager
 
 __all__ = [
     'I18nManager',
