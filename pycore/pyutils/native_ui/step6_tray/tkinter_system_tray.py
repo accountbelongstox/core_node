@@ -180,9 +180,10 @@ class TkinterSystemTray:
         if submenu_items:
             # Create submenu items recursively
             submenu = pystray.Menu(*[self._create_menu_item(sub_item) for sub_item in submenu_items])
+            # In pystray, submenu is passed as the 'action' parameter (Menu object)
             return pystray.MenuItem(
                 text=item.text,
-                submenu=submenu,
+                action=submenu,  # Menu object as action creates a submenu
                 enabled=item.enabled
             )
 

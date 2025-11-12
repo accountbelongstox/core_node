@@ -91,6 +91,9 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         config = get_global_config()
         db = get_sync_database()
 
+        # Log current config state for debugging
+        logger.info(f"_handle_dashboard: config id={id(config)}, isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
+
         mode = "PRIMARY SERVER" if config.isPrimaryServer else "SECONDARY CLIENT"
         mode_color = "#27ae60" if config.isPrimaryServer else "#3498db"
 
@@ -210,6 +213,10 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
+        # Disable browser caching to ensure config changes are reflected immediately
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
         self.end_headers()
         self.wfile.write(html.encode('utf-8'))
 
@@ -297,6 +304,9 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     def _handle_status(self):
         """Handle /api/status - Return current mode status"""
         config = get_global_config()
+
+        # Log current config state for debugging
+        logger.debug(f"_handle_status: isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
 
         status = {
             'mode': 'primary' if config.isPrimaryServer else 'secondary',
@@ -491,6 +501,10 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(json_data.encode('utf-8'))))
+        # Disable browser caching for API responses
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
 

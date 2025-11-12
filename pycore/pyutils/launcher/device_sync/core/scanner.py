@@ -253,13 +253,13 @@ class SimpleDeviceScanner:
         logger.info(f"Found primary device: {primary['hostname']} ({primary['ip']})")
         return primary
 
-    def scan_if_needed(self, force: bool = False, interval: float = 30.0):
+    def scan_if_needed(self, force: bool = False, interval: float = 60.0):
         """
         Scan network if needed (only in SECONDARY mode)
 
         Args:
             force: Force scan even if recently scanned
-            interval: Minimum interval between scans (seconds)
+            interval: Minimum interval between scans (seconds, default 60)
         """
         from .config import get_global_config
         config = get_global_config()

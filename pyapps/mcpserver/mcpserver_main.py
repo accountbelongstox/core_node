@@ -30,6 +30,11 @@ def main_app_entry():
     ColorPrint.blue(" MCP SERVER - STARTING SERVICES")
     ColorPrint.blue("=" * 70)
     
+    # Initialize address service (first MCP service)
+    from pyapps.mcpserver.service.address_service import MCPServerAddressService
+    address_service = MCPServerAddressService(port=8767, use_localhost=True, debug=True)
+    address_service.start()
+    
     ColorPrint.green("MCP Server services initialized")
     ColorPrint.yellow("Services will be started from tray menu")
     
