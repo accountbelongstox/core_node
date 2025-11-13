@@ -9,10 +9,12 @@ import os
 import io
 import logging
 import tempfile
+import math
 from typing import Tuple, Optional, Dict, Any, List, Union
 from pathlib import Path
+
+from pycore.pyfoundations.third_party import PIL
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
-import math
 
 logger = logging.getLogger(__name__)
 

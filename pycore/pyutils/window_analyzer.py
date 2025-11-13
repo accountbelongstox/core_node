@@ -13,20 +13,9 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import win32gui
-import win32con
-import win32api
+from pycore.pyfoundations.third_party import win32gui, win32con, win32api, PIL, pyautogui, uiautomation
 import win32process
 from PIL import Image, ImageDraw, ImageFont
-import pyautogui
 import uiautomation as auto
 
 from providor.providor_second import DEBUG_DIR

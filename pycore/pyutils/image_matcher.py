@@ -13,18 +13,8 @@ from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 from datetime import datetime
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-# Check and install dependencies before importing cv2
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-# Import ColorPrint for colored output
-from pyfoundations.color_print import ColorPrint
-
-import cv2
+from pycore.pyfoundations.third_party import numpy, cv2
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class ImageMatcher:
