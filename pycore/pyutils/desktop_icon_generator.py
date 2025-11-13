@@ -10,13 +10,6 @@ import os
 import shutil
 import tempfile
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 try:
     import win32com.client
     HAS_WIN32COM = True

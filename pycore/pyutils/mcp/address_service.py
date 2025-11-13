@@ -177,35 +177,30 @@ class AddressService:
         Returns:
             AddressCache object or None
         """
-        try:
-            # Quick scan for MCP servers on specified port
-            addresses = self.address_mapper.scan_and_map(
-                quick=True,
-                ports=[self.port]
-            )
+        # Quick scan for MCP servers on specified port
+        addresses = self.address_mapper.scan_and_map(
+            quick=True,
+            ports=[self.port]
+        )
+        
+        # Find first available address
+        for addr in addresses:
+            if addr.is_active and addr.port == self.port:
+                # Verify address is accessible
+                if self._verify_mapped_address(addr):
+                    cache = AddressCache(
+                        host=addr.host,
+                        port=addr.port,
+                        websocket_url=addr.websocket_url,
+                        discovered_at=addr.discovered_at,
+                        last_verified=time.time(),
+                        is_available=True,
+                        is_localhost=False
+                    )
+                    return cache
+        
+        return None
             
-            # Find first available address
-            for addr in addresses:
-                if addr.is_active and addr.port == self.port:
-                    # Verify address is accessible
-                    if self._verify_mapped_address(addr):
-                        cache = AddressCache(
-                            host=addr.host,
-                            port=addr.port,
-                            websocket_url=addr.websocket_url,
-                            discovered_at=addr.discovered_at,
-                            last_verified=time.time(),
-                            is_available=True,
-                            is_localhost=False
-                        )
-                        return cache
-            
-            return None
-            
-        except Exception as e:
-            if self.debug:
-                ColorPrint.red(f"[AddressService] Discovery error: {e}")
-            return None
     
     def _verify_address(self, address: AddressCache) -> bool:
         """
@@ -301,52 +296,47 @@ class AddressService:
         Recursively scans network with 0.5s interval when address is unavailable.
         """
         while self._scanning and not self._stop_event.is_set():
-            try:
-                with self._cache_lock:
-                    # Check if we need to scan
-                    need_scan = False
-                    
-                    if not self._cached_address:
-                        # No cached address, need to scan
+            with self._cache_lock:
+                # Check if we need to scan
+                need_scan = False
+                
+                if not self._cached_address:
+                    # No cached address, need to scan
+                    need_scan = True
+                elif self._cached_address.is_localhost:
+                    # Using localhost, try to find network address
+                    if self.use_localhost:
                         need_scan = True
-                    elif self._cached_address.is_localhost:
-                        # Using localhost, try to find network address
-                        if self.use_localhost:
-                            need_scan = True
-                    elif not self._cached_address.is_available:
-                        # Cached address unavailable, need to rescan
-                        need_scan = True
-                
-                if need_scan:
-                    if self.debug:
-                        ColorPrint.blue("[AddressService] Background scan: Discovering address...")
-                    
-                    discovered = self._discover_address()
-                    if discovered:
-                        with self._cache_lock:
-                            self._cached_address = discovered
-                        if self.debug:
-                            ColorPrint.green(f"[AddressService] Background scan: Found {discovered.host}:{discovered.port}")
-                    else:
-                        # Verify cached address if exists
-                        if self._cached_address and not self._cached_address.is_localhost:
-                            if not self._verify_address(self._cached_address):
-                                with self._cache_lock:
-                                    self._cached_address = None
-                                if self.debug:
-                                    ColorPrint.yellow("[AddressService] Background scan: Cached address invalidated")
-                else:
-                    # Verify cached address is still available
-                    if self._cached_address and not self._cached_address.is_localhost:
-                        self._verify_address(self._cached_address)
-                
-                # Wait 0.5 seconds before next scan
-                self._stop_event.wait(self.SCAN_INTERVAL)
-                
-            except Exception as e:
+                elif not self._cached_address.is_available:
+                    # Cached address unavailable, need to rescan
+                    need_scan = True
+            
+            if need_scan:
                 if self.debug:
-                    ColorPrint.red(f"[AddressService] Background scan error: {e}")
-                self._stop_event.wait(self.SCAN_INTERVAL)
+                    ColorPrint.blue("[AddressService] Background scan: Discovering address...")
+                
+                discovered = self._discover_address()
+                if discovered:
+                    with self._cache_lock:
+                        self._cached_address = discovered
+                    if self.debug:
+                        ColorPrint.green(f"[AddressService] Background scan: Found {discovered.host}:{discovered.port}")
+                else:
+                    # Verify cached address if exists
+                    if self._cached_address and not self._cached_address.is_localhost:
+                        if not self._verify_address(self._cached_address):
+                            with self._cache_lock:
+                                self._cached_address = None
+                            if self.debug:
+                                ColorPrint.yellow("[AddressService] Background scan: Cached address invalidated")
+            else:
+                # Verify cached address is still available
+                if self._cached_address and not self._cached_address.is_localhost:
+                    self._verify_address(self._cached_address)
+            
+            # Wait 0.5 seconds before next scan
+            self._stop_event.wait(self.SCAN_INTERVAL)
+                
     
     def get_cached_address(self) -> Optional[AddressCache]:
         """

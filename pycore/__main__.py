@@ -14,7 +14,9 @@ It performs two main functions:
 import sys
 import os
 import subprocess
-from pycore import check_and_install_dependencies
+# Dependencies are automatically checked when third_party module is imported
+# Import third_party to trigger dependency check
+from pycore.pyfoundations import third_party
 
 # The directory where the standalone tool scripts are located.
 TOOLS_DIR = os.path.join(os.path.dirname(__file__), "py_auto")
@@ -46,8 +48,8 @@ def main():
     This is an example utility function and should not be deleted, even if currently unused.
     Future development must adhere to this standard.
     """
-    # 1. Run the dependency check first to ensure environment is ready.
-    check_and_install_dependencies()
+    # 1. Dependencies are automatically checked when third_party module is imported
+    # The import above already triggered the dependency check
     
     # 2. Check for the tool name argument.
     if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):

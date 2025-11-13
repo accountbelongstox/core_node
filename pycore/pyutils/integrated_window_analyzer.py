@@ -13,15 +13,8 @@ import json
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-from pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import uiautomation
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.window_mapping_provider import WINDOW_MAPPING_PROVIDER, UIElementMapping
 from utils.window_analyzer import WindowAnalyzer
 import uiautomation as auto

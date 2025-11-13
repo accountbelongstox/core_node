@@ -5,11 +5,12 @@ Image Enhancer - Extensible Image Enhancement Utility
 Provides flexible interface for adding text, shapes, sub-images, etc.
 """
 
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import Optional, Tuple, List, Union, Dict, Any
 from abc import ABC, abstractmethod
+
+from pycore.pyfoundations.third_party import cv2, numpy, PIL
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 

@@ -7,13 +7,6 @@ Provides utilities for launching multiple windows in grid layout
 import sys
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.screen_manager import ScreenManager
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor

@@ -6,22 +6,14 @@ Provides image cropping and region extraction functionality
 """
 
 import sys
-import numpy as np
 import uuid
 from typing import Tuple, Union, Optional, Dict
 from pathlib import Path
-from PIL import Image as PILImage
 from collections import OrderedDict
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-# Check and install dependencies before importing cv2
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import cv2
+from pycore.pyfoundations.third_party import numpy, PIL, cv2
+import numpy as np
+from PIL import Image as PILImage
 
 # Import ColorPrint for logging
 from pyfoundations.color_print import ColorPrint
