@@ -352,7 +352,7 @@ DEFAULT_REMOTE=$(get_default_remote "$PROJECT_NAME")
 declare -A remote_configs
 remote_configs["gitee"]="git@gitee.com:accountbelongstox/$PROJECT_NAME.git"
 remote_configs["github"]="git@github.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["local"]="ssh://git@git.local.12gm.com:17004/adminroot/$PROJECT_NAME.git"
+remote_configs["local"]="git@192.168.2.1:adminroot/core_node.git"
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
 get_execution_order() {

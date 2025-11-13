@@ -160,6 +160,7 @@ if (-not $scriptCurrentPath) {
     }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
 $shellsDirPath = Join-Path $scriptsDirPath "shells"
 $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
@@ -178,14 +179,70 @@ Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at D:\\.tmp\\Users\\时间戳
-# Format: D:\\.tmp\\Users\\YYYYMMDD_HHMMSS
+# Auto-scans D:\\.tmp\\Users\\ for existing MyBest1, MyBest2, etc.
+# Usage: script.ps1 [number|MyBestX]
+#   - If number is provided: uses D:\\.tmp\\Users\\MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses D:\\.tmp\\Users\\MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
 # ============================================================================
 
-# Generate timestamp for directory name
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $baseTempDir = "D:\\.tmp\\Users"
-$CustomUserDirectory = Join-Path $baseTempDir $timestamp
+$userDirPrefix = "MyBest"
+
+# Get directory name/number from command line argument (if provided)
+$userDirName = $null
+if ($args.Count -gt 0) {
+    $argValue = $args[0]
+    # Check if it's a number
+    if ($argValue -match '^\\d+$') {
+        $userDirName = "$userDirPrefix$argValue"
+        Write-Host "[INFO] Using specified number: $argValue -> $userDirName" -ForegroundColor Cyan
+    }
+    # Check if it's a full name (MyBestX format)
+    elseif ($argValue -match "^$userDirPrefix\\d+$") {
+        $userDirName = $argValue
+        Write-Host "[INFO] Using specified full name: $userDirName" -ForegroundColor Cyan
+    }
+}
+
+# If no argument specified, auto-scan for existing MyBest directories
+if ($null -eq $userDirName) {
+    Write-Host "[INFO] Auto-scanning for existing MyBest directories..." -ForegroundColor Cyan
+    
+    # Create base directory if it doesn't exist
+    if (-not (Test-Path $baseTempDir)) {
+        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
+    }
+    
+    # Find existing MyBest directories
+    $existingNumbers = @()
+    if (Test-Path $baseTempDir) {
+        $existingDirs = Get-ChildItem -Path $baseTempDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "^$userDirPrefix(\\d+)$" }
+        foreach ($dir in $existingDirs) {
+            if ($dir.Name -match "^$userDirPrefix(\\d+)$") {
+                $num = [int]$matches[1]
+                $existingNumbers += $num
+            }
+        }
+    }
+    
+    # Find next available number
+    if ($existingNumbers.Count -gt 0) {
+        $existingNumbers = $existingNumbers | Sort-Object
+        $maxNumber = $existingNumbers[-1]
+        $nextNumber = $maxNumber + 1
+        $userDirName = "$userDirPrefix$nextNumber"
+        Write-Host "[INFO] Found existing MyBest directories: $($existingNumbers -join ', ')" -ForegroundColor Gray
+        Write-Host "[INFO] Using next available number: $nextNumber -> $userDirName" -ForegroundColor Cyan
+    } else {
+        $userDirName = "$userDirPrefix" + "1"
+        Write-Host "[INFO] No existing MyBest directories found, starting with: $userDirName" -ForegroundColor Cyan
+    }
+}
+
+# Build directory path
+$CustomUserDirectory = Join-Path $baseTempDir $userDirName
 
 # Create the directory if it doesn't exist
 try {
@@ -202,7 +259,7 @@ try {
     # Verify directory was created successfully
     if (Test-Path $CustomUserDirectory) {
         $userProfilePath = $CustomUserDirectory
-        Write-Host "[SUCCESS] Using auto-generated custom user directory: $userProfilePath" -ForegroundColor Green
+        Write-Host "[SUCCESS] Using MyBest directory: $userProfilePath" -ForegroundColor Green
     } else {
         Write-Host "[WARNING] Failed to create custom directory, falling back to system default" -ForegroundColor Yellow
         $userProfilePath = $env:USERPROFILE
@@ -298,7 +355,6 @@ Write-Host ""
     - PowerShell Command: {ps_command}
     - File Number: {file_number}
     - File Name: {file_name}
-    - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #>
 
 Set-StrictMode -Version Latest
@@ -323,25 +379,154 @@ Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$pythonExecutable = "python3"
-if (-not (Get-Command $pythonExecutable -ErrorAction SilentlyContinue)) {{
-    if (Get-Command python -ErrorAction SilentlyContinue) {{
-        $pythonExecutable = "python"
-    }} else {{
-        Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
-        exit 1
-    }}
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python"
+}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python3"
+}} else {{
+    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
+    exit 1
 }}
 
-$pycoreCaller = Join-Path $projectRootPath "pycore_module_caller.py"
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] PyCore module caller: $pycoreCaller" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
 function Get-SecretValue {{
     param([string]$KeyName)
     Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
-    $arguments = @($pycoreCaller, '--module', 'pyfoundations.secret_manager', '--call', 'get_secret_key', $KeyName)
-    $value = & $pythonExecutable $arguments 2>$null
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    # Use -ArgumentList for proper parameter passing
+    $argumentList = @(
+        $secretManagerScript,
+        'get_secret_key',
+        $KeyName
+    )
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable -ArgumentList $($argumentList -join ', ')" -ForegroundColor DarkGray
+
+    # Use ProcessStartInfo for reliable output capture with proper argument handling
+    $value = $null
+    $errorOutput = $null
+    $exitCode = 0
+    
+    try {{
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $pythonExecutable
+        $psi.Arguments = ($argumentList | ForEach-Object {{ 
+            if ($_ -match ' ') {{ "`"$_`"" }} 
+            else {{ $_ }} 
+        }}) -join ' '
+        $psi.WorkingDirectory = $projectRootPath
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+        
+        # Set environment variables to force Python to use UTF-8 encoding
+        $psi.Environment["PYTHONIOENCODING"] = "utf-8"
+        $psi.Environment["PYTHONUTF8"] = "1"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $psi
+        
+        [void]$process.Start()
+        $value = $process.StandardOutput.ReadToEnd().Trim()
+        $errorOutput = $process.StandardError.ReadToEnd().Trim()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        $process.Dispose()
+        
+        # Remove BOM character if present
+        if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {{
+            $value = $value.Substring(1)
+        }}
+        
+    }} catch {{
+        # Fallback: use direct call with proper argument escaping
+        try {{
+            # Set environment variables for UTF-8 encoding
+            $env:PYTHONIOENCODING = "utf-8"
+            $env:PYTHONUTF8 = "1"
+            
+            # Build command with proper quoting
+            $cmdParts = @($pythonExecutable)
+            foreach ($arg in $argumentList) {{
+                if ($arg -match ' ') {{
+                    $cmdParts += "`"$arg`""
+                }} else {{
+                    $cmdParts += $arg
+                }}
+            }}
+            $cmd = $cmdParts -join ' '
+            
+            # Execute and capture output
+            $allOutput = Invoke-Expression $cmd 2>&1
+            $exitCode = $LASTEXITCODE
+            
+            # Separate stdout and stderr
+            $stdoutLines = @()
+            $stderrLines = @()
+            
+            foreach ($item in $allOutput) {{
+                if ($item -is [System.Management.Automation.ErrorRecord]) {{
+                    $stderrLines += $item.ToString()
+                }} else {{
+                    $line = $item.ToString().Trim()
+                    # Filter out traceback lines
+                    if ($line -and -not ($line -match '^Traceback|^File "|^    |^Error:|^Warning:')) {{
+                        $stdoutLines += $line
+                    }}
+                }}
+            }}
+            
+            $value = $stdoutLines -join "`n"
+            $errorOutput = $stderrLines -join "`n"
+            
+            # Remove BOM character if present
+            if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {{
+                $value = $value.Substring(1)
+            }}
+            
+        }} catch {{
+            Write-Host "[ERROR] Failed to execute Python: $($_.Exception.Message)" -ForegroundColor Red
+            $exitCode = 1
+        }}
+    }}
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
+
+    # Show error output if any (only for real errors)
+    if ($errorOutput -and $exitCode -ne 0) {{
+        Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
+        Write-Host $errorOutput -ForegroundColor Yellow
+    }}
+
+    if ($value) {{
+        Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
+        # Show masked preview (first 4 chars + *** + last 4 chars)
+        if ($value.Length -gt 8) {{
+            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
+            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
+        }}
+    }} else {{
+        Write-Host "[DEBUG] Returned empty value" -ForegroundColor Yellow
+    }}
+
     return $value
 }}
 
@@ -350,9 +535,10 @@ function Get-SecretValue {{
         var_loading_code = ""
         for var in variables:
             secret_key_name = f"{var['Name']}_{file_number}"
+            display_name = var.get('DisplayName', var['Name'])
             var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
 if ($env:{var['Name']}) {{
-    Write-Host "[SUCCESS] Loaded {var['Name']}" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']})" -ForegroundColor Green
 }} else {{
     Write-Host "[WARNING] Failed to load {var['Name']}" -ForegroundColor Yellow
 }}
@@ -428,7 +614,7 @@ pause
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:
         """Generate SSH connection PowerShell script"""
-        ssh_connection = user_inputs.get('SSH_CONNECTION', '')
+        ssh_conn_key = f"SSH_CONNECTION_{file_number}"
         password_key_name = f"SSH_PASSWORD_{file_number}"
 
         header = f"""# ### AI SPECIAL ATTENTION RULES START ###
@@ -453,10 +639,9 @@ pause
 
 .NOTES
     - Configuration: {config_name}
-    - SSH Connection: {ssh_connection}
+    - SSH Connection: Loaded dynamically from secret key {ssh_conn_key}
     - File Number: {file_number}
     - File Name: {file_name}
-    - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #>
 
 Set-StrictMode -Version Latest
@@ -473,6 +658,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 """
 
+
         load_secret_manager = f"""
 #region Load SSH Configuration via PyCore caller
 Write-Host ""
@@ -481,34 +667,59 @@ Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$sshConnection = "{ssh_connection}"
-Write-Host "[INFO] SSH Connection: $sshConnection" -ForegroundColor Green
-
-$pythonExecutable = "python3"
-if (-not (Get-Command $pythonExecutable -ErrorAction SilentlyContinue)) {{
-    if (Get-Command python -ErrorAction SilentlyContinue) {{
-        $pythonExecutable = "python"
-    }} else {{
-        Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
-        $pythonExecutable = $null
-    }}
+# Detect Python executable (Windows prioritizes 'python' over 'python3')
+$pythonExecutable = $null
+if (Get-Command python -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python"
+}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
+    $pythonExecutable = "python3"
+}} else {{
+    Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
 }}
 
-$pycoreCaller = Join-Path $projectRootPath "pycore_module_caller.py"
+# Use relative path from script location to project root
+$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] PyCore module caller: $pycoreCaller" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
 function Get-SSHSecret {{
     param([string]$KeyName)
     if (-not $pythonExecutable) {{ return $null }}
     Write-Host "[DEBUG] Loading SSH secret key: $KeyName" -ForegroundColor DarkGray
-    $args = @($pycoreCaller, '--module', 'pyfoundations.secret_manager', '--call', 'get_secret_key', $KeyName)
-    return (& $pythonExecutable $args 2>$null)
+
+    # Save current directory and switch to project root
+    $originalLocation = Get-Location
+    Set-Location $projectRootPath
+
+    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
+    $args = @($secretManagerScript, 'get_secret_key', $KeyName)
+    $result = (& $pythonExecutable $args 2>$null)
+
+    # Remove BOM character if present
+    if ($result -and $result.Length -gt 0 -and [int][char]$result[0] -eq 0xFEFF) {{
+        $result = $result.Substring(1)
+    }}
+
+    # Restore original directory
+    Set-Location $originalLocation
+
+    return $result
+}}
+
+$sshConnection = Get-SSHSecret "{ssh_conn_key}"
+if ($sshConnection) {{
+    Write-Host "[SUCCESS] SSH Connection loaded = $sshConnection" -ForegroundColor Green
+}} else {{
+    Write-Host "[ERROR] SSH_CONNECTION not found" -ForegroundColor Red
+    Write-Host "Press any key to exit..." -ForegroundColor Yellow
+    $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
 }}
 
 $sshPassword = Get-SSHSecret "{password_key_name}"
 if ($sshPassword) {{
-    Write-Host "[SUCCESS] SSH password loaded" -ForegroundColor Green
+    Write-Host "[SUCCESS] SSH password loaded = $sshPassword" -ForegroundColor Green
 }} else {{
     Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
 }}
@@ -528,27 +739,26 @@ if ([string]::IsNullOrWhiteSpace($sshConnection)) {{
     exit 1
 }}
 
-Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
-Write-Host ""
-
 if ($sshPassword) {{
-    Write-Host "[INFO] Password authentication enabled" -ForegroundColor Yellow
-    Write-Host "[INFO] Note: You may need sshpass or similar tool for password authentication" -ForegroundColor Yellow
+    # Display password for copy-paste
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host "  SSH PASSWORD (Copy this to clipboard):" -ForegroundColor Yellow
+    Write-Host "  $sshPassword" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "[INFO] SSH will prompt for password. Please paste the password above when prompted." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
     Write-Host ""
 
-    if (Get-Command sshpass -ErrorAction SilentlyContinue) {{
-        Write-Host "[INFO] Using sshpass for password authentication" -ForegroundColor Green
-        $env:SSHPASS = $sshPassword
-        & sshpass -e ssh $sshConnection
-    }} else {{
-        Write-Host "[WARNING] sshpass not found, falling back to interactive password prompt" -ForegroundColor Yellow
-        Write-Host "[INFO] Please enter password when prompted" -ForegroundColor Yellow
-        Write-Host ""
-        & ssh $sshConnection
-    }}
-
-    $env:SSHPASS = $null
+    # Execute SSH connection - it will prompt for password
+    & ssh $sshConnection
 }} else {{
+    # No password configured, use SSH key authentication
+    Write-Host "[INFO] No password configured, using SSH key authentication" -ForegroundColor Cyan
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
+    Write-Host ""
+
     & ssh $sshConnection
 }}
 
@@ -560,4 +770,27 @@ $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 #endregion
 """
 
-        return f"{header}{file_name_display}{load_secret_manager}"
+        # Generate path resolution section (needed for $projectRootPath)
+        path_resolution = """
+#region Initialize Path Variables
+$scriptActualPath = $PSCommandPath
+$item = Get-Item -LiteralPath $PSCommandPath
+if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+    $scriptActualPath = $item.Target
+}
+$scriptCurrentPath = Split-Path $scriptActualPath -Parent
+if (-not $scriptCurrentPath) {
+    $scriptCurrentPath = $PSScriptRoot
+    if (-not $scriptCurrentPath) {
+        $scriptCurrentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+}
+$scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
+Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
+#endregion
+"""
+
+        return f"{header}{file_name_display}{path_resolution}{load_secret_manager}"

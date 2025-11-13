@@ -1341,10 +1341,10 @@ $connectionSection
 
 <#
 .SYNOPSIS
-    Write Linux script to liunxenvs directory
+    Write Linux script to linuxenvs directory
 
 .DESCRIPTION
-    Write generated Linux bash script to scripts/liunxenvs directory
+    Write generated Linux bash script to scripts/linuxenvs directory
     Makes script executable and creates symlink via linux_path_function.sh
 
 .PARAMETER Content
@@ -1374,15 +1374,15 @@ function Write-LinuxScript {
     $scriptParentDir = Split-Path $PSScriptRoot -Parent
     $shellsDir = Split-Path $scriptParentDir -Parent
     $scriptsDir = Split-Path $shellsDir -Parent
-    $liunxenvsDir = Join-Path $scriptsDir "liunxenvs"
+    $linuxenvsDir = Join-Path $scriptsDir "linuxenvs"
 
-    if (-not (Test-Path $liunxenvsDir)) {
-        New-Item -ItemType Directory -Path $liunxenvsDir -Force | Out-Null
-        Write-ColorMessage -Message "Created liunxenvs directory: $liunxenvsDir" -Type "Success"
+    if (-not (Test-Path $linuxenvsDir)) {
+        New-Item -ItemType Directory -Path $linuxenvsDir -Force | Out-Null
+        Write-ColorMessage -Message "Created linuxenvs directory: $linuxenvsDir" -Type "Success"
     }
 
     $fileName = "${CommandPrefix}${FileNumber}.sh"
-    $targetPath = Join-Path $liunxenvsDir $fileName
+    $targetPath = Join-Path $linuxenvsDir $fileName
 
     try {
         $Content | Out-File -FilePath $targetPath -Encoding UTF8 -Force
@@ -1432,7 +1432,7 @@ function Write-LinuxScript {
 # Linux Script Generation Functions:
 # - New-LinuxCommandContent      : Generate Linux bash script for AI tools
 # - New-LinuxSSHCommandContent   : Generate Linux SSH connection bash script
-# - Write-LinuxScript            : Write Linux script to liunxenvs directory
+# - Write-LinuxScript            : Write Linux script to linuxenvs directory
 #
 # UI/Helper Functions:
 # - Show-CommandPreview          : Preview generated command content
@@ -1443,7 +1443,7 @@ function Write-LinuxScript {
 # - Pre-launch scripts: {toolname}_pre_launch.ps1 in pytools\ai_tools\
 # - Update scripts: {toolname}_update.bat in pytools\ai_tools\
 # - Windows scripts: {commandprefix}{number}.ps1 in scripts\winenvs\
-# - Linux scripts: {commandprefix}{number}.sh in scripts\liunxenvs\
+# - Linux scripts: {commandprefix}{number}.sh in scripts\linuxenvs\
 #
 # Cross-Platform Script Generation:
 # When New-CompleteCommandContent is called, it automatically generates both:

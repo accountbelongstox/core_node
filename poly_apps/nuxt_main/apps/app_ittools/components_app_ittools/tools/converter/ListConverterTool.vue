@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { computed, defineComponent, onMounted, ref, h } from 'vue';
 import type { Tool } from '../../../types_app_ittools';
 import { ItToolsMainAPI } from '../../../services_app_ittools/ittools-main-api';
 
@@ -184,21 +184,19 @@ const ListRow = defineComponent({
       }
     };
 
-    return () => (
-      <div class={classes.value}>
-        <div class="flex-1 mr-3">
-          <span class="text-xs text-slate-500">{props.label}</span>
-          <p class="font-mono text-sm text-slate-700 break-all mt-1">{props.value || '—'}</p>
-        </div>
-        <button
-          class="text-xs text-emerald-500 hover:text-emerald-600"
-          disabled={!props.value}
-          onClick={copyValue}
-        >
-          <i class="fas fa-copy"></i>
-        </button>
-      </div>
-    );
+    return () => h('div', { class: classes.value }, [
+      h('div', { class: 'flex-1 mr-3' }, [
+        h('span', { class: 'text-xs text-slate-500' }, props.label),
+        h('p', { class: 'font-mono text-sm text-slate-700 break-all mt-1' }, props.value || '—')
+      ]),
+      h('button', {
+        class: 'text-xs text-emerald-500 hover:text-emerald-600',
+        disabled: !props.value,
+        onClick: copyValue
+      }, [
+        h('i', { class: 'fas fa-copy' })
+      ])
+    ]);
   }
 });
 

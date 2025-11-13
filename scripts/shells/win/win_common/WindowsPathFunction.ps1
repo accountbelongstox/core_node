@@ -22,6 +22,21 @@ $osInfo = Get-CimInstance Win32_OperatingSystem
 $winVer = $osInfo.Version
 $winBuild = [int]$osInfo.BuildNumber
 
+$Global:HAS_ADMIN_RIGHTS = $false
+try {
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    $Global:HAS_ADMIN_RIGHTS = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+} catch {
+    $Global:HAS_ADMIN_RIGHTS = $false
+}
+
+if (-not $Global:HAS_ADMIN_RIGHTS) {
+    Write-Log "ERROR: This script requires Administrator privileges" -color "Red"
+    Write-Log "Please run PowerShell as Administrator and try again" -color "Yellow"
+    Write-Log "Right-click PowerShell -> Run as Administrator" -color "Yellow"
+    exit 1
+}
+
 if ($winBuild -ge 22000) {
     $systemName = "win11"
     $Global:isWin11 = $true
@@ -223,29 +238,29 @@ function Backup-Environment {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupDir = "D:\.tmp\.GlobalEnv"
     $backupFile = "$backupDir\path_$timestamp.bak"
-    
-    # Ensure backup directory exists
-    if (-not (Test-Path $backupDir)) {
-        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-        Write-Log "Created backup directory: $backupDir" -color "Yellow"
-    }
-    
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    Set-Content -Path $backupFile -Value $currentPath
-    Write-Log "Backup created at $backupFile"
-    
-    # Clean up old backups, keep only the most recent 100
+
     try {
-        $backupFiles = Get-ChildItem -Path $backupDir -Filter "path_*.bak" | Sort-Object LastWriteTime -Descending
-        if ($backupFiles.Count -gt 100) {
-            $filesToDelete = $backupFiles | Select-Object -Skip 100
-            foreach ($file in $filesToDelete) {
-                Remove-Item -Path $file.FullName -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
+            Write-Log "Created backup directory: $backupDir" -color "Yellow"
+        }
+
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        Set-Content -Path $backupFile -Value $currentPath -ErrorAction Stop
+        Write-Log "Backup created at $backupFile" -color "Green"
+
+        $backupFiles = @(Get-ChildItem -Path $backupDir -Filter "path_*.bak" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+        if ($backupFiles -and $backupFiles.Count -gt 100) {
+            $filesToDelete = @($backupFiles | Select-Object -Skip 100)
+            if ($filesToDelete -and $filesToDelete.Count -gt 0) {
+                foreach ($file in $filesToDelete) {
+                    Remove-Item -Path $file.FullName -Force -ErrorAction SilentlyContinue
+                }
+                Write-Log "Cleaned up $($filesToDelete.Count) old backup files, keeping the most recent 100" -color "Yellow"
             }
-            Write-Log "Cleaned up $($filesToDelete.Count) old backup files, keeping the most recent 100" -color "Yellow"
         }
     } catch {
-        Write-Log "Failed to clean up old backups: $($_.Exception.Message)" -color "Red"
+        Write-Log "Failed to create backup: $($_.Exception.Message)" -color "Yellow"
     }
 }
 
@@ -253,8 +268,7 @@ function Add-Path {
     param (
         [string]$newPath
     )
-    
-    # Smart detection: if it's a file path, automatically extract parent directory
+
     if (-not [string]::IsNullOrWhiteSpace($newPath)) {
         $normalizedPath = Normalize-WindowsPath $newPath
         if ($normalizedPath -and (Test-Path $normalizedPath -PathType Leaf)) {
@@ -263,19 +277,24 @@ function Add-Path {
             $newPath = $parentDir
         }
     }
-    
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $paths = $currentPath -split ';'
-    $newPath = Normalize-WindowsPath $newPath
-    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
-    if (-not ($pathsNormalized -contains $newPath)) {
-        $pathsNormalized += $newPath
-        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
-        Backup-Environment
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
-        Write-Log "Added $newPath to PATH" -color "Green"
-    } else {
-        Write-Log "Path $newPath already exists" -color "Yellow"
+
+    try {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $paths = $currentPath -split ';'
+        $newPath = Normalize-WindowsPath $newPath
+        $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+
+        if (-not ($pathsNormalized -contains $newPath)) {
+            $pathsNormalized += $newPath
+            $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+            Backup-Environment
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString -ErrorAction Stop
+            Write-Log "Added $newPath to PATH" -color "Green"
+        } else {
+            Write-Log "Path $newPath already exists" -color "Yellow"
+        }
+    } catch {
+        Write-Log "ERROR: Failed to add $newPath to PATH: $($_.Exception.Message)" -color "Red"
     }
 }
 
@@ -283,18 +302,24 @@ function Remove-Path {
     param (
         [string]$pathToRemove
     )
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $paths = $currentPath -split ';'
-    $normToRemove = Normalize-WindowsPath $pathToRemove
-    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
-    if ($pathsNormalized -contains $normToRemove) {
-        $pathsNormalized = $pathsNormalized | Where-Object { $_ -ne $normToRemove }
-        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
-        Backup-Environment
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
-        Write-Log "Removed $normToRemove from PATH" -color "Green"
-    } else {
-        Write-Log "Path $normToRemove does not exist" -color "Yellow"
+
+    try {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $paths = $currentPath -split ';'
+        $normToRemove = Normalize-WindowsPath $pathToRemove
+        $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+
+        if ($pathsNormalized -contains $normToRemove) {
+            $pathsNormalized = $pathsNormalized | Where-Object { $_ -ne $normToRemove }
+            $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+            Backup-Environment
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString -ErrorAction Stop
+            Write-Log "Removed $normToRemove from PATH" -color "Green"
+        } else {
+            Write-Log "Path $normToRemove does not exist" -color "Yellow"
+        }
+    } catch {
+        Write-Log "ERROR: Failed to remove $pathToRemove from PATH: $($_.Exception.Message)" -color "Red"
     }
 }
 
@@ -312,7 +337,7 @@ function Is-Path {
 function Show-Path {
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $paths = $currentPath -split ';'
-    Write-Log "Current PATH entries:"
+    Write-Log "Current PATH entries:" -color "Cyan"
     $paths | ForEach-Object { Write-Log $_ }
 }
 
@@ -340,16 +365,26 @@ function Set-EnvVar {
         [string]$varName,
         [string]$varValue
     )
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -Value $varValue
-    Write-Log "Set $varName to $varValue" -color "Green"
+
+    try {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -Value $varValue -ErrorAction Stop
+        Write-Log "Set $varName to $varValue" -color "Green"
+    } catch {
+        Write-Log "ERROR: Failed to set ${varName}: $($_.Exception.Message)" -color "Red"
+    }
 }
 
 function Remove-EnvVar {
     param (
         [string]$varName
     )
-    Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -ErrorAction SilentlyContinue
-    Write-Log "Removed $varName" -color "Green"
+
+    try {
+        Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -ErrorAction Stop
+        Write-Log "Removed $varName" -color "Green"
+    } catch {
+        Write-Log "WARNING: Failed to remove ${varName}: $($_.Exception.Message)" -color "Yellow"
+    }
 }
 
 function Add-ExecutableToGlobalEnvs {

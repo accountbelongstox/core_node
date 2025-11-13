@@ -1,20 +1,20 @@
 """Video streaming service using pycore VideoStreamHandler"""
 
-# Setup path
-try:
-    from .. import _path_setup
-except ImportError:
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+import sys
+from pathlib import Path
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import asyncio
 from typing import Optional, Dict
-from pathlib import Path
 from fastapi import WebSocket
 
+from pycore import ColorPrint
 from pycore.pyutils.device_manager import DeviceManager
-from pycore.pyutils.stream import VideoStreamHandler
+from pycore.pyutils.video_stream import VideoStreamHandler
 from pyapps.matrix.config import Config
 
 
@@ -146,68 +146,64 @@ class VideoStreamService:
         # Initialize latency tracking
         self.frame_timestamps[serial] = []
 
-        # ✅ REMOVED try-except - let errors surface, but keep asyncio.CancelledError handling
-        try:
-            async for fmp4_chunk in handler.stream_fmp4():
-                # Check if paused
-                if self.paused.get(serial, False):
-                    await asyncio.sleep(0.1)
-                    continue
+        # Stream fMP4 chunks
+        async for fmp4_chunk in handler.stream_fmp4():
+            # Check if paused
+            if self.paused.get(serial, False):
+                await asyncio.sleep(0.1)
+                continue
 
-                # Record frame timestamp for latency calculation
-                frame_time = asyncio.get_event_loop().time()
+            # Record frame timestamp for latency calculation
+            frame_time = asyncio.get_event_loop().time()
 
-                # Send fMP4 media segment
-                send_start = asyncio.get_event_loop().time()
-                await websocket.send_bytes(fmp4_chunk)
-                send_end = asyncio.get_event_loop().time()
+            # Send fMP4 media segment
+            send_start = asyncio.get_event_loop().time()
+            await websocket.send_bytes(fmp4_chunk)
+            send_end = asyncio.get_event_loop().time()
 
-                # Track send latency (network + encoding time)
-                send_latency = (send_end - send_start) * 1000  # Convert to ms
-                self.frame_timestamps[serial].append((frame_time, send_latency))
+            # Track send latency (network + encoding time)
+            send_latency = (send_end - send_start) * 1000  # Convert to ms
+            self.frame_timestamps[serial].append((frame_time, send_latency))
 
-                # Keep only last 120 frames for latency calculation (~2 seconds at 60fps)
-                if len(self.frame_timestamps[serial]) > 120:
-                    self.frame_timestamps[serial].pop(0)
+            # Keep only last 120 frames for latency calculation (~2 seconds at 60fps)
+            if len(self.frame_timestamps[serial]) > 120:
+                self.frame_timestamps[serial].pop(0)
 
-                frame_count += 1
+            frame_count += 1
 
-                # Send metadata every 60 frames (~1 second)
-                if frame_count % 60 == 0:
-                    elapsed = asyncio.get_event_loop().time() - start_time
+            # Send metadata every 60 frames (~1 second)
+            if frame_count % 60 == 0:
+                elapsed = asyncio.get_event_loop().time() - start_time
 
-                    # Calculate average latency from recent frames
-                    if self.frame_timestamps[serial]:
-                        recent_latencies = [lat for _, lat in self.frame_timestamps[serial][-60:]]
-                        avg_latency = sum(recent_latencies) / len(recent_latencies)
-                    else:
-                        avg_latency = 0
+                # Calculate average latency from recent frames
+                if self.frame_timestamps[serial]:
+                    recent_latencies = [lat for _, lat in self.frame_timestamps[serial][-60:]]
+                    avg_latency = sum(recent_latencies) / len(recent_latencies)
+                else:
+                    avg_latency = 0
 
-                    metadata = {
-                        "type": "video.metadata",
-                        "timestamp": int(elapsed * 1000),
-                        "data": {
-                            "fps": frame_count / elapsed if elapsed > 0 else 0,
-                            "droppedFrames": 0,
-                            "latency": round(avg_latency, 2)  # Actual measured latency in ms
-                        }
+                metadata = {
+                    "type": "video.metadata",
+                    "timestamp": int(elapsed * 1000),
+                    "data": {
+                        "fps": frame_count / elapsed if elapsed > 0 else 0,
+                        "droppedFrames": 0,
+                        "latency": round(avg_latency, 2)  # Actual measured latency in ms
                     }
-                    await websocket.send_json(metadata)
+                }
+                await websocket.send_json(metadata)
 
-            print(f"[VideoStreamService] Stream ended for {serial}")
+        ColorPrint.blue(f"[VideoStreamService] Stream ended for {serial}")
 
-        except asyncio.CancelledError:
-            print(f"[VideoStreamService] Stream cancelled for {serial}")
-        finally:
-            # Cleanup
-            if handler:
-                await handler.stop()
-            if serial in self.handlers:
-                del self.handlers[serial]
-            if serial in self.paused:
-                del self.paused[serial]
-            if serial in self.frame_timestamps:
-                del self.frame_timestamps[serial]
+        # Cleanup
+        if handler:
+            await handler.stop()
+        if serial in self.handlers:
+            del self.handlers[serial]
+        if serial in self.paused:
+            del self.paused[serial]
+        if serial in self.frame_timestamps:
+            del self.frame_timestamps[serial]
 
     async def set_quality(self, serial: str, quality_config: dict):
         """

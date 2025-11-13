@@ -239,6 +239,17 @@ $script:MenuItems = @(
         }
     },
     @{
+        Text              = "Windows Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $windowsManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WindowsManagementManager.ps1"
+            Write-ColorMessage -Message "Launching Windows Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $windowsManagementScript
+        }
+    },
+    @{
         Text              = "Backup Management"
         Values            = @("default")
         CurrentValueIndex = 0
@@ -1152,6 +1163,7 @@ function Show-SpecialSoftwareEnvMenu {
     # Execute the Python launcher
     & $specialEnvManagerScript
 }
+
 
 
 #region Main Execution

@@ -4,6 +4,8 @@
  * Following Nuxt multi-app namespace architecture
  */
 
+import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+
 export interface BatchOperationResult {
   success: boolean;
   totalDevices: number;
@@ -45,8 +47,8 @@ export class PyMatrixGroupAPI {
   private apiPrefix: string;
 
   constructor() {
-    // Get from pymatrix config
-    this.baseUrl = 'http://localhost:8000';
+    // ✅ Using centralized config from api-urls
+    this.baseUrl = getHttpBaseUrl();
     this.apiPrefix = '/api';
   }
 
@@ -73,9 +75,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-      console.error('[PyMatrixGroupAPI] Batch screenshot error:', error);
-      throw error;
-    }
   }
 
   /**
@@ -104,9 +103,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-      console.error('[PyMatrixGroupAPI] Batch recording error:', error);
-      throw error;
-    }
   }
 
   /**
@@ -132,9 +128,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-      console.error('[PyMatrixGroupAPI] Batch system key error:', error);
-      throw error;
-    }
   }
 
   /**
@@ -160,9 +153,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-      console.error('[PyMatrixGroupAPI] Batch screen power error:', error);
-      throw error;
-    }
   }
 
   /**
@@ -188,9 +178,6 @@ export class PyMatrixGroupAPI {
       );
 
       return response;
-      console.error('[PyMatrixGroupAPI] Batch brightness error:', error);
-      throw error;
-    }
   }
 }
 

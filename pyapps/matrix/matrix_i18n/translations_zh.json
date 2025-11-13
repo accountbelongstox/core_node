@@ -1,0 +1,17 @@
+{
+  "matrix.app_name": "星灿传媒科技-云矩阵",
+  "matrix.loading": "加载中...",
+  "matrix.ui_ready": "界面已就绪",
+  "matrix.ui_closed": "界面已关闭",
+  "matrix.closing": "正在关闭 - 停止所有服务...",
+  "matrix.service_running": "Matrix 服务运行中",
+  "matrix.frontend": "前端",
+  "matrix.backend_api": "后端API",
+  "matrix.close_window": "关闭窗口以停止",
+  "matrix.tray.open_frontend": "打开前端页面",
+  "matrix.tray.open_api_docs": "打开API文档",
+  "matrix.tray.exit": "退出",
+  "matrix.services": "服务",
+  "matrix.status": "状态",
+  "matrix.ready": "就绪"
+}

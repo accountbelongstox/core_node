@@ -4,8 +4,8 @@
 >
 > **基于**：`08_CORE_LIBRARY_ARCHITECTURE.md` 的架构设计
 
-**日期**：2025-10-30
-**版本**：1.0
+**日期**：2025-11-12
+**版本**：2.0（统一架构）
 
 ---
 
@@ -23,40 +23,46 @@
 
 ## 📦 模块概览
 
-### pycore 新增模块
+### pycore 统一模块结构
 
 ```
 D:\programing\core_node\pycore\
-├── pyadb/              # ADB 通信（新增）
-├── pystream/           # 视频流处理（新增）
-├── pydevice/           # 设备抽象（新增）
-├── pycontrol/          # 控制协议（新增）
-├── pygroup/            # 群控算法（新增）
-└── pyapi/              # FastAPI 工具（新增）
+├── pyfoundations/
+│   └── device/              # 设备抽象（核心）✅ 已实现
+├── pyutils/
+│   ├── adb/                 # ADB 通信（统一）✅ 已实现
+│   ├── device/              # 设备工具（便捷导出）✅ 已实现
+│   ├── video_stream/        # 视频流处理 ✅ 已实现
+│   ├── control/             # 控制协议 ✅ 已实现
+│   ├── group/               # 群控算法 ✅ 已实现
+│   └── api/                 # FastAPI 工具 ✅ 已实现
+└── pygvar/                  # 全局变量（已有）
 ```
 
-### 实现优先级
+### 实现状态
 
-| 优先级 | 模块 | 原因 |
-|-------|------|------|
-| P0 | **pyadb** | 基础依赖，所有功能都需要 |
-| P0 | **pydevice** | 设备抽象，核心数据结构 |
-| P1 | **pystream** | 视频流，核心功能 |
-| P1 | **pycontrol** | 设备控制，核心功能 |
-| P2 | **pygroup** | 群控，高级功能 |
-| P2 | **pyapi** | Web API 工具，简化开发 |
+| 模块 | 位置 | 状态 | 说明 |
+|------|------|------|------|
+| **adb** | `pycore.pyutils.device` | ✅ 已实现 | ADB 通信，所有功能已完成 |
+| **device** | `pycore.pyutils.device` | ✅ 已实现 | 设备抽象，核心数据结构 |
+| **video_stream** | `pycore.pyutils.video_stream` | ✅ 已实现 | 视频流处理 |
+| **control** | `pycore.pyutils.control` | ✅ 已实现 | 设备控制功能 |
+| **group** | `pycore.pyutils.group` | ✅ 已实现 | 群控高级功能 |
+| **api** | `pycore.pyutils.api` | ✅ 已实现 | Web API 工具 |
 
 ---
 
-## 🔧 pyadb - ADB 通信
+## 🔧 pyutils.device - ADB 通信
 
 ### 模块结构
 
 ```
-pycore/pyadb/
+pycore/pyutils/adb/
 ├── __init__.py
 ├── adb_manager.py          # ADB 管理器（主要类）
 ├── adb_device.py           # 设备信息数据类
+├── adb_types.py            # 类型定义
+├── adb_commands.py         # 命令封装
 └── adb_exceptions.py       # 异常定义
 ```
 
@@ -66,17 +72,22 @@ pycore/pyadb/
 
 ```python
 """
-pyadb - ADB 通信模块
+pyutils.device - ADB 通信模块（统一）
 
 功能：
 - ADB 设备管理
 - 文件推送/拉取
 - Shell 命令执行
 - 端口转发
+- 增强类型定义
 
 依赖：
 - 标准库：subprocess, pathlib, typing
 - 外部工具：adb（需在 PATH 或指定路径）
+
+迁移说明：
+- 旧路径：pycore.pyadb (已删除)
+- 新路径：pycore.pyutils.device
 """
 
 from .adb_manager import ADBManager
@@ -424,12 +435,12 @@ class ADBManager:
 
 ---
 
-## 🎬 pystream - 视频流处理
+## 🎬 pyutils.stream - 视频流处理
 
 ### 模块结构
 
 ```
-pycore/pystream/
+pycore/pyutils/stream/
 ├── __init__.py
 ├── video_decoder.py        # 视频解码器抽象
 ├── h264_decoder.py         # H.264 解码器（PyAV）
@@ -443,7 +454,7 @@ pycore/pystream/
 
 ```python
 """
-pystream - 视频流处理模块
+pyutils.stream - 视频流处理模块（统一）
 
 功能：
 - H.264 解码（PyAV）
@@ -453,6 +464,10 @@ pystream - 视频流处理模块
 依赖：
 - 标准库：abc, typing
 - 第三方库：av (PyAV), numpy
+
+迁移说明：
+- 旧路径：pycore.pystream (已删除)
+- 新路径：pycore.pyutils.video_stream
 """
 
 from .video_decoder import VideoDecoder
@@ -847,16 +862,20 @@ class FMP4Encoder:
 
 ---
 
-## 📱 pydevice - 设备抽象
+## 📱 pyutils.device - 设备抽象
 
 ### 模块结构
 
 ```
-pycore/pydevice/
+pycore/pyfoundations/device/
 ├── __init__.py
 ├── device_info.py          # 设备信息
 ├── server_params.py        # scrcpy-server 参数
-└── android_device.py       # Android 设备抽象
+├── android_device.py       # Android 设备抽象
+└── scrcpy_device.py        # Scrcpy 设备
+
+便捷导出（pycore/pyutils/device/）:
+└── __init__.py             # 从 pyutils.device 重新导出
 ```
 
 ---

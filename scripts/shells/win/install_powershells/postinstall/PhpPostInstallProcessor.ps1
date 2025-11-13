@@ -167,7 +167,8 @@ function Update-PhpConfigValue {
     $pattern = "^\s*$Key\s*=\s*(.*?)(\s*(;.*)?)\s*$"
 
     if ($IniContent -match $pattern) {
-        $newContent = $IniContent -replace $pattern, "$Key = $Value`$2"
+        $replacement = "{0} = {1}`$2" -f $Key, $Value
+        $newContent = $IniContent -replace $pattern, $replacement
         Write-Host "$LogPrefix Updated $Key = $Value" -ForegroundColor Green
         return $newContent
     } else {

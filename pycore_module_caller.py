@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """PyCore Module Caller
 
 Ensures project-root imports (pycore package) work from any current directory.
@@ -20,17 +21,24 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+# Ensure UTF-8 encoding for stdout
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 PYCORE_PATH = PROJECT_ROOT / 'pycore'
 
-# Skip heavy dependency checks unless explicitly requested
-os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
+# Ensure project root is on sys.path
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-# Ensure project root + pycore are on sys.path
-for path in (PROJECT_ROOT, PYCORE_PATH):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+# Check and install dependencies at module level (per development guide)
+# All imports must be at file top, not inside functions
+from pycore import check_and_install_dependencies
+check_and_install_dependencies()
 
 
 def parse_kwargs(values: List[str]) -> Dict[str, Any]:
@@ -60,6 +68,7 @@ def main() -> int:
         runpy.run_module(args.module, run_name='__main__')
         return 0
 
+    # Import the module
     module = importlib.import_module(args.module)
 
     if not args.call:

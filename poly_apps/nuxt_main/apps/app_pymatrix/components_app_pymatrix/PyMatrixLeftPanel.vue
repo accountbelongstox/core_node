@@ -24,6 +24,7 @@
         >
           <div class="device-info">
             <div class="device-name">{{ device.name }}</div>
+            <div class="device-model">{{ device.model }}</div>
             <div class="device-serial">{{ device.serial.substring(0, 12) }}</div>
             <div class="device-resolution">{{ device.resolution.width }}×{{ device.resolution.height }}</div>
           </div>
@@ -270,6 +271,13 @@ const emit = defineEmits<Emits>();
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   color: var(--pm-text-default);
+}
+
+.device-model {
+  font-size: var(--pm-font-size-2xs);
+  color: var(--pm-text-soft);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .device-serial {

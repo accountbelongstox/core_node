@@ -48,14 +48,12 @@ from smart_recognition import (
     get_value_for_input_type
 )
 
-# Import secret manager from pycore
+# Import secret manager from pycore (read-only)
 try:
-    from pyfoundations import get_secret_key, set_secret_key, get_all_secret_keys
-    from pyfoundations.secret_manager import _get_password
+    from pyfoundations import get_secret_key, get_all_secret_keys
     SECRET_MANAGER_AVAILABLE = True
 except Exception as exc:  # noqa: BLE001 - need to handle all import-time failures
     SECRET_MANAGER_AVAILABLE = False
-    _get_password = None
     ColorMessage.write(
         f"WARNING: Secret manager not available from pycore ({exc})",
         'warning'
@@ -322,7 +320,7 @@ class SpecialSoftwareEnvManager:
         """Get the next available file number for a command prefix"""
         platform_type = get_platform_type()
 
-        # Check both winenvs and liunxenvs directories
+        # Check both winenvs and linuxenvs directories
         directories = []
         if platform_type == 'windows':
             directories.append(get_winenvs_dir())
@@ -584,7 +582,7 @@ class SpecialSoftwareEnvManager:
                 {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
                 {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
-                {'Text': 'Back to Main Menu', 'Action': 'back', 'HasSubMenu': False},
+                {'Text': 'Back to dd.sh Main Menu', 'Action': 'back', 'HasSubMenu': False},
                 {'Text': 'Exit', 'Action': 'exit', 'HasSubMenu': False}
             ])
 
@@ -600,7 +598,8 @@ class SpecialSoftwareEnvManager:
             elif action == 'restore_scripts':
                 self.restore_scripts_from_secrets()
             elif action == 'back':
-                continue
+                # Exit Python script and return control to dd.sh
+                return
             elif action == 'exit':
                 sys.exit(0)
             elif action in self.action_to_config:
@@ -927,72 +926,36 @@ class SpecialSoftwareEnvManager:
         # Generate script file name
         file_name = f"{command_prefix}{file_number}"
 
-        # First, save secrets to encrypted storage BEFORE generating scripts
-        if SECRET_MANAGER_AVAILABLE and user_inputs:
-            ColorMessage.write("Saving secrets to encrypted storage...", 'info')
-            print()
-
-            # Get password once for all secrets (with confirmation)
-            if not SECRET_MANAGER_AVAILABLE or _get_password is None:
-                raise ImportError("Secret manager not available")
-            
-            encryption_password = None
-            max_attempts = 3
-            attempts = 0
-            
-            while attempts < max_attempts:
-                ColorMessage.write("Enter encryption password for all secrets:", 'info')
-                password1 = _get_password("[SECRET_MANAGER] Password: ")
+        # Save secrets directly to .secret_ignore directory (no encryption)
+        if user_inputs:
+            try:
+                from pyfoundations.secret_manager import get_secret_directories
+                dirs = get_secret_directories()
+                raw_dir = dirs['RAW_DIR']
                 
-                if not password1:
-                    ColorMessage.write("No password provided, skipping encryption", 'warning')
-                    break
+                # Create directory if needed
+                if not raw_dir.exists():
+                    raw_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Confirm password
-                password2 = _get_password("[SECRET_MANAGER] Confirm Password: ")
-                
-                if password1 == password2:
-                    encryption_password = password1
-                    ColorMessage.write("Password confirmed.", 'success')
-                    print()
-                    break
-                else:
-                    attempts += 1
-                    remaining = max_attempts - attempts
-                    if remaining > 0:
-                        ColorMessage.write("Passwords do not match. Please try again.", 'error')
-                        ColorMessage.write(f"Remaining attempts: {remaining}", 'warning')
-                        print()
-                    else:
-                        ColorMessage.write("Maximum attempts reached. Skipping encryption.", 'error')
-                        print()
-                        break
-            
-            if not encryption_password:
-                ColorMessage.write("No password provided, skipping encryption", 'warning')
-            else:
                 saved_count = 0
                 for var_name, var_value in user_inputs.items():
                     # Create key name with file number suffix
                     secret_key_name = f"{var_name}_{file_number}"
+                    secret_file = raw_dir / secret_key_name
 
                     try:
-                        # Pass the same password to all saves
-                        if set_secret_key(secret_key_name, var_value, password=encryption_password):
-                            ColorMessage.write(f"[OK] Saved {var_name} to encrypted storage", 'success')
-                            saved_count += 1
-                        else:
-                            ColorMessage.write(f"[X] Failed to save {var_name}", 'warning')
+                        # Write directly to .secret_ignore directory
+                        secret_file.write_text(var_value, encoding='utf-8')
+                        ColorMessage.write(f"[OK] Saved {var_name} to .secret_ignore", 'success')
+                        saved_count += 1
                     except Exception as e:
                         ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
 
-                # Clear password from memory
-                encryption_password = None
-
-                print()
                 if saved_count > 0:
-                    ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to encrypted storage", 'success')
-                    ColorMessage.write("Location: .secret_keys/already_encrypted/", 'info')
+                    ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to .secret_ignore", 'success')
+                    ColorMessage.write(f"Location: {raw_dir}", 'info')
+            except Exception as e:
+                ColorMessage.write(f"Warning: Could not save secrets: {e}", 'warning')
             print()
 
         script_paths = self._generate_scripts_for_config(config_name, file_number, show_next_steps=True)
@@ -1017,24 +980,48 @@ class SpecialSoftwareEnvManager:
         script_paths = []
         success_count = 0
 
+        # Check if this is SSH Connection config (special handling)
+        is_ssh = (config_name == 'SSH Connection')
+
+        # Check if MCP support is enabled
+        mcp_support = config.get('MCPSupport', {})
+        mcp_enabled = mcp_support.get('Enabled', False) and not is_ssh
+
+        # For SSH, scripts will load both SSH_CONNECTION and SSH_PASSWORD dynamically
+        # No need to pre-load values here
+        user_inputs = {}
+
         # Generate Windows script
         ps_command = config.get('WindowsCommand', command_prefix)
-        mcp_section = self.windows_generator.generate_mcp_section(
-            command_prefix,
-            config['DisplayName'],
-            command_prefix,
-            support_upgrade=True
-        )
+        if is_ssh:
+            # Use dedicated SSH generator for SSH connections
+            windows_content = self.windows_generator.generate_ssh_command_content(
+                config_name,
+                file_number,
+                user_inputs,
+                f"{file_name}.ps1"
+            )
+        else:
+            # Use standard generator for AI tools
+            if mcp_enabled:
+                mcp_section = self.windows_generator.generate_mcp_section(
+                    command_prefix,
+                    config['DisplayName'],
+                    command_prefix,
+                    support_upgrade=True
+                )
+            else:
+                mcp_section = ""
 
-        windows_content = self.windows_generator.generate_command_content(
-            config_name,
-            command_prefix,
-            ps_command,
-            file_number,
-            config['Variables'],
-            mcp_section,
-            f"{file_name}.ps1"
-        )
+            windows_content = self.windows_generator.generate_command_content(
+                config_name,
+                command_prefix,
+                ps_command,
+                file_number,
+                config['Variables'],
+                mcp_section,
+                f"{file_name}.ps1"
+            )
 
         winenvs_dir = get_winenvs_dir()
         ensure_directory_exists(str(winenvs_dir))
@@ -1051,22 +1038,35 @@ class SpecialSoftwareEnvManager:
 
         # Generate Linux script
         bash_command = config.get('LinuxCommand', command_prefix)
-        linux_mcp_section = self.linux_generator.generate_mcp_section(
-            command_prefix,
-            config['DisplayName'],
-            command_prefix,
-            support_upgrade=True
-        )
+        if is_ssh:
+            # Use dedicated SSH generator for SSH connections
+            linux_content = self.linux_generator.generate_ssh_command_content(
+                config_name,
+                file_number,
+                user_inputs,
+                f"{file_name}.sh"
+            )
+        else:
+            # Use standard generator for AI tools
+            if mcp_enabled:
+                linux_mcp_section = self.linux_generator.generate_mcp_section(
+                    command_prefix,
+                    config['DisplayName'],
+                    command_prefix,
+                    support_upgrade=True
+                )
+            else:
+                linux_mcp_section = ""
 
-        linux_content = self.linux_generator.generate_command_content(
-            config_name,
-            command_prefix,
-            bash_command,
-            file_number,
-            config['Variables'],
-            linux_mcp_section,
-            f"{file_name}.sh"
-        )
+            linux_content = self.linux_generator.generate_command_content(
+                config_name,
+                command_prefix,
+                bash_command,
+                file_number,
+                config['Variables'],
+                linux_mcp_section,
+                f"{file_name}.sh"
+            )
 
         linuxenvs_dir = get_linuxenvs_dir()
         ensure_directory_exists(str(linuxenvs_dir))
@@ -1076,8 +1076,14 @@ class SpecialSoftwareEnvManager:
             with open(linux_script_path, 'w', encoding='utf-8') as f:
                 f.write(linux_content)
 
+            # Always try to set execute permission (works on Linux/Mac, no-op on Windows)
+            try:
+                os.chmod(linux_script_path, 0o755)
+            except Exception:
+                pass
+
+            # Try to create symlink on Linux/Mac
             if platform.system() != 'Windows':
-                os.chmod(linux_script_path, os.stat(linux_script_path).st_mode | stat.S_IEXEC)
                 self._ensure_linux_symlink(linux_script_path)
 
             ColorMessage.write(f"[OK] Linux script: {linux_script_path}", 'success')
@@ -1107,6 +1113,82 @@ class SpecialSoftwareEnvManager:
                 ColorMessage.write(f"   {script_path}", 'info')
 
         return script_paths
+
+    def _generate_symlink_script(self):
+        """Generate a helper script to create symlinks on Linux"""
+        linuxenvs_dir = get_linuxenvs_dir()
+        script_path = linuxenvs_dir / "create_symlinks.sh"
+
+        # Find all .sh scripts in linuxenvs directory
+        sh_scripts = sorted(linuxenvs_dir.glob("*.sh"))
+        if not sh_scripts:
+            return
+
+        # Build script content
+        script_lines = [
+            "#!/bin/bash",
+            "# Auto-generated script to create symlinks for Linux environment scripts",
+            "# This script should be run on Linux to create symlinks in /usr/local/bin",
+            "",
+            "set -e",
+            "",
+            "# Get script directory (handle symlinks)",
+            "# Resolve symlink to actual file path if needed",
+            "scriptSource=\"${BASH_SOURCE[0]}\"",
+            "if [ -L \"$scriptSource\" ]; then",
+            "    scriptSource=\"$(readlink -f \"$scriptSource\" 2>/dev/null || echo \"$scriptSource\")\"",
+            "fi",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"$scriptSource\")\" && pwd)\"",
+            "",
+            "echo \"Creating symlinks in /usr/local/bin...\"",
+            "echo \"\"",
+            "",
+            "# Check if we need sudo",
+            "if [ -w /usr/local/bin ]; then",
+            "    USE_SUDO=\"\"",
+            "else",
+            "    USE_SUDO=\"sudo\"",
+            "fi",
+            "",
+        ]
+
+        # Add symlink commands for each script
+        for script in sh_scripts:
+            if script.name == "create_symlinks.sh":
+                continue
+            script_name = script.stem
+            script_lines.append(f"# Link {script_name}")
+            script_lines.append(f"$USE_SUDO chmod +x \"$SCRIPT_DIR/{script.name}\"")
+            script_lines.append(f"$USE_SUDO ln -sf \"$SCRIPT_DIR/{script.name}\" /usr/local/bin/{script_name}")
+            script_lines.append(f"echo \"[LINK] {script_name} -> $SCRIPT_DIR/{script.name}\"")
+            script_lines.append("")
+
+        script_lines.extend([
+            "echo \"\"",
+            "echo \"Symlinks created successfully!\"",
+            "echo \"You can now run these commands from anywhere:\"",
+            ""
+        ])
+
+        # Add command list
+        for script in sh_scripts:
+            if script.name != "create_symlinks.sh":
+                script_lines.append(f"echo \"  {script.stem}\"")
+
+        # Write script
+        try:
+            with open(script_path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write('\n'.join(script_lines) + '\n')
+
+            # Try to set execute permission
+            try:
+                os.chmod(script_path, 0o755)
+            except Exception:
+                pass
+
+            ColorMessage.write(f"\n[CREATED] Symlink helper: {script_path}", 'success')
+        except Exception as e:
+            ColorMessage.write(f"[WARNING] Failed to create symlink helper script: {e}", 'warning')
 
     def _ensure_linux_symlink(self, script_path: Path):
         """Ensure /usr/local/bin links to the given script"""
@@ -1171,7 +1253,7 @@ class SpecialSoftwareEnvManager:
         return sorted(numbers)
 
     def restore_scripts_from_secrets(self):
-        """Restore winenvs/liunxenvs scripts based on stored secrets"""
+        """Restore winenvs/linuxenvs scripts based on stored secrets"""
 
         clear_screen()
         ColorMessage.write("Restore Scripts from Secret Storage", 'info')
@@ -1211,7 +1293,14 @@ class SpecialSoftwareEnvManager:
             ColorMessage.write("No matching secrets were found to restore scripts.", 'warning')
         else:
             ColorMessage.write(f"Restored {total_sets} script set(s) from secret storage.", 'success')
-            if platform.system() != 'Windows':
+
+            # Generate symlink creation script for Linux
+            self._generate_symlink_script()
+
+            if platform.system() == 'Windows':
+                ColorMessage.write("\nTo use Linux scripts, run this on Linux:", 'info')
+                ColorMessage.write("  bash scripts/linuxenvs/create_symlinks.sh", 'info')
+            else:
                 ColorMessage.write("Linux commands were linked into /usr/local/bin.", 'info')
 
         print()
