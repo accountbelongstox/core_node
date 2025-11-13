@@ -1,0 +1,17 @@
+{
+  "matrix.app_name": "Xingcan Media Technology - Cloud Matrix",
+  "matrix.loading": "Loading...",
+  "matrix.ui_ready": "UI is ready",
+  "matrix.ui_closed": "UI closed",
+  "matrix.closing": "Closing - stopping all services...",
+  "matrix.service_running": "Matrix Service Running",
+  "matrix.frontend": "Frontend",
+  "matrix.backend_api": "Backend API",
+  "matrix.close_window": "Close window to stop",
+  "matrix.tray.open_frontend": "Open Frontend",
+  "matrix.tray.open_api_docs": "Open API Docs",
+  "matrix.tray.exit": "Exit",
+  "matrix.services": "Services",
+  "matrix.status": "Status",
+  "matrix.ready": "Ready"
+}

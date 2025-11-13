@@ -13,7 +13,8 @@
   height: 100%;
   background: var(--pm-bg-gradient-rainbow);
   border-radius: var(--pm-border-radius);
-  overflow: hidden;
+  overflow-y: hidden;
+  overflow-x: visible; /* Allow sidebar to show outside */
   box-shadow: var(--pm-shadow-lg);
 }
 

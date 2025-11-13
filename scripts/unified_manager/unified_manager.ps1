@@ -293,29 +293,8 @@ function Step3-GenerateNativeStartup {
         $app.AvailableScripts = @()
         $foundNative = $false
 
-        # Priority 1: ncoreStart for ncoreApp with main.js
-        if ($app.AppType -eq "ncoreApp" -and $app.HasMainJs) {
-            $startCommand = Get-NcoreStartCommand -AppPath $app.Path
-            if ($startCommand) {
-                $app.AvailableScripts += "ncoreStart&Installer"
-                $app.CurrentScript = "ncoreStart&Installer"
-                $app.ScriptIndex = 0
-                $foundNative = $true
-                Write-Host "  $($app.Name): ncoreStart&Installer - $startCommand" -ForegroundColor Magenta
-            }
-        }
-
-        # Priority 1.5: pycoreStart for pycoreApp
-        if ($app.AppType -eq "pycoreApp") {
-            $startCommand = Get-PycoreStartCommand -AppPath $app.Path
-            if ($startCommand) {
-                $app.AvailableScripts += "pycoreStart&Installer"
-                $app.CurrentScript = "pycoreStart&Installer"
-                $app.ScriptIndex = 0
-                $foundNative = $true
-                Write-Host "  $($app.Name): pycoreStart&Installer - $startCommand" -ForegroundColor Magenta
-            }
-        }
+        # Priority 1: Removed - ncoreStart&Installer merged into Ncore/Pycore/Installer
+        # Priority 1.5: Removed - pycoreStart&Installer merged into Ncore/Pycore/Installer
 
         # Priority 1.9: Add Ncore/Pycore/Installer for both ncoreApp and pycoreApp
         if ($app.AppType -eq "ncoreApp" -or $app.AppType -eq "pycoreApp") {
@@ -714,7 +693,7 @@ function Launch-CurrentApp {
     Write-Host ""
     
     # Check if it's a native startup
-    $nativeStartups = @("ncoreStart", "ncoreStart&Installer", "pycoreStart", "pycoreStart&Installer", "Ncore/Pycore/Installer", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
+    $nativeStartups = @("ncoreStart", "pycoreStart", "Ncore/Pycore/Installer", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
     $isNativeStartup = $nativeStartups -contains $app.CurrentScript
 
     if ($isNativeStartup) {
@@ -778,7 +757,9 @@ function Launch-CurrentApp {
             }
             
             # Create temporary batch file
-            $tempBatFile = Join-Path $tempScriptDir "$($app.Name)_$($app.CurrentScript).bat"
+            # Clean script name for use in filename (replace invalid characters)
+            $cleanScriptName = $app.CurrentScript -replace '[/\\:*?"<>|]', '_'
+            $tempBatFile = Join-Path $tempScriptDir "$($app.Name)_$cleanScriptName.bat"
 
             # Generate batch file content
             if ($needsInstall) {

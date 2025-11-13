@@ -40,16 +40,6 @@ from pathlib import Path
 from typing import Dict, Any, Set, Optional, List
 from datetime import datetime
 
-try:
-    import tomli
-    import tomli_w
-except ImportError:
-    print("[ERROR] Required packages not found. Installing...")
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "tomli", "tomli-w"])
-    import tomli
-    import tomli_w
-
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 MCP_TEMPLATE_DIR = PROJECT_ROOT / "_prompt"
@@ -57,8 +47,9 @@ MCP_TEMPLATE_DIR = PROJECT_ROOT / "_prompt"
 # Add current directory to path for imports
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Import common utilities
+# Import common utilities (must be before ensure_dependencies)
 from ai_tools_common import (
+    ensure_dependencies,
     get_user_home_directory,
     print_same_line,
     detect_os_environment,
@@ -66,6 +57,20 @@ from ai_tools_common import (
     merge_mcp_servers,
     replace_project_name_in_template
 )
+
+# Ensure required dependencies are installed
+# Key: pip package name, Value: Python import name
+required_packages = {
+    "tomli": "tomli",
+    "tomli-w": "tomli_w"
+}
+if not ensure_dependencies(required_packages):
+    print("[ERROR] Failed to install required dependencies. Exiting.")
+    sys.exit(1)
+
+import tomli
+import tomli_w
+
 
 def get_codex_config_path() -> Path:
     """Get the path to user's Codex config.toml file."""

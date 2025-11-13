@@ -1,117 +1,184 @@
 <template>
+  <!-- Zone 1: Device Container - Entire device card area -->
   <div
     class="pm-video-container"
     ref="containerRef"
     @contextmenu="handleContextMenu"
   >
-    <video
-      ref="videoElement"
-      class="pm-video"
-      autoplay
-      playsinline
-      muted
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @mouseup="handleMouseUp"
-      @mouseleave="handleMouseLeave"
-    />
+    <!-- Zone 2: Video Stream Area - Video display + transparent control layer -->
+    <div class="pm-video-stream-area">
+      <video
+        ref="videoElement"
+        class="pm-video"
+        autoplay
+        playsinline
+        muted
+      />
 
-    <canvas ref="touchCanvas" class="touch-overlay" />
+      <!-- Control Interaction Layer - Captures mouse events to send to backend -->
+      <canvas
+        ref="touchCanvas"
+        class="pm-control-layer"
+        @mousedown="handleMouseDown"
+        @mousemove="handleMouseMove"
+        @mouseup="handleMouseUp"
+        @mouseleave="handleMouseLeave"
+      />
+    </div>
 
-    <div class="pm-video-overlay" v-if="showOverlay">
-      <div class="pm-video-info">
-        <div class="info-item">
-          <span class="info-label">Device:</span>
-          <span class="info-value">{{ device?.name || device?.serial }}</span>
-        </div>
-        <div class="info-item" v-if="videoInfo">
-          <span class="info-label">Resolution:</span>
-          <span class="info-value">{{ videoInfo.width }}x{{ videoInfo.height }}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">FPS:</span>
-          <span class="info-value">{{ metrics.fps }}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">Latency:</span>
-          <span class="info-value">{{ metrics.latency }}ms</span>
-        </div>
-      </div>
+    <!-- Zone 3: Sidebar Tool Area - Hover-activated side panel -->
+    <div class="pm-sidebar-tools">
+      <RecordingControlPanel
+        :device-serial="device.serial"
+        :show="true"
+      />
 
-      <div class="pm-video-status" :class="videoConnected && controlConnected ? 'pm-video-status--connected' : 'pm-video-status--disconnected'">
-        <span class="status-dot"></span>
-        <span>{{ videoConnected && controlConnected ? 'Connected' : 'Disconnected' }}</span>
-      </div>
+      <VideoControlPanel
+        :show="true"
+        :metrics="metrics"
+        :current-quality="currentQuality"
+        @change-quality="handleQualityChange"
+        @pause="handlePause"
+        @resume="handleResume"
+      />
+    </div>
 
-      <button class="pm-video-btn pm-video-btn--info" @click="toggleDeviceInfo" title="Toggle device info">
+    <!-- Zone 4: Bottom Tool Area - Action buttons -->
+    <div class="pm-bottom-tools">
+      <button
+        v-if="!fullscreenMode"
+        class="pm-video-btn pm-video-btn--fullscreen"
+        @click="$emit('toggle-fullscreen', device)"
+        title="Fullscreen (F)"
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-          <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+          <path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>
         </svg>
+      </button>
+
+      <button
+        class="pm-video-btn pm-video-btn--system-keys"
+        @click="showSystemKeys = !showSystemKeys"
+        title="System Keys"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+          <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+        </svg>
+      </button>
+
+      <button
+        class="pm-video-btn pm-video-btn--clipboard"
+        @click="showClipboard = !showClipboard"
+        title="Clipboard Sync"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+          <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+        </svg>
+      </button>
+
+      <button
+        class="pm-video-btn pm-video-btn--screen-control"
+        @click="showScreenControl = !showScreenControl"
+        title="Screen Control"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13zm13 1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h13z"/>
+          <path d="M3 5.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm9 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zM8 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+        </svg>
+      </button>
+
+      <button
+        class="pm-video-btn pm-video-btn--file-push"
+        @click="showFilePush = !showFilePush"
+        title="Push File"
+      >
+        📁
+      </button>
+
+      <button
+        class="pm-video-btn pm-video-btn--apk-install"
+        @click="showApkInstall = !showApkInstall"
+        title="Install APK"
+      >
+        📦
+      </button>
+
+      <button
+        class="pm-video-btn pm-video-btn--audio-streaming"
+        @click="showAudioStreaming = !showAudioStreaming"
+        title="Audio Streaming (sndcpy)"
+      >
+        🎵
       </button>
     </div>
 
-    <div class="group-role-badge">
-      <GroupRoleIndicator
-        :device-serial="device.serial"
-        :role="deviceRole"
-        size="md"
-        :show-label="true"
-      />
+    <!-- Zone 5: Floating Elements - HOST badge, device tags, video info overlay -->
+    <div class="pm-floating-elements">
+      <!-- Video info overlay (shown on hover) -->
+      <div class="pm-video-overlay" v-if="showOverlay">
+        <div class="pm-video-info">
+          <div class="info-item">
+            <span class="info-label">Device:</span>
+            <span class="info-value">{{ device?.name || device?.serial }}</span>
+          </div>
+          <div class="info-item" v-if="videoInfo">
+            <span class="info-label">Resolution:</span>
+            <span class="info-value">{{ videoInfo.width }}x{{ videoInfo.height }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">FPS:</span>
+            <span class="info-value">{{ metrics.fps }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Latency:</span>
+            <span class="info-value">{{ metrics.latency }}ms</span>
+          </div>
+        </div>
+
+        <div class="pm-video-status" :class="videoConnected && controlConnected ? 'pm-video-status--connected' : 'pm-video-status--disconnected'">
+          <span class="status-dot"></span>
+          <span>{{ videoConnected && controlConnected ? 'Connected' : 'Disconnected' }}</span>
+        </div>
+
+        <button class="pm-video-btn pm-video-btn--info" @click="toggleDeviceInfo" title="Toggle device info">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Group role badge (HOST indicator) -->
+      <div class="group-role-badge">
+        <GroupRoleIndicator
+          :device-serial="device.serial"
+          :role="deviceRole"
+          size="md"
+          :show-label="true"
+        />
+      </div>
+
+      <!-- Device tags -->
+      <div v-if="deviceTags.length > 0" class="device-tags-display">
+        <DeviceTagBadge
+          v-for="tag in deviceTags"
+          :key="tag.id"
+          :label="tag.name"
+          :color="tag.color"
+          size="xs"
+        />
+      </div>
     </div>
 
-    <div v-if="deviceTags.length > 0" class="device-tags-display">
-      <DeviceTagBadge
-        v-for="tag in deviceTags"
-        :key="tag.id"
-        :label="tag.name"
-        :color="tag.color"
-        size="xs"
-      />
-    </div>
-
-    <RecordingControlPanel
-      :device-serial="device.serial"
-      :show="true"
-    />
-
-    <VideoControlPanel
-      :show="true"
-      :metrics="metrics"
-      :current-quality="currentQuality"
-      @change-quality="handleQualityChange"
-      @pause="handlePause"
-      @resume="handleResume"
-    />
-
+    <!-- Modal Panels - Not part of the 5 zones, displayed as full overlays -->
     <DeviceInfoPanel
       :show="showDeviceInfo"
       :device-info="device"
       @close="showDeviceInfo = false"
       @refresh="handleRefreshDeviceInfo"
     />
-
-    <button
-      v-if="!fullscreenMode"
-      class="pm-video-btn pm-video-btn--fullscreen"
-      @click="$emit('toggle-fullscreen', device)"
-      title="Fullscreen (F)"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>
-      </svg>
-    </button>
-
-    <button
-      class="pm-video-btn pm-video-btn--system-keys"
-      @click="showSystemKeys = !showSystemKeys"
-      title="System Keys"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
-        <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
-      </svg>
-    </button>
 
     <div v-if="showSystemKeys" class="system-key-panel-overlay">
       <SystemKeyPanel
@@ -121,17 +188,6 @@
       />
     </div>
 
-    <button
-      class="pm-video-btn pm-video-btn--clipboard"
-      @click="showClipboard = !showClipboard"
-      title="Clipboard Sync"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-      </svg>
-    </button>
-
     <div v-if="showClipboard" class="clipboard-panel-overlay">
       <ClipboardSyncPanel
         :show="showClipboard"
@@ -139,41 +195,6 @@
         @close="showClipboard = false"
       />
     </div>
-
-    <button
-      class="pm-video-btn pm-video-btn--screen-control"
-      @click="showScreenControl = !showScreenControl"
-      title="Screen Control"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13zm13 1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h13z"/>
-        <path d="M3 5.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm9 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zM8 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
-      </svg>
-    </button>
-
-    <button
-      class="pm-video-btn pm-video-btn--file-push"
-      @click="showFilePush = !showFilePush"
-      title="Push File"
-    >
-      📁
-    </button>
-
-    <button
-      class="pm-video-btn pm-video-btn--apk-install"
-      @click="showApkInstall = !showApkInstall"
-      title="Install APK"
-    >
-      📦
-    </button>
-
-    <button
-      class="pm-video-btn pm-video-btn--audio-streaming"
-      @click="showAudioStreaming = !showAudioStreaming"
-      title="Audio Streaming (sndcpy)"
-    >
-      🎵
-    </button>
 
     <div v-if="showScreenControl" class="screen-control-panel-overlay">
       <ScreenControlPanel
@@ -702,7 +723,9 @@ watch(() => videoElement.value, () => {
 </script>
 
 <style scoped>
-/* VideoPlayer Styles with NFTMax Theme */
+/* ========================================
+   ZONE 1: DEVICE CONTAINER
+   ======================================== */
 .pm-video-container {
   position: relative;
   width: 100%;
@@ -710,32 +733,130 @@ watch(() => videoElement.value, () => {
   min-height: 0;
   background: var(--pm-color-surface);
   border-radius: var(--pm-radius-lg);
-  overflow: hidden;
+  overflow-y: hidden;
+  overflow-x: visible; /* Allow sidebar to extend outside */
   box-shadow: var(--pm-shadow-sm);
   display: flex;
   flex-direction: column;
   aspect-ratio: inherit;
 }
 
-/* Video Element */
+/* ========================================
+   ZONE 2: VIDEO STREAM AREA
+   ======================================== */
+.pm-video-stream-area {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  background: #000;
+}
+
 .pm-video {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #000;
-  cursor: crosshair;
   transition: var(--pm-transition-fast);
 }
 
-/* Touch Canvas Overlay */
-.touch-overlay {
+/* Control Interaction Layer - Transparent canvas for mouse events */
+.pm-control-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  cursor: crosshair;
+  pointer-events: auto;
   z-index: 10;
+}
+
+.pm-control-layer:active {
+  cursor: grabbing;
+}
+
+/* ========================================
+   ZONE 3: SIDEBAR TOOL AREA
+   ======================================== */
+.pm-sidebar-tools {
+  position: absolute;
+  top: 0;
+  right: -190px; /* Hidden by default */
+  height: 100%;
+  width: 190px;
+  z-index: 30;
+  background: rgba(10, 14, 30, 0.95);
+  backdrop-filter: blur(8px);
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  transition: right 0.3s ease;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 8px;
+}
+
+/* Show sidebar on hover */
+.pm-video-container:hover .pm-sidebar-tools {
+  right: 0;
+}
+
+/* Tab indicator when collapsed */
+.pm-sidebar-tools::before {
+  content: '⚙️';
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 48px;
+  background: rgba(10, 14, 30, 0.85);
+  border-radius: 8px 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: left 0.3s ease;
+}
+
+/* ========================================
+   ZONE 4: BOTTOM TOOL AREA
+   ======================================== */
+.pm-bottom-tools {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 12px;
+  z-index: 25;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all var(--pm-transition-fast);
+}
+
+.pm-video-container:hover .pm-bottom-tools {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ========================================
+   ZONE 5: FLOATING ELEMENTS
+   ======================================== */
+.pm-floating-elements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none; /* Allow clicks to pass through to video */
+  z-index: 20;
+}
+
+/* Child elements can capture pointer events */
+.pm-floating-elements > * {
+  pointer-events: auto;
 }
 
 /* Video Overlay - Info Panel */
@@ -852,10 +973,9 @@ watch(() => videoElement.value, () => {
   background: var(--pm-color-danger);
 }
 
-/* Video Buttons - Base Style */
+/* Video Buttons - Base Style (now in bottom-tools zone) */
 .pm-video-btn {
-  position: absolute;
-  z-index: 30;
+  position: relative; /* Changed from absolute - now in flexbox container */
   width: 40px;
   height: 40px;
   display: flex;
@@ -868,14 +988,7 @@ watch(() => videoElement.value, () => {
   color: #ffffff;
   cursor: pointer;
   transition: var(--pm-transition-fast);
-  opacity: 0;
-  transform: scale(0.9);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.pm-video-container:hover .pm-video-btn {
-  opacity: 1;
-  transform: scale(1);
 }
 
 .pm-video-btn:hover {
@@ -897,49 +1010,30 @@ watch(() => videoElement.value, () => {
   transform: scale(1.1);
 }
 
-/* Video Button Positions */
+/* Video Button Variants */
 .pm-video-btn--info {
+  /* Info button stays in floating zone overlay */
+  position: absolute;
   top: 16px;
   right: 16px;
   animation: pm-fadeIn 0.4s ease 0.2s backwards;
 }
 
-.pm-video-btn--fullscreen {
-  bottom: 16px;
-  right: 16px;
-  animation: pm-fadeIn 0.4s ease 0.3s backwards;
+.pm-video-btn--fullscreen,
+.pm-video-btn--system-keys,
+.pm-video-btn--clipboard,
+.pm-video-btn--screen-control,
+.pm-video-btn--file-push,
+.pm-video-btn--apk-install,
+.pm-video-btn--audio-streaming {
+  /* These buttons are now in bottom-tools flexbox */
+  /* No individual positioning needed */
 }
 
-.pm-video-btn--system-keys {
-  bottom: 16px;
-  right: 68px;
-  animation: pm-fadeIn 0.4s ease 0.35s backwards;
-}
-
-.pm-video-btn--clipboard {
-  bottom: 16px;
-  right: 120px;
-  animation: pm-fadeIn 0.4s ease 0.4s backwards;
-}
-
-.pm-video-btn--screen-control {
-  bottom: 16px;
-  right: 172px;
-  animation: pm-fadeIn 0.4s ease 0.45s backwards;
-}
-
-.pm-video-btn--file-push {
-  bottom: 16px;
-  right: 224px;
+.pm-video-btn--file-push,
+.pm-video-btn--apk-install,
+.pm-video-btn--audio-streaming {
   font-size: 18px;
-  animation: pm-fadeIn 0.4s ease 0.5s backwards;
-}
-
-.pm-video-btn--apk-install {
-  bottom: 16px;
-  right: 276px;
-  font-size: 18px;
-  animation: pm-fadeIn 0.4s ease 0.55s backwards;
 }
 
 /* Group Role Badge */

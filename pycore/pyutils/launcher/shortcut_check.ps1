@@ -38,14 +38,41 @@ function Get-DesktopPath {
     try {
         $shell = New-Object -ComObject WScript.Shell
         $desktop = $shell.SpecialFolders.Item("Desktop")
-        return $desktop
-    } catch {
-        $desktop = Join-Path $env:USERPROFILE "Desktop"
-        if (-not (Test-Path $desktop)) {
-            $desktop = Join-Path $env:PUBLIC "Desktop"
+        if (-not [string]::IsNullOrWhiteSpace($desktop)) {
+            return $desktop
         }
-        return $desktop
+    } catch {
+        # COM object failed, try other methods
     }
+
+    # Try USERPROFILE Desktop
+    if ($env:USERPROFILE) {
+        $desktop = Join-Path $env:USERPROFILE "Desktop"
+        if (Test-Path $desktop) {
+            return $desktop
+        }
+    }
+
+    # Try PUBLIC Desktop
+    if ($env:PUBLIC) {
+        $desktop = Join-Path $env:PUBLIC "Desktop"
+        if (Test-Path $desktop) {
+            return $desktop
+        }
+    }
+
+    # Last resort: create Desktop in USERPROFILE
+    if ($env:USERPROFILE) {
+        $desktop = Join-Path $env:USERPROFILE "Desktop"
+        try {
+            New-Item -ItemType Directory -Path $desktop -Force | Out-Null
+            return $desktop
+        } catch {
+            # Failed to create, return null
+        }
+    }
+
+    return $null
 }
 
 # Check if shortcut needs update
@@ -165,8 +192,14 @@ function Check-AndEnsureShortcut {
     
     # Get desktop path and shortcut path
     $desktopPath = Get-DesktopPath
+
+    if ([string]::IsNullOrWhiteSpace($desktopPath)) {
+        Write-Host "Warning: Could not determine desktop path, skipping shortcut creation" -ForegroundColor Yellow
+        return $false
+    }
+
     $shortcutPath = Join-Path $desktopPath "$shortcutName.lnk"
-    
+
     # Check if shortcut exists
     if (-not (Test-Path $shortcutPath)) {
         # Shortcut doesn't exist, create it

@@ -172,37 +172,112 @@ echo ""
         """Generate custom user directory configuration section for Linux"""
         return """
 #region Initialize Path Variables
-scriptCurrentPath="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -L "${BASH_SOURCE[0]}" ]; then
-    scriptRealPath="$(readlink -f "${BASH_SOURCE[0]}")"
-    scriptCurrentPath="$(cd "$(dirname "$scriptRealPath")" && pwd)"
+# Resolve script real path (handle symlinks)
+# When script is executed via symlink, BASH_SOURCE[0] returns symlink path
+# We need to resolve it to actual file path to get correct directory
+scriptSource="${BASH_SOURCE[0]}"
+# Check if scriptSource is a symlink and resolve it
+if [ -L "$scriptSource" ]; then
+    # Resolve symlink to actual file path
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
 fi
+# Get absolute path of script directory
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
+
+# Calculate project structure paths
+# Expected structure: project_root/scripts/linuxenvs/script.sh
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+
+# Additional paths (optional, for compatibility)
 shellsDirPath="$scriptsDirPath/shells"
 linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
 aiToolsDirPath="$pytoolsDirPath/ai_tools"
-projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
-# Path resolution algorithm:
-#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
+# Path resolution algorithm:
+#   Script (resolve symlink) -> Script Dir (linuxenvs) -> Scripts Dir -> Project Root
+
+echo "[DEBUG] scriptSource:      $scriptSource"
 echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
-echo "[DEBUG] scriptsDirPath:   $scriptsDirPath"
-echo "[DEBUG] projectRootPath:  $projectRootPath"
+echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
+echo "[DEBUG] projectRootPath:   $projectRootPath"
 
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间戳
-# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Auto-scans /var/_core_node/Users/ for existing MyBest1, MyBest2, etc.
+# Usage: script.sh [number|MyBestX]
+#   - If number is provided: uses /var/_core_node/Users/MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses /var/_core_node/Users/MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
 # ============================================================================
 
-# Generate timestamp for directory name
-timestamp=$(date +"%Y%m%d_%H%M%S")
-baseTempDir="/tmp/Users"
-CustomUserDirectory="$baseTempDir/$timestamp"
+baseTempDir="/var/_core_node/Users"
+userDirPrefix="MyBest"
+
+# Get directory name/number from command line argument (if provided)
+userDirName=""
+if [ $# -gt 0 ]; then
+    argValue="$1"
+    # Check if it's a number
+    if [[ "$argValue" =~ ^[0-9]+$ ]]; then
+        userDirName="${userDirPrefix}${argValue}"
+        echo "[INFO] Using specified number: $argValue -> $userDirName"
+    # Check if it's a full name (MyBestX format)
+    elif [[ "$argValue" =~ ^${userDirPrefix}[0-9]+$ ]]; then
+        userDirName="$argValue"
+        echo "[INFO] Using specified full name: $userDirName"
+    fi
+fi
+
+# If no argument specified, auto-scan for existing MyBest directories
+if [ -z "$userDirName" ]; then
+    echo "[INFO] Auto-scanning for existing MyBest directories..."
+    
+    # Create base directory if it doesn't exist
+    if [ ! -d "$baseTempDir" ]; then
+        echo "[INFO] Creating base directory: $baseTempDir"
+        mkdir -p "$baseTempDir"
+    fi
+    
+    # Find existing MyBest directories
+    existingNumbers=()
+    if [ -d "$baseTempDir" ]; then
+        for dir in "$baseTempDir"/${userDirPrefix}[0-9]*; do
+            if [ -d "$dir" ]; then
+                dirName=$(basename "$dir")
+                if [[ "$dirName" =~ ^${userDirPrefix}([0-9]+)$ ]]; then
+                    num="${BASH_REMATCH[1]}"
+                    existingNumbers+=("$num")
+                fi
+            fi
+        done
+    fi
+    
+    # Find next available number
+    if [ ${#existingNumbers[@]} -gt 0 ]; then
+        # Find max number
+        maxNumber=0
+        for num in "${existingNumbers[@]}"; do
+            if [ "$num" -gt "$maxNumber" ]; then
+                maxNumber="$num"
+            fi
+        done
+        nextNumber=$((maxNumber + 1))
+        userDirName="${userDirPrefix}${nextNumber}"
+        echo "[INFO] Found existing MyBest directories: ${existingNumbers[*]}"
+        echo "[INFO] Using next available number: $nextNumber -> $userDirName"
+    else
+        userDirName="${userDirPrefix}1"
+        echo "[INFO] No existing MyBest directories found, starting with: $userDirName"
+    fi
+fi
+
+# Build directory path
+CustomUserDirectory="$baseTempDir/$userDirName"
 
 # Create the directory if it doesn't exist
 if [ ! -d "$baseTempDir" ]; then
@@ -218,7 +293,7 @@ fi
 # Verify directory was created successfully
 if [ -d "$CustomUserDirectory" ]; then
     userProfilePath="$CustomUserDirectory"
-    echo "[SUCCESS] Using auto-generated custom user directory: $userProfilePath"
+    echo "[SUCCESS] Using MyBest directory: $userProfilePath"
 else
     echo "[WARNING] Failed to create custom directory, falling back to system default"
     userProfilePath="$HOME"
@@ -290,10 +365,13 @@ if ! command -v "$python_exec" &> /dev/null; then
     fi
 fi
 
-pycore_launcher="{self.project_root.as_posix()}/pycore_module_caller.py"
+# Use relative path from script location to project root
+secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
 
-echo "[DEBUG] python executable: $python_exec"
-echo "[DEBUG] pycore module caller: $pycore_launcher"
+echo "[DEBUG] Python executable: $python_exec"
+echo "[DEBUG] Project root: $projectRootPath"
+echo "[DEBUG] Secret manager script: $secret_manager_script"
+echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
 
 load_secret_value() {{
     local key_name="$1"
@@ -302,17 +380,44 @@ load_secret_value() {{
     local value=""
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
+    echo "[DEBUG] Working directory: $projectRootPath"
+    echo "[DEBUG] Command: cd \"$projectRootPath\" && $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
 
-    value=$($python_exec "$pycore_launcher" --module pyfoundations.secret_manager --call get_secret_key "$key_name" 2>/dev/null)
+    # Capture stderr to temp file for debugging
+    local tmp_err=$(mktemp)
+    # Switch to project root before calling Python
+    value=$(cd "$projectRootPath" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    local exit_code=$?
+
+    # Show stderr if there were errors
+    if [ -s "$tmp_err" ]; then
+        echo "[DEBUG] Python stderr:"
+        cat "$tmp_err"
+    fi
+    rm -f "$tmp_err"
+
+    echo "[DEBUG] Exit code: $exit_code"
+    echo "[DEBUG] Returned value length: ${{#value}}"
 
     if [ -n "$value" ]; then
-        printf -v "$env_name" '%s' "$value"
-        export "$env_name"
-        echo "[SUCCESS] Loaded $display_name"
+        export "$env_name"=\"$value\"
+        echo "[SUCCESS] Loaded $display_name = $value"
+        echo "[INFO] Command executed: export $env_name=\"$value\""
+        
+        # Verify environment variable is correctly set
+        current_value="${{!env_name}}"
+        if [ "$current_value" = "$value" ]; then
+            echo "[VERIFY] Environment variable $env_name is correctly set"
+            echo "[VERIFY] Current value: $current_value"
+        else
+            echo "[WARNING] Environment variable $env_name verification failed"
+            echo "[WARNING] Expected: $value"
+            echo "[WARNING] Actual: $current_value"
+        fi
         return 0
     fi
 
-    echo "[WARNING] Failed to load $display_name"
+    echo "[WARNING] Failed to load $display_name (empty value returned)"
     return 1
 }}
 
@@ -383,7 +488,6 @@ echo ""
 #     - Command: {ps_command}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 #
 # Environment Variables:
 #     Environment variables are loaded from encrypted storage using secret_manager.sh
@@ -510,8 +614,8 @@ echo ""
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:
         """Generate Linux SSH connection bash script"""
-        ssh_connection = user_inputs.get('SSH_CONNECTION', '')
-        ssh_password = user_inputs.get('SSH_PASSWORD', '')
+        ssh_conn_key = f"SSH_CONNECTION_{file_number}"
+        password_key_name = f"SSH_PASSWORD_{file_number}"
 
         header = f"""#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
@@ -535,24 +639,17 @@ echo ""
 #
 # Description:
 #     This file is automatically generated by Special Software Environment Manager
-#     Contains SSH connection setup for Linux systems
+#     Contains SSH connection setup for Linux systems with encrypted password storage
 #
 # Notes:
 #     - Configuration: {config_name}
-#     - SSH Connection: {ssh_connection}
+#     - SSH Connection: Loaded dynamically from secret key {ssh_conn_key}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # =============================================================================
 
 set -e
-
-SSH_CONNECTION="{ssh_connection}"
 """
-
-        password_section = ""
-        if ssh_password:
-            password_section = f'SSH_PASSWORD="{ssh_password}"\n'
 
         file_name_display = ""
         if file_name:
@@ -561,6 +658,102 @@ echo ""
 echo "============================================================"
 echo "Running: {file_name}"
 echo "============================================================"
+echo ""
+"""
+
+
+        path_resolution = """
+# =============================================================================
+# Initialize Path Variables
+# =============================================================================
+# Resolve script real path (handle symlinks)
+# When script is executed via symlink (e.g., from /usr/local/bin),
+# BASH_SOURCE[0] returns symlink path. We need to resolve it to actual
+# file path to get correct directory structure.
+scriptSource="${BASH_SOURCE[0]}"
+
+# Check if scriptSource is a symlink and resolve it
+if [ -L "$scriptSource" ]; then
+    # Resolve symlink to actual file path
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
+fi
+
+# Get absolute path of script directory using cd + pwd for reliability
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
+
+# Calculate project structure paths
+# Expected structure: project_root/scripts/linuxenvs/script.sh
+scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+
+echo "[DEBUG] Script Source: $scriptSource"
+echo "[DEBUG] Script Path: $scriptCurrentPath"
+echo "[DEBUG] Scripts Dir: $scriptsDirPath"
+echo "[DEBUG] Project Root: $projectRootPath"
+echo ""
+"""
+
+        load_secret_manager = f"""
+# =============================================================================
+# Load SSH Configuration via PyCore
+# =============================================================================
+echo ""
+echo "============================================================"
+echo "Loading SSH Configuration"
+echo "============================================================"
+echo ""
+
+# Detect Python executable
+PYTHON_EXECUTABLE=""
+if command -v python3 &> /dev/null; then
+    PYTHON_EXECUTABLE="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_EXECUTABLE="python"
+else
+    echo "[ERROR] Python not found. Cannot load SSH secrets."
+    exit 1
+fi
+
+SECRET_MANAGER_SCRIPT="$projectRootPath/pycore/pyfoundations/secret_manager.py"
+echo "[DEBUG] Python executable: $PYTHON_EXECUTABLE"
+echo "[DEBUG] Secret manager script: $SECRET_MANAGER_SCRIPT"
+echo ""
+
+# Function to get secret value
+get_secret_value() {{
+    local key_name="$1"
+    echo "[DEBUG] Loading secret key: $key_name" >&2
+
+    # Switch to project root for Python execution
+    cd "$projectRootPath"
+
+    local value
+    value=$("$PYTHON_EXECUTABLE" "$SECRET_MANAGER_SCRIPT" get_secret_key "$key_name" 2>/dev/null)
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ] && [ -n "$value" ]; then
+        echo "$value"
+        return 0
+    else
+        echo "[DEBUG] Failed to load secret: $key_name (exit code: $exit_code)" >&2
+        return 1
+    fi
+}}
+
+SSH_CONNECTION=$(get_secret_value "{ssh_conn_key}")
+if [ -n "$SSH_CONNECTION" ]; then
+    echo "[SUCCESS] SSH Connection loaded: $SSH_CONNECTION"
+else
+    echo "[ERROR] SSH_CONNECTION not found"
+    exit 1
+fi
+
+SSH_PASSWORD=$(get_secret_value "{password_key_name}")
+if [ -n "$SSH_PASSWORD" ]; then
+    echo "[SUCCESS] SSH password loaded: $SSH_PASSWORD"
+else
+    echo "[INFO] No password configured (using SSH key authentication)"
+fi
 echo ""
 """
 
@@ -579,18 +772,26 @@ if [ -z "$SSH_CONNECTION" ]; then
     exit 1
 fi
 
-echo "Executing: ssh $SSH_CONNECTION"
-echo ""
-
 if [ -n "$SSH_PASSWORD" ]; then
-    if command -v sshpass &> /dev/null; then
-        echo "[INFO] Using sshpass for password authentication"
-        sshpass -p "$SSH_PASSWORD" ssh "$SSH_CONNECTION" "$@"
-    else
-        echo "[WARNING] sshpass not found, falling back to interactive password prompt"
-        ssh "$SSH_CONNECTION" "$@"
-    fi
+    # Display password for copy-paste
+    echo "============================================================"
+    echo "  SSH PASSWORD (Copy this to clipboard):"
+    echo "  $SSH_PASSWORD"
+    echo "============================================================"
+    echo ""
+    echo "[INFO] SSH will prompt for password. Please paste the password above when prompted."
+    echo ""
+    echo "Executing: ssh $SSH_CONNECTION"
+    echo ""
+
+    # Execute SSH connection - it will prompt for password
+    ssh "$SSH_CONNECTION" "$@"
 else
+    # No password configured, use SSH key authentication
+    echo "[INFO] No password configured, using SSH key authentication"
+    echo "Executing: ssh $SSH_CONNECTION"
+    echo ""
+
     ssh "$SSH_CONNECTION" "$@"
 fi
 
@@ -599,18 +800,18 @@ echo "SSH session ended"
 echo ""
 """
 
-        return f"{header}{password_section}{file_name_display}{connection_section}"
+        return f"{header}{file_name_display}{path_resolution}{load_secret_manager}{connection_section}"
 
     def write_linux_script(self, content: str, command_prefix: str, file_number: int) -> bool:
-        """Write Linux script to liunxenvs directory"""
-        liunxenvs_dir = self.scripts_dir / 'liunxenvs'
+        """Write Linux script to linuxenvs directory"""
+        linuxenvs_dir = self.scripts_dir / 'linuxenvs'
 
-        if not liunxenvs_dir.exists():
-            liunxenvs_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Created liunxenvs directory: {liunxenvs_dir}")
+        if not linuxenvs_dir.exists():
+            linuxenvs_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Created linuxenvs directory: {linuxenvs_dir}")
 
         file_name = f"{command_prefix}{file_number}.sh"
-        target_path = liunxenvs_dir / file_name
+        target_path = linuxenvs_dir / file_name
 
         try:
             with open(target_path, 'w', encoding='utf-8') as f:

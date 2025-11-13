@@ -21,6 +21,9 @@ interface ScriptStoreState {
   selectedScriptIds: string[];
 }
 
+const SCRIPTS_STORAGE_KEY = 'pymatrix_scripts';
+const CATEGORIES_STORAGE_KEY = 'pymatrix_script_categories';
+
 const DEFAULT_CATEGORIES: ScriptCategory[] = [
   {
     id: 'testing',
@@ -573,10 +576,11 @@ export const useScriptStore = defineStore('script', {
         return null;
       }
 
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      try {
         const json = JSON.stringify(script, null, 2);
         console.log('[ScriptStore] Script exported:', scriptId);
         return json;
+      } catch (error) {
         console.error('[ScriptStore] Export failed:', error);
         return null;
       }
@@ -586,10 +590,9 @@ export const useScriptStore = defineStore('script', {
      * Import script from JSON
      */
     importScript(json: string): Script | null {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      try {
         const scriptData = JSON.parse(json) as Script;
 
-        // Generate new ID and timestamps
         const imported = this.createScript({
           ...scriptData,
           name: `${scriptData.name} (Imported)`
@@ -597,6 +600,7 @@ export const useScriptStore = defineStore('script', {
 
         console.log('[ScriptStore] Script imported:', imported.id);
         return imported;
+      } catch (error) {
         console.error('[ScriptStore] Import failed:', error);
         return null;
       }
@@ -613,10 +617,11 @@ export const useScriptStore = defineStore('script', {
 
       const scripts = this.selectedScripts;
 
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      try {
         const json = JSON.stringify(scripts, null, 2);
         console.log('[ScriptStore] Selected scripts exported:', this.selectedScriptIds.length);
         return json;
+      } catch (error) {
         console.error('[ScriptStore] Export failed:', error);
         return null;
       }
@@ -626,7 +631,7 @@ export const useScriptStore = defineStore('script', {
      * Import multiple scripts
      */
     importMultipleScripts(json: string): Script[] | null {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
+      try {
         const scriptsData = JSON.parse(json) as Script[];
 
         if (!Array.isArray(scriptsData)) {
@@ -645,6 +650,7 @@ export const useScriptStore = defineStore('script', {
 
         console.log('[ScriptStore] Scripts imported:', imported.length);
         return imported;
+      } catch (error) {
         console.error('[ScriptStore] Import failed:', error);
         return null;
       }
@@ -704,10 +710,15 @@ export const useScriptStore = defineStore('script', {
      * Save to localStorage
      */
     saveToLocalStorage() {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        localStorage.setItem('pymatrix_scripts', JSON.stringify(this.scripts));
-        localStorage.setItem('pymatrix_script_categories', JSON.stringify(this.categories));
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        localStorage.setItem(SCRIPTS_STORAGE_KEY, JSON.stringify(this.scripts));
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(this.categories));
         console.log('[ScriptStore] Saved to localStorage');
+      } catch (error) {
         console.error('[ScriptStore] Save to localStorage failed:', error);
       }
     },
@@ -716,20 +727,25 @@ export const useScriptStore = defineStore('script', {
      * Load from localStorage
      */
     loadFromLocalStorage() {
-      // ✅ REMOVED try-catch for debugging - let errors surface naturally
-        const scriptsJson = localStorage.getItem('pymatrix_scripts');
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        const scriptsJson = localStorage.getItem(SCRIPTS_STORAGE_KEY);
         if (scriptsJson) {
           this.scripts = JSON.parse(scriptsJson);
           console.log('[ScriptStore] Loaded scripts from localStorage:', this.scripts.length);
         }
 
-        const categoriesJson = localStorage.getItem('pymatrix_script_categories');
+        const categoriesJson = localStorage.getItem(CATEGORIES_STORAGE_KEY);
         if (categoriesJson) {
           this.categories = JSON.parse(categoriesJson);
           console.log('[ScriptStore] Loaded categories from localStorage:', this.categories.length);
         } else {
           this.categories = [...DEFAULT_CATEGORIES];
         }
+      } catch (error) {
         console.error('[ScriptStore] Load from localStorage failed:', error);
         this.categories = [...DEFAULT_CATEGORIES];
       }

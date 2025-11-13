@@ -117,12 +117,14 @@ const responsiveColumns = computed(() => {
   return 1;
 });
 
-// Computed: Grid style with dynamic columns
+// Computed: Grid style with fixed-width columns for consistent sizing
 const gridStyle = computed(() => {
   const columns = responsiveColumns.value;
+  // Fixed: Use fixed width instead of flexible 1fr to ensure consistent device sizes
   return {
-    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-    gridAutoRows: '1fr'
+    gridTemplateColumns: `repeat(auto-fill, minmax(280px, 300px))`,
+    gridAutoRows: 'auto',
+    justifyContent: 'start'
   };
 });
 
@@ -249,19 +251,23 @@ function handleDrop(event: DragEvent, toIndex: number) {
   grid-auto-flow: row dense;
 }
 
-/* Grid Item */
+/* Grid Item - Fixed: Consistent sizing for all device items */
 .pm-grid-item {
   position: relative;
   background: var(--pm-color-surface);
   border-radius: var(--pm-radius-lg);
-  overflow: hidden;
+  overflow-y: hidden;
+  overflow-x: visible; /* Allow sidebar to show outside */
   box-shadow: var(--pm-shadow-sm);
   transition: var(--pm-transition-fast);
   animation: pm-scaleUp 0.3s ease;
   display: flex;
   flex-direction: column;
-  aspect-ratio: 9 / 16;
-  min-height: 0;
+  /* Fixed dimensions for consistent layout */
+  width: 100%;
+  height: 480px;
+  min-height: 480px;
+  max-height: 480px;
 }
 
 .pm-grid-item:hover {
@@ -513,10 +519,15 @@ function handleDrop(event: DragEvent, toIndex: number) {
   .pm-device-grid {
     gap: 16px;
     padding: 16px;
+    /* Use smaller fixed width for medium screens */
+    grid-template-columns: repeat(auto-fill, minmax(240px, 260px));
   }
 
   .pm-grid-item {
-    min-height: 300px;
+    /* Fixed: Consistent height for medium screens */
+    height: 420px;
+    min-height: 420px;
+    max-height: 420px;
   }
 
   .pm-action-btn {
@@ -536,11 +547,15 @@ function handleDrop(event: DragEvent, toIndex: number) {
   .pm-device-grid {
     gap: 12px;
     padding: 12px;
+    /* Single column for mobile, use full width */
     grid-template-columns: 1fr !important;
   }
 
   .pm-grid-item {
-    min-height: 250px;
+    /* Fixed: Consistent height for mobile display */
+    height: 360px;
+    min-height: 360px;
+    max-height: 360px;
   }
 
   .pm-device-actions {

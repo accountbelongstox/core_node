@@ -6,6 +6,7 @@
 
 import { ref, onMounted, onUnmounted } from 'vue';
 import { pyMatrixDeviceAPI } from '@/services/api/pymatrix/pymatrix-device-api';
+import { INITIAL_DEVICES } from '../constants_app_pymatrix/initial-state';
 import type { Device } from '@/types/pymatrix';
 
 export interface UseDeviceListOptions {
@@ -33,14 +34,21 @@ export function useDeviceList(options: UseDeviceListOptions = {}) {
     loading.value = true;
     error.value = null;
 
-    // ✅ REMOVED try-catch for debugging - let errors surface naturally
-      const response = await pyMatrixDeviceAPI.getDeviceList();
-      devices.value = response.devices;
-      lastUpdateTime.value = new Date();
+    const outcome = await pyMatrixDeviceAPI.getDeviceList().then(
+      (response) => ({ status: 'success' as const, response }),
+      (err) => ({ status: 'error' as const, error: err })
+    );
 
-      console.log('[useDeviceList] Fetched devices:', response.devices.length);
-      error.value = err instanceof Error ? err.message : 'Failed to fetch devices';
-      console.error('[useDeviceList] Error fetching devices:', err);
+    if (outcome.status === 'error') {
+      error.value = outcome.error instanceof Error ? outcome.error.message : 'Failed to fetch devices';
+      console.warn('[useDeviceList] Falling back to initial device list due to error');
+      devices.value = INITIAL_DEVICES.map(device => ({ ...device }));
+    } else {
+      devices.value = outcome.response.devices;
+      console.log('[useDeviceList] Fetched devices:', outcome.response.devices.length);
+    }
+
+    lastUpdateTime.value = new Date();
     loading.value = false;
   }
 

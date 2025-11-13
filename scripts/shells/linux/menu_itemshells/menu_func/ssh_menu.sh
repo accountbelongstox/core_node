@@ -147,7 +147,7 @@ fi
     # Write script using linux_path_function.sh
     source "$LINUX_PATH_FUNCTION_SCRIPT"
 
-    add_script_content_to_liunxenvs "$script_content" "$command_name"
+    add_script_content_to_linuxenvs "$script_content" "$command_name"
 
     if [ $? -eq 0 ]; then
         echo ""
@@ -167,7 +167,7 @@ view_ssh_scripts() {
     echo ""
 
     source "$LINUX_PATH_FUNCTION_SCRIPT"
-    list_liunxenvs_scripts | grep -E "ssh[0-9]+" || echo "No SSH scripts found"
+    list_linuxenvs_scripts | grep -E "ssh[0-9]+" || echo "No SSH scripts found"
 
     echo ""
     read -p "Press Enter to continue..."

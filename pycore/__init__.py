@@ -10,20 +10,15 @@ import sys
 import subprocess
 import importlib.util
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
 
 # Dependency Map
 # Maps the required import name to the official PyPI package name.
 # All new third-party dependencies for any tool must be added here.
+#
+# IMPORTANT: DO NOT MODIFY platform-specific package filtering logic below
+# Windows-only packages are automatically skipped on Linux/Mac systems
 DEPENDENCY_MAP = {
-    # For win_actor, tray_clicker, ui_analyzer
-    "win32gui": "pywin32",
-    "win32con": "pywin32",
-    "win32api": "pywin32",
-    "win32ui": "pywin32",
-
-    # For tray_clicker, ui_analyzer
-    "pywinauto": "pywinauto",
-
     # PIL is a common name for the Pillow package
     "PIL": "Pillow",
 
@@ -36,12 +31,6 @@ DEPENDENCY_MAP = {
     # For process management
     "psutil": "psutil",
 
-    # For window management
-    "pygetwindow": "pygetwindow",
-
-    # For UI automation
-    "uiautomation": "uiautomation",
-
     # For fast screenshots
     "mss": "mss",
 
@@ -50,7 +39,7 @@ DEPENDENCY_MAP = {
     "ultralytics": "ultralytics",
     "numpy": "numpy",
 
-    # For ADB communication (pyutils.adb)
+    # For ADB communication (pyutils.device)
     "adb_shell": "adb-shell",
 
     # For video processing (pyutils.stream)
@@ -64,17 +53,39 @@ DEPENDENCY_MAP = {
 
     # For HTTP requests
     "requests": "requests",
+    "aiohttp": "aiohttp",
 
     # For WebView GUI (pyutils.web, pyutils.native_ui)
     "webview": "pywebview",
     "tkinterweb": "tkinterweb",
     "tkhtmlview": "tkhtmlview",
+    "pystray": "pystray",
 
     # For logging
     "loguru": "loguru",
 
     # For YAML configuration
     "yaml": "pyyaml",
+}
+
+# Windows-only packages
+# IMPORTANT: DO NOT MODIFY - These packages are only available on Windows
+# The installation logic below automatically skips these on Linux/Mac
+WINDOWS_ONLY_PACKAGES = {
+    # For win_actor, tray_clicker, ui_analyzer
+    "win32gui": "pywin32",
+    "win32con": "pywin32",
+    "win32api": "pywin32",
+    "win32ui": "pywin32",
+
+    # For tray_clicker, ui_analyzer
+    "pywinauto": "pywinauto",
+
+    # For window management (Windows-specific)
+    "pygetwindow": "pygetwindow",
+
+    # For UI automation (Windows-specific)
+    "uiautomation": "uiautomation",
 }
 
 def check_and_install_dependencies(enable_gpu_setup: bool = True, auto_install_gpu: bool = False):
@@ -102,11 +113,24 @@ def check_and_install_dependencies(enable_gpu_setup: bool = True, auto_install_g
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
 
-    print("[INFO] Checking for required Python packages...")
+    ColorPrint.blue("[INFO] Checking for required Python packages...")
     installed_packages = set()
+    missing_packages = set()
+    installed_packages_list = []
+
+    # Merge dependency maps based on platform
+    # IMPORTANT: DO NOT MODIFY - Windows packages are automatically skipped on Linux/Mac
+    import platform
+    current_platform = platform.system()
+
+    all_dependencies = dict(DEPENDENCY_MAP)
+    if current_platform == 'Windows':
+        all_dependencies.update(WINDOWS_ONLY_PACKAGES)
+    else:
+        ColorPrint.blue(f"[INFO] Skipping Windows-only packages on {current_platform}")
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
-    packages_to_check = set(DEPENDENCY_MAP.values())
+    packages_to_check = set(all_dependencies.values())
 
     for package_name in packages_to_check:
         # We check for the installation status of the package itself, not the import name.
@@ -115,32 +139,34 @@ def check_and_install_dependencies(enable_gpu_setup: bool = True, auto_install_g
 
         # Find the import name associated with the package to check its spec
         import_name_to_check = None
-        for imp, pkg in DEPENDENCY_MAP.items():
+        for imp, pkg in all_dependencies.items():
             if pkg == package_name:
                 import_name_to_check = imp
                 break
 
         if importlib.util.find_spec(import_name_to_check) is None:
-            print(f"[INSTALL] Package for '{import_name_to_check}' ('{package_name}') not found. Installing...", flush=True)
-            try:
-                # Execute pip install command
-                # Execute pip install command with real-time output
-                # The subprocess will inherit the stdout/stderr of this process
-                result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", package_name],
-                    check=True  # check=True will raise CalledProcessError on non-zero exit codes
-                )
-                print(f"[SUCCESS] Successfully installed {package_name}.", flush=True)
-            except subprocess.CalledProcessError:
-                print(f"[ERROR] Failed to install {package_name}. Please check the output above for details.", file=sys.stderr, flush=True)
-                # Exit if a critical dependency cannot be installed
-                sys.exit(1)
+            missing_packages.add(package_name)
+            ColorPrint.yellow(f"[INSTALL] Package for '{import_name_to_check}' ('{package_name}') not found. Installing...")
+
+            # Build pip install command
+            pip_cmd = [sys.executable, "-m", "pip", "install", package_name]
+
+            # On Linux/Mac, add --break-system-packages if needed (for externally-managed environments)
+            # On Windows, use normal pip install
+            if current_platform != 'Windows':
+                pip_cmd.append("--break-system-packages")
+
+            result = subprocess.run(pip_cmd, check=True)
+            ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
+            installed_packages.add(package_name)
+            installed_packages_list.append(package_name)
         else:
             installed_packages.add(package_name)
+            installed_packages_list.append(package_name)
 
     if installed_packages:
-        print(f"[INFO] Found installed packages: {', '.join(sorted(installed_packages))}")
-    print("[INFO] All required packages are available.")
+        ColorPrint.blue(f"[INFO] Found installed packages: {', '.join(sorted(installed_packages))}")
+    ColorPrint.green("[INFO] All required packages are available.")
 
     # GPU Detection and Setup (if enabled)
     if enable_gpu_setup:
@@ -156,14 +182,30 @@ def check_and_install_dependencies(enable_gpu_setup: bool = True, auto_install_g
             ENCYCLOPEDIA.add("pycore_gpu_info", gpu_manager.get_info())
         except ImportError:
             # GPU manager not available (pyutils.ultralytics not installed)
-            print("[INFO] GPU manager not available, skipping GPU setup")
+            ColorPrint.blue("[INFO] GPU manager not available, skipping GPU setup")
         except Exception as e:
             # Non-critical error, continue
-            print(f"[WARNING] GPU setup failed: {e}")
+            ColorPrint.yellow(f"[WARNING] GPU setup failed: {e}")
 
     # Mark as checked in ENCYCLOPEDIA (persists for entire Python process)
     ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
     ENCYCLOPEDIA.add("pycore_installed_packages", sorted(installed_packages))
+
+    # Record dependency check results to THREAD_BUS via NativeUIBusManager
+    # Use delayed import to avoid circular dependency
+    try:
+        from pycore.pyutils.native_ui.thread_bus_manager import get_bus_manager
+        bus_mgr = get_bus_manager()
+        bus_mgr.record_dependency_check(
+            all_packages=sorted(list(all_dependencies.values())),
+            installed=sorted(installed_packages_list),
+            missing=sorted(missing_packages),
+            platform=current_platform
+        )
+    except ImportError:
+        # NativeUIBusManager not available (minimal installation)
+        # Silently skip THREAD_BUS recording
+        pass
 
 # This allows the check to be run if needed, but it's primarily called by __main__.py
 if __name__ == '__main__':
@@ -209,24 +251,29 @@ from pycore.pyfoundations import (
     EventBus,
     EventTypes,
     Event,
-    GlobalVarManager,
 )
 
-# Device structures
-from pycore.pyfoundations.device import (
+# Global variable manager (now in pygvar)
+from pycore.pygvar import GlobalVarManager
+
+# Thread communication bus
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+
+# Device structures and ADB utilities (unified in pyutils.device)
+from pycore.pyutils.device import (
     AndroidDevice,
     ScrcpyDevice,
     DeviceInfo,
     ServerParams,
     VideoCodec,
+    ADBManager,
+    ADBDevice,
 )
 
 # Utility components
 from pycore.pyutils import (
     DeviceManager,
     DeviceState,
-    ADBManager,
-    ADBDevice,
     TouchEvent,
     KeyEvent,
     MessageBuilder,

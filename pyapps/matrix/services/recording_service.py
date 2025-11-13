@@ -13,7 +13,7 @@ import time
 from typing import Optional, Dict
 from pathlib import Path
 from datetime import datetime
-from pycore.pyutils.adb import ADBManager
+from pycore.pyutils.device import ADBManager
 from pycore.pyutils.device_manager import DeviceManager
 from pyapps.matrix.config import Config
 
