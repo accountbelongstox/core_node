@@ -18,8 +18,9 @@ import json
 import threading
 from pathlib import Path
 from typing import Optional, Dict, Set
+
+from pycore.pyfoundations.third_party import aiohttp
 from aiohttp import web
-import aiohttp
 from aiohttp import web_ws
 
 from .logging_config import setup_logging

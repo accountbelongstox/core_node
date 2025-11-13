@@ -9,6 +9,7 @@ Usage:
 
 import sys
 import webbrowser
+import threading
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -23,29 +24,44 @@ from pyapps.mcpserver.config import Config
 from pyapps.mcpserver.mcpserver_bus_keys import MCPServerBusKeys, register_bus_keys
 from pyapps.mcpserver.mcpserver_i18n import MCPServerI18nKeys
 
+# Global service instances (needed for cleanup)
+_address_service = None
+
 
 def main_app_entry():
     """Main application entry point - initialize services and configure tray"""
+    global _address_service
+
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(" MCP SERVER - STARTING SERVICES")
     ColorPrint.blue("=" * 70)
-    
+
     # Initialize address service (first MCP service)
     from pyapps.mcpserver.service.address_service import MCPServerAddressService
-    address_service = MCPServerAddressService(port=8767, use_localhost=True, debug=True)
-    address_service.start()
-    
+    _address_service = MCPServerAddressService(port=8767, use_localhost=True, debug=True)
+    _address_service.start()
+
     ColorPrint.green("MCP Server services initialized")
     ColorPrint.yellow("Services will be started from tray menu")
-    
+
     # Setup tray configuration via THREAD_BUS manager
     _configure_tray_menu()
 
 
 def on_closing():
     """Cleanup callback when app closes"""
+    global _address_service
+
     ColorPrint.yellow(f"[MCP Server] {i18n.get(MCPServerI18nKeys.CLOSING)}")
     ColorPrint.yellow("Stopping all services...")
+
+    # Stop address service to cleanly shutdown background scanning
+    if _address_service:
+        try:
+            _address_service.stop()
+            ColorPrint.green("[MCP Server] Address service stopped")
+        except Exception as e:
+            ColorPrint.red(f"[MCP Server] Error stopping address service: {e}")
 
 
 def _create_tray_menu_items():
@@ -156,8 +172,74 @@ def _configure_tray_menu():
 
 def _setup_tray_signal_handlers():
     """Setup THREAD_BUS event handlers for tray menu actions"""
+    from pyapps.mcpserver.service.mcp_middleware import get_mcp_middleware, MCPMiddlewareConfig
+    
+    # Initialize MCP middleware (singleton)
+    middleware_config = MCPMiddlewareConfig(
+        auto_start_server=True,
+        debug=True,
+        project_root=PROJECT_ROOT
+    )
+    mcp_middleware = get_mcp_middleware(middleware_config)
+    
     def handle_start_mcp_server(event_data):
+        """Start MCP server (FastMCP + RPC)"""
         ColorPrint.blue("[MCP Server] Starting MCP server...")
+        
+        try:
+            # Ensure RPC server is available by calling get_rpc_address
+            # This will auto-start server if needed
+            import json
+            try:
+                # Directly call the middleware method to get RPC address
+                # This will trigger server startup if needed
+                addresses = mcp_middleware.address_provider.get_available_addresses(use_localhost=True)
+                
+                if not addresses:
+                    # No address found, start local server
+                    ColorPrint.blue("[MCP Server] No RPC service found, starting local server...")
+                    success = mcp_middleware._start_local_rpc_server()
+                    if success:
+                        ColorPrint.green("[MCP Server] Local RPC server started")
+                        # Get localhost address
+                        localhost_addr = mcp_middleware.address_provider.get_localhost_address()
+                        ColorPrint.green(f"[MCP Server] RPC address: {localhost_addr.host}:{localhost_addr.port}")
+                    else:
+                        ColorPrint.red("[MCP Server] Failed to start local RPC server")
+                else:
+                    # Use first available address (prefer LAN)
+                    selected = None
+                    for addr in addresses:
+                        if addr.is_local_lan and addr.is_available:
+                            selected = addr
+                            break
+                    if not selected:
+                        for addr in addresses:
+                            if addr.is_localhost and addr.is_available:
+                                selected = addr
+                                break
+                    
+                    if selected:
+                        ColorPrint.green(f"[MCP Server] RPC address: {selected.host}:{selected.port}")
+            except Exception as e:
+                ColorPrint.yellow(f"[MCP Server] Error getting RPC address: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Start FastMCP server in background thread
+            def run_fastmcp():
+                try:
+                    mcp_middleware.run_fastmcp_server()
+                except Exception as e:
+                    ColorPrint.red(f"[MCP Server] FastMCP server error: {e}")
+            
+            fastmcp_thread = threading.Thread(target=run_fastmcp, daemon=True)
+            fastmcp_thread.start()
+            
+            ColorPrint.green("[MCP Server] MCP server started (FastMCP + RPC)")
+            
+        except Exception as e:
+            ColorPrint.red(f"[MCP Server] Failed to start MCP server: {e}")
     
     def handle_start_main_server(event_data):
         ColorPrint.blue("[MCP Server] Starting main server...")

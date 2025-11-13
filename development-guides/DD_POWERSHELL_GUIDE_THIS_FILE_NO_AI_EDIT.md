@@ -55,6 +55,15 @@ DD PowerShell 由 `$RootDir/dd.cmd` 引入 `scripts/shells/win/dd.ps1` 其中主
 **dd.sh 环境部署脚本执行器 `dd_ps1_current_dir/DevInstaller.ps1` 开发规范**
 - 本规范基于之前的公共规范,`dd_ps1_current_dir/DevInstaller.ps1` 会基于 `dd_ps1_current_dir/main_powershells/InstallerScriptsList.ps1`  智能判断是轻量级运行 下载`dd_ps1_current_dir/install_powershells` 其中的脚本(也即是所有  `Step{Index}`脚本)，或者可以直接在开发代码上运行。注意当运行 DevInstaller.ps1 时要确保 如果是轻量环境量 `WinScriptsInstaller.ps1`已经将必要基础脚本的结构无错的存放在轻量用户目录中
 
+**Windows 包部署流程架构**
+- Windows 包部署通过 `Step12_InstallApplications.ps1` 统一管理，该脚本作为主入口协调整个安装流程
+- **ApplicationsList.ps1**: 定义所有包的元数据，包括包名、版本、安装类型、PackageId、可执行文件路径、环境变量配置、AdditionalInstallationPackages（额外安装的包，如Python安装后通过pip安装的包）、PostInstallCallbacks（安装后回调操作）等。每个包以哈希表形式定义，支持多种安装类型（winget、choco、pip、npm、pipx、uv等）
+- **PackageManagerInvokes.ps1**: 提供统一的包管理器调用接口，包含 `Invoke-PipCommand`、`Invoke-NpmCommand`、`Invoke-PipxCommand`、`Invoke-UvCommand`、`Invoke-ChocoCommand` 等函数。每个函数遵循相同的模式：检查->安装->验证->返回可执行路径。支持批量安装和单个安装，支持强制重装和仅检查模式
+- **CommonFunc.ps1**: 提供全局公共函数，包括 `Invoke-WingetCommand`（winget包管理器调用）、`Write-DebugLog`（统一调试日志输出）、文件操作、快捷方式创建、下载解压等功能。所有脚本应优先调用此文件中的函数
+- **PostInstallCallbackProcessor.ps1**: 处理安装后的回调操作，支持多种回调类型：`copy`（复制文件）、`rename`（重命名文件）、`delete`（删除文件）、`configurator`（包管理器配置，如pip镜像源设置）、`registry_template`（Windows注册表模板应用）、`mcp`（MCP配置文件处理）。支持区域感知配置（China vs Global镜像源）
+- **安装流程**: Step12_InstallApplications.ps1 读取 ApplicationsList.ps1 中的包定义，根据 `INSTALL_TYPE`（base/server/full）和包组过滤决定安装哪些包。对于每个包：1) 调用 PackageManagerInvokes.ps1 中的相应函数进行安装；2) 如果包定义了 AdditionalInstallationPackages，则通过 Install-AdditionalPackages 函数安装额外包（如Python安装后通过pip安装edge-tts等）；3) 如果包定义了 PostInstallCallbacks，则调用 PostInstallCallbackProcessor.ps1 处理回调操作；4) 设置环境变量（通过 WindowsPathFunction.ps1）
+- **包元数据扩展**: 当需要添加新包时，在 ApplicationsList.ps1 中添加包定义。如果包需要安装额外的依赖（如Python需要安装edge-tts），在 AdditionalInstallationPackages 中添加，格式为 `@{ installType = "pip"; installPackage = @("edge-tts", ...) }`。如果包需要安装后操作（如复制文件、配置镜像源），在 PostInstallCallbacks 中添加回调定义
+
 
 ### 3. 禁止事件
 

@@ -114,13 +114,9 @@ def launch_app_with_startup(
     startup_thread.log(f"Starting {app_name}...", "info")
     startup_thread.set_status("Initializing...")
 
-    # ========== Step 4: Check and install dependencies ==========
-    startup_thread.log("Checking dependencies...", "info")
-    startup_thread.set_status("Checking dependencies...")
-
-    from pycore import check_and_install_dependencies
-    check_and_install_dependencies()
-
+    # ========== Step 4: Dependencies are auto-checked by third_party module ==========
+    # Dependencies are automatically checked when third_party module is imported
+    # No need to call check_and_install_dependencies() explicitly
     startup_thread.log("Dependencies ready", "success")
     startup_thread.set_status("Dependencies ready")
 

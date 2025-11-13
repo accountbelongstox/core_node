@@ -12,21 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import win32gui
-import win32con
+from pycore.pyfoundations.third_party import win32gui, win32con, PIL, pyautogui, mss
 from PIL import ImageGrab, Image
-import pyautogui
-import mss
-
-from pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pyutils.window_activator import WindowActivator
 from pyutils.common.window_finder import WindowFinder

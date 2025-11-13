@@ -10,12 +10,10 @@ import platform
 import os
 import tempfile
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
+# Add project root to Python path to enable pycore imports
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyutils.launcher.screen_manager import ScreenManager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator

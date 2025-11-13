@@ -11,13 +11,6 @@ from pathlib import Path
 import os
 import platform
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 from pycore.pyutils.desktop_icon_generator import DesktopIconGenerator
 
 
