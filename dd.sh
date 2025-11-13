@@ -41,6 +41,13 @@ COMMON_SCRIPTS_DIR="$SHELLS_DIR/scripts"
 # Global Variable Directory (will be set after function definition)
 GLOBAL_VAR_DIR=""
 
+# Counter Variables
+first_file_count=0
+first_file_total=0
+file_count=0
+file_total=0
+basename_file=""
+
 # Array Variables
 target_dirs=("apps" "ncore" "scripts")
 
@@ -171,11 +178,11 @@ source_file_with_dos2unix() {
 
 # Source first files (constants.sh and system_functions.sh) to get check_and_install_sudo
 # (needed before ensure_dos2unix which requires $sudo)
-local first_file_count=0
-local first_file_total=${#SOURCE_FIRSTFILES[@]}
+first_file_count=0
+first_file_total=${#SOURCE_FIRSTFILES[@]}
 for source_file in "${SOURCE_FIRSTFILES[@]}"; do
     ((first_file_count++))
-    local basename_file="$(basename "$source_file")"
+    basename_file="$(basename "$source_file")"
     sed -i 's/\r$//' "$source_file" 2>/dev/null
     source "$source_file" 2>/dev/null
     if [ $? -eq 0 ]; then
@@ -193,11 +200,11 @@ ensure_dos2unix
 check_and_install_git
 
 # Source all required files (with dos2unix processing)
-local file_count=0
-local file_total=${#SOURCE_FILES[@]}
+file_count=0
+file_total=${#SOURCE_FILES[@]}
 for source_file in "${SOURCE_FILES[@]}"; do
     ((file_count++))
-    local basename_file="$(basename "$source_file")"
+    basename_file="$(basename "$source_file")"
     source_file_with_dos2unix "$source_file"
     if [ $? -eq 0 ]; then
         echo "[$file_count/$file_total] $basename_file - [OK]"
