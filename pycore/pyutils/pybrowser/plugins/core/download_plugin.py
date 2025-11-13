@@ -8,8 +8,9 @@ File download functionality
 
 import os
 import asyncio
-import aiohttp
 from pathlib import Path
+
+from pycore.pyfoundations.third_party import aiohttp
 from typing import Dict, Any
 from datetime import datetime
 from urllib.parse import urlparse

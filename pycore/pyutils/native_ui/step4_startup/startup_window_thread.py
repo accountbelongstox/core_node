@@ -122,6 +122,7 @@ class TkinterStartupThread(threading.Thread):
         self._stop_event = threading.Event()
         self._log_queue = queue.Queue()
         self._running = False
+        self._close_requested = threading.Event()  # Thread-safe close request flag
 
     def run(self):
         """Thread execution (called automatically by start())"""
@@ -139,6 +140,8 @@ class TkinterStartupThread(threading.Thread):
         self._initialize_ui()
 
         # 4. Set running state + send ready signal
+        # IMPORTANT: Set _running=True BEFORE mainloop so _process_logs() can schedule itself
+        self._running = True
         THREAD_BUS.set_thread_state(thread_name, 'running')
         THREAD_BUS.signal('TkinterStartup_ready', {
             'app_name': self.app_name,
@@ -146,16 +149,24 @@ class TkinterStartupThread(threading.Thread):
         })
 
         # 5. Run mainloop (blocks until window closes)
-        self._running = True
         self.root.mainloop()
 
         # 6. Cleanup window resources
         self._cleanup()
 
         # 7. Check if tray should be started
+        ColorPrint.blue(f"[{thread_name}] Mainloop ended, checking tray status...")
+        ColorPrint.blue(f"  enable_tray={self.enable_tray}")
+        ColorPrint.blue(f"  stop_event.is_set()={self._stop_event.is_set()}")
+
         if self.enable_tray and not self._stop_event.is_set():
             ColorPrint.blue(f"[{thread_name}] Debug window closed, starting tray menu...")
             self._run_tray_mode()
+        else:
+            if not self.enable_tray:
+                ColorPrint.yellow(f"[{thread_name}] Tray not enabled, skipping tray mode")
+            if self._stop_event.is_set():
+                ColorPrint.yellow(f"[{thread_name}] Stop event set, skipping tray mode")
 
         # 8. Set stopped state + send stopped signal
         THREAD_BUS.set_thread_state(thread_name, 'stopped')
@@ -420,7 +431,23 @@ class TkinterStartupThread(threading.Thread):
 
     def _process_logs(self):
         """Process log messages from queue"""
+        # Debug: Log every call to track execution
+        # ColorPrint.blue(f"[_process_logs] Called - running={self._running}, root={self.root is not None}, close_requested={self._close_requested.is_set()}")
+
+        # IMPORTANT: Check close request FIRST, before checking _running
+        # This ensures external close requests are processed even if window was closed by user
+        if self._close_requested.is_set():
+            ColorPrint.blue(f"[TkinterStartupThread] Close requested, closing window... (root={self.root is not None}, running={self._running})")
+            if self.root and self._running:
+                ColorPrint.blue("[TkinterStartupThread] Calling _close_window()...")
+                self._close_window()
+            else:
+                ColorPrint.yellow(f"[TkinterStartupThread] Cannot close: root={self.root is not None}, running={self._running}")
+            return
+
+        # Now check if we should continue processing
         if not self._running or not self.root:
+            # ColorPrint.yellow(f"[_process_logs] Stopping: running={self._running}, root={self.root is not None}")
             return
 
         # Process all pending logs
@@ -432,7 +459,7 @@ class TkinterStartupThread(threading.Thread):
                 break
 
         # Schedule next check
-        if self._running:
+        if self._running and self.root:
             self.root.after(100, self._process_logs)
 
     def _append_log(self, message: str, level: str = "info"):
@@ -615,15 +642,21 @@ class TkinterStartupThread(threading.Thread):
 
     def _close_window(self):
         """Actually close the window"""
+        ColorPrint.blue("[TkinterStartupThread] _close_window() called")
         self._running = False
 
         # Send closed signal
         THREAD_BUS.signal('TkinterStartup_closed', True)
+        ColorPrint.blue("[TkinterStartupThread] Sent TkinterStartup_closed signal")
 
         # Destroy window
         if self.root:
+            ColorPrint.blue("[TkinterStartupThread] Destroying window...")
             self.root.quit()
             self.root.destroy()
+            ColorPrint.blue("[TkinterStartupThread] Window destroyed")
+        else:
+            ColorPrint.yellow("[TkinterStartupThread] No root window to destroy")
 
     # ============ Public API (thread-safe) ============
 
@@ -668,15 +701,36 @@ class TkinterStartupThread(threading.Thread):
             status: Status text
         """
         if self.root and self.status_label:
-            self.root.after(0, lambda: self.status_label.config(text=status))
+            try:
+                # Check if root window still exists before using after()
+                if self.root.winfo_exists():
+                    # Use dedicated method instead of lambda (follows pycore standards)
+                    self.root.after(0, self._update_status_label, status)
+            except Exception as e:
+                # Silently ignore errors if window is being destroyed
+                pass
+
+    def _update_status_label(self, status: str):
+        """
+        Update status label text
+        Called by set_status via root.after()
+
+        Args:
+            status: Status text
+        """
+        if self.status_label:
+            self.status_label.config(text=status)
 
     def request_close(self):
         """
         Request window to close (thread-safe)
         Can be called from any thread
+
+        IMPORTANT: Does not use root.after() to avoid "main thread is not in main loop" error.
+        Instead, sets a flag that is checked by _process_logs() which runs in the Tkinter thread.
         """
-        if self.root:
-            self.root.after(0, self._close_window)
+        ColorPrint.blue("[TkinterStartupThread] Close request received from external thread")
+        self._close_requested.set()
 
     def stop(self):
         """

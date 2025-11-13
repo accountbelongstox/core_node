@@ -21,6 +21,7 @@ Directory Structure:
 
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import Optional
 
@@ -142,6 +143,83 @@ APP_DATA_DIR = get_app_data_dir()
 APP_LOGS_DIR = get_app_logs_dir()
 
 
+def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
+    """
+    Map web path based on environment (similar to gvar_common.sh map_web_path)
+    
+    Windows mappings:
+    - applications -> d:\\applications
+    - programing -> d:\\programing
+    - www -> d:\\www
+    - wwwroot -> d:\\www\\wwwroot
+    - compile_dir -> d:\\.dev_win11 or d:\\.dev_win10
+    
+    Linux mappings:
+    - Uses /mnt/d or /www based on environment
+    
+    Args:
+        path_key: Path key (e.g., 'wwwroot', 'applications', 'programing')
+        sub_path: Optional sub-path to append
+    
+    Returns:
+        Path: Mapped path
+    """
+    is_windows = platform.system() == 'Windows'
+    
+    if is_windows:
+        # Windows mappings
+        base_d = Path('D:/')
+        mappings = {
+            'applications': base_d / 'applications',
+            'programing': base_d / 'programing',
+            'www': base_d / 'www',
+            'wwwroot': base_d / 'www' / 'wwwroot',
+            'compile_dir': base_d / f'.dev_{platform.release().lower()}',
+        }
+        
+        # Detect Windows version for compile_dir
+        if 'compile_dir' in path_key:
+            win_version = platform.release()
+            if '10' in win_version:
+                mappings['compile_dir'] = base_d / '.dev_win10'
+            elif '11' in win_version:
+                mappings['compile_dir'] = base_d / '.dev_win11'
+            else:
+                mappings['compile_dir'] = base_d / f'.dev_win{win_version}'
+    else:
+        # Linux mappings (similar to gvar_common.sh)
+        # Check for WSL
+        is_wsl = os.path.exists('/mnt/c/Windows')
+        
+        if is_wsl:
+            base_path = Path('/mnt/d')
+        else:
+            # Production server
+            base_path = Path('/www')
+        
+        mappings = {
+            'applications': base_path / 'applications',
+            'programing': base_path / 'programing',
+            'www': base_path / 'www',
+            'wwwroot': base_path / 'www' / 'wwwroot',
+            'compile_dir': base_path / '.dev',
+        }
+    
+    # Get mapped path
+    mapped_path = mappings.get(path_key, Path(path_key))
+    
+    # Append sub_path if provided
+    if sub_path:
+        sub_path = sub_path.lstrip('/').lstrip('\\')
+        mapped_path = mapped_path / sub_path
+    
+    # Create directory if it doesn't exist (only for web-related paths)
+    if path_key in ['wwwroot', 'www', 'applications']:
+        mapped_path.mkdir(parents=True, exist_ok=True)
+    
+    return mapped_path
+
+
 __all__ = [
     'get_system_cache_dir',
     'get_ui_state_cache_dir',
@@ -149,6 +227,7 @@ __all__ = [
     'get_app_config_dir',
     'get_app_data_dir',
     'get_app_logs_dir',
+    'map_web_path',
     'SYSTEM_CACHE_DIR',
     'UI_STATE_CACHE_DIR',
     'APP_CACHE_DIR',

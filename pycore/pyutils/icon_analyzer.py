@@ -12,10 +12,12 @@ Provides unified interface for:
 import os
 import sys
 import logging
+import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
+
+from pycore.pyfoundations.third_party import PIL
 from PIL import Image, ImageStat
-import hashlib
 
 logger = logging.getLogger(__name__)
 

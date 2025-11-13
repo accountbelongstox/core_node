@@ -413,6 +413,11 @@ $Global:BasePackages = @{
                         packageName = "scikit-learn"
                         validationType = "import"
                         importName = "sklearn"
+                    },
+                    @{
+                        packageName = "edge-tts"
+                        validationType = "import"
+                        importName = "edge_tts"
                     }
                 )
             }
