@@ -13,8 +13,8 @@
 <!-- Project root is ../ -->
 # Laravel 聚合应用 - 开发指南
 This Markdown file is located in a subdirectory.  
-The **laravel_main project root** is [here](../).
-本指南为 `laravel_main` 项目提供了核心的开发规则。`laravel_main` Project root is the parent directory of this file (`../`).。
+The **laravel_main project root** is [here](`../poly_apps/laravel_main`).
+本指南为 `laravel_main` 项目提供了核心的开发规则。
 
 ## 1. 核心原则
 
@@ -28,7 +28,8 @@ The **laravel_main project root** is [here](../).
 
 - **全局 Utils (`app/Utils`)**: 用于存放所有应用**共享**的工具函数和类。该目录与 `app/Apps` 目录平级。
 - **全局 Helpers (`app/Helpers`)**: 用于存放简单的、全局共享的辅助函数。**未经充分考虑，禁止随意添加新的 Helper**。
-- **全局 Providers (`app/Providers`)**: 此目录提供了一个全局的常量和重要变量库。在定义新常量之前，**必须**优先引用和检查这些 Providers 中是否已有相关配置。
+- **全局 Providers (`app/Providers`)**: 此目录提供了一个全局的常量和重要变量库。在定义新常量之前，**必须**优先引用和检查这些 Providers 中是否已有相关配置。**路径映射统一使用 `App\Providers\PathMapper`，已合并 `DatabasePathHelper`、`ExternalStorageHelper`、`WebPathHelper` 的功能。**
+- 请使用 `PathMapper::mapWebPath()`。
 
 
 ## 2.2. 多应用聚合结构
@@ -101,35 +102,3 @@ The **laravel_main project root** is [here](../).
     - **禁止**编写任何与 Laravel Web 前端相关的功能，包括 **Blade 模板、Vite 配置、CSS/JS 资源文件**等，但不能删除现有的vite/bable/web等前端配置和web文件，因为laravel需要这些基础才能正确启动无头模式，。
     - **禁止**向 `app/Helpers` 添加新的辅助函数，除非该函数是绝对必要且全局通用的。
     - **禁止**在没有授权的情况下删除文件。
-
-# 开发合规性检查清单
-
-在每次开发任务结束后，请使用本清单逐一核对 AI 的操作，以确保其严格遵守项目开发规范。
-在检测前，你应该先再次阅读一下文档，了解最新规范内容.
----
-
-1.  是否遵守了**核心原则**中的规定，确保所有新增的代码、注释和变量名都使用了**英文**？
-2.  是否遵守了**核心原则**中的规定，确保项目保持在**纯无头 (Headless) API 模式**，没有添加任何 Blade 模板或 Vite 前端相关代码？
-3.  是否遵守了**代码组织规范**，在编写新功能前，已首先检查 `app/Utils` 目录以寻找可复用的全局功能？
-4.  是否遵守了**代码组织规范**，将确实需要被多个应用共享的新功能正确地放入了 `app/Utils` 目录？
-5.  是否遵守了**代码组织规范**中的 专属Utils/Helpers 等 **命名规范**？
-6.  是否遵守了**代码组织规范**中的 专属控制器 **命名规范**？
-7.  是否遵守了**代码组织规范**，在定义新的全局常量或重要变量前，已首先检查 `app/Providers` 以避免重复定义？
-8.  是否遵守了**代码组织规范**，将 `{appNameWithVersion}` 的控制器放在了 `app/Apps/{appNameWithVersion}/Controllers/` 目录下？
-9.  是否遵守了**路由规则**，将 `{appNameWithVersion}` 的新 API 路由定义在了 `routes/{appNameWithVersion}Router/` 子目录中？
-10. 是否遵守了**路由规则**，确保了新的路由已被主路由文件 `routes/api.php` 正确引入？
-11. 是否遵守了**数据库规则**，在创建数据库迁移时，为应用专属的表 (`{appNameWithVersion}_xxx`) 和全局表 (`global_xxx`) 正确地添加了文件名前缀？
-12. 是否遵守了**数据库规则**，在迁移文件中，为应用专属的数据表名正确地添加了 `{appNameWithVersion}_` 前缀？
-13. 是否遵守了**API 文档化规则**，在添加或修改了一个公开 API 后，同步更新了该应用用于展示其所有 API 列表的那个公共接口？
-14. 是否遵守了**禁止行为**规定，没有运行 `artisan test` 命令？
-15. 是否遵守了**禁止行为**规定，没有编写或修改 `app/Console` 目录下的任何代码？
-16. 是否遵守了**禁止行为**规定，没有创建或分发任何 Laravel 事件？
-17. 是否遵守了**禁止行为**规定，没有向 `app/Helpers` 目录添加新的辅助函数？
-18. 是否遵守了**禁止行为**规定，没有修改 `routes/web.php` 或 `routes/console.php` 文件？
-19. 是否遵守了**禁止行为**规定，未经提定删除文件？
-20. 是否遵守了**数据库名桥接规则**，中的数据表、字段桥接使用规则,且没有对任何`TablesMaps`类进行二次封装？
-21. 是否遵守了**应用命名规则**，以及**应用控制器命名规则**？
-22. 是否遵守了**共享数据库**，中的Models个性放置/命名规则，以及更新了全局的引用？。
-23. 是否检查共公**Utils**区，所有应用专属Utils都到了应用目录下，并按命名规范重新放置？。
-
-### 以上检测完后，输出一份./ComplianceAnalysisCheck.md 详细清单日

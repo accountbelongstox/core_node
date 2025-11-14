@@ -207,4 +207,5 @@ class GlobalVar
     {
         return static::getBaseDir();
     }
+
 }

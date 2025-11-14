@@ -334,6 +334,7 @@ declare -gA APP_PACKAGES=(
     ["wechat_desktop_comment"]="WeChat for Linux"
     ["wechat_desktop_categories"]="Network;InstantMessaging;"
     ["wechat_startup_wm_class"]="WeChat"
+    ["wechat_need_desktop_icon"]="true"
 
 )
 

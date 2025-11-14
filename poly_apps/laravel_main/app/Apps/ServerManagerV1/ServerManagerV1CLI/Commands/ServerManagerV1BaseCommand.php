@@ -6,10 +6,45 @@ use Illuminate\Console\Command;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PHPConfigFixer;
+use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
 
 abstract class ServerManagerV1BaseCommand extends Command
 {
+    /**
+     * Initialize command - called before handle()
+     * 
+     * This method ensures PHP configuration is correct before any ServerManagerV1
+     * operations. It calls ServerManagerV1PHPConfigFixer to fix open_basedir
+     * restrictions that might prevent Laravel files from being accessed.
+     * 
+     * This is a PRE-REQUISITE that matches the behavior of 32_configure_php84.sh
+     * but runs at runtime instead of installation time.
+     * 
+     * See: ../../../../../../scripts/shells/linux/debian/install_shells/32_configure_php84.sh
+     */
+    protected function initializeCommand(): void
+    {
+        // Fix PHP configuration before any operations
+        // This ensures open_basedir restrictions are removed/configured correctly
+        // based on current path mapping (matches 32_configure_php84.sh behavior)
+        $this->info('Ensuring PHP configuration is correct...');
+        
+        $fixed = ServerManagerV1PHPConfigFixer::fixPHPConfiguration();
+        
+        if ($fixed) {
+            $this->info('PHP configuration verified and fixed if needed.');
+        } else {
+            $this->warn('PHP configuration fix completed with warnings. Some operations may fail.');
+            // Use PathMapper to get core_node directory (no hardcoded paths)
+            $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+            $scriptPath = $coreNodeDir ? "$coreNodeDir/scripts/shells/linux/debian/install_shells/32_configure_php84.sh" : '';
+            if ($scriptPath) {
+                $this->warn("You may need to run: sudo bash $scriptPath");
+            }
+        }
+    }
     /**
      * Execute system command with proper logging
      */
@@ -217,7 +252,10 @@ abstract class ServerManagerV1BaseCommand extends Command
         } catch (\Exception $e) {
             $this->error("SSL configuration error: " . $e->getMessage());
             if (strpos($e->getMessage(), 'dd.sh') !== false) {
-                $this->warn("Please run: bash /www/wwwroot/core_node/scripts/dd.sh");
+                $coreNodePath = \App\Providers\PathMapper::getCoreNodeDir();
+                if ($coreNodePath) {
+                    $this->warn("Please run: bash $coreNodePath/scripts/dd.sh");
+                }
             }
             return false;
         }
@@ -228,8 +266,58 @@ abstract class ServerManagerV1BaseCommand extends Command
      */
     protected function sslCertificateExists(string $domain): bool
     {
-        $certPath = "/etc/letsencrypt/live/$domain/fullchain.pem";
+        $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
         return file_exists($certPath);
+    }
+
+    /**
+     * Check if certificate is expired or expiring soon
+     *
+     * @param string $domain The domain name
+     * @param int $daysBeforeExpiry Days before expiry to consider as "expiring soon" (default: 30)
+     * @return array ['exists' => bool, 'expired' => bool, 'expiring_soon' => bool, 'days_until_expiry' => int|null, 'expiry_date' => string|null]
+     */
+    protected function checkCertificateExpiry(string $domain, int $daysBeforeExpiry = 30): array
+    {
+        $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
+        
+        $result = [
+            'exists' => false,
+            'expired' => false,
+            'expiring_soon' => false,
+            'days_until_expiry' => null,
+            'expiry_date' => null
+        ];
+
+        if (!file_exists($certPath)) {
+            return $result;
+        }
+
+        $result['exists'] = true;
+
+        // Get certificate expiry date using openssl
+        $opensslResult = $this->executeCommand('openssl', [
+            'x509', '-in', $certPath, '-noout', '-enddate'
+        ]);
+
+        if (!$opensslResult['success']) {
+            return $result;
+        }
+
+        // Parse expiry date from openssl output: "notAfter=Apr 15 12:00:00 2025 GMT"
+        if (preg_match('/notAfter=(.+)/', $opensslResult['output'], $matches)) {
+            $expiryDateStr = trim($matches[1]);
+            $expiryTimestamp = strtotime($expiryDateStr);
+            $now = time();
+            $daysUntilExpiry = (int)ceil(($expiryTimestamp - $now) / 86400);
+
+            $result['expiry_date'] = $expiryDateStr;
+            $result['days_until_expiry'] = $daysUntilExpiry;
+            $result['expired'] = $daysUntilExpiry < 0;
+            $result['expiring_soon'] = $daysUntilExpiry >= 0 && $daysUntilExpiry <= $daysBeforeExpiry;
+        }
+
+        return $result;
     }
     
     /**
@@ -256,7 +344,7 @@ abstract class ServerManagerV1BaseCommand extends Command
      */
     protected function getApplicationRegistry(): array
     {
-        $registryPath = ServerManagerV1Constants::UNIFIED_MANAGER_SCRIPTS['app_registry'];
+        $registryPath = ServerManagerV1Constants::getUnifiedManagerScripts()['app_registry'];
         
         if (!file_exists($registryPath)) {
             $this->error("Application registry not found: $registryPath");
@@ -325,7 +413,7 @@ abstract class ServerManagerV1BaseCommand extends Command
     {
         $this->info("Deploying ncore application: $appName");
         
-        $deployScript = ServerManagerV1Constants::UNIFIED_MANAGER_SCRIPTS['deploy_apps'];
+        $deployScript = ServerManagerV1Constants::getUnifiedManagerScripts()['deploy_apps'];
         $result = $this->executeCommand('bash', [$deployScript, '--apps', $appName]);
         
         return $result['success'];
@@ -369,10 +457,25 @@ abstract class ServerManagerV1BaseCommand extends Command
             $this->info("$key: $value");
         }
         
-        $this->info("Nginx Config: /etc/nginx/sites-available/$domain");
+        // Use PathMapper for environment-aware path (no hardcoded paths)
+        $nginxSitesAvailable = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getNginxSitesAvailable();
+        $this->info("Nginx Config: $nginxSitesAvailable/$domain");
         
         if ($this->sslCertificateExists($domain)) {
-            $this->info("SSL Certificate: /etc/letsencrypt/live/$domain/");
+            $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain);
+            $this->info("SSL Certificate: $certPath/");
+            
+            // Check certificate expiry
+            $expiryInfo = $this->checkCertificateExpiry($domain);
+            if ($expiryInfo['exists']) {
+                if ($expiryInfo['expired']) {
+                    $this->warn("Certificate is EXPIRED!");
+                } elseif ($expiryInfo['expiring_soon']) {
+                    $this->warn("Certificate expires in {$expiryInfo['days_until_expiry']} days");
+                } else {
+                    $this->info("Certificate valid for {$expiryInfo['days_until_expiry']} more days");
+                }
+            }
         }
         
         $this->info("=== Deployment Complete ===");
@@ -388,20 +491,46 @@ abstract class ServerManagerV1BaseCommand extends Command
         if (!$checkResult['success']) {
             $this->error("Certbot is not installed on this system.");
             $this->warn("To install certbot, run the following command:");
-            $this->info("  bash /www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh");
+            $coreNodePath = \App\Providers\PathMapper::getCoreNodeDir();
+            if ($coreNodePath) {
+                $this->info("  bash $coreNodePath/scripts/shells/linux/debian/install_shells/26_install_certbot.sh");
+            }
             $this->warn("Or install manually:");
             $this->info("  sudo apt update && sudo apt install -y certbot python3-certbot-nginx");
             return false;
         }
 
         // Ensure web directory exists for webroot challenge
-        $webroot = ServerManagerV1SSLConfigReader::getDefaultWebRoot() . "/$domain";
+        // Use PathMapper for environment-aware path (no hardcoded paths)
+        $wwwroot = ServerManagerV1SSLConfigReader::getDefaultWebRoot();
+        $webroot = "$wwwroot/$domain";
         if (!is_dir($webroot)) {
-            $webroot = '/var/www/html';
+            // Fallback to default webroot using PathMapper
+            $webroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+        }
+
+        // Get custom certificate directory
+        $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+        $configDir = $letsEncryptDir;
+        $workDir = $letsEncryptDir . '/work';
+        $logsDir = $letsEncryptDir . '/logs';
+
+        // Ensure directories exist
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+        if (!is_dir($workDir)) {
+            mkdir($workDir, 0755, true);
+        }
+        if (!is_dir($logsDir)) {
+            mkdir($logsDir, 0755, true);
         }
 
         $args = [
             'certonly',
+            '--config-dir', $configDir,
+            '--work-dir', $workDir,
+            '--logs-dir', $logsDir,
             '--webroot',
             '-w', $webroot,
             '-d', $domain,
@@ -424,12 +553,33 @@ abstract class ServerManagerV1BaseCommand extends Command
     protected function generateDNSPodCertificate(string $domain): bool
     {
         try {
-            $config = ServerManagerV1SSLConfigReader::getProviderConfig('dnspod');
+            // Get DNSPod credentials from secret storage (same as getDNSCredentials)
+            $email = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
+            $apiToken = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
+
+            if (!$email || !$apiToken) {
+                $this->error("Failed to get DNSPod credentials from secret storage");
+                return false;
+            }
+
+            // Parse DNSPod API token format: "id,token"
+            $tokenParts = explode(',', $apiToken, 2);
+            if (count($tokenParts) !== 2) {
+                $this->error("Invalid DNSPod API token format. Expected: 'id,token'");
+                return false;
+            }
+
+            $apiId = trim($tokenParts[0]);
+            $apiTokenValue = trim($tokenParts[1]);
 
             // Create DNSPod credentials file
-            $credentialsPath = '/tmp/dnspod-credentials.ini';
-            $credentialsContent = "dns_dnspod_api_id = {$config['api_id']}\n";
-            $credentialsContent .= "dns_dnspod_api_token = {$config['api_token']}\n";
+            // Standard dns-dnspod plugin requires email and api-token (full "id,token" format)
+            // certbot automatically prefixes with "dns_dnspod_" for the credentials file
+            // Use quotes to prevent configobj from parsing comma-separated value as a list
+            $credentialsPath = PathMapper::getLaravelTmpDir() . '/dnspod-credentials.ini';
+            $apiToken = $apiId . ',' . $apiTokenValue;
+            $credentialsContent = "dns_dnspod_email = {$email}\n";
+            $credentialsContent .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
 
             if (file_put_contents($credentialsPath, $credentialsContent) === false) {
                 $this->error("Failed to create DNSPod credentials file");
@@ -438,9 +588,29 @@ abstract class ServerManagerV1BaseCommand extends Command
 
             chmod($credentialsPath, 0600);
 
+            // Get custom certificate directory
+            $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+            $configDir = $letsEncryptDir;
+            $workDir = $letsEncryptDir . '/work';
+            $logsDir = $letsEncryptDir . '/logs';
+
+            // Ensure directories exist
+            if (!is_dir($configDir)) {
+                mkdir($configDir, 0755, true);
+            }
+            if (!is_dir($workDir)) {
+                mkdir($workDir, 0755, true);
+            }
+            if (!is_dir($logsDir)) {
+                mkdir($logsDir, 0755, true);
+            }
+
             $args = [
                 'certonly',
-                '--dns-dnspod',
+                '--config-dir', $configDir,
+                '--work-dir', $workDir,
+                '--logs-dir', $logsDir,
+                '--authenticator', 'dns-dnspod',
                 '--dns-dnspod-credentials', $credentialsPath,
                 '-d', $domain,
                 '--email', ServerManagerV1SSLConfigReader::getDefaultEmail(),
@@ -474,7 +644,7 @@ abstract class ServerManagerV1BaseCommand extends Command
             $config = ServerManagerV1SSLConfigReader::getProviderConfig('cloudflare');
 
             // Create Cloudflare credentials file
-            $credentialsPath = '/tmp/cloudflare-credentials.ini';
+            $credentialsPath = PathMapper::getLaravelTmpDir() . '/cloudflare-credentials.ini';
             $credentialsContent = "dns_cloudflare_api_token = {$config['api_token']}\n";
 
             if (file_put_contents($credentialsPath, $credentialsContent) === false) {
@@ -486,7 +656,7 @@ abstract class ServerManagerV1BaseCommand extends Command
 
             $args = [
                 'certonly',
-                '--dns-cloudflare',
+                '--authenticator', 'dns-cloudflare',
                 '--dns-cloudflare-credentials', $credentialsPath,
                 '-d', $domain,
                 '--email', ServerManagerV1SSLConfigReader::getDefaultEmail(),
@@ -532,7 +702,10 @@ abstract class ServerManagerV1BaseCommand extends Command
         } catch (\Exception $e) {
             $this->error("SSL configuration error: " . $e->getMessage());
             if (strpos($e->getMessage(), 'dd.sh') !== false) {
-                $this->warn("Please run: bash /www/wwwroot/core_node/scripts/dd.sh");
+                $coreNodePath = \App\Providers\PathMapper::getCoreNodeDir();
+                if ($coreNodePath) {
+                    $this->warn("Please run: bash $coreNodePath/scripts/dd.sh");
+                }
             }
             return false;
         }

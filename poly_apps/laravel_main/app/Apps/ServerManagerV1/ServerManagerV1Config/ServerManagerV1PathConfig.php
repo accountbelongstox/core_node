@@ -2,7 +2,7 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Config;
 
-use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver;
+use App\Providers\PathMapper;
 
 /**
  * ServerManagerV1 Path Configuration
@@ -16,7 +16,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver;
  *
  * Usage: ServerManagerV1PathConfig::NGINX_SITES_AVAILABLE
  *
- * NOTE: This class now uses ServerManagerV1PathResolver for environment-aware paths.
+ * NOTE: This class now uses PathMapper for environment-aware paths.
  * Paths are resolved dynamically based on environment (WSL/Production).
  */
 class ServerManagerV1PathConfig
@@ -30,7 +30,7 @@ class ServerManagerV1PathConfig
      */
     public static function getNginxConfigDir(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig');
+        return PathMapper::mapWebPath('nginxconfig');
     }
 
     /**
@@ -38,7 +38,7 @@ class ServerManagerV1PathConfig
      */
     public static function getNginxSitesAvailable(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/sites-available');
+        return PathMapper::mapWebPath('nginxconfig') . '/sites-available';
     }
 
     /**
@@ -46,7 +46,7 @@ class ServerManagerV1PathConfig
      */
     public static function getNginxSitesEnabled(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/sites-enabled');
+        return PathMapper::mapWebPath('nginxconfig') . '/sites-enabled';
     }
 
     /** Legacy constants - DEPRECATED: Use getter methods instead */
@@ -65,7 +65,7 @@ class ServerManagerV1PathConfig
      */
     public static function getSslBaseDir(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/ssl');
+        return PathMapper::mapWebPath('nginxconfig') . '/ssl';
     }
 
     /**
@@ -73,7 +73,7 @@ class ServerManagerV1PathConfig
      */
     public static function getSslCredentialsDir(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/ssl/credentials');
+        return PathMapper::mapWebPath('nginxconfig') . '/ssl/credentials';
     }
 
     /** Legacy constants - DEPRECATED: Use getter methods instead */
@@ -90,7 +90,7 @@ class ServerManagerV1PathConfig
      */
     public static function getWwwRoot(): string
     {
-        return ServerManagerV1PathResolver::resolveWebRoot();
+        return PathMapper::mapWebPath('wwwroot');
     }
 
     /**
@@ -112,23 +112,32 @@ class ServerManagerV1PathConfig
 
     /**
      * Get Laravel base directory (environment-aware)
-     * Calculates relative to core_node root
+     * Uses PathMapper::getLaravelMainDir() for relative positioning from PathMapper file
+     * 
+     * IMPORTANT: This method uses relative positioning, not hardcoded paths.
+     * PathMapper::getLaravelMainDir() calculates the path relative to PathMapper.php location.
      */
     public static function getLaravelBaseDir(): string
     {
-        return ServerManagerV1PathResolver::getCoreNodePath() . '/poly_apps/laravel_main';
+        return \App\Providers\PathMapper::getLaravelMainDir();
     }
 
     /**
      * Get Laravel public directory (environment-aware)
+     * Uses PathMapper::getLaravelMainPublicDir() for relative positioning
      */
     public static function getLaravelPublicDir(): string
     {
-        return self::getLaravelBaseDir() . '/public';
+        return \App\Providers\PathMapper::getLaravelMainPublicDir();
     }
 
     // Legacy constants for backwards compatibility
     // DEPRECATED: Use getLaravelBaseDir() instead
+    // NOTE: These constants are deprecated and should use PathMapper for environment-aware paths
+    // The paths below are examples only - actual paths depend on environment (WSL/Production)
+    // WSL: /mnt/d/programing/core_node/poly_apps/laravel_main
+    // Production: /www/programing/core_node/poly_apps/laravel_main
+    // Use getLaravelBaseDir() method instead which uses PathMapper
     public const LARAVEL_BASE_DIR = '/mnt/d/programing/core_node/poly_apps/laravel_main';
     public const LARAVEL_PUBLIC_DIR = '/mnt/d/programing/core_node/poly_apps/laravel_main/public';
 
@@ -141,7 +150,7 @@ class ServerManagerV1PathConfig
      */
     public static function getSharedDataDir(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data');
+        return PathMapper::mapWebPath('shared-data');
     }
 
     /**
@@ -149,7 +158,7 @@ class ServerManagerV1PathConfig
      */
     public static function getSslConfigFile(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data/ssl/ssl_config.json');
+        return PathMapper::mapWebPath('shared-data') . '/ssl/ssl_config.json';
     }
 
     /**
@@ -157,7 +166,7 @@ class ServerManagerV1PathConfig
      */
     public static function getDomainConfigFile(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data/domains/domains_config.json');
+        return PathMapper::mapWebPath('shared-data') . '/domains/domains_config.json';
     }
 
     /**
@@ -165,7 +174,7 @@ class ServerManagerV1PathConfig
      */
     public static function getCertificateConfigFile(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data/ssl/certificates_config.json');
+        return PathMapper::mapWebPath('shared-data') . '/ssl/certificates_config.json';
     }
 
     /** Legacy constants - DEPRECATED: Use getter methods instead */
@@ -193,7 +202,7 @@ class ServerManagerV1PathConfig
      */
     public static function getNginxBackupDir(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/backup/nginx-configs');
+        return PathMapper::mapWebPath('backup') . '/nginx-configs';
     }
 
     /**
@@ -201,7 +210,7 @@ class ServerManagerV1PathConfig
      */
     public static function getSslBackupDir(): string
     {
-        return ServerManagerV1PathResolver::mapWebPath('/www/backup/ssl-certs');
+        return PathMapper::mapWebPath('backup') . '/ssl-certs';
     }
 
     /** Legacy constants - DEPRECATED: Use getter methods instead */
@@ -223,6 +232,63 @@ class ServerManagerV1PathConfig
         $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $domain));
         $basePath = self::getSslBaseDir();
         return $basePath . '/' . $cleanDomain;
+    }
+
+    /**
+     * Get Let's Encrypt certificates directory (environment-aware)
+     * Uses map_web_path("nginxconfig")/letsencrypt instead of /etc/letsencrypt
+     *
+     * @return string The Let's Encrypt certificates base directory
+     */
+    public static function getLetsEncryptDir(): string
+    {
+        $nginxConfigDir = self::getNginxConfigDir();
+        return $nginxConfigDir . '/letsencrypt';
+    }
+
+    /**
+     * Get Let's Encrypt live certificates directory for a domain (environment-aware)
+     *
+     * @param string $domain The domain name
+     * @return string The Let's Encrypt live certificates directory path
+     */
+    public static function getLetsEncryptLiveDir(string $domain): string
+    {
+        $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $domain));
+        return self::getLetsEncryptDir() . '/live/' . $cleanDomain;
+    }
+
+    /**
+     * Get Let's Encrypt certificate file path (fullchain.pem) for a domain (environment-aware)
+     *
+     * @param string $domain The domain name
+     * @return string The certificate file path
+     */
+    public static function getLetsEncryptCertPath(string $domain): string
+    {
+        return self::getLetsEncryptLiveDir($domain) . '/fullchain.pem';
+    }
+
+    /**
+     * Get Let's Encrypt private key file path (privkey.pem) for a domain (environment-aware)
+     *
+     * @param string $domain The domain name
+     * @return string The private key file path
+     */
+    public static function getLetsEncryptKeyPath(string $domain): string
+    {
+        return self::getLetsEncryptLiveDir($domain) . '/privkey.pem';
+    }
+
+    /**
+     * Get Let's Encrypt chain file path (chain.pem) for a domain (environment-aware)
+     *
+     * @param string $domain The domain name
+     * @return string The chain file path
+     */
+    public static function getLetsEncryptChainPath(string $domain): string
+    {
+        return self::getLetsEncryptLiveDir($domain) . '/chain.pem';
     }
 
     /**
@@ -273,7 +339,7 @@ class ServerManagerV1PathConfig
             self::getNginxConfigDir(),
             self::getNginxSitesAvailable(),
             self::getNginxSitesEnabled(),
-            ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/conf.d'),
+            PathMapper::mapWebPath('nginxconfig') . '/conf.d',
             self::getSslBaseDir(),
             self::getSslCredentialsDir(),
             self::getWwwRoot(),

@@ -582,7 +582,9 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
      */
     private function generateNginxConfig(string $domain, string $siteType, array $config): string
     {
-        $wwwDir = $config['www_dir'] ?? "/www/wwwroot/$domain";
+        // Use PathMapper for environment-aware path (no hardcoded paths)
+        $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+        $wwwDir = $config['www_dir'] ?? "$wwwroot/$domain";
         $phpVersion = $config['php_version'] ?? '8.2';
         $proxyTarget = $config['proxy_target'] ?? null;
 

@@ -3,7 +3,7 @@
         "AutoContext7MCP": {
             "command": "bash",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
+                "/www/programing/core_node/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
             ],
             "env": {
                 "MAX_RETRIES": "3",
@@ -17,7 +17,7 @@
         "McpAlchemy": {
             "command": "python3",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/mcp-alchemy/main.py"
+                "/www/programing/core_node/ncore/mcp_server/mcp-alchemy/main.py"
             ],
             "env": {
                 "EXECUTE_QUERY_MAX_CHARS": "4000"
@@ -75,7 +75,7 @@
         "PlaceholderImageGenerator": {
             "command": "python3",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/placeholder_image_generator/main.py"
+                "/www/programing/core_node/ncore/mcp_server/placeholder_image_generator/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"
@@ -91,7 +91,7 @@
         "FileProcessor": {
             "command": "python3",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/file_processor/main.py"
+                "/www/programing/core_node/ncore/mcp_server/file_processor/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"
@@ -119,7 +119,7 @@
         "CodebaseScanner": {
             "command": "python3",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/codebase-scanner/main.py"
+                "/www/programing/core_node/ncore/mcp_server/codebase-scanner/main.py"
             ],
             "env": {
                 "ENABLE_GLOBAL_ACCESS": "true"
@@ -139,7 +139,7 @@
         "CodebaseContentHub": {
             "command": "python3",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/pymain.py",
+                "/www/programing/core_node/pymain.py",
                 "app=codebase_content_hub"
             ],
             "env": {
@@ -156,7 +156,7 @@
         "AICollaboration": {
             "command": "python3",
             "args": [
-                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/ai_collaboration/main.py"
+                "/www/programing/core_node/ncore/mcp_server/ai_collaboration/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"

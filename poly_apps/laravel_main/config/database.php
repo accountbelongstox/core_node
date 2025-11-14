@@ -13,7 +13,7 @@
 
 
 use Illuminate\Support\Str;
-use App\Helpers\DatabasePathHelper;
+use App\Providers\PathMapper;
 return [
 
     /*
@@ -46,7 +46,7 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' =>  DatabasePathHelper::getDefaultDatabasePath('database.sqlite'),
+            'database' =>  PathMapper::getDefaultDatabasePath('database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,

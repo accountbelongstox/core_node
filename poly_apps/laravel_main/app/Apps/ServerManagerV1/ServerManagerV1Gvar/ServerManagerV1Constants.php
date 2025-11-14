@@ -2,6 +2,9 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Gvar;
 
+use App\Providers\PathMapper;
+use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
+
 class ServerManagerV1Constants
 {
     // Application Information
@@ -14,18 +17,27 @@ class ServerManagerV1Constants
     public const MAX_EXECUTION_TIME = 300; // 5 minutes
     public const MAX_LOG_ENTRIES = 1000;
     
-    // File Access Whitelist (Hardcoded Security)
-    public const ALLOWED_DOWNLOAD_PATHS = [
-        '/www/wwwroot/core_node/scripts',
-        '/www/wwwroot/core_node/poly_apps',
-        '/www/wwwroot/laravel_main/laravel_db',
-        '/var/log',
-        '/etc/nginx',
-        '/www/nginxconfig',
-        '/www/shared-data',
-        '/etc/letsencrypt',
-        '/tmp'
-    ];
+    /**
+     * Get allowed download paths (environment-aware)
+     * @return array
+     */
+    public static function getAllowedDownloadPaths(): array
+    {
+        return [
+            PathMapper::mapWebPath('wwwroot') . '/core_node/scripts',
+            PathMapper::mapWebPath('wwwroot') . '/core_node/poly_apps',
+            PathMapper::mapWebPath('laravel_data_dir'),
+            '/var/log',
+            PathMapper::mapWebPath('nginx'),
+            PathMapper::mapWebPath('nginxconfig'),
+            PathMapper::mapWebPath('shared-data'),
+            ServerManagerV1PathConfig::getLetsEncryptDir(),
+            PathMapper::getLaravelTmpDir()
+        ];
+    }
+    
+    /** @deprecated Use getAllowedDownloadPaths() instead */
+    public const ALLOWED_DOWNLOAD_PATHS = [];
     
     // Predefined Script Categories
     public const SCRIPT_CATEGORIES = [
@@ -37,31 +49,62 @@ class ServerManagerV1Constants
         'unified_manager' => 'Unified Manager Operations'
     ];
     
-    // Nginx Configuration Paths
-    public const NGINX_PATHS = [
-        'main_config' => '/etc/nginx/nginx.conf',
-        'sites_available' => '/www/nginxconfig/sites-available',
-        'sites_enabled' => '/www/nginxconfig/sites-enabled',
-        'conf_d' => '/www/nginxconfig/conf.d',
-        'log_dir' => '/var/log/nginx'
-    ];
+    /**
+     * Get nginx configuration paths (environment-aware)
+     * @return array
+     */
+    public static function getNginxPaths(): array
+    {
+        $nginxConfigDir = PathMapper::mapWebPath('nginxconfig');
+        return [
+            'main_config' => PathMapper::mapWebPath('nginx') . '/nginx.conf',
+            'sites_available' => $nginxConfigDir . '/sites-available',
+            'sites_enabled' => $nginxConfigDir . '/sites-enabled',
+            'conf_d' => $nginxConfigDir . '/conf.d',
+            'log_dir' => '/var/log/nginx'
+        ];
+    }
     
-    // SSL Certificate Paths
-    public const SSL_PATHS = [
-        'letsencrypt_dir' => '/etc/letsencrypt',
-        'live_certs' => '/etc/letsencrypt/live',
-        'archive_certs' => '/etc/letsencrypt/archive',
-        'renewal_configs' => '/etc/letsencrypt/renewal'
-    ];
+    /** @deprecated Use getNginxPaths() instead */
+    public const NGINX_PATHS = [];
     
-    // System Directories
-    public const SYSTEM_DIRS = [
-        'unified_manager' => '/www/wwwroot/core_node/scripts/unified_manager',
-        'install_scripts' => '/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells',
-        'laravel_db' => '/www/wwwroot/laravel_main/laravel_db',
-        'laravel_storage' => '/www/wwwroot/core_node/poly_apps/laravel_main/storage',
-        'laravel_public' => '/www/wwwroot/core_node/poly_apps/laravel_main/public'
-    ];
+    /**
+     * Get SSL certificate paths (environment-aware)
+     * @return array
+     */
+    public static function getSslPaths(): array
+    {
+        $letsencryptDir = ServerManagerV1PathConfig::getLetsEncryptDir();
+        return [
+            'letsencrypt_dir' => $letsencryptDir,
+            'live_certs' => $letsencryptDir . '/live',
+            'archive_certs' => $letsencryptDir . '/archive',
+            'renewal_configs' => $letsencryptDir . '/renewal'
+        ];
+    }
+    
+    /** @deprecated Use getSslPaths() instead */
+    public const SSL_PATHS = [];
+    
+    /**
+     * Get system directories (environment-aware)
+     * @return array
+     */
+    public static function getSystemDirs(): array
+    {
+        $wwwroot = PathMapper::mapWebPath('wwwroot');
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        return [
+            'unified_manager' => $coreNodeDir ? $coreNodeDir . '/scripts/unified_manager' : $wwwroot . '/core_node/scripts/unified_manager',
+            'install_scripts' => $coreNodeDir ? $coreNodeDir . '/scripts/shells/linux/debian/install_shells' : $wwwroot . '/core_node/scripts/shells/linux/debian/install_shells',
+            'laravel_db' => PathMapper::mapWebPath('laravel_data_dir'),
+            'laravel_storage' => $coreNodeDir ? $coreNodeDir . '/poly_apps/laravel_main/storage' : $wwwroot . '/core_node/poly_apps/laravel_main/storage',
+            'laravel_public' => $coreNodeDir ? $coreNodeDir . '/poly_apps/laravel_main/public' : $wwwroot . '/core_node/poly_apps/laravel_main/public'
+        ];
+    }
+    
+    /** @deprecated Use getSystemDirs() instead */
+    public const SYSTEM_DIRS = [];
     
     // API Response Codes
     public const RESPONSE_SUCCESS = 200;
@@ -99,14 +142,35 @@ class ServerManagerV1Constants
         'process_list' => 'ps aux'
     ];
     
-    // Unified Manager Scripts (Hardcoded Paths)
-    public const UNIFIED_MANAGER_SCRIPTS = [
-        'deploy_apps' => '/www/wwwroot/core_node/scripts/unified_manager/deploy_apps.sh',
-        'build_apps' => '/www/wwwroot/core_node/scripts/unified_manager/build_apps.sh',
-        'start_apps' => '/www/wwwroot/core_node/scripts/unified_manager/start_apps.sh',
-        'app_registry' => '/www/wwwroot/core_node/scripts/unified_manager/app_registry.json'
-    ];
+    /**
+     * Get unified manager scripts paths (environment-aware)
+     * @return array
+     */
+    public static function getUnifiedManagerScripts(): array
+    {
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        $unifiedManagerDir = $coreNodeDir ? $coreNodeDir . '/scripts/unified_manager' : PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/unified_manager';
+        return [
+            'deploy_apps' => $unifiedManagerDir . '/deploy_apps.sh',
+            'build_apps' => $unifiedManagerDir . '/build_apps.sh',
+            'start_apps' => $unifiedManagerDir . '/start_apps.sh',
+            'app_registry' => $unifiedManagerDir . '/app_registry.json'
+        ];
+    }
     
-    // Certbot Installation Script
-    public const CERTBOT_INSTALL_SCRIPT = '/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh';
+    /** @deprecated Use getUnifiedManagerScripts() instead */
+    public const UNIFIED_MANAGER_SCRIPTS = [];
+    
+    /**
+     * Get certbot installation script path (environment-aware)
+     * @return string
+     */
+    public static function getCertbotInstallScript(): string
+    {
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        return $coreNodeDir ? $coreNodeDir . '/scripts/shells/linux/debian/install_shells/26_install_certbot.sh' : PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh';
+    }
+    
+    /** @deprecated Use getCertbotInstallScript() instead */
+    public const CERTBOT_INSTALL_SCRIPT = '';
 }

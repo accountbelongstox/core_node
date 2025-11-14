@@ -13,6 +13,7 @@
 
 
 use Illuminate\Support\Str;
+use App\Providers\PathMapper;
 
 return [
 
@@ -70,9 +71,12 @@ return [
     | on disk. The default storage location is defined here; however, you
     | are free to provide another location where they should be stored.
     |
+    | Uses PathMapper to get the correct session path based on environment.
+    | Session files are stored in laravel_db/sessions directory.
+    |
     */
 
-    'files' => env('SESSION_FILES_PATH', storage_path('framework/sessions')),
+    'files' => PathMapper::getLaravelSessionsDir(),
 
     /*
     |--------------------------------------------------------------------------

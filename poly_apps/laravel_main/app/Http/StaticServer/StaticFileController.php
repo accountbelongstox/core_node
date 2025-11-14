@@ -186,7 +186,7 @@ class StaticFileController
     public function __construct()
     {
         // Use the new external storage system
-        $this->staticFilesDir = \App\Helpers\ExternalStorageHelper::getStaticPath();
+        $this->staticFilesDir = \App\Providers\PathMapper::getStaticPath();
         $this->basePath = $this->staticFilesDir;
 
         // Initialize search flag file path

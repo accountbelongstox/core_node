@@ -11,8 +11,10 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-$wwwRoot = str_starts_with(PHP_OS, 'WIN') ? 'D:\www\wwwroot' : '/www/wwwroot';
-$laravelPublicPath = $wwwRoot . '/laravel_main';
+use App\Providers\PathMapper;
+
+$wwwRoot = PathMapper::mapWebPath('wwwroot');
+$laravelPublicPath = PathMapper::getLaravelPublicPath();
 
 return [
 

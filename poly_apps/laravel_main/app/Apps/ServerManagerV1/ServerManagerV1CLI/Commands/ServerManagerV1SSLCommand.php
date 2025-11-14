@@ -163,7 +163,10 @@ class ServerManagerV1SSLCommand extends ServerManagerV1BaseCommand
      */
     private function showCertificateInfo(string $domain): void
     {
-        $certPath = "/etc/letsencrypt/live/$domain/fullchain.pem";
+        // Use PathMapper for environment-aware certificate path (no hardcoded paths)
+        // Certificates are stored in nginxconfig/letsencrypt, not /etc/letsencrypt
+        $letsencryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain);
+        $certPath = "$letsencryptDir/fullchain.pem";
         
         if (!file_exists($certPath)) {
             $this->error("Certificate file not found: $certPath");
@@ -316,14 +319,18 @@ class ServerManagerV1SSLCommand extends ServerManagerV1BaseCommand
             }
 
             $this->info("");
-            $this->info("Configuration file: /www/wwwroot/core_node/.secret_keys/.secret_ignore");
+            // Use PathMapper for environment-aware path (no hardcoded paths)
+            $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+            $this->info("Configuration file: $wwwroot/core_node/.secret_keys/.secret_ignore");
 
             return 0;
 
         } catch (\Exception $e) {
             $this->error("Failed to load SSL configuration: " . $e->getMessage());
             if (strpos($e->getMessage(), 'dd.sh') !== false) {
-                $this->warn("Please run: bash /www/wwwroot/core_node/scripts/dd.sh");
+                // Use PathMapper for environment-aware path (no hardcoded paths)
+                $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+                $this->warn("Please run: bash $wwwroot/core_node/scripts/dd.sh");
             }
             return 1;
         }

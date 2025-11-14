@@ -14,7 +14,7 @@
 
 namespace App\Console\Commands;
 
-use App\Helpers\ExternalStorageHelper;
+use App\Providers\PathMapper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
@@ -75,7 +75,7 @@ class ExternalStorageCommand extends Command
 
         foreach ($types as $type) {
             try {
-                $path = ExternalStorageHelper::getPath($type);
+                $path = PathMapper::getExternalStoragePath($type);
                 $this->line("✓ {$type}: {$path}");
             } catch (\Exception $e) {
                 $this->error("✗ {$type}: {$e->getMessage()}");
@@ -92,7 +92,7 @@ class ExternalStorageCommand extends Command
     {
         $this->info('Validating external storage directories...');
 
-        $validation = ExternalStorageHelper::validatePaths();
+        $validation = PathMapper::validateExternalStoragePaths();
         $allValid = true;
 
         foreach ($types as $type) {
@@ -127,12 +127,12 @@ class ExternalStorageCommand extends Command
     private function showInfo(array $types): void
     {
         $this->info('External Storage Information');
-        $this->line('OS: ' . ExternalStorageHelper::getOS());
+        $this->line('OS: ' . PathMapper::getOS());
         $this->line('');
 
         foreach ($types as $type) {
             try {
-                $path = ExternalStorageHelper::getPath($type);
+                $path = PathMapper::getExternalStoragePath($type);
                 $exists = File::exists($path);
                 $writable = is_writable($path);
                 $size = $exists ? $this->formatSize($this->getDirectorySize($path)) : 'N/A';
@@ -165,7 +165,7 @@ class ExternalStorageCommand extends Command
 
         foreach ($types as $type) {
             try {
-                $path = ExternalStorageHelper::getPath($type);
+                $path = PathMapper::getExternalStoragePath($type);
                 
                 if (File::exists($path)) {
                     $files = File::allFiles($path);

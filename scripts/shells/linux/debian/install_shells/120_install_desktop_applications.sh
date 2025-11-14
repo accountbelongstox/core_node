@@ -282,6 +282,7 @@ install_via_appimage() {
     local desktop_categories="${app_id}_desktop_categories"
     local startup_wm_class="${app_id}_startup_wm_class"
     local need_super="${app_id}_super"
+    local need_desktop_icon="${app_id}_need_desktop_icon"
 
     # Create wrapper script
     local wrapper_script="/usr/local/super_scripts/${exec_name}.sh"
@@ -353,18 +354,75 @@ WRAPPER_EOF
     fi
 
     # Create desktop entry
-    local desktop_file="/usr/share/applications/${exec_name}.desktop"
-    log_message "Creating desktop entry: $desktop_file"
-
-    # For desktop launcher, use direct AppImage path instead of wrapper script
-    # This avoids issues with sudo in desktop environment (no terminal for password)
-    local desktop_exec_path="$exec_target"
-
-    local desktop_entry="[Desktop Entry]
+    if [[ "${!need_desktop_icon}" == "true" ]]; then
+        # Use desktop_entry_manager.sh for consistent icon creation
+        local desktop_manager_script="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
+        
+        if [[ -x "$desktop_manager_script" ]]; then
+            log_message "Creating desktop entry via desktop_entry_manager.sh"
+            
+            # Detect desktop manager user
+            local desktop_manager_user="${SUDO_USER:-$USER}"
+            local desktop_manager_home="$(getent passwd "$desktop_manager_user" | cut -d: -f6)"
+            if [[ -z "$desktop_manager_home" ]] || [[ ! -d "$desktop_manager_home" ]]; then
+                desktop_manager_home="$HOME"
+            fi
+            
+            # Run desktop_entry_manager as the actual user (not root)
+            local run_cmd=""
+            if [[ -n "$desktop_manager_user" ]] && [[ "$desktop_manager_user" != "root" ]] && [[ "$desktop_manager_user" != "$USER" ]]; then
+                run_cmd="sudo -u $desktop_manager_user"
+            fi
+            
+            # Use --create-app to generate launcher and desktop entry with pkexec support
+            $run_cmd bash "$desktop_manager_script" --create-app \
+                "$exec_name" \
+                "${!desktop_name:-$app_name}" \
+                "$exec_target" \
+                "$icon_path" \
+                "${!desktop_categories:-Utility}" \
+                "${!desktop_comment:-$app_name}" \
+                "${!startup_wm_class:-$app_name}" 2>&1 | tee -a "$LOG_FILE"
+            
+            log_message "Desktop entry created via desktop_entry_manager.sh"
+        else
+            log_message "Warning: desktop_entry_manager.sh not found, using fallback method"
+            # Fallback to old method
+            local desktop_file="/usr/share/applications/${exec_name}.desktop"
+            log_message "Creating desktop entry (fallback): $desktop_file"
+            
+            local desktop_entry="[Desktop Entry]
 Name=${!desktop_name:-$app_name}
 Comment=${!desktop_comment:-$app_name}
 GenericName=${!desktop_name:-$app_name}
-Exec=$desktop_exec_path
+Exec=$exec_target
+Icon=$icon_path
+Type=Application
+Terminal=false
+Categories=${!desktop_categories:-Utility;}
+StartupNotify=true
+StartupWMClass=${!startup_wm_class:-$app_name}
+Keywords=${exec_name};
+"
+            
+            echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
+            $USE_SUDO chmod 644 "$desktop_file"
+            
+            # Update desktop database
+            if command -v update-desktop-database >/dev/null 2>&1; then
+                $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+            fi
+        fi
+    else
+        # Legacy: apps without need_desktop_icon flag use old method
+        local desktop_file="/usr/share/applications/${exec_name}.desktop"
+        log_message "Creating desktop entry (legacy): $desktop_file"
+        
+        local desktop_entry="[Desktop Entry]
+Name=${!desktop_name:-$app_name}
+Comment=${!desktop_comment:-$app_name}
+GenericName=${!desktop_name:-$app_name}
+Exec=$exec_target
 Icon=$icon_path
 Type=Application
 Terminal=false
@@ -373,13 +431,14 @@ StartupNotify=false
 StartupWMClass=${!startup_wm_class:-$app_name}
 Keywords=${exec_name};
 "
-
-    echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
-    $USE_SUDO chmod 644 "$desktop_file"
-
-    # Update desktop database
-    if command -v update-desktop-database >/dev/null 2>&1; then
-        $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+        
+        echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
+        $USE_SUDO chmod 644 "$desktop_file"
+        
+        # Update desktop database
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+        fi
     fi
 
     log_message "Successfully installed $app_name"
