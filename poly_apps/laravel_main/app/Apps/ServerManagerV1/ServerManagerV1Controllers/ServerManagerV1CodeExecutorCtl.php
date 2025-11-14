@@ -39,7 +39,8 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'name' => 'Disk Usage Analysis',
                 'category' => 'diagnostic',
                 'description' => 'Analyze disk usage by directory',
-                'command' => 'du -h --max-depth=2 /www/wwwroot | sort -hr | head -20',
+                // Use PathMapper for environment-aware path (no hardcoded paths)
+                'command' => 'du -h --max-depth=2 ' . \App\Providers\PathMapper::mapWebPath('wwwroot') . ' | sort -hr | head -20',
                 'timeout' => 60,
                 'requires_sudo' => false
             ],
@@ -102,7 +103,8 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'name' => 'Unified Manager - List Apps',
                 'category' => 'unified_manager',
                 'description' => 'List applications from unified manager',
-                'command' => 'bash /www/wwwroot/core_node/scripts/unified_manager/deploy_apps.sh --list',
+                // Use PathMapper for environment-aware path (no hardcoded paths)
+                'command' => 'bash ' . \App\Providers\PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/unified_manager/deploy_apps.sh --list',
                 'timeout' => 30,
                 'requires_sudo' => false
             ]

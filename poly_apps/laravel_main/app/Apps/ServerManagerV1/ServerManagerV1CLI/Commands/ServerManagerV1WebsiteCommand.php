@@ -32,6 +32,10 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
      */
     public function handle(): int
     {
+        // PRE-REQUISITE: Fix PHP configuration before any operations
+        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        $this->initializeCommand();
+        
         $action = $this->argument('action');
         $domain = $this->argument('domain');
 
@@ -62,6 +66,55 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         $type = $this->option('type') ?: 'laravel';
         $sslMode = $this->option('ssl') ?: 'auto';
         $phpVersion = $this->option('php-version') ?: '8.2';
+
+        // EXTENDED FEATURE: Check for domain conflict
+        $conflict = ServerManagerV1DomainManager::checkDomainConflict($domain);
+
+        if ($conflict) {
+            $this->warn("⚠️  Domain already exists: $domain");
+            $this->line("");
+            $this->info("Current configuration:");
+            $this->line("  Type: " . $conflict['type']);
+            $this->line("  Directory: " . $conflict['www_dir']);
+            $this->line("  Status: " . $conflict['status']);
+            $this->line("");
+
+            // Calculate what will change
+            $domainDir = $this->getDomainDirectory($domain, $type);
+            $willMigrate = $domainDir !== $conflict['www_dir'];
+
+            if ($willMigrate) {
+                $this->warn("⚠️  This will MIGRATE the domain:");
+                $this->line("  From: " . $conflict['www_dir'] . " (" . $conflict['type'] . ")");
+                $this->line("  To:   " . $domainDir . " (" . $type . ")");
+                $this->line("");
+
+                // Check if old site will be affected
+                $oldSiteDomains = ServerManagerV1DomainManager::findSitesByDirectory($conflict['www_dir']);
+                if (count($oldSiteDomains) === 1) {
+                    $this->error("⚠️  WARNING: This is the LAST domain for the old site!");
+                    $this->warn("  The old site configuration will become orphaned.");
+                    $this->warn("  Files in " . $conflict['www_dir'] . " will be preserved.");
+                } else {
+                    $this->info("ℹ️  Old site has " . (count($oldSiteDomains) - 1) . " other domain(s):");
+                    foreach ($oldSiteDomains as $siteDomain) {
+                        if ($siteDomain['domain'] !== $domain) {
+                            $this->line("    - " . $siteDomain['domain']);
+                        }
+                    }
+                }
+                $this->line("");
+            } else {
+                $this->info("ℹ️  Configuration will be UPDATED (same directory)");
+                $this->line("");
+            }
+
+            if (!$this->confirm('Continue?', false)) {
+                $this->info('Operation cancelled');
+                return 0;
+            }
+            $this->line("");
+        }
 
         $this->info("Adding website: $domain");
         $this->info("Type: $type");
@@ -130,7 +183,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             }
             $this->info("Using existing Laravel directory");
         } else {
-            // For html and laravel types, create directories in /www/wwwroot
+            // For html and laravel types, create directories in mapped wwwroot
             if (!is_dir($domainDir)) {
                 $this->info("Creating domain directory: $domainDir");
                 if (!mkdir($domainDir, 0755, true)) {
@@ -210,8 +263,12 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             $this->warn("   sudo systemctl status nginx");
             $this->warn("");
             $this->warn("📋 Check nginx main configuration includes sites-enabled:");
-            $this->warn("   Main config: " . ServerManagerV1PathConfig::NGINX_MAIN_CONFIG);
-            $this->warn("   Should include: include " . ServerManagerV1PathConfig::NGINX_SITES_ENABLED . "/*;");
+            // Use PathMapper for environment-aware paths (no hardcoded paths)
+            // NGINX_MAIN_CONFIG is /etc/nginx/nginx.conf which is a system path, use PathMapper::findActualPath
+            $nginxMainConfig = \App\Providers\PathMapper::findActualPath('/etc/nginx/nginx.conf');
+            $nginxSitesEnabled = ServerManagerV1PathConfig::getNginxSitesEnabled();
+            $this->warn("   Main config: $nginxMainConfig");
+            $this->warn("   Should include: include $nginxSitesEnabled/*;");
             $this->warn("");
             $this->warn("💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations");
 
@@ -424,7 +481,8 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         // For local domains or HTML type, use www directory
         if (strpos($domain, 'local.') === 0) {
             $baseDomain = substr($domain, 6); // Remove 'local.' prefix
-            return "/www/wwwroot/$baseDomain";
+            $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
+            return "$wwwRoot/$baseDomain";
         }
 
         // Default: use domain name as directory
@@ -433,7 +491,8 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             $baseDomain = substr($baseDomain, 4);
         }
 
-        return "/www/wwwroot/$baseDomain";
+        $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
+        return "$wwwRoot/$baseDomain";
     }
 
     /**
@@ -526,8 +585,9 @@ HTML;
         $this->line("");
         $this->info("Options:");
         $this->line("  --type           - Website type: html|laravel|poly (default: laravel)");
-        $this->line("                     html: Static files in /www/wwwroot/domain");
-        $this->line("                     laravel: Laravel project in /www/wwwroot/domain");
+        $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
+        $this->line("                     html: Static files in $wwwRoot/domain");
+        $this->line("                     laravel: Laravel project in $wwwRoot/domain");
         $this->line("                     poly: Bind to current Laravel main project");
         $this->line("  --ssl            - SSL mode (auto|true|false, default: auto)");
         $this->line("  --php-version    - PHP version (default: 8.2)");

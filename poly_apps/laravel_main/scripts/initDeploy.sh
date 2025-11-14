@@ -7,14 +7,35 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Source gvar_common.sh for environment detection and path mapping
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GVAR_COMMON="${SCRIPT_DIR}/../../../scripts/shells/linux/common/gvar_common.sh"
+
+if [ -f "$GVAR_COMMON" ]; then
+    source "$GVAR_COMMON"
+    echo -e "${GREEN}Loaded environment configuration from gvar_common.sh${NC}"
+    echo -e "  CORE_NODE_DIR: ${CORE_NODE_DIR}"
+    echo -e "  IS_WSL: ${IS_WSL}"
+    echo -e "  IS_PRODUCTION: ${IS_PRODUCTION}"
+    echo -e "  HAS_DESKTOP_ENVIRONMENT: ${HAS_DESKTOP_ENVIRONMENT}"
+else
+    echo -e "${YELLOW}Warning: gvar_common.sh not found, using default paths${NC}"
+    # Fallback: try to detect environment manually
+    # SCRIPT_DIR is now: /www/programing/core_node/poly_apps/laravel_main/scripts
+    # Need to go up 3 levels: scripts -> laravel_main -> poly_apps -> core_node
+    CORE_NODE_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
+    IS_WSL=false
+    [ -d "/mnt/c/Users" ] && IS_WSL=true
+fi
+
 # Function to fix prerequisites and common issues
 fix_prerequisites() {
     echo -e "\n${BLUE}[PREREQUISITES] Checking and fixing common issues${NC}"
-    
+
     # 1. Fix Git safe directory issue (WSL/dual boot common problem)
     echo -e "${YELLOW}Fixing Git safe directory issues...${NC}"
     local current_dir=$(pwd)
-    local project_root="/mnt/d/programing/core_node"
+    local project_root="${CORE_NODE_DIR}"
     
     # Add current directory and project root to Git safe directories
     git config --global --add safe.directory "$current_dir" 2>/dev/null || true
@@ -354,7 +375,9 @@ clear_cache() {
 }
 # Function to handle SQLite database with intelligent migration
 handle_database() {
-    DB_DIR="/www/wwwroot/laravel_main/laravel_db"
+    # Use gvar_common.sh map_web_path to get correct path
+    local wwwroot=$(map_web_path "wwwroot")
+    DB_DIR="$wwwroot/laravel_db"
     DB_FILE="$DB_DIR/database.sqlite"
     ENV_FILE=".env"
 
@@ -427,13 +450,16 @@ configure_project_open_basedir() {
     # Get current script directory (project root)
     local project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local user_ini_file="$project_root/public/.user.ini"
-    local required_paths=":/tmp/:/proc/"
     local manual_config_needed=false
-    local new_basedir="$project_root$required_paths"
+
+    # For Laravel poly projects, disable open_basedir entirely to allow PathMapper environment detection
+    # PathMapper needs to check /mnt/c, /mnt/d, /data, /www directories for environment detection
+    local new_basedir="none"
     local security_settings=$'\n; Security settings\ndisable_functions = exec,passthru,shell_exec,system,proc_open,popen\nexpose_php = Off'
 
     echo -e "Project root: ${GREEN}$project_root${NC}"
     echo -e "Target .user.ini: ${GREEN}$user_ini_file${NC}"
+    echo -e "Open_basedir setting: ${GREEN}$new_basedir${NC} ${YELLOW}(disabled for Laravel poly project)${NC}"
 
     # Create public directory if missing (may fail due to permissions)
     if [ ! -d "$project_root/public" ]; then
@@ -461,23 +487,30 @@ configure_project_open_basedir() {
 
         if grep -q "^open_basedir" "$user_ini_file" 2>/dev/null; then
             sed -i "s|^open_basedir.*|open_basedir = $new_basedir|" "$user_ini_file" && \
-            echo -e "${GREEN}????Updated open_basedir directive${NC}"
+            echo -e "${GREEN}Updated open_basedir directive to: $new_basedir${NC}"
         else
             echo "open_basedir = $new_basedir" >> "$user_ini_file" && \
-            echo -e "${GREEN}????Added open_basedir directive${NC}"
+            echo -e "${GREEN}Added open_basedir directive: $new_basedir${NC}"
         fi
 
-        chmod 644 "$user_ini_file" && echo -e "${GREEN}????Set correct file permissions (644)${NC}"
+        # Add comment explaining why open_basedir is disabled
+        if ! grep -q "PathMapper" "$user_ini_file" 2>/dev/null; then
+            sed -i '1i; Disable open_basedir for Laravel poly projects to allow PathMapper environment detection' "$user_ini_file" && \
+            echo -e "${GREEN}Added configuration comment${NC}"
+        fi
+
+        chmod 644 "$user_ini_file" && echo -e "${GREEN}Set correct file permissions (644)${NC}"
 
         if ! grep -q "^disable_functions" "$user_ini_file" 2>/dev/null; then
             echo "$security_settings" >> "$user_ini_file" && \
-            echo -e "${GREEN}????Added security hardening settings${NC}"
+            echo -e "${GREEN}Added security hardening settings${NC}"
         fi
     else
         # Manual configuration required
-        echo -e "\n${RED}????Insufficient permissions for automated configuration${NC}"
+        echo -e "\n${RED}Insufficient permissions for automated configuration${NC}"
         echo -e "${YELLOW}Please manually create/update ${user_ini_file} with:${NC}"
         echo -e "--------------------------------------------------"
+        echo -e "; Disable open_basedir for Laravel poly projects to allow PathMapper environment detection"
         echo -e "open_basedir = ${new_basedir}"
         echo -e "$security_settings"
         echo -e "--------------------------------------------------"

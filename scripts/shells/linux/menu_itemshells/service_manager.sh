@@ -19,6 +19,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
 INSTALL_SHELLS_DIR="$PARENT_DIR_LEVEL_1/debian/install_shells"
+SERVER_MANAGER_DIR="$PARENT_DIR_LEVEL_1/debian/server_manager"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_1/common/gvar_common.sh"
@@ -35,6 +36,7 @@ NC='\033[0m' # No Color
 declare -A SERVICE_NAME
 declare -A SERVICE_SYSTEMD
 declare -A SERVICE_INSTALL_SCRIPT
+declare -A SERVICE_MANAGER_SCRIPT
 
 SERVICE_NAME["redis"]="Redis"
 SERVICE_SYSTEMD["redis"]="redis-server"
@@ -55,6 +57,7 @@ SERVICE_INSTALL_SCRIPT["mysql"]="48_install_mysql.sh"
 SERVICE_NAME["nginx"]="Nginx"
 SERVICE_SYSTEMD["nginx"]="nginx"
 SERVICE_INSTALL_SCRIPT["nginx"]="25_install_nginx.sh"
+SERVICE_MANAGER_SCRIPT["nginx"]="$SERVER_MANAGER_DIR/nginx_manager.sh"
 
 SERVICE_NAME["ssh"]="SSH Server"
 SERVICE_SYSTEMD["ssh"]="ssh"
@@ -339,11 +342,46 @@ reinstall_service() {
     fi
 }
 
+# Function to check if service has advanced manager
+has_advanced_manager() {
+    local service="$1"
+    local manager_script="${SERVICE_MANAGER_SCRIPT[$service]}"
+    
+    if [ -n "$manager_script" ] && [ -x "$manager_script" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to launch advanced manager
+launch_advanced_manager() {
+    local service="$1"
+    local manager_script="${SERVICE_MANAGER_SCRIPT[$service]}"
+    local service_name="${SERVICE_NAME[$service]}"
+    
+    if [ ! -x "$manager_script" ]; then
+        echo -e "${RED}Error: Manager script not found or not executable: $manager_script${NC}"
+        read -p "Press Enter to continue..."
+        return 1
+    fi
+    
+    echo ""
+    echo "Launching advanced manager for $service_name..."
+    bash "$manager_script"
+}
+
 # Function to manage specific service
 manage_service() {
     local service="$1"
     local service_name="${SERVICE_NAME[$service]}"
+    
+    # Check if service has advanced manager script
+    if has_advanced_manager "$service"; then
+        launch_advanced_manager "$service"
+        return
+    fi
 
+    # Standard management menu for services without advanced manager
     while true; do
         clear
         echo "================================================"
@@ -477,6 +515,12 @@ show_main_menu() {
             local service_name="${SERVICE_NAME[$service]}"
             printf "%d. %-15s : " "$index" "$service_name"
             print_status "$service"
+            
+            # Show indicator if service has advanced manager
+            if has_advanced_manager "$service"; then
+                echo -e "  ${BLUE}[Advanced Manager Available]${NC}"
+            fi
+            
             ((index++))
         done
 

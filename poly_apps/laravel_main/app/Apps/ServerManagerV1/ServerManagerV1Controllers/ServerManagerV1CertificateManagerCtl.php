@@ -5,7 +5,6 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
-use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -86,7 +85,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                     'domain' => $domain,
                     'provider' => $provider,
                     'staging' => $staging,
-                    'certificate_path' => "/etc/letsencrypt/live/$domain/",
+                    'certificate_path' => \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain) . '/',
                     'output' => $result['output']
                 ], 'SSL certificate generated successfully');
             } else {
@@ -163,7 +162,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         
         try {
             $domain = $request->input('domain');
-            $certPath = "/etc/letsencrypt/live/$domain/fullchain.pem";
+            $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
             
             if (!file_exists($certPath)) {
                 return $this->errorResponse('Certificate not found', ['domain' => $domain, 'path' => $certPath]);
@@ -181,8 +180,8 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             $certInfo = $this->parseCertificateInfo($result['output']);
             $certInfo['domain'] = $domain;
             $certInfo['certificate_path'] = $certPath;
-            $certInfo['private_key_path'] = "/etc/letsencrypt/live/$domain/privkey.pem";
-            $certInfo['chain_path'] = "/etc/letsencrypt/live/$domain/chain.pem";
+            $certInfo['private_key_path'] = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptKeyPath($domain);
+            $certInfo['chain_path'] = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptChainPath($domain);
             
             return $this->successResponse($certInfo, 'Certificate status retrieved successfully');
             
@@ -263,8 +262,8 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
     {
         try {
             if ($provider === 'dnspod') {
-                $email = ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
-                $apiToken = ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
+                $email = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
+                $apiToken = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
 
                 if ($email && $apiToken) {
                     // Parse DNSPod API token format: "id,token"
@@ -323,9 +322,12 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
     private function createDnspodCredentialsFile(array $credentials): string
     {
         $tempFile = tempnam(sys_get_temp_dir(), 'dnspod_credentials_');
+        // Standard dns-dnspod plugin requires email and api-token (full "id,token" format)
+        // certbot automatically prefixes with "dns_dnspod_" for the credentials file
+        // Use quotes to prevent configobj from parsing comma-separated value as a list
+        $apiToken = $credentials['api_id'] . ',' . $credentials['api_token'];
         $content = "dns_dnspod_email = {$credentials['email']}\n";
-        $content .= "dns_dnspod_api_id = {$credentials['api_id']}\n";
-        $content .= "dns_dnspod_api_token = {$credentials['api_token']}\n";
+        $content .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
 
         file_put_contents($tempFile, $content);
         chmod($tempFile, 0600);

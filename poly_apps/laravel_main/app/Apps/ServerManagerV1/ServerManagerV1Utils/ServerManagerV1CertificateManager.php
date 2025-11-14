@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
 use Illuminate\Support\Facades\Log;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
+use App\Providers\PathMapper;
 
 /**
  * Certificate Management Utility for ServerManagerV1
@@ -12,18 +13,26 @@ use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
  */
 class ServerManagerV1CertificateManager
 {
-    private const CERTIFICATES_DB_DIR = '/www/wwwroot/laravel_db/servermanager/certificates';
+    // Use PathMapper for database directory
     private const CERTIFICATES_FILE = 'certificates.json';
     
     // Predefined subdomain prefixes
     private const SUBDOMAIN_PREFIXES = ['si', 'sz', 'local', 'api'];
     
     /**
+     * Get certificates database directory
+     */
+    private static function getCertificatesDbDir(): string
+    {
+        return PathMapper::mapWebPath('laravel_data_dir') . '/servermanager/certificates';
+    }
+    
+    /**
      * Get certificates database file path
      */
     private static function getCertificatesFilePath(): string
     {
-        return self::CERTIFICATES_DB_DIR . '/' . self::CERTIFICATES_FILE;
+        return self::getCertificatesDbDir() . '/' . self::CERTIFICATES_FILE;
     }
     
     /**
@@ -31,9 +40,10 @@ class ServerManagerV1CertificateManager
      */
     private static function ensureDbDirectory(): bool
     {
-        if (!is_dir(self::CERTIFICATES_DB_DIR)) {
-            if (!mkdir(self::CERTIFICATES_DB_DIR, 0755, true)) {
-                Log::error('Failed to create certificates database directory: ' . self::CERTIFICATES_DB_DIR);
+        $dbDir = self::getCertificatesDbDir();
+        if (!is_dir($dbDir)) {
+            if (!mkdir($dbDir, 0755, true)) {
+                Log::error('Failed to create certificates database directory: ' . $dbDir);
                 return false;
             }
         }
@@ -167,7 +177,7 @@ class ServerManagerV1CertificateManager
             'id' => $certId,
             'base_domain' => $baseDomain,
             'domains' => $domains,
-            'certificate_path' => ServerManagerV1PathConfig::getSslCertDir($baseDomain) . '/',
+            'certificate_path' => ServerManagerV1PathConfig::getLetsEncryptLiveDir($baseDomain) . '/',
             'provider' => $certificateData['provider'] ?? 'dnspod',
             'status' => $certificateData['status'] ?? 'pending',
             'issued_at' => $certificateData['issued_at'] ?? null,

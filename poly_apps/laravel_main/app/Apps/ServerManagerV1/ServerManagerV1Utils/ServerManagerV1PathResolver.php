@@ -3,34 +3,11 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
 use Illuminate\Support\Facades\Log;
+use App\Providers\PathMapper;
 
 class ServerManagerV1PathResolver
 {
     private static ?array $environment = null;
-
-    /**
-     * Get core_node root directory from current file path
-     * Current file: core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PathResolver.php
-     * Need to go up: ../../../../../../.. to reach core_node
-     */
-    private static function resolveCoreNodePath(): string
-    {
-        $currentFile = __FILE__;
-        $coreNodePath = realpath(dirname($currentFile) . '/../../../../../../..');
-
-        // Normalize path separators to forward slashes for consistency
-        $coreNodePath = str_replace('\\', '/', $coreNodePath);
-
-        // Convert Windows paths to WSL paths if needed
-        // Example: D:/programing/core_node -> /mnt/d/programing/core_node
-        if (preg_match('/^([A-Z]):(.*)$/i', $coreNodePath, $matches)) {
-            $drive = strtolower($matches[1]);
-            $path = $matches[2];
-            $coreNodePath = "/mnt/$drive$path";
-        }
-
-        return $coreNodePath;
-    }
 
     /**
      * Detect current environment
@@ -41,13 +18,13 @@ class ServerManagerV1PathResolver
             return self::$environment;
         }
 
-        $coreNodePath = self::resolveCoreNodePath();
+        $coreNodePath = PathMapper::getCoreNodeDir() ?? '';
 
         // WSL detection: check if path starts with /mnt/
-        $isWsl = (strpos($coreNodePath, '/mnt/d/') === 0 || strpos($coreNodePath, '/mnt/c/') === 0);
+        $isWsl = PathMapper::isWSL();
 
-        // Production detection: check if path is under /www/wwwroot/
-        $isProduction = (strpos($coreNodePath, '/www/wwwroot/') === 0);
+        // Production detection
+        $isProduction = PathMapper::isProduction();
 
         // Windows detection: check directory separator (but could still be WSL)
         $isWindows = DIRECTORY_SEPARATOR === '\\';
@@ -71,36 +48,40 @@ class ServerManagerV1PathResolver
 
     /**
      * Get core node root path
+     * @deprecated Use PathMapper::getCoreNodeDir() instead
      */
     public static function getCoreNodePath(): string
     {
-        $env = self::detectEnvironment();
-        return $env['core_node_path'];
+        return PathMapper::getCoreNodeDir() ?? '';
     }
 
     /**
      * Get secret keys directory
+     * @deprecated Use PathMapper::getCoreNodeDir() . '/.secret_keys/.secret_ignore' instead
      */
     public static function getSecretKeysPath(): string
     {
-        return self::getCoreNodePath() . '/.secret_keys/.secret_ignore';
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        return $coreNodeDir ? $coreNodeDir . '/.secret_keys/.secret_ignore' : '';
     }
 
     /**
      * Get dd.sh script path
+     * @deprecated Use PathMapper::getCoreNodeDir() . '/scripts/dd.sh' instead
      */
     public static function getDdScriptPath(): string
     {
-        return self::getCoreNodePath() . '/scripts/dd.sh';
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        return $coreNodeDir ? $coreNodeDir . '/scripts/dd.sh' : '';
     }
 
     /**
      * Check if running in WSL
+     * @deprecated Use PathMapper::isWSL() instead
      */
     public static function isWSL(): bool
     {
-        $env = self::detectEnvironment();
-        return $env['is_wsl'];
+        return PathMapper::isWSL();
     }
 
     /**
@@ -127,52 +108,36 @@ class ServerManagerV1PathResolver
 
     /**
      * Map web path based on environment (matches gvar_common.sh logic)
-     * In WSL, check if Windows directories exist first; if they exist, use them
-     * If Windows directories don't exist, use Linux paths
-     * In Production, use standard Linux paths
-     *
-     * @param string $linuxPath The Linux path to map
-     * @return string The mapped path
+     * @deprecated Use PathMapper::mapWebPath() instead
+     */
+    /**
+     * Map web path from hardcoded Linux path to environment-aware path
+     * 
+     * @deprecated This method is for backwards compatibility only.
+     * New code should use PathMapper::mapWebPath() directly with path keys.
+     * This method checks for hardcoded paths like /www/wwwroot, /www/nginxconfig, etc.
+     * and converts them to use PathMapper for environment-aware resolution.
      */
     public static function mapWebPath(string $linuxPath): string
     {
-        if (!self::isWSL()) {
-            // Production: return as-is
-            return $linuxPath;
-        }
-
-        // WSL: Map web server paths to Windows directories if they exist
+        // Extract path key from linuxPath (for backwards compatibility with hardcoded paths)
+        // NOTE: New code should NOT use hardcoded paths like /www/wwwroot
+        // Instead, use PathMapper::mapWebPath('wwwroot', $subPath) directly
         if (strpos($linuxPath, '/www/wwwroot') === 0) {
-            // Check if D:\wwwroot\ exists in WSL (not D:\www\wwwroot\)
-            if (is_dir('/mnt/d/wwwroot')) {
-                return '/mnt/d/wwwroot' . substr($linuxPath, strlen('/www/wwwroot'));
-            }
+            $subPath = substr($linuxPath, strlen('/www/wwwroot'));
+            return PathMapper::mapWebPath('wwwroot', $subPath);
         } elseif (strpos($linuxPath, '/www/nginxconfig') === 0) {
-            // Check if D:\nginxconfig\ exists in WSL
-            if (is_dir('/mnt/d/nginxconfig')) {
-                return '/mnt/d/nginxconfig' . substr($linuxPath, strlen('/www/nginxconfig'));
-            }
+            $subPath = substr($linuxPath, strlen('/www/nginxconfig'));
+            return PathMapper::mapWebPath('nginxconfig', $subPath);
         } elseif (strpos($linuxPath, '/www/shared-data') === 0) {
-            // Check if D:\shared-data\ exists in WSL
-            if (is_dir('/mnt/d/shared-data')) {
-                return '/mnt/d/shared-data' . substr($linuxPath, strlen('/www/shared-data'));
-            }
+            $subPath = substr($linuxPath, strlen('/www/shared-data'));
+            return PathMapper::mapWebPath('shared-data', $subPath);
         } elseif (strpos($linuxPath, '/www/backup') === 0) {
-            // Check if D:\backup\ exists in WSL
-            if (is_dir('/mnt/d/backup')) {
-                return '/mnt/d/backup' . substr($linuxPath, strlen('/www/backup'));
-            }
-        } elseif (preg_match('#^/www/dev_#', $linuxPath)) {
-            // Check if D:\www\ parent exists in WSL
-            if (is_dir('/mnt/d/www')) {
-                return '/mnt/d' . $linuxPath;
-            }
+            $subPath = substr($linuxPath, strlen('/www/backup'));
+            return PathMapper::mapWebPath('backup', $subPath);
         }
-
-        // Keep system config in Linux filesystem even in WSL
-        // /etc/nginx, /etc/php, /var/log remain unmapped
-
-        // Default: no mapping (use Linux path)
+        
+        // For other paths, return as-is
         return $linuxPath;
     }
 
@@ -202,57 +167,28 @@ class ServerManagerV1PathResolver
 
     /**
      * Resolve web directory path based on environment
-     * Maps /www/wwwroot to Windows directories in WSL if they exist
+     * @deprecated Use PathMapper::mapWebPath('wwwroot') instead
      */
     public static function resolveWebRoot(): string
     {
-        return self::mapWebPath('/www/wwwroot');
+        return PathMapper::mapWebPath('wwwroot');
     }
 
     /**
      * Get nginx paths based on environment
-     * Maps /www/nginxconfig to Windows directories in WSL if they exist
+     * @deprecated Use ServerManagerV1PathConfig methods instead
      */
     public static function getNginxPaths(): array
     {
-        $linuxConfigPath = '/www/nginxconfig/sites-available';
-        $linuxEnabledPath = '/www/nginxconfig/sites-enabled';
-
-        if (self::isWSL()) {
-            // Check if Windows D:\nginxconfig exists
-            if (is_dir('/mnt/d/nginxconfig')) {
-                return [
-                    'config_path' => '/mnt/d/nginxconfig/sites-available',
-                    'enabled_path' => '/mnt/d/nginxconfig/sites-enabled',
-                    'available' => is_dir('/mnt/d/nginxconfig/sites-available'),
-                    'note' => 'WSL environment - using Windows D:\nginxconfig'
-                ];
-            }
-
-            // Use /etc/nginx in WSL if Windows directory doesn't exist
-            return [
-                'config_path' => '/etc/nginx/sites-available',
-                'enabled_path' => '/etc/nginx/sites-enabled',
-                'available' => file_exists('/etc/nginx/sites-available'),
-                'note' => 'WSL environment - using /etc/nginx (nginx may not be installed)'
-            ];
-        }
-
-        // Production: use /www/nginxconfig if it exists, otherwise /etc/nginx
-        if (is_dir('/www/nginxconfig')) {
-            return [
-                'config_path' => $linuxConfigPath,
-                'enabled_path' => $linuxEnabledPath,
-                'available' => is_dir($linuxConfigPath),
-                'note' => 'Production environment - using /www/nginxconfig'
-            ];
-        }
-
+        $nginxConfigDir = PathMapper::mapWebPath('nginxconfig');
+        $sitesAvailable = $nginxConfigDir . '/sites-available';
+        $sitesEnabled = $nginxConfigDir . '/sites-enabled';
+        
         return [
-            'config_path' => '/etc/nginx/sites-available',
-            'enabled_path' => '/etc/nginx/sites-enabled',
-            'available' => file_exists('/etc/nginx/sites-available'),
-            'note' => 'Production environment - using /etc/nginx'
+            'config_path' => $sitesAvailable,
+            'enabled_path' => $sitesEnabled,
+            'available' => is_dir($sitesAvailable),
+            'note' => 'Using mapped nginx config directory'
         ];
     }
 

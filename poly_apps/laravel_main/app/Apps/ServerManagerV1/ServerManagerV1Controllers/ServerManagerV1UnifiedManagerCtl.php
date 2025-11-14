@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
+use App\Providers\PathMapper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +22,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         }
         
         try {
-            $deployScript = ServerManagerV1Constants::UNIFIED_MANAGER_SCRIPTS['deploy_apps'];
+            $deployScript = ServerManagerV1Constants::getUnifiedManagerScripts()['deploy_apps'];
             
             // Execute list command
             $result = ServerManagerV1Utils::executeCommand('bash', [$deployScript, '--list'], 30);
@@ -37,7 +38,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $apps = $this->parseAppList($result['output']);
             
             // Get additional information from registry if available
-            $registryPath = ServerManagerV1Constants::UNIFIED_MANAGER_SCRIPTS['app_registry'];
+            $registryPath = ServerManagerV1Constants::getUnifiedManagerScripts()['app_registry'];
             $registryApps = [];
             
             if (file_exists($registryPath)) {
@@ -86,7 +87,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         try {
             $appName = $request->input('app_name');
             $action = $request->input('action', 'deploy'); // deploy, start, stop, restart
-            $deployScript = ServerManagerV1Constants::UNIFIED_MANAGER_SCRIPTS['deploy_apps'];
+            $deployScript = ServerManagerV1Constants::getUnifiedManagerScripts()['deploy_apps'];
             
             $startTime = microtime(true);
             $deploymentId = uniqid('deploy_', true);
@@ -196,7 +197,9 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $portInfo = $this->getPortInfo($appName);
             
             // Get application directory info
-            $appDir = "/www/wwwroot/core_node/apps/$appName";
+            // Use PathMapper to get wwwroot path (environment-aware, no hardcoded paths)
+            $wwwroot = PathMapper::mapWebPath('wwwroot');
+            $appDir = "$wwwroot/core_node/apps/$appName";
             $directoryInfo = [
                 'exists' => is_dir($appDir),
                 'path' => $appDir,
@@ -260,7 +263,9 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             }
             
             // Get application-specific logs if they exist
-            $appLogDir = "/www/wwwroot/core_node/apps/$appName/logs";
+            // Use PathMapper to get wwwroot path (environment-aware, no hardcoded paths)
+            $wwwroot = PathMapper::mapWebPath('wwwroot');
+            $appLogDir = "$wwwroot/core_node/apps/$appName/logs";
             if (is_dir($appLogDir)) {
                 $logFiles = glob($appLogDir . '/*.log');
                 

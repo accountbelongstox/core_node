@@ -4,25 +4,34 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
 use Illuminate\Support\Facades\Log;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
+use App\Providers\PathMapper;
 
 /**
  * Domain Management Utility for ServerManagerV1
  * 
- * Manages domain configurations in JSON files stored in /www/wwwroot/laravel_db
+ * Manages domain configurations in JSON files stored in laravel_data_dir (mapped via PathMapper)
  * instead of using database storage.
  */
 class ServerManagerV1DomainManager
 {
-    private const DOMAINS_DB_DIR = '/www/wwwroot/laravel_db/servermanager/domains';
+    // Use PathMapper for database directory
     private const DOMAINS_FILE = 'domains.json';
     private const DEPLOYMENTS_FILE = 'deployments.json';
+    
+    /**
+     * Get domains database directory
+     */
+    private static function getDomainsDbDir(): string
+    {
+        return PathMapper::mapWebPath('laravel_data_dir') . '/servermanager/domains';
+    }
     
     /**
      * Get domains database file path
      */
     private static function getDomainsFilePath(): string
     {
-        return self::DOMAINS_DB_DIR . '/' . self::DOMAINS_FILE;
+        return self::getDomainsDbDir() . '/' . self::DOMAINS_FILE;
     }
     
     /**
@@ -30,7 +39,7 @@ class ServerManagerV1DomainManager
      */
     private static function getDeploymentsFilePath(): string
     {
-        return self::DOMAINS_DB_DIR . '/' . self::DEPLOYMENTS_FILE;
+        return self::getDomainsDbDir() . '/' . self::DEPLOYMENTS_FILE;
     }
     
     /**
@@ -38,9 +47,10 @@ class ServerManagerV1DomainManager
      */
     private static function ensureDbDirectory(): bool
     {
-        if (!is_dir(self::DOMAINS_DB_DIR)) {
-            if (!mkdir(self::DOMAINS_DB_DIR, 0755, true)) {
-                Log::error('Failed to create domains database directory: ' . self::DOMAINS_DB_DIR);
+        $dbDir = self::getDomainsDbDir();
+        if (!is_dir($dbDir)) {
+            if (!mkdir($dbDir, 0755, true)) {
+                Log::error('Failed to create domains database directory: ' . $dbDir);
                 return false;
             }
         }
@@ -112,7 +122,35 @@ class ServerManagerV1DomainManager
 
         $domains = self::loadDomains();
 
-        $wwwDir = $config['www_dir'] ?? "/www/wwwroot/$domain";
+        // Check for domain conflict (EXTENDED FEATURE)
+        $existingConfig = self::getDomain($domain);
+        $isUpdate = false;
+
+        if ($existingConfig) {
+            $isUpdate = true;
+            Log::warning('Domain already exists, updating configuration', [
+                'domain' => $domain,
+                'old_type' => $existingConfig['type'],
+                'new_type' => $config['type'] ?? 'unknown',
+                'old_www_dir' => $existingConfig['www_dir'],
+                'new_www_dir' => $config['www_dir'] ?? 'unknown'
+            ]);
+
+            // Record history for update
+            self::recordHistory($domain, 'update', [
+                'old_config' => $existingConfig,
+                'new_config' => $config
+            ]);
+        } else {
+            // Record history for new domain
+            self::recordHistory($domain, 'create', [
+                'config' => $config
+            ]);
+        }
+
+        // Use PathMapper for environment-aware path (no hardcoded paths)
+        $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+        $wwwDir = $config['www_dir'] ?? "$wwwroot/$domain";
 
         // Validate and ensure www directory exists
         if (!is_dir($wwwDir)) {
@@ -239,18 +277,24 @@ class ServerManagerV1DomainManager
     public static function removeDomain(string $domain): bool
     {
         $domains = self::loadDomains();
-        
+
         if (!isset($domains[$domain])) {
             return true; // Already removed
         }
-        
+
+        // Record history before removal (EXTENDED FEATURE)
+        $removedConfig = $domains[$domain];
+        self::recordHistory($domain, 'delete', [
+            'removed_config' => $removedConfig
+        ]);
+
         unset($domains[$domain]);
-        
+
         if (self::saveDomains($domains)) {
             Log::info('Domain removed successfully', ['domain' => $domain]);
             return true;
         }
-        
+
         return false;
     }
     
@@ -572,8 +616,9 @@ class ServerManagerV1DomainManager
     private static function generateNginxConfig(string $domain, array $config): bool
     {
         // AI DEVELOPERS: Always use ServerManagerV1PathConfig constants for paths!
-        $nginxConfigDir = ServerManagerV1PathConfig::NGINX_SITES_AVAILABLE;
-        $nginxEnabledDir = ServerManagerV1PathConfig::NGINX_SITES_ENABLED;
+        // Use PathMapper methods instead of deprecated constants (no hardcoded paths)
+        $nginxConfigDir = ServerManagerV1PathConfig::getNginxSitesAvailable();
+        $nginxEnabledDir = ServerManagerV1PathConfig::getNginxSitesEnabled();
 
         // Create directories if they don't exist
         if (!is_dir($nginxConfigDir)) {
@@ -624,13 +669,21 @@ class ServerManagerV1DomainManager
             if ($certificate && isset($certificate['certificate_path'])) {
                 $certDir = rtrim($certificate['certificate_path'], '/');
             } else {
-                // Fallback to domain-based path using PathConfig
-                $certDir = ServerManagerV1PathConfig::getSslCertDir($domain);
+                // Fallback to letsencrypt live directory
+                $certDir = ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain);
             }
 
-            // Validate SSL certificate files exist
+            // Also check ssl directory (for compatibility with old certificates or symlinks)
+            $sslCertDir = ServerManagerV1PathConfig::getSslCertDir($domain);
             $fullchainPath = "$certDir/fullchain.pem";
             $privkeyPath = "$certDir/privkey.pem";
+            
+            // If not found in letsencrypt, try ssl directory
+            if (!file_exists($fullchainPath) || !file_exists($privkeyPath)) {
+                $fullchainPath = "$sslCertDir/fullchain.pem";
+                $privkeyPath = "$sslCertDir/privkey.pem";
+                $certDir = $sslCertDir;
+            }
 
             if (!file_exists($fullchainPath) || !file_exists($privkeyPath)) {
                 Log::warning('SSL certificate files not found, they should be created before nginx restart', [
@@ -1001,5 +1054,1562 @@ server {
         }
 
         return $results;
+    }
+
+    /**
+     * Get nginx sync status
+     * Analyzes current nginx configurations and compares with database
+     *
+     * AI DEVELOPERS: Use this to check configuration consistency
+     *
+     * @return array Status information with counts and lists
+     */
+    public static function getNginxSyncStatus(): array
+    {
+        $domains = self::loadDomains();
+        // Use PathMapper methods instead of deprecated constants (no hardcoded paths)
+        $nginxConfigDir = ServerManagerV1PathConfig::getNginxSitesAvailable();
+        $nginxEnabledDir = ServerManagerV1PathConfig::getNginxSitesEnabled();
+
+        $status = [
+            'domains_in_db' => count($domains),
+            'active_domains' => 0,
+            'nginx_enabled_domains' => 0,
+            'config_files_exist' => 0,
+            'enabled_links_exist' => 0,
+            'orphaned_configs' => [],
+            'missing_configs' => [],
+            'nginx_only_domains' => []
+        ];
+
+        $dbDomains = [];
+        $nginxEnabledDomains = [];
+
+        foreach ($domains as $domain => $config) {
+            if ($config['status'] === 'active') {
+                $status['active_domains']++;
+            }
+
+            if ($config['nginx_enabled'] ?? false) {
+                $status['nginx_enabled_domains']++;
+                $nginxEnabledDomains[] = $domain;
+            }
+
+            $dbDomains[$domain] = $config;
+        }
+
+        if (is_dir($nginxConfigDir)) {
+            $files = glob($nginxConfigDir . '/*');
+            $nginxConfigs = [];
+
+            foreach ($files as $file) {
+                $filename = basename($file);
+
+                if (is_file($file) && $filename !== 'default' && $filename !== 'ssl-challenges') {
+                    $nginxConfigs[] = $filename;
+                    $status['config_files_exist']++;
+
+                    if (!isset($dbDomains[$filename])) {
+                        $status['orphaned_configs'][] = $filename;
+                    }
+                }
+            }
+
+            foreach ($nginxEnabledDomains as $domain) {
+                $configPath = $nginxConfigDir . '/' . $domain;
+                if (!file_exists($configPath)) {
+                    $status['missing_configs'][] = $domain;
+                }
+            }
+        }
+
+        if (is_dir($nginxEnabledDir)) {
+            $files = glob($nginxEnabledDir . '/*');
+            foreach ($files as $file) {
+                $filename = basename($file);
+                if ((is_file($file) || is_link($file)) && $filename !== 'default' && $filename !== 'ssl-challenges') {
+                    $status['enabled_links_exist']++;
+                }
+            }
+        }
+
+        return $status;
+    }
+
+    /**
+     * Parse nginx configuration file
+     * Extracts domain information from nginx config
+     *
+     * @param string $configPath Path to nginx config file
+     * @return array|null Parsed configuration or null on failure
+     */
+    public static function parseNginxConfig(string $configPath): ?array
+    {
+        if (!file_exists($configPath) || !is_readable($configPath)) {
+            return null;
+        }
+
+        $content = file_get_contents($configPath);
+        if ($content === false) {
+            return null;
+        }
+
+        $config = [
+            'domain' => basename($configPath),
+            'server_names' => [],
+            'root' => null,
+            'ssl_enabled' => false,
+            'php_version' => null,
+            'type' => 'html',
+            'listen_ports' => [],
+            'ssl_certificate' => null,
+            'ssl_certificate_key' => null
+        ];
+
+        $lines = explode("\n", $content);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if (preg_match('/^\s*server_name\s+([^;]+);/', $line, $matches)) {
+                $serverNames = preg_split('/\s+/', trim($matches[1]));
+                $config['server_names'] = array_merge($config['server_names'], $serverNames);
+            }
+
+            if (preg_match('/^\s*root\s+([^;]+);/', $line, $matches)) {
+                $config['root'] = trim($matches[1]);
+            }
+
+            if (preg_match('/^\s*listen\s+(\d+)\s+ssl/', $line, $matches) ||
+                preg_match('/^\s*listen\s+\[::\]:(\d+)\s+ssl/', $line, $matches)) {
+                $config['ssl_enabled'] = true;
+            }
+
+            if (preg_match('/^\s*listen\s+(\d+)/', $line, $matches)) {
+                $port = $matches[1];
+                if (!in_array($port, $config['listen_ports'])) {
+                    $config['listen_ports'][] = $port;
+                }
+            }
+
+            if (preg_match('/^\s*ssl_certificate\s+([^;]+);/', $line, $matches)) {
+                $config['ssl_certificate'] = trim($matches[1]);
+            }
+
+            if (preg_match('/^\s*ssl_certificate_key\s+([^;]+);/', $line, $matches)) {
+                $config['ssl_certificate_key'] = trim($matches[1]);
+            }
+
+            if (preg_match('/php([\d.]+)-fpm\.sock/', $line, $matches)) {
+                $config['php_version'] = $matches[1];
+            }
+
+            if (strpos($line, 'try_files $uri $uri/ /index.php') !== false) {
+                $config['type'] = 'laravel';
+            }
+        }
+
+        if (strpos($config['root'], '/poly_apps/laravel_main') !== false) {
+            $config['type'] = 'poly';
+        }
+
+        return $config;
+    }
+
+    /**
+     * Sync from nginx configurations to database
+     * Imports nginx configurations into domain database
+     *
+     * AI DEVELOPERS: Use this to import existing nginx configs
+     *
+     * @param array $options Options: merge (bool), overwrite (bool), dry_run (bool)
+     * @return array Results with imported domains and errors
+     */
+    public static function syncFromNginx(array $options = []): array
+    {
+        $merge = $options['merge'] ?? true;
+        $overwrite = $options['overwrite'] ?? false;
+        $dryRun = $options['dry_run'] ?? false;
+
+        $results = [
+            'scanned_files' => 0,
+            'imported_domains' => [],
+            'skipped_domains' => [],
+            'updated_domains' => [],
+            'errors' => []
+        ];
+
+        $nginxConfigDir = ServerManagerV1PathConfig::getNginxSitesAvailable();
+
+        if (!is_dir($nginxConfigDir)) {
+            $results['errors'][] = "Nginx config directory not found: $nginxConfigDir";
+            return $results;
+        }
+
+        $existingDomains = self::loadDomains();
+        $files = glob($nginxConfigDir . '/*');
+
+        foreach ($files as $file) {
+            $filename = basename($file);
+
+            if (!is_file($file) || $filename === 'default' || $filename === 'ssl-challenges') {
+                continue;
+            }
+
+            $results['scanned_files']++;
+
+            $parsedConfig = self::parseNginxConfig($file);
+            if (!$parsedConfig) {
+                $results['errors'][] = "Failed to parse: $filename";
+                continue;
+            }
+
+            $domain = $parsedConfig['domain'];
+
+            if (isset($existingDomains[$domain])) {
+                if (!$overwrite && $merge) {
+                    $results['skipped_domains'][] = [
+                        'domain' => $domain,
+                        'reason' => 'Already exists in database'
+                    ];
+                    continue;
+                } elseif ($overwrite) {
+                    if (!$dryRun) {
+                        $config = array_merge($existingDomains[$domain], [
+                            'www_dir' => $parsedConfig['root'],
+                            'php_version' => $parsedConfig['php_version'] ?? $existingDomains[$domain]['php_version'],
+                            'ssl_enabled' => $parsedConfig['ssl_enabled'],
+                            'type' => $parsedConfig['type'] ?? $existingDomains[$domain]['type'],
+                            'nginx_enabled' => true,
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ]);
+
+                        if (self::updateDomain($domain, $config)) {
+                            $results['updated_domains'][] = $domain;
+                        }
+                    } else {
+                        $results['updated_domains'][] = $domain;
+                    }
+                    continue;
+                }
+            }
+
+            if (!$dryRun) {
+                $config = [
+                    'domain' => $domain,
+                    'type' => $parsedConfig['type'] ?? 'html',
+                    // Use PathMapper for environment-aware path (no hardcoded paths)
+                    'www_dir' => $parsedConfig['root'] ?? PathMapper::mapWebPath('wwwroot') . '/' . $domain,
+                    'php_version' => $parsedConfig['php_version'] ?? '8.4',
+                    'ssl_enabled' => $parsedConfig['ssl_enabled'],
+                    'nginx_enabled' => true,
+                    'nginx_config_file' => $filename,
+                    'status' => 'active',
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                    'imported_from_nginx' => true,
+                    'ssl_certificate' => $parsedConfig['ssl_certificate'] ?? null,
+                    'ssl_certificate_key' => $parsedConfig['ssl_certificate_key'] ?? null
+                ];
+
+                if (self::addDomain($domain, $config)) {
+                    $results['imported_domains'][] = $domain;
+                } else {
+                    $results['errors'][] = "Failed to import: $domain";
+                }
+            } else {
+                $results['imported_domains'][] = $domain;
+            }
+        }
+
+        if (!$dryRun) {
+            Log::info('Synced from nginx', $results);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Collect nginx information (standalone inspection)
+     * Returns detailed information about all nginx configurations
+     *
+     * AI DEVELOPERS: Use this to inspect nginx configurations without modifying database
+     *
+     * @return array Detailed nginx configuration information
+     */
+    public static function collectNginxInfo(): array
+    {
+        // Use PathMapper methods instead of deprecated constants (no hardcoded paths)
+        $nginxConfigDir = ServerManagerV1PathConfig::getNginxSitesAvailable();
+        $nginxEnabledDir = ServerManagerV1PathConfig::getNginxSitesEnabled();
+
+        $info = [
+            'nginx_config_dir' => $nginxConfigDir,
+            'nginx_enabled_dir' => $nginxEnabledDir,
+            'total_configs' => 0,
+            'enabled_configs' => 0,
+            'configurations' => [],
+            'enabled_sites' => [],
+            'summary' => [
+                'by_type' => [],
+                'by_ssl' => ['enabled' => 0, 'disabled' => 0],
+                'by_php_version' => []
+            ]
+        ];
+
+        if (!is_dir($nginxConfigDir)) {
+            $info['error'] = "Nginx config directory not found: $nginxConfigDir";
+            return $info;
+        }
+
+        $files = glob($nginxConfigDir . '/*');
+
+        foreach ($files as $file) {
+            $filename = basename($file);
+
+            if (!is_file($file) || $filename === 'default' || $filename === 'ssl-challenges') {
+                continue;
+            }
+
+            $info['total_configs']++;
+
+            $parsedConfig = self::parseNginxConfig($file);
+            if (!$parsedConfig) {
+                continue;
+            }
+
+            $isEnabled = is_link($nginxEnabledDir . '/' . $filename) ||
+                         file_exists($nginxEnabledDir . '/' . $filename);
+
+            if ($isEnabled) {
+                $info['enabled_configs']++;
+                $info['enabled_sites'][] = $filename;
+            }
+
+            $configInfo = [
+                'domain' => $parsedConfig['domain'],
+                'server_names' => $parsedConfig['server_names'],
+                'root' => $parsedConfig['root'],
+                'type' => $parsedConfig['type'],
+                'ssl_enabled' => $parsedConfig['ssl_enabled'],
+                'php_version' => $parsedConfig['php_version'],
+                'enabled' => $isEnabled,
+                'config_file' => $file,
+                'listen_ports' => $parsedConfig['listen_ports'],
+                'file_size' => filesize($file),
+                'modified_time' => date('Y-m-d H:i:s', filemtime($file))
+            ];
+
+            $info['configurations'][] = $configInfo;
+
+            $type = $parsedConfig['type'] ?? 'unknown';
+            if (!isset($info['summary']['by_type'][$type])) {
+                $info['summary']['by_type'][$type] = 0;
+            }
+            $info['summary']['by_type'][$type]++;
+
+            if ($parsedConfig['ssl_enabled']) {
+                $info['summary']['by_ssl']['enabled']++;
+            } else {
+                $info['summary']['by_ssl']['disabled']++;
+            }
+
+            if ($parsedConfig['php_version']) {
+                $phpVer = $parsedConfig['php_version'];
+                if (!isset($info['summary']['by_php_version'][$phpVer])) {
+                    $info['summary']['by_php_version'][$phpVer] = 0;
+                }
+                $info['summary']['by_php_version'][$phpVer]++;
+            }
+        }
+
+        return $info;
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Domain Conflict Detection & Management
+    // ========================================
+
+    /**
+     * Check if domain exists in any site
+     *
+     * @param string $domain Domain to check
+     * @return array|null Returns domain config if exists, null otherwise
+     */
+    public static function checkDomainConflict(string $domain): ?array
+    {
+        $domains = self::loadDomains();
+
+        if (isset($domains[$domain])) {
+            return [
+                'exists' => true,
+                'domain' => $domain,
+                'config' => $domains[$domain],
+                'type' => $domains[$domain]['type'],
+                'www_dir' => $domains[$domain]['www_dir'],
+                'status' => $domains[$domain]['status']
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Find all domains using the same www_dir (same site)
+     *
+     * @param string $wwwDir Web directory path
+     * @return array List of domains using this directory
+     */
+    public static function findSitesByDirectory(string $wwwDir): array
+    {
+        $domains = self::loadDomains();
+        $sites = [];
+
+        foreach ($domains as $domain => $config) {
+            if ($config['www_dir'] === $wwwDir) {
+                $sites[] = [
+                    'domain' => $domain,
+                    'type' => $config['type'],
+                    'status' => $config['status'],
+                    'ssl_enabled' => $config['ssl_enabled'] ?? false,
+                    'created_at' => $config['created_at'] ?? null
+                ];
+            }
+        }
+
+        return $sites;
+    }
+
+    /**
+     * Check if domain can be safely removed
+     *
+     * @param string $domain Domain to check
+     * @return array Analysis result with recommendations
+     */
+    public static function canRemoveDomain(string $domain): array
+    {
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            return [
+                'can_remove' => false,
+                'exists' => false,
+                'reason' => 'Domain not found'
+            ];
+        }
+
+        // Check if there are other domains on the same site
+        $sameSiteDomains = self::findSitesByDirectory($config['www_dir']);
+        $isLastDomain = count($sameSiteDomains) === 1;
+
+        return [
+            'can_remove' => true,
+            'exists' => true,
+            'domain' => $domain,
+            'same_site_domains' => $sameSiteDomains,
+            'is_last_domain' => $isLastDomain,
+            'should_disable_site' => $isLastDomain,
+            'www_dir' => $config['www_dir'],
+            'warning' => $isLastDomain
+                ? 'This is the last domain for this site. Removing it will leave the site without any domain.'
+                : null,
+            'recommendation' => $isLastDomain
+                ? 'Consider disabling the site instead of removing the domain, or ensure files are backed up.'
+                : 'Safe to remove. Site has other domains.'
+        ];
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Site Enable/Disable
+    // ========================================
+
+    /**
+     * Disable site (remove nginx config links, keep files)
+     *
+     * @param string $domain Domain to disable
+     * @param array $options Options: preserve_config, reason
+     * @return bool Success status
+     */
+    public static function disableSite(string $domain, array $options = []): bool
+    {
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            Log::error('Cannot disable site: domain not found', ['domain' => $domain]);
+            return false;
+        }
+
+        try {
+            // Remove nginx enabled link (but keep config file)
+            $enabledFile = ServerManagerV1PathConfig::getNginxEnabledSite($domain);
+            if (file_exists($enabledFile) || is_link($enabledFile)) {
+                if (!unlink($enabledFile)) {
+                    Log::error('Failed to remove nginx enabled link', ['file' => $enabledFile]);
+                    return false;
+                }
+                Log::info('Removed nginx enabled link', ['domain' => $domain, 'file' => $enabledFile]);
+            }
+
+            // Update domain status
+            $domains = self::loadDomains();
+            $domains[$domain]['status'] = 'disabled';
+            $domains[$domain]['nginx_enabled'] = false;
+            $domains[$domain]['disabled_at'] = date('Y-m-d H:i:s');
+            $domains[$domain]['disable_reason'] = $options['reason'] ?? 'Manually disabled';
+            $domains[$domain]['updated_at'] = date('Y-m-d H:i:s');
+
+            if (self::saveDomains($domains)) {
+                Log::info('Site disabled successfully', [
+                    'domain' => $domain,
+                    'reason' => $options['reason'] ?? 'Manual'
+                ]);
+                return true;
+            }
+
+            return false;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to disable site', [
+                'domain' => $domain,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Enable site (create nginx config link)
+     *
+     * @param string $domain Domain to enable
+     * @return bool Success status
+     */
+    public static function enableSite(string $domain): bool
+    {
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            Log::error('Cannot enable site: domain not found', ['domain' => $domain]);
+            return false;
+        }
+
+        try {
+            // Regenerate nginx configuration
+            if (!self::generateNginxConfig($domain, $config)) {
+                Log::error('Failed to generate nginx config', ['domain' => $domain]);
+                return false;
+            }
+
+            // Update domain status
+            $domains = self::loadDomains();
+            $domains[$domain]['status'] = 'active';
+            $domains[$domain]['nginx_enabled'] = true;
+            $domains[$domain]['enabled_at'] = date('Y-m-d H:i:s');
+            $domains[$domain]['updated_at'] = date('Y-m-d H:i:s');
+            unset($domains[$domain]['disabled_at']);
+            unset($domains[$domain]['disable_reason']);
+
+            if (self::saveDomains($domains)) {
+                Log::info('Site enabled successfully', ['domain' => $domain]);
+                return true;
+            }
+
+            return false;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to enable site', [
+                'domain' => $domain,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Domain Search & Query
+    // ========================================
+
+    /**
+     * Search domains by criteria
+     *
+     * @param array $criteria Search criteria: type, status, ssl_enabled, php_version, search_term
+     * @return array Matching domains
+     */
+    public static function searchDomains(array $criteria): array
+    {
+        $domains = self::loadDomains();
+        $results = [];
+
+        foreach ($domains as $domain => $config) {
+            $match = true;
+
+            // Filter by type
+            if (isset($criteria['type']) && $config['type'] !== $criteria['type']) {
+                $match = false;
+            }
+
+            // Filter by status
+            if (isset($criteria['status']) && $config['status'] !== $criteria['status']) {
+                $match = false;
+            }
+
+            // Filter by SSL enabled
+            if (isset($criteria['ssl_enabled']) && ($config['ssl_enabled'] ?? false) !== $criteria['ssl_enabled']) {
+                $match = false;
+            }
+
+            // Filter by PHP version
+            if (isset($criteria['php_version']) && $config['php_version'] !== $criteria['php_version']) {
+                $match = false;
+            }
+
+            // Filter by search term (domain name, www_dir)
+            if (isset($criteria['search_term'])) {
+                $searchTerm = strtolower($criteria['search_term']);
+                $domainLower = strtolower($domain);
+                $wwwDirLower = strtolower($config['www_dir']);
+
+                if (strpos($domainLower, $searchTerm) === false &&
+                    strpos($wwwDirLower, $searchTerm) === false) {
+                    $match = false;
+                }
+            }
+
+            if ($match) {
+                $results[$domain] = $config;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Get domains grouped by directory (sites with multiple domains)
+     *
+     * @return array Domains grouped by www_dir
+     */
+    public static function getDomainsGroupedBySite(): array
+    {
+        $domains = self::loadDomains();
+        $grouped = [];
+
+        foreach ($domains as $domain => $config) {
+            $wwwDir = $config['www_dir'];
+
+            if (!isset($grouped[$wwwDir])) {
+                $grouped[$wwwDir] = [
+                    'www_dir' => $wwwDir,
+                    'type' => $config['type'],
+                    'domains' => []
+                ];
+            }
+
+            $grouped[$wwwDir]['domains'][] = [
+                'domain' => $domain,
+                'status' => $config['status'],
+                'ssl_enabled' => $config['ssl_enabled'] ?? false,
+                'created_at' => $config['created_at'] ?? null
+            ];
+        }
+
+        return $grouped;
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Batch Operations
+    // ========================================
+
+    /**
+     * Batch enable domains
+     *
+     * @param array $domains List of domain names
+     * @return array Results with success/failure for each domain
+     */
+    public static function batchEnableSites(array $domains): array
+    {
+        $results = [
+            'success' => [],
+            'failed' => [],
+            'total' => count($domains)
+        ];
+
+        foreach ($domains as $domain) {
+            if (self::enableSite($domain)) {
+                $results['success'][] = $domain;
+            } else {
+                $results['failed'][] = $domain;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Batch disable domains
+     *
+     * @param array $domains List of domain names
+     * @param array $options Options: reason
+     * @return array Results with success/failure for each domain
+     */
+    public static function batchDisableSites(array $domains, array $options = []): array
+    {
+        $results = [
+            'success' => [],
+            'failed' => [],
+            'total' => count($domains)
+        ];
+
+        foreach ($domains as $domain) {
+            if (self::disableSite($domain, $options)) {
+                $results['success'][] = $domain;
+            } else {
+                $results['failed'][] = $domain;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Batch update domain configurations
+     *
+     * @param array $updates Map of domain => config updates
+     * @return array Results
+     */
+    public static function batchUpdateDomains(array $updates): array
+    {
+        $domains = self::loadDomains();
+        $results = [
+            'success' => [],
+            'failed' => [],
+            'total' => count($updates)
+        ];
+
+        foreach ($updates as $domain => $configUpdates) {
+            if (!isset($domains[$domain])) {
+                $results['failed'][$domain] = 'Domain not found';
+                continue;
+            }
+
+            // Merge updates into existing config
+            $domains[$domain] = array_merge($domains[$domain], $configUpdates);
+            $domains[$domain]['updated_at'] = date('Y-m-d H:i:s');
+            $results['success'][] = $domain;
+        }
+
+        if (self::saveDomains($domains)) {
+            Log::info('Batch update completed', $results);
+            return $results;
+        }
+
+        $results['error'] = 'Failed to save domains database';
+        return $results;
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Domain History
+    // ========================================
+
+    /**
+     * Record domain history entry
+     *
+     * @param string $domain Domain name
+     * @param string $action Action performed
+     * @param array $details Additional details
+     * @return bool Success status
+     */
+    public static function recordHistory(string $domain, string $action, array $details = []): bool
+    {
+        try {
+            $historyFile = self::getDomainsDbDir() . '/history.json';
+
+            // Load existing history
+            $history = [];
+            if (file_exists($historyFile)) {
+                $content = file_get_contents($historyFile);
+                $data = json_decode($content, true);
+                $history = $data['entries'] ?? [];
+            }
+
+            // Add new entry
+            $entry = [
+                'timestamp' => date('Y-m-d H:i:s'),
+                'domain' => $domain,
+                'action' => $action,
+                'details' => $details,
+                'user' => get_current_user()
+            ];
+
+            array_unshift($history, $entry);
+
+            // Keep only last 1000 entries
+            $history = array_slice($history, 0, 1000);
+
+            // Save history
+            $data = [
+                'version' => '1.0',
+                'updated_at' => date('Y-m-d H:i:s'),
+                'entries' => $history
+            ];
+
+            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if (file_put_contents($historyFile, $json) !== false) {
+                return true;
+            }
+
+            return false;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to record history', [
+                'domain' => $domain,
+                'action' => $action,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Get domain history
+     *
+     * @param string|null $domain Optional domain filter
+     * @param int $limit Max entries to return
+     * @return array History entries
+     */
+    public static function getHistory(?string $domain = null, int $limit = 100): array
+    {
+        try {
+            $historyFile = self::getDomainsDbDir() . '/history.json';
+
+            if (!file_exists($historyFile)) {
+                return [];
+            }
+
+            $content = file_get_contents($historyFile);
+            $data = json_decode($content, true);
+            $history = $data['entries'] ?? [];
+
+            // Filter by domain if specified
+            if ($domain !== null) {
+                $history = array_filter($history, function($entry) use ($domain) {
+                    return $entry['domain'] === $domain;
+                });
+            }
+
+            // Apply limit
+            return array_slice($history, 0, $limit);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get history', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Backup & Restore
+    // ========================================
+
+    /**
+     * Backup domains configuration
+     *
+     * @param string|null $backupName Optional backup name
+     * @return array Backup result with file path
+     */
+    public static function backupDomains(?string $backupName = null): array
+    {
+        try {
+            $backupDir = PathMapper::mapWebPath('backup') . '/servermanager/domains';
+
+            if (!is_dir($backupDir)) {
+                if (!mkdir($backupDir, 0755, true)) {
+                    return [
+                        'success' => false,
+                        'error' => 'Failed to create backup directory'
+                    ];
+                }
+            }
+
+            $backupName = $backupName ?? 'domains_backup_' . date('Y-m-d_H-i-s');
+            $backupFile = $backupDir . '/' . $backupName . '.json';
+
+            // Load current domains
+            $domains = self::loadDomains();
+
+            // Create backup data
+            $backupData = [
+                'version' => '1.0',
+                'backup_date' => date('Y-m-d H:i:s'),
+                'total_domains' => count($domains),
+                'domains' => $domains
+            ];
+
+            $json = json_encode($backupData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if (file_put_contents($backupFile, $json) !== false) {
+                Log::info('Domains backup created', ['file' => $backupFile, 'count' => count($domains)]);
+                return [
+                    'success' => true,
+                    'backup_file' => $backupFile,
+                    'total_domains' => count($domains),
+                    'backup_name' => $backupName
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Failed to write backup file'
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to backup domains', ['error' => $e->getMessage()]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Restore domains from backup
+     *
+     * @param string $backupFile Backup file path
+     * @param bool $merge Merge with existing domains instead of replacing
+     * @return array Restore result
+     */
+    public static function restoreDomains(string $backupFile, bool $merge = false): array
+    {
+        try {
+            if (!file_exists($backupFile)) {
+                return [
+                    'success' => false,
+                    'error' => 'Backup file not found: ' . $backupFile
+                ];
+            }
+
+            $content = file_get_contents($backupFile);
+            $backupData = json_decode($content, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return [
+                    'success' => false,
+                    'error' => 'Invalid JSON in backup file: ' . json_last_error_msg()
+                ];
+            }
+
+            $backupDomains = $backupData['domains'] ?? [];
+
+            if ($merge) {
+                // Merge with existing domains
+                $currentDomains = self::loadDomains();
+                $domains = array_merge($currentDomains, $backupDomains);
+                $action = 'merged';
+            } else {
+                // Replace all domains
+                $domains = $backupDomains;
+                $action = 'replaced';
+            }
+
+            if (self::saveDomains($domains)) {
+                Log::info('Domains restored from backup', [
+                    'file' => $backupFile,
+                    'action' => $action,
+                    'count' => count($backupDomains)
+                ]);
+                return [
+                    'success' => true,
+                    'action' => $action,
+                    'restored_domains' => count($backupDomains),
+                    'total_domains' => count($domains)
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Failed to save restored domains'
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to restore domains', ['error' => $e->getMessage()]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * List available backups
+     *
+     * @return array List of backup files
+     */
+    public static function listBackups(): array
+    {
+        try {
+            $backupDir = PathMapper::mapWebPath('backup') . '/servermanager/domains';
+
+            if (!is_dir($backupDir)) {
+                return [];
+            }
+
+            $files = glob($backupDir . '/*.json');
+            $backups = [];
+
+            foreach ($files as $file) {
+                $content = file_get_contents($file);
+                $data = json_decode($content, true);
+
+                $backups[] = [
+                    'file' => $file,
+                    'name' => basename($file, '.json'),
+                    'date' => $data['backup_date'] ?? null,
+                    'total_domains' => $data['total_domains'] ?? 0,
+                    'size' => filesize($file)
+                ];
+            }
+
+            // Sort by date descending
+            usort($backups, function($a, $b) {
+                return strcmp($b['date'] ?? '', $a['date'] ?? '');
+            });
+
+            return $backups;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to list backups', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Import & Export
+    // ========================================
+
+    /**
+     * Export domains to various formats
+     *
+     * @param string $format Format: json, csv, nginx
+     * @param array $options Export options
+     * @return array Export result with file path
+     */
+    public static function exportDomains(string $format = 'json', array $options = []): array
+    {
+        try {
+            $exportDir = PathMapper::mapWebPath('backup') . '/servermanager/exports';
+
+            if (!is_dir($exportDir)) {
+                if (!mkdir($exportDir, 0755, true)) {
+                    return [
+                        'success' => false,
+                        'error' => 'Failed to create export directory'
+                    ];
+                }
+            }
+
+            $timestamp = date('Y-m-d_H-i-s');
+            $domains = self::loadDomains();
+
+            switch ($format) {
+                case 'json':
+                    $exportFile = $exportDir . '/domains_export_' . $timestamp . '.json';
+                    $content = json_encode($domains, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                    break;
+
+                case 'csv':
+                    $exportFile = $exportDir . '/domains_export_' . $timestamp . '.csv';
+                    $content = self::domainsToCSV($domains);
+                    break;
+
+                case 'nginx':
+                    $exportFile = $exportDir . '/domains_export_' . $timestamp . '.txt';
+                    $content = self::domainsToNginxList($domains);
+                    break;
+
+                default:
+                    return [
+                        'success' => false,
+                        'error' => 'Unsupported format: ' . $format
+                    ];
+            }
+
+            if (file_put_contents($exportFile, $content) !== false) {
+                return [
+                    'success' => true,
+                    'export_file' => $exportFile,
+                    'format' => $format,
+                    'total_domains' => count($domains)
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Failed to write export file'
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Convert domains to CSV format
+     */
+    private static function domainsToCSV(array $domains): string
+    {
+        $csv = "Domain,Type,Status,SSL,PHP Version,WWW Dir,Created At\n";
+
+        foreach ($domains as $domain => $config) {
+            $csv .= sprintf(
+                "%s,%s,%s,%s,%s,%s,%s\n",
+                $domain,
+                $config['type'],
+                $config['status'],
+                ($config['ssl_enabled'] ?? false) ? 'Yes' : 'No',
+                $config['php_version'],
+                $config['www_dir'],
+                $config['created_at'] ?? ''
+            );
+        }
+
+        return $csv;
+    }
+
+    /**
+     * Convert domains to nginx configuration list
+     */
+    private static function domainsToNginxList(array $domains): string
+    {
+        $list = "# Nginx Domains List\n";
+        $list .= "# Generated at " . date('Y-m-d H:i:s') . "\n\n";
+
+        foreach ($domains as $domain => $config) {
+            $list .= "# $domain\n";
+            $list .= "# Type: " . $config['type'] . "\n";
+            $list .= "# Status: " . $config['status'] . "\n";
+            $list .= "# SSL: " . (($config['ssl_enabled'] ?? false) ? 'Enabled' : 'Disabled') . "\n";
+            $list .= "# Config: " . ($config['nginx_config_file'] ?? 'N/A') . "\n";
+            $list .= "\n";
+        }
+
+        return $list;
+    }
+
+    /**
+     * Import domains from file
+     *
+     * @param string $importFile Import file path
+     * @param string $format Format: json, csv
+     * @param bool $merge Merge with existing domains
+     * @return array Import result
+     */
+    public static function importDomains(string $importFile, string $format = 'json', bool $merge = true): array
+    {
+        try {
+            if (!file_exists($importFile)) {
+                return [
+                    'success' => false,
+                    'error' => 'Import file not found'
+                ];
+            }
+
+            $content = file_get_contents($importFile);
+
+            switch ($format) {
+                case 'json':
+                    $importedDomains = json_decode($content, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        return [
+                            'success' => false,
+                            'error' => 'Invalid JSON: ' . json_last_error_msg()
+                        ];
+                    }
+                    break;
+
+                case 'csv':
+                    $importedDomains = self::parseCSV($content);
+                    break;
+
+                default:
+                    return [
+                        'success' => false,
+                        'error' => 'Unsupported format: ' . $format
+                    ];
+            }
+
+            if ($merge) {
+                $currentDomains = self::loadDomains();
+                $domains = array_merge($currentDomains, $importedDomains);
+            } else {
+                $domains = $importedDomains;
+            }
+
+            if (self::saveDomains($domains)) {
+                return [
+                    'success' => true,
+                    'imported_domains' => count($importedDomains),
+                    'total_domains' => count($domains)
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Failed to save imported domains'
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Parse CSV content to domains array
+     */
+    private static function parseCSV(string $content): array
+    {
+        $domains = [];
+        $lines = explode("\n", $content);
+
+        // Skip header
+        array_shift($lines);
+
+        foreach ($lines as $line) {
+            if (empty(trim($line))) {
+                continue;
+            }
+
+            $parts = str_getcsv($line);
+            if (count($parts) < 7) {
+                continue;
+            }
+
+            $domain = $parts[0];
+            $domains[$domain] = [
+                'domain' => $domain,
+                'type' => $parts[1],
+                'status' => $parts[2],
+                'ssl_enabled' => $parts[3] === 'Yes',
+                'php_version' => $parts[4],
+                'www_dir' => $parts[5],
+                'created_at' => $parts[6],
+                'updated_at' => date('Y-m-d H:i:s'),
+                'nginx_enabled' => false
+            ];
+        }
+
+        return $domains;
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Configuration Validation
+    // ========================================
+
+    /**
+     * Validate all domain configurations
+     *
+     * @return array Validation results
+     */
+    public static function validateAllConfigurations(): array
+    {
+        $domains = self::loadDomains();
+        $results = [
+            'total' => count($domains),
+            'valid' => 0,
+            'invalid' => 0,
+            'warnings' => 0,
+            'issues' => []
+        ];
+
+        foreach ($domains as $domain => $config) {
+            $validation = self::validateDomainConfiguration($domain, $config);
+
+            if ($validation['valid']) {
+                $results['valid']++;
+            } else {
+                $results['invalid']++;
+            }
+
+            if (!empty($validation['warnings'])) {
+                $results['warnings'] += count($validation['warnings']);
+            }
+
+            if (!$validation['valid'] || !empty($validation['warnings'])) {
+                $results['issues'][$domain] = $validation;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Validate single domain configuration
+     *
+     * @param string $domain Domain name
+     * @param array $config Domain configuration
+     * @return array Validation result
+     */
+    public static function validateDomainConfiguration(string $domain, array $config): array
+    {
+        $errors = [];
+        $warnings = [];
+
+        // Check www_dir exists
+        if (!is_dir($config['www_dir'])) {
+            $errors[] = 'Directory does not exist: ' . $config['www_dir'];
+        } else {
+            // Check directory is writable
+            if (!is_writable($config['www_dir'])) {
+                $warnings[] = 'Directory is not writable: ' . $config['www_dir'];
+            }
+        }
+
+        // Check nginx config file
+        $configFile = ServerManagerV1PathConfig::getNginxSiteConfig($domain, $config['ssl_enabled'] ?? false);
+        if (!file_exists($configFile)) {
+            $errors[] = 'Nginx config file not found: ' . $configFile;
+        }
+
+        // Check nginx enabled link
+        if ($config['nginx_enabled'] ?? false) {
+            $enabledFile = ServerManagerV1PathConfig::getNginxEnabledSite($domain);
+            if (!file_exists($enabledFile) && !is_link($enabledFile)) {
+                $warnings[] = 'Nginx enabled link not found: ' . $enabledFile;
+            }
+        }
+
+        // Check SSL certificate
+        if ($config['ssl_enabled'] ?? false) {
+            $certDir = ServerManagerV1PathConfig::getSslCertDir($domain);
+            $fullchainPath = "$certDir/fullchain.pem";
+            $privkeyPath = "$certDir/privkey.pem";
+
+            if (!file_exists($fullchainPath)) {
+                $errors[] = 'SSL certificate not found: ' . $fullchainPath;
+            }
+            if (!file_exists($privkeyPath)) {
+                $errors[] = 'SSL private key not found: ' . $privkeyPath;
+            }
+        }
+
+        // Check PHP-FPM socket for PHP sites
+        if (in_array($config['type'], ['laravel', 'poly', 'php'])) {
+            $phpVersion = $config['php_version'] ?? '8.2';
+            $socketPath = "/var/run/php/php$phpVersion-fpm.sock";
+            if (!file_exists($socketPath)) {
+                $warnings[] = "PHP-FPM socket not found: $socketPath";
+            }
+        }
+
+        return [
+            'domain' => $domain,
+            'valid' => empty($errors),
+            'errors' => $errors,
+            'warnings' => $warnings
+        ];
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Domain Alias & Redirect
+    // ========================================
+
+    /**
+     * Add domain alias (www redirect)
+     *
+     * @param string $sourceDomain Source domain (e.g., www.example.com)
+     * @param string $targetDomain Target domain (e.g., example.com)
+     * @param int $redirectCode Redirect HTTP code (301 or 302)
+     * @return bool Success status
+     */
+    public static function addDomainAlias(string $sourceDomain, string $targetDomain, int $redirectCode = 301): bool
+    {
+        try {
+            $domains = self::loadDomains();
+
+            // Check if target domain exists
+            if (!isset($domains[$targetDomain])) {
+                Log::error('Target domain not found', ['target' => $targetDomain]);
+                return false;
+            }
+
+            // Create alias configuration
+            $aliasConfig = [
+                'domain' => $sourceDomain,
+                'type' => 'alias',
+                'alias_target' => $targetDomain,
+                'redirect_code' => $redirectCode,
+                'www_dir' => $domains[$targetDomain]['www_dir'],
+                'status' => 'active',
+                'nginx_enabled' => true,
+                'ssl_enabled' => $domains[$targetDomain]['ssl_enabled'] ?? false,
+                'ssl_certificate_id' => $domains[$targetDomain]['ssl_certificate_id'] ?? null,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
+
+            // Generate nginx redirect configuration
+            if (!self::generateRedirectConfig($sourceDomain, $targetDomain, $redirectCode, $aliasConfig)) {
+                Log::error('Failed to generate redirect config');
+                return false;
+            }
+
+            $domains[$sourceDomain] = $aliasConfig;
+
+            if (self::saveDomains($domains)) {
+                Log::info('Domain alias added', [
+                    'source' => $sourceDomain,
+                    'target' => $targetDomain,
+                    'code' => $redirectCode
+                ]);
+                return true;
+            }
+
+            return false;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to add domain alias', [
+                'source' => $sourceDomain,
+                'target' => $targetDomain,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Generate nginx redirect configuration
+     */
+    private static function generateRedirectConfig(string $sourceDomain, string $targetDomain, int $redirectCode, array $config): bool
+    {
+        // Use PathMapper methods instead of deprecated constants (no hardcoded paths)
+        $nginxConfigDir = ServerManagerV1PathConfig::getNginxSitesAvailable();
+        $nginxEnabledDir = ServerManagerV1PathConfig::getNginxSitesEnabled();
+
+        $configFile = "$nginxConfigDir/$sourceDomain";
+        $enabledFile = "$nginxEnabledDir/$sourceDomain";
+
+        $sslEnabled = $config['ssl_enabled'] ?? false;
+
+        // HTTP configuration
+        $httpConfig = "# Redirect configuration for $sourceDomain -> $targetDomain\n";
+        $httpConfig .= "# Generated by ServerManagerV1 at " . date('Y-m-d H:i:s') . "\n\n";
+        $httpConfig .= "server {\n";
+        $httpConfig .= "    listen 80;\n";
+        $httpConfig .= "    listen [::]:80;\n";
+        $httpConfig .= "    server_name $sourceDomain;\n\n";
+
+        if ($sslEnabled) {
+            // Redirect HTTP to HTTPS
+            $httpConfig .= "    return 301 https://$targetDomain\$request_uri;\n";
+        } else {
+            // Direct redirect
+            $httpConfig .= "    return $redirectCode http://$targetDomain\$request_uri;\n";
+        }
+
+        $httpConfig .= "}\n";
+
+        // HTTPS configuration
+        if ($sslEnabled) {
+            $certDir = ServerManagerV1PathConfig::getSslCertDir($targetDomain);
+            $httpConfig .= "\nserver {\n";
+            $httpConfig .= "    listen 443 ssl http2;\n";
+            $httpConfig .= "    listen [::]:443 ssl http2;\n";
+            $httpConfig .= "    server_name $sourceDomain;\n\n";
+            $httpConfig .= "    ssl_certificate $certDir/fullchain.pem;\n";
+            $httpConfig .= "    ssl_certificate_key $certDir/privkey.pem;\n\n";
+            $httpConfig .= "    return $redirectCode https://$targetDomain\$request_uri;\n";
+            $httpConfig .= "}\n";
+        }
+
+        // Write config file
+        if (file_put_contents($configFile, $httpConfig) === false) {
+            return false;
+        }
+
+        // Create symlink
+        if (file_exists($enabledFile) || is_link($enabledFile)) {
+            unlink($enabledFile);
+        }
+
+        return symlink($configFile, $enabledFile);
+    }
+
+    // ========================================
+    // EXTENDED FEATURES - Site Templates
+    // ========================================
+
+    /**
+     * Get available site templates
+     *
+     * @return array List of templates
+     */
+    public static function getTemplates(): array
+    {
+        return [
+            'laravel_api' => [
+                'name' => 'Laravel API',
+                'description' => 'API-only Laravel application with CORS support',
+                'type' => 'laravel',
+                'features' => ['api', 'cors', 'rate-limiting'],
+                'php_version' => '8.4',
+                'ssl_required' => true
+            ],
+            'laravel_full' => [
+                'name' => 'Laravel Full Stack',
+                'description' => 'Full Laravel application with frontend',
+                'type' => 'laravel',
+                'features' => ['web', 'api', 'auth'],
+                'php_version' => '8.4',
+                'ssl_required' => false
+            ],
+            'static_spa' => [
+                'name' => 'Static SPA',
+                'description' => 'Static single-page application (Vue/React)',
+                'type' => 'html',
+                'features' => ['spa', 'gzip', 'cache'],
+                'php_version' => null,
+                'ssl_required' => false
+            ],
+            'wordpress' => [
+                'name' => 'WordPress',
+                'description' => 'WordPress CMS site',
+                'type' => 'php',
+                'features' => ['php', 'mysql', 'uploads'],
+                'php_version' => '8.2',
+                'ssl_required' => false
+            ]
+        ];
+    }
+
+    /**
+     * Apply template to domain
+     *
+     * @param string $domain Domain name
+     * @param string $templateId Template identifier
+     * @param array $options Additional options
+     * @return bool Success status
+     */
+    public static function applyTemplate(string $domain, string $templateId, array $options = []): bool
+    {
+        $templates = self::getTemplates();
+
+        if (!isset($templates[$templateId])) {
+            Log::error('Template not found', ['template' => $templateId]);
+            return false;
+        }
+
+        $template = $templates[$templateId];
+
+        // Merge template defaults with options
+        $config = array_merge([
+            'type' => $template['type'],
+            'php_version' => $template['php_version'] ?? '8.4',
+            'ssl_enabled' => $template['ssl_required'],
+            'template_id' => $templateId,
+            'template_applied_at' => date('Y-m-d H:i:s')
+        ], $options);
+
+        return self::addDomain($domain, $config);
     }
 }

@@ -323,7 +323,7 @@ class ServerManagerV1ApiInfoCtl extends ServerManagerV1BaseCtl
         return [
             'file_access' => [
                 'security_model' => 'Hardcoded path whitelist',
-                'allowed_paths' => ServerManagerV1Constants::ALLOWED_DOWNLOAD_PATHS,
+                'allowed_paths' => ServerManagerV1Constants::getAllowedDownloadPaths(),
                 'max_file_size' => ServerManagerV1Constants::MAX_FILE_DOWNLOAD_SIZE,
                 'allowed_preview_extensions' => ServerManagerV1Constants::ALLOWED_PREVIEW_EXTENSIONS
             ],

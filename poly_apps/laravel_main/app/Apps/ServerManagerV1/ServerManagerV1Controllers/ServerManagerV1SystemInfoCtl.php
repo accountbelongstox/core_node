@@ -191,7 +191,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
     {
         $directories = [];
 
-        foreach (ServerManagerV1Constants::SYSTEM_DIRS as $name => $path) {
+        foreach (ServerManagerV1Constants::getSystemDirs() as $name => $path) {
             $directories[$name] = [
                 'path' => $path,
                 'exists' => is_dir($path),
@@ -253,7 +253,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         return [
             'installed' => $certbotExists['success'],
             'version' => $version,
-            'config_file' => ServerManagerV1Constants::CERTBOT_INSTALL_SCRIPT
+            'config_file' => ServerManagerV1Constants::getCertbotInstallScript()
         ];
     }
     
@@ -262,7 +262,9 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
      */
     private function getNginxAnalysis(): array
     {
-        $nginxInfoFile = '/www/wwwroot/core_node/temp_nginx_info.txt';
+        // Use PathMapper for environment-aware path (no hardcoded paths)
+        $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+        $nginxInfoFile = "$wwwroot/core_node/temp_nginx_info.txt";
         
         if (!file_exists($nginxInfoFile)) {
             return ['status' => 'Analysis file not found'];
@@ -441,7 +443,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
     {
         $sizes = [];
         
-        foreach (ServerManagerV1Constants::SYSTEM_DIRS as $name => $path) {
+        foreach (ServerManagerV1Constants::getSystemDirs() as $name => $path) {
             $sizes[$name] = [
                 'path' => $path,
                 'size_bytes' => $this->getDirectorySize($path),
@@ -457,7 +459,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
      */
     private function getDatabaseInfo(): array
     {
-        $dbPath = ServerManagerV1Constants::SYSTEM_DIRS['laravel_db'];
+        $dbPath = ServerManagerV1Constants::getSystemDirs()['laravel_db'];
         $dbFile = $dbPath . '/database.sqlite';
         
         return [
@@ -504,7 +506,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
     {
         $permissions = [];
         
-        foreach (ServerManagerV1Constants::SYSTEM_DIRS as $name => $path) {
+        foreach (ServerManagerV1Constants::getSystemDirs() as $name => $path) {
             if (file_exists($path)) {
                 $perms = fileperms($path);
                 $permissions[$name] = [

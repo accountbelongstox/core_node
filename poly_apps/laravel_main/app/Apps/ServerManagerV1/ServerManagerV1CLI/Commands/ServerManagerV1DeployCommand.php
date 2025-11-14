@@ -31,6 +31,10 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
      */
     public function handle(): int
     {
+        // PRE-REQUISITE: Fix PHP configuration before any operations
+        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        $this->initializeCommand();
+        
         $domain = $this->argument('domain');
         $type = $this->argument('type');
 
@@ -100,34 +104,44 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         $this->info("=== Environment Information ===");
 
         try {
-            $envInfo = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getEnvironmentInfo();
+            $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+            $isWsl = \App\Providers\PathMapper::isWSL();
+            $isProduction = \App\Providers\PathMapper::isProduction();
+            
+            $envInfo = "=== Environment Information ===\n";
+            $envInfo .= "Environment: " . ($isWsl ? 'WSL Test Environment' : ($isProduction ? 'Production' : 'Development')) . "\n";
+            $envInfo .= "Core Node Path: " . ($coreNodeDir ?? 'Not found') . "\n";
+            $envInfo .= "OS Type: " . PHP_OS_FAMILY . "\n";
+            $envInfo .= "PHP Version: " . PHP_VERSION . "\n";
             $this->line($envInfo);
-
-            $env = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::detectEnvironment();
 
             // Debug paths
             $this->info("\n=== Path Debug Information ===");
+            $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+            $secretKeysPath = $coreNodeDir ? $coreNodeDir . '/.secret_keys/.secret_ignore' : '';
+            $ddScriptPath = $coreNodeDir ? $coreNodeDir . '/scripts/dd.sh' : '';
             $paths = [
-                ['Core Node Root', $env['core_node_path']],
-                ['Secret Keys Dir', \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getSecretKeysPath()],
-                ['DD Script', \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getDdScriptPath()],
-                ['Web Root', \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::resolveWebRoot()]
+                ['Core Node Root', $coreNodeDir ?? ''],
+                ['Secret Keys Dir', $secretKeysPath],
+                ['DD Script', $ddScriptPath],
+                ['Web Root', \App\Providers\PathMapper::mapWebPath('wwwroot')]
             ];
 
             foreach ($paths as [$label, $path]) {
-                $exists = file_exists($path);
+                $exists = $path && file_exists($path);
                 $status = $exists ? '✓ EXISTS' : '✗ NOT FOUND';
                 $color = $exists ? 'info' : 'error';
                 $this->$color("$label: $path [$status]");
             }
 
             // Nginx paths
-            $nginxPaths = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getNginxPaths();
+            $nginxConfigDir = \App\Providers\PathMapper::mapWebPath('nginxconfig');
+            $sitesAvailable = $nginxConfigDir . '/sites-available';
+            $sitesEnabled = $nginxConfigDir . '/sites-enabled';
             $this->info("\n=== Nginx Configuration ===");
-            $this->line("Config Path: {$nginxPaths['config_path']}");
-            $this->line("Enabled Path: {$nginxPaths['enabled_path']}");
-            $this->line("Available: " . ($nginxPaths['available'] ? 'Yes' : 'No'));
-            $this->line("Note: {$nginxPaths['note']}");
+            $this->line("Config Path: $sitesAvailable");
+            $this->line("Enabled Path: $sitesEnabled");
+            $this->line("Available: " . (is_dir($sitesAvailable) ? 'Yes' : 'No'));
 
         } catch (\Exception $e) {
             $this->error("Failed to load environment info: " . $e->getMessage());
@@ -293,7 +307,8 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
             default => 'laravel'
         };
         
-        $wwwDir = $appInfo['path'] ?? "/www/wwwroot/$domain";
+        $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
+        $wwwDir = $appInfo['path'] ?? "$wwwRoot/$domain";
         if ($template === 'laravel') {
             $wwwDir .= '/public';
         }

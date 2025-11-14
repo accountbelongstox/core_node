@@ -16,6 +16,99 @@
 # Author: System Administrator
 # Version: 1.0
 # Design: Based on SHELL_INSTALLATION_DEVELOPMENT_GUIDE.md principles
+#
+# ============================================================================
+# IMPORTANT: RELATIONSHIP WITH ServerManagerV1PHPConfigFixer.php
+# ============================================================================
+#
+# This shell script is the INSTALLATION-TIME equivalent of the PHP runtime
+# configuration fixer located at:
+#
+#   Relative path from this file: ../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
+#   Absolute path: /www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
+#
+# PURPOSE AND INTENT:
+# ------------------
+# Both scripts serve the SAME CRITICAL PURPOSE: ensuring PHP-FPM can access
+# Laravel files by configuring open_basedir settings correctly based on the
+# current environment and path mapping.
+#
+# This shell script (32_configure_php84.sh):
+#   - Used during system installation and setup
+#   - Can be run manually or via installation scripts
+#   - Uses gvar_common.sh for path mapping (map_web_path function)
+#   - Modifies /etc/php/8.4/cli/php.ini and /etc/php/8.4/fpm/php.ini
+#   - Modifies /etc/php/8.4/fpm/pool.d/www.conf via php_common_functions.sh
+#   - Requires sudo/root privileges
+#
+# ServerManagerV1PHPConfigFixer.php:
+#   - Used as a RUNTIME PRE-REQUISITE before any ServerManagerV1 operations
+#   - Called automatically from Laravel Artisan commands or API endpoints
+#   - Uses PathMapper for path mapping (must match gvar_common.sh logic)
+#   - Modifies the same PHP configuration files
+#   - Requires appropriate file permissions (may need sudo for file operations)
+#
+# PATH MAPPING CONSISTENCY REQUIREMENT:
+# -------------------------------------
+# Both scripts MUST use IDENTICAL path mapping logic. The path mapping is
+# implemented in two places that MUST be kept in sync:
+#
+# Shell script path mapping:
+#   - Uses: gvar_common.sh -> map_web_path() -> get_base_data_directory()
+#   - Location: ../../common/gvar_common.sh (relative to this file)
+#
+# PHP class path mapping:
+#   - Uses: PathMapper::mapWebPath() -> getBaseDataDirectory()
+#   - Location: ../../../../poly_apps/laravel_main/app/Providers/PathMapper.php
+#
+# The path mapping logic MUST produce the same results:
+#   - WSL environment: /mnt/d/programing/core_node/poly_apps/laravel_main
+#   - Production:      /www/programing/core_node/poly_apps/laravel_main
+#   - Development:     (same as WSL or production based on environment detection)
+#
+# KEY DIFFERENCES:
+# ----------------
+# 1. Configuration Files Modified:
+#    Shell script: /etc/php/8.4/cli/php.ini, /etc/php/8.4/fpm/php.ini,
+#                  /etc/php/8.4/fpm/pool.d/www.conf
+#    PHP class:    Same files (via php_common_functions.sh and direct modification)
+#
+# 2. Execution Context:
+#    Shell script: Runs during installation, can be run manually
+#    PHP class:    Runs as pre-requisite before ServerManagerV1 operations
+#
+# 3. Path Mapping Source:
+#    Shell script: gvar_common.sh map_web_path()
+#    PHP class:    PathMapper::mapWebPath()
+#
+# SYNC REQUIREMENTS (CRITICAL):
+# -----------------------------
+# If you modify ANY of the following, you MUST update the corresponding files:
+#
+# [ ] gvar_common.sh map_web_path() changes
+#     -> Update PathMapper::mapWebPath() in PathMapper.php
+#
+# [ ] PathMapper::mapWebPath() changes
+#     -> Update gvar_common.sh map_web_path()
+#
+# [ ] 32_configure_php84.sh changes (especially open_basedir handling)
+#     -> Update ServerManagerV1PHPConfigFixer.php comments and logic
+#
+# [ ] ServerManagerV1PHPConfigFixer.php changes
+#     -> Update 32_configure_php84.sh comments (this file)
+#
+# [ ] php_common_functions.sh configure_php_fpm_pool_from_php_common() changes
+#     -> Update ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig()
+#
+# MODIFICATION CHECKLIST:
+# -----------------------
+# When modifying this file, ensure you also check/update:
+# [ ] ServerManagerV1PHPConfigFixer.php (relative path: ../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php)
+# [ ] gvar_common.sh (relative path: ../../common/gvar_common.sh)
+# [ ] PathMapper.php (relative path: ../../../../poly_apps/laravel_main/app/Providers/PathMapper.php)
+# [ ] php_common_functions.sh (relative path: ../debian_com/php_common_functions.sh)
+#
+# ============================================================================
 
 # Color definitions
 RED='\033[0;31m'
@@ -76,10 +169,29 @@ configure_php_fpm() {
 }
 
     # Configure PHP for Laravel and system access - now using PHP common function
+    # 
+    # IMPORTANT: This function must match the behavior of ServerManagerV1PHPConfigFixer::fixPHPIniFiles()
+    # 
+    # RELATIONSHIP WITH ServerManagerV1PHPConfigFixer.php:
+    # =====================================================
+    # 
+    # This function calls configure_php_for_laravel_from_php_common() which:
+    #   - Removes open_basedir restrictions from /etc/php/8.4/cli/php.ini
+    #   - Removes open_basedir restrictions from /etc/php/8.4/fpm/php.ini
+    #   - Sets open_basedir = none in both files
+    # 
+    # This matches ServerManagerV1PHPConfigFixer::fixPHPIniFiles() behavior.
+    # 
+    # See: ../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
+    # 
+    # Both must produce the same result: open_basedir restrictions disabled to allow
+    # Laravel files to be accessed regardless of path mapping changes.
     configure_php_for_laravel() {
         configure_php_for_laravel_from_php_common "$SCRIPT_INDEX"
         
         # Verify open_basedir configuration
+        # This verification ensures the configuration matches what ServerManagerV1PHPConfigFixer
+        # would produce, maintaining consistency between installation-time and runtime fixes.
         verify_open_basedir_config_from_php_common "$SCRIPT_INDEX"
     }
 
@@ -130,7 +242,7 @@ setup_php_default() {
         echo -e "${CYAN}$SCRIPT_INDEX Current PHP default: $current_php${NC}"
 
         if [ "$current_php" = "/usr/bin/php8.4" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default ï¿?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default ï¿½?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 default verification failed${NC}"
         fi
@@ -146,7 +258,7 @@ setup_php_default() {
         echo -e "${GREEN}$SCRIPT_INDEX Current PHP version: $php_version${NC}"
 
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working ï¿?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working ï¿½?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.4.x, got $php_version${NC}"
         fi
@@ -179,7 +291,7 @@ setup_php_default() {
         local alternatives_count=$(echo "$alternatives_list" | wc -l)
 
         if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.4"; then
-            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.4 is in alternatives ï¿?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.4 is in alternatives ï¿½?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: Multiple PHP versions in alternatives:${NC}"
             echo "$alternatives_list"

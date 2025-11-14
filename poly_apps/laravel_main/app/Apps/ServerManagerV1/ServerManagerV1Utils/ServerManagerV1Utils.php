@@ -17,7 +17,7 @@ class ServerManagerV1Utils
             return false;
         }
         
-        foreach (ServerManagerV1Constants::ALLOWED_DOWNLOAD_PATHS as $allowedPath) {
+        foreach (ServerManagerV1Constants::getAllowedDownloadPaths() as $allowedPath) {
             if (strpos($realPath, $allowedPath) === 0) {
                 return true;
             }

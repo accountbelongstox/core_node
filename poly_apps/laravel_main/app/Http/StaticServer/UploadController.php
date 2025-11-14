@@ -14,7 +14,7 @@
 
 namespace App\Http\StaticServer;
 
-use App\Helpers\ExternalStorageHelper;
+use App\Providers\PathMapper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +27,7 @@ class UploadController
     public function __construct()
     {
         // Use the new external storage system
-        $this->baseDir = ExternalStorageHelper::getUploadPath();
+        $this->baseDir = PathMapper::getUploadPath();
     }
 
     public function checkExists(Request $request)

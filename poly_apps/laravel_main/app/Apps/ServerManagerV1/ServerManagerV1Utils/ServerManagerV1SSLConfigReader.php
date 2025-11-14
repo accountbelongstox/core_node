@@ -17,12 +17,13 @@ class ServerManagerV1SSLConfigReader
             return self::$cachedConfig;
         }
 
-        $configDirPath = ServerManagerV1PathResolver::getSecretKeysPath();
+        $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+        $configDirPath = $coreNodeDir ? $coreNodeDir . '/.secret_keys/.secret_ignore' : '';
 
         Log::info('ServerManagerV1: Looking for SSL config in: ' . $configDirPath);
 
         if (!is_dir($configDirPath)) {
-            $ddScriptPath = ServerManagerV1PathResolver::getDdScriptPath();
+            $ddScriptPath = $coreNodeDir ? $coreNodeDir . '/scripts/dd.sh' : '';
             throw new \Exception("SSL configuration directory not found: $configDirPath. Please run dd.sh to decrypt SSL configuration: bash $ddScriptPath");
         }
 
@@ -52,7 +53,8 @@ class ServerManagerV1SSLConfigReader
         }
 
         if (!$jsonFile) {
-            $ddScriptPath = ServerManagerV1PathResolver::getDdScriptPath();
+            $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+            $ddScriptPath = $coreNodeDir ? $coreNodeDir . '/scripts/dd.sh' : '';
             throw new \Exception("SSL configuration JSON file not found in directory: $configDirPath. Please run dd.sh to decrypt SSL configuration: bash $ddScriptPath");
         }
 
@@ -173,12 +175,12 @@ class ServerManagerV1SSLConfigReader
             return $deploymentConfig['default_web_root'];
         }
 
-        return ServerManagerV1PathResolver::resolveWebRoot();
+        return \App\Providers\PathMapper::mapWebPath('wwwroot');
     }
 
     /**
      * Resolve web directory path
-     * If path is absolute, use as-is. Otherwise, treat as subdirectory under /www/wwwroot
+     * If path is absolute, use as-is. Otherwise, treat as subdirectory under wwwroot (mapped via PathMapper)
      */
     public static function resolveWebDirectory(string $path): string
     {
@@ -221,11 +223,20 @@ class ServerManagerV1SSLConfigReader
             return [
                 'config_path' => $deploymentConfig['nginx_config_path'],
                 'enabled_path' => $deploymentConfig['nginx_enabled_path'],
-                'backup_path' => $deploymentConfig['backup_path'] ?? '/www/backup/nginx-configs'
+                'backup_path' => $deploymentConfig['backup_path'] ?? \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getNginxBackupDir()
             ];
         }
 
-        return ServerManagerV1PathResolver::getNginxPaths();
+        $nginxConfigDir = \App\Providers\PathMapper::mapWebPath('nginxconfig');
+        $sitesAvailable = $nginxConfigDir . '/sites-available';
+        $sitesEnabled = $nginxConfigDir . '/sites-enabled';
+        
+        return [
+            'config_path' => $sitesAvailable,
+            'enabled_path' => $sitesEnabled,
+            'available' => is_dir($sitesAvailable),
+            'note' => 'Using mapped nginx config directory'
+        ];
     }
     
     /**
@@ -328,8 +339,8 @@ class ServerManagerV1SSLConfigReader
                     if ($name === 'dnspod') {
                         // Check if DNSPod credentials are available from secret storage
                         try {
-                            $email = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
-                            $apiToken = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
+                            $email = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
+                            $apiToken = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
 
                             if (empty($email)) {
                                 $errors[] = "DNSPod provider missing email in secret storage";
@@ -375,7 +386,9 @@ class ServerManagerV1SSLConfigReader
      */
     public static function ddScriptExists(): bool
     {
-        return file_exists(ServerManagerV1PathResolver::getDdScriptPath());
+        $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+        $ddScriptPath = $coreNodeDir ? $coreNodeDir . '/scripts/dd.sh' : '';
+        return file_exists($ddScriptPath);
     }
 
     /**
@@ -383,6 +396,7 @@ class ServerManagerV1SSLConfigReader
      */
     public static function getDdScriptPath(): string
     {
-        return ServerManagerV1PathResolver::getDdScriptPath();
+        $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+        return $coreNodeDir ? $coreNodeDir . '/scripts/dd.sh' : '';
     }
 }

@@ -51,7 +51,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
                 'path' => $path,
                 'items' => $items,
                 'total_items' => count($items),
-                'allowed_paths' => ServerManagerV1Constants::ALLOWED_DOWNLOAD_PATHS
+                'allowed_paths' => ServerManagerV1Constants::getAllowedDownloadPaths()
             ], 'Directory listing retrieved successfully');
             
         } catch (\Exception $e) {
