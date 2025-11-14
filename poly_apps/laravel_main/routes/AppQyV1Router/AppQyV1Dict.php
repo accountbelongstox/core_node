@@ -14,11 +14,11 @@
 use Illuminate\Support\Facades\Route;
 
 # -----------------------------Dict-------------------------------
-use App\Apps\AppQyV1\Controllers\AppQyV1Group\AppQyV1WordGroupCreationController as DGAController;
-use App\Apps\AppQyV1\Controllers\AppQyV1Group\AppQyV1WordGroupQueryController as DGQController;
-use App\Apps\AppQyV1\Controllers\AppQyV1Group\AppQyV1WordGroupDeletionController as DGDController;
-use App\Apps\AppQyV1\Controllers\AppQyV1Dictionaries\AppQyV1DictionaryManagementController as AddDController;
-use App\Apps\AppQyV1\Controllers\AppQyV1Dictionaries\AppQyV1DictionaryQueryController as QueryDController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupCreationController as DGAController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupQueryController as DGQController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupDeletionController as DGDController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryManagementController as AddDController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryQueryController as QueryDController;
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;
 Route::prefix($apiVersionPrefix)->group(function () {

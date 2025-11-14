@@ -1,0 +1,2217 @@
+<!doctypehtml tml tml><html lang=en><title>Collections - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Collections<ul><li><a href=#introduction>Introduction</a> <ul><li><a href=#creating-collections>Creating Collections</a><li><a href=#extending-collections>Extending Collections</a></ul><li><a href=#available-methods>Available Methods</a><li><a href=#higher-order-messages>Higher Order Messages</a><li><a href=#lazy-collections>Lazy Collections</a> <ul><li><a href=#lazy-collection-introduction>Introduction</a><li><a href=#creating-lazy-collections>Creating Lazy Collections</a><li><a href=#the-enumerable-contract>The Enumerable Contract</a><li><a href=#lazy-collection-methods>Lazy Collection Methods</a></ul></ul><h2><a href=#introduction>Introduction</a></h2><p>The <code>Illuminate\Support\Collection</code> class provides a fluent, convenient wrapper for working with arrays of data. For example, check out the following code. We'll use the <code>collect</code> helper to create a new collection instance from the array, run the <code>strtoupper</code> function on each element, and then remove all empty elements:<div><pre><code>1$collection=collect(['Taylor','Abigail', null])->map(function(?string$name) {2returnstrtoupper($name);3})->reject(function(string$name) {4returnempty($name);5});
+$collection = collect(['Taylor', 'Abigail', null])->map(function (?string $name) {
+    return strtoupper($name);
+})->reject(function (string $name) {
+    return empty($name);
+});</code></pre></div><p>As you can see, the <code>Collection</code> class allows you to chain its methods to perform fluent mapping and reducing of the underlying array. In general, collections are immutable, meaning every <code>Collection</code> method returns an entirely new <code>Collection</code> instance.<h3><a href=#creating-collections>Creating Collections</a></h3><p>As mentioned above, the <code>collect</code> helper returns a new <code>Illuminate\Support\Collection</code> instance for the given array. So, creating a collection is as simple as:<div><pre><code>1$collection=collect([1,2,3]);
+$collection = collect([1, 2, 3]);</code></pre></div><p>You may also create a collection using the <a href=#method-make>make</a> and <a href=#method-fromjson>fromJson</a> methods.<div><p>The results of <a href=eloquent.htm>Eloquent</a> queries are always returned as <code>Collection</code> instances.</div><h3><a href=#extending-collections>Extending Collections</a></h3><p>Collections are "macroable", which allows you to add additional methods to the <code>Collection</code> class at run time. The <code>Illuminate\Support\Collection</code> class' <code>macro</code> method accepts a closure that will be executed when your macro is called. The macro closure may access the collection's other methods via <code>$this</code>, just as if it were a real method of the collection class. For example, the following code adds a <code>toUpper</code> method to the <code>Collection</code> class:<div><pre><code> 1use Illuminate\Support\Collection; 2use Illuminate\Support\Str; 3  4Collection::macro('toUpper', function() { 5return$this->map(function(string$value) { 6returnStr::upper($value); 7    }); 8}); 9 10$collection=collect(['first','second']);11 12$upper=$collection->toUpper();13 14// ['FIRST', 'SECOND']
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+
+Collection::macro('toUpper', function () {
+    return $this->map(function (string $value) {
+        return Str::upper($value);
+    });
+});
+
+$collection = collect(['first', 'second']);
+
+$upper = $collection->toUpper();
+
+// ['FIRST', 'SECOND']</code></pre></div><p>Typically, you should declare collection macros in the <code>boot</code> method of a <a href=providers.htm>service provider</a>.<h4><a href=#macro-arguments>Macro Arguments</a></h4><p>If necessary, you may define macros that accept additional arguments:<div><pre><code> 1use Illuminate\Support\Collection; 2use Illuminate\Support\Facades\Lang; 3  4Collection::macro('toLocale', function(string$locale) { 5return$this->map(function(string$value)use($locale) { 6returnLang::get($value, [], $locale); 7    }); 8}); 9 10$collection=collect(['first','second']);11 12$translated=$collection->toLocale('es');
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Lang;
+
+Collection::macro('toLocale', function (string $locale) {
+    return $this->map(function (string $value) use ($locale) {
+        return Lang::get($value, [], $locale);
+    });
+});
+
+$collection = collect(['first', 'second']);
+
+$translated = $collection->toLocale('es');</code></pre></div><h2><a href=#available-methods>Available Methods</a></h2><p>For the majority of the remaining collection documentation, we'll discuss each method available on the <code>Collection</code> class. Remember, all of these methods may be chained to fluently manipulate the underlying array. Furthermore, almost every method returns a new <code>Collection</code> instance, allowing you to preserve the original copy of the collection when necessary:<div markdown=1><p><a href=#method-after>after</a> <a href=#method-all>all</a> <a href=#method-average>average</a> <a href=#method-avg>avg</a> <a href=#method-before>before</a> <a href=#method-chunk>chunk</a> <a href=#method-chunkwhile>chunkWhile</a> <a href=#method-collapse>collapse</a> <a href=#method-collapsewithkeys>collapseWithKeys</a> <a href=#method-collect>collect</a> <a href=#method-combine>combine</a> <a href=#method-concat>concat</a> <a href=#method-contains>contains</a> <a href=#method-containsoneitem>containsOneItem</a> <a href=#method-containsstrict>containsStrict</a> <a href=#method-count>count</a> <a href=#method-countBy>countBy</a> <a href=#method-crossjoin>crossJoin</a> <a href=#method-dd>dd</a> <a href=#method-diff>diff</a> <a href=#method-diffassoc>diffAssoc</a> <a href=#method-diffassocusing>diffAssocUsing</a> <a href=#method-diffkeys>diffKeys</a> <a href=#method-doesntcontain>doesntContain</a> <a href=#method-dot>dot</a> <a href=#method-dump>dump</a> <a href=#method-duplicates>duplicates</a> <a href=#method-duplicatesstrict>duplicatesStrict</a> <a href=#method-each>each</a> <a href=#method-eachspread>eachSpread</a> <a href=#method-ensure>ensure</a> <a href=#method-every>every</a> <a href=#method-except>except</a> <a href=#method-filter>filter</a> <a href=#method-first>first</a> <a href=#method-first-or-fail>firstOrFail</a> <a href=#method-first-where>firstWhere</a> <a href=#method-flatmap>flatMap</a> <a href=#method-flatten>flatten</a> <a href=#method-flip>flip</a> <a href=#method-forget>forget</a> <a href=#method-forpage>forPage</a> <a href=#method-fromjson>fromJson</a> <a href=#method-get>get</a> <a href=#method-groupby>groupBy</a> <a href=#method-has>has</a> <a href=#method-hasany>hasAny</a> <a href=#method-implode>implode</a> <a href=#method-intersect>intersect</a> <a href=#method-intersectusing>intersectUsing</a> <a href=#method-intersectAssoc>intersectAssoc</a> <a href=#method-intersectassocusing>intersectAssocUsing</a> <a href=#method-intersectbykeys>intersectByKeys</a> <a href=#method-isempty>isEmpty</a> <a href=#method-isnotempty>isNotEmpty</a> <a href=#method-join>join</a> <a href=#method-keyby>keyBy</a> <a href=#method-keys>keys</a> <a href=#method-last>last</a> <a href=#method-lazy>lazy</a> <a href=#method-macro>macro</a> <a href=#method-make>make</a> <a href=#method-map>map</a> <a href=#method-mapinto>mapInto</a> <a href=#method-mapspread>mapSpread</a> <a href=#method-maptogroups>mapToGroups</a> <a href=#method-mapwithkeys>mapWithKeys</a> <a href=#method-max>max</a> <a href=#method-median>median</a> <a href=#method-merge>merge</a> <a href=#method-mergerecursive>mergeRecursive</a> <a href=#method-min>min</a> <a href=#method-mode>mode</a> <a href=#method-multiply>multiply</a> <a href=#method-nth>nth</a> <a href=#method-only>only</a> <a href=#method-pad>pad</a> <a href=#method-partition>partition</a> <a href=#method-percentage>percentage</a> <a href=#method-pipe>pipe</a> <a href=#method-pipeinto>pipeInto</a> <a href=#method-pipethrough>pipeThrough</a> <a href=#method-pluck>pluck</a> <a href=#method-pop>pop</a> <a href=#method-prepend>prepend</a> <a href=#method-pull>pull</a> <a href=#method-push>push</a> <a href=#method-put>put</a> <a href=#method-random>random</a> <a href=#method-range>range</a> <a href=#method-reduce>reduce</a> <a href=#method-reduce-spread>reduceSpread</a> <a href=#method-reject>reject</a> <a href=#method-replace>replace</a> <a href=#method-replacerecursive>replaceRecursive</a> <a href=#method-reverse>reverse</a> <a href=#method-search>search</a> <a href=#method-select>select</a> <a href=#method-shift>shift</a> <a href=#method-shuffle>shuffle</a> <a href=#method-skip>skip</a> <a href=#method-skipuntil>skipUntil</a> <a href=#method-skipwhile>skipWhile</a> <a href=#method-slice>slice</a> <a href=#method-sliding>sliding</a> <a href=#method-sole>sole</a> <a href=#method-some>some</a> <a href=#method-sort>sort</a> <a href=#method-sortby>sortBy</a> <a href=#method-sortbydesc>sortByDesc</a> <a href=#method-sortdesc>sortDesc</a> <a href=#method-sortkeys>sortKeys</a> <a href=#method-sortkeysdesc>sortKeysDesc</a> <a href=#method-sortkeysusing>sortKeysUsing</a> <a href=#method-splice>splice</a> <a href=#method-split>split</a> <a href=#method-splitin>splitIn</a> <a href=#method-sum>sum</a> <a href=#method-take>take</a> <a href=#method-takeuntil>takeUntil</a> <a href=#method-takewhile>takeWhile</a> <a href=#method-tap>tap</a> <a href=#method-times>times</a> <a href=#method-toarray>toArray</a> <a href=#method-tojson>toJson</a> <a href=#method-transform>transform</a> <a href=#method-undot>undot</a> <a href=#method-union>union</a> <a href=#method-unique>unique</a> <a href=#method-uniquestrict>uniqueStrict</a> <a href=#method-unless>unless</a> <a href=#method-unlessempty>unlessEmpty</a> <a href=#method-unlessnotempty>unlessNotEmpty</a> <a href=#method-unwrap>unwrap</a> <a href=#method-value>value</a> <a href=#method-values>values</a> <a href=#method-when>when</a> <a href=#method-whenempty>whenEmpty</a> <a href=#method-whennotempty>whenNotEmpty</a> <a href=#method-where>where</a> <a href=#method-wherestrict>whereStrict</a> <a href=#method-wherebetween>whereBetween</a> <a href=#method-wherein>whereIn</a> <a href=#method-whereinstrict>whereInStrict</a> <a href=#method-whereinstanceof>whereInstanceOf</a> <a href=#method-wherenotbetween>whereNotBetween</a> <a href=#method-wherenotin>whereNotIn</a> <a href=#method-wherenotinstrict>whereNotInStrict</a> <a href=#method-wherenotnull>whereNotNull</a> <a href=#method-wherenull>whereNull</a> <a href=#method-wrap>wrap</a> <a href=#method-zip>zip</a></div><h2><a href=#method-listing>Method Listing</a></h2><h4><a href=#method-after><code>after()</code></a></h4><p>The <code>after</code> method returns the item after the given item. <code>null</code> is returned if the given item is not found or is the last item:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->after(3);4 5// 46 7$collection->after(5);8 9// null
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->after(3);
+
+// 4
+
+$collection->after(5);
+
+// null</code></pre></div><p>This method searches for the given item using "loose" comparison, meaning a string containing an integer value will be considered equal to an integer of the same value. To use "strict" comparison, you may provide the <code>strict</code> argument to the method:<div><pre><code>1collect([2,4,6,8])->after('4', strict: true);2 3// null
+collect([2, 4, 6, 8])->after('4', strict: true);
+
+// null</code></pre></div><p>Alternatively, you may provide your own closure to search for the first item that passes a given truth test:<div><pre><code>1collect([2,4,6,8])->after(function(int$item, int$key) {2return$item>5;3});4 5// 8
+collect([2, 4, 6, 8])->after(function (int $item, int $key) {
+    return $item > 5;
+});
+
+// 8</code></pre></div><h4><a href=#method-all><code>all()</code></a></h4><p>The <code>all</code> method returns the underlying array represented by the collection:<div><pre><code>1collect([1,2,3])->all();2 3// [1, 2, 3]
+collect([1, 2, 3])->all();
+
+// [1, 2, 3]</code></pre></div><h4><a href=#method-average><code>average()</code></a></h4><p>Alias for the <a href=#method-avg>avg</a> method.<h4><a href=#method-avg><code>avg()</code></a></h4><p>The <code>avg</code> method returns the <a href=https://en.wikipedia.org/wiki/Average>average value</a> of a given key:<div><pre><code> 1$average=collect([ 2['foo'=>10], 3['foo'=>10], 4['foo'=>20], 5['foo'=>40] 6])->avg('foo'); 7  8// 20 9 10$average=collect([1,1,2,4])->avg();11 12// 2
+$average = collect([
+    ['foo' => 10],
+    ['foo' => 10],
+    ['foo' => 20],
+    ['foo' => 40]
+])->avg('foo');
+
+// 20
+
+$average = collect([1, 1, 2, 4])->avg();
+
+// 2</code></pre></div><h4><a href=#method-before><code>before()</code></a></h4><p>The <code>before</code> method is the opposite of the <a href=#method-after>after</a> method. It returns the item before the given item. <code>null</code> is returned if the given item is not found or is the first item:<div><pre><code> 1$collection=collect([1,2,3,4,5]); 2  3$collection->before(3); 4  5// 2 6  7$collection->before(1); 8  9// null10 11collect([2,4,6,8])->before('4', strict: true);12 13// null14 15collect([2,4,6,8])->before(function(int$item, int$key) {16return$item>5;17});18 19// 4
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->before(3);
+
+// 2
+
+$collection->before(1);
+
+// null
+
+collect([2, 4, 6, 8])->before('4', strict: true);
+
+// null
+
+collect([2, 4, 6, 8])->before(function (int $item, int $key) {
+    return $item > 5;
+});
+
+// 4</code></pre></div><h4><a href=#method-chunk><code>chunk()</code></a></h4><p>The <code>chunk</code> method breaks the collection into multiple, smaller collections of a given size:<div><pre><code>1$collection=collect([1,2,3,4,5,6,7]);2 3$chunks=$collection->chunk(4);4 5$chunks->all();6 7// [[1, 2, 3, 4], [5, 6, 7]]
+$collection = collect([1, 2, 3, 4, 5, 6, 7]);
+
+$chunks = $collection->chunk(4);
+
+$chunks->all();
+
+// [[1, 2, 3, 4], [5, 6, 7]]</code></pre></div><p>This method is especially useful in <a href=views.htm>views</a> when working with a grid system such as <a href=https://getbootstrap.com/docs/5.3/layout/grid/>Bootstrap</a>. For example, imagine you have a collection of <a href=eloquent.htm>Eloquent</a> models you want to display in a grid:<div><pre><code>1@foreach ($products->chunk(3) as$chunk)2&lt;divclass="row">3@foreach ($chunkas$product)4&lt;divclass="col-xs-4">{{$product->name}}&lt;/div>5@endforeach6&lt;/div>7@endforeach
+@foreach ($products->chunk(3) as $chunk)
+    &lt;div class="row">
+        @foreach ($chunk as $product)
+            &lt;div class="col-xs-4">{{ $product->name }}&lt;/div>
+        @endforeach
+    &lt;/div>
+@endforeach</code></pre></div><h4><a href=#method-chunkwhile><code>chunkWhile()</code></a></h4><p>The <code>chunkWhile</code> method breaks the collection into multiple, smaller collections based on the evaluation of the given callback. The <code>$chunk</code> variable passed to the closure may be used to inspect the previous element:<div><pre><code>1$collection=collect(str_split('AABBCCCD'));2 3$chunks=$collection->chunkWhile(function(string$value, int$key, Collection$chunk) {4return$value===$chunk->last();5});6 7$chunks->all();8 9// [['A', 'A'], ['B', 'B'], ['C', 'C', 'C'], ['D']]
+$collection = collect(str_split('AABBCCCD'));
+
+$chunks = $collection->chunkWhile(function (string $value, int $key, Collection $chunk) {
+    return $value === $chunk->last();
+});
+
+$chunks->all();
+
+// [['A', 'A'], ['B', 'B'], ['C', 'C', 'C'], ['D']]</code></pre></div><h4><a href=#method-collapse><code>collapse()</code></a></h4><p>The <code>collapse</code> method collapses a collection of arrays or collections into a single, flat collection:<div><pre><code> 1$collection=collect([ 2[1,2,3], 3[4,5,6], 4[7,8,9], 5]); 6  7$collapsed=$collection->collapse(); 8  9$collapsed->all();10 11// [1, 2, 3, 4, 5, 6, 7, 8, 9]
+$collection = collect([
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9],
+]);
+
+$collapsed = $collection->collapse();
+
+$collapsed->all();
+
+// [1, 2, 3, 4, 5, 6, 7, 8, 9]</code></pre></div><h4><a href=#method-collapsewithkeys><code>collapseWithKeys()</code></a></h4><p>The <code>collapseWithKeys</code> method flattens a collection of arrays or collections into a single collection, keeping the original keys intact. If the collection is already flat, it will return an empty collection:<div><pre><code> 1$collection=collect([ 2['first'=> collect([1,2,3])], 3['second'=>[4,5,6]], 4['third'=> collect([7,8,9])] 5]); 6  7$collapsed=$collection->collapseWithKeys(); 8  9$collapsed->all();10 11// [12//     'first'  => [1, 2, 3],13//     'second' => [4, 5, 6],14//     'third'  => [7, 8, 9],15// ]
+$collection = collect([
+    ['first'  => collect([1, 2, 3])],
+    ['second' => [4, 5, 6]],
+    ['third'  => collect([7, 8, 9])]
+]);
+
+$collapsed = $collection->collapseWithKeys();
+
+$collapsed->all();
+
+// [
+//     'first'  => [1, 2, 3],
+//     'second' => [4, 5, 6],
+//     'third'  => [7, 8, 9],
+// ]</code></pre></div><h4><a href=#method-collect><code>collect()</code></a></h4><p>The <code>collect</code> method returns a new <code>Collection</code> instance with the items currently in the collection:<div><pre><code>1$collectionA=collect([1,2,3]);2 3$collectionB=$collectionA->collect();4 5$collectionB->all();6 7// [1, 2, 3]
+$collectionA = collect([1, 2, 3]);
+
+$collectionB = $collectionA->collect();
+
+$collectionB->all();
+
+// [1, 2, 3]</code></pre></div><p>The <code>collect</code> method is primarily useful for converting <a href=#lazy-collections>lazy collections</a> into standard <code>Collection</code> instances:<div><pre><code> 1$lazyCollection=LazyCollection::make(function() { 2yield1; 3yield2; 4yield3; 5}); 6  7$collection=$lazyCollection->collect(); 8  9$collection::class;10 11// 'Illuminate\Support\Collection'12 13$collection->all();14 15// [1, 2, 3]
+$lazyCollection = LazyCollection::make(function () {
+    yield 1;
+    yield 2;
+    yield 3;
+});
+
+$collection = $lazyCollection->collect();
+
+$collection::class;
+
+// 'Illuminate\Support\Collection'
+
+$collection->all();
+
+// [1, 2, 3]</code></pre></div><div><p>The <code>collect</code> method is especially useful when you have an instance of <code>Enumerable</code> and need a non-lazy collection instance. Since <code>collect()</code> is part of the <code>Enumerable</code> contract, you can safely use it to get a <code>Collection</code> instance.</div><h4><a href=#method-combine><code>combine()</code></a></h4><p>The <code>combine</code> method combines the values of the collection, as keys, with the values of another array or collection:<div><pre><code>1$collection=collect(['name','age']);2 3$combined=$collection->combine(['George', 29]);4 5$combined->all();6 7// ['name' => 'George', 'age' => 29]
+$collection = collect(['name', 'age']);
+
+$combined = $collection->combine(['George', 29]);
+
+$combined->all();
+
+// ['name' => 'George', 'age' => 29]</code></pre></div><h4><a href=#method-concat><code>concat()</code></a></h4><p>The <code>concat</code> method appends the given array or collection's values onto the end of another collection:<div><pre><code>1$collection=collect(['John Doe']);2 3$concatenated=$collection->concat(['Jane Doe'])->concat(['name'=>'Johnny Doe']);4 5$concatenated->all();6 7// ['John Doe', 'Jane Doe', 'Johnny Doe']
+$collection = collect(['John Doe']);
+
+$concatenated = $collection->concat(['Jane Doe'])->concat(['name' => 'Johnny Doe']);
+
+$concatenated->all();
+
+// ['John Doe', 'Jane Doe', 'Johnny Doe']</code></pre></div><p>The <code>concat</code> method numerically reindexes keys for items concatenated onto the original collection. To maintain keys in associative collections, see the <a href=#method-merge>merge</a> method.<h4><a href=#method-contains><code>contains()</code></a></h4><p>The <code>contains</code> method determines whether the collection contains a given item. You may pass a closure to the <code>contains</code> method to determine if an element exists in the collection matching a given truth test:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->contains(function(int$value, int$key) {4return$value>5;5});6 7// false
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->contains(function (int $value, int $key) {
+    return $value > 5;
+});
+
+// false</code></pre></div><p>Alternatively, you may pass a string to the <code>contains</code> method to determine whether the collection contains a given item value:<div><pre><code>1$collection=collect(['name'=>'Desk','price'=>100]);2 3$collection->contains('Desk');4 5// true6 7$collection->contains('New York');8 9// false
+$collection = collect(['name' => 'Desk', 'price' => 100]);
+
+$collection->contains('Desk');
+
+// true
+
+$collection->contains('New York');
+
+// false</code></pre></div><p>You may also pass a key / value pair to the <code>contains</code> method, which will determine if the given pair exists in the collection:<div><pre><code>1$collection=collect([2['product'=>'Desk','price'=>200],3['product'=>'Chair','price'=>100],4]);5 6$collection->contains('product', 'Bookcase');7 8// false
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 100],
+]);
+
+$collection->contains('product', 'Bookcase');
+
+// false</code></pre></div><p>The <code>contains</code> method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the <a href=#method-containsstrict>containsStrict</a> method to filter using "strict" comparisons.<p>For the inverse of <code>contains</code>, see the <a href=#method-doesntcontain>doesntContain</a> method.<h4><a href=#method-containsoneitem><code>containsOneItem()</code></a></h4><p>The <code>containsOneItem</code> method determines whether the collection contains a single item:<div><pre><code> 1collect([])->containsOneItem(); 2  3// false 4  5collect(['1'])->containsOneItem(); 6  7// true 8  9collect(['1','2'])->containsOneItem();10 11// false12 13collect([1,2,3])->containsOneItem(fn(int$item) => $item===2);14 15// true
+collect([])->containsOneItem();
+
+// false
+
+collect(['1'])->containsOneItem();
+
+// true
+
+collect(['1', '2'])->containsOneItem();
+
+// false
+
+collect([1, 2, 3])->containsOneItem(fn (int $item) => $item === 2);
+
+// true</code></pre></div><h4><a href=#method-containsstrict><code>containsStrict()</code></a></h4><p>This method has the same signature as the <a href=#method-contains>contains</a> method; however, all values are compared using "strict" comparisons.<div><p>This method's behavior is modified when using <a href=eloquent-collections.htm#method-contains>Eloquent Collections</a>.</div><h4><a href=#method-count><code>count()</code></a></h4><p>The <code>count</code> method returns the total number of items in the collection:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$collection->count();4 5// 4
+$collection = collect([1, 2, 3, 4]);
+
+$collection->count();
+
+// 4</code></pre></div><h4><a href=#method-countBy><code>countBy()</code></a></h4><p>The <code>countBy</code> method counts the occurrences of values in the collection. By default, the method counts the occurrences of every element, allowing you to count certain "types" of elements in the collection:<div><pre><code>1$collection=collect([1,2,2,2,3]);2 3$counted=$collection->countBy();4 5$counted->all();6 7// [1 => 1, 2 => 3, 3 => 1]
+$collection = collect([1, 2, 2, 2, 3]);
+
+$counted = $collection->countBy();
+
+$counted->all();
+
+// [1 => 1, 2 => 3, 3 => 1]</code></pre></div><p>You may pass a closure to the <code>countBy</code> method to count all items by a custom value:<div><pre><code><div>1$collection=collect(['<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>','<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>','<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>']);</div>2 3$counted=$collection->countBy(function(string$email) {4returnsubstr(strrchr($email,'@'),1);5});6 7$counted->all();8 9// ['gmail.com' => 2, 'yahoo.com' => 1]<div hidden>
+$collection = collect(['<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>']);
+
+$counted = $collection->countBy(function (string $email) {
+    return substr(strrchr($email, '@'), 1);
+});
+
+$counted->all();
+
+// ['gmail.com' => 2, 'yahoo.com' => 1]</div></code></pre></div><h4><a href=#method-crossjoin><code>crossJoin()</code></a></h4><p>The <code>crossJoin</code> method cross joins the collection's values among the given arrays or collections, returning a Cartesian product with all possible permutations:<div><pre><code> 1$collection=collect([1,2]); 2  3$matrix=$collection->crossJoin(['a', 'b']); 4  5$matrix->all(); 6  7/* 8    [ 9        [1, 'a'],10        [1, 'b'],11        [2, 'a'],12        [2, 'b'],13    ]14*/15 16$collection=collect([1,2]);17 18$matrix=$collection->crossJoin(['a', 'b'], ['I', 'II']);19 20$matrix->all();21 22/*23    [24        [1, 'a', 'I'],25        [1, 'a', 'II'],26        [1, 'b', 'I'],27        [1, 'b', 'II'],28        [2, 'a', 'I'],29        [2, 'a', 'II'],30        [2, 'b', 'I'],31        [2, 'b', 'II'],32    ]33*/
+$collection = collect([1, 2]);
+
+$matrix = $collection->crossJoin(['a', 'b']);
+
+$matrix->all();
+
+/*
+    [
+        [1, 'a'],
+        [1, 'b'],
+        [2, 'a'],
+        [2, 'b'],
+    ]
+*/
+
+$collection = collect([1, 2]);
+
+$matrix = $collection->crossJoin(['a', 'b'], ['I', 'II']);
+
+$matrix->all();
+
+/*
+    [
+        [1, 'a', 'I'],
+        [1, 'a', 'II'],
+        [1, 'b', 'I'],
+        [1, 'b', 'II'],
+        [2, 'a', 'I'],
+        [2, 'a', 'II'],
+        [2, 'b', 'I'],
+        [2, 'b', 'II'],
+    ]
+*/</code></pre></div><h4><a href=#method-dd><code>dd()</code></a></h4><p>The <code>dd</code> method dumps the collection's items and ends execution of the script:<div><pre><code> 1$collection=collect(['John Doe','Jane Doe']); 2  3$collection->dd(); 4  5/* 6    array:2 [ 7        0 => "John Doe" 8        1 => "Jane Doe" 9    ]10*/
+$collection = collect(['John Doe', 'Jane Doe']);
+
+$collection->dd();
+
+/*
+    array:2 [
+        0 => "John Doe"
+        1 => "Jane Doe"
+    ]
+*/</code></pre></div><p>If you do not want to stop executing the script, use the <a href=#method-dump>dump</a> method instead.<h4><a href=#method-diff><code>diff()</code></a></h4><p>The <code>diff</code> method compares the collection against another collection or a plain PHP <code>array</code> based on its values. This method will return the values in the original collection that are not present in the given collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$diff=$collection->diff([2, 4, 6, 8]);4 5$diff->all();6 7// [1, 3, 5]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$diff = $collection->diff([2, 4, 6, 8]);
+
+$diff->all();
+
+// [1, 3, 5]</code></pre></div><div><p>This method's behavior is modified when using <a href=eloquent-collections.htm#method-diff>Eloquent Collections</a>.</div><h4><a href=#method-diffassoc><code>diffAssoc()</code></a></h4><p>The <code>diffAssoc</code> method compares the collection against another collection or a plain PHP <code>array</code> based on its keys and values. This method will return the key / value pairs in the original collection that are not present in the given collection:<div><pre><code> 1$collection=collect([ 2'color'=>'orange', 3'type'=>'fruit', 4'remain'=>6, 5]); 6  7$diff=$collection->diffAssoc([ 8'color'=>'yellow', 9'type'=>'fruit',10'remain'=>3,11'used'=>6,12]);13 14$diff->all();15 16// ['color' => 'orange', 'remain' => 6]
+$collection = collect([
+    'color' => 'orange',
+    'type' => 'fruit',
+    'remain' => 6,
+]);
+
+$diff = $collection->diffAssoc([
+    'color' => 'yellow',
+    'type' => 'fruit',
+    'remain' => 3,
+    'used' => 6,
+]);
+
+$diff->all();
+
+// ['color' => 'orange', 'remain' => 6]</code></pre></div><h4><a href=#method-diffassocusing><code>diffAssocUsing()</code></a></h4><p>Unlike <code>diffAssoc</code>, <code>diffAssocUsing</code> accepts a user supplied callback function for the indices comparison:<div><pre><code> 1$collection=collect([ 2'color'=>'orange', 3'type'=>'fruit', 4'remain'=>6, 5]); 6  7$diff=$collection->diffAssocUsing([ 8'Color'=>'yellow', 9'Type'=>'fruit',10'Remain'=>3,11], 'strnatcasecmp');12 13$diff->all();14 15// ['color' => 'orange', 'remain' => 6]
+$collection = collect([
+    'color' => 'orange',
+    'type' => 'fruit',
+    'remain' => 6,
+]);
+
+$diff = $collection->diffAssocUsing([
+    'Color' => 'yellow',
+    'Type' => 'fruit',
+    'Remain' => 3,
+], 'strnatcasecmp');
+
+$diff->all();
+
+// ['color' => 'orange', 'remain' => 6]</code></pre></div><p>The callback must be a comparison function that returns an integer less than, equal to, or greater than zero. For more information, refer to the PHP documentation on <a href=https://www.php.net/array_diff_uassoc#refsect1-function.array-diff-uassoc-parameters>array_diff_uassoc</a>, which is the PHP function that the <code>diffAssocUsing</code> method utilizes internally.<h4><a href=#method-diffkeys><code>diffKeys()</code></a></h4><p>The <code>diffKeys</code> method compares the collection against another collection or a plain PHP <code>array</code> based on its keys. This method will return the key / value pairs in the original collection that are not present in the given collection:<div><pre><code> 1$collection=collect([ 2'one'=>10, 3'two'=>20, 4'three'=>30, 5'four'=>40, 6'five'=>50, 7]); 8  9$diff=$collection->diffKeys([10'two'=>2,11'four'=>4,12'six'=>6,13'eight'=>8,14]);15 16$diff->all();17 18// ['one' => 10, 'three' => 30, 'five' => 50]
+$collection = collect([
+    'one' => 10,
+    'two' => 20,
+    'three' => 30,
+    'four' => 40,
+    'five' => 50,
+]);
+
+$diff = $collection->diffKeys([
+    'two' => 2,
+    'four' => 4,
+    'six' => 6,
+    'eight' => 8,
+]);
+
+$diff->all();
+
+// ['one' => 10, 'three' => 30, 'five' => 50]</code></pre></div><h4><a href=#method-doesntcontain><code>doesntContain()</code></a></h4><p>The <code>doesntContain</code> method determines whether the collection does not contain a given item. You may pass a closure to the <code>doesntContain</code> method to determine if an element does not exist in the collection matching a given truth test:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->doesntContain(function(int$value, int$key) {4return$value&lt;5;5});6 7// false
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->doesntContain(function (int $value, int $key) {
+    return $value &lt; 5;
+});
+
+// false</code></pre></div><p>Alternatively, you may pass a string to the <code>doesntContain</code> method to determine whether the collection does not contain a given item value:<div><pre><code>1$collection=collect(['name'=>'Desk','price'=>100]);2 3$collection->doesntContain('Table');4 5// true6 7$collection->doesntContain('Desk');8 9// false
+$collection = collect(['name' => 'Desk', 'price' => 100]);
+
+$collection->doesntContain('Table');
+
+// true
+
+$collection->doesntContain('Desk');
+
+// false</code></pre></div><p>You may also pass a key / value pair to the <code>doesntContain</code> method, which will determine if the given pair does not exist in the collection:<div><pre><code>1$collection=collect([2['product'=>'Desk','price'=>200],3['product'=>'Chair','price'=>100],4]);5 6$collection->doesntContain('product', 'Bookcase');7 8// true
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 100],
+]);
+
+$collection->doesntContain('product', 'Bookcase');
+
+// true</code></pre></div><p>The <code>doesntContain</code> method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value.<h4><a href=#method-dot><code>dot()</code></a></h4><p>The <code>dot</code> method flattens a multi-dimensional collection into a single level collection that uses "dot" notation to indicate depth:<div><pre><code>1$collection=collect(['products'=>['desk'=>['price'=>100]]]);2 3$flattened=$collection->dot();4 5$flattened->all();6 7// ['products.desk.price' => 100]
+$collection = collect(['products' => ['desk' => ['price' => 100]]]);
+
+$flattened = $collection->dot();
+
+$flattened->all();
+
+// ['products.desk.price' => 100]</code></pre></div><h4><a href=#method-dump><code>dump()</code></a></h4><p>The <code>dump</code> method dumps the collection's items:<div><pre><code> 1$collection=collect(['John Doe','Jane Doe']); 2  3$collection->dump(); 4  5/* 6    array:2 [ 7        0 => "John Doe" 8        1 => "Jane Doe" 9    ]10*/
+$collection = collect(['John Doe', 'Jane Doe']);
+
+$collection->dump();
+
+/*
+    array:2 [
+        0 => "John Doe"
+        1 => "Jane Doe"
+    ]
+*/</code></pre></div><p>If you want to stop executing the script after dumping the collection, use the <a href=#method-dd>dd</a> method instead.<h4><a href=#method-duplicates><code>duplicates()</code></a></h4><p>The <code>duplicates</code> method retrieves and returns duplicate values from the collection:<div><pre><code>1$collection=collect(['a','b','a','c','b']);2 3$collection->duplicates();4 5// [2 => 'a', 4 => 'b']
+$collection = collect(['a', 'b', 'a', 'c', 'b']);
+
+$collection->duplicates();
+
+// [2 => 'a', 4 => 'b']</code></pre></div><p>If the collection contains arrays or objects, you can pass the key of the attributes that you wish to check for duplicate values:<div><pre><code>1$employees=collect([<div>2['email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>','position'=>'Developer'],</div><div>3['email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>','position'=>'Designer'],</div><div>4['email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>','position'=>'Developer'],</div>5]);6 7$employees->duplicates('position');8 9// [2 => 'Developer']<div hidden>
+$employees = collect([
+    ['email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', 'position' => 'Developer'],
+    ['email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', 'position' => 'Designer'],
+    ['email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', 'position' => 'Developer'],
+]);
+
+$employees->duplicates('position');
+
+// [2 => 'Developer']</div></code></pre></div><h4><a href=#method-duplicatesstrict><code>duplicatesStrict()</code></a></h4><p>This method has the same signature as the <a href=#method-duplicates>duplicates</a> method; however, all values are compared using "strict" comparisons.<h4><a href=#method-each><code>each()</code></a></h4><p>The <code>each</code> method iterates over the items in the collection and passes each item to a closure:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$collection->each(function(int$item, int$key) {4// ...5});
+$collection = collect([1, 2, 3, 4]);
+
+$collection->each(function (int $item, int $key) {
+    // ...
+});</code></pre></div><p>If you would like to stop iterating through the items, you may return <code>false</code> from your closure:<div><pre><code>1$collection->each(function(int$item, int$key) {2if (/* condition */) {3returnfalse;4    }5});
+$collection->each(function (int $item, int $key) {
+    if (/* condition */) {
+        return false;
+    }
+});</code></pre></div><h4><a href=#method-eachspread><code>eachSpread()</code></a></h4><p>The <code>eachSpread</code> method iterates over the collection's items, passing each nested item value into the given callback:<div><pre><code>1$collection=collect([['John Doe',35],['Jane Doe',33]]);2 3$collection->eachSpread(function(string$name, int$age) {4// ...5});
+$collection = collect([['John Doe', 35], ['Jane Doe', 33]]);
+
+$collection->eachSpread(function (string $name, int $age) {
+    // ...
+});</code></pre></div><p>You may stop iterating through the items by returning <code>false</code> from the callback:<div><pre><code>1$collection->eachSpread(function(string$name, int$age) {2returnfalse;3});
+$collection->eachSpread(function (string $name, int $age) {
+    return false;
+});</code></pre></div><h4><a href=#method-ensure><code>ensure()</code></a></h4><p>The <code>ensure</code> method may be used to verify that all elements of a collection are of a given type or list of types. Otherwise, an <code>UnexpectedValueException</code> will be thrown:<div><pre><code>1return$collection->ensure(User::class);2 3return$collection->ensure([User::class, Customer::class]);
+return $collection->ensure(User::class);
+
+return $collection->ensure([User::class, Customer::class]);</code></pre></div><p>Primitive types such as <code>string</code>, <code>int</code>, <code>float</code>, <code>bool</code>, and <code>array</code> may also be specified:<div><pre><code>1return$collection->ensure('int');
+return $collection->ensure('int');</code></pre></div><div><p>The <code>ensure</code> method does not guarantee that elements of different types will not be added to the collection at a later time.</div><h4><a href=#method-every><code>every()</code></a></h4><p>The <code>every</code> method may be used to verify that all elements of a collection pass a given truth test:<div><pre><code>1collect([1,2,3,4])->every(function(int$value, int$key) {2return$value>2;3});4 5// false
+collect([1, 2, 3, 4])->every(function (int $value, int $key) {
+    return $value > 2;
+});
+
+// false</code></pre></div><p>If the collection is empty, the <code>every</code> method will return true:<div><pre><code>1$collection=collect([]);2 3$collection->every(function(int$value, int$key) {4return$value>2;5});6 7// true
+$collection = collect([]);
+
+$collection->every(function (int $value, int $key) {
+    return $value > 2;
+});
+
+// true</code></pre></div><h4><a href=#method-except><code>except()</code></a></h4><p>The <code>except</code> method returns all items in the collection except for those with the specified keys:<div><pre><code>1$collection=collect(['product_id'=>1,'price'=>100,'discount'=> false]);2 3$filtered=$collection->except(['price', 'discount']);4 5$filtered->all();6 7// ['product_id' => 1]
+$collection = collect(['product_id' => 1, 'price' => 100, 'discount' => false]);
+
+$filtered = $collection->except(['price', 'discount']);
+
+$filtered->all();
+
+// ['product_id' => 1]</code></pre></div><p>For the inverse of <code>except</code>, see the <a href=#method-only>only</a> method.<div><p>This method's behavior is modified when using <a href=eloquent-collections.htm#method-except>Eloquent Collections</a>.</div><h4><a href=#method-filter><code>filter()</code></a></h4><p>The <code>filter</code> method filters the collection using the given callback, keeping only those items that pass a given truth test:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$filtered=$collection->filter(function(int$value, int$key) {4return$value>2;5});6 7$filtered->all();8 9// [3, 4]
+$collection = collect([1, 2, 3, 4]);
+
+$filtered = $collection->filter(function (int $value, int $key) {
+    return $value > 2;
+});
+
+$filtered->all();
+
+// [3, 4]</code></pre></div><p>If no callback is supplied, all entries of the collection that are equivalent to <code>false</code> will be removed:<div><pre><code>1$collection=collect([1,2,3, null, false,'',0,[]]);2 3$collection->filter()->all();4 5// [1, 2, 3]
+$collection = collect([1, 2, 3, null, false, '', 0, []]);
+
+$collection->filter()->all();
+
+// [1, 2, 3]</code></pre></div><p>For the inverse of <code>filter</code>, see the <a href=#method-reject>reject</a> method.<h4><a href=#method-first><code>first()</code></a></h4><p>The <code>first</code> method returns the first element in the collection that passes a given truth test:<div><pre><code>1collect([1,2,3,4])->first(function(int$value, int$key) {2return$value>2;3});4 5// 3
+collect([1, 2, 3, 4])->first(function (int $value, int $key) {
+    return $value > 2;
+});
+
+// 3</code></pre></div><p>You may also call the <code>first</code> method with no arguments to get the first element in the collection. If the collection is empty, <code>null</code> is returned:<div><pre><code>1collect([1,2,3,4])->first();2 3// 1
+collect([1, 2, 3, 4])->first();
+
+// 1</code></pre></div><h4><a href=#method-first-or-fail><code>firstOrFail()</code></a></h4><p>The <code>firstOrFail</code> method is identical to the <code>first</code> method; however, if no result is found, an <code>Illuminate\Support\ItemNotFoundException</code> exception will be thrown:<div><pre><code>1collect([1,2,3,4])->firstOrFail(function(int$value, int$key) {2return$value>5;3});4 5// Throws ItemNotFoundException...
+collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
+    return $value > 5;
+});
+
+// Throws ItemNotFoundException...</code></pre></div><p>You may also call the <code>firstOrFail</code> method with no arguments to get the first element in the collection. If the collection is empty, an <code>Illuminate\Support\ItemNotFoundException</code> exception will be thrown:<div><pre><code>1collect([])->firstOrFail();2 3// Throws ItemNotFoundException...
+collect([])->firstOrFail();
+
+// Throws ItemNotFoundException...</code></pre></div><h4><a href=#method-first-where><code>firstWhere()</code></a></h4><p>The <code>firstWhere</code> method returns the first element in the collection with the given key / value pair:<div><pre><code> 1$collection=collect([ 2['name'=>'Regena','age'=> null], 3['name'=>'Linda','age'=>14], 4['name'=>'Diego','age'=>23], 5['name'=>'Linda','age'=>84], 6]); 7  8$collection->firstWhere('name', 'Linda'); 9 10// ['name' => 'Linda', 'age' => 14]
+$collection = collect([
+    ['name' => 'Regena', 'age' => null],
+    ['name' => 'Linda', 'age' => 14],
+    ['name' => 'Diego', 'age' => 23],
+    ['name' => 'Linda', 'age' => 84],
+]);
+
+$collection->firstWhere('name', 'Linda');
+
+// ['name' => 'Linda', 'age' => 14]</code></pre></div><p>You may also call the <code>firstWhere</code> method with a comparison operator:<div><pre><code>1$collection->firstWhere('age', '>=', 18);2 3// ['name' => 'Diego', 'age' => 23]
+$collection->firstWhere('age', '>=', 18);
+
+// ['name' => 'Diego', 'age' => 23]</code></pre></div><p>Like the <a href=#method-where>where</a> method, you may pass one argument to the <code>firstWhere</code> method. In this scenario, the <code>firstWhere</code> method will return the first item where the given item key's value is "truthy":<div><pre><code>1$collection->firstWhere('age');2 3// ['name' => 'Linda', 'age' => 14]
+$collection->firstWhere('age');
+
+// ['name' => 'Linda', 'age' => 14]</code></pre></div><h4><a href=#method-flatmap><code>flatMap()</code></a></h4><p>The <code>flatMap</code> method iterates through the collection and passes each value to the given closure. The closure is free to modify the item and return it, thus forming a new collection of modified items. Then, the array is flattened by one level:<div><pre><code> 1$collection=collect([ 2['name'=>'Sally'], 3['school'=>'Arkansas'], 4['age'=>28] 5]); 6  7$flattened=$collection->flatMap(function(array$values) { 8returnarray_map('strtoupper',$values); 9});10 11$flattened->all();12 13// ['name' => 'SALLY', 'school' => 'ARKANSAS', 'age' => '28'];
+$collection = collect([
+    ['name' => 'Sally'],
+    ['school' => 'Arkansas'],
+    ['age' => 28]
+]);
+
+$flattened = $collection->flatMap(function (array $values) {
+    return array_map('strtoupper', $values);
+});
+
+$flattened->all();
+
+// ['name' => 'SALLY', 'school' => 'ARKANSAS', 'age' => '28'];</code></pre></div><h4><a href=#method-flatten><code>flatten()</code></a></h4><p>The <code>flatten</code> method flattens a multi-dimensional collection into a single dimension:<div><pre><code> 1$collection=collect([ 2'name'=>'Taylor', 3'languages'=>[ 4'PHP','JavaScript' 5] 6]); 7  8$flattened=$collection->flatten(); 9 10$flattened->all();11 12// ['Taylor', 'PHP', 'JavaScript'];
+$collection = collect([
+    'name' => 'Taylor',
+    'languages' => [
+        'PHP', 'JavaScript'
+    ]
+]);
+
+$flattened = $collection->flatten();
+
+$flattened->all();
+
+// ['Taylor', 'PHP', 'JavaScript'];</code></pre></div><p>If necessary, you may pass the <code>flatten</code> method a "depth" argument:<div><pre><code> 1$collection=collect([ 2'Apple'=>[ 3[ 4'name'=>'iPhone 6S', 5'brand'=>'Apple' 6], 7], 8'Samsung'=>[ 9[10'name'=>'Galaxy S7',11'brand'=>'Samsung'12],13],14]);15 16$products=$collection->flatten(1);17 18$products->values()->all();19 20/*21    [22        ['name' => 'iPhone 6S', 'brand' => 'Apple'],23        ['name' => 'Galaxy S7', 'brand' => 'Samsung'],24    ]25*/
+$collection = collect([
+    'Apple' => [
+        [
+            'name' => 'iPhone 6S',
+            'brand' => 'Apple'
+        ],
+    ],
+    'Samsung' => [
+        [
+            'name' => 'Galaxy S7',
+            'brand' => 'Samsung'
+        ],
+    ],
+]);
+
+$products = $collection->flatten(1);
+
+$products->values()->all();
+
+/*
+    [
+        ['name' => 'iPhone 6S', 'brand' => 'Apple'],
+        ['name' => 'Galaxy S7', 'brand' => 'Samsung'],
+    ]
+*/</code></pre></div><p>In this example, calling <code>flatten</code> without providing the depth would have also flattened the nested arrays, resulting in <code>['iPhone 6S', 'Apple', 'Galaxy S7', 'Samsung']</code>. Providing a depth allows you to specify the number of levels nested arrays will be flattened.<h4><a href=#method-flip><code>flip()</code></a></h4><p>The <code>flip</code> method swaps the collection's keys with their corresponding values:<div><pre><code>1$collection=collect(['name'=>'Taylor','framework'=>'Laravel']);2 3$flipped=$collection->flip();4 5$flipped->all();6 7// ['Taylor' => 'name', 'Laravel' => 'framework']
+$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+
+$flipped = $collection->flip();
+
+$flipped->all();
+
+// ['Taylor' => 'name', 'Laravel' => 'framework']</code></pre></div><h4><a href=#method-forget><code>forget()</code></a></h4><p>The <code>forget</code> method removes an item from the collection by its key:<div><pre><code> 1$collection=collect(['name'=>'Taylor','framework'=>'Laravel']); 2  3// Forget a single key... 4$collection->forget('name'); 5  6// ['framework' => 'Laravel'] 7  8// Forget multiple keys... 9$collection->forget(['name', 'framework']);10 11// []
+$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+
+// Forget a single key...
+$collection->forget('name');
+
+// ['framework' => 'Laravel']
+
+// Forget multiple keys...
+$collection->forget(['name', 'framework']);
+
+// []</code></pre></div><div><p>Unlike most other collection methods, <code>forget</code> does not return a new modified collection; it modifies and returns the collection it is called on.</div><h4><a href=#method-forpage><code>forPage()</code></a></h4><p>The <code>forPage</code> method returns a new collection containing the items that would be present on a given page number. The method accepts the page number as its first argument and the number of items to show per page as its second argument:<div><pre><code>1$collection=collect([1,2,3,4,5,6,7,8,9]);2 3$chunk=$collection->forPage(2, 3);4 5$chunk->all();6 7// [4, 5, 6]
+$collection = collect([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+$chunk = $collection->forPage(2, 3);
+
+$chunk->all();
+
+// [4, 5, 6]</code></pre></div><h4><a href=#method-fromjson><code>fromJson()</code></a></h4><p>The static <code>fromJson</code> method creates a new collection instance by decoding a given JSON string using the <code>json_decode</code> PHP function:<div><pre><code>1use Illuminate\Support\Collection;2 3$json=json_encode([4'name'=>'Taylor Otwell',5'role'=>'Developer',6'status'=>'Active',7]);8 9$collection=Collection::fromJson($json);
+use Illuminate\Support\Collection;
+
+$json = json_encode([
+    'name' => 'Taylor Otwell',
+    'role' => 'Developer',
+    'status' => 'Active',
+]);
+
+$collection = Collection::fromJson($json);</code></pre></div><h4><a href=#method-get><code>get()</code></a></h4><p>The <code>get</code> method returns the item at a given key. If the key does not exist, <code>null</code> is returned:<div><pre><code>1$collection=collect(['name'=>'Taylor','framework'=>'Laravel']);2 3$value=$collection->get('name');4 5// Taylor
+$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+
+$value = $collection->get('name');
+
+// Taylor</code></pre></div><p>You may optionally pass a default value as the second argument:<div><pre><code>1$collection=collect(['name'=>'Taylor','framework'=>'Laravel']);2 3$value=$collection->get('age', 34);4 5// 34
+$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+
+$value = $collection->get('age', 34);
+
+// 34</code></pre></div><p>You may even pass a callback as the method's default value. The result of the callback will be returned if the specified key does not exist:<div><pre><code>1$collection->get('email', function() {<div>2return'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>';</div>3});4 <div>5//<span> <a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span></div><div hidden>
+$collection->get('email', function () {
+    return '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>';
+});
+
+// <a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></div></code></pre></div><h4><a href=#method-groupby><code>groupBy()</code></a></h4><p>The <code>groupBy</code> method groups the collection's items by a given key:<div><pre><code> 1$collection=collect([ 2['account_id'=>'account-x10','product'=>'Chair'], 3['account_id'=>'account-x10','product'=>'Bookcase'], 4['account_id'=>'account-x11','product'=>'Desk'], 5]); 6  7$grouped=$collection->groupBy('account_id'); 8  9$grouped->all();10 11/*12    [13        'account-x10' => [14            ['account_id' => 'account-x10', 'product' => 'Chair'],15            ['account_id' => 'account-x10', 'product' => 'Bookcase'],16        ],17        'account-x11' => [18            ['account_id' => 'account-x11', 'product' => 'Desk'],19        ],20    ]21*/
+$collection = collect([
+    ['account_id' => 'account-x10', 'product' => 'Chair'],
+    ['account_id' => 'account-x10', 'product' => 'Bookcase'],
+    ['account_id' => 'account-x11', 'product' => 'Desk'],
+]);
+
+$grouped = $collection->groupBy('account_id');
+
+$grouped->all();
+
+/*
+    [
+        'account-x10' => [
+            ['account_id' => 'account-x10', 'product' => 'Chair'],
+            ['account_id' => 'account-x10', 'product' => 'Bookcase'],
+        ],
+        'account-x11' => [
+            ['account_id' => 'account-x11', 'product' => 'Desk'],
+        ],
+    ]
+*/</code></pre></div><p>Instead of passing a string <code>key</code>, you may pass a callback. The callback should return the value you wish to key the group by:<div><pre><code> 1$grouped=$collection->groupBy(function(array$item, int$key) { 2returnsubstr($item['account_id'],-3); 3}); 4  5$grouped->all(); 6  7/* 8    [ 9        'x10' => [10            ['account_id' => 'account-x10', 'product' => 'Chair'],11            ['account_id' => 'account-x10', 'product' => 'Bookcase'],12        ],13        'x11' => [14            ['account_id' => 'account-x11', 'product' => 'Desk'],15        ],16    ]17*/
+$grouped = $collection->groupBy(function (array $item, int $key) {
+    return substr($item['account_id'], -3);
+});
+
+$grouped->all();
+
+/*
+    [
+        'x10' => [
+            ['account_id' => 'account-x10', 'product' => 'Chair'],
+            ['account_id' => 'account-x10', 'product' => 'Bookcase'],
+        ],
+        'x11' => [
+            ['account_id' => 'account-x11', 'product' => 'Desk'],
+        ],
+    ]
+*/</code></pre></div><p>Multiple grouping criteria may be passed as an array. Each array element will be applied to the corresponding level within a multi-dimensional array:<div><pre><code> 1$data=newCollection([ 210=> ['user'=>1, 'skill'=>1, 'roles'=> ['Role_1', 'Role_3']], 320=> ['user'=>2, 'skill'=>1, 'roles'=> ['Role_1', 'Role_2']], 430=> ['user'=>3, 'skill'=>2, 'roles'=> ['Role_1']], 540=> ['user'=>4, 'skill'=>2, 'roles'=> ['Role_2']], 6]); 7  8$result=$data->groupBy(['skill', function(array$item) { 9return$item['roles'];10}], preserveKeys: true);11 12/*13[14    1 => [15        'Role_1' => [16            10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],17            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],18        ],19        'Role_2' => [20            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],21        ],22        'Role_3' => [23            10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],24        ],25    ],26    2 => [27        'Role_1' => [28            30 => ['user' => 3, 'skill' => 2, 'roles' => ['Role_1']],29        ],30        'Role_2' => [31            40 => ['user' => 4, 'skill' => 2, 'roles' => ['Role_2']],32        ],33    ],34];35*/
+$data = new Collection([
+    10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
+    20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
+    30 => ['user' => 3, 'skill' => 2, 'roles' => ['Role_1']],
+    40 => ['user' => 4, 'skill' => 2, 'roles' => ['Role_2']],
+]);
+
+$result = $data->groupBy(['skill', function (array $item) {
+    return $item['roles'];
+}], preserveKeys: true);
+
+/*
+[
+    1 => [
+        'Role_1' => [
+            10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
+            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
+        ],
+        'Role_2' => [
+            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
+        ],
+        'Role_3' => [
+            10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
+        ],
+    ],
+    2 => [
+        'Role_1' => [
+            30 => ['user' => 3, 'skill' => 2, 'roles' => ['Role_1']],
+        ],
+        'Role_2' => [
+            40 => ['user' => 4, 'skill' => 2, 'roles' => ['Role_2']],
+        ],
+    ],
+];
+*/</code></pre></div><h4><a href=#method-has><code>has()</code></a></h4><p>The <code>has</code> method determines if a given key exists in the collection:<div><pre><code> 1$collection=collect(['account_id'=>1,'product'=>'Desk','amount'=>5]); 2  3$collection->has('product'); 4  5// true 6  7$collection->has(['product', 'amount']); 8  9// true10 11$collection->has(['amount', 'price']);12 13// false
+$collection = collect(['account_id' => 1, 'product' => 'Desk', 'amount' => 5]);
+
+$collection->has('product');
+
+// true
+
+$collection->has(['product', 'amount']);
+
+// true
+
+$collection->has(['amount', 'price']);
+
+// false</code></pre></div><h4><a href=#method-hasany><code>hasAny()</code></a></h4><p>The <code>hasAny</code> method determines whether any of the given keys exist in the collection:<div><pre><code>1$collection=collect(['account_id'=>1,'product'=>'Desk','amount'=>5]);2 3$collection->hasAny(['product', 'price']);4 5// true6 7$collection->hasAny(['name', 'price']);8 9// false
+$collection = collect(['account_id' => 1, 'product' => 'Desk', 'amount' => 5]);
+
+$collection->hasAny(['product', 'price']);
+
+// true
+
+$collection->hasAny(['name', 'price']);
+
+// false</code></pre></div><h4><a href=#method-implode><code>implode()</code></a></h4><p>The <code>implode</code> method joins items in a collection. Its arguments depend on the type of items in the collection. If the collection contains arrays or objects, you should pass the key of the attributes you wish to join, and the "glue" string you wish to place between the values:<div><pre><code>1$collection=collect([2['account_id'=>1,'product'=>'Desk'],3['account_id'=>2,'product'=>'Chair'],4]);5 6$collection->implode('product', ', ');7 8// 'Desk, Chair'
+$collection = collect([
+    ['account_id' => 1, 'product' => 'Desk'],
+    ['account_id' => 2, 'product' => 'Chair'],
+]);
+
+$collection->implode('product', ', ');
+
+// 'Desk, Chair'</code></pre></div><p>If the collection contains simple strings or numeric values, you should pass the "glue" as the only argument to the method:<div><pre><code>1collect([1,2,3,4,5])->implode('-');2 3// '1-2-3-4-5'
+collect([1, 2, 3, 4, 5])->implode('-');
+
+// '1-2-3-4-5'</code></pre></div><p>You may pass a closure to the <code>implode</code> method if you would like to format the values being imploded:<div><pre><code>1$collection->implode(function(array$item, int$key) {2returnstrtoupper($item['product']);3}, ', ');4 5// 'DESK, CHAIR'
+$collection->implode(function (array $item, int $key) {
+    return strtoupper($item['product']);
+}, ', ');
+
+// 'DESK, CHAIR'</code></pre></div><h4><a href=#method-intersect><code>intersect()</code></a></h4><p>The <code>intersect</code> method removes any values from the original collection that are not present in the given array or collection. The resulting collection will preserve the original collection's keys:<div><pre><code>1$collection=collect(['Desk','Sofa','Chair']);2 3$intersect=$collection->intersect(['Desk', 'Chair', 'Bookcase']);4 5$intersect->all();6 7// [0 => 'Desk', 2 => 'Chair']
+$collection = collect(['Desk', 'Sofa', 'Chair']);
+
+$intersect = $collection->intersect(['Desk', 'Chair', 'Bookcase']);
+
+$intersect->all();
+
+// [0 => 'Desk', 2 => 'Chair']</code></pre></div><div><p>This method's behavior is modified when using <a href=eloquent-collections.htm#method-intersect>Eloquent Collections</a>.</div><h4><a href=#method-intersectusing><code>intersectUsing()</code></a></h4><p>The <code>intersectUsing</code> method removes any values from the original collection that are not present in the given array or collection, using a custom callback to compare the values. The resulting collection will preserve the original collection's keys:<div><pre><code>1$collection=collect(['Desk','Sofa','Chair']);2 3$intersect=$collection->intersectUsing(['desk', 'chair', 'bookcase'], function(string$a, string$b) {4returnstrcasecmp($a,$b);5});6 7$intersect->all();8 9// [0 => 'Desk', 2 => 'Chair']
+$collection = collect(['Desk', 'Sofa', 'Chair']);
+
+$intersect = $collection->intersectUsing(['desk', 'chair', 'bookcase'], function (string $a, string $b) {
+    return strcasecmp($a, $b);
+});
+
+$intersect->all();
+
+// [0 => 'Desk', 2 => 'Chair']</code></pre></div><h4><a href=#method-intersectAssoc><code>intersectAssoc()</code></a></h4><p>The <code>intersectAssoc</code> method compares the original collection against another collection or array, returning the key / value pairs that are present in all of the given collections:<div><pre><code> 1$collection=collect([ 2'color'=>'red', 3'size'=>'M', 4'material'=>'cotton' 5]); 6  7$intersect=$collection->intersectAssoc([ 8'color'=>'blue', 9'size'=>'M',10'material'=>'polyester'11]);12 13$intersect->all();14 15// ['size' => 'M']
+$collection = collect([
+    'color' => 'red',
+    'size' => 'M',
+    'material' => 'cotton'
+]);
+
+$intersect = $collection->intersectAssoc([
+    'color' => 'blue',
+    'size' => 'M',
+    'material' => 'polyester'
+]);
+
+$intersect->all();
+
+// ['size' => 'M']</code></pre></div><h4><a href=#method-intersectassocusing><code>intersectAssocUsing()</code></a></h4><p>The <code>intersectAssocUsing</code> method compares the original collection against another collection or array, returning the key / value pairs that are present in both, using a custom comparison callback to determine equality for both keys and values:<div><pre><code> 1$collection=collect([ 2'color'=>'red', 3'Size'=>'M', 4'material'=>'cotton', 5]); 6  7$intersect=$collection->intersectAssocUsing([ 8'color'=>'blue', 9'size'=>'M',10'material'=>'polyester',11], function(string$a, string$b) {12returnstrcasecmp($a,$b);13});14 15$intersect->all();16 17// ['Size' => 'M']
+$collection = collect([
+    'color' => 'red',
+    'Size' => 'M',
+    'material' => 'cotton',
+]);
+
+$intersect = $collection->intersectAssocUsing([
+    'color' => 'blue',
+    'size' => 'M',
+    'material' => 'polyester',
+], function (string $a, string $b) {
+    return strcasecmp($a, $b);
+});
+
+$intersect->all();
+
+// ['Size' => 'M']</code></pre></div><h4><a href=#method-intersectbykeys><code>intersectByKeys()</code></a></h4><p>The <code>intersectByKeys</code> method removes any keys and their corresponding values from the original collection that are not present in the given array or collection:<div><pre><code> 1$collection=collect([ 2'serial'=>'UX301','type'=>'screen','year'=>2009, 3]); 4  5$intersect=$collection->intersectByKeys([ 6'reference'=>'UX404', 'type'=>'tab', 'year'=>2011, 7]); 8  9$intersect->all();10 11// ['type' => 'screen', 'year' => 2009]
+$collection = collect([
+    'serial' => 'UX301', 'type' => 'screen', 'year' => 2009,
+]);
+
+$intersect = $collection->intersectByKeys([
+    'reference' => 'UX404', 'type' => 'tab', 'year' => 2011,
+]);
+
+$intersect->all();
+
+// ['type' => 'screen', 'year' => 2009]</code></pre></div><h4><a href=#method-isempty><code>isEmpty()</code></a></h4><p>The <code>isEmpty</code> method returns <code>true</code> if the collection is empty; otherwise, <code>false</code> is returned:<div><pre><code>1collect([])->isEmpty();2 3// true
+collect([])->isEmpty();
+
+// true</code></pre></div><h4><a href=#method-isnotempty><code>isNotEmpty()</code></a></h4><p>The <code>isNotEmpty</code> method returns <code>true</code> if the collection is not empty; otherwise, <code>false</code> is returned:<div><pre><code>1collect([])->isNotEmpty();2 3// false
+collect([])->isNotEmpty();
+
+// false</code></pre></div><h4><a href=#method-join><code>join()</code></a></h4><p>The <code>join</code> method joins the collection's values with a string. Using this method's second argument, you may also specify how the final element should be appended to the string:<div><pre><code>1collect(['a','b','c'])->join(', '); // 'a, b, c'2collect(['a','b','c'])->join(', ', ', and '); // 'a, b, and c'3collect(['a','b'])->join(', ', ' and '); // 'a and b'4collect(['a'])->join(', ', ' and '); // 'a'5collect([])->join(', ', ' and '); // ''
+collect(['a', 'b', 'c'])->join(', '); // 'a, b, c'
+collect(['a', 'b', 'c'])->join(', ', ', and '); // 'a, b, and c'
+collect(['a', 'b'])->join(', ', ' and '); // 'a and b'
+collect(['a'])->join(', ', ' and '); // 'a'
+collect([])->join(', ', ' and '); // ''</code></pre></div><h4><a href=#method-keyby><code>keyBy()</code></a></h4><p>The <code>keyBy</code> method keys the collection by the given key. If multiple items have the same key, only the last one will appear in the new collection:<div><pre><code> 1$collection=collect([ 2['product_id'=>'prod-100','name'=>'Desk'], 3['product_id'=>'prod-200','name'=>'Chair'], 4]); 5  6$keyed=$collection->keyBy('product_id'); 7  8$keyed->all(); 9 10/*11    [12        'prod-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],13        'prod-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],14    ]15*/
+$collection = collect([
+    ['product_id' => 'prod-100', 'name' => 'Desk'],
+    ['product_id' => 'prod-200', 'name' => 'Chair'],
+]);
+
+$keyed = $collection->keyBy('product_id');
+
+$keyed->all();
+
+/*
+    [
+        'prod-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],
+        'prod-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],
+    ]
+*/</code></pre></div><p>You may also pass a callback to the method. The callback should return the value to key the collection by:<div><pre><code> 1$keyed=$collection->keyBy(function(array$item, int$key) { 2returnstrtoupper($item['product_id']); 3}); 4  5$keyed->all(); 6  7/* 8    [ 9        'PROD-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],10        'PROD-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],11    ]12*/
+$keyed = $collection->keyBy(function (array $item, int $key) {
+    return strtoupper($item['product_id']);
+});
+
+$keyed->all();
+
+/*
+    [
+        'PROD-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],
+        'PROD-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],
+    ]
+*/</code></pre></div><h4><a href=#method-keys><code>keys()</code></a></h4><p>The <code>keys</code> method returns all of the collection's keys:<div><pre><code> 1$collection=collect([ 2'prod-100'=>['product_id'=>'prod-100','name'=>'Desk'], 3'prod-200'=>['product_id'=>'prod-200','name'=>'Chair'], 4]); 5  6$keys=$collection->keys(); 7  8$keys->all(); 9 10// ['prod-100', 'prod-200']
+$collection = collect([
+    'prod-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],
+    'prod-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],
+]);
+
+$keys = $collection->keys();
+
+$keys->all();
+
+// ['prod-100', 'prod-200']</code></pre></div><h4><a href=#method-last><code>last()</code></a></h4><p>The <code>last</code> method returns the last element in the collection that passes a given truth test:<div><pre><code>1collect([1,2,3,4])->last(function(int$value, int$key) {2return$value&lt;3;3});4 5// 2
+collect([1, 2, 3, 4])->last(function (int $value, int $key) {
+    return $value &lt; 3;
+});
+
+// 2</code></pre></div><p>You may also call the <code>last</code> method with no arguments to get the last element in the collection. If the collection is empty, <code>null</code> is returned:<div><pre><code>1collect([1,2,3,4])->last();2 3// 4
+collect([1, 2, 3, 4])->last();
+
+// 4</code></pre></div><h4><a href=#method-lazy><code>lazy()</code></a></h4><p>The <code>lazy</code> method returns a new <a href=#lazy-collections>LazyCollection</a> instance from the underlying array of items:<div><pre><code>1$lazyCollection=collect([1,2,3,4])->lazy();2 3$lazyCollection::class;4 5// Illuminate\Support\LazyCollection6 7$lazyCollection->all();8 9// [1, 2, 3, 4]
+$lazyCollection = collect([1, 2, 3, 4])->lazy();
+
+$lazyCollection::class;
+
+// Illuminate\Support\LazyCollection
+
+$lazyCollection->all();
+
+// [1, 2, 3, 4]</code></pre></div><p>This is especially useful when you need to perform transformations on a huge <code>Collection</code> that contains many items:<div><pre><code>1$count=$hugeCollection2->lazy()3->where('country', 'FR')4->where('balance', '>', '100')5->count();
+$count = $hugeCollection
+    ->lazy()
+    ->where('country', 'FR')
+    ->where('balance', '>', '100')
+    ->count();</code></pre></div><p>By converting the collection to a <code>LazyCollection</code>, we avoid having to allocate a ton of additional memory. Though the original collection still keeps its values in memory, the subsequent filters will not. Therefore, virtually no additional memory will be allocated when filtering the collection's results.<h4><a href=#method-macro><code>macro()</code></a></h4><p>The static <code>macro</code> method allows you to add methods to the <code>Collection</code> class at run time. Refer to the documentation on <a href=#extending-collections>extending collections</a> for more information.<h4><a href=#method-make><code>make()</code></a></h4><p>The static <code>make</code> method creates a new collection instance. See the <a href=#creating-collections>Creating Collections</a> section.<div><pre><code>1use Illuminate\Support\Collection;2 3$collection=Collection::make([1, 2, 3]);
+use Illuminate\Support\Collection;
+
+$collection = Collection::make([1, 2, 3]);</code></pre></div><h4><a href=#method-map><code>map()</code></a></h4><p>The <code>map</code> method iterates through the collection and passes each value to the given callback. The callback is free to modify the item and return it, thus forming a new collection of modified items:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$multiplied=$collection->map(function(int$item, int$key) {4return$item*2;5});6 7$multiplied->all();8 9// [2, 4, 6, 8, 10]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$multiplied = $collection->map(function (int $item, int $key) {
+    return $item * 2;
+});
+
+$multiplied->all();
+
+// [2, 4, 6, 8, 10]</code></pre></div><div><p>Like most other collection methods, <code>map</code> returns a new collection instance; it does not modify the collection it is called on. If you want to transform the original collection, use the <a href=#method-transform>transform</a> method.</div><h4><a href=#method-mapinto><code>mapInto()</code></a></h4><p>The <code>mapInto()</code> method iterates over the collection, creating a new instance of the given class by passing the value into the constructor:<div><pre><code> 1classCurrency 2{ 3/** 4     * Create a new currency instance. 5*/ 6function__construct( 7publicstring$code, 8) {} 9}10 11$collection=collect(['USD','EUR','GBP']);12 13$currencies=$collection->mapInto(Currency::class);14 15$currencies->all();16 17// [Currency('USD'), Currency('EUR'), Currency('GBP')]
+class Currency
+{
+    /**
+     * Create a new currency instance.
+     */
+    function __construct(
+        public string $code,
+    ) {}
+}
+
+$collection = collect(['USD', 'EUR', 'GBP']);
+
+$currencies = $collection->mapInto(Currency::class);
+
+$currencies->all();
+
+// [Currency('USD'), Currency('EUR'), Currency('GBP')]</code></pre></div><h4><a href=#method-mapspread><code>mapSpread()</code></a></h4><p>The <code>mapSpread</code> method iterates over the collection's items, passing each nested item value into the given closure. The closure is free to modify the item and return it, thus forming a new collection of modified items:<div><pre><code> 1$collection=collect([0,1,2,3,4,5,6,7,8,9]); 2  3$chunks=$collection->chunk(2); 4  5$sequence=$chunks->mapSpread(function(int$even, int$odd) { 6return$even+$odd; 7}); 8  9$sequence->all();10 11// [1, 5, 9, 13, 17]
+$collection = collect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+$chunks = $collection->chunk(2);
+
+$sequence = $chunks->mapSpread(function (int $even, int $odd) {
+    return $even + $odd;
+});
+
+$sequence->all();
+
+// [1, 5, 9, 13, 17]</code></pre></div><h4><a href=#method-maptogroups><code>mapToGroups()</code></a></h4><p>The <code>mapToGroups</code> method groups the collection's items by the given closure. The closure should return an associative array containing a single key / value pair, thus forming a new collection of grouped values:<div><pre><code> 1$collection=collect([ 2[ 3'name'=>'John Doe', 4'department'=>'Sales', 5], 6[ 7'name'=>'Jane Doe', 8'department'=>'Sales', 9],10[11'name'=>'Johnny Doe',12'department'=>'Marketing',13]14]);15 16$grouped=$collection->mapToGroups(function(array$item, int$key) {17return [$item['department'] =>$item['name']];18});19 20$grouped->all();21 22/*23    [24        'Sales' => ['John Doe', 'Jane Doe'],25        'Marketing' => ['Johnny Doe'],26    ]27*/28 29$grouped->get('Sales')->all();30 31// ['John Doe', 'Jane Doe']
+$collection = collect([
+    [
+        'name' => 'John Doe',
+        'department' => 'Sales',
+    ],
+    [
+        'name' => 'Jane Doe',
+        'department' => 'Sales',
+    ],
+    [
+        'name' => 'Johnny Doe',
+        'department' => 'Marketing',
+    ]
+]);
+
+$grouped = $collection->mapToGroups(function (array $item, int $key) {
+    return [$item['department'] => $item['name']];
+});
+
+$grouped->all();
+
+/*
+    [
+        'Sales' => ['John Doe', 'Jane Doe'],
+        'Marketing' => ['Johnny Doe'],
+    ]
+*/
+
+$grouped->get('Sales')->all();
+
+// ['John Doe', 'Jane Doe']</code></pre></div><h4><a href=#method-mapwithkeys><code>mapWithKeys()</code></a></h4><p>The <code>mapWithKeys</code> method iterates through the collection and passes each value to the given callback. The callback should return an associative array containing a single key / value pair:<div><pre><code> 1$collection=collect([ 2[ 3'name'=>'John', 4'department'=>'Sales',<div> 5'email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>',</div> 6], 7[ 8'name'=>'Jane', 9'department'=>'Marketing',<div>10'email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>',</div>11]12]);13 14$keyed=$collection->mapWithKeys(function(array$item, int$key) {15return [$item['email'] =>$item['name']];16});17 18$keyed->all();19 20/*21    [<div>22<span>        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'John',</span></div><div>23<span>        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'Jane',</span></div>24    ]25*/<div hidden>
+$collection = collect([
+    [
+        'name' => 'John',
+        'department' => 'Sales',
+        'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>',
+    ],
+    [
+        'name' => 'Jane',
+        'department' => 'Marketing',
+        'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>',
+    ]
+]);
+
+$keyed = $collection->mapWithKeys(function (array $item, int $key) {
+    return [$item['email'] => $item['name']];
+});
+
+$keyed->all();
+
+/*
+    [
+        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'John',
+        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'Jane',
+    ]
+*/</div></code></pre></div><h4><a href=#method-max><code>max()</code></a></h4><p>The <code>max</code> method returns the maximum value of a given key:<div><pre><code> 1$max=collect([ 2['foo'=>10], 3['foo'=>20] 4])->max('foo'); 5  6// 20 7  8$max=collect([1,2,3,4,5])->max(); 9 10// 5
+$max = collect([
+    ['foo' => 10],
+    ['foo' => 20]
+])->max('foo');
+
+// 20
+
+$max = collect([1, 2, 3, 4, 5])->max();
+
+// 5</code></pre></div><h4><a href=#method-median><code>median()</code></a></h4><p>The <code>median</code> method returns the <a href=https://en.wikipedia.org/wiki/Median>median value</a> of a given key:<div><pre><code> 1$median=collect([ 2['foo'=>10], 3['foo'=>10], 4['foo'=>20], 5['foo'=>40] 6])->median('foo'); 7  8// 15 9 10$median=collect([1,1,2,4])->median();11 12// 1.5
+$median = collect([
+    ['foo' => 10],
+    ['foo' => 10],
+    ['foo' => 20],
+    ['foo' => 40]
+])->median('foo');
+
+// 15
+
+$median = collect([1, 1, 2, 4])->median();
+
+// 1.5</code></pre></div><h4><a href=#method-merge><code>merge()</code></a></h4><p>The <code>merge</code> method merges the given array or collection with the original collection. If a string key in the given items matches a string key in the original collection, the given item's value will overwrite the value in the original collection:<div><pre><code>1$collection=collect(['product_id'=>1,'price'=>100]);2 3$merged=$collection->merge(['price'=>200, 'discount'=>false]);4 5$merged->all();6 7// ['product_id' => 1, 'price' => 200, 'discount' => false]
+$collection = collect(['product_id' => 1, 'price' => 100]);
+
+$merged = $collection->merge(['price' => 200, 'discount' => false]);
+
+$merged->all();
+
+// ['product_id' => 1, 'price' => 200, 'discount' => false]</code></pre></div><p>If the given item's keys are numeric, the values will be appended to the end of the collection:<div><pre><code>1$collection=collect(['Desk','Chair']);2 3$merged=$collection->merge(['Bookcase', 'Door']);4 5$merged->all();6 7// ['Desk', 'Chair', 'Bookcase', 'Door']
+$collection = collect(['Desk', 'Chair']);
+
+$merged = $collection->merge(['Bookcase', 'Door']);
+
+$merged->all();
+
+// ['Desk', 'Chair', 'Bookcase', 'Door']</code></pre></div><h4><a href=#method-mergerecursive><code>mergeRecursive()</code></a></h4><p>The <code>mergeRecursive</code> method merges the given array or collection recursively with the original collection. If a string key in the given items matches a string key in the original collection, then the values for these keys are merged together into an array, and this is done recursively:<div><pre><code> 1$collection=collect(['product_id'=>1,'price'=>100]); 2  3$merged=$collection->mergeRecursive([ 4'product_id'=>2, 5'price'=>200, 6'discount'=>false 7]); 8  9$merged->all();10 11// ['product_id' => [1, 2], 'price' => [100, 200], 'discount' => false]
+$collection = collect(['product_id' => 1, 'price' => 100]);
+
+$merged = $collection->mergeRecursive([
+    'product_id' => 2,
+    'price' => 200,
+    'discount' => false
+]);
+
+$merged->all();
+
+// ['product_id' => [1, 2], 'price' => [100, 200], 'discount' => false]</code></pre></div><h4><a href=#method-min><code>min()</code></a></h4><p>The <code>min</code> method returns the minimum value of a given key:<div><pre><code>1$min=collect([['foo'=>10],['foo'=>20]])->min('foo');2 3// 104 5$min=collect([1,2,3,4,5])->min();6 7// 1
+$min = collect([['foo' => 10], ['foo' => 20]])->min('foo');
+
+// 10
+
+$min = collect([1, 2, 3, 4, 5])->min();
+
+// 1</code></pre></div><h4><a href=#method-mode><code>mode()</code></a></h4><p>The <code>mode</code> method returns the <a href=https://en.wikipedia.org/wiki/Mode_(statistics)>mode value</a> of a given key:<div><pre><code> 1$mode=collect([ 2['foo'=>10], 3['foo'=>10], 4['foo'=>20], 5['foo'=>40] 6])->mode('foo'); 7  8// [10] 9 10$mode=collect([1,1,2,4])->mode();11 12// [1]13 14$mode=collect([1,1,2,2])->mode();15 16// [1, 2]
+$mode = collect([
+    ['foo' => 10],
+    ['foo' => 10],
+    ['foo' => 20],
+    ['foo' => 40]
+])->mode('foo');
+
+// [10]
+
+$mode = collect([1, 1, 2, 4])->mode();
+
+// [1]
+
+$mode = collect([1, 1, 2, 2])->mode();
+
+// [1, 2]</code></pre></div><h4><a href=#method-multiply><code>multiply()</code></a></h4><p>The <code>multiply</code> method creates the specified number of copies of all items in the collection:<div><pre><code> 1$users=collect([<div> 2['name'=>'User #1','email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>'],</div><div> 3['name'=>'User #2','email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>'],</div> 4])->multiply(3); 5  6/* 7    [<div> 8<span>        ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],</span></div><div> 9<span>        ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],</span></div><div>10<span>        ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],</span></div><div>11<span>        ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],</span></div><div>12<span>        ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],</span></div><div>13<span>        ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],</span></div>14    ]15*/<div hidden>
+$users = collect([
+    ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+    ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+])->multiply(3);
+
+/*
+    [
+        ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+        ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+        ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+        ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+        ['name' => 'User #1', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+        ['name' => 'User #2', 'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>'],
+    ]
+*/</div></code></pre></div><h4><a href=#method-nth><code>nth()</code></a></h4><p>The <code>nth</code> method creates a new collection consisting of every n-th element:<div><pre><code>1$collection=collect(['a','b','c','d','e','f']);2 3$collection->nth(4);4 5// ['a', 'e']
+$collection = collect(['a', 'b', 'c', 'd', 'e', 'f']);
+
+$collection->nth(4);
+
+// ['a', 'e']</code></pre></div><p>You may optionally pass a starting offset as the second argument:<div><pre><code>1$collection->nth(4, 1);2 3// ['b', 'f']
+$collection->nth(4, 1);
+
+// ['b', 'f']</code></pre></div><h4><a href=#method-only><code>only()</code></a></h4><p>The <code>only</code> method returns the items in the collection with the specified keys:<div><pre><code> 1$collection=collect([ 2'product_id'=>1, 3'name'=>'Desk', 4'price'=>100, 5'discount'=> false 6]); 7  8$filtered=$collection->only(['product_id', 'name']); 9 10$filtered->all();11 12// ['product_id' => 1, 'name' => 'Desk']
+$collection = collect([
+    'product_id' => 1,
+    'name' => 'Desk',
+    'price' => 100,
+    'discount' => false
+]);
+
+$filtered = $collection->only(['product_id', 'name']);
+
+$filtered->all();
+
+// ['product_id' => 1, 'name' => 'Desk']</code></pre></div><p>For the inverse of <code>only</code>, see the <a href=#method-except>except</a> method.<div><p>This method's behavior is modified when using <a href=eloquent-collections.htm#method-only>Eloquent Collections</a>.</div><h4><a href=#method-pad><code>pad()</code></a></h4><p>The <code>pad</code> method will fill the array with the given value until the array reaches the specified size. This method behaves like the <a href=https://secure.php.net/manual/en/function.array-pad.php>array_pad</a> PHP function.<p>To pad to the left, you should specify a negative size. No padding will take place if the absolute value of the given size is less than or equal to the length of the array:<div><pre><code> 1$collection=collect(['A','B','C']); 2  3$filtered=$collection->pad(5, 0); 4  5$filtered->all(); 6  7// ['A', 'B', 'C', 0, 0] 8  9$filtered=$collection->pad(-5, 0);10 11$filtered->all();12 13// [0, 0, 'A', 'B', 'C']
+$collection = collect(['A', 'B', 'C']);
+
+$filtered = $collection->pad(5, 0);
+
+$filtered->all();
+
+// ['A', 'B', 'C', 0, 0]
+
+$filtered = $collection->pad(-5, 0);
+
+$filtered->all();
+
+// [0, 0, 'A', 'B', 'C']</code></pre></div><h4><a href=#method-partition><code>partition()</code></a></h4><p>The <code>partition</code> method may be combined with PHP array destructuring to separate elements that pass a given truth test from those that do not:<div><pre><code> 1$collection=collect([1,2,3,4,5,6]); 2  3[$underThree, $equalOrAboveThree] =$collection->partition(function(int$i) { 4return$i&lt;3; 5}); 6  7$underThree->all(); 8  9// [1, 2]10 11$equalOrAboveThree->all();12 13// [3, 4, 5, 6]
+$collection = collect([1, 2, 3, 4, 5, 6]);
+
+[$underThree, $equalOrAboveThree] = $collection->partition(function (int $i) {
+    return $i &lt; 3;
+});
+
+$underThree->all();
+
+// [1, 2]
+
+$equalOrAboveThree->all();
+
+// [3, 4, 5, 6]</code></pre></div><div><p>This method's behavior is modified when interacting with <a href=eloquent-collections.htm#method-partition>Eloquent collections</a>.</div><h4><a href=#method-percentage><code>percentage()</code></a></h4><p>The <code>percentage</code> method may be used to quickly determine the percentage of items in the collection that pass a given truth test:<div><pre><code>1$collection=collect([1,1,2,2,2,3]);2 3$percentage=$collection->percentage(fn(int$value) => $value===1);4 5// 33.33
+$collection = collect([1, 1, 2, 2, 2, 3]);
+
+$percentage = $collection->percentage(fn (int $value) => $value === 1);
+
+// 33.33</code></pre></div><p>By default, the percentage will be rounded to two decimal places. However, you may customize this behavior by providing a second argument to the method:<div><pre><code>1$percentage=$collection->percentage(fn(int$value) => $value===1, precision: 3);2 3// 33.333
+$percentage = $collection->percentage(fn (int $value) => $value === 1, precision: 3);
+
+// 33.333</code></pre></div><h4><a href=#method-pipe><code>pipe()</code></a></h4><p>The <code>pipe</code> method passes the collection to the given closure and returns the result of the executed closure:<div><pre><code>1$collection=collect([1,2,3]);2 3$piped=$collection->pipe(function(Collection$collection) {4return$collection->sum();5});6 7// 6
+$collection = collect([1, 2, 3]);
+
+$piped = $collection->pipe(function (Collection $collection) {
+    return $collection->sum();
+});
+
+// 6</code></pre></div><h4><a href=#method-pipeinto><code>pipeInto()</code></a></h4><p>The <code>pipeInto</code> method creates a new instance of the given class and passes the collection into the constructor:<div><pre><code> 1classResourceCollection 2{ 3/** 4     * Create a new ResourceCollection instance. 5*/ 6publicfunction__construct( 7publicCollection$collection, 8) {} 9}10 11$collection=collect([1,2,3]);12 13$resource=$collection->pipeInto(ResourceCollection::class);14 15$resource->collection->all();16 17// [1, 2, 3]
+class ResourceCollection
+{
+    /**
+     * Create a new ResourceCollection instance.
+     */
+    public function __construct(
+        public Collection $collection,
+    ) {}
+}
+
+$collection = collect([1, 2, 3]);
+
+$resource = $collection->pipeInto(ResourceCollection::class);
+
+$resource->collection->all();
+
+// [1, 2, 3]</code></pre></div><h4><a href=#method-pipethrough><code>pipeThrough()</code></a></h4><p>The <code>pipeThrough</code> method passes the collection to the given array of closures and returns the result of the executed closures:<div><pre><code> 1use Illuminate\Support\Collection; 2  3$collection=collect([1,2,3]); 4  5$result=$collection->pipeThrough([ 6function(Collection$collection) { 7return$collection->merge([4, 5]); 8    }, 9function(Collection$collection) {10return$collection->sum();11    },12]);13 14// 15
+use Illuminate\Support\Collection;
+
+$collection = collect([1, 2, 3]);
+
+$result = $collection->pipeThrough([
+    function (Collection $collection) {
+        return $collection->merge([4, 5]);
+    },
+    function (Collection $collection) {
+        return $collection->sum();
+    },
+]);
+
+// 15</code></pre></div><h4><a href=#method-pluck><code>pluck()</code></a></h4><p>The <code>pluck</code> method retrieves all of the values for a given key:<div><pre><code> 1$collection=collect([ 2['product_id'=>'prod-100','name'=>'Desk'], 3['product_id'=>'prod-200','name'=>'Chair'], 4]); 5  6$plucked=$collection->pluck('name'); 7  8$plucked->all(); 9 10// ['Desk', 'Chair']
+$collection = collect([
+    ['product_id' => 'prod-100', 'name' => 'Desk'],
+    ['product_id' => 'prod-200', 'name' => 'Chair'],
+]);
+
+$plucked = $collection->pluck('name');
+
+$plucked->all();
+
+// ['Desk', 'Chair']</code></pre></div><p>You may also specify how you wish the resulting collection to be keyed:<div><pre><code>1$plucked=$collection->pluck('name', 'product_id');2 3$plucked->all();4 5// ['prod-100' => 'Desk', 'prod-200' => 'Chair']
+$plucked = $collection->pluck('name', 'product_id');
+
+$plucked->all();
+
+// ['prod-100' => 'Desk', 'prod-200' => 'Chair']</code></pre></div><p>The <code>pluck</code> method also supports retrieving nested values using "dot" notation:<div><pre><code> 1$collection=collect([ 2[ 3'name'=>'Laracon', 4'speakers'=>[ 5'first_day'=>['Rosa','Judith'], 6], 7], 8[ 9'name'=>'VueConf',10'speakers'=>[11'first_day'=>['Abigail','Joey'],12],13],14]);15 16$plucked=$collection->pluck('speakers.first_day');17 18$plucked->all();19 20// [['Rosa', 'Judith'], ['Abigail', 'Joey']]
+$collection = collect([
+    [
+        'name' => 'Laracon',
+        'speakers' => [
+            'first_day' => ['Rosa', 'Judith'],
+        ],
+    ],
+    [
+        'name' => 'VueConf',
+        'speakers' => [
+            'first_day' => ['Abigail', 'Joey'],
+        ],
+    ],
+]);
+
+$plucked = $collection->pluck('speakers.first_day');
+
+$plucked->all();
+
+// [['Rosa', 'Judith'], ['Abigail', 'Joey']]</code></pre></div><p>If duplicate keys exist, the last matching element will be inserted into the plucked collection:<div><pre><code> 1$collection=collect([ 2['brand'=>'Tesla','color'=>'red'], 3['brand'=>'Pagani','color'=>'white'], 4['brand'=>'Tesla','color'=>'black'], 5['brand'=>'Pagani','color'=>'orange'], 6]); 7  8$plucked=$collection->pluck('color', 'brand'); 9 10$plucked->all();11 12// ['Tesla' => 'black', 'Pagani' => 'orange']
+$collection = collect([
+    ['brand' => 'Tesla',  'color' => 'red'],
+    ['brand' => 'Pagani', 'color' => 'white'],
+    ['brand' => 'Tesla',  'color' => 'black'],
+    ['brand' => 'Pagani', 'color' => 'orange'],
+]);
+
+$plucked = $collection->pluck('color', 'brand');
+
+$plucked->all();
+
+// ['Tesla' => 'black', 'Pagani' => 'orange']</code></pre></div><h4><a href=#method-pop><code>pop()</code></a></h4><p>The <code>pop</code> method removes and returns the last item from the collection. If the collection is empty, <code>null</code> will be returned:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->pop();4 5// 56 7$collection->all();8 9// [1, 2, 3, 4]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->pop();
+
+// 5
+
+$collection->all();
+
+// [1, 2, 3, 4]</code></pre></div><p>You may pass an integer to the <code>pop</code> method to remove and return multiple items from the end of a collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->pop(3);4 5// collect([5, 4, 3])6 7$collection->all();8 9// [1, 2]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->pop(3);
+
+// collect([5, 4, 3])
+
+$collection->all();
+
+// [1, 2]</code></pre></div><h4><a href=#method-prepend><code>prepend()</code></a></h4><p>The <code>prepend</code> method adds an item to the beginning of the collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->prepend(0);4 5$collection->all();6 7// [0, 1, 2, 3, 4, 5]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->prepend(0);
+
+$collection->all();
+
+// [0, 1, 2, 3, 4, 5]</code></pre></div><p>You may also pass a second argument to specify the key of the prepended item:<div><pre><code>1$collection=collect(['one'=>1,'two'=>2]);2 3$collection->prepend(0, 'zero');4 5$collection->all();6 7// ['zero' => 0, 'one' => 1, 'two' => 2]
+$collection = collect(['one' => 1, 'two' => 2]);
+
+$collection->prepend(0, 'zero');
+
+$collection->all();
+
+// ['zero' => 0, 'one' => 1, 'two' => 2]</code></pre></div><h4><a href=#method-pull><code>pull()</code></a></h4><p>The <code>pull</code> method removes and returns an item from the collection by its key:<div><pre><code>1$collection=collect(['product_id'=>'prod-100','name'=>'Desk']);2 3$collection->pull('name');4 5// 'Desk'6 7$collection->all();8 9// ['product_id' => 'prod-100']
+$collection = collect(['product_id' => 'prod-100', 'name' => 'Desk']);
+
+$collection->pull('name');
+
+// 'Desk'
+
+$collection->all();
+
+// ['product_id' => 'prod-100']</code></pre></div><h4><a href=#method-push><code>push()</code></a></h4><p>The <code>push</code> method appends an item to the end of the collection:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$collection->push(5);4 5$collection->all();6 7// [1, 2, 3, 4, 5]
+$collection = collect([1, 2, 3, 4]);
+
+$collection->push(5);
+
+$collection->all();
+
+// [1, 2, 3, 4, 5]</code></pre></div><p>You may also provide multiple items to append to the end of the collection:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$collection->push(5, 6, 7);4 5$collection->all();6 7// [1, 2, 3, 4, 5, 6, 7]
+$collection = collect([1, 2, 3, 4]);
+
+$collection->push(5, 6, 7);
+
+$collection->all();
+
+// [1, 2, 3, 4, 5, 6, 7]</code></pre></div><h4><a href=#method-put><code>put()</code></a></h4><p>The <code>put</code> method sets the given key and value in the collection:<div><pre><code>1$collection=collect(['product_id'=>1,'name'=>'Desk']);2 3$collection->put('price', 100);4 5$collection->all();6 7// ['product_id' => 1, 'name' => 'Desk', 'price' => 100]
+$collection = collect(['product_id' => 1, 'name' => 'Desk']);
+
+$collection->put('price', 100);
+
+$collection->all();
+
+// ['product_id' => 1, 'name' => 'Desk', 'price' => 100]</code></pre></div><h4><a href=#method-random><code>random()</code></a></h4><p>The <code>random</code> method returns a random item from the collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->random();4 5// 4 - (retrieved randomly)
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->random();
+
+// 4 - (retrieved randomly)</code></pre></div><p>You may pass an integer to <code>random</code> to specify how many items you would like to randomly retrieve. A collection of items is always returned when explicitly passing the number of items you wish to receive:<div><pre><code>1$random=$collection->random(3);2 3$random->all();4 5// [2, 4, 5] - (retrieved randomly)
+$random = $collection->random(3);
+
+$random->all();
+
+// [2, 4, 5] - (retrieved randomly)</code></pre></div><p>If the collection instance has fewer items than requested, the <code>random</code> method will throw an <code>InvalidArgumentException</code>.<p>The <code>random</code> method also accepts a closure, which will receive the current collection instance:<div><pre><code>1use Illuminate\Support\Collection;2 3$random=$collection->random(fn(Collection$items) => min(10,count($items)));4 5$random->all();6 7// [1, 2, 3, 4, 5] - (retrieved randomly)
+use Illuminate\Support\Collection;
+
+$random = $collection->random(fn (Collection $items) => min(10, count($items)));
+
+$random->all();
+
+// [1, 2, 3, 4, 5] - (retrieved randomly)</code></pre></div><h4><a href=#method-range><code>range()</code></a></h4><p>The <code>range</code> method returns a collection containing integers between the specified range:<div><pre><code>1$collection=collect()->range(3, 6);2 3$collection->all();4 5// [3, 4, 5, 6]
+$collection = collect()->range(3, 6);
+
+$collection->all();
+
+// [3, 4, 5, 6]</code></pre></div><h4><a href=#method-reduce><code>reduce()</code></a></h4><p>The <code>reduce</code> method reduces the collection to a single value, passing the result of each iteration into the subsequent iteration:<div><pre><code>1$collection=collect([1,2,3]);2 3$total=$collection->reduce(function(?int$carry, int$item) {4return$carry+$item;5});6 7// 6
+$collection = collect([1, 2, 3]);
+
+$total = $collection->reduce(function (?int $carry, int $item) {
+    return $carry + $item;
+});
+
+// 6</code></pre></div><p>The value for <code>$carry</code> on the first iteration is <code>null</code>; however, you may specify its initial value by passing a second argument to <code>reduce</code>:<div><pre><code>1$collection->reduce(function(int$carry, int$item) {2return$carry+$item;3}, 4);4 5// 10
+$collection->reduce(function (int $carry, int $item) {
+    return $carry + $item;
+}, 4);
+
+// 10</code></pre></div><p>The <code>reduce</code> method also passes array keys to the given callback:<div><pre><code> 1$collection=collect([ 2'usd'=>1400, 3'gbp'=>1200, 4'eur'=>1000, 5]); 6  7$ratio= [ 8'usd'=>1, 9'gbp'=>1.37,10'eur'=>1.22,11];12 13$collection->reduce(function(int$carry, int$value, string$key)use($ratio) {14return$carry+ ($value*$ratio[$key]);15}, 0);16 17// 4264
+$collection = collect([
+    'usd' => 1400,
+    'gbp' => 1200,
+    'eur' => 1000,
+]);
+
+$ratio = [
+    'usd' => 1,
+    'gbp' => 1.37,
+    'eur' => 1.22,
+];
+
+$collection->reduce(function (int $carry, int $value, string $key) use ($ratio) {
+    return $carry + ($value * $ratio[$key]);
+}, 0);
+
+// 4264</code></pre></div><h4><a href=#method-reduce-spread><code>reduceSpread()</code></a></h4><p>The <code>reduceSpread</code> method reduces the collection to an array of values, passing the results of each iteration into the subsequent iteration. This method is similar to the <code>reduce</code> method; however, it can accept multiple initial values:<div><pre><code> 1[$creditsRemaining, $batch] =Image::where('status', 'unprocessed') 2->get() 3->reduceSpread(function(int$creditsRemaining, Collection$batch, Image$image) { 4if ($creditsRemaining>=$image->creditsRequired()) { 5$batch->push($image); 6  7$creditsRemaining-=$image->creditsRequired(); 8        } 9 10return [$creditsRemaining, $batch];11    }, $creditsAvailable, collect());
+[$creditsRemaining, $batch] = Image::where('status', 'unprocessed')
+    ->get()
+    ->reduceSpread(function (int $creditsRemaining, Collection $batch, Image $image) {
+        if ($creditsRemaining >= $image->creditsRequired()) {
+            $batch->push($image);
+
+            $creditsRemaining -= $image->creditsRequired();
+        }
+
+        return [$creditsRemaining, $batch];
+    }, $creditsAvailable, collect());</code></pre></div><h4><a href=#method-reject><code>reject()</code></a></h4><p>The <code>reject</code> method filters the collection using the given closure. The closure should return <code>true</code> if the item should be removed from the resulting collection:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$filtered=$collection->reject(function(int$value, int$key) {4return$value>2;5});6 7$filtered->all();8 9// [1, 2]
+$collection = collect([1, 2, 3, 4]);
+
+$filtered = $collection->reject(function (int $value, int $key) {
+    return $value > 2;
+});
+
+$filtered->all();
+
+// [1, 2]</code></pre></div><p>For the inverse of the <code>reject</code> method, see the <a href=#method-filter>filter</a> method.<h4><a href=#method-replace><code>replace()</code></a></h4><p>The <code>replace</code> method behaves similarly to <code>merge</code>; however, in addition to overwriting matching items that have string keys, the <code>replace</code> method will also overwrite items in the collection that have matching numeric keys:<div><pre><code>1$collection=collect(['Taylor','Abigail','James']);2 3$replaced=$collection->replace([1=>'Victoria', 3=>'Finn']);4 5$replaced->all();6 7// ['Taylor', 'Victoria', 'James', 'Finn']
+$collection = collect(['Taylor', 'Abigail', 'James']);
+
+$replaced = $collection->replace([1 => 'Victoria', 3 => 'Finn']);
+
+$replaced->all();
+
+// ['Taylor', 'Victoria', 'James', 'Finn']</code></pre></div><h4><a href=#method-replacerecursive><code>replaceRecursive()</code></a></h4><p>The <code>replaceRecursive</code> method behaves similarly to <code>replace</code>, but it will recur into arrays and apply the same replacement process to the inner values:<div><pre><code> 1$collection=collect([ 2'Taylor', 3'Abigail', 4[ 5'James', 6'Victoria', 7'Finn' 8] 9]);10 11$replaced=$collection->replaceRecursive([12'Charlie',132=> [1=>'King']14]);15 16$replaced->all();17 18// ['Charlie', 'Abigail', ['James', 'King', 'Finn']]
+$collection = collect([
+    'Taylor',
+    'Abigail',
+    [
+        'James',
+        'Victoria',
+        'Finn'
+    ]
+]);
+
+$replaced = $collection->replaceRecursive([
+    'Charlie',
+    2 => [1 => 'King']
+]);
+
+$replaced->all();
+
+// ['Charlie', 'Abigail', ['James', 'King', 'Finn']]</code></pre></div><h4><a href=#method-reverse><code>reverse()</code></a></h4><p>The <code>reverse</code> method reverses the order of the collection's items, preserving the original keys:<div><pre><code> 1$collection=collect(['a','b','c','d','e']); 2  3$reversed=$collection->reverse(); 4  5$reversed->all(); 6  7/* 8    [ 9        4 => 'e',10        3 => 'd',11        2 => 'c',12        1 => 'b',13        0 => 'a',14    ]15*/
+$collection = collect(['a', 'b', 'c', 'd', 'e']);
+
+$reversed = $collection->reverse();
+
+$reversed->all();
+
+/*
+    [
+        4 => 'e',
+        3 => 'd',
+        2 => 'c',
+        1 => 'b',
+        0 => 'a',
+    ]
+*/</code></pre></div><h4><a href=#method-search><code>search()</code></a></h4><p>The <code>search</code> method searches the collection for the given value and returns its key if found. If the item is not found, <code>false</code> is returned:<div><pre><code>1$collection=collect([2,4,6,8]);2 3$collection->search(4);4 5// 1
+$collection = collect([2, 4, 6, 8]);
+
+$collection->search(4);
+
+// 1</code></pre></div><p>The search is done using a "loose" comparison, meaning a string with an integer value will be considered equal to an integer of the same value. To use "strict" comparison, pass <code>true</code> as the second argument to the method:<div><pre><code>1collect([2,4,6,8])->search('4', strict: true);2 3// false
+collect([2, 4, 6, 8])->search('4', strict: true);
+
+// false</code></pre></div><p>Alternatively, you may provide your own closure to search for the first item that passes a given truth test:<div><pre><code>1collect([2,4,6,8])->search(function(int$item, int$key) {2return$item>5;3});4 5// 2
+collect([2, 4, 6, 8])->search(function (int $item, int $key) {
+    return $item > 5;
+});
+
+// 2</code></pre></div><h4><a href=#method-select><code>select()</code></a></h4><p>The <code>select</code> method selects the given keys from the collection, similar to an SQL <code>SELECT</code> statement:<div><pre><code> 1$users=collect([ 2['name'=>'Taylor Otwell','role'=>'Developer','status'=>'active'], 3['name'=>'Victoria Faith','role'=>'Researcher','status'=>'active'], 4]); 5  6$users->select(['name', 'role']); 7  8/* 9    [10        ['name' => 'Taylor Otwell', 'role' => 'Developer'],11        ['name' => 'Victoria Faith', 'role' => 'Researcher'],12    ],13*/
+$users = collect([
+    ['name' => 'Taylor Otwell', 'role' => 'Developer', 'status' => 'active'],
+    ['name' => 'Victoria Faith', 'role' => 'Researcher', 'status' => 'active'],
+]);
+
+$users->select(['name', 'role']);
+
+/*
+    [
+        ['name' => 'Taylor Otwell', 'role' => 'Developer'],
+        ['name' => 'Victoria Faith', 'role' => 'Researcher'],
+    ],
+*/</code></pre></div><h4><a href=#method-shift><code>shift()</code></a></h4><p>The <code>shift</code> method removes and returns the first item from the collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->shift();4 5// 16 7$collection->all();8 9// [2, 3, 4, 5]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->shift();
+
+// 1
+
+$collection->all();
+
+// [2, 3, 4, 5]</code></pre></div><p>You may pass an integer to the <code>shift</code> method to remove and return multiple items from the beginning of a collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->shift(3);4 5// collect([1, 2, 3])6 7$collection->all();8 9// [4, 5]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->shift(3);
+
+// collect([1, 2, 3])
+
+$collection->all();
+
+// [4, 5]</code></pre></div><h4><a href=#method-shuffle><code>shuffle()</code></a></h4><p>The <code>shuffle</code> method randomly shuffles the items in the collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$shuffled=$collection->shuffle();4 5$shuffled->all();6 7// [3, 2, 5, 1, 4] - (generated randomly)
+$collection = collect([1, 2, 3, 4, 5]);
+
+$shuffled = $collection->shuffle();
+
+$shuffled->all();
+
+// [3, 2, 5, 1, 4] - (generated randomly)</code></pre></div><h4><a href=#method-skip><code>skip()</code></a></h4><p>The <code>skip</code> method returns a new collection, with the given number of elements removed from the beginning of the collection:<div><pre><code>1$collection=collect([1,2,3,4,5,6,7,8,9,10]);2 3$collection=$collection->skip(4);4 5$collection->all();6 7// [5, 6, 7, 8, 9, 10]
+$collection = collect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+$collection = $collection->skip(4);
+
+$collection->all();
+
+// [5, 6, 7, 8, 9, 10]</code></pre></div><h4><a href=#method-skipuntil><code>skipUntil()</code></a></h4><p>The <code>skipUntil</code> method skips over items from the collection while the given callback returns <code>false</code>. Once the callback returns <code>true</code> all of the remaining items in the collection will be returned as a new collection:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$subset=$collection->skipUntil(function(int$item) {4return$item>=3;5});6 7$subset->all();8 9// [3, 4]
+$collection = collect([1, 2, 3, 4]);
+
+$subset = $collection->skipUntil(function (int $item) {
+    return $item >= 3;
+});
+
+$subset->all();
+
+// [3, 4]</code></pre></div><p>You may also pass a simple value to the <code>skipUntil</code> method to skip all items until the given value is found:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$subset=$collection->skipUntil(3);4 5$subset->all();6 7// [3, 4]
+$collection = collect([1, 2, 3, 4]);
+
+$subset = $collection->skipUntil(3);
+
+$subset->all();
+
+// [3, 4]</code></pre></div><div><p>If the given value is not found or the callback never returns <code>true</code>, the <code>skipUntil</code> method will return an empty collection.</div><h4><a href=#method-skipwhile><code>skipWhile()</code></a></h4><p>The <code>skipWhile</code> method skips over items from the collection while the given callback returns <code>true</code>. Once the callback returns <code>false</code> all of the remaining items in the collection will be returned as a new collection:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$subset=$collection->skipWhile(function(int$item) {4return$item&lt;=3;5});6 7$subset->all();8 9// [4]
+$collection = collect([1, 2, 3, 4]);
+
+$subset = $collection->skipWhile(function (int $item) {
+    return $item &lt;= 3;
+});
+
+$subset->all();
+
+// [4]</code></pre></div><div><p>If the callback never returns <code>false</code>, the <code>skipWhile</code> method will return an empty collection.</div><h4><a href=#method-slice><code>slice()</code></a></h4><p>The <code>slice</code> method returns a slice of the collection starting at the given index:<div><pre><code>1$collection=collect([1,2,3,4,5,6,7,8,9,10]);2 3$slice=$collection->slice(4);4 5$slice->all();6 7// [5, 6, 7, 8, 9, 10]
+$collection = collect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+$slice = $collection->slice(4);
+
+$slice->all();
+
+// [5, 6, 7, 8, 9, 10]</code></pre></div><p>If you would like to limit the size of the returned slice, pass the desired size as the second argument to the method:<div><pre><code>1$slice=$collection->slice(4, 2);2 3$slice->all();4 5// [5, 6]
+$slice = $collection->slice(4, 2);
+
+$slice->all();
+
+// [5, 6]</code></pre></div><p>The returned slice will preserve keys by default. If you do not wish to preserve the original keys, you can use the <a href=#method-values>values</a> method to reindex them.<h4><a href=#method-sliding><code>sliding()</code></a></h4><p>The <code>sliding</code> method returns a new collection of chunks representing a "sliding window" view of the items in the collection:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$chunks=$collection->sliding(2);4 5$chunks->toArray();6 7// [[1, 2], [2, 3], [3, 4], [4, 5]]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$chunks = $collection->sliding(2);
+
+$chunks->toArray();
+
+// [[1, 2], [2, 3], [3, 4], [4, 5]]</code></pre></div><p>This is especially useful in conjunction with the <a href=#method-eachspread>eachSpread</a> method:<div><pre><code>1$transactions->sliding(2)->eachSpread(function(Collection$previous, Collection$current) {2$current->total=$previous->total+$current->amount;3});
+$transactions->sliding(2)->eachSpread(function (Collection $previous, Collection $current) {
+    $current->total = $previous->total + $current->amount;
+});</code></pre></div><p>You may optionally pass a second "step" value, which determines the distance between the first item of every chunk:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$chunks=$collection->sliding(3, step: 2);4 5$chunks->toArray();6 7// [[1, 2, 3], [3, 4, 5]]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$chunks = $collection->sliding(3, step: 2);
+
+$chunks->toArray();
+
+// [[1, 2, 3], [3, 4, 5]]</code></pre></div><h4><a href=#method-sole><code>sole()</code></a></h4><p>The <code>sole</code> method returns the first element in the collection that passes a given truth test, but only if the truth test matches exactly one element:<div><pre><code>1collect([1,2,3,4])->sole(function(int$value, int$key) {2return$value===2;3});4 5// 2
+collect([1, 2, 3, 4])->sole(function (int $value, int $key) {
+    return $value === 2;
+});
+
+// 2</code></pre></div><p>You may also pass a key / value pair to the <code>sole</code> method, which will return the first element in the collection that matches the given pair, but only if it exactly one element matches:<div><pre><code>1$collection=collect([2['product'=>'Desk','price'=>200],3['product'=>'Chair','price'=>100],4]);5 6$collection->sole('product', 'Chair');7 8// ['product' => 'Chair', 'price' => 100]
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 100],
+]);
+
+$collection->sole('product', 'Chair');
+
+// ['product' => 'Chair', 'price' => 100]</code></pre></div><p>Alternatively, you may also call the <code>sole</code> method with no argument to get the first element in the collection if there is only one element:<div><pre><code>1$collection=collect([2['product'=>'Desk','price'=>200],3]);4 5$collection->sole();6 7// ['product' => 'Desk', 'price' => 200]
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+]);
+
+$collection->sole();
+
+// ['product' => 'Desk', 'price' => 200]</code></pre></div><p>If there are no elements in the collection that should be returned by the <code>sole</code> method, an <code>\Illuminate\Collections\ItemNotFoundException</code> exception will be thrown. If there is more than one element that should be returned, an <code>\Illuminate\Collections\MultipleItemsFoundException</code> will be thrown.<h4><a href=#method-some><code>some()</code></a></h4><p>Alias for the <a href=#method-contains>contains</a> method.<h4><a href=#method-sort><code>sort()</code></a></h4><p>The <code>sort</code> method sorts the collection. The sorted collection keeps the original array keys, so in the following example we will use the <a href=#method-values>values</a> method to reset the keys to consecutively numbered indexes:<div><pre><code>1$collection=collect([5,3,1,2,4]);2 3$sorted=$collection->sort();4 5$sorted->values()->all();6 7// [1, 2, 3, 4, 5]
+$collection = collect([5, 3, 1, 2, 4]);
+
+$sorted = $collection->sort();
+
+$sorted->values()->all();
+
+// [1, 2, 3, 4, 5]</code></pre></div><p>If your sorting needs are more advanced, you may pass a callback to <code>sort</code> with your own algorithm. Refer to the PHP documentation on <a href=https://secure.php.net/manual/en/function.uasort.php#refsect1-function.uasort-parameters>uasort</a>, which is what the collection's <code>sort</code> method calls utilizes internally.<div><p>If you need to sort a collection of nested arrays or objects, see the <a href=#method-sortby>sortBy</a> and <a href=#method-sortbydesc>sortByDesc</a> methods.</div><h4><a href=#method-sortby><code>sortBy()</code></a></h4><p>The <code>sortBy</code> method sorts the collection by the given key. The sorted collection keeps the original array keys, so in the following example we will use the <a href=#method-values>values</a> method to reset the keys to consecutively numbered indexes:<div><pre><code> 1$collection=collect([ 2['name'=>'Desk','price'=>200], 3['name'=>'Chair','price'=>100], 4['name'=>'Bookcase','price'=>150], 5]); 6  7$sorted=$collection->sortBy('price'); 8  9$sorted->values()->all();10 11/*12    [13        ['name' => 'Chair', 'price' => 100],14        ['name' => 'Bookcase', 'price' => 150],15        ['name' => 'Desk', 'price' => 200],16    ]17*/
+$collection = collect([
+    ['name' => 'Desk', 'price' => 200],
+    ['name' => 'Chair', 'price' => 100],
+    ['name' => 'Bookcase', 'price' => 150],
+]);
+
+$sorted = $collection->sortBy('price');
+
+$sorted->values()->all();
+
+/*
+    [
+        ['name' => 'Chair', 'price' => 100],
+        ['name' => 'Bookcase', 'price' => 150],
+        ['name' => 'Desk', 'price' => 200],
+    ]
+*/</code></pre></div><p>The <code>sortBy</code> method accepts <a href=https://www.php.net/manual/en/function.sort.php>sort flags</a> as its second argument:<div><pre><code> 1$collection=collect([ 2['title'=>'Item 1'], 3['title'=>'Item 12'], 4['title'=>'Item 3'], 5]); 6  7$sorted=$collection->sortBy('title', SORT_NATURAL); 8  9$sorted->values()->all();10 11/*12    [13        ['title' => 'Item 1'],14        ['title' => 'Item 3'],15        ['title' => 'Item 12'],16    ]17*/
+$collection = collect([
+    ['title' => 'Item 1'],
+    ['title' => 'Item 12'],
+    ['title' => 'Item 3'],
+]);
+
+$sorted = $collection->sortBy('title', SORT_NATURAL);
+
+$sorted->values()->all();
+
+/*
+    [
+        ['title' => 'Item 1'],
+        ['title' => 'Item 3'],
+        ['title' => 'Item 12'],
+    ]
+*/</code></pre></div><p>Alternatively, you may pass your own closure to determine how to sort the collection's values:<div><pre><code> 1$collection=collect([ 2['name'=>'Desk','colors'=>['Black','Mahogany']], 3['name'=>'Chair','colors'=>['Black']], 4['name'=>'Bookcase','colors'=>['Red','Beige','Brown']], 5]); 6  7$sorted=$collection->sortBy(function(array$product, int$key) { 8returncount($product['colors']); 9});10 11$sorted->values()->all();12 13/*14    [15        ['name' => 'Chair', 'colors' => ['Black']],16        ['name' => 'Desk', 'colors' => ['Black', 'Mahogany']],17        ['name' => 'Bookcase', 'colors' => ['Red', 'Beige', 'Brown']],18    ]19*/
+$collection = collect([
+    ['name' => 'Desk', 'colors' => ['Black', 'Mahogany']],
+    ['name' => 'Chair', 'colors' => ['Black']],
+    ['name' => 'Bookcase', 'colors' => ['Red', 'Beige', 'Brown']],
+]);
+
+$sorted = $collection->sortBy(function (array $product, int $key) {
+    return count($product['colors']);
+});
+
+$sorted->values()->all();
+
+/*
+    [
+        ['name' => 'Chair', 'colors' => ['Black']],
+        ['name' => 'Desk', 'colors' => ['Black', 'Mahogany']],
+        ['name' => 'Bookcase', 'colors' => ['Red', 'Beige', 'Brown']],
+    ]
+*/</code></pre></div><p>If you would like to sort your collection by multiple attributes, you may pass an array of sort operations to the <code>sortBy</code> method. Each sort operation should be an array consisting of the attribute that you wish to sort by and the direction of the desired sort:<div><pre><code> 1$collection=collect([ 2['name'=>'Taylor Otwell','age'=>34], 3['name'=>'Abigail Otwell','age'=>30], 4['name'=>'Taylor Otwell','age'=>36], 5['name'=>'Abigail Otwell','age'=>32], 6]); 7  8$sorted=$collection->sortBy([ 9    ['name', 'asc'],10    ['age', 'desc'],11]);12 13$sorted->values()->all();14 15/*16    [17        ['name' => 'Abigail Otwell', 'age' => 32],18        ['name' => 'Abigail Otwell', 'age' => 30],19        ['name' => 'Taylor Otwell', 'age' => 36],20        ['name' => 'Taylor Otwell', 'age' => 34],21    ]22*/
+$collection = collect([
+    ['name' => 'Taylor Otwell', 'age' => 34],
+    ['name' => 'Abigail Otwell', 'age' => 30],
+    ['name' => 'Taylor Otwell', 'age' => 36],
+    ['name' => 'Abigail Otwell', 'age' => 32],
+]);
+
+$sorted = $collection->sortBy([
+    ['name', 'asc'],
+    ['age', 'desc'],
+]);
+
+$sorted->values()->all();
+
+/*
+    [
+        ['name' => 'Abigail Otwell', 'age' => 32],
+        ['name' => 'Abigail Otwell', 'age' => 30],
+        ['name' => 'Taylor Otwell', 'age' => 36],
+        ['name' => 'Taylor Otwell', 'age' => 34],
+    ]
+*/</code></pre></div><p>When sorting a collection by multiple attributes, you may also provide closures that define each sort operation:<div><pre><code> 1$collection=collect([ 2['name'=>'Taylor Otwell','age'=>34], 3['name'=>'Abigail Otwell','age'=>30], 4['name'=>'Taylor Otwell','age'=>36], 5['name'=>'Abigail Otwell','age'=>32], 6]); 7  8$sorted=$collection->sortBy([ 9fn(array$a, array$b) => $a['name'] &lt;=>$b['name'],10fn(array$a, array$b) => $b['age'] &lt;=>$a['age'],11]);12 13$sorted->values()->all();14 15/*16    [17        ['name' => 'Abigail Otwell', 'age' => 32],18        ['name' => 'Abigail Otwell', 'age' => 30],19        ['name' => 'Taylor Otwell', 'age' => 36],20        ['name' => 'Taylor Otwell', 'age' => 34],21    ]22*/
+$collection = collect([
+    ['name' => 'Taylor Otwell', 'age' => 34],
+    ['name' => 'Abigail Otwell', 'age' => 30],
+    ['name' => 'Taylor Otwell', 'age' => 36],
+    ['name' => 'Abigail Otwell', 'age' => 32],
+]);
+
+$sorted = $collection->sortBy([
+    fn (array $a, array $b) => $a['name'] &lt;=> $b['name'],
+    fn (array $a, array $b) => $b['age'] &lt;=> $a['age'],
+]);
+
+$sorted->values()->all();
+
+/*
+    [
+        ['name' => 'Abigail Otwell', 'age' => 32],
+        ['name' => 'Abigail Otwell', 'age' => 30],
+        ['name' => 'Taylor Otwell', 'age' => 36],
+        ['name' => 'Taylor Otwell', 'age' => 34],
+    ]
+*/</code></pre></div><h4><a href=#method-sortbydesc><code>sortByDesc()</code></a></h4><p>This method has the same signature as the <a href=#method-sortby>sortBy</a> method, but will sort the collection in the opposite order.<h4><a href=#method-sortdesc><code>sortDesc()</code></a></h4><p>This method will sort the collection in the opposite order as the <a href=#method-sort>sort</a> method:<div><pre><code>1$collection=collect([5,3,1,2,4]);2 3$sorted=$collection->sortDesc();4 5$sorted->values()->all();6 7// [5, 4, 3, 2, 1]
+$collection = collect([5, 3, 1, 2, 4]);
+
+$sorted = $collection->sortDesc();
+
+$sorted->values()->all();
+
+// [5, 4, 3, 2, 1]</code></pre></div><p>Unlike <code>sort</code>, you may not pass a closure to <code>sortDesc</code>. Instead, you should use the <a href=#method-sort>sort</a> method and invert your comparison.<h4><a href=#method-sortkeys><code>sortKeys()</code></a></h4><p>The <code>sortKeys</code> method sorts the collection by the keys of the underlying associative array:<div><pre><code> 1$collection=collect([ 2'id'=>22345, 3'first'=>'John', 4'last'=>'Doe', 5]); 6  7$sorted=$collection->sortKeys(); 8  9$sorted->all();10 11/*12    [13        'first' => 'John',14        'id' => 22345,15        'last' => 'Doe',16    ]17*/
+$collection = collect([
+    'id' => 22345,
+    'first' => 'John',
+    'last' => 'Doe',
+]);
+
+$sorted = $collection->sortKeys();
+
+$sorted->all();
+
+/*
+    [
+        'first' => 'John',
+        'id' => 22345,
+        'last' => 'Doe',
+    ]
+*/</code></pre></div><h4><a href=#method-sortkeysdesc><code>sortKeysDesc()</code></a></h4><p>This method has the same signature as the <a href=#method-sortkeys>sortKeys</a> method, but will sort the collection in the opposite order.<h4><a href=#method-sortkeysusing><code>sortKeysUsing()</code></a></h4><p>The <code>sortKeysUsing</code> method sorts the collection by the keys of the underlying associative array using a callback:<div><pre><code> 1$collection=collect([ 2'ID'=>22345, 3'first'=>'John', 4'last'=>'Doe', 5]); 6  7$sorted=$collection->sortKeysUsing('strnatcasecmp'); 8  9$sorted->all();10 11/*12    [13        'first' => 'John',14        'ID' => 22345,15        'last' => 'Doe',16    ]17*/
+$collection = collect([
+    'ID' => 22345,
+    'first' => 'John',
+    'last' => 'Doe',
+]);
+
+$sorted = $collection->sortKeysUsing('strnatcasecmp');
+
+$sorted->all();
+
+/*
+    [
+        'first' => 'John',
+        'ID' => 22345,
+        'last' => 'Doe',
+    ]
+*/</code></pre></div><p>The callback must be a comparison function that returns an integer less than, equal to, or greater than zero. For more information, refer to the PHP documentation on <a href=https://www.php.net/manual/en/function.uksort.php#refsect1-function.uksort-parameters>uksort</a>, which is the PHP function that <code>sortKeysUsing</code> method utilizes internally.<h4><a href=#method-splice><code>splice()</code></a></h4><p>The <code>splice</code> method removes and returns a slice of items starting at the specified index:<div><pre><code> 1$collection=collect([1,2,3,4,5]); 2  3$chunk=$collection->splice(2); 4  5$chunk->all(); 6  7// [3, 4, 5] 8  9$collection->all();10 11// [1, 2]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$chunk = $collection->splice(2);
+
+$chunk->all();
+
+// [3, 4, 5]
+
+$collection->all();
+
+// [1, 2]</code></pre></div><p>You may pass a second argument to limit the size of the resulting collection:<div><pre><code> 1$collection=collect([1,2,3,4,5]); 2  3$chunk=$collection->splice(2, 1); 4  5$chunk->all(); 6  7// [3] 8  9$collection->all();10 11// [1, 2, 4, 5]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$chunk = $collection->splice(2, 1);
+
+$chunk->all();
+
+// [3]
+
+$collection->all();
+
+// [1, 2, 4, 5]</code></pre></div><p>In addition, you may pass a third argument containing the new items to replace the items removed from the collection:<div><pre><code> 1$collection=collect([1,2,3,4,5]); 2  3$chunk=$collection->splice(2, 1, [10, 11]); 4  5$chunk->all(); 6  7// [3] 8  9$collection->all();10 11// [1, 2, 10, 11, 4, 5]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$chunk = $collection->splice(2, 1, [10, 11]);
+
+$chunk->all();
+
+// [3]
+
+$collection->all();
+
+// [1, 2, 10, 11, 4, 5]</code></pre></div><h4><a href=#method-split><code>split()</code></a></h4><p>The <code>split</code> method breaks a collection into the given number of groups:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$groups=$collection->split(3);4 5$groups->all();6 7// [[1, 2], [3, 4], [5]]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$groups = $collection->split(3);
+
+$groups->all();
+
+// [[1, 2], [3, 4], [5]]</code></pre></div><h4><a href=#method-splitin><code>splitIn()</code></a></h4><p>The <code>splitIn</code> method breaks a collection into the given number of groups, filling non-terminal groups completely before allocating the remainder to the final group:<div><pre><code>1$collection=collect([1,2,3,4,5,6,7,8,9,10]);2 3$groups=$collection->splitIn(3);4 5$groups->all();6 7// [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10]]
+$collection = collect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+$groups = $collection->splitIn(3);
+
+$groups->all();
+
+// [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10]]</code></pre></div><h4><a href=#method-sum><code>sum()</code></a></h4><p>The <code>sum</code> method returns the sum of all items in the collection:<div><pre><code>1collect([1,2,3,4,5])->sum();2 3// 15
+collect([1, 2, 3, 4, 5])->sum();
+
+// 15</code></pre></div><p>If the collection contains nested arrays or objects, you should pass a key that will be used to determine which values to sum:<div><pre><code>1$collection=collect([2['name'=>'JavaScript: The Good Parts','pages'=>176],3['name'=>'JavaScript: The Definitive Guide','pages'=>1096],4]);5 6$collection->sum('pages');7 8// 1272
+$collection = collect([
+    ['name' => 'JavaScript: The Good Parts', 'pages' => 176],
+    ['name' => 'JavaScript: The Definitive Guide', 'pages' => 1096],
+]);
+
+$collection->sum('pages');
+
+// 1272</code></pre></div><p>In addition, you may pass your own closure to determine which values of the collection to sum:<div><pre><code> 1$collection=collect([ 2['name'=>'Chair','colors'=>['Black']], 3['name'=>'Desk','colors'=>['Black','Mahogany']], 4['name'=>'Bookcase','colors'=>['Red','Beige','Brown']], 5]); 6  7$collection->sum(function(array$product) { 8returncount($product['colors']); 9});10 11// 6
+$collection = collect([
+    ['name' => 'Chair', 'colors' => ['Black']],
+    ['name' => 'Desk', 'colors' => ['Black', 'Mahogany']],
+    ['name' => 'Bookcase', 'colors' => ['Red', 'Beige', 'Brown']],
+]);
+
+$collection->sum(function (array $product) {
+    return count($product['colors']);
+});
+
+// 6</code></pre></div><h4><a href=#method-take><code>take()</code></a></h4><p>The <code>take</code> method returns a new collection with the specified number of items:<div><pre><code>1$collection=collect([0,1,2,3,4,5]);2 3$chunk=$collection->take(3);4 5$chunk->all();6 7// [0, 1, 2]
+$collection = collect([0, 1, 2, 3, 4, 5]);
+
+$chunk = $collection->take(3);
+
+$chunk->all();
+
+// [0, 1, 2]</code></pre></div><p>You may also pass a negative integer to take the specified number of items from the end of the collection:<div><pre><code>1$collection=collect([0,1,2,3,4,5]);2 3$chunk=$collection->take(-2);4 5$chunk->all();6 7// [4, 5]
+$collection = collect([0, 1, 2, 3, 4, 5]);
+
+$chunk = $collection->take(-2);
+
+$chunk->all();
+
+// [4, 5]</code></pre></div><h4><a href=#method-takeuntil><code>takeUntil()</code></a></h4><p>The <code>takeUntil</code> method returns items in the collection until the given callback returns <code>true</code>:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$subset=$collection->takeUntil(function(int$item) {4return$item>=3;5});6 7$subset->all();8 9// [1, 2]
+$collection = collect([1, 2, 3, 4]);
+
+$subset = $collection->takeUntil(function (int $item) {
+    return $item >= 3;
+});
+
+$subset->all();
+
+// [1, 2]</code></pre></div><p>You may also pass a simple value to the <code>takeUntil</code> method to get the items until the given value is found:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$subset=$collection->takeUntil(3);4 5$subset->all();6 7// [1, 2]
+$collection = collect([1, 2, 3, 4]);
+
+$subset = $collection->takeUntil(3);
+
+$subset->all();
+
+// [1, 2]</code></pre></div><div><p>If the given value is not found or the callback never returns <code>true</code>, the <code>takeUntil</code> method will return all items in the collection.</div><h4><a href=#method-takewhile><code>takeWhile()</code></a></h4><p>The <code>takeWhile</code> method returns items in the collection until the given callback returns <code>false</code>:<div><pre><code>1$collection=collect([1,2,3,4]);2 3$subset=$collection->takeWhile(function(int$item) {4return$item&lt;3;5});6 7$subset->all();8 9// [1, 2]
+$collection = collect([1, 2, 3, 4]);
+
+$subset = $collection->takeWhile(function (int $item) {
+    return $item &lt; 3;
+});
+
+$subset->all();
+
+// [1, 2]</code></pre></div><div><p>If the callback never returns <code>false</code>, the <code>takeWhile</code> method will return all items in the collection.</div><h4><a href=#method-tap><code>tap()</code></a></h4><p>The <code>tap</code> method passes the collection to the given callback, allowing you to "tap" into the collection at a specific point and do something with the items while not affecting the collection itself. The collection is then returned by the <code>tap</code> method:<div><pre><code>1collect([2,4,3,1,5])2->sort()3->tap(function(Collection$collection) {4Log::debug('Values after sorting', $collection->values()->all());5    })6->shift();7 8// 1
+collect([2, 4, 3, 1, 5])
+    ->sort()
+    ->tap(function (Collection $collection) {
+        Log::debug('Values after sorting', $collection->values()->all());
+    })
+    ->shift();
+
+// 1</code></pre></div><h4><a href=#method-times><code>times()</code></a></h4><p>The static <code>times</code> method creates a new collection by invoking the given closure a specified number of times:<div><pre><code>1$collection=Collection::times(10, function(int$number) {2return$number*9;3});4 5$collection->all();6 7// [9, 18, 27, 36, 45, 54, 63, 72, 81, 90]
+$collection = Collection::times(10, function (int $number) {
+    return $number * 9;
+});
+
+$collection->all();
+
+// [9, 18, 27, 36, 45, 54, 63, 72, 81, 90]</code></pre></div><h4><a href=#method-toarray><code>toArray()</code></a></h4><p>The <code>toArray</code> method converts the collection into a plain PHP <code>array</code>. If the collection's values are <a href=eloquent.htm>Eloquent</a> models, the models will also be converted to arrays:<div><pre><code>1$collection=collect(['name'=>'Desk','price'=>200]);2 3$collection->toArray();4 5/*6    [7        ['name' => 'Desk', 'price' => 200],8    ]9*/
+$collection = collect(['name' => 'Desk', 'price' => 200]);
+
+$collection->toArray();
+
+/*
+    [
+        ['name' => 'Desk', 'price' => 200],
+    ]
+*/</code></pre></div><div><p><code>toArray</code> also converts all of the collection's nested objects that are an instance of <code>Arrayable</code> to an array. If you want to get the raw array underlying the collection, use the <a href=#method-all>all</a> method instead.</div><h4><a href=#method-tojson><code>toJson()</code></a></h4><p>The <code>toJson</code> method converts the collection into a JSON serialized string:<div><pre><code>1$collection=collect(['name'=>'Desk','price'=>200]);2 3$collection->toJson();4 5// '{"name":"Desk", "price":200}'
+$collection = collect(['name' => 'Desk', 'price' => 200]);
+
+$collection->toJson();
+
+// '{"name":"Desk", "price":200}'</code></pre></div><h4><a href=#method-transform><code>transform()</code></a></h4><p>The <code>transform</code> method iterates over the collection and calls the given callback with each item in the collection. The items in the collection will be replaced by the values returned by the callback:<div><pre><code>1$collection=collect([1,2,3,4,5]);2 3$collection->transform(function(int$item, int$key) {4return$item*2;5});6 7$collection->all();8 9// [2, 4, 6, 8, 10]
+$collection = collect([1, 2, 3, 4, 5]);
+
+$collection->transform(function (int $item, int $key) {
+    return $item * 2;
+});
+
+$collection->all();
+
+// [2, 4, 6, 8, 10]</code></pre></div><div><p>Unlike most other collection methods, <code>transform</code> modifies the collection itself. If you wish to create a new collection instead, use the <a href=#method-map>map</a> method.</div><h4><a href=#method-undot><code>undot()</code></a></h4><p>The <code>undot</code> method expands a single-dimensional collection that uses "dot" notation into a multi-dimensional collection:<div><pre><code> 1$person=collect([ 2'name.first_name'=>'Marie', 3'name.last_name'=>'Valentine', 4'address.line_1'=>'2992 Eagle Drive', 5'address.line_2'=>'', 6'address.suburb'=>'Detroit', 7'address.state'=>'MI', 8'address.postcode'=>'48219' 9]);10 11$person=$person->undot();12 13$person->toArray();14 15/*16    [17        "name" => [18            "first_name" => "Marie",19            "last_name" => "Valentine",20        ],21        "address" => [22            "line_1" => "2992 Eagle Drive",23            "line_2" => "",24            "suburb" => "Detroit",25            "state" => "MI",26            "postcode" => "48219",27        ],28    ]29*/
+$person = collect([
+    'name.first_name' => 'Marie',
+    'name.last_name' => 'Valentine',
+    'address.line_1' => '2992 Eagle Drive',
+    'address.line_2' => '',
+    'address.suburb' => 'Detroit',
+    'address.state' => 'MI',
+    'address.postcode' => '48219'
+]);
+
+$person = $person->undot();
+
+$person->toArray();
+
+/*
+    [
+        "name" => [
+            "first_name" => "Marie",
+            "last_name" => "Valentine",
+        ],
+        "address" => [
+            "line_1" => "2992 Eagle Drive",
+            "line_2" => "",
+            "suburb" => "Detroit",
+            "state" => "MI",
+            "postcode" => "48219",
+        ],
+    ]
+*/</code></pre></div><h4><a href=#method-union><code>union()</code></a></h4><p>The <code>union</code> method adds the given array to the collection. If the given array contains keys that are already in the original collection, the original collection's values will be preferred:<div><pre><code>1$collection=collect([1=>['a'],2=>['b']]);2 3$union=$collection->union([3=> ['c'], 1=> ['d']]);4 5$union->all();6 7// [1 => ['a'], 2 => ['b'], 3 => ['c']]
+$collection = collect([1 => ['a'], 2 => ['b']]);
+
+$union = $collection->union([3 => ['c'], 1 => ['d']]);
+
+$union->all();
+
+// [1 => ['a'], 2 => ['b'], 3 => ['c']]</code></pre></div><h4><a href=#method-unique><code>unique()</code></a></h4><p>The <code>unique</code> method returns all of the unique items in the collection. The returned collection keeps the original array keys, so in the following example we will use the <a href=#method-values>values</a> method to reset the keys to consecutively numbered indexes:<div><pre><code>1$collection=collect([1,1,2,2,3,4,2]);2 3$unique=$collection->unique();4 5$unique->values()->all();6 7// [1, 2, 3, 4]
+$collection = collect([1, 1, 2, 2, 3, 4, 2]);
+
+$unique = $collection->unique();
+
+$unique->values()->all();
+
+// [1, 2, 3, 4]</code></pre></div><p>When dealing with nested arrays or objects, you may specify the key used to determine uniqueness:<div><pre><code> 1$collection=collect([ 2['name'=>'iPhone 6','brand'=>'Apple','type'=>'phone'], 3['name'=>'iPhone 5','brand'=>'Apple','type'=>'phone'], 4['name'=>'Apple Watch','brand'=>'Apple','type'=>'watch'], 5['name'=>'Galaxy S6','brand'=>'Samsung','type'=>'phone'], 6['name'=>'Galaxy Gear','brand'=>'Samsung','type'=>'watch'], 7]); 8  9$unique=$collection->unique('brand');10 11$unique->values()->all();12 13/*14    [15        ['name' => 'iPhone 6', 'brand' => 'Apple', 'type' => 'phone'],16        ['name' => 'Galaxy S6', 'brand' => 'Samsung', 'type' => 'phone'],17    ]18*/
+$collection = collect([
+    ['name' => 'iPhone 6', 'brand' => 'Apple', 'type' => 'phone'],
+    ['name' => 'iPhone 5', 'brand' => 'Apple', 'type' => 'phone'],
+    ['name' => 'Apple Watch', 'brand' => 'Apple', 'type' => 'watch'],
+    ['name' => 'Galaxy S6', 'brand' => 'Samsung', 'type' => 'phone'],
+    ['name' => 'Galaxy Gear', 'brand' => 'Samsung', 'type' => 'watch'],
+]);
+
+$unique = $collection->unique('brand');
+
+$unique->values()->all();
+
+/*
+    [
+        ['name' => 'iPhone 6', 'brand' => 'Apple', 'type' => 'phone'],
+        ['name' => 'Galaxy S6', 'brand' => 'Samsung', 'type' => 'phone'],
+    ]
+*/</code></pre></div><p>Finally, you may also pass your own closure to the <code>unique</code> method to specify which value should determine an item's uniqueness:<div><pre><code> 1$unique=$collection->unique(function(array$item) { 2return$item['brand'].$item['type']; 3}); 4  5$unique->values()->all(); 6  7/* 8    [ 9        ['name' => 'iPhone 6', 'brand' => 'Apple', 'type' => 'phone'],10        ['name' => 'Apple Watch', 'brand' => 'Apple', 'type' => 'watch'],11        ['name' => 'Galaxy S6', 'brand' => 'Samsung', 'type' => 'phone'],12        ['name' => 'Galaxy Gear', 'brand' => 'Samsung', 'type' => 'watch'],13    ]14*/
+$unique = $collection->unique(function (array $item) {
+    return $item['brand'].$item['type'];
+});
+
+$unique->values()->all();
+
+/*
+    [
+        ['name' => 'iPhone 6', 'brand' => 'Apple', 'type' => 'phone'],
+        ['name' => 'Apple Watch', 'brand' => 'Apple', 'type' => 'watch'],
+        ['name' => 'Galaxy S6', 'brand' => 'Samsung', 'type' => 'phone'],
+        ['name' => 'Galaxy Gear', 'brand' => 'Samsung', 'type' => 'watch'],
+    ]
+*/</code></pre></div><p>The <code>unique</code> method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the <a href=#method-uniquestrict>uniqueStrict</a> method to filter using "strict" comparisons.<div><p>This method's behavior is modified when using <a href=eloquent-collections.htm#method-unique>Eloquent Collections</a>.</div><h4><a href=#method-uniquestrict><code>uniqueStrict()</code></a></h4><p>This method has the same signature as the <a href=#method-unique>unique</a> method; however, all values are compared using "strict" comparisons.<h4><a href=#method-unless><code>unless()</code></a></h4><p>The <code>unless</code> method will execute the given callback unless the first argument given to the method evaluates to <code>true</code>. The collection instance and the first argument given to the <code>unless</code> method will be provided to the closure:<div><pre><code> 1$collection=collect([1,2,3]); 2  3$collection->unless(true, function(Collection$collection, bool$value) { 4return$collection->push(4); 5}); 6  7$collection->unless(false, function(Collection$collection, bool$value) { 8return$collection->push(5); 9});10 11$collection->all();12 13// [1, 2, 3, 5]
+$collection = collect([1, 2, 3]);
+
+$collection->unless(true, function (Collection $collection, bool $value) {
+    return $collection->push(4);
+});
+
+$collection->unless(false, function (Collection $collection, bool $value) {
+    return $collection->push(5);
+});
+
+$collection->all();
+
+// [1, 2, 3, 5]</code></pre></div><p>A second callback may be passed to the <code>unless</code> method. The second callback will be executed when the first argument given to the <code>unless</code> method evaluates to <code>true</code>:<div><pre><code> 1$collection=collect([1,2,3]); 2  3$collection->unless(true, function(Collection$collection, bool$value) { 4return$collection->push(4); 5}, function(Collection$collection, bool$value) { 6return$collection->push(5); 7}); 8  9$collection->all();10 11// [1, 2, 3, 5]
+$collection = collect([1, 2, 3]);
+
+$collection->unless(true, function (Collection $collection, bool $value) {
+    return $collection->push(4);
+}, function (Collection $collection, bool $value) {
+    return $collection->push(5);
+});
+
+$collection->all();
+
+// [1, 2, 3, 5]</code></pre></div><p>For the inverse of <code>unless</code>, see the <a href=#method-when>when</a> method.<h4><a href=#method-unlessempty><code>unlessEmpty()</code></a></h4><p>Alias for the <a href=#method-whennotempty>whenNotEmpty</a> method.<h4><a href=#method-unlessnotempty><code>unlessNotEmpty()</code></a></h4><p>Alias for the <a href=#method-whenempty>whenEmpty</a> method.<h4><a href=#method-unwrap><code>unwrap()</code></a></h4><p>The static <code>unwrap</code> method returns the collection's underlying items from the given value when applicable:<div><pre><code> 1Collection::unwrap(collect('John Doe')); 2  3// ['John Doe'] 4  5Collection::unwrap(['John Doe']); 6  7// ['John Doe'] 8  9Collection::unwrap('John Doe');10 11// 'John Doe'
+Collection::unwrap(collect('John Doe'));
+
+// ['John Doe']
+
+Collection::unwrap(['John Doe']);
+
+// ['John Doe']
+
+Collection::unwrap('John Doe');
+
+// 'John Doe'</code></pre></div><h4><a href=#method-value><code>value()</code></a></h4><p>The <code>value</code> method retrieves a given value from the first element of the collection:<div><pre><code>1$collection=collect([2['product'=>'Desk','price'=>200],3['product'=>'Speaker','price'=>400],4]);5 6$value=$collection->value('price');7 8// 200
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Speaker', 'price' => 400],
+]);
+
+$value = $collection->value('price');
+
+// 200</code></pre></div><h4><a href=#method-values><code>values()</code></a></h4><p>The <code>values</code> method returns a new collection with the keys reset to consecutive integers:<div><pre><code> 1$collection=collect([ 210=>['product'=>'Desk','price'=>200], 311=>['product'=>'Desk','price'=>200], 4]); 5  6$values=$collection->values(); 7  8$values->all(); 9 10/*11    [12        0 => ['product' => 'Desk', 'price' => 200],13        1 => ['product' => 'Desk', 'price' => 200],14    ]15*/
+$collection = collect([
+    10 => ['product' => 'Desk', 'price' => 200],
+    11 => ['product' => 'Desk', 'price' => 200],
+]);
+
+$values = $collection->values();
+
+$values->all();
+
+/*
+    [
+        0 => ['product' => 'Desk', 'price' => 200],
+        1 => ['product' => 'Desk', 'price' => 200],
+    ]
+*/</code></pre></div><h4><a href=#method-when><code>when()</code></a></h4><p>The <code>when</code> method will execute the given callback when the first argument given to the method evaluates to <code>true</code>. The collection instance and the first argument given to the <code>when</code> method will be provided to the closure:<div><pre><code> 1$collection=collect([1,2,3]); 2  3$collection->when(true, function(Collection$collection, bool$value) { 4return$collection->push(4); 5}); 6  7$collection->when(false, function(Collection$collection, bool$value) { 8return$collection->push(5); 9});10 11$collection->all();12 13// [1, 2, 3, 4]
+$collection = collect([1, 2, 3]);
+
+$collection->when(true, function (Collection $collection, bool $value) {
+    return $collection->push(4);
+});
+
+$collection->when(false, function (Collection $collection, bool $value) {
+    return $collection->push(5);
+});
+
+$collection->all();
+
+// [1, 2, 3, 4]</code></pre></div><p>A second callback may be passed to the <code>when</code> method. The second callback will be executed when the first argument given to the <code>when</code> method evaluates to <code>false</code>:<div><pre><code> 1$collection=collect([1,2,3]); 2  3$collection->when(false, function(Collection$collection, bool$value) { 4return$collection->push(4); 5}, function(Collection$collection, bool$value) { 6return$collection->push(5); 7}); 8  9$collection->all();10 11// [1, 2, 3, 5]
+$collection = collect([1, 2, 3]);
+
+$collection->when(false, function (Collection $collection, bool $value) {
+    return $collection->push(4);
+}, function (Collection $collection, bool $value) {
+    return $collection->push(5);
+});
+
+$collection->all();
+
+// [1, 2, 3, 5]</code></pre></div><p>For the inverse of <code>when</code>, see the <a href=#method-unless>unless</a> method.<h4><a href=#method-whenempty><code>whenEmpty()</code></a></h4><p>The <code>whenEmpty</code> method will execute the given callback when the collection is empty:<div><pre><code> 1$collection=collect(['Michael','Tom']); 2  3$collection->whenEmpty(function(Collection$collection) { 4return$collection->push('Adam'); 5}); 6  7$collection->all(); 8  9// ['Michael', 'Tom']10 11$collection=collect();12 13$collection->whenEmpty(function(Collection$collection) {14return$collection->push('Adam');15});16 17$collection->all();18 19// ['Adam']
+$collection = collect(['Michael', 'Tom']);
+
+$collection->whenEmpty(function (Collection $collection) {
+    return $collection->push('Adam');
+});
+
+$collection->all();
+
+// ['Michael', 'Tom']
+
+$collection = collect();
+
+$collection->whenEmpty(function (Collection $collection) {
+    return $collection->push('Adam');
+});
+
+$collection->all();
+
+// ['Adam']</code></pre></div><p>A second closure may be passed to the <code>whenEmpty</code> method that will be executed when the collection is not empty:<div><pre><code> 1$collection=collect(['Michael','Tom']); 2  3$collection->whenEmpty(function(Collection$collection) { 4return$collection->push('Adam'); 5}, function(Collection$collection) { 6return$collection->push('Taylor'); 7}); 8  9$collection->all();10 11// ['Michael', 'Tom', 'Taylor']
+$collection = collect(['Michael', 'Tom']);
+
+$collection->whenEmpty(function (Collection $collection) {
+    return $collection->push('Adam');
+}, function (Collection $collection) {
+    return $collection->push('Taylor');
+});
+
+$collection->all();
+
+// ['Michael', 'Tom', 'Taylor']</code></pre></div><p>For the inverse of <code>whenEmpty</code>, see the <a href=#method-whennotempty>whenNotEmpty</a> method.<h4><a href=#method-whennotempty><code>whenNotEmpty()</code></a></h4><p>The <code>whenNotEmpty</code> method will execute the given callback when the collection is not empty:<div><pre><code> 1$collection=collect(['Michael','Tom']); 2  3$collection->whenNotEmpty(function(Collection$collection) { 4return$collection->push('Adam'); 5}); 6  7$collection->all(); 8  9// ['Michael', 'Tom', 'Adam']10 11$collection=collect();12 13$collection->whenNotEmpty(function(Collection$collection) {14return$collection->push('Adam');15});16 17$collection->all();18 19// []
+$collection = collect(['Michael', 'Tom']);
+
+$collection->whenNotEmpty(function (Collection $collection) {
+    return $collection->push('Adam');
+});
+
+$collection->all();
+
+// ['Michael', 'Tom', 'Adam']
+
+$collection = collect();
+
+$collection->whenNotEmpty(function (Collection $collection) {
+    return $collection->push('Adam');
+});
+
+$collection->all();
+
+// []</code></pre></div><p>A second closure may be passed to the <code>whenNotEmpty</code> method that will be executed when the collection is empty:<div><pre><code> 1$collection=collect(); 2  3$collection->whenNotEmpty(function(Collection$collection) { 4return$collection->push('Adam'); 5}, function(Collection$collection) { 6return$collection->push('Taylor'); 7}); 8  9$collection->all();10 11// ['Taylor']
+$collection = collect();
+
+$collection->whenNotEmpty(function (Collection $collection) {
+    return $collection->push('Adam');
+}, function (Collection $collection) {
+    return $collection->push('Taylor');
+});
+
+$collection->all();
+
+// ['Taylor']</code></pre></div><p>For the inverse of <code>whenNotEmpty</code>, see the <a href=#method-whenempty>whenEmpty</a> method.<h4><a href=#method-where><code>where()</code></a></h4><p>The <code>where</code> method filters the collection by a given key / value pair:<div><pre><code> 1$collection=collect([ 2['product'=>'Desk','price'=>200], 3['product'=>'Chair','price'=>100], 4['product'=>'Bookcase','price'=>150], 5['product'=>'Door','price'=>100], 6]); 7  8$filtered=$collection->where('price', 100); 9 10$filtered->all();11 12/*13    [14        ['product' => 'Chair', 'price' => 100],15        ['product' => 'Door', 'price' => 100],16    ]17*/
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 100],
+    ['product' => 'Bookcase', 'price' => 150],
+    ['product' => 'Door', 'price' => 100],
+]);
+
+$filtered = $collection->where('price', 100);
+
+$filtered->all();
+
+/*
+    [
+        ['product' => 'Chair', 'price' => 100],
+        ['product' => 'Door', 'price' => 100],
+    ]
+*/</code></pre></div><p>The <code>where</code> method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the <a href=#method-wherestrict>whereStrict</a> method to filter using "strict" comparisons.<p>Optionally, you may pass a comparison operator as the second parameter. Supported operators are: '===', '!==', '!=', '==', '=', '&lt;>', '>', '&lt;', '>=', and '&lt;=':<div><pre><code> 1$collection=collect([ 2['name'=>'Jim','deleted_at'=>'2019-01-01 00:00:00'], 3['name'=>'Sally','deleted_at'=>'2019-01-02 00:00:00'], 4['name'=>'Sue','deleted_at'=> null], 5]); 6  7$filtered=$collection->where('deleted_at', '!=', null); 8  9$filtered->all();10 11/*12    [13        ['name' => 'Jim', 'deleted_at' => '2019-01-01 00:00:00'],14        ['name' => 'Sally', 'deleted_at' => '2019-01-02 00:00:00'],15    ]16*/
+$collection = collect([
+    ['name' => 'Jim', 'deleted_at' => '2019-01-01 00:00:00'],
+    ['name' => 'Sally', 'deleted_at' => '2019-01-02 00:00:00'],
+    ['name' => 'Sue', 'deleted_at' => null],
+]);
+
+$filtered = $collection->where('deleted_at', '!=', null);
+
+$filtered->all();
+
+/*
+    [
+        ['name' => 'Jim', 'deleted_at' => '2019-01-01 00:00:00'],
+        ['name' => 'Sally', 'deleted_at' => '2019-01-02 00:00:00'],
+    ]
+*/</code></pre></div><h4><a href=#method-wherestrict><code>whereStrict()</code></a></h4><p>This method has the same signature as the <a href=#method-where>where</a> method; however, all values are compared using "strict" comparisons.<h4><a href=#method-wherebetween><code>whereBetween()</code></a></h4><p>The <code>whereBetween</code> method filters the collection by determining if a specified item value is within a given range:<div><pre><code> 1$collection=collect([ 2['product'=>'Desk','price'=>200], 3['product'=>'Chair','price'=>80], 4['product'=>'Bookcase','price'=>150], 5['product'=>'Pencil','price'=>30], 6['product'=>'Door','price'=>100], 7]); 8  9$filtered=$collection->whereBetween('price', [100, 200]);10 11$filtered->all();12 13/*14    [15        ['product' => 'Desk', 'price' => 200],16        ['product' => 'Bookcase', 'price' => 150],17        ['product' => 'Door', 'price' => 100],18    ]19*/
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 80],
+    ['product' => 'Bookcase', 'price' => 150],
+    ['product' => 'Pencil', 'price' => 30],
+    ['product' => 'Door', 'price' => 100],
+]);
+
+$filtered = $collection->whereBetween('price', [100, 200]);
+
+$filtered->all();
+
+/*
+    [
+        ['product' => 'Desk', 'price' => 200],
+        ['product' => 'Bookcase', 'price' => 150],
+        ['product' => 'Door', 'price' => 100],
+    ]
+*/</code></pre></div><h4><a href=#method-wherein><code>whereIn()</code></a></h4><p>The <code>whereIn</code> method removes elements from the collection that do not have a specified item value that is contained within the given array:<div><pre><code> 1$collection=collect([ 2['product'=>'Desk','price'=>200], 3['product'=>'Chair','price'=>100], 4['product'=>'Bookcase','price'=>150], 5['product'=>'Door','price'=>100], 6]); 7  8$filtered=$collection->whereIn('price', [150, 200]); 9 10$filtered->all();11 12/*13    [14        ['product' => 'Desk', 'price' => 200],15        ['product' => 'Bookcase', 'price' => 150],16    ]17*/
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 100],
+    ['product' => 'Bookcase', 'price' => 150],
+    ['product' => 'Door', 'price' => 100],
+]);
+
+$filtered = $collection->whereIn('price', [150, 200]);
+
+$filtered->all();
+
+/*
+    [
+        ['product' => 'Desk', 'price' => 200],
+        ['product' => 'Bookcase', 'price' => 150],
+    ]
+*/</code></pre></div><p>The <code>whereIn</code> method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the <a href=#method-whereinstrict>whereInStrict</a> method to filter using "strict" comparisons.<h4><a href=#method-whereinstrict><code>whereInStrict()</code></a></h4><p>This method has the same signature as the <a href=#method-wherein>whereIn</a> method; however, all values are compared using "strict" comparisons.<h4><a href=#method-whereinstanceof><code>whereInstanceOf()</code></a></h4><p>The <code>whereInstanceOf</code> method filters the collection by a given class type:<div><pre><code> 1use App\Models\User; 2use App\Models\Post; 3  4$collection=collect([ 5newUser, 6newUser, 7newPost, 8]); 9 10$filtered=$collection->whereInstanceOf(User::class);11 12$filtered->all();13 14// [App\Models\User, App\Models\User]
+use App\Models\User;
+use App\Models\Post;
+
+$collection = collect([
+    new User,
+    new User,
+    new Post,
+]);
+
+$filtered = $collection->whereInstanceOf(User::class);
+
+$filtered->all();
+
+// [App\Models\User, App\Models\User]</code></pre></div><h4><a href=#method-wherenotbetween><code>whereNotBetween()</code></a></h4><p>The <code>whereNotBetween</code> method filters the collection by determining if a specified item value is outside of a given range:<div><pre><code> 1$collection=collect([ 2['product'=>'Desk','price'=>200], 3['product'=>'Chair','price'=>80], 4['product'=>'Bookcase','price'=>150], 5['product'=>'Pencil','price'=>30], 6['product'=>'Door','price'=>100], 7]); 8  9$filtered=$collection->whereNotBetween('price', [100, 200]);10 11$filtered->all();12 13/*14    [15        ['product' => 'Chair', 'price' => 80],16        ['product' => 'Pencil', 'price' => 30],17    ]18*/
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 80],
+    ['product' => 'Bookcase', 'price' => 150],
+    ['product' => 'Pencil', 'price' => 30],
+    ['product' => 'Door', 'price' => 100],
+]);
+
+$filtered = $collection->whereNotBetween('price', [100, 200]);
+
+$filtered->all();
+
+/*
+    [
+        ['product' => 'Chair', 'price' => 80],
+        ['product' => 'Pencil', 'price' => 30],
+    ]
+*/</code></pre></div><h4><a href=#method-wherenotin><code>whereNotIn()</code></a></h4><p>The <code>whereNotIn</code> method removes elements from the collection that have a specified item value that is contained within the given array:<div><pre><code> 1$collection=collect([ 2['product'=>'Desk','price'=>200], 3['product'=>'Chair','price'=>100], 4['product'=>'Bookcase','price'=>150], 5['product'=>'Door','price'=>100], 6]); 7  8$filtered=$collection->whereNotIn('price', [150, 200]); 9 10$filtered->all();11 12/*13    [14        ['product' => 'Chair', 'price' => 100],15        ['product' => 'Door', 'price' => 100],16    ]17*/
+$collection = collect([
+    ['product' => 'Desk', 'price' => 200],
+    ['product' => 'Chair', 'price' => 100],
+    ['product' => 'Bookcase', 'price' => 150],
+    ['product' => 'Door', 'price' => 100],
+]);
+
+$filtered = $collection->whereNotIn('price', [150, 200]);
+
+$filtered->all();
+
+/*
+    [
+        ['product' => 'Chair', 'price' => 100],
+        ['product' => 'Door', 'price' => 100],
+    ]
+*/</code></pre></div><p>The <code>whereNotIn</code> method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the <a href=#method-wherenotinstrict>whereNotInStrict</a> method to filter using "strict" comparisons.<h4><a href=#method-wherenotinstrict><code>whereNotInStrict()</code></a></h4><p>This method has the same signature as the <a href=#method-wherenotin>whereNotIn</a> method; however, all values are compared using "strict" comparisons.<h4><a href=#method-wherenotnull><code>whereNotNull()</code></a></h4><p>The <code>whereNotNull</code> method returns items from the collection where the given key is not <code>null</code>:<div><pre><code> 1$collection=collect([ 2['name'=>'Desk'], 3['name'=> null], 4['name'=>'Bookcase'], 5]); 6  7$filtered=$collection->whereNotNull('name'); 8  9$filtered->all();10 11/*12    [13        ['name' => 'Desk'],14        ['name' => 'Bookcase'],15    ]16*/
+$collection = collect([
+    ['name' => 'Desk'],
+    ['name' => null],
+    ['name' => 'Bookcase'],
+]);
+
+$filtered = $collection->whereNotNull('name');
+
+$filtered->all();
+
+/*
+    [
+        ['name' => 'Desk'],
+        ['name' => 'Bookcase'],
+    ]
+*/</code></pre></div><h4><a href=#method-wherenull><code>whereNull()</code></a></h4><p>The <code>whereNull</code> method returns items from the collection where the given key is <code>null</code>:<div><pre><code> 1$collection=collect([ 2['name'=>'Desk'], 3['name'=> null], 4['name'=>'Bookcase'], 5]); 6  7$filtered=$collection->whereNull('name'); 8  9$filtered->all();10 11/*12    [13        ['name' => null],14    ]15*/
+$collection = collect([
+    ['name' => 'Desk'],
+    ['name' => null],
+    ['name' => 'Bookcase'],
+]);
+
+$filtered = $collection->whereNull('name');
+
+$filtered->all();
+
+/*
+    [
+        ['name' => null],
+    ]
+*/</code></pre></div><h4><a href=#method-wrap><code>wrap()</code></a></h4><p>The static <code>wrap</code> method wraps the given value in a collection when applicable:<div><pre><code> 1use Illuminate\Support\Collection; 2  3$collection=Collection::wrap('John Doe'); 4  5$collection->all(); 6  7// ['John Doe'] 8  9$collection=Collection::wrap(['John Doe']);10 11$collection->all();12 13// ['John Doe']14 15$collection=Collection::wrap(collect('John Doe'));16 17$collection->all();18 19// ['John Doe']
+use Illuminate\Support\Collection;
+
+$collection = Collection::wrap('John Doe');
+
+$collection->all();
+
+// ['John Doe']
+
+$collection = Collection::wrap(['John Doe']);
+
+$collection->all();
+
+// ['John Doe']
+
+$collection = Collection::wrap(collect('John Doe'));
+
+$collection->all();
+
+// ['John Doe']</code></pre></div><h4><a href=#method-zip><code>zip()</code></a></h4><p>The <code>zip</code> method merges together the values of the given array with the values of the original collection at their corresponding index:<div><pre><code>1$collection=collect(['Chair','Desk']);2 3$zipped=$collection->zip([100, 200]);4 5$zipped->all();6 7// [['Chair', 100], ['Desk', 200]]
+$collection = collect(['Chair', 'Desk']);
+
+$zipped = $collection->zip([100, 200]);
+
+$zipped->all();
+
+// [['Chair', 100], ['Desk', 200]]</code></pre></div><h2><a href=#higher-order-messages>Higher Order Messages</a></h2><p>Collections also provide support for "higher order messages", which are short-cuts for performing common actions on collections. The collection methods that provide higher order messages are: <a href=#method-average>average</a>, <a href=#method-avg>avg</a>, <a href=#method-contains>contains</a>, <a href=#method-each>each</a>, <a href=#method-every>every</a>, <a href=#method-filter>filter</a>, <a href=#method-first>first</a>, <a href=#method-flatmap>flatMap</a>, <a href=#method-groupby>groupBy</a>, <a href=#method-keyby>keyBy</a>, <a href=#method-map>map</a>, <a href=#method-max>max</a>, <a href=#method-min>min</a>, <a href=#method-partition>partition</a>, <a href=#method-reject>reject</a>, <a href=#method-skipuntil>skipUntil</a>, <a href=#method-skipwhile>skipWhile</a>, <a href=#method-some>some</a>, <a href=#method-sortby>sortBy</a>, <a href=#method-sortbydesc>sortByDesc</a>, <a href=#method-sum>sum</a>, <a href=#method-takeuntil>takeUntil</a>, <a href=#method-takewhile>takeWhile</a>, and <a href=#method-unique>unique</a>.<p>Each higher order message can be accessed as a dynamic property on a collection instance. For instance, let's use the <code>each</code> higher order message to call a method on each object within a collection:<div><pre><code>1use App\Models\User;2 3$users=User::where('votes', '>', 500)->get();4 5$users->each->markAsVip();
+use App\Models\User;
+
+$users = User::where('votes', '>', 500)->get();
+
+$users->each->markAsVip();</code></pre></div><p>Likewise, we can use the <code>sum</code> higher order message to gather the total number of "votes" for a collection of users:<div><pre><code>1$users=User::where('group', 'Development')->get();2 3return$users->sum->votes;
+$users = User::where('group', 'Development')->get();
+
+return $users->sum->votes;</code></pre></div><h2><a href=#lazy-collections>Lazy Collections</a></h2><h3><a href=#lazy-collection-introduction>Introduction</a></h3><div><p>Before learning more about Laravel's lazy collections, take some time to familiarize yourself with <a href=https://www.php.net/manual/en/language.generators.overview.php>PHP generators</a>.</div><p>To supplement the already powerful <code>Collection</code> class, the <code>LazyCollection</code> class leverages PHP's <a href=https://www.php.net/manual/en/language.generators.overview.php>generators</a> to allow you to work with very large datasets while keeping memory usage low.<p>For example, imagine your application needs to process a multi-gigabyte log file while taking advantage of Laravel's collection methods to parse the logs. Instead of reading the entire file into memory at once, lazy collections may be used to keep only a small part of the file in memory at a given time:<div><pre><code> 1use App\Models\LogEntry; 2use Illuminate\Support\LazyCollection; 3  4LazyCollection::make(function() { 5$handle=fopen('log.txt','r'); 6  7while (($line=fgets($handle)) !==false) { 8yield$line; 9    }10 11fclose($handle);12})->chunk(4)->map(function(array$lines) {13returnLogEntry::fromLines($lines);14})->each(function(LogEntry$logEntry) {15// Process the log entry...16});
+use App\Models\LogEntry;
+use Illuminate\Support\LazyCollection;
+
+LazyCollection::make(function () {
+    $handle = fopen('log.txt', 'r');
+
+    while (($line = fgets($handle)) !== false) {
+        yield $line;
+    }
+
+    fclose($handle);
+})->chunk(4)->map(function (array $lines) {
+    return LogEntry::fromLines($lines);
+})->each(function (LogEntry $logEntry) {
+    // Process the log entry...
+});</code></pre></div><p>Or, imagine you need to iterate through 10,000 Eloquent models. When using traditional Laravel collections, all 10,000 Eloquent models must be loaded into memory at the same time:<div><pre><code>1use App\Models\User;2 3$users=User::all()->filter(function(User$user) {4return$user->id>500;5});
+use App\Models\User;
+
+$users = User::all()->filter(function (User $user) {
+    return $user->id > 500;
+});</code></pre></div><p>However, the query builder's <code>cursor</code> method returns a <code>LazyCollection</code> instance. This allows you to still only run a single query against the database but also only keep one Eloquent model loaded in memory at a time. In this example, the <code>filter</code> callback is not executed until we actually iterate over each user individually, allowing for a drastic reduction in memory usage:<div><pre><code>1use App\Models\User;2 3$users=User::cursor()->filter(function(User$user) {4return$user->id>500;5});6 7foreach ($usersas$user) {8echo$user->id;9}
+use App\Models\User;
+
+$users = User::cursor()->filter(function (User $user) {
+    return $user->id > 500;
+});
+
+foreach ($users as $user) {
+    echo $user->id;
+}</code></pre></div><h3><a href=#creating-lazy-collections>Creating Lazy Collections</a></h3><p>To create a lazy collection instance, you should pass a PHP generator function to the collection's <code>make</code> method:<div><pre><code> 1use Illuminate\Support\LazyCollection; 2  3LazyCollection::make(function() { 4$handle=fopen('log.txt','r'); 5  6while (($line=fgets($handle)) !==false) { 7yield$line; 8    } 9 10fclose($handle);11});
+use Illuminate\Support\LazyCollection;
+
+LazyCollection::make(function () {
+    $handle = fopen('log.txt', 'r');
+
+    while (($line = fgets($handle)) !== false) {
+        yield $line;
+    }
+
+    fclose($handle);
+});</code></pre></div><h3><a href=#the-enumerable-contract>The Enumerable Contract</a></h3><p>Almost all methods available on the <code>Collection</code> class are also available on the <code>LazyCollection</code> class. Both of these classes implement the <code>Illuminate\Support\Enumerable</code> contract, which defines the following methods:<div markdown=1><p><a href=#method-all>all</a> <a href=#method-average>average</a> <a href=#method-avg>avg</a> <a href=#method-chunk>chunk</a> <a href=#method-chunkwhile>chunkWhile</a> <a href=#method-collapse>collapse</a> <a href=#method-collect>collect</a> <a href=#method-combine>combine</a> <a href=#method-concat>concat</a> <a href=#method-contains>contains</a> <a href=#method-containsstrict>containsStrict</a> <a href=#method-count>count</a> <a href=#method-countBy>countBy</a> <a href=#method-crossjoin>crossJoin</a> <a href=#method-dd>dd</a> <a href=#method-diff>diff</a> <a href=#method-diffassoc>diffAssoc</a> <a href=#method-diffkeys>diffKeys</a> <a href=#method-dump>dump</a> <a href=#method-duplicates>duplicates</a> <a href=#method-duplicatesstrict>duplicatesStrict</a> <a href=#method-each>each</a> <a href=#method-eachspread>eachSpread</a> <a href=#method-every>every</a> <a href=#method-except>except</a> <a href=#method-filter>filter</a> <a href=#method-first>first</a> <a href=#method-first-or-fail>firstOrFail</a> <a href=#method-first-where>firstWhere</a> <a href=#method-flatmap>flatMap</a> <a href=#method-flatten>flatten</a> <a href=#method-flip>flip</a> <a href=#method-forpage>forPage</a> <a href=#method-get>get</a> <a href=#method-groupby>groupBy</a> <a href=#method-has>has</a> <a href=#method-implode>implode</a> <a href=#method-intersect>intersect</a> <a href=#method-intersectAssoc>intersectAssoc</a> <a href=#method-intersectbykeys>intersectByKeys</a> <a href=#method-isempty>isEmpty</a> <a href=#method-isnotempty>isNotEmpty</a> <a href=#method-join>join</a> <a href=#method-keyby>keyBy</a> <a href=#method-keys>keys</a> <a href=#method-last>last</a> <a href=#method-macro>macro</a> <a href=#method-make>make</a> <a href=#method-map>map</a> <a href=#method-mapinto>mapInto</a> <a href=#method-mapspread>mapSpread</a> <a href=#method-maptogroups>mapToGroups</a> <a href=#method-mapwithkeys>mapWithKeys</a> <a href=#method-max>max</a> <a href=#method-median>median</a> <a href=#method-merge>merge</a> <a href=#method-mergerecursive>mergeRecursive</a> <a href=#method-min>min</a> <a href=#method-mode>mode</a> <a href=#method-nth>nth</a> <a href=#method-only>only</a> <a href=#method-pad>pad</a> <a href=#method-partition>partition</a> <a href=#method-pipe>pipe</a> <a href=#method-pluck>pluck</a> <a href=#method-random>random</a> <a href=#method-reduce>reduce</a> <a href=#method-reject>reject</a> <a href=#method-replace>replace</a> <a href=#method-replacerecursive>replaceRecursive</a> <a href=#method-reverse>reverse</a> <a href=#method-search>search</a> <a href=#method-shuffle>shuffle</a> <a href=#method-skip>skip</a> <a href=#method-slice>slice</a> <a href=#method-sole>sole</a> <a href=#method-some>some</a> <a href=#method-sort>sort</a> <a href=#method-sortby>sortBy</a> <a href=#method-sortbydesc>sortByDesc</a> <a href=#method-sortkeys>sortKeys</a> <a href=#method-sortkeysdesc>sortKeysDesc</a> <a href=#method-split>split</a> <a href=#method-sum>sum</a> <a href=#method-take>take</a> <a href=#method-tap>tap</a> <a href=#method-times>times</a> <a href=#method-toarray>toArray</a> <a href=#method-tojson>toJson</a> <a href=#method-union>union</a> <a href=#method-unique>unique</a> <a href=#method-uniquestrict>uniqueStrict</a> <a href=#method-unless>unless</a> <a href=#method-unlessempty>unlessEmpty</a> <a href=#method-unlessnotempty>unlessNotEmpty</a> <a href=#method-unwrap>unwrap</a> <a href=#method-values>values</a> <a href=#method-when>when</a> <a href=#method-whenempty>whenEmpty</a> <a href=#method-whennotempty>whenNotEmpty</a> <a href=#method-where>where</a> <a href=#method-wherestrict>whereStrict</a> <a href=#method-wherebetween>whereBetween</a> <a href=#method-wherein>whereIn</a> <a href=#method-whereinstrict>whereInStrict</a> <a href=#method-whereinstanceof>whereInstanceOf</a> <a href=#method-wherenotbetween>whereNotBetween</a> <a href=#method-wherenotin>whereNotIn</a> <a href=#method-wherenotinstrict>whereNotInStrict</a> <a href=#method-wrap>wrap</a> <a href=#method-zip>zip</a></div><div><p>Methods that mutate the collection (such as <code>shift</code>, <code>pop</code>, <code>prepend</code> etc.) are not available on the <code>LazyCollection</code> class.</div><h3><a href=#lazy-collection-methods>Lazy Collection Methods</a></h3><p>In addition to the methods defined in the <code>Enumerable</code> contract, the <code>LazyCollection</code> class contains the following methods:<h4><a href=#method-takeUntilTimeout><code>takeUntilTimeout()</code></a></h4><p>The <code>takeUntilTimeout</code> method returns a new lazy collection that will enumerate values until the specified time. After that time, the collection will then stop enumerating:<div><pre><code> 1$lazyCollection=LazyCollection::times(INF) 2->takeUntilTimeout(now()->addMinute()); 3  4$lazyCollection->each(function(int$number) { 5dump($number); 6  7sleep(1); 8}); 9 10// 111// 212// ...13// 5814// 59
+$lazyCollection = LazyCollection::times(INF)
+    ->takeUntilTimeout(now()->addMinute());
+
+$lazyCollection->each(function (int $number) {
+    dump($number);
+
+    sleep(1);
+});
+
+// 1
+// 2
+// ...
+// 58
+// 59</code></pre></div><p>To illustrate the usage of this method, imagine an application that submits invoices from the database using a cursor. You could define a <a href=scheduling.htm>scheduled task</a> that runs every 15 minutes and only processes invoices for a maximum of 14 minutes:<div><pre><code>1use App\Models\Invoice;2use Illuminate\Support\Carbon;3 4Invoice::pending()->cursor()5->takeUntilTimeout(6Carbon::createFromTimestamp(LARAVEL_START)->add(14, 'minutes')7    )8->each(fn(Invoice$invoice) => $invoice->submit());
+use App\Models\Invoice;
+use Illuminate\Support\Carbon;
+
+Invoice::pending()->cursor()
+    ->takeUntilTimeout(
+        Carbon::createFromTimestamp(LARAVEL_START)->add(14, 'minutes')
+    )
+    ->each(fn (Invoice $invoice) => $invoice->submit());</code></pre></div><h4><a href=#method-tapEach><code>tapEach()</code></a></h4><p>While the <code>each</code> method calls the given callback for each item in the collection right away, the <code>tapEach</code> method only calls the given callback as the items are being pulled out of the list one by one:<div><pre><code> 1// Nothing has been dumped so far... 2$lazyCollection=LazyCollection::times(INF)->tapEach(function(int$value) { 3dump($value); 4}); 5  6// Three items are dumped... 7$array=$lazyCollection->take(3)->all(); 8  9// 110// 211// 3
+// Nothing has been dumped so far...
+$lazyCollection = LazyCollection::times(INF)->tapEach(function (int $value) {
+    dump($value);
+});
+
+// Three items are dumped...
+$array = $lazyCollection->take(3)->all();
+
+// 1
+// 2
+// 3</code></pre></div><h4><a href=#method-throttle><code>throttle()</code></a></h4><p>The <code>throttle</code> method will throttle the lazy collection such that each value is returned after the specified number of seconds. This method is especially useful for situations where you may be interacting with external APIs that rate limit incoming requests:<div><pre><code>1use App\Models\User;2 3User::where('vip', true)4->cursor()5->throttle(seconds: 1)6->each(function(User$user) {7// Call external API...8    });
+use App\Models\User;
+
+User::where('vip', true)
+    ->cursor()
+    ->throttle(seconds: 1)
+    ->each(function (User $user) {
+        // Call external API...
+    });</code></pre></div><h4><a href=#method-remember><code>remember()</code></a></h4><p>The <code>remember</code> method returns a new lazy collection that will remember any values that have already been enumerated and will not retrieve them again on subsequent collection enumerations:<div><pre><code> 1// No query has been executed yet... 2$users=User::cursor()->remember(); 3  4// The query is executed... 5// The first 5 users are hydrated from the database... 6$users->take(5)->all(); 7  8// First 5 users come from the collection's cache... 9// The rest are hydrated from the database...10$users->take(20)->all();
+// No query has been executed yet...
+$users = User::cursor()->remember();
+
+// The query is executed...
+// The first 5 users are hydrated from the database...
+$users->take(5)->all();
+
+// First 5 users come from the collection's cache...
+// The rest are hydrated from the database...
+$users->take(20)->all();</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a> <ul><li><a href=#creating-collections> Creating Collections </a><li><a href=#extending-collections> Extending Collections </a></ul><li><a href=#available-methods> Available Methods </a><li><a href=#higher-order-messages> Higher Order Messages </a><li><a href=#lazy-collections> Lazy Collections </a> <ul><li><a href=#lazy-collection-introduction> Introduction </a><li><a href=#creating-lazy-collections> Creating Lazy Collections </a><li><a href=#the-enumerable-contract> The Enumerable Contract </a><li><a href=#lazy-collection-methods> Lazy Collection Methods </a></ul></ul></div></div></div></div></div></div></div></div></div>

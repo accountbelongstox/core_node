@@ -11,8 +11,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-use App\Apps\AppQyV1\Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController;
 use Illuminate\Support\Facades\Route;
 
 /*

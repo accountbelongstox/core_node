@@ -54,6 +54,18 @@ declare -A EXTENSION_MAP=(
 
 REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "opcache" "intl" "bcmath")
 
+# Laravel Octane Support - PECL Extensions
+OCTANE_PECL_EXTENSIONS=(
+    "swoole"
+    "openswoole"
+)
+
+# Octane extension mapping: pecl_name -> module_name
+declare -A OCTANE_EXTENSION_MAP=(
+    ["swoole"]="swoole"
+    ["openswoole"]="openswoole"
+)
+
 # PHP State Definitions
 declare -A PHP_STATE=(
     ["FULLY_CONFIGURED"]="Fully configured and operational"

@@ -9,6 +9,14 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# IMPORTANT: This script must be run as ROOT user
+# Required for SSL certificate installation and nginx configuration
+if [ "$EUID" -ne 0 ] && [ -z "$SUDO_USER" ]; then
+    echo "Error: This script must be run as root or with sudo"
+    echo "Usage: sudo $0"
+    exit 1
+fi
+
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -83,6 +91,7 @@ setup_ssl_certificate() {
     echo "[$SCRIPT_INDEX] Setting up SSL certificate for: $domain"
     echo "[$SCRIPT_INDEX] Prefixes: $cert_prefixes"
     echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] Note: Laravel automatically handles certificate updates and renewals"
 
     # Change to Laravel directory
     cd "$laravel_dir" || {
@@ -90,7 +99,11 @@ setup_ssl_certificate() {
         return 1
     }
 
-    # Add SSL certificate with selected prefixes
+    # Add/Update SSL certificate with selected prefixes
+    # Laravel's certificate command handles:
+    # - Duplicate detection (won't recreate if already exists)
+    # - Certificate renewal (updates expiring certificates)
+    # - Idempotent behavior (safe to run multiple times)
     echo "[$SCRIPT_INDEX] Executing: $USE_SUDO php artisan servermanager:certificate add \"$domain\" --prefixes=$cert_prefixes --provider=dnspod"
 
     local ssl_output
@@ -103,7 +116,7 @@ setup_ssl_certificate() {
     done
 
     if [ $ssl_result -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] [OK] SSL certificate added successfully for: $domain"
+        echo "[$SCRIPT_INDEX] [OK] SSL certificate processed successfully for: $domain"
         return 0
     else
         echo "[$SCRIPT_INDEX] [WARN] SSL certificate setup failed for: $domain"

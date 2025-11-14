@@ -149,7 +149,7 @@ class ServerManagerV1DomainManager
         }
 
         // Use PathMapper for environment-aware path (no hardcoded paths)
-        $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
+        $wwwroot = PathMapper::mapWebPath('wwwroot');
         $wwwDir = $config['www_dir'] ?? "$wwwroot/$domain";
 
         // Validate and ensure www directory exists
@@ -175,11 +175,55 @@ class ServerManagerV1DomainManager
             return false;
         }
 
+        // IMPORTANT: Check if another domain already uses this www_dir with Swoole
+        // One directory = One Swoole service shared by multiple domains
+        $sharedSwoolePort = null;
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+
+        if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+            foreach ($domains as $existingDomain => $existingConfig) {
+                if ($existingDomain === $domain) {
+                    continue; // Skip self
+                }
+
+                if (($existingConfig['www_dir'] ?? '') === $wwwDir) {
+                    // Found another domain using the same directory
+                    $existingPhpMode = ServerManagerV1PathConfig::normalizePhpMode($existingConfig['php_mode'] ?? 'fpm');
+                    if (ServerManagerV1PathConfig::isSwooleMode($existingPhpMode)) {
+                        // It's using Swoole, share the same port
+                        $sharedSwoolePort = $existingConfig['swoole_port'] ?? null;
+                        if ($sharedSwoolePort) {
+                            Log::info('Sharing Swoole port with existing domain', [
+                                'domain' => $domain,
+                                'existing_domain' => $existingDomain,
+                                'shared_port' => $sharedSwoolePort,
+                                'www_dir' => $wwwDir
+                            ]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Auto-assign Swoole port if needed
+        $swoolePort = $config['swoole_port'] ?? $sharedSwoolePort;
+        if (ServerManagerV1PathConfig::isSwooleMode($phpMode) && !$swoolePort) {
+            $swoolePort = self::getNextAvailableSwoolePort();
+            Log::info('Auto-assigned Swoole port', [
+                'domain' => $domain,
+                'port' => $swoolePort
+            ]);
+        }
+
         $domainConfig = [
             'domain' => $domain,
             'type' => $config['type'] ?? 'laravel',
             'www_dir' => $wwwDir,
-            'php_version' => $config['php_version'] ?? '8.2',
+            'php_version' => $config['php_version'] ?? '8.4',
+            'php_mode' => $phpMode,
+            'swoole_port' => $swoolePort,
+            'swoole_workers' => $config['swoole_workers'] ?? 4,
             'ssl_enabled' => $config['ssl_enabled'] ?? false,
             'ssl_provider' => $config['ssl_provider'] ?? 'dnspod',
             'ssl_certificate_id' => $config['ssl_certificate_id'] ?? null,
@@ -282,8 +326,50 @@ class ServerManagerV1DomainManager
             return true; // Already removed
         }
 
-        // Record history before removal (EXTENDED FEATURE)
+        // Check if domain uses Swoole and if we need to stop the service
         $removedConfig = $domains[$domain];
+        $phpMode = $removedConfig['php_mode'] ?? 'fpm';
+        $wwwDir = $removedConfig['www_dir'] ?? null;
+        $swoolePort = $removedConfig['swoole_port'] ?? null;
+
+        $shouldStopService = false;
+
+        if (ServerManagerV1PathConfig::isSwooleMode($phpMode) && $wwwDir && $swoolePort) {
+            // Count how many other domains use the same directory with Swoole
+            $otherSwooleDomainsCount = 0;
+
+            foreach ($domains as $existingDomain => $existingConfig) {
+                if ($existingDomain === $domain) {
+                    continue; // Skip the domain being removed
+                }
+
+                if (($existingConfig['www_dir'] ?? '') === $wwwDir) {
+                    $existingPhpMode = ServerManagerV1PathConfig::normalizePhpMode($existingConfig['php_mode'] ?? 'fpm');
+                    if (ServerManagerV1PathConfig::isSwooleMode($existingPhpMode)) {
+                        $otherSwooleDomainsCount++;
+                    }
+                }
+            }
+
+            // If this is the last domain using Swoole for this path, stop the service
+            if ($otherSwooleDomainsCount === 0) {
+                $shouldStopService = true;
+
+                Log::info('Last Swoole domain for path, will stop service', [
+                    'domain' => $domain,
+                    'www_dir' => $wwwDir,
+                    'port' => $swoolePort
+                ]);
+            } else {
+                Log::info('Other domains still using Swoole service, keeping it running', [
+                    'domain' => $domain,
+                    'www_dir' => $wwwDir,
+                    'remaining_domains' => $otherSwooleDomainsCount
+                ]);
+            }
+        }
+
+        // Record history before removal (EXTENDED FEATURE)
         self::recordHistory($domain, 'delete', [
             'removed_config' => $removedConfig
         ]);
@@ -292,6 +378,24 @@ class ServerManagerV1DomainManager
 
         if (self::saveDomains($domains)) {
             Log::info('Domain removed successfully', ['domain' => $domain]);
+
+            // Stop Swoole service if needed
+            if ($shouldStopService && $wwwDir && $swoolePort) {
+                try {
+                    ServerManagerV1OctaneServiceManager::undeployOctaneServiceFromPath($wwwDir, $swoolePort);
+                    Log::info('Swoole service stopped', [
+                        'www_dir' => $wwwDir,
+                        'port' => $swoolePort
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to stop Swoole service', [
+                        'www_dir' => $wwwDir,
+                        'port' => $swoolePort,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
             return true;
         }
 
@@ -665,7 +769,7 @@ class ServerManagerV1DomainManager
 
         if ($sslEnabled) {
             // Get certificate path from certificate manager
-            $certificate = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager::findCertificateForDomain($domain);
+            $certificate = ServerManagerV1CertificateManager::findCertificateForDomain($domain);
             if ($certificate && isset($certificate['certificate_path'])) {
                 $certDir = rtrim($certificate['certificate_path'], '/');
             } else {
@@ -697,10 +801,59 @@ class ServerManagerV1DomainManager
 
         // Generate PHP configuration for Laravel/PHP sites
         $phpConfig = '';
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+
         if (in_array($config['type'], ['laravel', 'poly', 'php'])) {
-            $phpVersion = $config['php_version'] ?? '8.2';
-            $phpConfig = "
-    # PHP Configuration
+            if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+                // Swoole mode (Octane): Reverse proxy configuration
+                $swoolePort = $config['swoole_port'] ?? 8000;
+                $phpConfig = "
+    # Swoole/Octane Reverse Proxy
+    index index.php index.html index.htm;
+
+    location / {
+        try_files \$uri @swoole;
+    }
+
+    location @swoole {
+        proxy_pass http://127.0.0.1:$swoolePort;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # WebSocket support
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass \$http_upgrade;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Static files handled by Nginx
+    location ~* \\.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot|webp|mp4|mp3|pdf)\$ {
+        try_files \$uri =404;
+        expires 1y;
+        add_header Cache-Control \"public, immutable\";
+    }
+
+    # Deny access to sensitive files
+    location ~ /\\. {
+        deny all;
+    }
+
+    location ~ /(storage|bootstrap/cache) {
+        deny all;
+    }";
+            } else {
+                // FPM mode: Traditional FastCGI configuration
+                $phpVersion = $config['php_version'] ?? '8.4';
+                $phpConfig = "
+    # PHP-FPM Configuration
     index index.php index.html index.htm;
 
     location ~ \\.php\$ {
@@ -715,9 +868,9 @@ class ServerManagerV1DomainManager
         fastcgi_read_timeout 300;
     }";
 
-            // Laravel specific configuration
-            if (in_array($config['type'], ['laravel', 'poly'])) {
-                $phpConfig .= "
+                // Laravel specific configuration for FPM mode
+                if (in_array($config['type'], ['laravel', 'poly'])) {
+                    $phpConfig .= "
 
     # Laravel specific configuration
     location / {
@@ -732,6 +885,7 @@ class ServerManagerV1DomainManager
     location ~ /(storage|bootstrap/cache) {
         deny all;
     }";
+                }
             }
         }
 
@@ -2611,5 +2765,301 @@ server {
         ], $options);
 
         return self::addDomain($domain, $config);
+    }
+
+    // ========================================
+    // Swoole/Octane Mode Management
+    // ========================================
+
+    /**
+     * Switch domain PHP mode between FPM and Swoole
+     *
+     * @param string $domain Domain name
+     * @param string $newMode New mode: fpm, swoole
+     * @param array $options Optional configuration: swoole_port, swoole_workers
+     * @return bool Success status
+     */
+    public static function switchPhpMode(string $domain, string $newMode, array $options = []): bool
+    {
+        // Normalize mode: convert legacy 'octane' to 'swoole'
+        $newMode = ServerManagerV1PathConfig::normalizePhpMode($newMode);
+        $allowedModes = ['fpm', 'swoole'];
+
+        if (!in_array($newMode, $allowedModes)) {
+            Log::error('Invalid PHP mode', ['mode' => $newMode, 'allowed' => $allowedModes]);
+            return false;
+        }
+
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            Log::error('Domain not found for mode switch', ['domain' => $domain]);
+            return false;
+        }
+
+        if (!in_array($config['type'], ['laravel', 'poly', 'php'])) {
+            Log::error('PHP mode switch only available for PHP/Laravel sites', [
+                'domain' => $domain,
+                'type' => $config['type']
+            ]);
+            return false;
+        }
+
+        $oldMode = $config['php_mode'] ?? 'fpm';
+
+        if ($oldMode === $newMode) {
+            Log::info('Domain already using requested mode', ['domain' => $domain, 'mode' => $newMode]);
+            return true;
+        }
+
+        Log::info('Switching PHP mode', [
+            'domain' => $domain,
+            'old_mode' => $oldMode,
+            'new_mode' => $newMode
+        ]);
+
+        // Update configuration
+        $domains = self::loadDomains();
+        $domains[$domain]['php_mode'] = $newMode;
+
+        if (ServerManagerV1PathConfig::isSwooleMode($newMode)) {
+            $domains[$domain]['swoole_port'] = $options['swoole_port'] ?? $config['swoole_port'] ?? self::getNextAvailableSwoolePort();
+            $domains[$domain]['swoole_workers'] = $options['swoole_workers'] ?? $config['swoole_workers'] ?? 4;
+        }
+
+        $domains[$domain]['updated_at'] = date('Y-m-d H:i:s');
+
+        if (!self::saveDomains($domains)) {
+            Log::error('Failed to save mode change to database');
+            return false;
+        }
+
+        // Regenerate nginx configuration
+        if (!self::generateNginxConfig($domain, $domains[$domain])) {
+            Log::error('Failed to regenerate nginx configuration after mode switch');
+            return false;
+        }
+
+        // Record history
+        self::recordHistory($domain, 'mode_switch', [
+            'old_mode' => $oldMode,
+            'new_mode' => $newMode,
+            'swoole_port' => $domains[$domain]['swoole_port'] ?? null
+        ]);
+
+        Log::info('PHP mode switched successfully', [
+            'domain' => $domain,
+            'mode' => $newMode,
+            'swoole_port' => $domains[$domain]['swoole_port'] ?? null
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Get next available Swoole port
+     * SYNC: ServerManagerV1OctaneServiceManager::getNextAvailablePort()
+     *
+     * @return int Available port number
+     */
+    private static function getNextAvailableSwoolePort(): int
+    {
+        // Use OctaneServiceManager's method for consistency
+        return ServerManagerV1OctaneServiceManager::getNextAvailablePort();
+    }
+
+    /**
+     * Get Swoole service information by path (PATH-BASED)
+     * Returns service info for a directory path
+     *
+     * @param string $wwwDir Directory path
+     * @return array|null Service info or null if not using Swoole
+     */
+    public static function getSwooleServiceInfoByPath(string $wwwDir): ?array
+    {
+        $domains = self::loadDomains();
+
+        // Find any domain using this directory with Swoole
+        $swooleConfig = null;
+        $domainsUsingService = [];
+
+        foreach ($domains as $domain => $config) {
+            if (($config['www_dir'] ?? '') === $wwwDir) {
+                $phpMode = $config['php_mode'] ?? 'fpm';
+
+                $phpMode = ServerManagerV1PathConfig::normalizePhpMode($phpMode);
+                if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+                    if ($swooleConfig === null) {
+                        $swooleConfig = $config;
+                    }
+                    $domainsUsingService[] = $domain;
+                }
+            }
+        }
+
+        if ($swooleConfig === null) {
+            return null;
+        }
+
+        $port = $swooleConfig['swoole_port'] ?? null;
+        $pathHash = ServerManagerV1OctaneServiceManager::getPathHash($wwwDir);
+        $serviceName = ServerManagerV1OctaneServiceManager::getOctaneServiceNameFromPath($wwwDir, $port);
+
+        return [
+            'service_name' => $serviceName,
+            'www_dir' => $wwwDir,
+            'path_hash' => $pathHash,
+            'port' => $port,
+            'workers' => $swooleConfig['swoole_workers'] ?? 4,
+            'mode' => ServerManagerV1PathConfig::normalizePhpMode($swooleConfig['php_mode'] ?? 'swoole'),
+            'domains' => $domainsUsingService,
+            'domain_count' => count($domainsUsingService)
+        ];
+    }
+
+    /**
+     * Get Swoole service information for domain
+     *
+     * @param string $domain Domain name
+     * @return array|null Service info or null if not using Swoole
+     */
+    public static function getSwooleServiceInfo(string $domain): ?array
+    {
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            return null;
+        }
+
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+
+        if (!ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+            return null;
+        }
+
+        // Get path-based service info
+        $pathInfo = self::getSwooleServiceInfoByPath($config['www_dir']);
+
+        if (!$pathInfo) {
+            return null;
+        }
+
+        // Return info with domain-specific context
+        return [
+            'service_name' => $pathInfo['service_name'],
+            'domain' => $domain,
+            'www_dir' => $config['www_dir'],
+            'path_hash' => $pathInfo['path_hash'],
+            'port' => $config['swoole_port'],
+            'workers' => $config['swoole_workers'] ?? 4,
+            'mode' => $phpMode,
+            'all_domains' => $pathInfo['domains'],
+            'is_primary' => ($pathInfo['domains'][0] ?? null) === $domain,
+            'primary_domain' => $pathInfo['domains'][0] ?? $domain
+        ];
+    }
+
+    /**
+     * Get primary domain for a directory (first domain added with this directory)
+     *
+     * @param string $wwwDir Directory path
+     * @return string Primary domain name
+     */
+    private static function getPrimaryDomainForDirectory(string $wwwDir): string
+    {
+        $domains = self::loadDomains();
+
+        foreach ($domains as $domain => $config) {
+            if (($config['www_dir'] ?? '') === $wwwDir) {
+                $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+                if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+                    return $domain; // Return first matching domain
+                }
+            }
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * Get all domains grouped by PHP mode
+     *
+     * @return array Domains grouped by mode
+     */
+    public static function getDomainsGroupedByPhpMode(): array
+    {
+        $domains = self::loadDomains();
+        $grouped = [
+            'fpm' => [],
+            'swoole' => [],
+            'octane' => [],
+            'none' => []
+        ];
+
+        foreach ($domains as $domain => $config) {
+            $mode = $config['php_mode'] ?? 'none';
+
+            if (!in_array($config['type'], ['laravel', 'poly', 'php'])) {
+                $mode = 'none';
+            }
+
+            if (!isset($grouped[$mode])) {
+                $grouped[$mode] = [];
+            }
+
+            $grouped[$mode][] = [
+                'domain' => $domain,
+                'type' => $config['type'],
+                'status' => $config['status'],
+                'swoole_port' => $config['swoole_port'] ?? null,
+                'swoole_workers' => $config['swoole_workers'] ?? null,
+                'www_dir' => $config['www_dir'] ?? null
+            ];
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Get all unique Swoole services (grouped by directory)
+     * One directory = One Swoole service shared by multiple domains
+     *
+     * @return array Unique Swoole services info
+     */
+    public static function getUniqueSwooleServices(): array
+    {
+        $domains = self::loadDomains();
+        $services = [];
+
+        foreach ($domains as $domain => $config) {
+            $phpMode = $config['php_mode'] ?? 'fpm';
+
+            $phpMode = ServerManagerV1PathConfig::normalizePhpMode($phpMode);
+            if (!ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+                continue;
+            }
+
+            $wwwDir = $config['www_dir'] ?? '';
+            $port = $config['swoole_port'] ?? null;
+
+            if (!$wwwDir || !$port) {
+                continue;
+            }
+
+            // Use www_dir as key to ensure uniqueness
+            if (!isset($services[$wwwDir])) {
+                $services[$wwwDir] = [
+                    'www_dir' => $wwwDir,
+                    'port' => $port,
+                    'workers' => $config['swoole_workers'] ?? 4,
+                    'primary_domain' => $domain,
+                    'domains' => []
+                ];
+            }
+
+            $services[$wwwDir]['domains'][] = $domain;
+        }
+
+        return array_values($services);
     }
 }

@@ -14,8 +14,17 @@ GLOBAL_VARS_DIR = _home / ".core_node" / ".global_vars"
 PYTOOLS_TMP_DIR = _home / ".core_node" / "pytools" / "tmp"
 
 # Ensure directories exist
-GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
-PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
+    PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError):
+    # Fallback to /tmp if home directory is read-only or inaccessible
+    import tempfile
+    _tmp_base = Path(tempfile.gettempdir()) / ".core_node"
+    GLOBAL_VARS_DIR = _tmp_base / ".global_vars"
+    PYTOOLS_TMP_DIR = _tmp_base / "pytools" / "tmp"
+    GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
+    PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 __all__ = ["GlobalVarManager", "GLOBAL_VARS_DIR", "PYTOOLS_TMP_DIR"]
 

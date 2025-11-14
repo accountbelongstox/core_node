@@ -146,6 +146,10 @@
           <div v-else-if="activeMainTab === 'windows'" class="space-y-6">
             <WindowsOperationsPanel />
           </div>
+
+          <div v-else-if="activeMainTab === 'nginx'" class="space-y-6">
+            <NginxManagementPanel />
+          </div>
         </div>
       </main>
     </div>
@@ -194,6 +198,7 @@ import type { Tool } from '@/apps/app_ittools/types_app_ittools';
 import ToolExecutionPanel from '@/apps/app_ittools/components_app_ittools/ToolExecutionPanel.vue';
 import BrowserAutomationPanel from '@/apps/app_ittools/components_app_ittools/BrowserAutomationPanel.vue';
 import WindowsOperationsPanel from '@/apps/app_ittools/components_app_ittools/WindowsOperationsPanel.vue';
+import NginxManagementPanel from '@/apps/app_ittools/components_app_ittools/NginxManagementPanel.vue';
 import { useApiClient } from '@/apps/app_ittools/composables_app_ittools/useApiClient';
 import { appLogger, type LogEntry, type LogLevel } from '@/apps/app_ittools/services_app_ittools/logger';
 import ItToolsTopBar from '@/apps/app_ittools/components_app_ittools/ittools_index_components/ItToolsTopBar.vue';
@@ -208,7 +213,8 @@ import ItToolsQuickStats from '@/apps/app_ittools/components_app_ittools/ittools
 const mainTabs = [
   { id: 'ittools', name: 'IT Tools', icon: 'fas fa-tools', badge: '88+' },
   { id: 'browser', name: 'Browser Automation', icon: 'fas fa-globe' },
-  { id: 'windows', name: 'Windows Operations', icon: 'fas fa-windows' }
+  { id: 'windows', name: 'Windows Operations', icon: 'fas fa-windows' },
+  { id: 'nginx', name: 'Nginx Management', icon: 'fas fa-server' }
 ];
 
 const browserSidebarItems = [
@@ -415,6 +421,8 @@ const getCurrentSidebarTitle = () => {
       return 'Browser Operations';
     case 'windows':
       return 'Windows & Python';
+    case 'nginx':
+      return 'Nginx Management';
     default:
       return 'Navigation';
   }

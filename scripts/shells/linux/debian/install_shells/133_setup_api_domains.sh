@@ -9,6 +9,14 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# IMPORTANT: This script must be run as ROOT user
+# Required for API domain setup, nginx configuration, and Octane services
+if [ "$EUID" -ne 0 ] && [ -z "$SUDO_USER" ]; then
+    echo "Error: This script must be run as root or with sudo"
+    echo "Usage: sudo $0"
+    exit 1
+fi
+
 # ============================================================================
 # ALL VARIABLE DECLARATIONS AND SOURCE STATEMENTS MUST BE AT THE TOP
 # ============================================================================
@@ -205,12 +213,17 @@ update_hosts_file() {
 add_api_website() {
     local api_domain="$1"
 
-    echo "[$SCRIPT_INDEX]   Adding API website: $api_domain"
+    echo "[$SCRIPT_INDEX]   Processing API website: $api_domain"
     echo "[$SCRIPT_INDEX]   Type: poly (Laravel main project)"
-    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$api_domain\" --type=poly --ssl=auto --php-version=$PHP_VERSION"
+    echo "[$SCRIPT_INDEX]   PHP Mode: swoole (Octane)"
+
+    # Add or update domain (Laravel handles idempotency automatically)
+    # If domain exists: Laravel will update configuration (e.g., switch from FPM to Swoole)
+    # If domain doesn't exist: Laravel will create new configuration
+    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$api_domain\" --type=poly --ssl=auto --php-mode=swoole"
 
     local output
-    output=$($USE_SUDO php artisan servermanager:website add "$api_domain" --type=poly --ssl=auto --php-version=$PHP_VERSION 2>&1)
+    output=$($USE_SUDO php artisan servermanager:website add "$api_domain" --type=poly --ssl=auto --php-mode=swoole 2>&1)
     local result=$?
 
     echo "[$SCRIPT_INDEX]   Result:"
@@ -355,7 +368,7 @@ echo "$domains_content" | while read -r domain; do
     fi
 done
 echo "[$SCRIPT_INDEX]"
-echo "[$SCRIPT_INDEX] API websites to create: $total_api_websites ($api_count per domain × $domain_count domains)"
+echo "[$SCRIPT_INDEX] API websites to create: $total_api_websites ($api_count per domain x $domain_count domains)"
 echo "[$SCRIPT_INDEX]"
 
 # Ask user for confirmation

@@ -773,6 +773,48 @@ export class ItToolsMainAPI {
   }
 
   /**
+   * Nginx Management - List Sites
+   */
+  async nginxListSites(): Promise<ApiResponse<any[]>> {
+    return this.get('/v1/nginx/sites');
+  }
+
+  /**
+   * Nginx Management - Get Site Config
+   */
+  async nginxGetSiteConfig(siteName: string): Promise<ApiResponse<any>> {
+    return this.get('/v1/nginx/config', { site_name: siteName });
+  }
+
+  /**
+   * Nginx Management - Enable Site
+   */
+  async nginxEnableSite(siteName: string): Promise<ApiResponse<any>> {
+    return this.post('/v1/nginx/enable', { site: siteName });
+  }
+
+  /**
+   * Nginx Management - Disable Site
+   */
+  async nginxDisableSite(siteName: string): Promise<ApiResponse<any>> {
+    return this.post('/v1/nginx/disable', { site: siteName });
+  }
+
+  /**
+   * Nginx Management - Test Config
+   */
+  async nginxTestConfig(): Promise<ApiResponse<any>> {
+    return this.post('/v1/nginx/test', {});
+  }
+
+  /**
+   * Nginx Management - Reload Nginx
+   */
+  async nginxReload(): Promise<ApiResponse<any>> {
+    return this.post('/v1/nginx/reload', {});
+  }
+
+  /**
    * Handle API errors
    */
   private handleError(error: any): ApiResponse<null> {

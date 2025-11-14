@@ -177,6 +177,27 @@
                 "get_question_history",
                 "search_logs"
             ]
+        },
+        "LaravelMcpV1": {
+            "command": "python3",
+            "args": [
+                "/www/programing/core_node/pycore/pyutils/mcp_bridge_with_laravel/main.py"
+            ],
+            "env": {
+                "MCP_SERVER_URL": "http://127.0.0.1:9003/mcp/mcpv1",
+                "MCP_APP_URL": "http://127.0.0.1:9003",
+                "MCP_OUTPUT_DIR": "/www/test",
+                "PYCORE_SKIP_DEP_CHECK": "0",
+                "PYTHONIOENCODING": "utf-8",
+                "LANG": "en_US.UTF-8",
+                "LC_ALL": "en_US.UTF-8"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "mcp-v1-image-manipulation"
+            ],
+            "timeout": 60000,
+            "description": "Universal MCP Bridge for Laravel McpV1 application - MCP app located at app/Apps/McpV1/ (per LARAVEL_GUIDE), bridges stdio MCP with HTTP MCP server at /mcp/mcpv1 (lowercase per guide), automatically handles file operations. Uses pycore.pyfoundations.third_party for dependency management (aiohttp, mcp packages)."
         }
     }
 }

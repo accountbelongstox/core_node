@@ -9,6 +9,14 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# IMPORTANT: This script must be run as ROOT user
+# Required for domain setup, SSL configuration, and system service management
+if [ "$EUID" -ne 0 ] && [ -z "$SUDO_USER" ]; then
+    echo "Error: This script must be run as root or with sudo"
+    echo "Usage: sudo $0"
+    exit 1
+fi
+
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -17,6 +25,9 @@ SCRIPT_INDEX="131"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
+# Source Laravel deploy script for reusable functions
+source "$CORE_NODE_DIR/poly_apps/laravel_main/scripts/deploy.sh"
 
 # Variable declarations
 laravel_dir=""
@@ -125,9 +136,12 @@ select_domain_prefixes() {
     return 0
 }
 
+# ============================================================================
+# DIFFERENTIAL FUNCTIONS - Specific to domain setup
+# ============================================================================
+
 # Function to initialize secrets with password prompt
 initialize_secrets() {
-    # Check if secret_get_key function exists
     if ! type secret_get_key >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
         DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
@@ -136,11 +150,9 @@ initialize_secrets() {
         return 0
     fi
 
-    # In non-production environment (WSL/Desktop), try to use cached secrets
     if [ "$IS_PRODUCTION" != true ]; then
         echo "[$SCRIPT_INDEX] Desktop/WSL environment detected - checking for cached secrets"
 
-        # Try to load from cache (will prompt once if cache doesn't exist)
         DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "")
         if [ $? -ne 0 ] || [ -z "$DNSPOD_EMAIL" ]; then
             echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_EMAILS" >&2
@@ -183,7 +195,6 @@ initialize_secrets() {
         return 1
     fi
 
-    # Decrypt secrets
     echo "[$SCRIPT_INDEX] Decrypting required secrets..." >&2
 
     DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "$password")
@@ -210,241 +221,6 @@ initialize_secrets() {
     return 0
 }
 
-# Function to initialize system directories
-initialize_system_directories() {
-    echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] INITIALIZING SYSTEM DIRECTORIES"
-    echo "[$SCRIPT_INDEX] =================================="
-
-    # Get mapped paths from gvar_common.sh
-    www_root=$(map_web_path "wwwroot")
-    nginx_config_dir=$(map_web_path "nginxconfig")
-    ssl_dir=$(map_web_path "nginxconfig")/ssl
-    local shared_data=$(map_web_path "shared-data")
-    local backup_dir=$(map_web_path "backup")
-
-    # Build system directories list using mapped paths
-    local laravel_main="$www_root/laravel_main"
-    local laravel_db="$laravel_main/laravel_db"
-
-    # Check if database files exist (do not recreate if database exists)
-    local db_exists=false
-    if [ -d "$laravel_db" ]; then
-        # Check for common database files
-        if find "$laravel_db" -maxdepth 1 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) 2>/dev/null | grep -q .; then
-            db_exists=true
-            echo "[$SCRIPT_INDEX] Database files detected in $laravel_db - will preserve existing database"
-        fi
-    fi
-
-    local system_dirs=(
-        "$nginx_config_dir"
-        "$ssl_dir"
-        "$nginx_config_dir/sites-available"
-        "$nginx_config_dir/sites-enabled"
-        "$www_root"
-        "$laravel_main"
-        "$laravel_db"
-        "$laravel_db/tmp"
-        "$laravel_db/sessions"
-        "$shared_data"
-        "$backup_dir"
-    )
-
-    echo "[$SCRIPT_INDEX] Using mapped paths from gvar_common.sh:"
-    echo "[$SCRIPT_INDEX]   wwwroot: $www_root"
-    echo "[$SCRIPT_INDEX]   nginxconfig: $nginx_config_dir"
-    echo "[$SCRIPT_INDEX]   ssl: $ssl_dir"
-    echo "[$SCRIPT_INDEX]   shared-data: $shared_data"
-    echo "[$SCRIPT_INDEX]   backup: $backup_dir"
-
-    for dir in "${system_dirs[@]}"; do
-        if [ ! -d "$dir" ]; then
-            echo "[$SCRIPT_INDEX]   Creating: $dir"
-            echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO mkdir -p \"$dir\""
-            $USE_SUDO mkdir -p "$dir" 2>/dev/null || {
-                echo "[$SCRIPT_INDEX]   [FAIL] Failed to create $dir"
-                return 1
-            }
-            echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod 755 \"$dir\""
-            $USE_SUDO chmod 755 "$dir" 2>/dev/null || true
-            echo "[$SCRIPT_INDEX]   [OK]Created: $dir"
-        else
-            echo "[$SCRIPT_INDEX]   [OK]Exists: $dir"
-        fi
-    done
-
-    # Set ownership and permissions
-    echo "[$SCRIPT_INDEX] Setting ownership and permissions..."
-    for dir in "${system_dirs[@]}"; do
-        if [ -d "$dir" ]; then
-            # Special handling for database directory - preserve database files
-            if [ "$dir" = "$laravel_db" ] && [ "$db_exists" = true ]; then
-                echo "[$SCRIPT_INDEX]   Preserving database files in $dir"
-                # Only set permissions on directory, not recursively to avoid affecting database files
-                if [ "$IS_WSL" = true ]; then
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod 777 \"$dir\""
-                    $USE_SUDO chmod 777 "$dir" 2>/dev/null || true
-                else
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chown $USER:www-data \"$dir\""
-                    $USE_SUDO chown $USER:www-data "$dir" 2>/dev/null || {
-                        echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod 777 \"$dir\""
-                        $USE_SUDO chmod 777 "$dir" 2>/dev/null || true
-                    }
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod 775 \"$dir\""
-                    $USE_SUDO chmod 775 "$dir" 2>/dev/null || true
-                fi
-                echo "[$SCRIPT_INDEX]   [OK]Database directory permissions updated (database files preserved)"
-            else
-                # Normal directory handling
-                if [ "$IS_WSL" = true ]; then
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod -R 777 \"$dir\""
-                    $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
-                    echo "[$SCRIPT_INDEX]   [OK]Set WSL permissions: $dir"
-                else
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chown -R $USER:www-data \"$dir\""
-                    $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
-                        echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod -R 777 \"$dir\""
-                        $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
-                    }
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod -R 775 \"$dir\""
-                    $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
-                    echo "[$SCRIPT_INDEX]   [OK]Set ownership: $dir"
-                fi
-            fi
-        fi
-    done
-
-    echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] [OK]System directories initialized"
-    echo "[$SCRIPT_INDEX] =================================="
-    return 0
-}
-
-
-# Function to get Laravel directory path
-get_laravel_dir() {
-    if [ -z "$CORE_NODE_DIR" ]; then
-        local script_root="$(cd "$PARENT_DIR_LEVEL_2/../.." && pwd)"
-        echo "[$SCRIPT_INDEX] Warning: CORE_NODE_DIR not set, using fallback: $script_root"
-        local laravel_dir="$script_root/poly_apps/laravel_main"
-    else
-        local laravel_dir="$CORE_NODE_DIR/poly_apps/laravel_main"
-    fi
-
-    if [ ! -d "$laravel_dir" ]; then
-        echo "[$SCRIPT_INDEX] Error: Laravel directory does not exist: $laravel_dir"
-        return 1
-    fi
-
-    echo "$laravel_dir"
-}
-
-# Function to check if Laravel is available
-check_laravel_available() {
-    laravel_dir=$(get_laravel_dir)
-
-    if [ ! -d "$laravel_dir" ]; then
-        echo "[$SCRIPT_INDEX] Laravel directory not found: $laravel_dir"
-        return 1
-    fi
-
-    if [ ! -f "$laravel_dir/artisan" ]; then
-        echo "[$SCRIPT_INDEX] Laravel artisan not found: $laravel_dir/artisan"
-        return 1
-    fi
-
-    echo "[$SCRIPT_INDEX] Laravel directory found: $laravel_dir"
-
-    # Check vendor directory
-    if [ ! -d "$laravel_dir/vendor" ]; then
-        echo "[$SCRIPT_INDEX] Warning: vendor directory not found, running composer install..."
-        cd "$laravel_dir"
-        echo "[$SCRIPT_INDEX] Executing: $USE_SUDO composer install --optimize-autoloader"
-        $USE_SUDO composer install --optimize-autoloader
-        if [ $? -ne 0 ]; then
-            echo "[$SCRIPT_INDEX] Error: Failed to install composer dependencies"
-            return 1
-        fi
-    fi
-
-    # Test artisan command
-    cd "$laravel_dir"
-    echo "[$SCRIPT_INDEX] Executing: $USE_SUDO php artisan --version"
-    if ! $USE_SUDO php artisan --version >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] Error: artisan command failed"
-        return 1
-    fi
-
-    echo "[$SCRIPT_INDEX] [OK]Laravel is ready for use"
-    return 0
-}
-
-# Function to initialize Laravel-specific directories
-initialize_laravel_directories() {
-    echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] INITIALIZING LARAVEL DIRECTORIES"
-    echo "[$SCRIPT_INDEX] =================================="
-
-    laravel_dir=$(get_laravel_dir)
-    if [ -z "$laravel_dir" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Failed to get Laravel directory"
-        return 1
-    fi
-
-    echo "[$SCRIPT_INDEX] Laravel directory: $laravel_dir"
-
-    # Create Laravel storage directories
-    local laravel_dirs=(
-        "$laravel_dir/storage/framework/sessions"
-        "$laravel_dir/storage/framework/cache"
-        "$laravel_dir/storage/framework/views"
-        "$laravel_dir/storage/logs"
-        "$laravel_dir/storage/app/public"
-        "$laravel_dir/bootstrap/cache"
-    )
-
-    for dir in "${laravel_dirs[@]}"; do
-        if [ ! -d "$dir" ]; then
-            echo "[$SCRIPT_INDEX]   Creating: $dir"
-            echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO mkdir -p \"$dir\""
-            $USE_SUDO mkdir -p "$dir" 2>/dev/null || {
-                echo "[$SCRIPT_INDEX]   [FAIL] Failed to create $dir"
-                return 1
-            }
-            echo "[$SCRIPT_INDEX]   [OK]Created: $dir"
-        else
-            echo "[$SCRIPT_INDEX]   [OK]Exists: $dir"
-        fi
-    done
-
-    # Set permissions on storage directories
-    echo "[$SCRIPT_INDEX] Setting permissions on Laravel storage directories..."
-    for dir in "${laravel_dirs[@]}"; do
-        if [ -d "$dir" ]; then
-            if [ "$IS_WSL" = true ]; then
-                echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod -R 777 \"$dir\""
-                $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
-                echo "[$SCRIPT_INDEX]   [OK]Set WSL permissions: $dir"
-            else
-                echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chown -R $USER:www-data \"$dir\""
-                $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
-                    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod -R 777 \"$dir\""
-                    $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
-                }
-                echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO chmod -R 775 \"$dir\""
-                $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
-                echo "[$SCRIPT_INDEX]   [OK]Set ownership: $dir"
-            fi
-        fi
-    done
-
-    echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] [OK]Laravel directories initialized"
-    echo "[$SCRIPT_INDEX] =================================="
-    return 0
-}
-
 # Function to get domains list
 get_domains_list() {
     if [ -n "$DOMAINS_LISTS_CONTENT" ]; then
@@ -457,44 +233,36 @@ get_domains_list() {
 # Main execution
 echo "[$SCRIPT_INDEX] Starting domain setup preparation..."
 
-# Ask user if they want to start fresh
-echo ""
-echo "[$SCRIPT_INDEX] =================================="
-echo "[$SCRIPT_INDEX] SETUP MODE SELECTION"
-echo "[$SCRIPT_INDEX] =================================="
-echo "[$SCRIPT_INDEX] Do you want to start fresh (clear previous setup state)?"
-echo "[$SCRIPT_INDEX] Choose 'y' to clear previous state and start over"
-echo "[$SCRIPT_INDEX] Choose 'n' to continue from previous state (if any)"
-echo "[$SCRIPT_INDEX] Note: This only clears setup state files, database will not be affected"
-echo ""
-read -p "[$SCRIPT_INDEX] Start fresh? (Y/n): " fresh_start
+# Check if state exists
+if [ -d "$SETUP_STATE_DIR" ] && [ "$(ls -A $SETUP_STATE_DIR 2>/dev/null)" ]; then
+    echo ""
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] EXISTING SETUP STATE DETECTED"
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] Previous setup state found at: $SETUP_STATE_DIR"
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Options:"
+    echo "[$SCRIPT_INDEX]   [Y] Keep existing state (continue from previous setup)"
+    echo "[$SCRIPT_INDEX]   [n] Clear state and start fresh"
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Note: Database and existing domains will NOT be affected"
+    echo ""
+    read -p "[$SCRIPT_INDEX] Keep existing state? (Y/n): " keep_state
 
-# Default to yes if empty or Enter pressed
-if [ -z "$fresh_start" ] || [[ "$fresh_start" =~ ^[Yy]$ ]]; then
-    clear_state
+    # Default to keep if empty or Enter pressed (idempotent behavior)
+    if [ -n "$keep_state" ] && [[ "$keep_state" =~ ^[Nn]$ ]]; then
+        clear_state
+        echo "[$SCRIPT_INDEX] [IDEMPOTENT] Starting fresh setup"
+    else
+        echo "[$SCRIPT_INDEX] [IDEMPOTENT] Continuing from existing state"
+    fi
+else
+    echo "[$SCRIPT_INDEX] No previous state found - starting fresh setup"
+    mkdir -p "$SETUP_STATE_DIR"
 fi
 
-# Initialize system directories
-echo ""
-initialize_system_directories || {
-    echo "[$SCRIPT_INDEX] Failed to initialize system directories"
-    exit 1
-}
-
-
-# Check Laravel availability
-echo ""
-if ! check_laravel_available; then
-    echo "[$SCRIPT_INDEX] Laravel is not available. Please install Laravel first."
-    exit 1
-fi
-
-# Initialize Laravel directories
-echo ""
-if ! initialize_laravel_directories; then
-    echo "[$SCRIPT_INDEX] Failed to initialize Laravel directories. Cannot continue."
-    exit 1
-fi
+# Note: deploy.sh (sourced above) already runs check_initialization and run_all_ups
+# Only run differential functions below
 
 # Initialize secrets
 echo ""

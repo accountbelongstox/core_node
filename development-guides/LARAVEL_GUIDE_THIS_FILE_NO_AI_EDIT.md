@@ -53,24 +53,15 @@ The **laravel_main project root** is [here](`../poly_apps/laravel_main`).
 
 ## 5. 数据库规则
 
-- **数据库位置**: 项目使用的数据库**位于项目代码目录之外**，以便于代码的迁移和部署。
-- **共享数据库**: 所有应用**共同使用同一个数据库**,同时`app/Models`中需要修改为重新放到`app/Apps/{appNameWithVersion}/{appNameWithVersion}Models` 的子目录存入APP专属的Model,不再使用laravel的原目录，同时命名规范为`{appNameWithVersion}{CustomName}Model.php`命名规则，并修正引用。
-- **应用数据库表名桥接**： 
-    扫描 `database\migrations` 然后更新 `app/Providers/GlobalTablesMaps.php`，在`app/Apps/{appNameWithVersion}/{appNameWithVersion}TablesMaps/` 中建立数据表名的maps格，并提供以下的map
-    ```
-     {
-        tableName1_Key => {
-            tablename = '{本规范中的表名}',
-            fields => [
-                filedName1_key=> 'field name'
-                ]
-        ...不要重复定义公共表（所有APP都会使用的表，比如User），如果要统一管理可以从中·app/Providers/GlobalTablesMap.php·引入 公共表名，这样APP使用表Maps只需要该类即可完成.
-        }
-    ``` 
-    根据以上的map类，然后在使用数据库的任何地方:包含 `poly_apps\laravel_main\database\migrations` 和 `app/Apps/...` / `app/Models`下都引用上面的类获取Key或FieldKey,注意所有需要用的文件都直接引用`TablesMaps`类-禁止二次封装类,后结更新表名的时候需要更新桥接配置文件中的字符串..
-- **迁移文件命名**: 迁移文件名必须以应用名称作为前缀。格式：`xxxx_xx_xx_xxxxxx_create_appNameWithVersion_xxx_table.php`。
-- **全局共享表**: 迁移文件名必须以 `global` 作为前缀。例如：`xxxx_xx_xx_xxxxxx_create_global_users_table.php`。
-- **表前缀**: 在迁移文件中，为应用专属的数据表名增加 `{appNameWithVersion}_` 前缀。共享数据表（如 `users`）则不加前缀。
+- **数据库位置**: 项目使用的数据库**位于项目代码目录之外**，使用`PathMapper::getLaravelDatabaseDir()`映射路径，以便于代码的迁移和部署。
+- **默认共享数据库**: 默认数据库连接保留用于共享数据（如用户账号）。在`config/database.php`中配置默认连接，使用`PathMapper::getDefaultDatabasePath()`。
+- **子应用独立数据库**: 每个子app在`config/database.php`中配置独立数据库连接，命名格式为`{appNameWithVersion}`。数据库路径使用`PathMapper::getLaravelDatabaseDir() . '/{appNameWithVersion}.sqlite'`（SQLite）或独立MySQL/PostgreSQL连接。每个子app至少实现一个账号数据库用于备份用户数据。
+- **账号数据同步**: 用户注册/登录时，账号数据**必须同时写入默认数据库（共享）和对应子app数据库（备份）**。使用数据库事务确保数据一致性。
+- **Model组织**: `app/Models`改为`app/Apps/{appNameWithVersion}/{appNameWithVersion}Models/`，命名`{appNameWithVersion}{CustomName}Model.php`。每个子app的Model使用`protected $connection = '{appNameWithVersion}';`指定独立数据库连接。
+- **迁移文件处理**: 
+    - **应用专属迁移文件**: 命名格式为`{appNameWithVersion}_xxxx_xx_xx_xxxxxx_*.php`，**必须**将`{appNameWithVersion}`放在文件名第一位。在迁移中使用`Schema::connection('{appNameWithVersion}')->create()`指定连接。运行迁移：`php artisan migrate --database={appNameWithVersion}`。
+    - **全局共享表迁移文件**: 命名格式为`global_xxxx_xx_xx_xxxxxx_*.php`，**必须**将`global_`放在文件名第一位。全局共享表迁移使用默认连接（不需要指定connection），所有应用共享使用。
+- **表名桥接**: 在`app/Apps/{appNameWithVersion}/{appNameWithVersion}TablesMaps/`中建立表名maps，引用`app/Providers/GlobalTablesMaps.php`获取公共表名。所有数据库操作直接引用TablesMaps类，禁止二次封装。
 
 ## 6. 公共与静态文件规则
 
@@ -89,6 +80,38 @@ The **laravel_main project root** is [here](`../poly_apps/laravel_main`).
     1.  在实现新功能前，**必须**首先检查 `app/Utils` 目录，确认是否已有可用的功能。
     2.  如果不存在，需分析该功能是否可能被其他应用复用。如果是，则应将其添加到 `app/Utils` 中。
     3.  如果功能严格限定于单个应用，则应遵循命名规范，将其添加到 `app/Apps/{appNameWithVersion}/Utils/` 目录下。
+
+## 10. MCP (Model Context Protocol) 应用规则
+
+MCP 应用是特殊的子应用，用于通过 Model Context Protocol 向 AI 客户端提供工具、资源和提示。**MCP 应用必须作为标准应用放在 `app/Apps/{appNameWithVersion}/` 目录下**，因为 MCP 应用通常包含大量代码（工具、资源、提示、控制器、工具类等），需要完整的应用结构来组织代码。
+
+MCP 应用遵循以下差异化规则：
+
+- **应用位置要求**: **MCP 应用必须作为标准应用放在 `app/Apps/{appNameWithVersion}/` 目录下**，与其他应用（如 `AppQyV1`、`AwyV0` 等）平级。MCP 应用包含大量代码，必须遵循完整的标准应用结构。
+- **标准应用结构**: MCP 应用必须包含以下标准应用结构：
+    - `app/Apps/{appNameWithVersion}/{appNameWithVersion}Controllers/` - 应用专属控制器
+    - `app/Apps/{appNameWithVersion}/{appNameWithVersion}ApiInfo.php` - API 信息收集
+    - `app/Apps/{appNameWithVersion}/{appNameWithVersion}Gvar/` - 应用全局变量
+    - `app/Apps/{appNameWithVersion}/{appNameWithVersion}Utils/` - 应用专属工具类（可选，用于 MCP 工具的业务逻辑封装）
+    - `routes/{appNameWithVersion}Router/` - 应用路由
+- **MCP Server 组织**: MCP Server 类必须放置在 `app/Mcp/Servers/` 目录下，命名格式为 `{appNameWithVersion}Server.php`（例如：`McpV1Server.php`）。Server 类继承 `Laravel\Mcp\Server` 基类。**注意**：虽然 Server 类放在 `app/Mcp/Servers/` 下，但这是 Laravel MCP 框架的要求，MCP 应用本身仍然是一个完整的应用。
+- **MCP Tools 组织**: MCP Tools 必须放置在 `app/Mcp/Tools/` 目录下，命名格式为 `{appNameWithVersion}{ToolName}Tool.php`（例如：`McpV1ImageManipulationTool.php`）。Tool 类继承 `Laravel\Mcp\Server\Tool` 基类。**工具的业务逻辑可以封装在 `app/Apps/{appNameWithVersion}/{appNameWithVersion}Utils/` 中，工具类只负责 MCP 协议交互**。
+- **MCP Resources 组织**: MCP Resources 必须放置在 `app/Mcp/Resources/` 目录下，命名格式为 `{appNameWithVersion}{ResourceName}Resource.php`。
+- **MCP Prompts 组织**: MCP Prompts 必须放置在 `app/Mcp/Prompts/` 目录下，命名格式为 `{appNameWithVersion}{PromptName}Prompt.php`。
+
+## 11. PHP 调用 Python (pycore) 规范
+
+### 11.1 CallPycoreUtils 通用规范
+- **位置**: `app/CallPycoreUtils/`
+- **命名**: `Pycore{FeatureName}Util.php`
+- **架构**: Laravel App → CallPycoreUtils → Python pycore/pyutils
+- **执行**: 使用 `Process::run()` with PYTHONPATH 设置
+- **通信**: JSON 格式输入输出
+- **路径**: pycore 根目录从 laravel_main/app/CallPycoreUtils 向上4层
+- **错误处理**: 返回包含 success/error/exit_code 的数组
+- **日志**: 使用 `Log::info()`/`Log::error()` 记录调用详情
+- **超时**: 根据功能特性设置合理超时时间（建议：快速查询30s，普通处理300s，批量处理600s）
+- **返回格式**: 统一返回 Array 格式，至少包含 success 字段
 
 ## 9. 唯一web入口点调试
 - 本项目保留了唯一web入口点  `routes/web.php`，其中仅有路由（1）：`/api_info` 显示一个JSON数据，基中将引用 `App\Http\EnvironmentApiInfo\Index` 并集中引用所有app的 `ApiInfo` 以及公共的 `app/Http/EnvironmentApiInfo/*` 收集信息，注意是由 `app/Http/EnvironmentApiInfo/Index.php` 收集( `routes/web.php` 文件不可修改),需要收集的内容为 `app/Http/EnvironmentApiInfo/*` 下的所有文件和每个app的`ApiInfo`。由web路由`/`返回这些信息，以便调试，除了公共信息，支持参数只选择性显示某个app的`ApiInfo`

@@ -12,7 +12,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
-use App\Apps\AwyV0\Controllers\AwyV0FriendCtl;
+use App\Apps\AwyV0\AwyV0Controllers\AwyV0FriendCtl;
 
 // AwyV0 Friend Management Routes
 Route::prefix('awy-v0/friend')->middleware('auth:sanctum')->group(function () {

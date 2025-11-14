@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Route;
 
 // AwyV0 Device Management Routes
 Route::prefix('awy-v0/device')->middleware('auth:sanctum')->group(function () {
-    Route::post('/register', [App\Apps\AwyV0\Controllers\AwyV0DeviceCtl::class, 'registerDevice']);
-    Route::delete('/unregister', [App\Apps\AwyV0\Controllers\AwyV0DeviceCtl::class, 'unregisterDevice']);
-    Route::get('/list', [App\Apps\AwyV0\Controllers\AwyV0DeviceCtl::class, 'getDeviceList']);
-    Route::put('/update', [App\Apps\AwyV0\Controllers\AwyV0DeviceCtl::class, 'updateDevice']);
+    Route::post('/register', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DeviceCtl::class, 'registerDevice']);
+    Route::delete('/unregister', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DeviceCtl::class, 'unregisterDevice']);
+    Route::get('/list', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DeviceCtl::class, 'getDeviceList']);
+    Route::put('/update', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DeviceCtl::class, 'updateDevice']);
 });

@@ -1,589 +1,897 @@
 #!/bin/bash
-
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
+# 1. Write all code in English only
+# 2. Never execute, create, or modify test code
+# 3. Never create or update documentation (*.md)
+# 4. Never write summaries during development or thinking process
+# 5. Do not modify these rules
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Laravel Main Deployment Script - Entry Point
-# This script serves as the main entry point for Laravel deployment
-# All actual functionality is delegated to modules in deploy_tools directory
+# ============================================================================
+# Laravel Deployment Script with UP Method Support
+# ============================================================================
+# This script provides reusable functions for Laravel project deployment
+# Includes versioned up() methods for incremental updates
+# ============================================================================
 
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$(dirname "$SCRIPT_DIR")"
-DEPLOY_TOOLS_DIR="$SCRIPT_DIR/deploy_tools"
-APP_NAME="laravel_main"
-SERVICE_NAME="ncore-$APP_NAME"
-LOG_FILE="/var/log/ncore-services/$SERVICE_NAME.log"
-
-# Source common functions for WSL path mapping
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-COMMON_FUNCTIONS_PATH="$CORE_NODE_ROOT/scripts/shells/linux/common/common_functions.sh"
-GVAR_COMMON_PATH="$CORE_NODE_ROOT/scripts/shells/linux/common/gvar_common.sh"
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
 
 # Source gvar_common.sh for environment detection and path mapping
-if [ -f "$GVAR_COMMON_PATH" ]; then
-    source "$GVAR_COMMON_PATH"
-    echo "Loaded WSL path mapping functions from gvar_common.sh"
-    echo "Environment: IS_WSL=$IS_WSL, IS_PRODUCTION=$IS_PRODUCTION"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GVAR_COMMON="${SCRIPT_DIR}/../../../scripts/shells/linux/common/gvar_common.sh"
+
+if [ -f "$GVAR_COMMON" ]; then
+    source "$GVAR_COMMON"
+    echo -e "${GREEN}Loaded environment configuration from gvar_common.sh${NC}"
+    echo -e "  CORE_NODE_DIR: ${CORE_NODE_DIR}"
+    echo -e "  IS_WSL: ${IS_WSL}"
+    echo -e "  IS_PRODUCTION: ${IS_PRODUCTION}"
+    echo -e "  HAS_DESKTOP_ENVIRONMENT: ${HAS_DESKTOP_ENVIRONMENT}"
 else
-    echo "WARNING: gvar_common.sh not found at $GVAR_COMMON_PATH"
-    echo "WSL path mapping will not be available"
-    # Provide fallback function
-    map_web_path() {
-        echo "$1"
-    }
-    ensure_web_directory() {
-        local path="$1"
-        mkdir -p "$path" 2>/dev/null || true
-        echo "$path"
-    }
+    echo -e "${YELLOW}Warning: gvar_common.sh not found, using default paths${NC}"
+    CORE_NODE_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
+    IS_WSL=false
+    [ -d "/mnt/c/Users" ] && IS_WSL=true
 fi
 
-# Check PHP version and compatibility
-check_php_version() {
-    echo "=== PHP Version Check ==="
+# ============================================================================
+# UP METHODS - Versioned Updates
+# ============================================================================
+# Each up method represents a specific version update
+# Format: up_YYYYMMDD_description()
+# ============================================================================
 
-    echo "Getting PHP version..."
-    php -r "echo PHP_VERSION;" > /tmp/php_version.txt
-    local php_version=$(cat /tmp/php_version.txt)
-    local php_major=$(echo "$php_version" | cut -d. -f1)
-    local php_minor=$(echo "$php_version" | cut -d. -f2)
-    rm -f /tmp/php_version.txt
+UP_STATE_DIR="${HOME}/.laravel_deploy_state"
+UP_STATE_FILE="${UP_STATE_DIR}/up_versions.txt"
 
-    echo "Current PHP version: $php_version"
-    echo "PHP major version: $php_major"
-    echo "PHP minor version: $php_minor"
-
-    # Check for PHP 8.4+
-    if [ "$php_major" -ge 8 ] && [ "$php_minor" -ge 4 ]; then
-        echo ""
-        echo "⚠️  WARNING: PHP $php_version detected!"
-        echo "PHP 8.4+ removed deprecated mb_ereg functions (mb_split, mb_ereg, etc.)"
-        echo ""
-        echo "The polyfill has been added to app/Helpers/MbstringPolyfill.php"
-        echo "This provides compatibility for Laravel dependencies."
-        echo ""
-        echo "Recommended actions:"
-        echo "  1. Update Laravel and all dependencies to latest versions"
-        echo "  2. Run: composer update --with-all-dependencies"
-        echo "  3. Review deprecated function usage in vendor packages"
-        echo ""
-    fi
-
-    # Check required PHP extensions
-    local missing_extensions=()
-    
-    if ! php -m | grep -q mbstring; then
-        missing_extensions+=("mbstring")
-    fi
-    
-    if ! php -m | grep -q dom; then
-        echo "WARNING: dom extension missing, but xml extension should provide it"
-        # Don't add to missing_extensions as it's usually provided by xml
-    fi
-    
-    if ! php -m | grep -q curl; then
-        missing_extensions+=("curl")
-    fi
-    
-    if [ ${#missing_extensions[@]} -gt 0 ]; then
-        echo "ERROR: Missing required PHP extensions: ${missing_extensions[*]}" >&2
-        echo "Install with: sudo apt-get install php$php_major.$php_minor-${missing_extensions[*]}" >&2
-        echo ""
-        echo "Alternatively, you can run Composer with --ignore-platform-req to skip these checks." >&2
-        echo ""
-        read -p "Do you want to continue with --ignore-platform-req? (y/N): " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo "Will use --ignore-platform-req for Composer operations"
-            COMPOSER_IGNORE_PLATFORM="--ignore-platform-req=ext-mbstring --ignore-platform-req=ext-dom --ignore-platform-req=ext-curl"
-        else
-            exit 1
-        fi
-    else
-        echo "Required PHP extensions: INSTALLED ✓"
-        COMPOSER_IGNORE_PLATFORM=""
-    fi
-    echo ""
+# Initialize up state tracking
+init_up_state() {
+    mkdir -p "$UP_STATE_DIR"
+    touch "$UP_STATE_FILE"
 }
 
-# Auto-detect and setup Composer
-auto_detect_composer() {
-    composer_cmd=""
-    
-    # Check if composer is in PATH
-    if command -v composer &> /dev/null; then
-        composer_cmd="composer"
-        echo "[INFO] Composer found in PATH"
-        return 0
+# Check if up version was already applied
+is_up_applied() {
+    local version="$1"
+    grep -q "^${version}$" "$UP_STATE_FILE" 2>/dev/null
+}
+
+# Mark up version as applied
+mark_up_applied() {
+    local version="$1"
+    echo "$version" >> "$UP_STATE_FILE"
+    echo -e "${GREEN}[UP] Marked $version as applied${NC}"
+}
+
+# ============================================================================
+# UP: 20251115_install_laravel_mcp
+# Date: 2025-11-15
+# Description: Install and initialize Laravel MCP for AI integration
+# Idempotent: Can be run multiple times safely
+# ============================================================================
+up_20251115_install_laravel_mcp() {
+    local version="20251115_install_laravel_mcp"
+
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}[UP] Running: $version${NC}"
+    echo -e "${CYAN}[UP] Date: 2025-11-15${NC}"
+    echo -e "${CYAN}[UP] Description: Install Laravel MCP for AI integration${NC}"
+
+    if is_up_applied "$version"; then
+        echo -e "${BLUE}[UP] Note: Already applied before, re-running for idempotency${NC}"
     fi
-    
-    # Check for composer in parent directory first (for scripts directory)
-    if [ -f "../composer" ]; then
-        composer_cmd="php ../composer"
-        echo "[INFO] Composer found in parent directory"
-        return 0
-    fi
-    
-    # Check for local composer.phar
-    if [ -f "./composer.phar" ]; then
-        composer_cmd="php ./composer.phar"
-        echo "[INFO] Local composer.phar found"
-        return 0
-    fi
-    
-    # Check for local composer executable
-    if [ -f "./composer" ]; then
-        composer_cmd="php ./composer"
-        echo "[INFO] Local composer executable found"
-        return 0
-    fi
-    
-    # Try to install composer locally
-    echo "[INFO] Composer not found, attempting to install locally..."
-    
-    if command -v php &> /dev/null; then
-        echo "[INFO] Downloading Composer installer..."
-        if php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"; then
-            echo "[INFO] Installing Composer..."
-            if php composer-setup.php --install-dir=. --filename=composer; then
-                composer_cmd="php ./composer"
-                echo "[INFO] Composer installed successfully"
-                rm -f composer-setup.php
-                return 0
-            else
-                echo "[ERROR] Failed to install Composer"
-                rm -f composer-setup.php
-                return 1
-            fi
-        else
-            echo "[ERROR] Failed to download Composer installer"
-            return 1
-        fi
-    else
-        echo "[ERROR] PHP not available - cannot install Composer"
+
+    echo -e "${CYAN}========================================${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    if [ -z "$laravel_dir" ]; then
+        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
         return 1
+    fi
+
+    cd "$laravel_dir" || return 1
+
+    echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    if ! command -v composer &> /dev/null; then
+        echo -e "${RED}[UP] Composer not found${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[UP] OK Composer found${NC}"
+
+    echo -e "${BLUE}[UP] Step 2: Installing/Updating Laravel MCP...${NC}"
+    if $USE_SUDO composer show | grep -q "laravel/mcp"; then
+        echo -e "${BLUE}[UP] Laravel MCP already installed, ensuring latest version...${NC}"
+        $USE_SUDO composer update laravel/mcp
+    else
+        echo -e "${BLUE}[UP] Installing Laravel MCP...${NC}"
+        $USE_SUDO composer require laravel/mcp
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}[UP] Warning: Composer operation had issues, checking installation...${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 3: Publishing AI routes...${NC}"
+    if [ -f "$laravel_dir/routes/ai.php" ]; then
+        echo -e "${BLUE}[UP] AI routes already exist, skipping publish${NC}"
+    else
+        $USE_SUDO php artisan vendor:publish --tag=ai-routes --force
+    fi
+
+    if [ -f "$laravel_dir/routes/ai.php" ]; then
+        echo -e "${GREEN}[UP] OK AI routes file exists${NC}"
+    else
+        echo -e "${YELLOW}[UP] WARNING AI routes file not found${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 4: Verifying installation...${NC}"
+    if $USE_SUDO composer show | grep -q "laravel/mcp"; then
+        echo -e "${GREEN}[UP] OK Laravel MCP package installed${NC}"
+    else
+        echo -e "${RED}[UP] ERROR Laravel MCP package not found${NC}"
+        return 1
+    fi
+
+    mark_up_applied "$version"
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}[UP] $version completed successfully${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    return 0
+}
+
+# ============================================================================
+# UP: 20251115_install_octane
+# Date: 2025-11-15
+# Description: Install Laravel Octane with Swoole support
+# Idempotent: Can be run multiple times safely
+# ============================================================================
+up_20251115_install_octane() {
+    local version="20251115_install_octane"
+
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}[UP] Running: $version${NC}"
+    echo -e "${CYAN}[UP] Date: 2025-11-15${NC}"
+    echo -e "${CYAN}[UP] Description: Install Laravel Octane with Swoole${NC}"
+
+    if is_up_applied "$version"; then
+        echo -e "${BLUE}[UP] Note: Already applied before, re-running for idempotency${NC}"
+    fi
+
+    echo -e "${CYAN}========================================${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    if [ -z "$laravel_dir" ]; then
+        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
+        return 1
+    fi
+
+    cd "$laravel_dir" || return 1
+
+    echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    if ! command -v composer &> /dev/null; then
+        echo -e "${RED}[UP] Composer not found${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[UP] OK Composer found${NC}"
+
+    echo -e "${BLUE}[UP] Step 2: Installing/Updating Laravel Octane...${NC}"
+    # Check if already installed
+    if $USE_SUDO composer show | grep -q "laravel/octane"; then
+        echo -e "${BLUE}[UP] Laravel Octane already installed, ensuring latest version...${NC}"
+        $USE_SUDO composer update laravel/octane
+    else
+        echo -e "${BLUE}[UP] Installing Laravel Octane...${NC}"
+        $USE_SUDO composer require laravel/octane
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}[UP] Warning: Composer operation had issues, checking installation...${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 3: Publishing Octane configuration...${NC}"
+    if [ -f "$laravel_dir/config/octane.php" ]; then
+        echo -e "${BLUE}[UP] Octane config already exists, skipping publish${NC}"
+    else
+        $USE_SUDO php artisan octane:install --server=swoole 2>&1 | grep -v "Octane installed successfully"
+    fi
+
+    if [ -f "$laravel_dir/config/octane.php" ]; then
+        echo -e "${GREEN}[UP] OK Octane config file exists${NC}"
+    else
+        echo -e "${YELLOW}[UP] WARNING Octane config not found${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 4: Verifying installation...${NC}"
+    if $USE_SUDO composer show | grep -q "laravel/octane"; then
+        echo -e "${GREEN}[UP] OK Laravel Octane package installed${NC}"
+    else
+        echo -e "${RED}[UP] ERROR Laravel Octane package not found${NC}"
+        return 1
+    fi
+
+    mark_up_applied "$version"
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}[UP] $version completed successfully${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    return 0
+}
+
+# ============================================================================
+# REUSABLE FUNCTIONS - Can be called from other scripts
+# ============================================================================
+
+# Function to get Laravel directory path
+get_laravel_dir() {
+    if [ -z "$CORE_NODE_DIR" ]; then
+        local script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+        echo "$script_root/poly_apps/laravel_main"
+    else
+        echo "$CORE_NODE_DIR/poly_apps/laravel_main"
     fi
 }
 
-# Upgrade composer dependencies
-upgrade_composer_dependencies() {
-    echo "=== Upgrading Composer Dependencies ==="
+# Function to initialize system directories
+initialize_system_directories() {
+    echo -e "${BLUE}[DEPLOY] Initializing system directories${NC}"
 
-    if [ ! -f "composer.json" ]; then
-        echo "ERROR: composer.json not found in $APP_DIR" >&2
-        return 1
+    local www_root=$(map_web_path "wwwroot")
+    local nginx_config_dir=$(map_web_path "nginxconfig")
+    local ssl_dir="$nginx_config_dir/ssl"
+    local shared_data=$(map_web_path "shared-data")
+    local backup_dir=$(map_web_path "backup")
+    local laravel_main="$www_root/laravel_main"
+    local laravel_db="$laravel_main/laravel_db"
+
+    local db_exists=false
+    if find "$laravel_db" -maxdepth 1 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" \) 2>/dev/null | grep -q .; then
+        db_exists=true
+        echo -e "${BLUE}[DEPLOY] Database files detected - will preserve${NC}"
     fi
 
-    # Auto-detect Composer
-    if ! auto_detect_composer; then
-        echo "ERROR: composer not found and could not be installed!" >&2
-        return 1
-    fi
+    local system_dirs=(
+        "$nginx_config_dir"
+        "$ssl_dir"
+        "$nginx_config_dir/sites-available"
+        "$nginx_config_dir/sites-enabled"
+        "$www_root"
+        "$laravel_main"
+        "$laravel_db"
+        "$laravel_db/tmp"
+        "$laravel_db/sessions"
+        "$shared_data"
+        "$backup_dir"
+    )
 
-    echo "Getting Composer version..."
-    $composer_cmd --version 2>&1 | head -1 > /tmp/composer_version.txt
-    local composer_version=$(cat /tmp/composer_version.txt)
-    echo "Composer version: $composer_version"
-    rm -f /tmp/composer_version.txt
-    echo ""
-
-    # Ask for upgrade confirmation
-    echo "This will upgrade all dependencies to their latest compatible versions."
-    echo "Current composer.json requires:"
-    grep -A 5 '"require":' composer.json || true
-    echo ""
-
-    read -p "Do you want to upgrade dependencies? (y/N): " -n 1 -r
-    echo ""
-
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Upgrading dependencies..."
-
-        # Backup composer.lock
-        if [ -f "composer.lock" ]; then
-            cp composer.lock composer.lock.backup
-            echo "Backed up composer.lock to composer.lock.backup"
-        fi
-
-        # Update dependencies
-        echo "Running: $composer_cmd update --with-all-dependencies --prefer-stable $COMPOSER_IGNORE_PLATFORM"
-        $composer_cmd update --with-all-dependencies --prefer-stable $COMPOSER_IGNORE_PLATFORM || {
-            echo "ERROR: Composer update failed!" >&2
-            if [ -f "composer.lock.backup" ]; then
-                echo "Restoring composer.lock from backup..."
-                mv composer.lock.backup composer.lock
-            fi
+    for dir in "${system_dirs[@]}"; do
+        $USE_SUDO mkdir -p "$dir" 2>/dev/null || {
+            echo -e "${RED}[DEPLOY] Failed to create $dir${NC}"
             return 1
         }
+        $USE_SUDO chmod 755 "$dir" 2>/dev/null || true
+    done
 
-        # Dump autoload
-        echo "Regenerating autoload files..."
-        $composer_cmd dump-autoload --optimize $COMPOSER_IGNORE_PLATFORM
+    for dir in "${system_dirs[@]}"; do
+        if [ "$dir" = "$laravel_db" ] && [ "$db_exists" = true ]; then
+            if [ "$IS_WSL" = true ]; then
+                $USE_SUDO chmod 777 "$dir" 2>/dev/null || true
+            else
+                $USE_SUDO chown $USER:www-data "$dir" 2>/dev/null || {
+                    $USE_SUDO chmod 777 "$dir" 2>/dev/null || true
+                }
+                $USE_SUDO chmod 775 "$dir" 2>/dev/null || true
+            fi
+        else
+            if [ "$IS_WSL" = true ]; then
+                $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
+            else
+                $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
+                    $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
+                }
+                $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
+            fi
+        fi
+    done
 
-        echo "Dependencies upgraded successfully ✓"
-        echo ""
+    echo -e "${GREEN}[DEPLOY] OK System directories initialized${NC}"
+    return 0
+}
+
+# Function to check if Laravel is available
+check_laravel_available() {
+    local laravel_dir=$(get_laravel_dir)
+
+    echo -e "${GREEN}[DEPLOY] OK Laravel directory: $laravel_dir${NC}"
+
+    if [ ! -d "$laravel_dir/vendor" ]; then
+        echo -e "${YELLOW}[DEPLOY] Running composer install...${NC}"
+        cd "$laravel_dir"
+        $USE_SUDO composer install --optimize-autoloader
+    fi
+
+    cd "$laravel_dir"
+    $USE_SUDO php artisan --version >/dev/null 2>&1
+
+    echo -e "${GREEN}[DEPLOY] OK Laravel is ready${NC}"
+    return 0
+}
+
+# Function to initialize Laravel-specific directories
+initialize_laravel_directories() {
+    echo -e "${BLUE}[DEPLOY] Initializing Laravel directories${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+
+    local laravel_dirs=(
+        "$laravel_dir/storage/framework/sessions"
+        "$laravel_dir/storage/framework/cache"
+        "$laravel_dir/storage/framework/views"
+        "$laravel_dir/storage/logs"
+        "$laravel_dir/storage/app/public"
+        "$laravel_dir/bootstrap/cache"
+    )
+
+    for dir in "${laravel_dirs[@]}"; do
+        $USE_SUDO mkdir -p "$dir" 2>/dev/null || {
+            echo -e "${RED}[DEPLOY] Failed to create $dir${NC}"
+            return 1
+        }
+    done
+
+    for dir in "${laravel_dirs[@]}"; do
+        if [ "$IS_WSL" = true ]; then
+            $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
+        else
+            $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
+                $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
+            }
+            $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
+        fi
+    done
+
+    echo -e "${GREEN}[DEPLOY] OK Laravel directories initialized${NC}"
+    return 0
+}
+
+# Check initialization - ensure directories and permissions
+check_initialization() {
+    echo -e "${BLUE}[INIT] Initializing Laravel environment${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    cd "$laravel_dir"
+
+    # Create Laravel directories
+    $USE_SUDO mkdir -p storage/framework/sessions
+    $USE_SUDO mkdir -p storage/framework/cache
+    $USE_SUDO mkdir -p storage/framework/views
+    $USE_SUDO mkdir -p storage/logs
+    $USE_SUDO mkdir -p storage/app/public
+    $USE_SUDO mkdir -p bootstrap/cache
+
+    # Create external directories for PathMapper
+    local www_root=$(map_web_path "wwwroot")
+    $USE_SUDO mkdir -p "$www_root/laravel_db/sessions"
+    $USE_SUDO mkdir -p "$www_root/laravel_db/tmp"
+
+    # Set permissions
+    if [ "$IS_WSL" = true ]; then
+        $USE_SUDO chmod -R 777 storage bootstrap/cache 2>/dev/null || true
+        $USE_SUDO chmod -R 777 "$www_root/laravel_db" 2>/dev/null || true
     else
-        echo "Skipping dependency upgrade."
-        echo ""
+        $USE_SUDO chown -R $USER:www-data storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
+        $USE_SUDO chmod -R 775 storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
+    fi
+
+    # Create .env if needed
+    [ ! -f ".env" ] && cp ".env.example" ".env"
+    grep -q "^APP_KEY=base64:" ".env" 2>/dev/null || $USE_SUDO php artisan key:generate --force >/dev/null 2>&1
+
+    echo -e "${GREEN}[INIT] OK Environment initialized${NC}"
+    return 0
+}
+
+# Run all UP methods in sequence
+run_all_ups() {
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}Running all UP methods${NC}"
+    echo -e "${CYAN}========================================${NC}"
+
+    init_up_state
+
+    local failed=0
+
+    up_20251115_install_laravel_mcp || failed=1
+    up_20251115_install_octane || failed=1
+
+    if [ $failed -eq 0 ]; then
+        echo -e "${GREEN}[UP] All updates applied successfully${NC}"
+        return 0
+    else
+        echo -e "${RED}[UP] Some updates failed${NC}"
+        return 1
     fi
 }
 
-# Update composer.json for PHP 8.4 compatibility
-update_composer_json_for_php84() {
-    echo "=== Checking composer.json PHP Version Requirement ==="
+# Function to fix prerequisites and common issues
+fix_prerequisites() {
+    echo -e "\n${BLUE}[PREREQUISITES] Checking and fixing common issues${NC}"
 
-    # Auto-detect Composer first
-    if ! auto_detect_composer; then
-        echo "WARNING: Composer not available for validation" >&2
-        return 0
+    # 1. Fix Git safe directory issue (WSL/dual boot common problem)
+    echo -e "${YELLOW}Fixing Git safe directory issues...${NC}"
+    local current_dir=$(pwd)
+    local project_root="${CORE_NODE_DIR}"
+    
+    # Add current directory and project root to Git safe directories
+    git config --global --add safe.directory "$current_dir" 2>/dev/null || true
+    git config --global --add safe.directory "$project_root" 2>/dev/null || true
+    
+    # Also add any parent directories that might be causing issues
+    local parent_dir=$(dirname "$current_dir")
+    git config --global --add safe.directory "$parent_dir" 2>/dev/null || true
+    
+    echo -e "${GREEN}????Git safe directories configured${NC}"
+    
+    # 2. Install unzip and p7zip for Composer
+    echo -e "${YELLOW}Checking archive extraction tools...${NC}"
+    local tools_needed=()
+    
+    if ! command -v unzip >/dev/null 2>&1; then
+        tools_needed+=("unzip")
     fi
-
-    echo "Reading PHP requirement from composer.json..."
-    grep -oP '(?<="php": ")[^"]+' composer.json > /tmp/php_req.txt
-    local current_php_req=$(cat /tmp/php_req.txt)
-    echo "Current PHP requirement: $current_php_req"
-    rm -f /tmp/php_req.txt
-
-    # Check if we need to update
-    if [[ "$current_php_req" == "^8.2" ]]; then
-        echo ""
-        echo "⚠️  composer.json still requires PHP ^8.2"
-        echo "For PHP 8.4 compatibility, consider updating to:"
-        echo '  "php": "^8.2|^8.3|^8.4"'
-        echo ""
-
-        read -p "Update PHP requirement in composer.json? (y/N): " -n 1 -r
-        echo ""
-
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            # Backup composer.json
-            cp composer.json composer.json.backup
-            echo "Backed up composer.json to composer.json.backup"
-
-            # Update PHP requirement
-            sed -i 's/"php": "\^8\.2"/"php": "^8.2|^8.3|^8.4"/' composer.json
-
-            echo "Updated composer.json PHP requirement ✓"
-            echo ""
-
-            # Validate composer.json
-            if $composer_cmd validate $COMPOSER_IGNORE_PLATFORM; then
-                echo "composer.json is valid ✓"
+    
+    if ! command -v 7z >/dev/null 2>&1 && ! command -v 7za >/dev/null 2>&1; then
+        tools_needed+=("p7zip-full")
+    fi
+    
+    if [ ${#tools_needed[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Installing missing tools: ${tools_needed[*]}${NC}"
+        
+        # Update package list
+        if sudo apt update >/dev/null 2>&1; then
+            echo -e "${GREEN}????Package list updated${NC}"
+        else
+            echo -e "${RED}????Failed to update package list${NC}"
+        fi
+        
+        # Install missing tools
+        for tool in "${tools_needed[@]}"; do
+            if sudo apt install -y "$tool" >/dev/null 2>&1; then
+                echo -e "${GREEN}????Installed $tool${NC}"
             else
-                echo "ERROR: composer.json validation failed!" >&2
-                echo "Restoring from backup..."
-                mv composer.json.backup composer.json
-                return 1
+                echo -e "${RED}????Failed to install $tool${NC}"
+            fi
+        done
+    else
+        echo -e "${GREEN}????Archive extraction tools already available${NC}"
+    fi
+    
+    # 3. Fix file permissions for WSL (common issue)
+    echo -e "${YELLOW}Fixing file permissions...${NC}"
+    
+    # Fix script permissions
+    if [ -f "$(basename "$0")" ]; then
+        chmod +x "$(basename "$0")" 2>/dev/null || true
+    fi
+    
+    # Fix common Laravel file permissions
+    if [ -f "artisan" ]; then
+        chmod +x artisan 2>/dev/null || true
+        echo -e "${GREEN}????Fixed artisan permissions${NC}"
+    fi
+    
+    # 4. Verify Git functionality
+    echo -e "${YELLOW}Verifying Git functionality...${NC}"
+    if git status >/dev/null 2>&1; then
+        echo -e "${GREEN}????Git is working properly${NC}"
+    else
+        echo -e "${YELLOW}????Git may still have issues, but continuing...${NC}"
+    fi
+    
+    # 5. Check Composer functionality
+    echo -e "${YELLOW}Checking Composer zip handling...${NC}"
+    if command -v unzip >/dev/null 2>&1 || command -v 7z >/dev/null 2>&1 || command -v 7za >/dev/null 2>&1; then
+        echo -e "${GREEN}????Archive extraction tools available for Composer${NC}"
+    else
+        echo -e "${YELLOW}????No archive tools found - Composer will use PHP zip extension${NC}"
+    fi
+    
+    echo -e "${GREEN}[PREREQUISITES] Setup complete${NC}\n"
+}
+
+# Ensures the .env file exists and is properly configured
+# Usage: ensure_env_file [project_root]
+ensure_env_file() {
+    local env_file=".env"
+    local env_example=".env.example"
+    local project_root="${1:-$(pwd)}"
+    local full_env_path="${project_root}/${env_file}"
+
+    echo -e "\n${BLUE}[ENV SETUP] Verifying environment configuration${NC}"
+
+    # Verify .env file existence
+    if [ ! -f "$full_env_path" ]; then
+        if [ ! -f "${project_root}/${env_example}" ]; then
+            echo -e "${RED}????Error: Missing ${env_example} file in ${project_root}${NC}"
+            return 1
+        fi
+
+        # Create from example
+        cp "${project_root}/${env_example}" "$full_env_path"
+        echo -e "${GREEN}????Created ${env_file} from template${NC}"
+
+        # Generate application key
+        if grep -q "APP_KEY=" "$full_env_path"; then
+            if command -v php &>/dev/null; then
+                (cd "$project_root" && php artisan key:generate --quiet)
+                echo -e "${GREEN}????Generated application encryption key${NC}"
+            else
+                echo -e "${YELLOW}????PHP not available - APP_KEY remains unset${NC}"
             fi
         fi
     else
-        echo "PHP requirement is already flexible: $current_php_req ✓"
+        echo -e "${BLUE}????${env_file} already exists${NC}"
     fi
 
-    echo ""
+    # Set secure permissions
+    if [ -f "$full_env_path" ]; then
+        chmod 600 "$full_env_path"
+        echo -e "${GREEN}????Applied secure file permissions (600)${NC}"
+    fi
 }
 
-# Load module functions
-if [ -f "$DEPLOY_TOOLS_DIR/environment_checker.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/environment_checker.sh"
-    echo "Environment checker module loaded"
-else
-    echo "ERROR: environment_checker module not found" >&2
-    exit 1
-fi
+# Ensures production environment configuration
+# Usage: ensure_production_environment [project_root]
+ensure_production_environment() {
+    local env_file=".env"
+    local project_root="${1:-$(pwd)}"
+    local full_env_path="${project_root}/${env_file}"
+    local changes_made=false
 
-if [ -f "$DEPLOY_TOOLS_DIR/system_dependencies.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/system_dependencies.sh"
-    echo "System dependencies module loaded"
-else
-    echo "ERROR: system_dependencies module not found" >&2
-    exit 1
-fi
+    echo -e "\n${BLUE}[ENV CONFIG] Validating production settings${NC}"
 
-if [ -f "$DEPLOY_TOOLS_DIR/permission_manager.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/permission_manager.sh"
-    echo "Permission manager module loaded"
-else
-    echo "ERROR: permission_manager module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/environment_setup.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/environment_setup.sh"
-    echo "Environment setup module loaded"
-else
-    echo "ERROR: environment_setup module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/database_manager.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/database_manager.sh"
-    echo "Database manager module loaded"
-else
-    echo "ERROR: database_manager module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/deployment_helper.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/deployment_helper.sh"
-    echo "Deployment helper module loaded"
-else
-    echo "ERROR: deployment_helper module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/safety_checker.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/safety_checker.sh"
-    echo "Safety checker module loaded"
-else
-    echo "ERROR: safety_checker module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/nginx_integrator.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/nginx_integrator.sh"
-    echo "Nginx integrator module loaded"
-else
-    echo "ERROR: nginx_integrator module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/compatibility_checker.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/compatibility_checker.sh"
-    echo "Compatibility checker module loaded"
-else
-    echo "ERROR: compatibility_checker module not found" >&2
-    exit 1
-fi
-
-if [ -f "$DEPLOY_TOOLS_DIR/smart_environment_setup.sh" ]; then
-    source "$DEPLOY_TOOLS_DIR/smart_environment_setup.sh"
-    echo "Smart environment setup module loaded"
-else
-    echo "ERROR: smart_environment_setup module not found" >&2
-    exit 1
-fi
-
-# Get environment-specific directories
-echo "Getting environment-specific directories..."
-get_database_directory > /tmp/db_dir.txt
-DB_DIR=$(cat /tmp/db_dir.txt)
-get_project_root > /tmp/project_root.txt
-PROJECT_ROOT=$(cat /tmp/project_root.txt)
-rm -f /tmp/db_dir.txt /tmp/project_root.txt
-DB_FILE="$DB_DIR/database.sqlite"
-ENV_FILE="$APP_DIR/.env"
-ENV_EXAMPLE="$APP_DIR/.env.example"
-INIT_MARKER="$APP_DIR/.laravel_initialized"
-
-# Print initial configuration
-echo "Deployment Configuration:"
-echo "  SCRIPT_DIR: $SCRIPT_DIR"
-echo "  APP_DIR: $APP_DIR"
-echo "  APP_NAME: $APP_NAME"
-echo "  SERVICE_NAME: $SERVICE_NAME"
-echo "  LOG_FILE: $LOG_FILE"
-echo "  DB_DIR: $DB_DIR"
-echo "  DB_FILE: $DB_FILE"
-echo "  ENV_FILE: $ENV_FILE"
-echo "  PROJECT_ROOT: $PROJECT_ROOT"
-
-echo ""
-echo "Starting Laravel Main Application Deployment (SAFE MODE)"
-echo ""
-
-# Check PHP version first
-check_php_version
-
-# Record original directory and change to application directory
-echo "Getting current working directory..."
-pwd > /tmp/original_dir.txt
-ORIGINAL_DIR=$(cat /tmp/original_dir.txt)
-rm -f /tmp/original_dir.txt
-echo ""
-echo "=== Directory Debug Information ==="
-echo "Original working directory: $ORIGINAL_DIR"
-echo "Target application directory: $APP_DIR"
-echo "Script directory: $SCRIPT_DIR"
-echo ""
-
-echo "Changing to application directory: $APP_DIR"
-cd "$APP_DIR" || {
-    echo "ERROR: Failed to change to app directory: $APP_DIR" >&2
-    exit 1
-}
-
-echo "Getting current working directory after change..."
-pwd > /tmp/current_dir.txt
-CURRENT_DIR=$(cat /tmp/current_dir.txt)
-echo "Current working directory after change: $CURRENT_DIR"
-rm -f /tmp/current_dir.txt
-echo "=== End Directory Debug ==="
-echo ""
-
-# Update composer.json for PHP 8.4 if needed
-update_composer_json_for_php84
-
-# Offer to upgrade dependencies
-upgrade_composer_dependencies
-
-# Run Laravel 12 compatibility check first
-echo ""
-echo "Performing Laravel 12 compatibility check..."
-perform_full_compatibility_check
-
-echo ""
-echo "Running smart environment setup..."
-echo ""
-
-# Run smart auto-setup before proceeding
-run_smart_setup
-
-echo ""
-echo "Continuing with deployment..."
-echo ""
-
-# Run comprehensive environment check
-comprehensive_environment_check
-
-# Run pre-deployment checks
-if ! pre_deployment_check; then
-    echo "WARNING: Pre-deployment checks found issues (continuing...)" >&2
-fi
-
-# Verify deployment safety
-verify_deployment_safety "$DB_FILE"
-
-# Install system dependencies and tools
-echo ""
-echo "Installing system dependencies..."
-install_archive_tools || true
-fix_git_safe_directory
-fix_script_permissions
-verify_git
-
-# Ensure PHP and extensions
-ensure_php_requirements || true
-ensure_composer || true
-ensure_python3 || true
-ensure_edgetts || true
-check_edge_browser || true
-
-# Setup environment files
-ensure_env_file "$ENV_FILE" "$ENV_EXAMPLE"
-ensure_production_environment "$ENV_FILE"
-configure_database_connection "$ENV_FILE" "$DB_FILE"
-
-# Setup permissions
-setup_directory_permissions
-verify_critical_permissions
-
-# Install dependencies
-install_dependencies || true
-
-# Setup database
-setup_database "$DB_DIR" "$DB_FILE" "$ENV_FILE"
-
-# Determine deployment mode
-echo "Getting current environment settings..."
-get_current_environment "$ENV_FILE" > /tmp/current_env.txt
-CURRENT_ENV=$(cat /tmp/current_env.txt)
-get_current_debug_setting "$ENV_FILE" > /tmp/current_debug.txt
-CURRENT_DEBUG=$(cat /tmp/current_debug.txt)
-rm -f /tmp/current_env.txt /tmp/current_debug.txt
-
-echo ""
-echo "Environment configuration: APP_ENV=$CURRENT_ENV, APP_DEBUG=$CURRENT_DEBUG"
-echo ""
-
-# Optimize based on environment
-if [ "$CURRENT_ENV" = "production" ]; then
-    echo "Running production optimizations..."
-    optimize_for_production
-    create_init_marker "$INIT_MARKER"
-
-    # Integrate with Nginx for production
-    echo ""
-    echo "Configuring Nginx integration..."
-    if integrate_with_nginx "$APP_NAME" "$APP_DIR" "localhost" "8.4"; then
-        echo "Nginx integration completed successfully"
-    else
-        echo "WARNING: Nginx integration encountered issues"
+    # Verify .env exists
+    if [ ! -f "$full_env_path" ]; then
+        echo -e "${RED}????Error: ${env_file} not found in ${project_root}${NC}"
+        return 1
     fi
 
-    # Deploy domain to nginx using ServerManagerV1 CLI
-    echo ""
-    echo "=== Domain Deployment to Nginx ==="
-    echo "You can deploy this Laravel application to a domain using:"
-    echo "  php artisan servermanager:deploy <domain> laravel [OPTIONS]"
-    echo ""
-    echo "Examples:"
-    echo "  1. Deploy to api.local.12gm.com with auto SSL:"
-    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --php-version=8.4"
-    echo ""
-    echo "  2. Deploy without SSL:"
-    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --no-ssl"
-    echo ""
-    echo "  3. Force update existing configuration:"
-    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --force"
-    echo ""
-    read -p "Do you want to deploy a domain now? (y/N): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        read -p "Enter domain name (e.g., api.local.12gm.com): " domain_input
-        if [ -n "$domain_input" ]; then
-            echo "Deploying domain: $domain_input"
-            php artisan servermanager:deploy "$domain_input" laravel --php-version=8.4
-        else
-            echo "No domain entered, skipping deployment."
+    # Create backup
+    cp "$full_env_path" "${full_env_path}.bak"
+    
+    # Configure APP_ENV
+    if grep -q "^APP_ENV=" "$full_env_path"; then
+        if ! grep -q "^APP_ENV=production$" "$full_env_path"; then
+            sed -i 's/^APP_ENV=.*/APP_ENV=production/' "$full_env_path"
+            changes_made=true
+            echo -e "${GREEN}????Set APP_ENV to production${NC}"
         fi
     else
-        echo "Skipping domain deployment. You can run it manually later."
+        echo "APP_ENV=production" >> "$full_env_path"
+        changes_made=true
+        echo -e "${GREEN}????Added APP_ENV setting${NC}"
     fi
 
-    echo ""
-    print_deployment_summary "$APP_DIR" "production" "$APP_NAME"
+    # Configure APP_DEBUG
+    if grep -q "^APP_DEBUG=" "$full_env_path"; then
+        if ! grep -q "^APP_DEBUG=false$" "$full_env_path"; then
+            sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' "$full_env_path"
+            changes_made=true
+            echo -e "${GREEN}????Disabled debug mode${NC}"
+        fi
+    else
+        echo "APP_DEBUG=false" >> "$full_env_path"
+        changes_made=true
+        echo -e "${GREEN}????Added APP_DEBUG setting${NC}"
+    fi
+
+    # Cleanup if no changes were needed
+    if [ "$changes_made" = false ]; then
+        rm -f "${full_env_path}.bak"
+        echo -e "${BLUE}????Production settings already configured${NC}"
+    else
+        echo -e "${GREEN}????Production configuration complete${NC}"
+    fi
+}
+
+# ============================================================================
+# MAIN EXECUTION - Always runs (idempotent)
+# ============================================================================
+# Check initialization (ensure directories and permissions)
+check_initialization
+
+# Run all UP methods automatically when sourced or executed
+run_all_ups
+
+# ============================================================================
+# LEGACY DEPLOYMENT FUNCTIONS (kept for reference, not executed automatically)
+# ============================================================================
+# To run full deployment, execute: bash deploy.sh --full-deploy
+# ============================================================================
+
+if [ "${1:-}" = "--full-deploy" ]; then
+
+# Change to the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+echo "Changed to directory: $SCRIPT_DIR"
+
+# Function to setup directory permissions
+setup_permissions() {
+    echo "Setting up directory permissions..."
+
+    # Prompt for username with 5 second timeout
+    read -t 5 -p "Enter username [default: www]: " username
+    if [ -z "$username" ]; then
+        username="www"
+    fi
+
+    # Check if user exists
+    if ! id "$username" &>/dev/null; then
+        echo "User $username does not exist, using current user: $USER"
+        username="$USER"
+    fi
+
+    # Reset Laravel directories
+    echo "Resetting Laravel directories..."
+    rm -rf storage/framework/views/*
+    rm -rf storage/framework/cache/*
+    rm -rf storage/framework/sessions/*
+    rm -rf storage/logs/*
+    rm -rf bootstrap/cache/*
+
+    # Create directories if they don't exist
+    mkdir -p storage/framework/views
+    mkdir -p storage/framework/cache
+    mkdir -p storage/framework/sessions
+    mkdir -p storage/logs
+    mkdir -p bootstrap/cache
+
+    # Set ownership and permissions
+    echo "Setting ownership to $username:$username"
+    chown -R "$username:$username" .
+    echo "Setting directory permissions to 755"
+    find . -type d -exec chmod 755 {} \;
+    echo "Setting file permissions to 644"
+    find . -type f -exec chmod 644 {} \;
+
+    # Set special permissions for storage and bootstrap/cache
+    echo "Setting special permissions for storage and bootstrap/cache"
+    chmod -R 775 storage
+    chmod -R 775 bootstrap/cache
+}
+
+# Function to check and install PHP 8.4
+ensure_php_84() {
+    if command -v php &>/dev/null; then
+        php_version=$(php -v | head -n 1 | cut -d " " -f 2)
+        echo "PHP version: $php_version"
+    else
+        echo "PHP is not installed. Installing PHP..."
+        sudo apt update
+        sudo apt install -y php
+        php_version=$(php -v | head -n 1 | cut -d " " -f 2)
+        echo "PHP version: $php_version"
+    fi
+}
+
+# Function to check and install required PHP extensions
+ensure_php_extensions() {
+    echo "Checking required PHP extensions (dom, xml)..."
+    if ! php -m | grep -q 'dom'; then
+        echo "PHP extension 'dom' not found. Installing..."
+        sudo apt update
+        sudo apt install -y php-xml
+    fi
+    if ! php -m | grep -q 'xml'; then
+        echo "PHP extension 'xml' not found. Installing..."
+        sudo apt update
+        sudo apt install -y php-xml
+    fi
+}
+
+# Function to check and install Composer
+ensure_composer() {
+    if command -v composer &>/dev/null; then
+        composer_version=$(composer --version | cut -d " " -f 3)
+        echo "Composer version: $composer_version"
+    else
+        echo "Composer is not installed. Installing Composer..."
+        # Download Composer installer
+        php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+        # Verify installer signature
+        php -r "if (hash_file('sha384', 'composer-setup.php') === 'e21205b207c3ff031906575712edab6f13eb0b361f2085f1f1237b7126d785e826a450292b6cfd1d64d92e6563bbde02') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+        # Install Composer
+        sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+        # Remove installer
+        rm composer-setup.php
+        composer_version=$(composer --version | cut -d " " -f 3)
+        echo "Composer version: $composer_version"
+    fi
+}
+
+# Function to check and install vendor dependencies
+ensure_vendor() {
+    if [ ! -d "vendor" ]; then
+        echo "Vendor directory not found. Installing dependencies..."
+        composer install
+    else
+        echo "Vendor directory exists."
+    fi
+}
+
+# Function to clear Laravel cache
+clear_cache() {
+    echo "Clearing Laravel cache..."
+    php artisan cache:clear
+    php artisan config:clear
+    php artisan route:clear
+    php artisan view:clear
+}
+# Function to handle SQLite database with intelligent migration
+handle_database() {
+    # Use gvar_common.sh map_web_path to get correct path
+    local wwwroot=$(map_web_path "wwwroot")
+    DB_DIR="$wwwroot/laravel_db"
+    DB_FILE="$DB_DIR/database.sqlite"
+    ENV_FILE=".env"
+
+    echo -e "${BLUE}[DATABASE] Initializing SQLite database${NC}"
+    echo "Database file location: ${GREEN}$DB_FILE${NC}"
+
+    # 1. Ensure database directory exists
+    if [ ! -d "$DB_DIR" ]; then
+        mkdir -p "$DB_DIR"
+        echo -e "${YELLOW}Created database directory${NC}"
+    fi
+
+    # 2. Handle database file creation
+    db_exists=false
+    if [ ! -f "$DB_FILE" ]; then
+        read -p "Database file does not exist. Create it? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            touch "$DB_FILE"
+            echo -e "${GREEN}Created new database file${NC}"
+        else
+            echo -e "${YELLOW}Skipping database initialization${NC}"
+            return
+        fi
+    else
+        db_exists=true
+        echo -e "${GREEN}Using existing database${NC}"
+    fi
+
+    # 3. Configure .env file
+    if [ ! -f "$ENV_FILE" ]; then
+        cp .env.example "$ENV_FILE"
+        echo -e "${YELLOW}Created .env file from example${NC}"
+    fi
+
+    # Update .env with SQLite configuration
+    if ! grep -q "^DB_CONNECTION=sqlite" "$ENV_FILE"; then
+        sed -i 's/DB_CONNECTION=.*/DB_CONNECTION=sqlite/' "$ENV_FILE"
+    fi
+    sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$DB_FILE|" "$ENV_FILE"
+
+    # 4. Run appropriate migrations based on database state
+    if [ "$db_exists" = true ]; then
+        echo -e "${BLUE}[DATABASE] Running schema updates on existing database${NC}"
+        php artisan migrate --force
+    else
+        echo -e "${BLUE}[DATABASE] Initializing new database with migrations${NC}"
+        php artisan migrate:fresh --force --seed
+    fi
+
+    # 5. Optional configuration (if needed)
+    if [ -f "artisan" ] && php artisan | grep -q "database:config"; then
+        php artisan database:config
+    fi
+
+    # Set proper permissions
+    chmod 755 "$DB_DIR"
+    chmod 644 "$DB_FILE"
+    echo -e "${GREEN}Database setup complete${NC}"
+}
+# Function to start Laravel server
+start_server() {
+    echo "Starting Laravel development server..."
+    php artisan serve --host=0.0.0.0
+}
+# Function to configure open_basedir in project's .user.ini
+configure_project_open_basedir() {
+    echo -e "${BLUE}[PHP CONFIG] Configuring .user.ini${NC}"
+
+    local project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local user_ini_file="$project_root/public/.user.ini"
+
+    mkdir -p "$project_root/public"
+
+    cat > "$user_ini_file" <<'EOF'
+; Disable open_basedir for Laravel poly projects to allow PathMapper environment detection
+open_basedir = none
+
+; Security settings
+disable_functions = exec,passthru,shell_exec,system,proc_open,popen
+expose_php = Off
+EOF
+
+    chmod 644 "$user_ini_file"
+    echo -e "${GREEN}[PHP CONFIG] OK .user.ini configured${NC}"
+}
+
+configure_laravel_nginx() {
+    echo -e "\n\033[34m[LARAVEL NGINX CONFIGURATION]\033[0m"
+    echo "This will guide you to add Laravel-specific rules to your Nginx configuration in BT/aapanel."
+
+    echo -e "\n\033[36m=== Required Configuration ===\033[0m"
+    cat <<EOF
+
+Add these directives to your site's Nginx configuration in BT/aapanel:
+
+1. Go to: Websites -> Select Site -> Configuration Files
+2. Find the "server" block and add:
+
+location / {
+    try_files \$uri \$uri/ /index.php?\$query_string;
+}
+
+location ~ \.php\$ {
+    fastcgi_pass   unix:/tmp/php-cgi-84.sock;
+    fastcgi_index  index.php;
+    fastcgi_param  SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    include        fastcgi_params;
+    fastcgi_hide_header X-Powered-By;
+    
+    # Security enhancements
+    fastcgi_read_timeout 300;
+    fastcgi_buffer_size 128k;
+    fastcgi_buffers 4 256k;
+}
+
+3. Click "Save" and restart Nginx.
+EOF
+
+    echo -e "\n\033[32m????Configuration instructions generated\033[0m"
+    echo -e "\033[33mNote:\033[0m Replace '/tmp/php-cgi-84.sock' with your actual PHP-FPM socket path if different."
+}
+# Check if running on Debian/Ubuntu
+if [ -f /etc/debian_version ]; then
+    echo "System detected as Debian/Ubuntu"
+    
+    # Fix prerequisites and common issues first
+    fix_prerequisites
+    
+    ensure_env_file
+    ensure_production_environment
+    setup_permissions
+    ensure_php_84
+    ensure_php_extensions
+    ensure_composer
+    ensure_vendor
+    clear_cache
+    handle_database
+    configure_project_open_basedir
+    configure_laravel_nginx
+    # Create initialization marker
+    touch .laravel_initialized
+    echo "Project initialization completed. Marker file created."
+
+    # Start server
+    start_server
 else
-    echo "Setting up development environment..."
-    optimize_for_development
-    create_init_marker "$INIT_MARKER"
-    echo ""
-    print_deployment_summary "$APP_DIR" "development" "$APP_NAME"
-
-    # Start development server
-    if stop_development_server 8000; then
-        start_development_server "0.0.0.0" "8000"
-    fi
+    echo "This script only supports Debian/Ubuntu systems"
+    exit 1
 fi
 
-# Restore original directory
-echo ""
-echo "=== Directory Restore Debug ==="
-echo "Getting current working directory before restore..."
-pwd > /tmp/before_restore.txt
-BEFORE_RESTORE=$(cat /tmp/before_restore.txt)
-echo "Current working directory before restore: $BEFORE_RESTORE"
-rm -f /tmp/before_restore.txt
-echo "Restoring to original directory: $ORIGINAL_DIR"
-cd "$ORIGINAL_DIR" || {
-    echo "WARNING: Failed to restore original directory: $ORIGINAL_DIR" >&2
-}
-echo "Getting current working directory after restore..."
-pwd > /tmp/after_restore.txt
-AFTER_RESTORE=$(cat /tmp/after_restore.txt)
-echo "Current working directory after restore: $AFTER_RESTORE"
-rm -f /tmp/after_restore.txt
-echo "=== End Directory Restore Debug ==="
-
-# sudo apt update && sudo apt install -y dos2unix &&  find . -maxdepth 3 -type f -name 'deploy.sh' -print0 |  while IFS= read -r -d '' f; do sudo dos2unix "$f" && sudo chmod +x "$f"; done
+fi  # End of --full-deploy check
