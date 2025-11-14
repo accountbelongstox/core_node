@@ -56,7 +56,6 @@ from pycore.pyutils.media_compressor import (
 from pycore.pyutils.video_stream import FMP4EncoderComplete, H264Frame
 
 # API utilities
-from pycore.pyutils.api import WebSocketManager
 
 # Native UI Framework - Base Components
 from pycore.pyutils.native_ui import (
@@ -130,8 +129,6 @@ __all__ = [
     'CompressionTask',
     'QueueStats',
 
-    # WebSocket
-    'WebSocketManager',
 
     # Native UI
     'NativeUIFramework',

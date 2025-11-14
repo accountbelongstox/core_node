@@ -929,8 +929,12 @@ map_web_path() {
     elif [ "$IS_PRODUCTION" = true ]; then
         base_path="/www"
     else
-        # Use data base directory + www
-        base_path="$data_base/www"
+        # Desktop environment: use data base + /www, unless data base is already /www
+        if [ "$data_base" = "/www" ]; then
+            base_path="/www"
+        else
+            base_path="$data_base/www"
+        fi
     fi
 
     # Map paths using common base path

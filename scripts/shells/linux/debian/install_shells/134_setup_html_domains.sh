@@ -9,6 +9,14 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# IMPORTANT: This script must be run as ROOT user
+# Required for HTML domain setup and nginx configuration
+if [ "$EUID" -ne 0 ] && [ -z "$SUDO_USER" ]; then
+    echo "Error: This script must be run as root or with sudo"
+    echo "Usage: sudo $0"
+    exit 1
+fi
+
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -193,12 +201,35 @@ update_hosts_file() {
     fi
 }
 
+# Function to check if domain exists
+check_domain_exists() {
+    local domain="$1"
+
+    cd "$laravel_dir" || return 1
+
+    local check_output
+    check_output=$($USE_SUDO php artisan servermanager:website list 2>&1)
+
+    if echo "$check_output" | grep -q "Website: $domain"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Function to add HTML website
 add_html_website() {
     local html_domain="$1"
 
-    echo "[$SCRIPT_INDEX]   Adding HTML website: $html_domain"
+    echo "[$SCRIPT_INDEX]   Processing HTML website: $html_domain"
     echo "[$SCRIPT_INDEX]   Type: html (static content)"
+
+    if check_domain_exists "$html_domain"; then
+        echo "[$SCRIPT_INDEX]   [EXISTS] Domain already configured: $html_domain"
+        echo "[$SCRIPT_INDEX]   [IDEMPOTENT] Skipping addition (configuration preserved)"
+        return 0
+    fi
+
     echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$html_domain\" --type=html --ssl=auto --php-version=$PHP_VERSION"
 
     local output

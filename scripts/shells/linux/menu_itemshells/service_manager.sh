@@ -41,18 +41,22 @@ declare -A SERVICE_MANAGER_SCRIPT
 SERVICE_NAME["redis"]="Redis"
 SERVICE_SYSTEMD["redis"]="redis-server"
 SERVICE_INSTALL_SCRIPT["redis"]="45_install_redis.sh"
+SERVICE_MANAGER_SCRIPT["redis"]="$SERVER_MANAGER_DIR/redis_manager.sh"
 
 SERVICE_NAME["postgresql"]="PostgreSQL"
 SERVICE_SYSTEMD["postgresql"]="postgresql"
 SERVICE_INSTALL_SCRIPT["postgresql"]="46_install_postgresql.sh"
+SERVICE_MANAGER_SCRIPT["postgresql"]="$SERVER_MANAGER_DIR/postgresql_manager.sh"
 
 SERVICE_NAME["docker"]="Docker"
 SERVICE_SYSTEMD["docker"]="docker"
 SERVICE_INSTALL_SCRIPT["docker"]="47_install_docker.sh"
+SERVICE_MANAGER_SCRIPT["docker"]="$SERVER_MANAGER_DIR/docker_manager.sh"
 
 SERVICE_NAME["mysql"]="MySQL"
 SERVICE_SYSTEMD["mysql"]="mariadb"
 SERVICE_INSTALL_SCRIPT["mysql"]="48_install_mysql.sh"
+SERVICE_MANAGER_SCRIPT["mysql"]="$SERVER_MANAGER_DIR/mysql_manager.sh"
 
 SERVICE_NAME["nginx"]="Nginx"
 SERVICE_SYSTEMD["nginx"]="nginx"
@@ -62,9 +66,20 @@ SERVICE_MANAGER_SCRIPT["nginx"]="$SERVER_MANAGER_DIR/nginx_manager.sh"
 SERVICE_NAME["ssh"]="SSH Server"
 SERVICE_SYSTEMD["ssh"]="ssh"
 SERVICE_INSTALL_SCRIPT["ssh"]="17_setup_ssh_remote.sh"
+SERVICE_MANAGER_SCRIPT["ssh"]="$SERVER_MANAGER_DIR/ssh_manager.sh"
+
+SERVICE_NAME["pycore"]="Pycore HTTP"
+SERVICE_SYSTEMD["pycore"]="pycore-module-caller"
+SERVICE_INSTALL_SCRIPT["pycore"]="150_install_pycore_http_service.sh"
+SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
+
+SERVICE_NAME["laravel"]="Laravel Octane"
+SERVICE_SYSTEMD["laravel"]="laravel-octane"
+SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
+SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
 
 # Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh")
+SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel")
 
 # Function to check if service is installed
 is_service_installed() {
@@ -82,6 +97,14 @@ is_service_installed() {
             return 0
         elif systemctl list-unit-files | grep -q "^sshd.service"; then
             SERVICE_SYSTEMD["ssh"]="sshd"
+            return 0
+        fi
+        return 1
+    fi
+
+    # Special handling for Laravel Octane (path-based services with pattern: octane-*)
+    if [ "$service" = "laravel" ]; then
+        if systemctl list-units --type=service --all | grep -q "octane-.*\.service"; then
             return 0
         fi
         return 1
@@ -105,6 +128,23 @@ get_service_status() {
         return
     fi
 
+    # Special handling for Laravel Octane (multiple services)
+    if [ "$service" = "laravel" ]; then
+        local total_count=$(systemctl list-units --type=service --all | grep -c "octane-.*\.service" || echo "0")
+        local running_count=$(systemctl list-units --type=service --state=active | grep -c "octane-.*\.service" || echo "0")
+
+        if [ "$total_count" -eq 0 ]; then
+            echo "NOT_INSTALLED"
+        elif [ "$running_count" -eq "$total_count" ]; then
+            echo "RUNNING:$running_count/$total_count"
+        elif [ "$running_count" -gt 0 ]; then
+            echo "PARTIAL:$running_count/$total_count"
+        else
+            echo "STOPPED:0/$total_count"
+        fi
+        return
+    fi
+
     if systemctl is-active --quiet "$systemd_name"; then
         echo "RUNNING"
     else
@@ -121,23 +161,32 @@ print_status() {
     local service="$1"
     local status=$(get_service_status "$service")
 
-    case "$status" in
-        "RUNNING")
-            echo -e "${GREEN}[RUNNING]${NC}"
-            ;;
-        "STOPPED_ENABLED")
-            echo -e "${YELLOW}[STOPPED - Auto-start ENABLED]${NC}"
-            ;;
-        "STOPPED_DISABLED")
-            echo -e "${YELLOW}[STOPPED - Auto-start DISABLED]${NC}"
-            ;;
-        "NOT_INSTALLED")
-            echo -e "${RED}[NOT INSTALLED]${NC}"
-            ;;
-        *)
-            echo -e "${RED}[UNKNOWN]${NC}"
-            ;;
-    esac
+    # Check for Octane-specific status formats (RUNNING:x/y, PARTIAL:x/y, STOPPED:x/y)
+    if [[ "$status" =~ ^RUNNING:([0-9]+)/([0-9]+)$ ]]; then
+        echo -e "${GREEN}[RUNNING: ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} services]${NC}"
+    elif [[ "$status" =~ ^PARTIAL:([0-9]+)/([0-9]+)$ ]]; then
+        echo -e "${YELLOW}[PARTIAL: ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} running]${NC}"
+    elif [[ "$status" =~ ^STOPPED:([0-9]+)/([0-9]+)$ ]]; then
+        echo -e "${YELLOW}[STOPPED: ${BASH_REMATCH[2]} services]${NC}"
+    else
+        case "$status" in
+            "RUNNING")
+                echo -e "${GREEN}[RUNNING]${NC}"
+                ;;
+            "STOPPED_ENABLED")
+                echo -e "${YELLOW}[STOPPED - Auto-start ENABLED]${NC}"
+                ;;
+            "STOPPED_DISABLED")
+                echo -e "${YELLOW}[STOPPED - Auto-start DISABLED]${NC}"
+                ;;
+            "NOT_INSTALLED")
+                echo -e "${RED}[NOT INSTALLED]${NC}"
+                ;;
+            *)
+                echo -e "${RED}[UNKNOWN]${NC}"
+                ;;
+        esac
+    fi
 }
 
 # Function to start service
@@ -154,6 +203,33 @@ start_service() {
     if ! is_service_installed "$service"; then
         echo -e "${RED}Error: $service_name is not installed${NC}"
         return 1
+    fi
+
+    # Special handling for Laravel Octane (multiple services)
+    if [ "$service" = "laravel" ]; then
+        local octane_services=$(systemctl list-units --type=service --all | grep "octane-.*\.service" | awk '{print $1}' | sed 's/.service$//')
+        local success_count=0
+        local fail_count=0
+
+        for octane_service in $octane_services; do
+            if systemctl is-active --quiet "$octane_service"; then
+                echo -e "${YELLOW}$octane_service is already running${NC}"
+                ((success_count++))
+            else
+                if $USE_SUDO systemctl start "$octane_service"; then
+                    echo -e "${GREEN}✓ Started $octane_service${NC}"
+                    $USE_SUDO systemctl enable "$octane_service" 2>/dev/null
+                    ((success_count++))
+                else
+                    echo -e "${RED}✗ Failed to start $octane_service${NC}"
+                    ((fail_count++))
+                fi
+            fi
+        done
+
+        echo ""
+        echo "Summary: $success_count started, $fail_count failed"
+        [ $fail_count -eq 0 ] && return 0 || return 1
     fi
 
     if systemctl is-active --quiet "$systemd_name"; then
@@ -198,6 +274,32 @@ stop_service() {
         return 1
     fi
 
+    # Special handling for Laravel Octane (multiple services)
+    if [ "$service" = "laravel" ]; then
+        local octane_services=$(systemctl list-units --type=service --all | grep "octane-.*\.service" | awk '{print $1}' | sed 's/.service$//')
+        local success_count=0
+        local fail_count=0
+
+        for octane_service in $octane_services; do
+            if ! systemctl is-active --quiet "$octane_service"; then
+                echo -e "${YELLOW}$octane_service is not running${NC}"
+                ((success_count++))
+            else
+                if $USE_SUDO systemctl stop "$octane_service"; then
+                    echo -e "${GREEN}✓ Stopped $octane_service${NC}"
+                    ((success_count++))
+                else
+                    echo -e "${RED}✗ Failed to stop $octane_service${NC}"
+                    ((fail_count++))
+                fi
+            fi
+        done
+
+        echo ""
+        echo "Summary: $success_count stopped, $fail_count failed"
+        [ $fail_count -eq 0 ] && return 0 || return 1
+    fi
+
     if ! systemctl is-active --quiet "$systemd_name"; then
         echo -e "${YELLOW}$service_name is not running${NC}"
         return 0
@@ -226,6 +328,27 @@ restart_service() {
     if ! is_service_installed "$service"; then
         echo -e "${RED}Error: $service_name is not installed${NC}"
         return 1
+    fi
+
+    # Special handling for Laravel Octane (multiple services)
+    if [ "$service" = "laravel" ]; then
+        local octane_services=$(systemctl list-units --type=service --all | grep "octane-.*\.service" | awk '{print $1}' | sed 's/.service$//')
+        local success_count=0
+        local fail_count=0
+
+        for octane_service in $octane_services; do
+            if $USE_SUDO systemctl restart "$octane_service"; then
+                echo -e "${GREEN}✓ Restarted $octane_service${NC}"
+                ((success_count++))
+            else
+                echo -e "${RED}✗ Failed to restart $octane_service${NC}"
+                ((fail_count++))
+            fi
+        done
+
+        echo ""
+        echo "Summary: $success_count restarted, $fail_count failed"
+        [ $fail_count -eq 0 ] && return 0 || return 1
     fi
 
     if $USE_SUDO systemctl restart "$systemd_name"; then
@@ -504,73 +627,125 @@ show_main_menu() {
     while true; do
         clear
         echo "================================================"
-        echo "Service Manager"
+        echo "Service Manager - Quick Actions"
         echo "================================================"
-        echo ""
-        echo "Installed Services:"
         echo ""
 
         local index=1
         for service in "${SERVICES[@]}"; do
             local service_name="${SERVICE_NAME[$service]}"
-            printf "%d. %-15s : " "$index" "$service_name"
+            local status=$(get_service_status "$service")
+
+            # Format: [#] Service Name    [STATUS] [Actions]
+            printf "${CYAN}%d.${NC} %-15s " "$index" "$service_name"
             print_status "$service"
-            
-            # Show indicator if service has advanced manager
-            if has_advanced_manager "$service"; then
-                echo -e "  ${BLUE}[Advanced Manager Available]${NC}"
+
+            # Show quick action hints
+            if [ "$status" = "NOT_INSTALLED" ]; then
+                echo -e "  ${YELLOW}→ ${index}i${NC} Install"
+            else
+                # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
+                if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
+                    echo -e "  ${YELLOW}→ ${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                else
+                    echo -e "  ${YELLOW}→ ${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                fi
             fi
-            
+
+            # Show advanced manager indicator
+            if has_advanced_manager "$service"; then
+                echo -e "   ${BLUE}[Advanced Manager: ${index}m]${NC}"
+            fi
+
             ((index++))
         done
 
         echo ""
         echo "================================================"
-        echo "Bulk Operations:"
+        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
         echo "================================================"
         echo ""
-        echo "a. Show All Services Status"
-        echo "s. Start All Services"
-        echo "x. Stop All Services"
-        echo ""
-        echo "0. Exit"
-        echo ""
-        read -p "Choose an option: " choice
+        read -p "Command: " choice
 
-        case "$choice" in
-            [1-6])
-                local service_index=$((choice - 1))
-                if [ $service_index -lt ${#SERVICES[@]} ]; then
-                    manage_service "${SERVICES[$service_index]}"
-                else
-                    echo -e "${RED}Invalid option${NC}"
+        # Parse command format: <number><action>
+        if [[ "$choice" =~ ^([0-9]+)([sxrim])$ ]]; then
+            local service_num="${BASH_REMATCH[1]}"
+            local action="${BASH_REMATCH[2]}"
+            local service_index=$((service_num - 1))
+
+            if [ $service_index -ge 0 ] && [ $service_index -lt ${#SERVICES[@]} ]; then
+                local service="${SERVICES[$service_index]}"
+
+                case "$action" in
+                    s)
+                        start_service "$service"
+                        read -p "Press Enter to continue..."
+                        ;;
+                    x)
+                        stop_service "$service"
+                        read -p "Press Enter to continue..."
+                        ;;
+                    r)
+                        restart_service "$service"
+                        read -p "Press Enter to continue..."
+                        ;;
+                    i)
+                        reinstall_service "$service"
+                        read -p "Press Enter to continue..."
+                        ;;
+                    m)
+                        manage_service "$service"
+                        ;;
+                esac
+            else
+                echo -e "${RED}Invalid service number${NC}"
+                read -p "Press Enter to continue..."
+            fi
+        else
+            # Handle special commands and bulk operations
+            case "$choice" in
+                ss|SS)
+                    start_all_services
                     read -p "Press Enter to continue..."
-                fi
-                ;;
-            a|A)
-                show_all_services_status
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            s|S)
-                start_all_services
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            x|X)
-                stop_all_services
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            0)
-                echo "Exiting Service Manager..."
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}Invalid option${NC}"
-                read -p "Press Enter to continue..."
-                ;;
-        esac
+                    ;;
+                xx|XX)
+                    stop_all_services
+                    read -p "Press Enter to continue..."
+                    ;;
+                rr|RR)
+                    echo ""
+                    echo "================================================"
+                    echo "Restarting All Services"
+                    echo "================================================"
+                    echo ""
+                    read -p "Do you want to restart all running services? (y/N): " confirm
+                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        for service in "${SERVICES[@]}"; do
+                            if is_service_installed "$service"; then
+                                restart_service "$service"
+                                echo ""
+                            fi
+                        done
+                        echo -e "${GREEN}All services restarted${NC}"
+                    else
+                        echo "Operation cancelled"
+                    fi
+                    read -p "Press Enter to continue..."
+                    ;;
+                aa|AA)
+                    show_all_services_status
+                    read -p "Press Enter to continue..."
+                    ;;
+                0)
+                    echo "Exiting Service Manager..."
+                    exit 0
+                    ;;
+                *)
+                    echo -e "${RED}Invalid command. Use format: <number><action> (e.g., 1s, 5x, 7m)${NC}"
+                    read -p "Press Enter to continue..."
+                    ;;
+            esac
+        fi
     done
 }
 
