@@ -19,7 +19,7 @@ SCRIPTS_DIR="$(cd "$SHELLS_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPTS_DIR/.." && pwd)"
 PYTOOLS_DIR="$SCRIPTS_DIR/pytools"
 MANAGER_DIR="$PYTOOLS_DIR/special_software_env_manager"
-MAIN_SCRIPT="$MANAGER_DIR/main.py"
+MAIN_SCRIPT="$MANAGER_DIR/special_software_env_manager.py"
 
 find_python_command() {
     if command -v python3 >/dev/null 2>&1; then

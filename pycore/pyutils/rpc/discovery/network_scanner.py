@@ -4,13 +4,17 @@
 RPC Network Scanner - Scans local network for RPC services
 
 Scans local network segments to discover RPC services on the network.
+Uses HTTP discovery to verify RPC services (not TCP socket connection).
 Uses shared port configuration from RPCConfig.
 """
 
 import socket
+import sys
 import ipaddress
 import threading
 import time
+import json
+import http.client
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 
@@ -18,6 +22,7 @@ from pycore.pyfoundations.third_party import netifaces
 
 from pycore import ColorPrint
 from pycore.pyutils.rpc.config.rpc_config import get_rpc_config
+from pycore.pyutils.rpc.protocol.rpc_protocol import RPC_STATUS_PATH
 
 
 @dataclass
@@ -197,7 +202,10 @@ class NetworkScanner:
     
     def _check_host(self, ip: str, port: int) -> Optional[NetworkHost]:
         """
-        Check if host is active on specified port
+        Check if host is active RPC service using HTTP discovery
+        
+        Uses HTTP request to /rpc/status endpoint to verify RPC service.
+        If HTTP request succeeds and returns expected response, service is active.
         
         Args:
             ip: IP address
@@ -208,25 +216,49 @@ class NetworkScanner:
         """
         start_time = time.time()
         
+        conn = None
+        if sys.is_finalizing():
+            return None
+        
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(self.timeout)
-            result = sock.connect_ex((ip, port))
-            sock.close()
+            conn = http.client.HTTPConnection(ip, port, timeout=self.timeout)
+            conn.request('GET', RPC_STATUS_PATH, headers={'Connection': 'close'})
+            response = conn.getresponse()
             
             response_time = time.time() - start_time
-            is_active = (result == 0)
             
-            if is_active:
-                return NetworkHost(
-                    ip=ip,
-                    port=port,
-                    is_active=True,
-                    response_time=response_time
-                )
+            if response.status == 200:
+                body = response.read().decode('utf-8', errors='ignore')
+                response.close()
+                conn.close()
+                
+                result = json.loads(body)
+                is_rpc_service = result.get('is_rpc_service', False)
+                
+                if is_rpc_service:
+                    return NetworkHost(
+                        ip=ip,
+                        port=port,
+                        is_active=True,
+                        response_time=response_time
+                    )
             
+            if conn:
+                conn.close()
+            
+        except (socket.timeout, socket.error, OSError, http.client.HTTPException, json.JSONDecodeError, ValueError):
+            if conn:
+                conn.close()
+        except (RuntimeError, SystemError) as e:
+            if 'shutdown' in str(e).lower() or 'finalizing' in str(e).lower():
+                if conn:
+                    conn.close()
+                return None
+            if conn:
+                conn.close()
         except Exception:
-            pass
+            if conn:
+                conn.close()
         
         return None
     

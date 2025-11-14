@@ -3,7 +3,8 @@
 """
 RPC Discovery - Discovers RPC services on local network
 
-Discovers RPC services using network scanning and protocol queries.
+Discovers RPC services using network scanning and HTTP protocol queries.
+Uses HTTP discovery (not TCP socket connection) to verify RPC services.
 Uses shared port configuration from RPCConfig.
 """
 
@@ -186,46 +187,24 @@ class RPCDiscovery:
     
     def _verify_rpc_service(self, host: str, port: int) -> bool:
         """
-        Verify if host is an RPC service using protocol
+        Verify if host is an RPC service using HTTP discovery
+        
+        Uses HTTP request to verify RPC service. Only returns True if
+        HTTP request succeeds and returns expected response.
         
         Args:
             host: Host address
             port: Port number
         
         Returns:
-            True if host is RPC service
+            True if host is RPC service (verified via HTTP)
         """
         # Check if interpreter is shutting down
         if sys.is_finalizing():
             return False
         
-        try:
-            client = RPCProtocolClient(host=host, port=port, debug=False)
-            return client.check_rpc_service()
-        
-        except (RuntimeError, SystemError) as e:
-            # Interpreter shutdown or system error
-            if 'shutdown' in str(e).lower() or 'finalizing' in str(e).lower():
-                return False
-            # Fallback: check if port is open
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(self.config.connection_timeout)
-                result = sock.connect_ex((host, port))
-                sock.close()
-                return (result == 0)
-            except Exception:
-                return False
-        except Exception:
-            # Fallback: check if port is open
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(self.config.connection_timeout)
-                result = sock.connect_ex((host, port))
-                sock.close()
-                return (result == 0)
-            except Exception:
-                return False
+        client = RPCProtocolClient(host=host, port=port, debug=False)
+        return client.check_rpc_service()
     
     def get_discovered_services(self) -> List[DiscoveredRPCService]:
         """
