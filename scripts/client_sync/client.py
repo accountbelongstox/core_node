@@ -45,7 +45,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 
-from common.network_util import get_local_ip, get_network_segment, scan_lan_hosts
+from common.network_util import get_local_ip, get_network_segment, scan_lan_hosts, get_all_available_ips, is_client_host, HostIdentifier
 from common.config import (
     SYNC_PORT, IGNORE_DIRS, IGNORE_EXTENSIONS, IGNORE_FILES,
     CHUNK_SIZE, SCAN_TIMEOUT
@@ -62,6 +62,7 @@ server_socket = None
 connected_servers = set()
 server_lock = threading.Lock()
 multiple_servers_detected_scan = False
+
 
 def should_ignore_path(path):
     """
@@ -340,6 +341,8 @@ def scan_for_servers():
     MULTIPLE SERVER DETECTION: If two or more servers are found during scan,
     the client will stop and prompt the user.
     
+    NOTE: Filters out other clients - only reports actual servers
+    
     RETURNS:
     - str: Server IP if exactly one server found
     - None: If no servers found OR if multiple servers detected (stops client)
@@ -349,6 +352,7 @@ def scan_for_servers():
     multiple_servers_detected_scan = False
     local_ip = get_local_ip()
     network_segment = get_network_segment(local_ip)
+    available_ips = get_all_available_ips()
     
     if not network_segment:
         print("\n[SCAN] Could not detect network segment")
@@ -357,34 +361,66 @@ def scan_for_servers():
     print(f"\n[SCAN] Detected network segment: {network_segment}")
     print(f"[SCAN] Scanning for servers on port {SERVER_PORT}...")
     
-    active_servers = scan_lan_hosts(network_segment, SERVER_PORT, SCAN_TIMEOUT, "server")
+    # Scan for any hosts with the port open (could be servers or clients)
+    all_hosts = scan_lan_hosts(network_segment, SERVER_PORT, SCAN_TIMEOUT, "server")
     
-    if active_servers:
-        server_count = len(active_servers)
-        print(f"\n[SCAN] Found {server_count} active server(s):")
-        for i, server_ip in enumerate(active_servers, 1):
-            marker = " <-- AUTO-SELECTED" if i == 1 else ""
-            print(f"  {i}. {server_ip}:{SERVER_PORT}{marker}")
-        
-        # MULTIPLE SERVER DETECTION: Stop and prompt if two or more servers found
-        if server_count >= 2:
-            print("\n" + "="*60)
-            print("[ERROR] MULTIPLE SERVERS DETECTED DURING SCAN!")
-            print("="*60)
-            print(f"Client has detected {server_count} active server(s) on the network:")
-            for i, ip in enumerate(active_servers, 1):
-                print(f"  {i}. {ip}:{SERVER_PORT}")
-            print("\n[PROMPT] Client cannot work with multiple servers.")
-            print("[PROMPT] Please ensure only ONE server is running.")
-            print("[PROMPT] Client will stop.")
-            print("="*60 + "\n")
-            multiple_servers_detected_scan = True
-            return None  # Return None to signal multiple servers detected
-        
-        return active_servers[0]
-    else:
-        print(f"\n[SCAN] No active servers found")
+    if not all_hosts:
+        print(f"[SCAN] No hosts found on port {SERVER_PORT}")
         return None
+    
+    # Filter out all local IP addresses (this client's IPs)
+    local_ips_set = set(available_ips)
+    other_hosts = [ip for ip in all_hosts if ip not in local_ips_set]
+    
+    if not other_hosts:
+        print(f"[SCAN] No other hosts found (only this client's IPs detected)")
+        return None
+    
+    # Use HostIdentifier class to filter out other clients
+    print(f"[SCAN] Checking {len(other_hosts)} host(s) to identify clients vs servers...")
+    identifier = HostIdentifier(SERVER_PORT, SCAN_TIMEOUT)
+    filtered = identifier.filter_hosts(other_hosts, exclude_local_ips=local_ips_set, exclude_type="client")
+    
+    clients_found = filtered["clients"]
+    actual_servers = filtered["servers"]
+    
+    # Display identification results
+    for host_ip in other_hosts:
+        host_type = identifier.identify_host(host_ip)
+        if host_type == "client":
+            print(f"[SCAN] {host_ip}:{SERVER_PORT} - identified as CLIENT (ignoring)")
+        elif host_type == "server":
+            print(f"[SCAN] {host_ip}:{SERVER_PORT} - identified as SERVER")
+    
+    if clients_found:
+        print(f"[SCAN] Filtered out {len(clients_found)} client(s)")
+    
+    if not actual_servers:
+        print(f"[SCAN] No servers found (only clients detected)")
+        return None
+    
+    server_count = len(actual_servers)
+    print(f"\n[SCAN] Found {server_count} active server(s):")
+    for i, server_ip in enumerate(actual_servers, 1):
+        marker = " <-- AUTO-SELECTED" if i == 1 else ""
+        print(f"  {i}. {server_ip}:{SERVER_PORT}{marker}")
+    
+    # MULTIPLE SERVER DETECTION: Stop and prompt if two or more servers found
+    if server_count >= 2:
+        print("\n" + "="*60)
+        print("[ERROR] MULTIPLE SERVERS DETECTED DURING SCAN!")
+        print("="*60)
+        print(f"Client has detected {server_count} active server(s) on the network:")
+        for i, ip in enumerate(actual_servers, 1):
+            print(f"  {i}. {ip}:{SERVER_PORT}")
+        print("\n[PROMPT] Client cannot work with multiple servers.")
+        print("[PROMPT] Please ensure only ONE server is running.")
+        print("[PROMPT] Client will stop.")
+        print("="*60 + "\n")
+        multiple_servers_detected_scan = True
+        return None  # Return None to signal multiple servers detected
+    
+    return actual_servers[0]
 
 def main():
     """Main entry point"""
