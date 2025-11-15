@@ -4,8 +4,6 @@
 
 set -e
 
-# Get script directory (handle symlinks)
-# Resolve symlink to actual file path if needed
 scriptSource="${BASH_SOURCE[0]}"
 if [ -L "$scriptSource" ]; then
     scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
@@ -15,7 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "$scriptSource")" && pwd)"
 echo "Creating symlinks in /usr/local/bin..."
 echo ""
 
-# Check if we need sudo
 if [ -w /usr/local/bin ]; then
     USE_SUDO=""
 else

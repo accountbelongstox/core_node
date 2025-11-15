@@ -178,13 +178,6 @@ def receive_file(sock):
         if not should_update:
             print(f"[CLIENT DECISION] Rejecting {file_path} - {decision_reason}")
             sock.sendall(b'0')
-            # Discard file data from server (client rejected, but must consume data)
-            remaining = file_size
-            while remaining > 0:
-                chunk = sock.recv(min(CHUNK_SIZE, remaining))
-                if not chunk:
-                    break
-                remaining -= len(chunk)
             return True
         
         # CLIENT DECISION: Accept file - notify server and receive data

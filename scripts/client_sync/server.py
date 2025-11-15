@@ -49,8 +49,8 @@ from datetime import datetime
 
 from common.network_util import get_local_ip, get_network_segment, scan_lan_hosts, get_all_available_ips, is_client_host, HostIdentifier
 from common.config import (
-    SYNC_PORT, SYNC_INTERVAL, IGNORE_DIRS, IGNORE_EXTENSIONS, IGNORE_FILES,
-    CHUNK_SIZE, SOCKET_TIMEOUT, SCAN_TIMEOUT
+    SYNC_PORT, SYNC_INTERVAL, CLIENT_RESCAN_INTERVAL, IGNORE_DIRS, IGNORE_EXTENSIONS, IGNORE_FILES,
+    CHUNK_SIZE, SOCKET_TIMEOUT, FILE_TRANSFER_TIMEOUT, MAX_RETRIES, RETRY_DELAY, SCAN_TIMEOUT
 )
 
 # Configuration
@@ -60,6 +60,7 @@ ROOT_DIR = Path(__file__).parent.parent
 
 # Global state
 file_checksums = {}
+client_checksums = {}  # Track which clients have been synced: {client_ip: {file_path: checksum_info}}
 sync_lock = threading.Lock()
 running = True
 
@@ -147,133 +148,368 @@ def get_file_mtime(file_path):
 
 
 
-def send_file_to_client(sock, file_path, relative_path):
+def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RETRIES):
     """
-    Send file to client (Server-initiated push)
-    
-    PURPOSE: Unilaterally push file from server to client
-    PROTOCOL:
-    1. Send file metadata (path, size, mtime) as JSON
-    2. Wait for client decision (b'1' = accept, b'0' = reject)
-    3. If accepted, send file data in chunks
-    4. Wait for final confirmation (b'1' = success, b'0' = failure)
-    
-    CLIENT DECISION: Client decides based on:
-    - File modification time (only update if server file is newer)
-    - Ignore rules (client can reject ignored paths)
-    - File existence (client handles new vs existing files)
-    
-    RETURNS: True if file was successfully sent and accepted, False otherwise
-    """
-    try:
-        file_size = os.path.getsize(file_path)
-        file_info = {
-            "action": "file",
-            "path": relative_path,
-            "size": file_size,
-            "mtime": os.path.getmtime(file_path)
-        }
-        
-        info_json = json.dumps(file_info).encode('utf-8')
-        info_size = len(info_json)
-        sock.sendall(info_size.to_bytes(4, 'big'))
-        sock.sendall(info_json)
-        
-        response = sock.recv(1)
-        if response != b'1':
-            print(f"Client rejected file: {relative_path}")
-            return False
-        
-        with open(file_path, 'rb') as f:
-            while True:
-                chunk = f.read(CHUNK_SIZE)
-                if not chunk:
-                    break
-                sock.sendall(chunk)
-        
-        final_response = sock.recv(1)
-        return final_response == b'1'
-    except Exception as e:
-        print(f"Error sending file {relative_path}: {e}")
-        return False
+    Send multiple files to client in a single batch transfer
 
-def sync_files_to_client():
+    PURPOSE: Efficiently push multiple files from server to client in one connection
+    PROTOCOL:
+    Phase 1 - Metadata Exchange:
+    1. Send batch metadata: {"action": "batch_metadata", "files": [{path, size, mtime}, ...]}
+    2. Wait for client decision: {"action": "batch_decision", "accepted": [path1, path2, ...]}
+
+    Phase 2 - Bulk Transfer:
+    3. For each accepted file, send file data in chunks with progress tracking
+    4. Wait for batch confirmation: {"action": "batch_complete", "success": bool, "received_count": N}
+
+    ADVANTAGES:
+    - Single connection for multiple files (reduced overhead)
+    - Client can review all files before accepting (better decision making)
+    - Bulk transfer improves efficiency
+    - Comprehensive error tracking across entire batch
+
+    Args:
+        sock: Connected socket to client
+        files_batch: List of (file_path, relative_path, mtime) tuples
+        client_ip: Client IP for logging
+        max_retries: Maximum retry attempts
+
+    RETURNS: Dict with {successful: int, failed: int, accepted_files: [paths]}
     """
-    Main sync loop - Server-initiated file pushing
-    
-    PURPOSE: Continuously monitor and push file changes to client
-    WORKFLOW:
-    1. FIRST SYNC: Push all files (files not in file_checksums)
-    2. SUBSEQUENT SYNC: Push only changed files (mtime > stored mtime)
-    3. For new/changed files, connect to client and push
-    4. Client makes autonomous decision to accept/reject
-    5. Repeat every SYNC_INTERVAL seconds
-    
-    FIRST SYNC BEHAVIOR: All files are pushed on first connection
-    SUBSEQUENT SYNC: Only files with modification time changes are pushed
-    
-    SERVER ROLE: Active pusher - initiates all file transfers
-    CLIENT ROLE: Passive receiver - decides whether to accept files
-    """
-    global file_checksums, running
-    first_sync = True
-    
-    while running:
+    for attempt in range(max_retries):
         try:
-            files = get_all_files(ROOT_DIR)
-            files_to_sync = []
-            
-            for file_path in files:
-                relative_path = str(file_path.relative_to(ROOT_DIR))
-                current_mtime = get_file_mtime(file_path)
-                
-                if current_mtime is None:
+            # Phase 1: Send metadata for all files in batch
+            file_metadata = []
+            for file_path, relative_path, mtime in files_batch:
+                file_size = os.path.getsize(file_path)
+                file_metadata.append({
+                    "path": relative_path,
+                    "size": file_size,
+                    "mtime": mtime
+                })
+
+            batch_info = {
+                "action": "batch_metadata",
+                "files": file_metadata,
+                "count": len(file_metadata)
+            }
+
+            # Calculate total batch timeout (10s base + 5s per file + size-based)
+            total_size = sum(fm["size"] for fm in file_metadata)
+            batch_timeout = max(SOCKET_TIMEOUT, 10 + len(file_metadata) * 5 + (total_size // (1024 * 1024)) * 2)
+            sock.settimeout(batch_timeout)
+
+            # Send batch metadata
+            info_json = json.dumps(batch_info).encode('utf-8')
+            info_size = len(info_json)
+            sock.sendall(info_size.to_bytes(4, 'big'))
+            sock.sendall(info_json)
+
+            print(f"[{client_ip}] Sent metadata for {len(file_metadata)} files, waiting for client decision...")
+
+            # Phase 2: Receive client decision
+            decision_size_bytes = sock.recv(4)
+            if len(decision_size_bytes) < 4:
+                raise ConnectionError("Client disconnected during decision")
+
+            decision_size = int.from_bytes(decision_size_bytes, 'big')
+            decision_data = b''
+            while len(decision_data) < decision_size:
+                chunk = sock.recv(min(CHUNK_SIZE, decision_size - len(decision_data)))
+                if not chunk:
+                    raise ConnectionError("Client disconnected while receiving decision")
+                decision_data += chunk
+
+            decision = json.loads(decision_data.decode('utf-8'))
+
+            if decision.get("action") != "batch_decision":
+                raise ValueError(f"Invalid decision action: {decision.get('action')}")
+
+            accepted_paths = decision.get("accepted", [])
+            rejected_count = len(file_metadata) - len(accepted_paths)
+
+            print(f"[{client_ip}] Client accepted {len(accepted_paths)}/{len(file_metadata)} files (rejected {rejected_count})")
+
+            if not accepted_paths:
+                return {"successful": 0, "failed": 0, "accepted_files": []}
+
+            # Phase 3: Send accepted files
+            accepted_path_set = set(accepted_paths)
+            successful_transfers = 0
+            failed_transfers = 0
+
+            for file_path, relative_path, mtime in files_batch:
+                if relative_path not in accepted_path_set:
                     continue
-                
-                with sync_lock:
-                    if relative_path not in file_checksums:
-                        # FIRST SYNC: File not in checksums - push all files
-                        files_to_sync.append((file_path, relative_path, current_mtime))
+
+                file_size = os.path.getsize(file_path)
+                size_kb = file_size / 1024
+                size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb/1024:.2f}MB"
+
+                print(f"  [{client_ip}] Transferring: {relative_path} ({size_str})")
+
+                # Send file data in chunks
+                bytes_sent = 0
+                last_progress_mb = 0
+                try:
+                    with open(file_path, 'rb') as f:
+                        while bytes_sent < file_size:
+                            chunk = f.read(CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            sock.sendall(chunk)
+                            bytes_sent += len(chunk)
+
+                            # Show progress for large files (>1MB)
+                            if file_size > 1024 * 1024:
+                                current_mb = bytes_sent // (1024 * 1024)
+                                if current_mb > last_progress_mb:
+                                    last_progress_mb = current_mb
+                                    progress = (bytes_sent / file_size) * 100
+                                    print(f"    Progress: {progress:.1f}% ({bytes_sent // 1024}KB/{file_size // 1024}KB)")
+
+                    # Verify complete transfer
+                    if bytes_sent == file_size:
+                        successful_transfers += 1
+                    else:
+                        print(f"  [{client_ip}] Incomplete transfer: {relative_path} ({bytes_sent}/{file_size} bytes)")
+                        failed_transfers += 1
+
+                except Exception as e:
+                    print(f"  [{client_ip}] Error transferring {relative_path}: {e}")
+                    failed_transfers += 1
+
+            # Phase 4: Wait for batch confirmation
+            confirm_size_bytes = sock.recv(4)
+            if len(confirm_size_bytes) < 4:
+                raise ConnectionError("Client disconnected during confirmation")
+
+            confirm_size = int.from_bytes(confirm_size_bytes, 'big')
+            confirm_data = b''
+            while len(confirm_data) < confirm_size:
+                chunk = sock.recv(min(CHUNK_SIZE, confirm_size - len(confirm_data)))
+                if not chunk:
+                    raise ConnectionError("Client disconnected during confirmation")
+                confirm_data += chunk
+
+            confirmation = json.loads(confirm_data.decode('utf-8'))
+
+            if confirmation.get("action") != "batch_complete":
+                raise ValueError(f"Invalid confirmation action: {confirmation.get('action')}")
+
+            client_received = confirmation.get("received_count", 0)
+            print(f"[{client_ip}] Batch complete: server sent {successful_transfers}, client received {client_received}")
+
+            return {
+                "successful": successful_transfers,
+                "failed": failed_transfers,
+                "accepted_files": accepted_paths
+            }
+
+        except socket.timeout:
+            if attempt < max_retries - 1:
+                print(f"[{client_ip}] Batch timeout (attempt {attempt + 1}/{max_retries}), retrying...")
+                time.sleep(RETRY_DELAY)
+                continue
+            else:
+                print(f"[{client_ip}] Batch timeout after {max_retries} attempts")
+                return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+
+        except (ConnectionError, OSError) as e:
+            if attempt < max_retries - 1:
+                print(f"[{client_ip}] Batch connection error (attempt {attempt + 1}/{max_retries}): {e}, retrying...")
+                time.sleep(RETRY_DELAY)
+                continue
+            else:
+                print(f"[{client_ip}] Batch connection error after {max_retries} attempts: {e}")
+                return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+
+        except Exception as e:
+            print(f"[{client_ip}] Batch error: {e}")
+            return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+
+    return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+
+def sync_files_to_client(client_ip, is_new_client=False):
+    """
+    Sync files to a specific client
+    
+    PURPOSE: Push files to a single client
+    WORKFLOW:
+    1. For new clients: Push all files (first sync)
+    2. For existing clients: Push only changed files (mtime > stored mtime)
+    3. Client makes autonomous decision to accept/reject
+    
+    Args:
+        client_ip: IP address of the client to sync
+        is_new_client: True if this is a new client (will push all files)
+    
+    Returns:
+        bool: True if sync was successful, False otherwise
+    """
+    global file_checksums, client_checksums
+    
+    try:
+        files = get_all_files(ROOT_DIR)
+        files_to_sync = []
+        
+        # Get client's file checksums (empty for new clients)
+        client_file_checksums = client_checksums.get(client_ip, {})
+        
+        for file_path in files:
+            relative_path = str(file_path.relative_to(ROOT_DIR))
+            current_mtime = get_file_mtime(file_path)
+            
+            if current_mtime is None:
+                continue
+            
+            with sync_lock:
+                # Update global file checksums
+                if relative_path not in file_checksums:
+                    current_checksum = get_file_checksum(file_path)
+                    file_checksums[relative_path] = {
+                        "checksum": current_checksum,
+                        "mtime": current_mtime
+                    }
+                else:
+                    stored_info = file_checksums[relative_path]
+                    if current_mtime > stored_info["mtime"]:
                         current_checksum = get_file_checksum(file_path)
                         file_checksums[relative_path] = {
                             "checksum": current_checksum,
                             "mtime": current_mtime
                         }
-                    else:
-                        # SUBSEQUENT SYNC: Only push if file has changed (mtime > stored mtime)
-                        stored_info = file_checksums[relative_path]
-                        if current_mtime > stored_info["mtime"]:
-                            files_to_sync.append((file_path, relative_path, current_mtime))
-                            current_checksum = get_file_checksum(file_path)
-                            file_checksums[relative_path] = {
-                                "checksum": current_checksum,
-                                "mtime": current_mtime
-                            }
-            
-            if files_to_sync:
-                sync_type = "FIRST SYNC (all files)" if first_sync else "INCREMENTAL SYNC (changed files)"
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] {sync_type}: {len(files_to_sync)} files to sync")
                 
+                # Determine if this file needs to be synced to this client
+                if is_new_client:
+                    # New client: push all files
+                    files_to_sync.append((file_path, relative_path, current_mtime))
+                else:
+                    # Existing client: only push if file changed or not in client's checksums
+                    if relative_path not in client_file_checksums:
+                        files_to_sync.append((file_path, relative_path, current_mtime))
+                    else:
+                        client_stored_info = client_file_checksums[relative_path]
+                        if current_mtime > client_stored_info["mtime"]:
+                            files_to_sync.append((file_path, relative_path, current_mtime))
+        
+        if not files_to_sync:
+            return True
+        
+        sync_type = "FIRST SYNC (all files)" if is_new_client else "INCREMENTAL SYNC (changed files)"
+        total_size = sum(os.path.getsize(fp) for fp, _, _ in files_to_sync)
+        size_mb = total_size / (1024 * 1024)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [{client_ip}] {sync_type}: {len(files_to_sync)} files ({size_mb:.2f}MB) to sync")
+        
+        # Batch files into groups to avoid excessively long connections
+        BATCH_SIZE = 50
+        updated_client_checksums = client_file_checksums.copy()
+        successful_syncs = 0
+        failed_syncs = 0
+
+        for batch_start in range(0, len(files_to_sync), BATCH_SIZE):
+            batch = files_to_sync[batch_start:batch_start + BATCH_SIZE]
+            batch_num = (batch_start // BATCH_SIZE) + 1
+            total_batches = (len(files_to_sync) + BATCH_SIZE - 1) // BATCH_SIZE
+
+            print(f"[{client_ip}] Processing batch {batch_num}/{total_batches} ({len(batch)} files)")
+
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(SOCKET_TIMEOUT)
+                sock.connect((client_ip, CLIENT_PORT))
+
+                # Send entire batch at once
+                result = send_batch_files_to_client(sock, batch, client_ip)
+
+                successful_syncs += result["successful"]
+                failed_syncs += result["failed"]
+
+                # Update client checksums for successfully transferred files
+                for accepted_path in result["accepted_files"]:
+                    if accepted_path in file_checksums:
+                        updated_client_checksums[accepted_path] = file_checksums[accepted_path].copy()
+                
+                sock.close()
+                
+            except Exception as e:
+                print(f"[{client_ip}] Error connecting to client for batch: {e}")
+                failed_syncs += len(batch)
                 try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.settimeout(SOCKET_TIMEOUT)
-                    sock.connect((CLIENT_IP, CLIENT_PORT))
-                    
-                    for file_path, relative_path, mtime in files_to_sync:
-                        print(f"Syncing: {relative_path}")
-                        if send_file_to_client(sock, file_path, relative_path):
-                            print(f"Successfully synced: {relative_path}")
-                        else:
-                            print(f"Failed to sync: {relative_path}")
-                    
                     sock.close()
-                    first_sync = False
-                except Exception as e:
-                    print(f"Error connecting to client: {e}")
-            else:
-                if first_sync:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] No files to sync (empty directory or all ignored)")
-                    first_sync = False
+                except:
+                    pass
+        
+        # Save updated client checksums
+        with sync_lock:
+            client_checksums[client_ip] = updated_client_checksums
+        
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [{client_ip}] Sync complete: {successful_syncs} succeeded, {failed_syncs} failed")
+        return successful_syncs > 0
+    except Exception as e:
+        print(f"[{client_ip}] Error in sync: {e}")
+        return False
+
+def sync_loop():
+    """
+    Main sync loop - Server-initiated file pushing with client rescanning
+    
+    PURPOSE: Continuously rescan for clients and push file changes
+    WORKFLOW:
+    1. Rescan for clients every CLIENT_RESCAN_INTERVAL seconds
+    2. For each client:
+       - New clients: Push all files (first sync)
+       - Existing clients: Push only changed files (incremental sync)
+    3. Client makes autonomous decision to accept/reject
+    4. Repeat
+    
+    CLIENT RESCAN: Scans for clients every 10 seconds
+    NEW CLIENT BEHAVIOR: All files are pushed on first connection
+    EXISTING CLIENT BEHAVIOR: Only files with modification time changes are pushed
+    
+    SERVER ROLE: Active pusher - initiates all file transfers
+    CLIENT ROLE: Passive receiver - decides whether to accept files
+    """
+    global running, CLIENT_IP
+    
+    local_ip = get_local_ip()
+    network_segment = get_network_segment(local_ip)
+    available_ips = get_all_available_ips()
+    last_rescan_time = time.time()  # Initialize to current time to avoid immediate scan
+    
+    while running:
+        try:
+            current_time = time.time()
+            
+            # Rescan for clients every CLIENT_RESCAN_INTERVAL seconds
+            if current_time - last_rescan_time >= CLIENT_RESCAN_INTERVAL:
+                last_rescan_time = current_time
+                
+                if network_segment:
+                    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Rescanning for clients...")
+                    active_clients = scan_lan_hosts(network_segment, CLIENT_PORT, SCAN_TIMEOUT, "client")
+                    
+                    if active_clients:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Found {len(active_clients)} active client(s)")
+                        
+                        # Sync to each active client
+                        for client_ip in active_clients:
+                            # Check if this is a new client
+                            is_new_client = client_ip not in client_checksums
+                            
+                            if is_new_client:
+                                print(f"[{datetime.now().strftime('%H:%M:%S')}] New client detected: {client_ip}:{CLIENT_PORT}")
+                                print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting first sync (all files) for {client_ip}")
+                            
+                            # Sync files to this client
+                            sync_files_to_client(client_ip, is_new_client)
+                    else:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] No active clients found")
+                else:
+                    # Fallback: try to sync to configured CLIENT_IP
+                    if CLIENT_IP and CLIENT_IP != "127.0.0.1":
+                        is_new_client = CLIENT_IP not in client_checksums
+                        sync_files_to_client(CLIENT_IP, is_new_client)
             
             time.sleep(SYNC_INTERVAL)
         except Exception as e:
@@ -382,30 +618,16 @@ def main():
     
     if network_segment:
         print(f"\nNetwork segment: {network_segment}")
-        print(f"Scanning for clients on port {CLIENT_PORT}...")
-        
-        active_clients = scan_lan_hosts(network_segment, CLIENT_PORT, SCAN_TIMEOUT, "client")
-        
-        if active_clients:
-            print(f"\nFound {len(active_clients)} active client(s):")
-            for i, client_ip in enumerate(active_clients, 1):
-                marker = " <-- AUTO-SELECTED" if i == 1 else ""
-                print(f"  {i}. {client_ip}:{CLIENT_PORT}{marker}")
-            
-            if CLIENT_IP not in active_clients:
-                CLIENT_IP = active_clients[0]
-                print(f"\nAuto-selected first available client: {CLIENT_IP}:{CLIENT_PORT}")
-            else:
-                print(f"\nUsing configured client IP: {CLIENT_IP}:{CLIENT_PORT}")
-        else:
-            print(f"\nNo active clients found. Using configured IP: {CLIENT_IP}:{CLIENT_PORT}")
+        print(f"Client scanning will begin in {CLIENT_RESCAN_INTERVAL} seconds...")
     else:
         print(f"\nCould not detect network segment. Using configured IP: {CLIENT_IP}:{CLIENT_PORT}")
     
     print("\nStarting sync service...")
+    print(f"Client rescan interval: {CLIENT_RESCAN_INTERVAL} seconds")
+    print(f"File sync interval: {SYNC_INTERVAL} seconds")
     
     try:
-        sync_files_to_client()
+        sync_loop()
     except KeyboardInterrupt:
         print("\nShutting down...")
         running = False
