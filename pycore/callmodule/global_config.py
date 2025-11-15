@@ -8,6 +8,7 @@ Simple global state management for the HTTP API service.
 import os
 import sys
 import socket
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -80,8 +81,6 @@ class GlobalConfig:
 
     def add_call_history(self, module: str, function: str, success: bool, error: Optional[str] = None):
         """Add entry to call history"""
-        import time
-
         entry = {
             'timestamp': time.time(),
             'module': module,

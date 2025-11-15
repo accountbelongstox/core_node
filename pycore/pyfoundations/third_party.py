@@ -252,6 +252,7 @@ def check_and_install_dependencies():
 
     Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
     """
+    ColorPrint.blue("[INFO] Checking for required Python packages...")
     # Allow callers to skip dependency checks via environment variable
     if os.environ.get('PYCORE_SKIP_DEP_CHECK') == '1':
         ENCYCLOPEDIA['pycore_dependencies_checked'] = True
@@ -260,11 +261,17 @@ def check_and_install_dependencies():
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
+    
+    # Prevent recursive invocation - if we're already checking, return immediately
+    if ENCYCLOPEDIA.get("pycore_dependencies_checking", False):
+        return
+    
+    # Mark as checking to prevent recursion
+    ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
     # Check and install system packages first (before Python packages)
     install_system_packages()
 
-    ColorPrint.blue("[INFO] Checking for required Python packages...")
     installed_packages = set()
     missing_packages = set()
     installed_packages_list = []
@@ -281,7 +288,34 @@ def check_and_install_dependencies():
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
     packages_to_check = set(all_dependencies.values())
+    
+    # Check if any packages need installation/upgrade, and upgrade pip first if needed
+    needs_installation = False
+    for package_name in packages_to_check:
+        import_name_to_check = None
+        for imp, pkg in all_dependencies.items():
+            if pkg == package_name:
+                import_name_to_check = imp
+                break
+        if import_name_to_check and importlib.util.find_spec(import_name_to_check) is None:
+            needs_installation = True
+            break
+    
+    # Upgrade pip first if any packages need installation
+    if needs_installation:
+        ColorPrint.blue("[INFO] Upgrading pip to latest version...")
+        try:
+            pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
+            if current_platform != 'Windows':
+                pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
+            subprocess.run(pip_upgrade_cmd, check=True, capture_output=True, text=True)
+            ColorPrint.green("[SUCCESS] pip upgraded successfully")
+        except subprocess.CalledProcessError as e:
+            ColorPrint.yellow(f"[WARNING] Failed to upgrade pip: {e}")
+            ColorPrint.yellow("[WARNING] Continuing with package installation anyway...")
 
+    failed_packages = []
+    
     for package_name in packages_to_check:
         # We check for the installation status of the package itself, not the import name.
         # A bit of a simplification, we assume the main importable module has a similar name
@@ -294,7 +328,15 @@ def check_and_install_dependencies():
                 import_name_to_check = imp
                 break
 
-        if importlib.util.find_spec(import_name_to_check) is None:
+        # Safely check if module can be imported (handle exceptions)
+        try:
+            module_spec = importlib.util.find_spec(import_name_to_check)
+            is_installed = module_spec is not None
+        except Exception as e:
+            ColorPrint.yellow(f"[WARNING] Error checking '{import_name_to_check}': {e}")
+            is_installed = False
+
+        if not is_installed:
             missing_packages.add(package_name)
             ColorPrint.yellow(f"[INSTALL] Package for '{import_name_to_check}' ('{package_name}') not found. Installing...")
 
@@ -309,50 +351,54 @@ def check_and_install_dependencies():
             pip_cmd.append(package_name)
 
             try:
-                result = subprocess.run(pip_cmd, check=True)
+                result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
                 ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
-                installed_packages.add(package_name)
-                installed_packages_list.append(package_name)
+                
+                # Verify installation by checking if module can be imported
+                importlib.invalidate_caches()
+                try:
+                    module_spec = importlib.util.find_spec(import_name_to_check)
+                    if module_spec is None:
+                        ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
+                        ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
+                        failed_packages.append((package_name, import_name_to_check))
+                    else:
+                        installed_packages.add(package_name)
+                        installed_packages_list.append(package_name)
+                except Exception as e:
+                    ColorPrint.yellow(f"[WARNING] Error verifying '{import_name_to_check}' after installation: {e}")
+                    failed_packages.append((package_name, import_name_to_check))
             except subprocess.CalledProcessError as e:
                 ColorPrint.red(f"[ERROR] Failed to install {package_name}: {e}")
+                if e.stdout:
+                    ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")  # Last 500 chars
+                if e.stderr:
+                    ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")  # Last 500 chars
                 if current_platform != 'Windows':
                     ColorPrint.yellow(f"[WARNING] Please install manually: pip install --break-system-packages --ignore-installed {package_name}")
                 else:
                     ColorPrint.yellow(f"[WARNING] Please install manually: pip install {package_name}")
-                raise
+                failed_packages.append((package_name, import_name_to_check))
         else:
             installed_packages.add(package_name)
             installed_packages_list.append(package_name)
+    
+    # Report failed packages if any
+    if failed_packages:
+        ColorPrint.yellow(f"[WARNING] {len(failed_packages)} package(s) failed to install or verify:")
+        for pkg_name, import_name in failed_packages:
+            ColorPrint.yellow(f"  - {import_name} ({pkg_name})")
 
     if installed_packages:
         ColorPrint.blue(f"[INFO] Found installed packages: {', '.join(sorted(installed_packages))}")
     ColorPrint.green("[INFO] All required packages are available.")
 
-    # GPU Detection and Setup (default: enabled, auto_install: False)
-    enable_gpu_setup = os.environ.get('PYCORE_ENABLE_GPU_SETUP', 'true').lower() == 'true'
-    auto_install_gpu = os.environ.get('PYCORE_AUTO_INSTALL_GPU', 'false').lower() == 'true'
-    
-    if enable_gpu_setup:
-        try:
-            # Delay import to avoid circular dependency
-            from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager
-
-            # Initialize GPU manager (verbose=True to show detection info)
-            # auto_install will install PyTorch CUDA if GPU detected
-            gpu_manager = get_gpu_manager(verbose=True, auto_install=auto_install_gpu)
-
-            # Store GPU info in ENCYCLOPEDIA for quick access
-            ENCYCLOPEDIA.add("pycore_gpu_info", gpu_manager.get_info())
-        except ImportError:
-            # GPU manager not available (pyutils.ultralytics not installed)
-            ColorPrint.blue("[INFO] GPU manager not available, skipping GPU setup")
-        except Exception as e:
-            # Non-critical error, continue
-            ColorPrint.yellow(f"[WARNING] GPU setup failed: {e}")
 
     # Mark as checked in ENCYCLOPEDIA (persists for entire Python process)
     ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
     ENCYCLOPEDIA.add("pycore_installed_packages", sorted(installed_packages))
+    # Remove checking flag
+    ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
 
 
 # Auto-check dependencies when module is imported
@@ -362,7 +408,10 @@ def check_and_install_dependencies():
 try:
     check_and_install_dependencies()
 except Exception as e:
-    ColorPrint.yellow(f"[WARNING] Failed to check dependencies during import: {e}")
+    ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
+    ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
+    # Ensure checking flag is cleared even on error
+    ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
 
 
 # Direct imports after dependency check
@@ -375,8 +424,10 @@ import netifaces
 import websockets
 import requests
 import uvicorn
+import fastapi
 import PIL
 import cv2
+import pyautogui
 import psutil
 import mss
 import torch
@@ -386,29 +437,25 @@ import adb_shell
 import av
 import loguru
 import yaml
-# Azure Cognitive Services Speech SDK
-try:
-    import azure.cognitiveservices.speech
-    speechsdk = azure.cognitiveservices.speech
-except ImportError:
-    speechsdk = None
+import webview
+import tkinterweb
+import tkhtmlview
+import pystray
+import cnocr
+# Azure Cognitive Services Speech SDK - trust it's installed if in DEPENDENCY_MAP
+import azure.cognitiveservices.speech
+speechsdk = azure.cognitiveservices.speech
 
-# Edge TTS (Microsoft Edge Text-to-Speech)
-try:
-    import edge_tts
-except ImportError:
-    edge_tts = None
+# Edge TTS (Microsoft Edge Text-to-Speech) - trust it's installed if in DEPENDENCY_MAP
+import edge_tts
 
-# MCP (Model Context Protocol)
-try:
-    import mcp
-    from mcp.server.fastmcp import FastMCP
-except ImportError:
-    mcp = None
-    FastMCP = None
+# MCP (Model Context Protocol) - trust it's installed if in DEPENDENCY_MAP
+import mcp
+from mcp.server.fastmcp import FastMCP
 
 # Windows-only packages (only available on Windows)
-if platform.system() == 'Windows':
+current_platform = platform.system()
+if current_platform == 'Windows':
     import win32gui
     import win32con
     import win32api
@@ -428,7 +475,6 @@ else:
 
 
 __all__ = [
-    'check_and_install_dependencies',
     'check_system_package_installed',
     'install_system_packages',
     'DEPENDENCY_MAP',

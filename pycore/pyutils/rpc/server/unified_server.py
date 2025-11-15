@@ -24,7 +24,8 @@ from typing import Dict, Optional, Callable, Any
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import aiohttp
-from aiohttp import web
+
+web = aiohttp.web
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
 from pycore.pyutils.rpc.common.event_cache import EventCache, default_event_cache

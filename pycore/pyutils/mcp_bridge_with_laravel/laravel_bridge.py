@@ -7,11 +7,11 @@ Provides HTTP client for communicating with Laravel OCR API.
 Replaces direct OCR processing with HTTP requests to Laravel backend.
 """
 
-import requests
 import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
+from pycore.pyfoundations.third_party import requests
 from pycore.pyutils.mcp_bridge_with_laravel.config import (
     LARAVEL_BASE_URL,
     LARAVEL_API_PREFIX,

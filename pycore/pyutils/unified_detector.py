@@ -30,14 +30,14 @@ Usage as CLI:
 
 import os
 import sys
-import cv2
-import numpy as np
-import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 import argparse
 import json
+
+from pycore.pyfoundations.third_party import cv2, numpy, yaml
+import numpy as np
 
 
 @dataclass

@@ -3,11 +3,13 @@
 FastAPI Application Factory
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from pycore.pyfoundations.third_party import fastapi
 
 from .routers import health_router, module_call_router, ocr_router
 from .global_config import get_global_config
+
+FastAPI = fastapi.FastAPI
+CORSMiddleware = fastapi.middleware.cors.CORSMiddleware
 
 
 def create_app() -> FastAPI:

@@ -14,8 +14,9 @@ from typing import Dict, Optional, Any
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import aiohttp
-from aiohttp import web
-from aiohttp.web_ws import WebSocketResponse
+
+web = aiohttp.web
+WebSocketResponse = aiohttp.web_ws.WebSocketResponse
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
 from pycore.pyutils.rpc.common.request_event_table import RequestEventTable, RequestStatus

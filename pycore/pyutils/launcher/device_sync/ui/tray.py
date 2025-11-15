@@ -15,9 +15,12 @@ import time
 import webbrowser
 import tkinter as tk
 from tkinter import messagebox
-import pystray
-from PIL import Image, ImageDraw
 from typing import Optional
+
+from pycore.pyfoundations.third_party import pystray, PIL
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
 
 from ..core.config import get_global_config
 from ..server.unified import UnifiedHTTPServer
