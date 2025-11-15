@@ -14,6 +14,7 @@ import sys
 import time
 import json
 import socket
+import traceback
 from pathlib import Path
 
 # Add project root to path
@@ -214,7 +215,6 @@ def main():
 
     except Exception as e:
         ColorPrint.red(f"Error: {e}")
-        import traceback
         traceback.print_exc()
 
     finally:

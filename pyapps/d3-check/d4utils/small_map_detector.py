@@ -10,10 +10,11 @@ in the minimap region of the game interface.
 import sys
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional
-import numpy as np
-from PIL import Image
-import cv2
 from datetime import datetime
+
+from pycore.pyfoundations.third_party import PIL, numpy, cv2
+from PIL import Image
+import numpy as np
 
 # Add project paths
 current_dir = Path(__file__).parent.parent

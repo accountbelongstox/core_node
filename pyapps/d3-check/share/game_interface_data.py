@@ -14,9 +14,10 @@ from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING, 
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from pycore.pyfoundations.third_party import PIL, numpy, cv2
 from PIL import Image
 import numpy as np
-import cv2
 
 # Add project path
 current_dir = os.path.dirname(os.path.abspath(__file__))
