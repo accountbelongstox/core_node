@@ -389,6 +389,21 @@ class ScriptManager:
             ColorMessage.write("  - To run: Execute the script from your terminal/shell", 'info')
 
         print()
+        ColorMessage.write("Current Environment Variables Status:", 'info')
+        ColorMessage.write("-" * 60, 'info')
+        print()
+
+        for var in config.get('Variables', []):
+            value = os.environ.get(var['Name'])
+            display_name = var.get('DisplayName', var['Name'])
+
+            ColorMessage.write(f"{display_name}: ", 'info', no_newline=True)
+            if value:
+                ColorMessage.write(value, 'success')
+            else:
+                ColorMessage.write("[Not set]", 'warning')
+
+        print()
         input("Press Enter to continue...")
 
 

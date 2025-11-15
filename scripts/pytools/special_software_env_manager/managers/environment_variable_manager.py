@@ -9,32 +9,34 @@ import os
 import platform
 import json
 import traceback
+import subprocess
 from pathlib import Path
 from typing import Dict, Any
 
 from utils.common_utils import (
-    ColorMessage, clear_screen, is_admin, get_winenvs_dir, get_linuxenvs_dir
+    ColorMessage, clear_screen, is_admin, get_winenvs_dir, get_linuxenvs_dir, show_menu
 )
 from utils.secret_manager import resolve_secret_value
 from managers.backup_manager import BackupManager
+from managers.file_number_manager import FileNumberManager
 from config.path_config import get_path_config
 
 
 class EnvironmentVariableManager:
     """Manages environment variable operations"""
 
-    def __init__(self, backup_manager: BackupManager, project_root: Path):
+    def __init__(self, backup_manager: BackupManager, project_root: Path, file_number_manager: FileNumberManager = None):
         self.path_config = get_path_config(project_root)
         self.backup_manager = backup_manager
         self.project_root = project_root
         self.raw_dir = self.path_config.raw_secret_dir
+        self.file_number_manager = file_number_manager or FileNumberManager(project_root)
 
     def set_environment_variables(self, config_name: str, config: Dict[str, Any]):
         """Set environment variables for the specified configuration"""
         clear_screen()
-        ColorMessage.write(config['Title'], 'info')
-        ColorMessage.write(config['Description'], 'info')
-        ColorMessage.write("=" * len(config['Title']), 'info')
+        ColorMessage.write(config['DisplayName'], 'info')
+        ColorMessage.write("=" * len(config['DisplayName']), 'info')
         print()
 
         if not is_admin():
@@ -46,10 +48,11 @@ class EnvironmentVariableManager:
         ColorMessage.write("Current environment variable status:", 'info')
         for var in config['Variables']:
             value = os.environ.get(var['Name'])
+            display_name = var.get('DisplayName', var['Name'])
             if value:
-                ColorMessage.write(f"{var['DisplayName']}: {value}", 'success')
+                ColorMessage.write(f"{display_name}: {value}", 'success')
             else:
-                ColorMessage.write(f"{var['DisplayName']}: [Not set]", 'warning')
+                ColorMessage.write(f"{display_name}: [Not set]", 'warning')
 
         print()
         ColorMessage.write("Enter new values for each variable.", 'info')
@@ -58,7 +61,7 @@ class EnvironmentVariableManager:
 
         new_values = {}
         for var in config['Variables']:
-            display_name = var['DisplayName']
+            display_name = var.get('DisplayName', var['Name'])
             description = var.get('Description', '')
             current_value = os.environ.get(var['Name'], '')
 
@@ -129,22 +132,72 @@ class EnvironmentVariableManager:
             ColorMessage.write(f"Location: {self.raw_dir}", 'info')
 
     def view_environment_variables(self, config_name: str, config: Dict[str, Any]):
-        """View environment variables for the specified configuration"""
+        """View environment variables from .secret_ignore directory for the specified configuration"""
         clear_screen()
-        ColorMessage.write(config['Title'], 'info')
-        ColorMessage.write(config['Description'], 'info')
-        ColorMessage.write("=" * len(config['Title']), 'info')
+        ColorMessage.write(f"View Environment Variables for {config['DisplayName']}", 'info')
+        ColorMessage.write("=" * 60, 'info')
         print()
 
+        var_names = [var['Name'] for var in config.get('Variables', [])]
+        existing_numbers = self.file_number_manager.list_existing_encrypted_constants(var_names)
+
+        if not existing_numbers:
+            ColorMessage.write("No environment variables found in .secret_ignore directory.", 'warning')
+            ColorMessage.write("Use 'Set Environment Variables' or 'Add Global Command' to add values.", 'info')
+            print()
+            input("Press Enter to continue...")
+            return
+
+        menu_items = []
+        for file_num in sorted(existing_numbers, reverse=True):
+            menu_items.append({
+                'Text': f"View {config['DisplayName']} #{file_num}",
+                'Action': f'view_{file_num}',
+                'HasSubMenu': False
+            })
+
+        ColorMessage.write("Select which version to view:", 'info')
+        print()
+        selected_action = show_menu("View Environment Variables", menu_items)
+
+        if not selected_action or not selected_action.startswith('view_'):
+            return
+
+        file_number = int(selected_action.replace('view_', ''))
+
+        clear_screen()
+        ColorMessage.write(f"View Environment Variables for {config['DisplayName']} (#{file_number})", 'info')
+        ColorMessage.write("=" * 60, 'info')
+        print()
+
+        ColorMessage.write(f"Reading from: {self.raw_dir}", 'info')
+        ColorMessage.write(f"File number: {file_number}", 'info')
+        print()
+
+        found_count = 0
         for var in config['Variables']:
-            value = os.environ.get(var['Name'])
-            display_name = var['DisplayName']
+            display_name = var.get('DisplayName', var['Name'])
+            var_name = var['Name']
+            secret_key_name = f"{var_name}_{file_number}"
+            
+            value = resolve_secret_value(secret_key_name)
 
             ColorMessage.write(f"{display_name}: ", 'info', no_newline=True)
             if value:
-                ColorMessage.write(value, 'success')
+                if len(value) > 70:
+                    preview = value[:67] + "..."
+                else:
+                    preview = value
+                ColorMessage.write(preview, 'success')
+                found_count += 1
             else:
                 ColorMessage.write("[Not set]", 'warning')
+
+        print()
+        if found_count > 0:
+            ColorMessage.write(f"Found {found_count}/{len(config['Variables'])} environment variables", 'success')
+        else:
+            ColorMessage.write("No environment variables found for this version.", 'warning')
 
         print()
         input("Press Enter to continue...")
@@ -157,15 +210,16 @@ class EnvironmentVariableManager:
 
         for config_name, config in config_manager.get_all_configs().items():
             print()
-            ColorMessage.write(config['Title'], 'info')
-            ColorMessage.write("-" * len(config['Title']), 'info')
+            ColorMessage.write(config['DisplayName'], 'info')
+            ColorMessage.write("-" * len(config['DisplayName']), 'info')
 
             for var in config['Variables']:
                 value = os.environ.get(var['Name'])
+                display_name = var.get('DisplayName', var['Name'])
                 if value:
-                    ColorMessage.write(f"{var['DisplayName']}: {value}", 'success')
+                    ColorMessage.write(f"{display_name}: {value}", 'success')
                 else:
-                    ColorMessage.write(f"{var['DisplayName']}: [Not set]", 'warning')
+                    ColorMessage.write(f"{display_name}: [Not set]", 'warning')
 
         print()
         input("Press Enter to continue...")

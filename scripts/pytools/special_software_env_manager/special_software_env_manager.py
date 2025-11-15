@@ -84,7 +84,7 @@ class SpecialSoftwareEnvManager:
         path_config = get_path_config(self.project_root)
         self.backup_manager = BackupManager(path_config.backup_dir)
         self.env_var_manager = EnvironmentVariableManager(
-            self.backup_manager, self.project_root
+            self.backup_manager, self.project_root, self.file_number_manager
         )
         self.encrypted_constants_manager = EncryptedConstantsManager(
             self.project_root,
