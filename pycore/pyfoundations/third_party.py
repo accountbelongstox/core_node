@@ -419,6 +419,8 @@ def check_and_install_dependencies():
     # Mark as checked in ENCYCLOPEDIA (persists for entire Python process)
     ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
     ENCYCLOPEDIA.add("pycore_installed_packages", sorted(installed_packages))
+    # Remove checking flag
+    ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
 
 
 # Auto-check dependencies when module is imported
@@ -430,6 +432,8 @@ try:
 except Exception as e:
     ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
     ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
+    # Ensure checking flag is cleared even on error
+    ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
 
 
 # Direct imports after dependency check
@@ -532,10 +536,3 @@ __all__ = [
     'FastMCP',
     # Windows-only packages (only available on Windows)
     'win32gui',
-    'win32con',
-    'win32api',
-    'win32ui',
-    'pywinauto',
-    'pygetwindow',
-    'uiautomation',
-]
