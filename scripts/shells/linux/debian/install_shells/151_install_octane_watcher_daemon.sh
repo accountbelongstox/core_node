@@ -49,7 +49,7 @@ if ! dpkg -l | grep -q python3-inotify; then
     $USE_SUDO apt update
     $USE_SUDO apt install -y python3-inotify
 else
-    echo "âœ“ python3-inotify is installed"
+    echo "âœ?python3-inotify is installed"
 fi
 
 echo ""
@@ -78,7 +78,7 @@ $USE_SUDO systemctl restart "$SERVICE_NAME.service"
 sleep 2
 
 if systemctl is-active --quiet "$SERVICE_NAME.service"; then
-    echo "âœ“ Laravel Octane Watcher started successfully"
+    echo "âœ?Laravel Octane Watcher started successfully"
     echo ""
     echo "Service: $SERVICE_NAME"
     echo "Status: systemctl status $SERVICE_NAME"
@@ -89,7 +89,7 @@ if systemctl is-active --quiet "$SERVICE_NAME.service"; then
     echo ""
     systemctl status "$SERVICE_NAME.service" --no-pager -l | head -20
 else
-    echo "âœ— Failed to start Laravel Octane Watcher"
+    echo "âœ?Failed to start Laravel Octane Watcher"
     systemctl status "$SERVICE_NAME.service" --no-pager
     exit 1
 fi

@@ -281,7 +281,34 @@ def check_and_install_dependencies():
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
     packages_to_check = set(all_dependencies.values())
+    
+    # Check if any packages need installation/upgrade, and upgrade pip first if needed
+    needs_installation = False
+    for package_name in packages_to_check:
+        import_name_to_check = None
+        for imp, pkg in all_dependencies.items():
+            if pkg == package_name:
+                import_name_to_check = imp
+                break
+        if import_name_to_check and importlib.util.find_spec(import_name_to_check) is None:
+            needs_installation = True
+            break
+    
+    # Upgrade pip first if any packages need installation
+    if needs_installation:
+        ColorPrint.blue("[INFO] Upgrading pip to latest version...")
+        try:
+            pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
+            if current_platform != 'Windows':
+                pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
+            subprocess.run(pip_upgrade_cmd, check=True, capture_output=True, text=True)
+            ColorPrint.green("[SUCCESS] pip upgraded successfully")
+        except subprocess.CalledProcessError as e:
+            ColorPrint.yellow(f"[WARNING] Failed to upgrade pip: {e}")
+            ColorPrint.yellow("[WARNING] Continuing with package installation anyway...")
 
+    failed_packages = []
+    
     for package_name in packages_to_check:
         # We check for the installation status of the package itself, not the import name.
         # A bit of a simplification, we assume the main importable module has a similar name
@@ -294,7 +321,15 @@ def check_and_install_dependencies():
                 import_name_to_check = imp
                 break
 
-        if importlib.util.find_spec(import_name_to_check) is None:
+        # Safely check if module can be imported (handle exceptions)
+        try:
+            module_spec = importlib.util.find_spec(import_name_to_check)
+            is_installed = module_spec is not None
+        except Exception as e:
+            ColorPrint.yellow(f"[WARNING] Error checking '{import_name_to_check}': {e}")
+            is_installed = False
+
+        if not is_installed:
             missing_packages.add(package_name)
             ColorPrint.yellow(f"[INSTALL] Package for '{import_name_to_check}' ('{package_name}') not found. Installing...")
 
@@ -309,20 +344,44 @@ def check_and_install_dependencies():
             pip_cmd.append(package_name)
 
             try:
-                result = subprocess.run(pip_cmd, check=True)
+                result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
                 ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
-                installed_packages.add(package_name)
-                installed_packages_list.append(package_name)
+                
+                # Verify installation by checking if module can be imported
+                importlib.invalidate_caches()
+                try:
+                    module_spec = importlib.util.find_spec(import_name_to_check)
+                    if module_spec is None:
+                        ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
+                        ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
+                        failed_packages.append((package_name, import_name_to_check))
+                    else:
+                        installed_packages.add(package_name)
+                        installed_packages_list.append(package_name)
+                except Exception as e:
+                    ColorPrint.yellow(f"[WARNING] Error verifying '{import_name_to_check}' after installation: {e}")
+                    failed_packages.append((package_name, import_name_to_check))
             except subprocess.CalledProcessError as e:
                 ColorPrint.red(f"[ERROR] Failed to install {package_name}: {e}")
+                if e.stdout:
+                    ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")  # Last 500 chars
+                if e.stderr:
+                    ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")  # Last 500 chars
                 if current_platform != 'Windows':
                     ColorPrint.yellow(f"[WARNING] Please install manually: pip install --break-system-packages --ignore-installed {package_name}")
                 else:
                     ColorPrint.yellow(f"[WARNING] Please install manually: pip install {package_name}")
-                raise
+                failed_packages.append((package_name, import_name_to_check))
         else:
             installed_packages.add(package_name)
             installed_packages_list.append(package_name)
+            ColorPrint.green(f"[OK] Package '{import_name_to_check}' ('{package_name}') is already installed")
+    
+    # Report failed packages if any
+    if failed_packages:
+        ColorPrint.yellow(f"[WARNING] {len(failed_packages)} package(s) failed to install or verify:")
+        for pkg_name, import_name in failed_packages:
+            ColorPrint.yellow(f"  - {import_name} ({pkg_name})")
 
     if installed_packages:
         ColorPrint.blue(f"[INFO] Found installed packages: {', '.join(sorted(installed_packages))}")
