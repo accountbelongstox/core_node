@@ -6,13 +6,6 @@ Main package file for pytools.
 
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
-# Import dependency management from pyfoundations.third_party
-from pycore.pyfoundations.third_party import (
-    check_and_install_dependencies,
-    DEPENDENCY_MAP,
-    WINDOWS_ONLY_PACKAGES,
-)
-
 
 # Convenience function to get GPU info from cache
 def get_gpu_info():
@@ -88,9 +81,7 @@ __version__ = '1.0.0'
 
 __all__ = [
     # Dependency management
-    'check_and_install_dependencies',
     'get_gpu_info',
-    'DEPENDENCY_MAP',
 
     # Foundation
     'ColorPrint',
