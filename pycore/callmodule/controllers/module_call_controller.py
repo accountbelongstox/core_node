@@ -3,12 +3,14 @@
 Module Call Controller - Handle module calling requests
 """
 
-from fastapi import HTTPException
+from pycore.pyfoundations.third_party import fastapi
 
 from ..global_config import get_global_config
 from ..models.request_models import ModuleCallRequest, ModuleCallResponse
 from ..models.response_models import HistoryResponse
 from ..services import ModuleCallService
+
+HTTPException = fastapi.HTTPException
 
 
 class ModuleCallController:

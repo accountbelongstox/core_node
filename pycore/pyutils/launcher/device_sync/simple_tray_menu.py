@@ -10,9 +10,12 @@ import os
 import sys
 import tkinter as tk
 from tkinter import messagebox
-import pystray
-from PIL import Image, ImageDraw
 from typing import Optional
+
+from pycore.pyfoundations.third_party import pystray, PIL
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
 
 from .global_config import get_global_config
 from .simple_primary_server import SimplePrimaryServer

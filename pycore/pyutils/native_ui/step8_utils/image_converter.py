@@ -25,8 +25,10 @@ import os
 import hashlib
 from pathlib import Path
 from typing import Optional, Tuple
+
 from pycore.pyfoundations.third_party import PIL
-from PIL import Image
+
+Image = PIL.Image
 
 from pycore import ColorPrint
 from pycore.pyfoundations import APP_CACHE_DIR

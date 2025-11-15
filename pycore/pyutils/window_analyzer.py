@@ -15,8 +15,11 @@ from pathlib import Path
 
 from pycore.pyfoundations.third_party import win32gui, win32con, win32api, PIL, pyautogui, uiautomation
 import win32process
-from PIL import Image, ImageDraw, ImageFont
-import uiautomation as auto
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
+auto = uiautomation
 
 from providor.providor_second import DEBUG_DIR
 from pyfoundations.color_print import ColorPrint

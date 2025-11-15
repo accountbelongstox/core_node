@@ -22,7 +22,8 @@ import random
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, asdict
-import cv2
+
+from pycore.pyfoundations.third_party import cv2, numpy
 import numpy as np
 
 

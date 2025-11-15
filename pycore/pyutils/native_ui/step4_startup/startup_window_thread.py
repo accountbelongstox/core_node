@@ -59,7 +59,10 @@ from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
-from PIL import Image, ImageTk
+from pycore.pyfoundations.third_party import PIL
+
+Image = PIL.Image
+ImageTk = PIL.ImageTk
 
 
 class TkinterStartupThread(threading.Thread):

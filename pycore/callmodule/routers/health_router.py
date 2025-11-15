@@ -3,11 +3,12 @@
 Health Router - Health check and status routes
 """
 
-from fastapi import APIRouter
+from pycore.pyfoundations.third_party import fastapi
 
 from ..controllers import HealthController
 from ..models.response_models import HealthResponse, StatusResponse
 
+APIRouter = fastapi.APIRouter
 health_router = APIRouter(prefix="", tags=["Health"])
 
 # Initialize controller

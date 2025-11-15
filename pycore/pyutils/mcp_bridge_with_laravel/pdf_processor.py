@@ -9,13 +9,29 @@ import os
 import io
 import logging
 import tempfile
+import math
+import importlib.util
 from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
-import math
 
 from ocr_config import OCRLimits, ProcessingConfig
 
 logger = logging.getLogger(__name__)
+
+# Check for optional dependencies at module level
+_PyPDF2_available = importlib.util.find_spec("PyPDF2") is not None
+_pdf2image_available = importlib.util.find_spec("pdf2image") is not None
+
+# Import if available
+if _PyPDF2_available:
+    import PyPDF2
+else:
+    PyPDF2 = None
+
+if _pdf2image_available:
+    from pdf2image import convert_from_path
+else:
+    convert_from_path = None
 
 class PDFProcessor:
     """Smart PDF processor for OCR batch processing"""
@@ -59,10 +75,19 @@ class PDFProcessor:
 
     def _analyze_pdf(self, pdf_path: str) -> Dict[str, Any]:
         """Analyze PDF structure and properties"""
+        if not _PyPDF2_available or PyPDF2 is None:
+            logger.warning("PyPDF2 not available, returning minimal PDF info")
+            return {
+                "file_path": pdf_path,
+                "file_size": os.path.getsize(pdf_path),
+                "total_pages": 1,
+                "has_text": False,
+                "has_images": True,
+                "metadata": {},
+                "page_info": [{"page_number": 1, "estimated_complexity": "unknown"}]
+            }
+        
         try:
-            # Try with PyPDF2 first
-            import PyPDF2
-
             pdf_info = {
                 "file_path": pdf_path,
                 "file_size": os.path.getsize(pdf_path),
@@ -183,9 +208,11 @@ class PDFProcessor:
 
     def _create_chunk_file(self, pdf_path: str, start_page: int, end_page: int, chunk_id: int) -> str:
         """Create a PDF chunk file with specified page range"""
+        if not _PyPDF2_available or PyPDF2 is None:
+            logger.error("PyPDF2 not available, cannot create PDF chunk")
+            return pdf_path
+        
         try:
-            import PyPDF2
-
             # Generate output path
             original_name = Path(pdf_path).stem
             temp_dir = tempfile.gettempdir()
@@ -270,12 +297,12 @@ class PDFProcessor:
         Returns:
             List of image file paths
         """
+        if not _pdf2image_available or convert_from_path is None:
+            logger.warning("pdf2image not available, using fallback method")
+            return self._fallback_pdf_to_images(pdf_path)
+        
         try:
-            # Try using pdf2image if available
-            try:
-                from pdf2image import convert_from_path
-
-                # Convert PDF to images
+            # Convert PDF to images
                 images = convert_from_path(pdf_path, dpi=dpi)
                 image_paths = []
 
@@ -290,12 +317,8 @@ class PDFProcessor:
                     image_paths.append(image_path)
                     self.temp_files.append(image_path)
 
-                logger.info(f"Converted PDF to {len(image_paths)} images")
-                return image_paths
-
-            except ImportError:
-                logger.warning("pdf2image not available, using fallback method")
-                return self._fallback_pdf_to_images(pdf_path)
+            logger.info(f"Converted PDF to {len(image_paths)} images")
+            return image_paths
 
         except Exception as e:
             logger.error(f"PDF to image conversion failed: {e}")

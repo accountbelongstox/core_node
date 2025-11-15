@@ -9,12 +9,24 @@ import os
 import sys
 import time
 import logging
+import importlib.util
+import importlib
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 import tempfile
 import subprocess
 
 from ocr_config import OCRLimits, APIKeys
+
+# Check for optional dependencies at module level
+_paddle_available = importlib.util.find_spec("paddle") is not None
+_paddleocr_available = importlib.util.find_spec("paddleocr") is not None
+
+# Import paddle if available (for GPU checks)
+if _paddle_available:
+    paddle = importlib.import_module("paddle")
+else:
+    paddle = None
 
 class PaddleOCREngine:
     """PaddleOCR local engine for offline text recognition"""
@@ -80,15 +92,21 @@ class PaddleOCREngine:
 
     def _check_paddle_availability(self) -> bool:
         """Check if PaddlePaddle is available"""
-        try:
-            import paddle
-            import paddleocr
-            return True
-        except ImportError:
-            return False
+        import importlib.util
+        paddle_available = importlib.util.find_spec("paddle") is not None
+        paddleocr_available = importlib.util.find_spec("paddleocr") is not None
+        return paddle_available and paddleocr_available
 
     def _initialize_paddleocr(self) -> Dict[str, Any]:
         """Initialize PaddleOCR instance"""
+        import importlib.util
+        if importlib.util.find_spec("paddleocr") is None:
+            return {
+                "success": False,
+                "error": "PaddleOCR not installed",
+                "install_command": "python -m pip install paddleocr"
+            }
+        
         try:
             from paddleocr import PaddleOCR
 
@@ -111,8 +129,9 @@ class PaddleOCREngine:
 
     def _check_gpu_support(self) -> bool:
         """Check if GPU support is available"""
+        if not _paddle_available or paddle is None:
+            return False
         try:
-            import paddle
             return paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0
         except:
             return False
@@ -154,8 +173,12 @@ class PaddleOCREngine:
 
     def _create_test_image(self) -> Optional[str]:
         """Create a simple test image for initialization testing"""
+        from pycore.pyfoundations.third_party import PIL
+        Image = PIL.Image
+        ImageDraw = PIL.ImageDraw
+        ImageFont = PIL.ImageFont
+        
         try:
-            from PIL import Image, ImageDraw, ImageFont
 
             # Create a simple white image with text
             img = Image.new('RGB', (200, 100), color='white')
@@ -298,18 +321,18 @@ class PaddleOCREngine:
 # Utility function for package installation
 def install_paddleocr_dependencies() -> Dict[str, Any]:
     """Install PaddleOCR dependencies if needed"""
+    import importlib.util
     try:
         # Check if packages are already installed
-        try:
-            import paddle
-            import paddleocr
+        paddle_available = importlib.util.find_spec("paddle") is not None
+        paddleocr_available = importlib.util.find_spec("paddleocr") is not None
+        
+        if paddle_available and paddleocr_available:
             return {
                 "success": True,
                 "message": "PaddleOCR dependencies already installed",
                 "already_installed": True
             }
-        except ImportError:
-            pass
 
         # Install packages
         print("Installing PaddleOCR dependencies...")

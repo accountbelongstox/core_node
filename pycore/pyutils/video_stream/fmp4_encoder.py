@@ -1,11 +1,11 @@
 """fMP4 encoder for browser MSE compatibility"""
 
-import av
-import numpy as np
 from typing import Optional
 from io import BytesIO
 
+from pycore.pyfoundations.third_party import av, numpy
 from pycore.pyutils.video_stream.stream_types import VideoFrame, VideoFormat
+import numpy as np
 
 
 class FMP4Encoder:

@@ -10,13 +10,14 @@ Supports two modes:
 """
 
 import os
-import cv2
-import numpy as np
 import json
 import glob
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Callable, Union
 from abc import ABC, abstractmethod
+
+from pycore.pyfoundations.third_party import cv2, numpy
+import numpy as np
 
 # Import enhancer utilities (used in direct patch mode)
 try:
