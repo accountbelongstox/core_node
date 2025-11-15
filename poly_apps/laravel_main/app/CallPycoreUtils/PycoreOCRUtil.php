@@ -2,15 +2,14 @@
 
 namespace App\CallPycoreUtils;
 
+use App\Helpers\PycoreCaller;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Process;
-use App\Providers\PathMapper;
 
 /**
- * Pycore OCR Utility
+ * PycoreOCRUtil - OCR Utility using Pycore Module Caller Service
  *
- * PHP wrapper for calling Python pycore OCR utilities.
- * Provides OCR (Optical Character Recognition) functionality via CnOCR.
+ * Provides OCR functionality by calling Pycore service via HTTP.
+ * Uses PycoreCaller helper for HTTP communication.
  *
  * Usage:
  *   $result = PycoreOCRUtil::recognizeImage('/path/to/image.jpg');
@@ -28,86 +27,74 @@ use App\Providers\PathMapper;
 class PycoreOCRUtil
 {
     /**
-     * Get Python executable path
-     */
-    private static function getPythonPath(): string
-    {
-        // Use python3 from system
-        return 'python3';
-    }
-
-    /**
-     * Get pycore root directory
-     */
-    private static function getPycoreRoot(): string
-    {
-        // Core node root is 3 levels up from laravel_main/app/CallPycoreUtils
-        $laravelRoot = dirname(__DIR__, 2); // laravel_main
-        $polyAppsRoot = dirname($laravelRoot); // poly_apps
-        return dirname($polyAppsRoot); // core_node
-    }
-
-    /**
-     * Execute Python OCR command
+     * Check if OCR service is available
      *
-     * @param string $pythonCode Python code to execute
-     * @param int $timeout Timeout in seconds
-     * @return array Result from Python execution
+     * @return bool
      */
-    private static function executePythonCode(string $pythonCode, int $timeout = 300): array
+    public static function isAvailable(): bool
     {
-        $pycoreRoot = self::getPycoreRoot();
-        $pythonPath = self::getPythonPath();
+        $status = PycoreCaller::ocrStatus();
+        return $status !== null && ($status['result']['available'] ?? false);
+    }
 
-        // Build Python command with proper PYTHONPATH and DISPLAY for headless environment
-        $command = sprintf(
-            'cd %s && PYTHONPATH=%s DISPLAY=:0 %s -c %s',
-            escapeshellarg($pycoreRoot),
-            escapeshellarg($pycoreRoot),
-            $pythonPath,
-            escapeshellarg($pythonCode)
-        );
+    /**
+     * Get all available OCR models
+     *
+     * @return array|null Array of available models or null on error
+     */
+    public static function getAvailableModels(): ?array
+    {
+        $response = PycoreCaller::ocrGetModels();
 
-        Log::info('Executing Python OCR command', [
-            'pycore_root' => $pycoreRoot,
-            'timeout' => $timeout
+        if ($response && ($response['success'] ?? false)) {
+            return $response['result'] ?? null;
+        }
+
+        Log::error('OCR: Failed to get available models', ['response' => $response]);
+        return null;
+    }
+
+    /**
+     * Get information about a specific OCR model
+     *
+     * @param string $modelType Model type (e.g., 'scene', 'doc', 'number')
+     * @return array|null Model information or null on error
+     */
+    public static function getModelInfo(string $modelType): ?array
+    {
+        $response = PycoreCaller::ocrGetModelInfo($modelType);
+
+        if ($response && ($response['success'] ?? false)) {
+            return $response['result'] ?? null;
+        }
+
+        Log::error('OCR: Failed to get model info', [
+            'model_type' => $modelType,
+            'response' => $response
         ]);
+        return null;
+    }
 
-        // Execute command
-        $process = Process::timeout($timeout)->run($command);
+    /**
+     * Check if a specific model is loaded
+     *
+     * @param string $modelType Model type to check
+     * @return bool
+     */
+    public static function isModelLoaded(string $modelType): bool
+    {
+        return PycoreCaller::ocrIsModelLoaded($modelType) ?? false;
+    }
 
-        // Check if process was successful
-        if (!$process->successful()) {
-            Log::error('Python OCR execution failed', [
-                'exit_code' => $process->exitCode(),
-                'error' => $process->errorOutput()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Python execution failed: ' . $process->errorOutput(),
-                'exit_code' => $process->exitCode()
-            ];
-        }
-
-        // Parse JSON output
-        $output = trim($process->output());
-        $result = json_decode($output, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('Failed to parse Python JSON output', [
-                'json_error' => json_last_error_msg(),
-                'output' => $output
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Failed to parse JSON output: ' . json_last_error_msg(),
-                'raw_output' => $output
-            ];
-        }
-
-        return $result;
+    /**
+     * Get OCR service status
+     *
+     * @return array|null Status information including available and loaded models
+     */
+    public static function getStatus(): ?array
+    {
+        $response = PycoreCaller::ocrStatus();
+        return $response['result'] ?? null;
     }
 
     /**
@@ -115,35 +102,48 @@ class PycoreOCRUtil
      *
      * @param string $imagePath Absolute path to image file
      * @param string $modelType Model type (general, scene, doc, number, english, chinese_traditional)
-     * @param int $timeout Timeout in seconds
-     * @return array OCR result
+     * @return array OCR result with success, text, confidence, words, etc.
      */
-    public static function recognizeImage(string $imagePath, string $modelType = 'general', int $timeout = 300): array
+    public static function recognizeImage(string $imagePath, string $modelType = 'general'): array
     {
         // Validate image path
         if (!file_exists($imagePath)) {
+            Log::error('OCR: Image file not found', ['image_path' => $imagePath]);
             return [
                 'success' => false,
                 'error' => "Image file not found: {$imagePath}"
             ];
         }
 
-        $pycoreRoot = self::getPycoreRoot();
-
-        // Build Python code - import directly to avoid GUI dependencies
-        $pythonCode = sprintf(
-            'import sys; sys.path.insert(0, %s); import json; from pycore.pyutils.ocr.ocr_manager import ocr_manager; result = ocr_manager.recognize_image(%s, model_type=%s); print(json.dumps(result, ensure_ascii=False))',
-            var_export($pycoreRoot, true),
-            var_export($imagePath, true),
-            var_export($modelType, true)
-        );
-
         Log::info('OCR: Recognizing image', [
             'image_path' => $imagePath,
             'model_type' => $modelType
         ]);
 
-        return self::executePythonCode($pythonCode, $timeout);
+        // Call Pycore via HTTP using function name 'recognize_image'
+        $response = PycoreCaller::callModule(
+            'pycore.pyutils.ocr.ocr_manager',
+            'ocr_manager.recognize_image',
+            [],
+            [
+                'image_path' => $imagePath,
+                'model_type' => $modelType,
+            ]
+        );
+
+        if ($response['success'] ?? false) {
+            Log::info('OCR: Recognition successful', [
+                'text_length' => strlen($response['result']['text'] ?? ''),
+                'confidence' => $response['result']['confidence'] ?? 0.0
+            ]);
+            return $response['result'];
+        }
+
+        Log::error('OCR: Recognition failed', ['error' => $response['error'] ?? 'Unknown error']);
+        return [
+            'success' => false,
+            'error' => $response['error'] ?? 'Unknown error'
+        ];
     }
 
     /**
@@ -151,14 +151,14 @@ class PycoreOCRUtil
      *
      * @param array $imagePaths Array of absolute paths to image files
      * @param string $modelType Model type (general, scene, doc, number, english, chinese_traditional)
-     * @param int $timeout Timeout in seconds
      * @return array Batch OCR results
      */
-    public static function recognizeBatch(array $imagePaths, string $modelType = 'general', int $timeout = 600): array
+    public static function recognizeBatch(array $imagePaths, string $modelType = 'general'): array
     {
         // Validate all image paths
         foreach ($imagePaths as $imagePath) {
             if (!file_exists($imagePath)) {
+                Log::error('OCR: Image file not found in batch', ['image_path' => $imagePath]);
                 return [
                     'success' => false,
                     'error' => "Image file not found: {$imagePath}"
@@ -166,42 +166,34 @@ class PycoreOCRUtil
             }
         }
 
-        $pycoreRoot = self::getPycoreRoot();
-
-        // Build Python code - import directly to avoid GUI dependencies
-        $imagePathsJson = json_encode($imagePaths);
-        $pythonCode = sprintf(
-            'import sys; sys.path.insert(0, %s); import json; from pycore.pyutils.ocr.ocr_manager import ocr_manager; result = ocr_manager.recognize_batch(%s, model_type=%s); print(json.dumps(result, ensure_ascii=False))',
-            var_export($pycoreRoot, true),
-            $imagePathsJson,
-            var_export($modelType, true)
-        );
-
         Log::info('OCR: Batch recognition', [
             'image_count' => count($imagePaths),
             'model_type' => $modelType
         ]);
 
-        return self::executePythonCode($pythonCode, $timeout);
-    }
-
-    /**
-     * Get available OCR models
-     *
-     * @return array Available model types and configurations
-     */
-    public static function getAvailableModels(): array
-    {
-        $pycoreRoot = self::getPycoreRoot();
-
-        $pythonCode = sprintf(
-            'import sys; sys.path.insert(0, %s); import json; from pycore.pyutils.ocr.ocr_manager import ocr_manager; result = ocr_manager.get_available_models(); print(json.dumps(result, ensure_ascii=False))',
-            var_export($pycoreRoot, true)
+        // Call Pycore via HTTP using function name 'recognize_batch'
+        $response = PycoreCaller::callModule(
+            'pycore.pyutils.ocr.ocr_manager',
+            'ocr_manager.recognize_batch',
+            [],
+            [
+                'image_paths' => $imagePaths,
+                'model_type' => $modelType,
+            ]
         );
 
-        Log::info('OCR: Getting available models');
+        if ($response['success'] ?? false) {
+            Log::info('OCR: Batch recognition successful', [
+                'results_count' => count($response['result'] ?? [])
+            ]);
+            return $response['result'];
+        }
 
-        return self::executePythonCode($pythonCode, 30);
+        Log::error('OCR: Batch recognition failed', ['error' => $response['error'] ?? 'Unknown error']);
+        return [
+            'success' => false,
+            'error' => $response['error'] ?? 'Unknown error'
+        ];
     }
 
     /**
@@ -212,23 +204,149 @@ class PycoreOCRUtil
      */
     public static function getEngineInfo(?string $modelType = null): array
     {
-        $pycoreRoot = self::getPycoreRoot();
-
-        if ($modelType !== null) {
-            $pythonCode = sprintf(
-                'import sys; sys.path.insert(0, %s); import json; from pycore.pyutils.ocr.ocr_manager import ocr_manager; result = ocr_manager.get_engine_info(model_type=%s); print(json.dumps(result, ensure_ascii=False))',
-                var_export($pycoreRoot, true),
-                var_export($modelType, true)
-            );
-        } else {
-            $pythonCode = sprintf(
-                'import sys; sys.path.insert(0, %s); import json; from pycore.pyutils.ocr.ocr_manager import ocr_manager; result = ocr_manager.get_engine_info(); print(json.dumps(result, ensure_ascii=False))',
-                var_export($pycoreRoot, true)
-            );
-        }
-
         Log::info('OCR: Getting engine info', ['model_type' => $modelType]);
 
-        return self::executePythonCode($pythonCode, 30);
+        // Call Pycore via HTTP using function name 'get_engine_info'
+        $kwargs = $modelType !== null ? ['model_type' => $modelType] : [];
+
+        $response = PycoreCaller::callModule(
+            'pycore.pyutils.ocr.ocr_manager',
+            'ocr_manager.get_engine_info',
+            [],
+            $kwargs
+        );
+
+        if ($response['success'] ?? false) {
+            return $response['result'];
+        }
+
+        Log::error('OCR: Failed to get engine info', ['error' => $response['error'] ?? 'Unknown error']);
+        return [
+            'success' => false,
+            'error' => $response['error'] ?? 'Unknown error'
+        ];
+    }
+
+    /**
+     * Extract text only from image (simplified result)
+     *
+     * @param string $imagePath Absolute path to image file
+     * @param string $modelType Model type (default: 'general')
+     * @return string|null Extracted text or null on error
+     */
+    public static function extractText(string $imagePath, string $modelType = 'general'): ?string
+    {
+        $result = self::recognizeImage($imagePath, $modelType);
+
+        if ($result && ($result['success'] ?? false)) {
+            return $result['text'] ?? null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get available model types with descriptions
+     *
+     * @return array Model types with descriptions
+     */
+    public static function getModelTypes(): array
+    {
+        return [
+            'general' => 'General purpose OCR model',
+            'scene' => 'Optimized for scene text (photos, signs)',
+            'doc' => 'Optimized for document text (scanned documents)',
+            'number' => 'Optimized for number recognition',
+            'english' => 'Optimized for English text',
+            'chinese_traditional' => 'Optimized for Traditional Chinese',
+        ];
+    }
+
+    /**
+     * Validate OCR result structure
+     *
+     * @param array|null $result OCR result to validate
+     * @return bool
+     */
+    public static function isValidResult(?array $result): bool
+    {
+        if (!$result || !($result['success'] ?? false)) {
+            return false;
+        }
+
+        return isset($result['text']) && isset($result['confidence']);
+    }
+
+    /**
+     * Get OCR result confidence score
+     *
+     * @param array|null $result OCR result
+     * @return float|null Confidence score (0.0 to 1.0) or null
+     */
+    public static function getConfidence(?array $result): ?float
+    {
+        if (!self::isValidResult($result)) {
+            return null;
+        }
+
+        return $result['confidence'] ?? null;
+    }
+
+    /**
+     * Filter OCR results by confidence threshold
+     *
+     * @param array|null $result OCR result
+     * @param float $threshold Minimum confidence (0.0 to 1.0)
+     * @return bool Whether result meets confidence threshold
+     */
+    public static function meetsConfidenceThreshold(?array $result, float $threshold = 0.7): bool
+    {
+        $confidence = self::getConfidence($result);
+        return $confidence !== null && $confidence >= $threshold;
+    }
+
+    /**
+     * Get detailed word information from OCR result
+     *
+     * @param array|null $result OCR result
+     * @return array|null Array of words with bounding boxes and confidence
+     */
+    public static function getWords(?array $result): ?array
+    {
+        if (!self::isValidResult($result)) {
+            return null;
+        }
+
+        return $result['words'] ?? null;
+    }
+
+    /**
+     * Format OCR result for logging
+     *
+     * @param array|null $result OCR result
+     * @return string Formatted log string
+     */
+    public static function formatForLog(?array $result): string
+    {
+        if (!$result) {
+            return 'OCR: No result';
+        }
+
+        if (!($result['success'] ?? false)) {
+            return 'OCR: Error - ' . ($result['error'] ?? 'Unknown error');
+        }
+
+        $text = $result['text'] ?? '';
+        $confidence = $result['confidence'] ?? 0.0;
+        $provider = $result['provider'] ?? 'unknown';
+        $processingTime = $result['processing_time'] ?? 0.0;
+
+        return sprintf(
+            'OCR: Success [%s] - Text: "%s" (Confidence: %.2f%%, Time: %.3fs)',
+            $provider,
+            substr($text, 0, 50) . (strlen($text) > 50 ? '...' : ''),
+            $confidence * 100,
+            $processingTime
+        );
     }
 }

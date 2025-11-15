@@ -216,6 +216,18 @@ class ServerManagerV1DomainManager
             ]);
         }
 
+        // Get Swoole service name (auto-computed from path and port)
+        $swooleServiceName = null;
+        if (ServerManagerV1PathConfig::isSwooleMode($phpMode) && $swoolePort) {
+            $swooleServiceName = ServerManagerV1OctaneServiceManager::getOctaneServiceNameFromPath($wwwDir, $swoolePort);
+            Log::info('Computed Swoole service name', [
+                'domain' => $domain,
+                'service_name' => $swooleServiceName,
+                'www_dir' => $wwwDir,
+                'port' => $swoolePort
+            ]);
+        }
+
         $domainConfig = [
             'domain' => $domain,
             'type' => $config['type'] ?? 'laravel',
@@ -223,6 +235,7 @@ class ServerManagerV1DomainManager
             'php_version' => $config['php_version'] ?? '8.4',
             'php_mode' => $phpMode,
             'swoole_port' => $swoolePort,
+            'swoole_service_name' => $swooleServiceName,
             'swoole_workers' => $config['swoole_workers'] ?? 4,
             'ssl_enabled' => $config['ssl_enabled'] ?? false,
             'ssl_provider' => $config['ssl_provider'] ?? 'dnspod',
@@ -305,6 +318,48 @@ class ServerManagerV1DomainManager
     {
         $domains = self::loadDomains();
         return $domains[$domain] ?? null;
+    }
+
+    /**
+     * Get Swoole service name for a domain
+     * Returns null if domain doesn't exist or doesn't use Swoole
+     *
+     * @param string $domain Domain name
+     * @return string|null Service name or null
+     */
+    public static function getDomainOctaneServiceName(string $domain): ?string
+    {
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            Log::warning('Domain not found', ['domain' => $domain]);
+            return null;
+        }
+
+        // Return stored service name if available
+        if (!empty($config['swoole_service_name'])) {
+            return $config['swoole_service_name'];
+        }
+
+        // Fallback: Compute service name if we have www_dir and port
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+        if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+            $wwwDir = $config['www_dir'] ?? null;
+            $port = $config['swoole_port'] ?? null;
+
+            if ($wwwDir && $port) {
+                $serviceName = ServerManagerV1OctaneServiceManager::getOctaneServiceNameFromPath($wwwDir, $port);
+                Log::info('Computed service name for domain', [
+                    'domain' => $domain,
+                    'service_name' => $serviceName,
+                    'www_dir' => $wwwDir,
+                    'port' => $port
+                ]);
+                return $serviceName;
+            }
+        }
+
+        return null;
     }
     
     /**
