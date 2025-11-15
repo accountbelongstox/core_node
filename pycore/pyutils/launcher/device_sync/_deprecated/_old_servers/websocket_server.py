@@ -17,8 +17,10 @@ import asyncio
 import json
 import time
 from typing import Set, Dict, Optional, Callable
-import websockets
-from websockets.server import WebSocketServerProtocol
+
+from pycore.pyfoundations.third_party import websockets
+
+WebSocketServerProtocol = websockets.server.WebSocketServerProtocol
 
 from .logging_config import setup_logging
 

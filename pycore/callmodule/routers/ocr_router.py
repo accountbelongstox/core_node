@@ -5,9 +5,13 @@ OCR Router - Direct OCR API endpoints
 Provides direct API endpoints for OCR operations without needing to pass module paths.
 """
 
-from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
+
+from pycore.pyfoundations.third_party import fastapi
+
+APIRouter = fastapi.APIRouter
+HTTPException = fastapi.HTTPException
 
 # Import OCR manager from pyutils
 try:

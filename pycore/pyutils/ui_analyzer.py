@@ -17,7 +17,10 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 from pycore.pyfoundations.third_party import win32gui, win32con, win32ui, PIL
-from PIL import Image, ImageDraw, ImageFont
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
 
 
 # --- Embedded ColorPrint Class for rich console output ---

@@ -17,9 +17,12 @@ from pathlib import Path
 
 from pycore.pyfoundations.third_party import psutil, win32gui, win32con, win32api, PIL, pyautogui, pygetwindow, uiautomation
 import win32process
-from PIL import Image, ImageDraw, ImageFont
-import pygetwindow as gw
-import uiautomation as auto
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
+gw = pygetwindow
+auto = uiautomation
 
 from pyfoundations.color_print import ColorPrint
 

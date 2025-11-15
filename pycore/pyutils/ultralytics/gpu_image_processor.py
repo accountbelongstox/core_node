@@ -3,10 +3,11 @@ GPU-accelerated image processing utilities
 Provides GPU acceleration for image operations during training data generation
 """
 
-import cv2
-import numpy as np
 from typing import Optional, Tuple
+
+from pycore.pyfoundations.third_party import cv2, numpy
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+import numpy as np
 
 
 class GPUImageProcessor:

@@ -7,12 +7,12 @@ Enhanced image matching specifically for PNG images with transparency (alpha cha
 
 import os
 import sys
-import numpy as np
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 
 from pycore.pyfoundations.third_party import numpy, cv2
 from pycore.pyfoundations.color_print import ColorPrint
+import numpy as np
 
 
 class PNGMatcher:

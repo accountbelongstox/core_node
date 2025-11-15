@@ -6,7 +6,10 @@ This module contains Base64-encoded images to avoid file path issues.
 import base64
 import io
 from typing import Optional
-from PIL import Image
+
+from pycore.pyfoundations.third_party import PIL
+
+Image = PIL.Image
 
 
 # Application logo (PNG, 24x24)

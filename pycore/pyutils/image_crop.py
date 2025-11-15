@@ -13,7 +13,7 @@ from collections import OrderedDict
 
 from pycore.pyfoundations.third_party import numpy, PIL, cv2
 import numpy as np
-from PIL import Image as PILImage
+PILImage = PIL.Image
 
 # Import ColorPrint for logging
 from pyfoundations.color_print import ColorPrint

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from pycore.pyfoundations.third_party import numpy, PIL, cv2
 import numpy as np
-from PIL import Image as PILImage
+PILImage = PIL.Image
 
 
 class ImageComparator:

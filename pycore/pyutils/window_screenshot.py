@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
 from pycore.pyfoundations.third_party import win32gui, win32con, PIL, pyautogui, mss
-from PIL import ImageGrab, Image
+
+ImageGrab = PIL.ImageGrab
+Image = PIL.Image
 from pycore.pyfoundations.color_print import ColorPrint
 from pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pyutils.window_activator import WindowActivator
