@@ -174,7 +174,7 @@ verify_swoole() {
 
     if php -m | grep -q "swoole"; then
         local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
-        echo -e "${GREEN}$SCRIPT_INDEX âœ“ Swoole installed successfully${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX âœ?Swoole installed successfully${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX   Version: $swoole_version${NC}"
 
         echo ""
@@ -183,7 +183,7 @@ verify_swoole() {
 
         return 0
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ— Swoole verification failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX âœ?Swoole verification failed${NC}"
         return 1
     fi
 }
