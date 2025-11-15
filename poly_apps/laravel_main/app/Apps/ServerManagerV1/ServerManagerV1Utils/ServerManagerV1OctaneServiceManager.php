@@ -658,6 +658,111 @@ EOF;
     }
 
     /**
+     * Get current running Octane service name for this Laravel application
+     * Automatically detects service based on current Laravel path
+     *
+     * @param string|null $laravelPath Laravel application path (defaults to base_path())
+     * @return string|null Service name if found, null otherwise
+     */
+    public static function getCurrentOctaneServiceName(?string $laravelPath = null): ?string
+    {
+        if ($laravelPath === null) {
+            $laravelPath = base_path();
+        }
+
+        // Find service for this path
+        $serviceInfo = self::findExistingServiceForPath($laravelPath);
+
+        if ($serviceInfo !== null) {
+            Log::debug('Found current Octane service', [
+                'service_name' => $serviceInfo['service_name'],
+                'path' => $laravelPath,
+                'port' => $serviceInfo['port']
+            ]);
+
+            return $serviceInfo['service_name'];
+        }
+
+        Log::warning('No Octane service found for current path', [
+            'path' => $laravelPath,
+            'path_hash' => self::getPathHash($laravelPath)
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Restart current Octane service (auto-detect service name)
+     * Automatically detects and restarts the Octane service for current Laravel application
+     *
+     * @param string|null $laravelPath Laravel application path (defaults to base_path())
+     * @return bool True if restart succeeded, false otherwise
+     */
+    public static function restartCurrentOctaneService(?string $laravelPath = null): bool
+    {
+        $serviceName = self::getCurrentOctaneServiceName($laravelPath);
+
+        if ($serviceName === null) {
+            Log::error('Cannot restart: No Octane service found for current path', [
+                'path' => $laravelPath ?? base_path()
+            ]);
+            return false;
+        }
+
+        return self::restartOctaneService($serviceName);
+    }
+
+    /**
+     * Restart current Octane service in background with delay (auto-detect service name)
+     *
+     * This is useful for file watchers and hot-reload scenarios where the restart
+     * needs to be scheduled in the background to allow the current process tick to complete.
+     *
+     * The delay allows state updates (like file hashes) to be written before the process is killed.
+     *
+     * @param int $delaySeconds Delay in seconds before restart (default: 1)
+     * @param string|null $laravelPath Laravel application path (defaults to base_path())
+     * @return bool True if restart was scheduled, false if service not found
+     */
+    public static function restartCurrentOctaneServiceDelayed(int $delaySeconds = 1, ?string $laravelPath = null): bool
+    {
+        $serviceName = self::getCurrentOctaneServiceName($laravelPath);
+
+        if ($serviceName === null) {
+            Log::error('Cannot restart: No Octane service found for current path', [
+                'path' => $laravelPath ?? base_path()
+            ]);
+            return false;
+        }
+
+        Log::info('Scheduling background service restart', [
+            'service' => $serviceName,
+            'delay' => $delaySeconds . 's'
+        ]);
+
+        // Schedule restart in background (non-blocking)
+        // This allows the current process tick to complete before restart happens
+        $result = Process::run(
+            "nohup bash -c 'sleep {$delaySeconds} && systemctl restart {$serviceName}' > /dev/null 2>&1 &"
+        );
+
+        if (!$result->successful()) {
+            Log::error('Failed to schedule background restart', [
+                'service' => $serviceName,
+                'output' => $result->output()
+            ]);
+            return false;
+        }
+
+        Log::info('Background service restart scheduled', [
+            'service' => $serviceName,
+            'delay' => $delaySeconds . 's'
+        ]);
+
+        return true;
+    }
+
+    /**
      * Remove Octane service
      * SYNC: octane_service_manager.sh:remove_octane_service()
      */
