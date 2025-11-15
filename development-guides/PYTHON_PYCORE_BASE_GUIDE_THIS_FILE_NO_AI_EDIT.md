@@ -43,7 +43,7 @@
 ### 2.1 Component Overview
 - `pycore/pyfoundations` - Core foundation, Python stdlib only, no third-party packages
 - `pycore/pyutils` - Utility classes, can use third-party packages, exports instances/singletons
-- `pycore/pyutils/common` - **Common area for all utils modules**. Shared models, operations, and utilities should be placed here for reuse across different utils modules
+- `pycore/pyutils` - **Common area for all utils modules**. Shared models, operations, and utilities should be placed here for reuse across different utils modules
 - `pycore/pyctl` - Can call pyutils to organize basic multi-functional class libraries
 - `pycore/pygvar` - Global constants and variables (appname, paths, binary locations)
 - `pyapps` - Applications using pycore as base services
@@ -62,7 +62,7 @@
 - Export instances or singletons, not classes
 - Can use third-party packages
 - One subdirectory per functionality
-- **Common Area**: `pycore/pyutils/common` is the shared area for all utils modules. Shared models, operations, and utilities should be placed here for reuse across different utils modules
+- **Common Area**: `pycore/pyutils` is the shared area for all utils modules. Shared models, operations, and utilities should be placed here for reuse across different utils modules
 
 ### 3.3 pyctl Rules
 - Can call pyutils to organize basic multi-functional class libraries
@@ -151,3 +151,16 @@ pyapps/{appname}/
 - **Supported Formats**: JPEG, PNG, BMP, TIFF, WebP
 - **File Size Limit**: 50MB
 
+
+## 6. Module Caller Service
+
+### 6.1 Overview
+Pycore Module Caller (`pycore.callmodule`) is a FastAPI service providing HTTP API access to pycore modules. Service port: 59000 (default). See `/www/programing/core_node/pycore/callmodule/README.md` for detailed documentation.
+
+### 6.2 Entry Points
+- Primary: `python3 -m pycore.callmodule`
+- Standalone: `/www/programing/core_node/run_callmodule_service.py`
+- Systemd: `systemctl start pycore-module-caller`
+
+### 6.3 Unified Utils Export
+All pyutils utilities are exported from `pycore.pyutils` with `*_AVAILABLE` flags. Import pattern: `from pycore.pyutils import ocr_manager, OCR_AVAILABLE`. Use `get_available_utilities()` to check all available utilities. GUI components require `PYUTILS_LOAD_GUI=1` environment variable.
