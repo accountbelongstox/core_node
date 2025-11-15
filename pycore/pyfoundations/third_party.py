@@ -362,7 +362,8 @@ def check_and_install_dependencies():
 try:
     check_and_install_dependencies()
 except Exception as e:
-    ColorPrint.yellow(f"[WARNING] Failed to check dependencies during import: {e}")
+    ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
+    ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
 
 
 # Direct imports after dependency check
