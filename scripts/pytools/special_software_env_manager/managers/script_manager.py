@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Set
 from datetime import datetime
 
 from utils.common_utils import (
-    ColorMessage, get_winenvs_dir, get_linuxenvs_dir, ensure_directory_exists
+    ColorMessage, clear_screen, is_admin, get_winenvs_dir, get_linuxenvs_dir, ensure_directory_exists
 )
 from generators.command_content_generator_windows import WindowsCommandContentGenerator
 from generators.command_content_generator_linux import LinuxCommandContentGenerator
@@ -214,8 +214,6 @@ class ScriptManager:
 
     def restore_scripts_from_secrets(self, config_manager, secret_manager_available: bool = False):
         """Restore winenvs/linuxenvs scripts based on stored secrets"""
-        from common_utils import clear_screen, is_admin
-
         clear_screen()
         ColorMessage.write("Restore Scripts from Secret Storage", 'info')
         ColorMessage.write("=" * 60, 'info')
@@ -337,8 +335,6 @@ class ScriptManager:
 
     def view_scripts(self, config_name: str, config: Dict[str, Any], file_number_manager):
         """View existing scripts for the specified configuration"""
-        from common_utils import clear_screen
-
         clear_screen()
         ColorMessage.write(f"View Scripts for {config_name}", 'info')
         ColorMessage.write("=" * 60, 'info')

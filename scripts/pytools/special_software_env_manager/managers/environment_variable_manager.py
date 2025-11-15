@@ -335,7 +335,6 @@ if ($currentUserPath -notlike "*$newPath*") {{
     Write-Host '[INFO] Path already exists in PATH' -ForegroundColor Yellow
 }}
 """
-                import subprocess
                 result = subprocess.run(
                     ['powershell', '-Command', ps_script],
                     capture_output=True,
@@ -380,7 +379,6 @@ if ($currentUserPath -notlike "*$newPath*") {{
             failed_count = 0
 
             try:
-                import subprocess
                 usr_local_bin = Path('/usr/local/bin')
                 if not usr_local_bin.exists():
                     ColorMessage.write("/usr/local/bin does not exist, creating it...", 'warning')

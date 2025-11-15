@@ -8,6 +8,7 @@ Provides common utility functions and classes used across the special software e
 import os
 import sys
 import platform
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -187,19 +188,23 @@ def get_platform_type() -> str:
 def _get_key_input():
     """Get a single key input with arrow key support for Windows and Linux"""
     if HAS_MSVCRT and os.name == 'nt':  # Windows
+        # Wait for a key press
         while True:
             if msvcrt.kbhit():
                 key = msvcrt.getch()
-                # Handle special keys (arrows)
+                # Handle special keys (arrows) - Windows uses \xe0 or \x00 prefix
                 if key == b'\xe0' or key == b'\x00':
-                    key = msvcrt.getch()
+                    # Get the second byte for arrow keys
+                    key2 = msvcrt.getch()
                     arrow_map = {
                         b'H': 'up',      # Up arrow
                         b'P': 'down',    # Down arrow
                         b'K': 'left',    # Left arrow
                         b'M': 'right'    # Right arrow
                     }
-                    return arrow_map.get(key, '')
+                    result = arrow_map.get(key2, '')
+                    if result:
+                        return result
                 elif key == b'\r':  # Enter
                     return 'enter'
                 elif key == b'\x1b':  # ESC
@@ -212,11 +217,13 @@ def _get_key_input():
                     return 'q'
                 else:
                     try:
-                        char = key.decode('utf-8').lower()
-                        if char.isdigit() or char.isalpha():
+                        char = key.decode('utf-8', errors='ignore').lower()
+                        if char and (char.isdigit() or char.isalpha()):
                             return char
                     except:
                         pass
+            # Small delay to avoid busy waiting
+            time.sleep(0.01)
     elif HAS_TERMIOS:  # Linux/Mac
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
@@ -277,7 +284,7 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
         ColorMessage.write("=" * 60, 'info')
         print()
         
-        # Display menu items
+        # Display menu items with clear selection indicator
         for i, item in enumerate(menu_items):
             text = item.get('Text', '')
             action = item.get('Action', '')
@@ -286,8 +293,8 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
             submenu_indicator = " >" if has_submenu else ""
             
             if i == selected_index:
-                # Highlight selected item
-                ColorMessage.write(f"  [{i+1}] {text}{submenu_indicator}", 'yellow')
+                # Highlight selected item with > indicator
+                ColorMessage.write(f"> [{i+1}] {text}{submenu_indicator}", 'yellow')
             else:
                 ColorMessage.write(f"  [{i+1}] {text}{submenu_indicator}", 'white')
         
@@ -295,8 +302,11 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
         
         if use_arrow_keys:
             ColorMessage.write("Use UP/DOWN arrows to navigate, ENTER to select, 0 or Q to cancel", 'info')
+            # Flush output to ensure menu is displayed before waiting for input
+            sys.stdout.flush()
         else:
             ColorMessage.write("Enter your choice (or 0 to cancel): ", 'info', no_newline=True)
+            sys.stdout.flush()
         
         if use_arrow_keys:
             key = _get_key_input()
@@ -312,7 +322,7 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
                 return selected_item.get('Action')
             elif key == 'esc' or key == '0' or key == 'q':
                 return None
-            elif key.isdigit():
+            elif key and key.isdigit():
                 # Allow direct number input
                 choice_num = int(key)
                 if 1 <= choice_num <= len(menu_items):

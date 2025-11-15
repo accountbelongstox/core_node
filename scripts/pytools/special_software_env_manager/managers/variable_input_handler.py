@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 import os
 
 from utils.common_utils import ColorMessage, show_menu
+from utils.secret_manager import resolve_secret_value
 from managers.app_scanner import AppScanner
 from utils.smart_recognition import (
     has_whitespace_in_middle,
@@ -64,7 +65,6 @@ class VariableInputHandler:
 
     def load_existing_value_from_secrets(self, var_name: str, file_number: int) -> Optional[str]:
         """Load existing value from .secret_ignore directory"""
-        from secret_manager import resolve_secret_value
         secret_key_name = f"{var_name}_{file_number}"
         return resolve_secret_value(secret_key_name)
 
