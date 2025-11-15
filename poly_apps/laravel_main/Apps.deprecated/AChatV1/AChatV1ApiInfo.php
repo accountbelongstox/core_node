@@ -13,7 +13,7 @@ use App\Apps\AChatV1\AChatV1Gvar\AChatV1Config;
 class AChatV1ApiInfo
 {
     /**
-     * Get API information
+     * Get API information TEST
      */
     public static function getInfo(): array
     {
