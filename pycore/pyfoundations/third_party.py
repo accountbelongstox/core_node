@@ -15,6 +15,7 @@ The module automatically checks and installs missing packages on first import.
 import os
 import sys
 import subprocess
+import importlib
 import importlib.util
 import platform
 
@@ -78,19 +79,37 @@ DEPENDENCY_MAP = {
     # For YAML configuration
     "yaml": "pyyaml",
 
-    # For Azure Cognitive Services Speech
-    "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
-
-    # For Edge TTS (Microsoft Edge Text-to-Speech)
-    "edge_tts": "edge-tts",
-
-    # For MCP (Model Context Protocol) servers
-    "mcp": "mcp",
-    # FastMCP is part of mcp package
-    "mcp.server.fastmcp": "mcp",
-
     # For OCR (Optical Character Recognition)
     "cnocr": "cnocr[ort-cpu]",
+
+    # For document processing
+    "PyPDF2": "PyPDF2",
+    "pdfplumber": "pdfplumber",
+    "docx": "python-docx",
+    "openpyxl": "openpyxl",
+    "pptx": "python-pptx",
+
+    # For machine learning and color analysis
+    "sklearn": "scikit-learn",
+
+    # For database operations
+    "sqlalchemy": "sqlalchemy",
+
+    # For MCP (Model Context Protocol) servers - FastMCP v2
+    "fastmcp": "fastmcp",
+
+    # For Azure Speech SDK (optional, but can be auto-installed)
+    # Note: Import name uses dots (azure.cognitiveservices.speech)
+    #       Package name uses hyphens (azure-cognitiveservices-speech)
+    #       Install with: pip install azure-cognitiveservices-speech
+    "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
+}
+
+# Optional packages - won't cause import failure if missing
+# These packages are optional and the code handles their absence gracefully
+OPTIONAL_PACKAGES = {
+    # For Edge TTS (Microsoft Edge Text-to-Speech - optional)
+    "edge_tts": "edge-tts",
 }
 
 # Windows-only packages
@@ -242,6 +261,126 @@ def install_system_packages():
         ColorPrint.green("[INFO] All required system packages are installed")
 
 
+def build_pip_install_command(package_name: str) -> list:
+    """
+    Build pip install command with platform-specific flags.
+    
+    Args:
+        package_name: The package name to install
+    
+    Returns:
+        List of command arguments for subprocess.run()
+    """
+    current_platform = platform.system()
+    pip_cmd = [sys.executable, "-m", "pip", "install"]
+    
+    # On Linux/Mac, use --break-system-packages --ignore-installed for reliable installation
+    # On Windows, use normal pip install
+    if current_platform != 'Windows':
+        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+    
+    pip_cmd.append(package_name)
+    return pip_cmd
+
+
+def install_and_reimport_azure():
+    """
+    Install Azure Speech SDK package and reimport it.
+    
+    Direct hard import, no string variables, no DEPENDENCY_MAP lookup.
+    
+    Returns:
+        The imported module if successful, None otherwise.
+    """
+    # Try direct hard import first
+    try:
+        import azure.cognitiveservices.speech
+        return azure.cognitiveservices.speech
+    except ImportError:
+        pass
+    
+    # If import failed, install package directly
+    ColorPrint.blue("[INFO] Installing Azure Speech SDK package...")
+    pip_cmd = build_pip_install_command("azure-cognitiveservices-speech")
+    
+    try:
+        result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
+        ColorPrint.green("[SUCCESS] Successfully installed Azure Speech SDK")
+        
+        # Invalidate import caches
+        importlib.invalidate_caches()
+        
+        # Try hard import again
+        try:
+            import azure.cognitiveservices.speech
+            ColorPrint.green("[SUCCESS] Successfully imported Azure Speech SDK")
+            return azure.cognitiveservices.speech
+        except ImportError as e:
+            ColorPrint.yellow("[WARNING] Package installed but import still failed")
+            ColorPrint.yellow("[WARNING] This may require a Python restart")
+            return None
+            
+    except subprocess.CalledProcessError as e:
+        ColorPrint.red("[ERROR] Failed to install Azure Speech SDK")
+        if e.stdout:
+            ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")
+        if e.stderr:
+            ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")
+        return None
+    except Exception as e:
+        ColorPrint.red("[ERROR] Unexpected error installing Azure Speech SDK")
+        return None
+
+
+def install_and_reimport_edge_tts():
+    """
+    Install Edge TTS package and reimport it.
+    
+    Direct hard import, no string variables, no DEPENDENCY_MAP lookup.
+    
+    Returns:
+        The imported module if successful, None otherwise.
+    """
+    # Try direct hard import first
+    try:
+        import edge_tts
+        return edge_tts
+    except ImportError:
+        pass
+    
+    # If import failed, install package directly
+    ColorPrint.blue("[INFO] Installing Edge TTS package...")
+    pip_cmd = build_pip_install_command("edge-tts")
+    
+    try:
+        result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
+        ColorPrint.green("[SUCCESS] Successfully installed Edge TTS")
+        
+        # Invalidate import caches
+        importlib.invalidate_caches()
+        
+        # Try hard import again
+        try:
+            import edge_tts
+            ColorPrint.green("[SUCCESS] Successfully imported Edge TTS")
+            return edge_tts
+        except ImportError as e:
+            ColorPrint.yellow("[WARNING] Package installed but import still failed")
+            ColorPrint.yellow("[WARNING] This may require a Python restart")
+            return None
+            
+    except subprocess.CalledProcessError as e:
+        ColorPrint.red("[ERROR] Failed to install Edge TTS")
+        if e.stdout:
+            ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")
+        if e.stderr:
+            ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")
+        return None
+    except Exception as e:
+        ColorPrint.red("[ERROR] Unexpected error installing Edge TTS")
+        return None
+
+
 def check_and_install_dependencies():
     """
     Checks if all required packages are installed and installs them if not.
@@ -280,11 +419,15 @@ def check_and_install_dependencies():
     # IMPORTANT: DO NOT MODIFY - Windows packages are automatically skipped on Linux/Mac
     current_platform = platform.system()
 
+    # Required packages only (no optional packages during check)
     all_dependencies = dict(DEPENDENCY_MAP)
     if current_platform == 'Windows':
         all_dependencies.update(WINDOWS_ONLY_PACKAGES)
     else:
         ColorPrint.blue(f"[INFO] Skipping Windows-only packages on {current_platform}")
+
+    # Optional packages are not checked/installed automatically
+    ColorPrint.blue(f"[INFO] Optional packages are not auto-installed")
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
     packages_to_check = set(all_dependencies.values())
@@ -340,15 +483,8 @@ def check_and_install_dependencies():
             missing_packages.add(package_name)
             ColorPrint.yellow(f"[INSTALL] Package for '{import_name_to_check}' ('{package_name}') not found. Installing...")
 
-            # Build pip install command
-            pip_cmd = [sys.executable, "-m", "pip", "install"]
-
-            # On Linux/Mac, use --break-system-packages --ignore-installed for reliable installation
-            # On Windows, use normal pip install
-            if current_platform != 'Windows':
-                pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
-
-            pip_cmd.append(package_name)
+            # Build pip install command using reusable helper
+            pip_cmd = build_pip_install_command(package_name)
 
             try:
                 result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
@@ -442,16 +578,40 @@ import tkinterweb
 import tkhtmlview
 import pystray
 import cnocr
-# Azure Cognitive Services Speech SDK - trust it's installed if in DEPENDENCY_MAP
-import azure.cognitiveservices.speech
-speechsdk = azure.cognitiveservices.speech
 
-# Edge TTS (Microsoft Edge Text-to-Speech) - trust it's installed if in DEPENDENCY_MAP
-import edge_tts
+# Document processing packages
+import PyPDF2
+import pdfplumber
+import docx
+import openpyxl
+import pptx
 
-# MCP (Model Context Protocol) - trust it's installed if in DEPENDENCY_MAP
-import mcp
-from mcp.server.fastmcp import FastMCP
+# Machine learning
+import sklearn
+
+# Database operations
+import sqlalchemy
+
+# MCP (Model Context Protocol) - FastMCP v2
+import fastmcp
+from fastmcp import FastMCP, Context
+
+# Convenience aliases for PIL
+from PIL import Image as PIL_Image, ImageDraw as PIL_ImageDraw, ImageFont as PIL_ImageFont
+
+# Convenience aliases for document libraries
+python_docx = docx
+python_pptx = pptx
+
+# Azure Speech SDK - optional import (if needed)
+# Package: azure-cognitiveservices-speech (install with: pip install azure-cognitiveservices-speech)
+# Import: azure.cognitiveservices.speech (note: dots in import, hyphens in package name)
+# Direct call to install function which handles import and installation
+speechsdk = install_and_reimport_azure()
+
+# Edge TTS (Microsoft Edge Text-to-Speech) - optional import
+# Direct call to install function which handles import and installation
+edge_tts = install_and_reimport_edge_tts()
 
 # Windows-only packages (only available on Windows)
 current_platform = platform.system()
@@ -477,10 +637,6 @@ else:
 __all__ = [
     'check_system_package_installed',
     'install_system_packages',
-    'DEPENDENCY_MAP',
-    'WINDOWS_ONLY_PACKAGES',
-    'SYSTEM_PACKAGES',
-    # Standard packages
     'aiohttp',
     'netifaces',
     'websockets',
@@ -502,14 +658,29 @@ __all__ = [
     'pystray',
     'loguru',
     'yaml',
-    # Azure Cognitive Services Speech SDK
-    'speechsdk',
-    # Edge TTS
-    'edge_tts',
-    # MCP (Model Context Protocol)
-    'mcp',
-    'FastMCP',
-    # Windows-only packages (only available on Windows)
+    'cnocr',
+    # Document processing packages
+    'PyPDF2',
+    'pdfplumber',
+    'docx',
+    'python_docx',  # alias
+    'openpyxl',
+    'pptx',
+    'python_pptx',  # alias
+    'sklearn',
+    'sqlalchemy',
+    # PIL convenience aliases
+    'PIL_Image',
+    'PIL_ImageDraw',
+    'PIL_ImageFont',
+    # MCP (Model Context Protocol) - FastMCP v2
+    'fastmcp',         # FastMCP module
+    'FastMCP',         # FastMCP server class
+    'Context',         # MCP context for tools/resources
+    # Optional packages (may be None if not installed)
+    'speechsdk',       # Azure Speech SDK (optional)
+    'edge_tts',        # Edge TTS (optional)
+    # Windows-only packages (only available on Windows, None on Linux/Mac)
     'win32gui',
     'win32con',
     'win32api',

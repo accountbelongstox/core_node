@@ -3,13 +3,15 @@
 from pathlib import Path
 from typing import Optional
 import sys
+import logging
 from datetime import datetime
 
+from pycore.pyfoundations.third_party import loguru
+
 try:
-    from loguru import logger
-except ImportError:
+    logger = loguru.logger
+except (ImportError, AttributeError):
     # Fallback to standard logging if loguru not available
-    import logging
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()

@@ -10,6 +10,8 @@ Supports nine-grid (three by three) and eighteen by eighteen grid modes
 import os
 import sys
 from typing import Optional, Tuple
+
+from pycore.pyfoundations.third_party import PIL
 from PIL import Image
 
 # Add project paths

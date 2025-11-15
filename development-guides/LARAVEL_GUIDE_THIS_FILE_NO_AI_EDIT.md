@@ -119,7 +119,6 @@ MCP 应用遵循以下差异化规则：
 - `routes/web.php` 同时扩展 ` POST /api_params_cache/save` / `/api_params_cache/load` / `/api_params_cache/list` 用于api调试的数据交换
 
 - **禁止行为**:
-    - **禁止**运行任何 `artisan test` 测试命令。
     - **禁止**编写或修改 `app/Console` 目录下的任何代码。
     - **禁止**创建或分发任何 Laravel 事件 (`app/Events`)。
     - **禁止**编写任何与 Laravel Web 前端相关的功能，包括 **Blade 模板、Vite 配置、CSS/JS 资源文件**等，但不能删除现有的vite/bable/web等前端配置和web文件，因为laravel需要这些基础才能正确启动无头模式，。
