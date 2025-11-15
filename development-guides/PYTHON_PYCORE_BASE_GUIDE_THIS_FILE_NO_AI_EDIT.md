@@ -138,3 +138,16 @@ pyapps/{appname}/
 - **Forbidden**: Direct import of third-party packages (e.g., `import aiohttp` is forbidden, use `from pycore.pyfoundations.third_party import aiohttp`)
 - `third_party.py` automatically checks and installs missing packages on first import, uses ENCYCLOPEDIA cache (runs once per process), can be skipped via `PYCORE_SKIP_DEP_CHECK=1`
 
+## 7. OCR (Optical Character Recognition) Utilities
+
+### 7.1 OCR Specification
+- **Location**: `pycore/pyutils/ocr/`
+- **Singleton**: `from pycore.pyutils.ocr import ocr_manager`
+- **Engine**: CnOCR
+- **Dependency**: `cnocr[ort-cpu]` (auto-installed)
+- **Model Types**: general (default), scene, doc, number, english, chinese_traditional
+- **Methods**: `recognize_image()`, `recognize_batch()`, `get_available_models()`, `get_engine_info()`
+- **Result Format**: Dictionary with success, text, confidence, words (with bbox), provider, processing_time, error
+- **Supported Formats**: JPEG, PNG, BMP, TIFF, WebP
+- **File Size Limit**: 50MB
+

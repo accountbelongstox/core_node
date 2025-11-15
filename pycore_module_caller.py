@@ -1,98 +1,140 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PyCore Module Caller
+"""
+Pycore Module Caller - Native HTTP Service
 
-Ensures project-root imports (pycore package) work from any current directory.
-
-Usage examples:
-    python pycore_module_caller.py --module pyfoundations.secret_manager --call get_secret_key KEY_NAME
-    python pycore_module_caller.py --module some.module --call main arg1 key=value
-    python pycore_module_caller.py --module some.module --run
+Generic HTTP API for calling pycore modules dynamically.
+Uses only Python standard library (no external dependencies).
+Trust programming mode: no exception handling, clean imports.
 """
 
-from __future__ import annotations
-
-import argparse
-import importlib
-import json
-import os
-import runpy
 import sys
+import json
+import importlib
+import importlib.util
 from pathlib import Path
-from typing import Any, Dict, List
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
-# Ensure UTF-8 encoding for stdout
-if sys.platform == 'win32':
-    import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-PYCORE_PATH = PROJECT_ROOT / 'pycore'
-
-# Ensure project root is on sys.path
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-# Check and install dependencies at module level (per development guide)
-# All imports must be at file top, not inside functions
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
+# Add pycore to path
+PYCORE_ROOT = Path(__file__).parent
+sys.path.insert(0, str(PYCORE_ROOT))
 
 
-def parse_kwargs(values: List[str]) -> Dict[str, Any]:
-    kwargs: Dict[str, Any] = {}
-    for item in values:
-        if '=' not in item:
-            continue
-        key, value = item.split('=', 1)
-        kwargs[key] = value
-    return kwargs
+class PycoreHTTPHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for pycore module calls"""
 
+    def _send_json_response(self, data, status_code=200):
+        """Send JSON response"""
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description='PyCore module caller')
-    parser.add_argument('--module', required=True, help='Module to import/run')
-    parser.add_argument('--call', help='Callable attribute within the module to invoke')
-    parser.add_argument('--json', action='store_true', help='Serialize callable result as JSON')
-    parser.add_argument('--run-main', action='store_true', help='Run the module (runpy) instead of calling attr')
-    parser.add_argument('params', nargs='*', help='Positional args for callable (key=value for kwargs)')
+    def _read_json_body(self):
+        """Read and parse JSON body"""
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length == 0:
+            return {}
+        body = self.rfile.read(content_length)
+        return json.loads(body.decode('utf-8'))
 
-    args = parser.parse_args()
+    def do_GET(self):
+        """Handle GET requests"""
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
 
-    if args.run_main and args.call:
-        parser.error('Use either --call or --run-main, not both')
-
-    if args.run_main:
-        runpy.run_module(args.module, run_name='__main__')
-        return 0
-
-    # Import the module
-    module = importlib.import_module(args.module)
-
-    if not args.call:
-        if hasattr(module, 'main') and callable(module.main):
-            result = module.main(*args.params)
+        if path == '/health':
+            self._send_json_response({
+                'success': True,
+                'service': 'Pycore Module Caller',
+                'status': 'healthy',
+                'pycore_root': str(PYCORE_ROOT)
+            })
         else:
-            parser.error('Specify --call for callable invocation or use --run-main')
-    else:
-        func = getattr(module, args.call)
-        if not callable(func):
-            parser.error(f"Attribute '{args.call}' is not callable")
+            self._send_json_response({
+                'success': False,
+                'error': f'Unknown endpoint: {path}'
+            }, 404)
 
-        positional = [p for p in args.params if '=' not in p]
-        kwargs = parse_kwargs(args.params)
-        result = func(*positional, **kwargs)
+    def do_POST(self):
+        """Handle POST requests"""
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
 
-    if result is not None:
-        if args.json:
-            print(json.dumps(result, ensure_ascii=False))
+        data = self._read_json_body()
+
+        if path == '/call':
+            self._handle_module_call(data)
         else:
-            print(result)
+            self._send_json_response({
+                'success': False,
+                'error': f'Unknown endpoint: {path}'
+            }, 404)
 
-    return 0
+    def _load_module_from_file(self, module_file_path: Path, module_name: str):
+        """Load Python module directly from file path"""
+        spec = importlib.util.spec_from_file_location(module_name, module_file_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    def _handle_module_call(self, data):
+        """Handle dynamic module call - generic for any pycore module"""
+        module_path = data.get('module')
+        function_name = data.get('function')
+        args = data.get('args', [])
+        kwargs = data.get('kwargs', {})
+        use_file_import = data.get('use_file_import', False)
+
+        if not module_path or not function_name:
+            self._send_json_response({
+                'success': False,
+                'error': 'module and function are required'
+            }, 400)
+            return
+
+        # Choose import method
+        if use_file_import:
+            # Direct file import (bypass package __init__)
+            # module_path should be like: pycore/pyutils/ocr/ocr_manager.py
+            module_file = PYCORE_ROOT / module_path
+            module_name = module_file.stem
+            module = self._load_module_from_file(module_file, module_name)
+        else:
+            # Standard import (e.g., 'pycore.pyutils.ocr.ocr_manager')
+            module = importlib.import_module(module_path)
+
+        # Navigate to function/attribute
+        func_parts = function_name.split('.')
+        obj = module
+        for part in func_parts:
+            obj = getattr(obj, part)
+
+        # Call function
+        result = obj(*args, **kwargs)
+
+        self._send_json_response({
+            'success': True,
+            'result': result
+        })
+
+    def log_message(self, format, *args):
+        """Override to customize logging"""
+        print(f"[{self.log_date_time_string()}] {format % args}")
+
+
+def run_server(host='127.0.0.1', port=59000):
+    """Run HTTP server"""
+    server_address = (host, port)
+    httpd = HTTPServer(server_address, PycoreHTTPHandler)
+    print(f"Pycore Module Caller HTTP Server started on {host}:{port}")
+    print(f"Health check: http://{host}:{port}/health")
+    print(f"Generic call endpoint: POST http://{host}:{port}/call")
+    httpd.serve_forever()
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    run_server()

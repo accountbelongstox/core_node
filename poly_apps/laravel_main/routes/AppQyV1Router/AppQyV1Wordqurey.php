@@ -13,7 +13,7 @@
 
 
 use Illuminate\Support\Facades\Route;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordQurey\AppQyV1WordQueryController as WordQController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController as WordQController;
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;
 Route::prefix($apiVersionPrefix)->group(function () {

@@ -1,0 +1,1083 @@
+Laravel MCP
+Introduction
+Laravel MCP provides a simple and elegant way for AI clients to interact with your Laravel application through the Model Context Protocol. It offers an expressive, fluent interface for defining servers, tools, resources, and prompts that enable AI-powered interactions with your application.
+
+Installation
+To get started, install Laravel MCP into your project using the Composer package manager:
+
+composer require laravel/mcp
+
+Publishing Routes
+After installing Laravel MCP, execute the vendor:publish Artisan command to publish the routes/ai.php file where you will define your MCP servers:
+
+php artisan vendor:publish --tag=ai-routes
+
+This command creates the routes/ai.php file in your application's routes directory, which you will use to register your MCP servers.
+
+Creating Servers
+You can create an MCP server using the make:mcp-server Artisan command. Servers act as the central communication point that exposes MCP capabilities like tools, resources, and prompts to AI clients:
+
+php artisan make:mcp-server WeatherServer
+
+This command will create a new server class in the app/Mcp/Servers directory. The generated server class extends Laravel MCP's base Laravel\Mcp\Server class and provides properties for registering tools, resources, and prompts:
+
+<?php
+ 
+namespace App\Mcp\Servers;
+ 
+use Laravel\Mcp\Server;
+ 
+class WeatherServer extends Server
+{
+    /**
+     * The MCP server's name.
+     */
+    protected string $name = 'Weather Server';
+ 
+    /**
+     * The MCP server's version.
+     */
+    protected string $version = '1.0.0';
+ 
+    /**
+     * The MCP server's instructions for the LLM.
+     */
+    protected string $instructions = 'This server provides weather information and forecasts.';
+ 
+    /**
+     * The tools registered with this MCP server.
+     *
+     * @var array<int, class-string<\Laravel\Mcp\Server\Tool>>
+     */
+    protected array $tools = [
+        // GetCurrentWeatherTool::class,
+    ];
+ 
+    /**
+     * The resources registered with this MCP server.
+     *
+     * @var array<int, class-string<\Laravel\Mcp\Server\Resource>>
+     */
+    protected array $resources = [
+        // WeatherGuidelinesResource::class,
+    ];
+ 
+    /**
+     * The prompts registered with this MCP server.
+     *
+     * @var array<int, class-string<\Laravel\Mcp\Server\Prompt>>
+     */
+    protected array $prompts = [
+        // DescribeWeatherPrompt::class,
+    ];
+}
+
+Server Registration
+Once you've created a server, you must register it in your routes/ai.php file to make it accessible. Laravel MCP provides two methods for registering servers: web for HTTP-accessible servers and local for command-line servers.
+
+Web Servers
+Web servers are the most common types of servers and are accessible via HTTP POST requests, making them ideal for remote AI clients or web-based integrations. Register a web server using the web method:
+
+use App\Mcp\Servers\WeatherServer;
+use Laravel\Mcp\Facades\Mcp;
+ 
+Mcp::web('/mcp/weather', WeatherServer::class);
+
+Just like normal routes, you may apply middleware to protect your web servers:
+
+Mcp::web('/mcp/weather', WeatherServer::class)
+    ->middleware(['throttle:mcp']);
+
+Local Servers
+Local servers run as Artisan commands, perfect for building local AI assistant integrations like Laravel Boost. Register a local server using the local method:
+
+use App\Mcp\Servers\WeatherServer;
+use Laravel\Mcp\Facades\Mcp;
+ 
+Mcp::local('weather', WeatherServer::class);
+
+Once registered, you should not typically need to manually run the mcp:start Artisan command yourself. Instead, configure your MCP client (AI agent) to start the server or use the MCP Inspector.
+
+Tools
+Tools enable your server to expose functionality that AI clients can call. They allow language models to perform actions, run code, or interact with external systems:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use Illuminate\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * The tool's description.
+     */
+    protected string $description = 'Fetches the current weather forecast for a specified location.';
+ 
+    /**
+     * Handle the tool request.
+     */
+    public function handle(Request $request): Response
+    {
+        $location = $request->get('location');
+ 
+        // Get weather...
+ 
+        return Response::text('The weather is...');
+    }
+ 
+    /**
+     * Get the tool's input schema.
+     *
+     * @return array<string, \Illuminate\JsonSchema\JsonSchema>
+     */
+    public function schema(JsonSchema $schema): array
+    {
+        return [
+            'location' => $schema->string()
+                ->description('The location to get the weather for.')
+                ->required(),
+        ];
+    }
+}
+
+Creating Tools
+To create a tool, run the make:mcp-tool Artisan command:
+
+php artisan make:mcp-tool CurrentWeatherTool
+
+After creating a tool, register it in your server's $tools property:
+
+<?php
+ 
+namespace App\Mcp\Servers;
+ 
+use App\Mcp\Tools\CurrentWeatherTool;
+use Laravel\Mcp\Server;
+ 
+class WeatherServer extends Server
+{
+    /**
+     * The tools registered with this MCP server.
+     *
+     * @var array<int, class-string<\Laravel\Mcp\Server\Tool>>
+     */
+    protected array $tools = [
+        CurrentWeatherTool::class,
+    ];
+}
+
+Tool Name, Title, and Description
+By default, the tool's name and title are derived from the class name. For example, CurrentWeatherTool will have a name of current-weather and a title of Current Weather Tool. You may customize these values by defining the tool's $name and $title properties:
+
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * The tool's name.
+     */
+    protected string $name = 'get-optimistic-weather';
+ 
+    /**
+     * The tool's title.
+     */
+    protected string $title = 'Get Optimistic Weather Forecast';
+ 
+    // ...
+}
+
+Tool descriptions are not automatically generated. You should always provide a meaningful description by defining a $description property on your tool:
+
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * The tool's description.
+     */
+    protected string $description = 'Fetches the current weather forecast for a specified location.';
+ 
+    //
+}
+
+The description is a critical part of the tool's metadata, as it helps AI models understand when and how to use the tool effectively.
+
+Tool Input Schemas
+Tools can define input schemas to specify what arguments they accept from AI clients. Use Laravel's Illuminate\JsonSchema\JsonSchema builder to define your tool's input requirements:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use Illuminate\JsonSchema\JsonSchema;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * Get the tool's input schema.
+     *
+     * @return array<string, JsonSchema>
+     */
+    public function schema(JsonSchema $schema): array
+    {
+        return [
+            'location' => $schema->string()
+                ->description('The location to get the weather for.')
+                ->required(),
+ 
+            'units' => $schema->string()
+                ->enum(['celsius', 'fahrenheit'])
+                ->description('The temperature units to use.')
+                ->default('celsius'),
+        ];
+    }
+}
+
+Validating Tool Arguments
+JSON Schema definitions provide a basic structure for tool arguments, but you may also want to enforce more complex validation rules.
+
+Laravel MCP integrates seamlessly with Laravel's validation features. You may validate incoming tool arguments within your tool's handle method:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * Handle the tool request.
+     */
+    public function handle(Request $request): Response
+    {
+        $validated = $request->validate([
+            'location' => 'required|string|max:100',
+            'units' => 'in:celsius,fahrenheit',
+        ]);
+ 
+        // Fetch weather data using the validated arguments...
+    }
+}
+
+On validation failure, AI clients will act based on the error messages you provide. As such, it is critical to provide clear and actionable error messages:
+
+$validated = $request->validate([
+    'location' => ['required','string','max:100'],
+    'units' => 'in:celsius,fahrenheit',
+],[
+    'location.required' => 'You must specify a location to get the weather for. For example, "New York City" or "Tokyo".',
+    'units.in' => 'You must specify either "celsius" or "fahrenheit" for the units.',
+]);
+
+Tool Dependency Injection
+The Laravel service container is used to resolve all tools. As a result, you are able to type-hint any dependencies your tool may need in its constructor. The declared dependencies will automatically be resolved and injected into the tool instance:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use App\Repositories\WeatherRepository;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * Create a new tool instance.
+     */
+    public function __construct(
+        protected WeatherRepository $weather,
+    ) {}
+ 
+    // ...
+}
+
+In addition to constructor injection, you may also type-hint dependencies in your tool's handle() method. The service container will automatically resolve and inject the dependencies when the method is called:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use App\Repositories\WeatherRepository;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * Handle the tool request.
+     */
+    public function handle(Request $request, WeatherRepository $weather): Response
+    {
+        $location = $request->get('location');
+ 
+        $forecast = $weather->getForecastFor($location);
+ 
+        // ...
+    }
+}
+
+Tool Annotations
+You may enhance your tools with annotations to provide additional metadata to AI clients. These annotations help AI models understand the tool's behavior and capabilities. Annotations are added to tools via attributes:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
+use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
+use Laravel\Mcp\Server\Tool;
+ 
+#[IsIdempotent]
+#[IsReadOnly]
+class CurrentWeatherTool extends Tool
+{
+    //
+}
+
+Available annotations include:
+
+Annotation	Type	Description
+#[IsReadOnly]	boolean	Indicates the tool does not modify its environment.
+#[IsDestructive]	boolean	Indicates the tool may perform destructive updates (only meaningful when not read-only).
+#[IsIdempotent]	boolean	Indicates repeated calls with same arguments have no additional effect (when not read-only).
+#[IsOpenWorld]	boolean	Indicates the tool may interact with external entities.
+Conditional Tool Registration
+You may conditionally register tools at runtime by implementing the shouldRegister method in your tool class. This method allows you to determine whether a tool should be available based on application state, configuration, or request parameters:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * Determine if the tool should be registered.
+     */
+    public function shouldRegister(Request $request): bool
+    {
+        return $request?->user()?->subscribed() ?? false;
+    }
+}
+
+When a tool's shouldRegister method returns false, it will not appear in the list of available tools and cannot be invoked by AI clients.
+
+Tool Responses
+Tools must return an instance of Laravel\Mcp\Response. The Response class provides several convenient methods for creating different types of responses:
+
+For simple text responses, use the text method:
+
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+ 
+/**
+ * Handle the tool request.
+ */
+public function handle(Request $request): Response
+{
+    // ...
+ 
+    return Response::text('Weather Summary: Sunny, 72°F');
+}
+
+To indicate an error occurred during tool execution, use the error method:
+
+return Response::error('Unable to fetch weather data. Please try again.');
+
+Multiple Content Responses
+Tools can return multiple pieces of content by returning an array of Response instances:
+
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+ 
+/**
+ * Handle the tool request.
+ *
+ * @return array<int, \Laravel\Mcp\Response>
+ */
+public function handle(Request $request): array
+{
+    // ...
+ 
+    return [
+        Response::text('Weather Summary: Sunny, 72°F'),
+        Response::text('**Detailed Forecast**\n- Morning: 65°F\n- Afternoon: 78°F\n- Evening: 70°F')
+    ];
+}
+
+Streaming Responses
+For long-running operations or real-time data streaming, tools can return a generator from their handle method. This enables sending intermediate updates to the client before the final response:
+
+<?php
+ 
+namespace App\Mcp\Tools;
+ 
+use Generator;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+ 
+class CurrentWeatherTool extends Tool
+{
+    /**
+     * Handle the tool request.
+     *
+     * @return \Generator<int, \Laravel\Mcp\Response>
+     */
+    public function handle(Request $request): Generator
+    {
+        $locations = $request->array('locations');
+ 
+        foreach ($locations as $index => $location) {
+            yield Response::notification('processing/progress', [
+                'current' => $index + 1,
+                'total' => count($locations),
+                'location' => $location,
+            ]);
+ 
+            yield Response::text($this->forecastFor($location));
+        }
+    }
+}
+
+When using web-based servers, streaming responses automatically open an SSE (Server-Sent Events) stream, sending each yielded message as an event to the client.
+
+Prompts
+Prompts enable your server to share reusable prompt templates that AI clients can use to interact with language models. They provide a standardized way to structure common queries and interactions.
+
+Creating Prompts
+To create a prompt, run the make:mcp-prompt Artisan command:
+
+php artisan make:mcp-prompt DescribeWeatherPrompt
+
+After creating a prompt, register it in your server's $prompts property:
+
+<?php
+ 
+namespace App\Mcp\Servers;
+ 
+use App\Mcp\Prompts\DescribeWeatherPrompt;
+use Laravel\Mcp\Server;
+ 
+class WeatherServer extends Server
+{
+    /**
+     * The prompts registered with this MCP server.
+     *
+     * @var array<int, class-string<\Laravel\Mcp\Server\Prompt>>
+     */
+    protected array $prompts = [
+        DescribeWeatherPrompt::class,
+    ];
+}
+
+Prompt Name, Title, and Description
+By default, the prompt's name and title are derived from the class name. For example, DescribeWeatherPrompt will have a name of describe-weather and a title of Describe Weather Prompt. You may customize these values by defining $name and $title properties on your prompt:
+
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * The prompt's name.
+     */
+    protected string $name = 'weather-assistant';
+ 
+    /**
+     * The prompt's title.
+     */
+    protected string $title = 'Weather Assistant Prompt';
+ 
+    // ...
+}
+
+Prompt descriptions are not automatically generated. You should always provide a meaningful description by defining a $description property on your prompts:
+
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * The prompt's description.
+     */
+    protected string $description = 'Generates a natural-language explanation of the weather for a given location.';
+ 
+    //
+}
+
+The description is a critical part of the prompt's metadata, as it helps AI models understand when and how to get the best use out of the prompt.
+
+Prompt Arguments
+Prompts can define arguments that allow AI clients to customize the prompt template with specific values. Use the arguments method to define what arguments your prompt accepts:
+
+<?php
+ 
+namespace App\Mcp\Prompts;
+ 
+use Laravel\Mcp\Server\Prompt;
+use Laravel\Mcp\Server\Prompts\Argument;
+ 
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * Get the prompt's arguments.
+     *
+     * @return array<int, \Laravel\Mcp\Server\Prompts\Argument>
+     */
+    public function arguments(): array
+    {
+        return [
+            new Argument(
+                name: 'tone',
+                description: 'The tone to use in the weather description (e.g., formal, casual, humorous).',
+                required: true,
+            ),
+        ];
+    }
+}
+
+Validating Prompt Arguments
+Prompt arguments are automatically validated based on their definition, but you may also want to enforce more complex validation rules.
+
+Laravel MCP integrates seamlessly with Laravel's validation features. You may validate incoming prompt arguments within your prompt's handle method:
+
+<?php
+ 
+namespace App\Mcp\Prompts;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Prompt;
+ 
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * Handle the prompt request.
+     */
+    public function handle(Request $request): Response
+    {
+        $validated = $request->validate([
+            'tone' => 'required|string|max:50',
+        ]);
+ 
+        $tone = $validated['tone'];
+ 
+        // Generate the prompt response using the given tone...
+    }
+}
+
+On validation failure, AI clients will act based on the error messages you provide. As such, it is critical to provide clear and actionable error messages:
+
+$validated = $request->validate([
+    'tone' => ['required','string','max:50'],
+],[
+    'tone.*' => 'You must specify a tone for the weather description. Examples include "formal", "casual", or "humorous".',
+]);
+
+Prompt Dependency Injection
+The Laravel service container is used to resolve all prompts. As a result, you are able to type-hint any dependencies your prompt may need in its constructor. The declared dependencies will automatically be resolved and injected into the prompt instance:
+
+<?php
+ 
+namespace App\Mcp\Prompts;
+ 
+use App\Repositories\WeatherRepository;
+use Laravel\Mcp\Server\Prompt;
+ 
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * Create a new prompt instance.
+     */
+    public function __construct(
+        protected WeatherRepository $weather,
+    ) {}
+ 
+    //
+}
+
+In addition to constructor injection, you may also type-hint dependencies in your prompt's handle method. The service container will automatically resolve and inject the dependencies when the method is called:
+
+<?php
+ 
+namespace App\Mcp\Prompts;
+ 
+use App\Repositories\WeatherRepository;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Prompt;
+ 
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * Handle the prompt request.
+     */
+    public function handle(Request $request, WeatherRepository $weather): Response
+    {
+        $isAvailable = $weather->isServiceAvailable();
+ 
+        // ...
+    }
+}
+
+Conditional Prompt Registration
+You may conditionally register prompts at runtime by implementing the shouldRegister method in your prompt class. This method allows you to determine whether a prompt should be available based on application state, configuration, or request parameters:
+
+<?php
+ 
+namespace App\Mcp\Prompts;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Server\Prompt;
+ 
+class CurrentWeatherPrompt extends Prompt
+{
+    /**
+     * Determine if the prompt should be registered.
+     */
+    public function shouldRegister(Request $request): bool
+    {
+        return $request?->user()?->subscribed() ?? false;
+    }
+}
+
+When a prompt's shouldRegister method returns false, it will not appear in the list of available prompts and cannot be invoked by AI clients.
+
+Prompt Responses
+Prompts may return a single Laravel\Mcp\Response or an iterable of Laravel\Mcp\Response instances. These responses encapsulate the content that will be sent to the AI client:
+
+<?php
+ 
+namespace App\Mcp\Prompts;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Prompt;
+ 
+class DescribeWeatherPrompt extends Prompt
+{
+    /**
+     * Handle the prompt request.
+     *
+     * @return array<int, \Laravel\Mcp\Response>
+     */
+    public function handle(Request $request): array
+    {
+        $tone = $request->string('tone');
+ 
+        $systemMessage = "You are a helpful weather assistant. Please provide a weather description in a {$tone} tone.";
+ 
+        $userMessage = "What is the current weather like in New York City?";
+ 
+        return [
+            Response::text($systemMessage)->asAssistant(),
+            Response::text($userMessage),
+        ];
+    }
+}
+
+You can use the asAssistant() method to indicate that a response message should be treated as coming from the AI assistant, while regular messages are treated as user input.
+
+Resources
+Resources enable your server to expose data and content that AI clients can read and use as context when interacting with language models. They provide a way to share static or dynamic information like documentation, configuration, or any data that helps inform AI responses.
+
+Creating Resources
+To create a resource, run the make:mcp-resource Artisan command:
+
+php artisan make:mcp-resource WeatherGuidelinesResource
+
+After creating a resource, register it in your server's $resources property:
+
+<?php
+ 
+namespace App\Mcp\Servers;
+ 
+use App\Mcp\Resources\WeatherGuidelinesResource;
+use Laravel\Mcp\Server;
+ 
+class WeatherServer extends Server
+{
+    /**
+     * The resources registered with this MCP server.
+     *
+     * @var array<int, class-string<\Laravel\Mcp\Server\Resource>>
+     */
+    protected array $resources = [
+        WeatherGuidelinesResource::class,
+    ];
+}
+
+Resource Name, Title, and Description
+By default, the resource's name and title are derived from the class name. For example, WeatherGuidelinesResource will have a name of weather-guidelines and a title of Weather Guidelines Resource. You may customize these values by defining the $name and $title properties on your resource:
+
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * The resource's name.
+     */
+    protected string $name = 'weather-api-docs';
+ 
+    /**
+     * The resource's title.
+     */
+    protected string $title = 'Weather API Documentation';
+ 
+    // ...
+}
+
+Resource descriptions are not automatically generated. You should always provide a meaningful description by defining the $description property on your resource:
+
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * The resource's description.
+     */
+    protected string $description = 'Comprehensive guidelines for using the Weather API.';
+ 
+    //
+}
+
+The description is a critical part of the resource's metadata, as it helps AI models understand when and how to use the resource effectively.
+
+Resource URI and MIME Type
+Each resource is identified by a unique URI and has an associated MIME type that helps AI clients understand the resource's format.
+
+By default, the resource's URI is generated based on the resource's name, so WeatherGuidelinesResource will have a URI of weather://resources/weather-guidelines. The default MIME type is text/plain.
+
+You may customize these values by defining the $uri and $mimeType properties on your resource:
+
+<?php
+ 
+namespace App\Mcp\Resources;
+ 
+use Laravel\Mcp\Server\Resource;
+ 
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * The resource's URI.
+     */
+    protected string $uri = 'weather://resources/guidelines';
+ 
+    /**
+     * The resource's MIME type.
+     */
+    protected string $mimeType = 'application/pdf';
+}
+
+The URI and MIME type help AI clients determine how to process and interpret the resource content appropriately.
+
+Resource Request
+Unlike tools and prompts, resources can not define input schemas or arguments. However, you can still interact with request object within your resource's handle method:
+
+<?php
+ 
+namespace App\Mcp\Resources;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Resource;
+ 
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * Handle the resource request.
+     */
+    public function handle(Request $request): Response
+    {
+        // ...
+    }
+}
+
+Resource Dependency Injection
+The Laravel service container is used to resolve all resources. As a result, you are able to type-hint any dependencies your resource may need in its constructor. The declared dependencies will automatically be resolved and injected into the resource instance:
+
+<?php
+ 
+namespace App\Mcp\Resources;
+ 
+use App\Repositories\WeatherRepository;
+use Laravel\Mcp\Server\Resource;
+ 
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * Create a new resource instance.
+     */
+    public function __construct(
+        protected WeatherRepository $weather,
+    ) {}
+ 
+    // ...
+}
+
+In addition to constructor injection, you may also type-hint dependencies in your resource's handle method. The service container will automatically resolve and inject the dependencies when the method is called:
+
+<?php
+ 
+namespace App\Mcp\Resources;
+ 
+use App\Repositories\WeatherRepository;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Resource;
+ 
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * Handle the resource request.
+     */
+    public function handle(WeatherRepository $weather): Response
+    {
+        $guidelines = $weather->guidelines();
+ 
+        return Response::text($guidelines);
+    }
+}
+
+Conditional Resource Registration
+You may conditionally register resources at runtime by implementing the shouldRegister method in your resource class. This method allows you to determine whether a resource should be available based on application state, configuration, or request parameters:
+
+<?php
+ 
+namespace App\Mcp\Resources;
+ 
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Server\Resource;
+ 
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * Determine if the resource should be registered.
+     */
+    public function shouldRegister(Request $request): bool
+    {
+        return $request?->user()?->subscribed() ?? false;
+    }
+}
+
+When a resource's shouldRegister method returns false, it will not appear in the list of available resources and cannot be accessed by AI clients.
+
+Resource Responses
+Resources must return an instance of Laravel\Mcp\Response. The Response class provides several convenient methods for creating different types of responses:
+
+For simple text content, use the text method:
+
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+ 
+/**
+ * Handle the resource request.
+ */
+public function handle(Request $request): Response
+{
+    // ...
+ 
+    return Response::text($weatherData);
+}
+
+Blob Responses
+To return blob content, use the blob method, providing the blob content:
+
+return Response::blob(file_get_contents(storage_path('weather/radar.png')));
+
+When returning blob content, the MIME type will be determined by the value of the $mimeType property on the resource class:
+
+<?php
+ 
+namespace App\Mcp\Resources;
+ 
+use Laravel\Mcp\Server\Resource;
+ 
+class WeatherGuidelinesResource extends Resource
+{
+    /**
+     * The resource's MIME type.
+     */
+    protected string $mimeType = 'image/png';
+ 
+    //
+}
+
+Error Responses
+To indicate an error occurred during resource retrieval, use the error() method:
+
+return Response::error('Unable to fetch weather data for the specified location.');
+
+Authentication
+Just like routes, you can authenticate web MCP servers with middleware. Adding authentication to your MCP server will require a user to authenticate before using any capability of the server.
+
+There are two ways to authenticate access to your MCP server: simple, token based authentication via Laravel Sanctum or any token which is passed via the Authorization HTTP header. Or, you may authenticate via OAuth using Laravel Passport.
+
+OAuth 2.1
+The most robust way to protect your web-based MCP servers is with OAuth using Laravel Passport.
+
+When authenticating your MCP server via OAuth, invoke the Mcp::oauthRoutes method in your routes/ai.php file to register the required OAuth2 discovery and client registration routes. Then, apply Passport's auth:api middleware to your Mcp::web route in your routes/ai.php file:
+
+use App\Mcp\Servers\WeatherExample;
+use Laravel\Mcp\Facades\Mcp;
+ 
+Mcp::oauthRoutes();
+ 
+Mcp::web('/mcp/weather', WeatherExample::class)
+    ->middleware('auth:api');
+
+New Passport Installation
+If your application is not already using Laravel Passport, follow Passport's installation and deployment guide to add Passport to your application. You should have an OAuthenticatable model, new authentication guard, and passport keys before moving on.
+
+Next, you should publish Laravel MCP's provided Passport authorization view:
+
+php artisan vendor:publish --tag=mcp-views
+
+Then, instruct Passport to use this view using the Passport::authorizationView method. Typically, this method should be invoked in the boot method of your application's AppServiceProvider:
+
+use Laravel\Passport\Passport;
+ 
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Passport::authorizationView(function ($parameters) {
+        return view('mcp.authorize', $parameters);
+    });
+}
+
+This view will be displayed to the end-user during authentication to reject or approve the AI agent's authentication attempt.
+
+Authorization screen example
+
+In this scenario, we're simply using OAuth as a translation layer to the underlying authenticatable model. We are ignoring many aspects of OAuth, such as scopes.
+
+Using an Existing Passport Installation
+If your application is already using Laravel Passport, Laravel MCP should work seamlessly within your existing Passport installation, but custom scopes aren't currently supported as OAuth is primarily used as a translation layer to the underlying authenticatable model.
+
+Laravel MCP, via the Mcp::oauthRoutes method discussed above, adds, advertises, and uses a single mcp:use scope.
+
+Passport vs. Sanctum
+OAuth2.1 is the documented authentication mechanism in the Model Context Protocol specification, and is the most widely supported among MCP clients. For that reason, we recommend using Passport when possible.
+
+If your application is already using Sanctum then adding Passport may be cumbersome. In this instance, we recommend using Sanctum without Passport until you have a clear, necessary requirement to use an MCP client that only supports OAuth.
+
+Sanctum
+If you would like to protect your MCP server using Sanctum, simply add Sanctum's authentication middleware to your server in your routes/ai.php file. Then, ensure your MCP clients provide a Authorization: Bearer <token> header to ensure successful authentication:
+
+use App\Mcp\Servers\WeatherExample;
+use Laravel\Mcp\Facades\Mcp;
+ 
+Mcp::web('/mcp/demo', WeatherExample::class)
+    ->middleware('auth:sanctum');
+
+Custom MCP Authentication
+If your application issues its own custom API tokens, you may authenticate your MCP server by assigning any middleware you wish to your Mcp::web routes. Your custom middleware can inspect the Authorization header manually to authenticate the incoming MCP request.
+
+Authorization
+You may access the currently authenticated user via the $request->user() method, allowing you to perform authorization checks within your MCP tools and resources:
+
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+ 
+/**
+ * Handle the tool request.
+ */
+public function handle(Request $request): Response
+{
+    if (! $request->user()->can('read-weather')) {
+        return Response::error('Permission denied.');
+    }
+ 
+    // ...
+}
+
+Testing Servers
+You may test your MCP servers using the built-in MCP Inspector or by writing unit tests.
+
+MCP Inspector
+The MCP Inspector is an interactive tool for testing and debugging your MCP servers. Use it to connect to your server, verify authentication, and try out tools, resources, and prompts.
+
+You may run the inspector for any registered server:
+
+# Web server...
+php artisan mcp:inspector mcp/weather
+ 
+# Local server named "weather"...
+php artisan mcp:inspector weather
+
+This command launches the MCP Inspector and provides the client settings that you may copy into your MCP client to ensure everything is configured correctly. If your web server is protected by an authentication middleware, make sure to include the required headers, such as an Authorization bearer token, when connecting.
+
+Unit Tests
+You may write unit tests for your MCP servers, tools, resources, and prompts.
+
+To get started, create a new test case and invoke the desired primitive on the server that registers it. For example, to test a tool on the WeatherServer:
+
+Pest
+PHPUnit
+
+test('tool', function () {
+    $response = WeatherServer::tool(CurrentWeatherTool::class, [
+        'location' => 'New York City',
+        'units' => 'fahrenheit',
+    ]);
+ 
+    $response
+        ->assertOk()
+        ->assertSee('The current weather in New York City is 72°F and sunny.');
+});
+Similarly, you may test prompts and resources:
+
+$response = WeatherServer::prompt(...);
+$response = WeatherServer::resource(...);
+
+You may also act as an authenticated user by chaining the actingAs method before invoking the primitive:
+
+$response = WeatherServer::actingAs($user)->tool(...);
+
+Once you receive the response, you may use various assertion methods to verify the content and status of the response.
+
+You may assert that a response is successful using the assertOk method. This checks that the response does not have any errors:
+
+$response->assertOk();
+
+You may assert that a response contains specific text using the assertSee method:
+
+$response->assertSee('The current weather in New York City is 72°F and sunny.');
+
+You may assert that a response contains an error using the assertHasErrors method:
+
+$response->assertHasErrors();
+ 
+$response->assertHasErrors([
+    'Something went wrong.',
+]);
+
+You may assert that a response does not contain an error using the assertHasNoErrors method:
+
+$response->assertHasNoErrors();
+
+You may assert that a response contains specific metadata using the assertName(), assertTitle(), and assertDescription() methods:
+
+$response->assertName('current-weather');
+$response->assertTitle('Current Weather Tool');
+$response->assertDescription('Fetches the current weather forecast for a specified location.');
+
+You may assert that notifications were sent using the assertSentNotification and assertNotificationCount methods:
+
+$response->assertSentNotification('processing/progress', [
+    'step' => 1,
+    'total' => 5,
+]);
+ 
+$response->assertSentNotification('processing/progress', [
+    'step' => 2,
+    'total' => 5,
+]);
+ 
+$response->assertNotificationCount(5);
+
+Finally, if you wish to inspect the raw response content, you may use the dd or dump methods to output the response for debugging purposes:
+
+$response->dd();
+$response->dump();

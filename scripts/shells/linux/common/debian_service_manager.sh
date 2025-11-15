@@ -12,16 +12,152 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# ============================================================================
+# AI DIRECT CALL INTERFACE - READ THIS FIRST
+# ============================================================================
+# 
+# This script provides a service manager for creating and managing systemd
+# services with ncore-* naming convention. AI can directly call functions
+# or use the command-line interface WITHOUT modifying the code.
+#
+# USAGE METHODS:
+# --------------
+#
+# METHOD 1: Source and Call Functions Directly (Recommended for AI)
+#   source /path/to/debian_service_manager.sh
+#   create_ncore_service "/path/to/script.sh" "service_name" "Description" "20%" "200M"
+#   remove_ncore_service "service_name"
+#   check_service_status "service_name"
+#   list_ncore_services
+#   update_service_resources "service_name"
+#
+# METHOD 2: Execute as Command-Line Script
+#   bash debian_service_manager.sh create /path/to/script.sh
+#   bash debian_service_manager.sh create /path/to/script.sh myapp "My App" "50%" "1G"
+#   bash debian_service_manager.sh remove myapp
+#   bash debian_service_manager.sh status myapp
+#   bash debian_service_manager.sh list
+#   bash debian_service_manager.sh update
+#   bash debian_service_manager.sh update myapp
+#
+# AVAILABLE FUNCTIONS (Can be called directly after sourcing):
+# -----------------------------------------------------------
+#
+# 1. create_systemd_service(service_name, description, exec_command, working_dir, [user], [restart], [restart_sec], [cpu_limit], [memory_limit])
+#    - Creates a generic systemd service (not limited to ncore-* naming)
+#    - ALL services are created with CPU and memory restrictions by default
+#    - Parameters:
+#      * service_name (required): Full service name (e.g., "pycore-module-caller", "my-service")
+#      * description (required): Service description
+#      * exec_command (required): Full command to execute (e.g., "/usr/bin/python3 /path/to/script.py")
+#      * working_dir (required): Working directory for the service
+#      * user (optional): User to run service as (default: "root")
+#      * restart (optional): Restart policy (default: "always")
+#      * restart_sec (optional): Restart delay (default: "10s")
+#      * cpu_limit (optional): CPU limit like "20%" (default: auto-calculated based on system)
+#      * memory_limit (optional): Memory limit like "200M" or "1G" (default: auto-calculated based on system RAM)
+#    - Default limits are applied automatically if not specified
+#    - Example: create_systemd_service "my-service" "My Service" "/usr/bin/python3 /app/main.py" "/app" "www-data"
+#
+# 2. create_ncore_service(script_path, [custom_name], [description], [cpu_limit], [memory_limit])
+#    - Creates or updates a systemd service with ncore-* naming convention
+#    - Parameters:
+#      * script_path (required): Full path to the script file
+#      * custom_name (optional): Custom service name (without ncore- prefix)
+#      * description (optional): Service description
+#      * cpu_limit (optional): CPU limit like "20%" (default: "20%")
+#      * memory_limit (optional): Memory limit like "200M" or "1G" (default: auto-calculated)
+#    - Example: create_ncore_service "/www/apps/myapp/start.sh" "myapp" "My Application" "30%" "500M"
+#
+# 3. remove_ncore_service(service_name)
+#    - Removes a systemd service
+#    - Parameters:
+#      * service_name (required): Service name (with or without ncore- prefix)
+#    - Example: remove_ncore_service "myapp"
+#
+# 4. check_service_status(service_name)
+#    - Shows detailed service status
+#    - Parameters:
+#      * service_name (required): Service name (with or without ncore- prefix)
+#    - Example: check_service_status "myapp"
+#
+# 5. list_ncore_services()
+#    - Lists all ncore-* services with their status
+#    - No parameters required
+#    - Example: list_ncore_services
+#
+# 6. update_service_resources(service_name)
+#    - Updates resource limits for a specific service
+#    - Parameters:
+#      * service_name (required): Service name (with or without ncore- prefix)
+#    - Example: update_service_resources "myapp"
+#
+# 7. update_all_services_resources()
+#    - Updates resource limits for all ncore services
+#    - No parameters required
+#    - Example: update_all_services_resources
+#
+# RESOURCE LIMITS:
+# ----------------
+# - CPU limits: Format "XX%" (e.g., "20%", "50%", "100%")
+# - Memory limits: Format "XXXM" or "XG" (e.g., "200M", "500M", "1G", "2G")
+# - Default CPU: "20%"
+# - Default Memory: Auto-calculated based on system RAM:
+#   * <=2GB RAM: 200M
+#   * 2-4GB RAM: 300M
+#   * 4-8GB RAM: 500M
+#   * >8GB RAM: 1G
+#
+# SERVICE NAMING:
+# ---------------
+# - All services are prefixed with "ncore-"
+# - If custom_name is provided, service will be "ncore-{custom_name}"
+# - If not provided, service name is derived from script filename
+#
+# SUPPORTED SCRIPT TYPES:
+# -----------------------
+# - .sh files: Executed with bash
+# - .py files: Executed with python3
+# - .js/.mjs files: Executed with node
+# - .pl files: Executed with perl
+# - .rb files: Executed with ruby
+# - Other files: Executed directly
+#
+# WORKING DIRECTORY:
+# ------------------
+# - For poly_apps: /path/to/poly_apps/app_name/scripts/deploy.sh -> /path/to/poly_apps/app_name
+# - For ncore apps: /path/to/apps/app_name/scripts/deploy.sh -> /path/to/apps/app_name
+# - Other: Uses script directory
+#
+# IMPORTANT NOTES FOR AI:
+# -----------------------
+# - This script is idempotent: safe to run multiple times
+# - Services are automatically stopped before update
+# - Resource limits are validated before application
+# - Systemd daemon is automatically reloaded after changes
+# - All functions return 0 on success, non-zero on failure
+# - No code modification needed - just source and call functions
+#
+# ============================================================================
+
 # Debian Service Manager for NCore Applications
 # Manages systemd services with ncore-* naming convention
 
-# Variables declaration
+# Source gvar_common.sh for path mapping functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/gvar_common.sh" ]; then
+    source "$SCRIPT_DIR/gvar_common.sh"
+else
+    echo "[WARNING] gvar_common.sh not found, using default paths"
+fi
+
+# Variables declaration
 PROJECT_ROOT="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 SERVICE_PREFIX="ncore-"
-SYSTEMD_DIR="/etc/systemd/system"
-LOG_DIR="/var/log/ncore_services"
-SERVICES_LOG_DIR="/www/services_log"
+SYSTEMD_DIR="/etc/systemd/system"  # System directory, keep as-is
+# Use map_web_path for path mapping (except /etc which is system directory)
+LOG_DIR=$(map_web_path "logs" "ncore_services" 2>/dev/null || echo "/var/log/ncore_services")
+SERVICES_LOG_DIR=$(map_web_path "www" "services_log" 2>/dev/null || echo "/www/services_log")
 DEFAULT_CPU_LIMIT="20%"
 DEFAULT_MEMORY_LIMIT="200M"
 REQUIRED_PACKAGES="systemd cgroup-tools"
@@ -108,10 +244,35 @@ ensure_dependencies() {
     return 0
 }
 
+# Function to get mapped paths (ensures paths are always correctly mapped)
+get_mapped_log_dir() {
+    if command -v map_web_path >/dev/null 2>&1; then
+        map_web_path "logs" "ncore_services" 2>/dev/null || echo "/var/log/ncore_services"
+    else
+        echo "${LOG_DIR:-/var/log/ncore_services}"
+    fi
+}
+
+get_mapped_services_log_dir() {
+    if command -v map_web_path >/dev/null 2>&1; then
+        map_web_path "www" "services_log" 2>/dev/null || echo "/www/services_log"
+    else
+        echo "${SERVICES_LOG_DIR:-/www/services_log}"
+    fi
+}
+
 # Function to ensure required directories exist
 ensure_directories() {
-    mkdir -p "$LOG_DIR" "$SERVICES_LOG_DIR"
-    chmod 755 "$LOG_DIR" "$SERVICES_LOG_DIR"
+    # Recalculate paths to ensure they're correctly mapped
+    local log_dir=$(get_mapped_log_dir)
+    local services_log_dir=$(get_mapped_services_log_dir)
+    
+    mkdir -p "$log_dir" "$services_log_dir"
+    chmod 755 "$log_dir" "$services_log_dir"
+    
+    # Update global variables for consistency
+    LOG_DIR="$log_dir"
+    SERVICES_LOG_DIR="$services_log_dir"
 }
 
 # Function to check systemd version and resource limit support
@@ -296,6 +457,101 @@ get_service_by_script() {
     done
     
     return 1
+}
+
+# Function to apply resource limits to service file (reusable)
+apply_resource_limits() {
+    local service_file="$1"
+    local cpu_limit="$2"
+    local memory_limit="$3"
+
+    if [ -n "$cpu_limit" ]; then
+        echo "CPUQuota=$cpu_limit" >> "$service_file"
+        echo "[INFO] CPU limit: $cpu_limit"
+    fi
+
+    if [ -n "$memory_limit" ]; then
+        local memory_high
+        case "${memory_limit: -1}" in
+            "M"|"m") memory_high="$((${memory_limit%?} * 80 / 100))M" ;;
+            "G"|"g") memory_high="$((${memory_limit%?} * 80 / 100))G" ;;
+            "K"|"k") memory_high="$((${memory_limit%?} * 80 / 100))K" ;;
+            *) memory_high="$memory_limit" ;;
+        esac
+        echo "MemoryMax=$memory_limit" >> "$service_file"
+        echo "MemoryHigh=$memory_high" >> "$service_file"
+        echo "[INFO] Memory limit: $memory_limit (high: $memory_high)"
+    fi
+}
+
+# Function to create generic systemd service (not limited to ncore-*)
+create_systemd_service() {
+    local service_name="$1"
+    local description="$2"
+    local exec_command="$3"
+    local working_dir="$4"
+    local user="${5:-root}"
+    local restart_policy="${6:-always}"
+    local restart_sec="${7:-10s}"
+    local cpu_limit="${8:-}"
+    local memory_limit="${9:-}"
+
+    if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
+        echo "[ERROR] service_name, description, and exec_command are required"
+        return 1
+    fi
+
+    if [ -z "$working_dir" ]; then
+        working_dir="/"
+    fi
+
+    # Calculate and apply default resource limits if not provided
+    if [ -z "$cpu_limit" ] || [ -z "$memory_limit" ]; then
+        calculate_memory_limits
+        cpu_limit="${cpu_limit:-$DEFAULT_CPU_LIMIT}"
+        memory_limit="${memory_limit:-$DEFAULT_MEMORY_LIMIT}"
+    fi
+
+    local service_file="$SYSTEMD_DIR/${service_name}.service"
+
+    echo "[INFO] Creating generic systemd service: $service_name"
+    echo "[INFO] Description: $description"
+    echo "[INFO] Exec: $exec_command"
+    echo "[INFO] Working Directory: $working_dir"
+    echo "[INFO] User: $user"
+
+    cat > "$service_file" << EOF
+[Unit]
+Description=$description
+After=network.target
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$working_dir
+ExecStart=$exec_command
+Restart=$restart_policy
+RestartSec=$restart_sec
+StandardOutput=journal
+StandardError=journal
+EOF
+
+    apply_resource_limits "$service_file" "$cpu_limit" "$memory_limit"
+
+    cat >> "$service_file" << EOF
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ $? -eq 0 ]; then
+        echo "[SUCCESS] Service file created: $service_file"
+        systemctl daemon-reload
+        return 0
+    else
+        echo "[ERROR] Failed to create service file"
+        return 1
+    fi
 }
 
 # Function to create or update ncore service
@@ -571,7 +827,9 @@ log_service_action() {
     local script_path="$2"
     local action="$3"
     
-    local log_file="$SERVICES_LOG_DIR/ncore_service_actions.log"
+    # Ensure path is correctly mapped
+    local services_log_dir=$(get_mapped_services_log_dir)
+    local log_file="$services_log_dir/ncore_service_actions.log"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     echo "[$timestamp] $action: $service_name -> $script_path" >> "$log_file"

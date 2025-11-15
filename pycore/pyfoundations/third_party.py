@@ -55,14 +55,13 @@ DEPENDENCY_MAP = {
     "av": "av",
 
     # For FastAPI web framework (pyutils.api, pyutils.web)
-    "fastapi": "fastapi",
     "uvicorn": "uvicorn[standard]",
-    "pydantic": "pydantic",
     "websockets": "websockets",
 
     # For HTTP requests
     "requests": "requests",
     "aiohttp": "aiohttp",
+    "fastapi": "fastapi",
 
     # For network interface detection (pyutils.rpc.discovery)
     "netifaces": "netifaces",
@@ -84,6 +83,14 @@ DEPENDENCY_MAP = {
 
     # For Edge TTS (Microsoft Edge Text-to-Speech)
     "edge_tts": "edge-tts",
+
+    # For MCP (Model Context Protocol) servers
+    "mcp": "mcp",
+    # FastMCP is part of mcp package
+    "mcp.server.fastmcp": "mcp",
+
+    # For OCR (Optical Character Recognition)
+    "cnocr": "cnocr[ort-cpu]",
 }
 
 # Windows-only packages
@@ -106,6 +113,134 @@ WINDOWS_ONLY_PACKAGES = {
     "uiautomation": "uiautomation",
 }
 
+# System packages required for Python packages (Debian/Ubuntu only)
+# These are installed via apt-get, not pip
+SYSTEM_PACKAGES = [
+    "python3-tk",              # Required for tkinter GUI support
+    "python3-dev",              # Required for building Python extensions
+    "gir1.2-appindicator3-0.1", # Required for system tray indicators
+    "gir1.2-gtk-3.0",          # Required for GTK3 GUI support
+    "python3-gi",               # Required for GObject Introspection (GTK bindings)
+    "python3-gi-cairo",         # Required for Cairo graphics with GObject
+    "python3-pil",              # Required for PIL/Pillow image processing
+    "python3-pil.imagetk",      # Required for PIL/Pillow with Tkinter support
+]
+
+
+def check_system_package_installed(package_name: str) -> bool:
+    """
+    Check if a system package is installed (Debian/Ubuntu only).
+    
+    Args:
+        package_name: Name of the system package to check
+        
+    Returns:
+        True if package is installed, False otherwise
+    """
+    try:
+        # Use dpkg to check if package is installed
+        result = subprocess.run(
+            ["dpkg", "-l", package_name],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        # If package is installed, dpkg -l will show it (exit code 0 and output contains package)
+        return result.returncode == 0 and package_name in result.stdout
+    except (FileNotFoundError, subprocess.SubprocessError):
+        # dpkg not available or error occurred
+        return False
+
+
+def install_system_packages():
+    """
+    Check and install required system packages (Linux/Debian/Ubuntu only).
+    
+    Uses apt-get to install system packages. Requires sudo privileges.
+    Only runs on Linux systems with apt-get available.
+    First fixes any broken packages, then updates package list, then installs missing packages.
+    """
+    current_platform = platform.system()
+    
+    # Only run on Linux
+    if current_platform != 'Linux':
+        return
+    
+    # Check if apt-get is available
+    try:
+        subprocess.run(["which", "apt-get"], capture_output=True, check=True)
+    except (FileNotFoundError, subprocess.SubprocessError):
+        ColorPrint.blue("[INFO] apt-get not available, skipping system package check")
+        return
+    
+    # Check if we have sudo privileges (or running as root)
+    has_sudo = False
+    if os.geteuid() == 0:
+        has_sudo = True
+    else:
+        # Check if sudo is available and we can use it
+        try:
+            result = subprocess.run(
+                ["sudo", "-n", "true"],
+                capture_output=True,
+                check=False
+            )
+            if result.returncode == 0:
+                has_sudo = True
+        except (FileNotFoundError, subprocess.SubprocessError):
+            pass
+    
+    if not has_sudo:
+        ColorPrint.yellow("[WARNING] Sudo privileges required for system package installation")
+        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(SYSTEM_PACKAGES)}")
+        return
+    
+    ColorPrint.blue("[INFO] Checking for required system packages...")
+    missing_packages = []
+    
+    for package in SYSTEM_PACKAGES:
+        if not check_system_package_installed(package):
+            missing_packages.append(package)
+            ColorPrint.yellow(f"[INSTALL] System package '{package}' not found. Installing...")
+        else:
+            ColorPrint.green(f"[OK] System package '{package}' is installed")
+    
+    if missing_packages:
+        try:
+            # Fix broken packages first (if any)
+            ColorPrint.blue("[INFO] Checking for broken packages and fixing if needed...")
+            fix_cmd = ["sudo", "apt", "--fix-broken", "install", "-y"]
+            fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, check=False)
+            if fix_result.returncode == 0:
+                ColorPrint.green("[OK] Broken packages fixed (or none found)")
+            else:
+                # Try alternative command
+                fix_cmd2 = ["sudo", "apt", "-f", "install", "-y"]
+                fix_result2 = subprocess.run(fix_cmd2, capture_output=True, text=True, check=False)
+                if fix_result2.returncode == 0:
+                    ColorPrint.green("[OK] Broken packages fixed (or none found)")
+                else:
+                    ColorPrint.yellow("[WARNING] Could not fix broken packages, continuing anyway...")
+            
+            # Update package list
+            ColorPrint.blue("[INFO] Updating package list...")
+            update_cmd = ["sudo", "apt-get", "update", "-qq"]
+            subprocess.run(update_cmd, check=True)
+            
+            # Install missing packages
+            install_cmd = ["sudo", "apt-get", "install", "-y"] + missing_packages
+            ColorPrint.blue(f"[INFO] Installing system packages: {', '.join(missing_packages)}")
+            result = subprocess.run(install_cmd, check=True)
+            
+            ColorPrint.green(f"[SUCCESS] Successfully installed system packages: {', '.join(missing_packages)}")
+        except subprocess.CalledProcessError as e:
+            ColorPrint.red(f"[ERROR] Failed to install system packages: {e}")
+            ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Unexpected error installing system packages: {e}")
+    else:
+        ColorPrint.green("[INFO] All required system packages are installed")
+
 
 def check_and_install_dependencies():
     """
@@ -125,6 +260,9 @@ def check_and_install_dependencies():
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
+
+    # Check and install system packages first (before Python packages)
+    install_system_packages()
 
     ColorPrint.blue("[INFO] Checking for required Python packages...")
     installed_packages = set()
@@ -161,17 +299,27 @@ def check_and_install_dependencies():
             ColorPrint.yellow(f"[INSTALL] Package for '{import_name_to_check}' ('{package_name}') not found. Installing...")
 
             # Build pip install command
-            pip_cmd = [sys.executable, "-m", "pip", "install", package_name]
+            pip_cmd = [sys.executable, "-m", "pip", "install"]
 
-            # On Linux/Mac, add --break-system-packages if needed (for externally-managed environments)
+            # On Linux/Mac, use --break-system-packages --ignore-installed for reliable installation
             # On Windows, use normal pip install
             if current_platform != 'Windows':
-                pip_cmd.append("--break-system-packages")
+                pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
 
-            result = subprocess.run(pip_cmd, check=True)
-            ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
-            installed_packages.add(package_name)
-            installed_packages_list.append(package_name)
+            pip_cmd.append(package_name)
+
+            try:
+                result = subprocess.run(pip_cmd, check=True)
+                ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
+                installed_packages.add(package_name)
+                installed_packages_list.append(package_name)
+            except subprocess.CalledProcessError as e:
+                ColorPrint.red(f"[ERROR] Failed to install {package_name}: {e}")
+                if current_platform != 'Windows':
+                    ColorPrint.yellow(f"[WARNING] Please install manually: pip install --break-system-packages --ignore-installed {package_name}")
+                else:
+                    ColorPrint.yellow(f"[WARNING] Please install manually: pip install {package_name}")
+                raise
         else:
             installed_packages.add(package_name)
             installed_packages_list.append(package_name)
@@ -226,12 +374,9 @@ import aiohttp
 import netifaces
 import websockets
 import requests
-import fastapi
 import uvicorn
-import pydantic
 import PIL
 import cv2
-import pyautogui
 import psutil
 import mss
 import torch
@@ -239,13 +384,8 @@ import ultralytics
 import numpy
 import adb_shell
 import av
-import webview
-import tkinterweb
-import tkhtmlview
-import pystray
 import loguru
 import yaml
-
 # Azure Cognitive Services Speech SDK
 try:
     import azure.cognitiveservices.speech
@@ -258,6 +398,14 @@ try:
     import edge_tts
 except ImportError:
     edge_tts = None
+
+# MCP (Model Context Protocol)
+try:
+    import mcp
+    from mcp.server.fastmcp import FastMCP
+except ImportError:
+    mcp = None
+    FastMCP = None
 
 # Windows-only packages (only available on Windows)
 if platform.system() == 'Windows':
@@ -281,16 +429,17 @@ else:
 
 __all__ = [
     'check_and_install_dependencies',
+    'check_system_package_installed',
+    'install_system_packages',
     'DEPENDENCY_MAP',
     'WINDOWS_ONLY_PACKAGES',
+    'SYSTEM_PACKAGES',
     # Standard packages
     'aiohttp',
     'netifaces',
     'websockets',
     'requests',
-    'fastapi',
     'uvicorn',
-    'pydantic',
     'PIL',
     'cv2',
     'pyautogui',
@@ -311,6 +460,9 @@ __all__ = [
     'speechsdk',
     # Edge TTS
     'edge_tts',
+    # MCP (Model Context Protocol)
+    'mcp',
+    'FastMCP',
     # Windows-only packages (only available on Windows)
     'win32gui',
     'win32con',

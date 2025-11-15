@@ -13,9 +13,9 @@
 
 use Illuminate\Support\Facades\Route;
 # -----------------------------PersonalDictionary-------------------------------
-use App\Apps\AppQyV1\Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryQueryController as PDQController;
-use App\Apps\AppQyV1\Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryCreationController as PDAController;
-use App\Apps\AppQyV1\Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryDeletionController as PDDController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryQueryController as PDQController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryCreationController as PDAController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryDeletionController as PDDController;
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;
 Route::prefix($apiVersionPrefix)->group(function () {

@@ -779,7 +779,26 @@ invoke_git_operations() {
                 done
                 echo ""
 
-                write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
+                # Ask for encryption confirmation with default Y
+                write_color_text "Do you want to encrypt these files before pushing? (Y/n): " "Yellow"
+                read -r encrypt_confirm
+
+                # Default to Y if empty or Enter pressed
+                if [[ -z "$encrypt_confirm" ]] || [[ "$encrypt_confirm" =~ ^[Yy]$ ]]; then
+                    write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
+                elif [[ "$encrypt_confirm" =~ ^[Nn]$ ]]; then
+                    write_color_text "Skipping encryption. Continuing with git push." "Yellow"
+                    write_color_text "WARNING: Sensitive files will be pushed unencrypted!" "Red"
+                    # Skip encryption by jumping to the end of this block
+                    # We'll use a flag to control this
+                    local skip_encryption=true
+                else
+                    # Invalid input, default to Y
+                    write_color_text "Invalid input. Defaulting to Yes." "Yellow"
+                    write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
+                fi
+
+                if [ "${skip_encryption:-false}" != "true" ]; then
 
                 # Find disguise.js in scripts directory
                 write_color_text "Searching for disguise.js in scripts directory..." "Cyan"
@@ -865,6 +884,8 @@ invoke_git_operations() {
                     write_color_text "WARNING: disguise.js not found in scripts directory." "Yellow"
                     write_color_text "Continuing with git push. Please encrypt sensitive files manually." "Yellow"
                 fi
+
+                fi  # End of skip_encryption check
             else
                 write_color_text "SUCCESS: No unencrypted sensitive files found." "Green"
             fi
