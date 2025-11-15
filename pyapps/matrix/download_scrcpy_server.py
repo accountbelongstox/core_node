@@ -5,9 +5,10 @@
 与 scrcpy_source 版本保持一致
 """
 
-import requests
 from pathlib import Path
 import sys
+
+from pycore.pyfoundations.third_party import requests
 
 def download_scrcpy_server():
     """下载scrcpy-server.jar v3.3.3"""

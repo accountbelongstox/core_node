@@ -3,8 +3,10 @@ import os
 import sys
 from datetime import datetime, time as dt_time
 from typing import Optional, List, Tuple, Dict, Any
-from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
+
+from pycore.pyfoundations.third_party import PIL
+from PIL import Image, ImageDraw, ImageFont
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint

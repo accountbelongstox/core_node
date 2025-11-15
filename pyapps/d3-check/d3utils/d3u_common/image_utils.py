@@ -6,11 +6,12 @@ Shared image format conversion and processing functions
 """
 
 import sys
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import Union
+
+from pycore.pyfoundations.third_party import PIL, cv2, numpy
 from PIL import Image
+import numpy as np
 
 # Add project paths
 current_dir = Path(__file__).parent.parent.parent

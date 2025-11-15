@@ -12,15 +12,25 @@ Usage:
 
 import sys
 import os
+import argparse
+import signal
+import time
+import traceback
 
 # Add project root to path for imports
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
+# Import application modules
+from controller.http_bridge_controller import HTTPBridgeController
+from d3utils.system_initializer import get_system_initializer
+from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
+from d3utils.i18n_manager import i18n_manager
+from providor.common_imports import ColorPrint, UniversalGUILauncher, set_menu_labels
+
 
 def main():
     """Main application entry point"""
-    import argparse
 
     parser = argparse.ArgumentParser(
         description="D3Check - Diablo III Bot Auto Control System",
@@ -56,11 +66,6 @@ Examples:
     # Route to appropriate mode
     if args.bridge:
         # HTTP Bridge mode - for web-based GUI
-        from controller.http_bridge_controller import HTTPBridgeController
-        from d3utils.system_initializer import get_system_initializer
-        from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
-        from providor.common_imports import ColorPrint
-
         ColorPrint.blue("\n" + "=" * 80)
         ColorPrint.blue("D3Check - HTTP Bridge Mode (Web GUI)")
         ColorPrint.blue("=" * 80)
@@ -84,9 +89,6 @@ Examples:
             ColorPrint.green("[MAIN] HTTP bridge started. Press Ctrl+C to stop.")
 
             # Keep running until interrupted
-            import signal
-            import time
-
             def signal_handler(sig, frame):
                 ColorPrint.yellow("\n[MAIN] Shutdown signal received...")
                 bridge_controller.stop()
@@ -108,7 +110,6 @@ Examples:
 
         except Exception as e:
             ColorPrint.red(f"[ERROR] Fatal error in HTTP bridge mode: {e}")
-            import traceback
             traceback.print_exc()
             return 1
 
@@ -126,11 +127,6 @@ Examples:
         return train_main()
     else:
         # Default: Universal GUI mode (Tray + HTTP Bridge + optional web frontend)
-        from controller.http_bridge_controller import HTTPBridgeController
-        from d3utils.system_initializer import get_system_initializer
-        from d3utils.i18n_manager import i18n_manager
-        from providor.common_imports import ColorPrint, UniversalGUILauncher, set_menu_labels
-
         ColorPrint.blue("\n" + "=" * 80)
         ColorPrint.blue("D3Check - Universal GUI Mode")
         ColorPrint.blue("=" * 80)
@@ -209,7 +205,6 @@ Examples:
 
         except Exception as e:
             ColorPrint.red(f"[ERROR] Fatal error in main: {e}")
-            import traceback
             traceback.print_exc()
             return 1
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple
 
 # Third-party imports
-import cv2
+from pycore.pyfoundations.third_party import cv2, numpy
 import numpy as np
 
 # Add project paths

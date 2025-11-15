@@ -10,10 +10,11 @@ and identifying health bar colors for different team groups.
 import sys
 from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional, Union
-import numpy as np
-from PIL import Image
-import cv2
 from datetime import datetime
+
+from pycore.pyfoundations.third_party import PIL, numpy, cv2
+from PIL import Image
+import numpy as np
 
 # Add project paths
 current_dir = Path(__file__).parent.parent

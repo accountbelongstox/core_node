@@ -16,13 +16,10 @@ import importlib
 
 from pyapps.codebase_content_hub.service.constants import ContentHubConstants
 
-try:
-    from mcp.server.fastmcp import FastMCP
-except ImportError:  # pragma: no cover
-    FastMCP = None
+from pycore.pyfoundations.third_party import fastmcp
+from fastmcp import FastMCP
 
-
-mcp = FastMCP(ContentHubConstants.SERVICE_NAME) if FastMCP else None
+mcp = FastMCP(ContentHubConstants.SERVICE_NAME)
 logger = logging.getLogger("codebase_content_hub")
 package_lock = threading.Lock()
 OCR_ENGINE_CACHE: Dict[str, Any] = {"initialized": False, "engine": None, "type": "none"}

@@ -9,8 +9,10 @@ import sys
 import os
 from pathlib import Path
 from typing import Optional, Dict, Any
-from PIL import Image
 import io
+
+from pycore.pyfoundations.third_party import PIL
+from PIL import Image
 
 # Add project paths
 current_dir = Path(__file__).parent.parent.parent

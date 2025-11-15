@@ -19,13 +19,10 @@ from providor.common_imports import ColorPrint
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
 
-try:
-    import pystray
-    from PIL import Image, ImageDraw
-    TRAY_AVAILABLE = True
-except ImportError:
-    TRAY_AVAILABLE = False
-    ColorPrint.yellow("[TRAY] pystray or PIL not available, system tray disabled")
+from pycore.pyfoundations.third_party import pystray, PIL
+from PIL import Image, ImageDraw
+
+TRAY_AVAILABLE = True
 
 class SystemTray:
     """System tray component for Windows 10/11"""
