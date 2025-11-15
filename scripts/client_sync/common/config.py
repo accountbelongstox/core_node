@@ -9,9 +9,20 @@ server and client components of the file sync system.
 SYNC_PORT = 8888
 
 # File Sync Configuration
-IGNORE_DIRS = {"node_modules", "__pycache__", ".git", ".svn", ".hg"}
-IGNORE_EXTENSIONS = {".pyc", ".pyo", ".pyd", ".so", ".dll", ".exe", ".obj", ".o", ".a", ".lib"}
-IGNORE_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}
+IGNORE_DIRS = {
+    "node_modules", "__pycache__", ".git", ".svn", ".hg",
+    ".dart_tool", "build", ".nuxt", "dist", "tmp", "temp",
+    ".flutter-plugins-dependencies", ".packages"
+}
+IGNORE_EXTENSIONS = {
+    ".pyc", ".pyo", ".pyd", ".so", ".dll", ".exe", ".obj", ".o", ".a", ".lib",
+    ".lock"  # dart pubspec.lock, package-lock.json handled by file name
+}
+IGNORE_FILES = {
+    ".DS_Store", "Thumbs.db", "desktop.ini",
+    ".flutter-plugins", ".metadata", "pubspec.lock",
+    "package-lock.json", "yarn.lock", ".packages"
+}
 
 # Sync Behavior
 SYNC_INTERVAL = 10
