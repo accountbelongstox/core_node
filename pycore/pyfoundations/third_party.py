@@ -260,6 +260,13 @@ def check_and_install_dependencies():
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
+    
+    # Prevent recursive invocation - if we're already checking, return immediately
+    if ENCYCLOPEDIA.get("pycore_dependencies_checking", False):
+        return
+    
+    # Mark as checking to prevent recursion
+    ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
     # Check and install system packages first (before Python packages)
     install_system_packages()
