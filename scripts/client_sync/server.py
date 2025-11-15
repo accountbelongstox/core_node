@@ -39,6 +39,7 @@ KEY FEATURES:
 """
 
 import os
+import sys
 import socket
 import threading
 import time
@@ -205,8 +206,6 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
             sock.sendall(info_size.to_bytes(4, 'big'))
             sock.sendall(info_json)
 
-            print(f"[{client_ip}] Sent metadata for {len(file_metadata)} files, waiting for client decision...")
-
             # Phase 2: Receive client decision
             decision_size_bytes = sock.recv(4)
             if len(decision_size_bytes) < 4:
@@ -228,25 +227,28 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
             accepted_paths = decision.get("accepted", [])
             rejected_count = len(file_metadata) - len(accepted_paths)
 
-            print(f"[{client_ip}] Client accepted {len(accepted_paths)}/{len(file_metadata)} files (rejected {rejected_count})")
-
             if not accepted_paths:
+                print(f"[{client_ip}] Client rejected all {len(file_metadata)} files")
                 return {"successful": 0, "failed": 0, "accepted_files": []}
 
             # Phase 3: Send accepted files
             accepted_path_set = set(accepted_paths)
             successful_transfers = 0
             failed_transfers = 0
+            current_file = 0
 
             for file_path, relative_path, mtime in files_batch:
                 if relative_path not in accepted_path_set:
                     continue
 
+                current_file += 1
                 file_size = os.path.getsize(file_path)
                 size_kb = file_size / 1024
                 size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb/1024:.2f}MB"
 
-                print(f"  [{client_ip}] Transferring: {relative_path} ({size_str})")
+                # Show progress with line refresh
+                sys.stdout.write(f"\r[{client_ip}] Transferring [{current_file}/{len(accepted_paths)}]: {relative_path} ({size_str})..." + " " * 20)
+                sys.stdout.flush()
 
                 # Send file data in chunks
                 bytes_sent = 0
@@ -272,12 +274,18 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
                     if bytes_sent == file_size:
                         successful_transfers += 1
                     else:
-                        print(f"  [{client_ip}] Incomplete transfer: {relative_path} ({bytes_sent}/{file_size} bytes)")
+                        sys.stdout.write(f"\r[{client_ip}] Incomplete: {relative_path} ({bytes_sent}/{file_size} bytes)\n")
+                        sys.stdout.flush()
                         failed_transfers += 1
 
                 except Exception as e:
-                    print(f"  [{client_ip}] Error transferring {relative_path}: {e}")
+                    sys.stdout.write(f"\r[{client_ip}] Error: {relative_path}: {e}\n")
+                    sys.stdout.flush()
                     failed_transfers += 1
+
+            # Clear progress line
+            sys.stdout.write("\r" + " " * 120 + "\r")
+            sys.stdout.flush()
 
             # Phase 4: Wait for batch confirmation
             confirm_size_bytes = sock.recv(4)
@@ -298,7 +306,11 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
                 raise ValueError(f"Invalid confirmation action: {confirmation.get('action')}")
 
             client_received = confirmation.get("received_count", 0)
-            print(f"[{client_ip}] Batch complete: server sent {successful_transfers}, client received {client_received}")
+
+            # Print batch summary
+            total_size = sum(os.path.getsize(fp) for fp, rp, _ in files_batch if rp in accepted_path_set)
+            size_mb = total_size / (1024 * 1024)
+            print(f"[{client_ip}] Batch complete: {successful_transfers} sent ({size_mb:.2f}MB), {failed_transfers} failed, {rejected_count} rejected")
 
             return {
                 "successful": successful_transfers,
