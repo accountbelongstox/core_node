@@ -62,6 +62,7 @@ ROOT_DIR = Path(__file__).parent.parent.parent  # D:\programing\core_node
 # Global state
 file_checksums = {}
 client_checksums = {}  # Track which clients have been synced: {client_ip: {file_path: checksum_info}}
+active_syncs = set()  # Track clients currently being synced to prevent overlapping syncs
 sync_lock = threading.Lock()
 running = True
 
@@ -345,21 +346,28 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
 def sync_files_to_client(client_ip, is_new_client=False):
     """
     Sync files to a specific client
-    
+
     PURPOSE: Push files to a single client
     WORKFLOW:
     1. For new clients: Push all files (first sync)
     2. For existing clients: Push only changed files (mtime > stored mtime)
     3. Client makes autonomous decision to accept/reject
-    
+
     Args:
         client_ip: IP address of the client to sync
         is_new_client: True if this is a new client (will push all files)
-    
+
     Returns:
         bool: True if sync was successful, False otherwise
     """
-    global file_checksums, client_checksums
+    global file_checksums, client_checksums, active_syncs
+
+    # Check if this client is already being synced
+    with sync_lock:
+        if client_ip in active_syncs:
+            print(f"[{client_ip}] Skipping - sync already in progress")
+            return False
+        active_syncs.add(client_ip)
     
     try:
         files = get_all_files(ROOT_DIR)
@@ -474,6 +482,10 @@ def sync_files_to_client(client_ip, is_new_client=False):
     except Exception as e:
         print(f"[{client_ip}] Error in sync: {e}")
         return False
+    finally:
+        # Always remove client from active syncs when done
+        with sync_lock:
+            active_syncs.discard(client_ip)
 
 def sync_loop():
     """
