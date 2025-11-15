@@ -1,0 +1,459 @@
+<!doctypehtml tml tml><html lang=en><title>HTTP Responses - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>HTTP Responses<ul><li><a href=#creating-responses>Creating Responses</a> <ul><li><a href=#attaching-headers-to-responses>Attaching Headers to Responses</a><li><a href=#attaching-cookies-to-responses>Attaching Cookies to Responses</a><li><a href=#cookies-and-encryption>Cookies and Encryption</a></ul><li><a href=#redirects>Redirects</a> <ul><li><a href=#redirecting-named-routes>Redirecting to Named Routes</a><li><a href=#redirecting-controller-actions>Redirecting to Controller Actions</a><li><a href=#redirecting-external-domains>Redirecting to External Domains</a><li><a href=#redirecting-with-flashed-session-data>Redirecting With Flashed Session Data</a></ul><li><a href=#other-response-types>Other Response Types</a> <ul><li><a href=#view-responses>View Responses</a><li><a href=#json-responses>JSON Responses</a><li><a href=#file-downloads>File Downloads</a><li><a href=#file-responses>File Responses</a></ul><li><a href=#streamed-responses>Streamed Responses</a> <ul><li><a href=#consuming-streamed-responses>Consuming Streamed Responses</a><li><a href=#streamed-json-responses>Streamed JSON Responses</a><li><a href=#event-streams>Event Streams (SSE)</a><li><a href=#streamed-downloads>Streamed Downloads</a></ul><li><a href=#response-macros>Response Macros</a></ul><h2><a href=#creating-responses>Creating Responses</a></h2><h4><a href=#strings-arrays>Strings and Arrays</a></h4><p>All routes and controllers should return a response to be sent back to the user's browser. Laravel provides several different ways to return responses. The most basic response is returning a string from a route or controller. The framework will automatically convert the string into a full HTTP response:<div><pre><code>1Route::get('/', function() {2return'Hello World';3});
+Route::get('/', function () {
+    return 'Hello World';
+});</code></pre></div><p>In addition to returning strings from your routes and controllers, you may also return arrays. The framework will automatically convert the array into a JSON response:<div><pre><code>1Route::get('/', function() {2return [1, 2, 3];3});
+Route::get('/', function () {
+    return [1, 2, 3];
+});</code></pre></div><div><p>Did you know you can also return <a href=eloquent-collections.htm>Eloquent collections</a> from your routes or controllers? They will automatically be converted to JSON. Give it a shot!</div><h4><a href=#response-objects>Response Objects</a></h4><p>Typically, you won't just be returning simple strings or arrays from your route actions. Instead, you will be returning full <code>Illuminate\Http\Response</code> instances or <a href=views.htm>views</a>.<p>Returning a full <code>Response</code> instance allows you to customize the response's HTTP status code and headers. A <code>Response</code> instance inherits from the <code>Symfony\Component\HttpFoundation\Response</code> class, which provides a variety of methods for building HTTP responses:<div><pre><code>1Route::get('/home', function() {2returnresponse('Hello World',200)3->header('Content-Type', 'text/plain');4});
+Route::get('/home', function () {
+    return response('Hello World', 200)
+        ->header('Content-Type', 'text/plain');
+});</code></pre></div><h4><a href=#eloquent-models-and-collections>Eloquent Models and Collections</a></h4><p>You may also return <a href=eloquent.htm>Eloquent ORM</a> models and collections directly from your routes and controllers. When you do, Laravel will automatically convert the models and collections to JSON responses while respecting the model's <a href=eloquent-serialization.htm#hiding-attributes-from-json>hidden attributes</a>:<div><pre><code>1use App\Models\User;2 3Route::get('/user/{user}', function(User$user) {4return$user;5});
+use App\Models\User;
+
+Route::get('/user/{user}', function (User $user) {
+    return $user;
+});</code></pre></div><h3><a href=#attaching-headers-to-responses>Attaching Headers to Responses</a></h3><p>Keep in mind that most response methods are chainable, allowing for the fluent construction of response instances. For example, you may use the <code>header</code> method to add a series of headers to the response before sending it back to the user:<div><pre><code>1returnresponse($content)2->header('Content-Type', $type)3->header('X-Header-One', 'Header Value')4->header('X-Header-Two', 'Header Value');
+return response($content)
+    ->header('Content-Type', $type)
+    ->header('X-Header-One', 'Header Value')
+    ->header('X-Header-Two', 'Header Value');</code></pre></div><p>Or, you may use the <code>withHeaders</code> method to specify an array of headers to be added to the response:<div><pre><code>1returnresponse($content)2->withHeaders([3'Content-Type'=>$type,4'X-Header-One'=>'Header Value',5'X-Header-Two'=>'Header Value',6    ]);
+return response($content)
+    ->withHeaders([
+        'Content-Type' => $type,
+        'X-Header-One' => 'Header Value',
+        'X-Header-Two' => 'Header Value',
+    ]);</code></pre></div><h4><a href=#cache-control-middleware>Cache Control Middleware</a></h4><p>Laravel includes a <code>cache.headers</code> middleware, which may be used to quickly set the <code>Cache-Control</code> header for a group of routes. Directives should be provided using the "snake case" equivalent of the corresponding cache-control directive and should be separated by a semicolon. If <code>etag</code> is specified in the list of directives, an MD5 hash of the response content will automatically be set as the ETag identifier:<div><pre><code>1Route::middleware('cache.headers:public;max_age=2628000;etag')->group(function() {2Route::get('/privacy', function() {3// ...4    });5 6Route::get('/terms', function() {7// ...8    });9});
+Route::middleware('cache.headers:public;max_age=2628000;etag')->group(function () {
+    Route::get('/privacy', function () {
+        // ...
+    });
+
+    Route::get('/terms', function () {
+        // ...
+    });
+});</code></pre></div><h3><a href=#attaching-cookies-to-responses>Attaching Cookies to Responses</a></h3><p>You may attach a cookie to an outgoing <code>Illuminate\Http\Response</code> instance using the <code>cookie</code> method. You should pass the name, value, and the number of minutes the cookie should be considered valid to this method:<div><pre><code>1returnresponse('Hello World')->cookie(2'name', 'value', $minutes3);
+return response('Hello World')->cookie(
+    'name', 'value', $minutes
+);</code></pre></div><p>The <code>cookie</code> method also accepts a few more arguments which are used less frequently. Generally, these arguments have the same purpose and meaning as the arguments that would be given to PHP's native <a href=https://secure.php.net/manual/en/function.setcookie.php>setcookie</a> method:<div><pre><code>1returnresponse('Hello World')->cookie(2'name', 'value', $minutes, $path, $domain, $secure, $httpOnly3);
+return response('Hello World')->cookie(
+    'name', 'value', $minutes, $path, $domain, $secure, $httpOnly
+);</code></pre></div><p>If you would like to ensure that a cookie is sent with the outgoing response but you do not yet have an instance of that response, you can use the <code>Cookie</code> facade to "queue" cookies for attachment to the response when it is sent. The <code>queue</code> method accepts the arguments needed to create a cookie instance. These cookies will be attached to the outgoing response before it is sent to the browser:<div><pre><code>1use Illuminate\Support\Facades\Cookie;2 3Cookie::queue('name', 'value', $minutes);
+use Illuminate\Support\Facades\Cookie;
+
+Cookie::queue('name', 'value', $minutes);</code></pre></div><h4><a href=#generating-cookie-instances>Generating Cookie Instances</a></h4><p>If you would like to generate a <code>Symfony\Component\HttpFoundation\Cookie</code> instance that can be attached to a response instance at a later time, you may use the global <code>cookie</code> helper. This cookie will not be sent back to the client unless it is attached to a response instance:<div><pre><code>1$cookie=cookie('name','value',$minutes);2 3returnresponse('Hello World')->cookie($cookie);
+$cookie = cookie('name', 'value', $minutes);
+
+return response('Hello World')->cookie($cookie);</code></pre></div><h4><a href=#expiring-cookies-early>Expiring Cookies Early</a></h4><p>You may remove a cookie by expiring it via the <code>withoutCookie</code> method of an outgoing response:<div><pre><code>1returnresponse('Hello World')->withoutCookie('name');
+return response('Hello World')->withoutCookie('name');</code></pre></div><p>If you do not yet have an instance of the outgoing response, you may use the <code>Cookie</code> facade's <code>expire</code> method to expire a cookie:<div><pre><code>1Cookie::expire('name');
+Cookie::expire('name');</code></pre></div><h3><a href=#cookies-and-encryption>Cookies and Encryption</a></h3><p>By default, thanks to the <code>Illuminate\Cookie\Middleware\EncryptCookies</code> middleware, all cookies generated by Laravel are encrypted and signed so that they can't be modified or read by the client. If you would like to disable encryption for a subset of cookies generated by your application, you may use the <code>encryptCookies</code> method in your application's <code>bootstrap/app.php</code> file:<div><pre><code>1->withMiddleware(function(Middleware$middleware) {2$middleware->encryptCookies(except: [3'cookie_name',4    ]);5})
+->withMiddleware(function (Middleware $middleware) {
+    $middleware->encryptCookies(except: [
+        'cookie_name',
+    ]);
+})</code></pre></div><h2><a href=#redirects>Redirects</a></h2><p>Redirect responses are instances of the <code>Illuminate\Http\RedirectResponse</code> class, and contain the proper headers needed to redirect the user to another URL. There are several ways to generate a <code>RedirectResponse</code> instance. The simplest method is to use the global <code>redirect</code> helper:<div><pre><code>1Route::get('/dashboard', function() {2returnredirect('/home/dashboard');3});
+Route::get('/dashboard', function () {
+    return redirect('/home/dashboard');
+});</code></pre></div><p>Sometimes you may wish to redirect the user to their previous location, such as when a submitted form is invalid. You may do so by using the global <code>back</code> helper function. Since this feature utilizes the <a href=session.htm>session</a>, make sure the route calling the <code>back</code> function is using the <code>web</code> middleware group:<div><pre><code>1Route::post('/user/profile', function() {2// Validate the request...3 4returnback()->withInput();5});
+Route::post('/user/profile', function () {
+    // Validate the request...
+
+    return back()->withInput();
+});</code></pre></div><h3><a href=#redirecting-named-routes>Redirecting to Named Routes</a></h3><p>When you call the <code>redirect</code> helper with no parameters, an instance of <code>Illuminate\Routing\Redirector</code> is returned, allowing you to call any method on the <code>Redirector</code> instance. For example, to generate a <code>RedirectResponse</code> to a named route, you may use the <code>route</code> method:<div><pre><code>1returnredirect()->route('login');
+return redirect()->route('login');</code></pre></div><p>If your route has parameters, you may pass them as the second argument to the <code>route</code> method:<div><pre><code>1// For a route with the following URI: /profile/{id}2 3returnredirect()->route('profile', ['id'=>1]);
+// For a route with the following URI: /profile/{id}
+
+return redirect()->route('profile', ['id' => 1]);</code></pre></div><h4><a href=#populating-parameters-via-eloquent-models>Populating Parameters via Eloquent Models</a></h4><p>If you are redirecting to a route with an "ID" parameter that is being populated from an Eloquent model, you may pass the model itself. The ID will be extracted automatically:<div><pre><code>1// For a route with the following URI: /profile/{id}2 3returnredirect()->route('profile', [$user]);
+// For a route with the following URI: /profile/{id}
+
+return redirect()->route('profile', [$user]);</code></pre></div><p>If you would like to customize the value that is placed in the route parameter, you can specify the column in the route parameter definition (<code>/profile/{id:slug}</code>) or you can override the <code>getRouteKey</code> method on your Eloquent model:<div><pre><code>1/**2 * Get the value of the model's route key.3*/4publicfunctiongetRouteKey():mixed5{6return$this->slug;7}
+/**
+ * Get the value of the model's route key.
+ */
+public function getRouteKey(): mixed
+{
+    return $this->slug;
+}</code></pre></div><h3><a href=#redirecting-controller-actions>Redirecting to Controller Actions</a></h3><p>You may also generate redirects to <a href=controllers.htm>controller actions</a>. To do so, pass the controller and action name to the <code>action</code> method:<div><pre><code>1use App\Http\Controllers\UserController;2 3returnredirect()->action([UserController::class, 'index']);
+use App\Http\Controllers\UserController;
+
+return redirect()->action([UserController::class, 'index']);</code></pre></div><p>If your controller route requires parameters, you may pass them as the second argument to the <code>action</code> method:<div><pre><code>1returnredirect()->action(2    [UserController::class, 'profile'], ['id'=>1]3);
+return redirect()->action(
+    [UserController::class, 'profile'], ['id' => 1]
+);</code></pre></div><h3><a href=#redirecting-external-domains>Redirecting to External Domains</a></h3><p>Sometimes you may need to redirect to a domain outside of your application. You may do so by calling the <code>away</code> method, which creates a <code>RedirectResponse</code> without any additional URL encoding, validation, or verification:<div><pre><code>1returnredirect()->away('https://www.google.com');
+return redirect()->away('https://www.google.com');</code></pre></div><h3><a href=#redirecting-with-flashed-session-data>Redirecting With Flashed Session Data</a></h3><p>Redirecting to a new URL and <a href=session.htm#flash-data>flashing data to the session</a> are usually done at the same time. Typically, this is done after successfully performing an action when you flash a success message to the session. For convenience, you may create a <code>RedirectResponse</code> instance and flash data to the session in a single, fluent method chain:<div><pre><code>1Route::post('/user/profile', function() {2// ...3 4returnredirect('/dashboard')->with('status', 'Profile updated!');5});
+Route::post('/user/profile', function () {
+    // ...
+
+    return redirect('/dashboard')->with('status', 'Profile updated!');
+});</code></pre></div><p>After the user is redirected, you may display the flashed message from the <a href=session.htm>session</a>. For example, using <a href=blade.htm>Blade syntax</a>:<div><pre><code>1@if (session('status'))2&lt;divclass="alert alert-success">3{{session('status') }}4&lt;/div>5@endif
+@if (session('status'))
+    &lt;div class="alert alert-success">
+        {{ session('status') }}
+    &lt;/div>
+@endif</code></pre></div><h4><a href=#redirecting-with-input>Redirecting With Input</a></h4><p>You may use the <code>withInput</code> method provided by the <code>RedirectResponse</code> instance to flash the current request's input data to the session before redirecting the user to a new location. This is typically done if the user has encountered a validation error. Once the input has been flashed to the session, you may easily <a href=requests.htm#retrieving-old-input>retrieve it</a> during the next request to repopulate the form:<div><pre><code>1returnback()->withInput();
+return back()->withInput();</code></pre></div><h2><a href=#other-response-types>Other Response Types</a></h2><p>The <code>response</code> helper may be used to generate other types of response instances. When the <code>response</code> helper is called without arguments, an implementation of the <code>Illuminate\Contracts\Routing\ResponseFactory</code> <a href=contracts.htm>contract</a> is returned. This contract provides several helpful methods for generating responses.<h3><a href=#view-responses>View Responses</a></h3><p>If you need control over the response's status and headers but also need to return a <a href=views.htm>view</a> as the response's content, you should use the <code>view</code> method:<div><pre><code>1returnresponse()2->view('hello', $data, 200)3->header('Content-Type', $type);
+return response()
+    ->view('hello', $data, 200)
+    ->header('Content-Type', $type);</code></pre></div><p>Of course, if you do not need to pass a custom HTTP status code or custom headers, you may use the global <code>view</code> helper function.<h3><a href=#json-responses>JSON Responses</a></h3><p>The <code>json</code> method will automatically set the <code>Content-Type</code> header to <code>application/json</code>, as well as convert the given array to JSON using the <code>json_encode</code> PHP function:<div><pre><code>1returnresponse()->json([2'name'=>'Abigail',3'state'=>'CA',4]);
+return response()->json([
+    'name' => 'Abigail',
+    'state' => 'CA',
+]);</code></pre></div><p>If you would like to create a JSONP response, you may use the <code>json</code> method in combination with the <code>withCallback</code> method:<div><pre><code>1returnresponse()2->json(['name'=>'Abigail', 'state'=>'CA'])3->withCallback($request->input('callback'));
+return response()
+    ->json(['name' => 'Abigail', 'state' => 'CA'])
+    ->withCallback($request->input('callback'));</code></pre></div><h3><a href=#file-downloads>File Downloads</a></h3><p>The <code>download</code> method may be used to generate a response that forces the user's browser to download the file at the given path. The <code>download</code> method accepts a filename as the second argument to the method, which will determine the filename that is seen by the user downloading the file. Finally, you may pass an array of HTTP headers as the third argument to the method:<div><pre><code>1returnresponse()->download($pathToFile);2 3returnresponse()->download($pathToFile, $name, $headers);
+return response()->download($pathToFile);
+
+return response()->download($pathToFile, $name, $headers);</code></pre></div><div><p>Symfony HttpFoundation, which manages file downloads, requires the file being downloaded to have an ASCII filename.</div><h3><a href=#file-responses>File Responses</a></h3><p>The <code>file</code> method may be used to display a file, such as an image or PDF, directly in the user's browser instead of initiating a download. This method accepts the absolute path to the file as its first argument and an array of headers as its second argument:<div><pre><code>1returnresponse()->file($pathToFile);2 3returnresponse()->file($pathToFile, $headers);
+return response()->file($pathToFile);
+
+return response()->file($pathToFile, $headers);</code></pre></div><h2><a href=#streamed-responses>Streamed Responses</a></h2><p>By streaming data to the client as it is generated, you can significantly reduce memory usage and improve performance, especially for very large responses. Streamed responses allow the client to begin processing data before the server has finished sending it:<div><pre><code> 1Route::get('/stream', function() { 2returnresponse()->stream(function():void { 3foreach (['developer', 'admin'] as$string) { 4echo$string; 5ob_flush(); 6flush(); 7sleep(2); // Simulate delay between chunks... 8        } 9    }, 200, ['X-Accel-Buffering'=>'no']);10});
+Route::get('/stream', function () {
+    return response()->stream(function (): void {
+        foreach (['developer', 'admin'] as $string) {
+            echo $string;
+            ob_flush();
+            flush();
+            sleep(2); // Simulate delay between chunks...
+        }
+    }, 200, ['X-Accel-Buffering' => 'no']);
+});</code></pre></div><p>For convenience, if the closure you provide to the <code>stream</code> method returns a <a href=https://www.php.net/manual/en/language.generators.overview.php>Generator</a>, Laravel will automatically flush the output buffer between strings returned by the generator, as well as disable Nginx output buffering:<div><pre><code>1Route::post('/chat', function() {2returnresponse()->stream(function():Generator {3$stream=OpenAI::client()->chat()->createStreamed(...);4 5foreach ($streamas$response) {6yield$response->choices[0];7        }8    });9});
+Route::post('/chat', function () {
+    return response()->stream(function (): Generator {
+        $stream = OpenAI::client()->chat()->createStreamed(...);
+
+        foreach ($stream as $response) {
+            yield $response->choices[0];
+        }
+    });
+});</code></pre></div><h3><a href=#consuming-streamed-responses>Consuming Streamed Responses</a></h3><p>Streamed responses may be consumed using Laravel's <code>stream</code> npm package, which provides a convenient API for interacting with Laravel response and event streams. To get started, install the <code>@laravel/stream-react</code> or <code>@laravel/stream-vue</code> package:<div><div><div><pre><code>1npm install@laravel/stream-react
+npm install @laravel/stream-react</code></pre></div><div><pre><code>1npm install@laravel/stream-vue
+npm install @laravel/stream-vue</code></pre></div></div></div><p>Then, <code>useStream</code> may be used to consume the event stream. After providing your stream URL, the hook will automatically update the <code>data</code> with the concatenated response as content is returned from your Laravel application:<div><div><div><pre><code> 1import { useStream } from"@laravel/stream-react"; 2  3functionApp() { 4const { data,isFetching,isStreaming,send } =useStream("chat"); 5  6constsendMessage=()=> { 7send({ 8            message: `Current timestamp: ${Date.now()}`, 9        });10    };11 12return (13&lt;div>14&lt;div>{data}&lt;/div>15{isFetching &&&lt;div>Connecting...&lt;/div>}16{isStreaming &&&lt;div>Generating...&lt;/div>}17&lt;buttononClick={sendMessage}>Send Message&lt;/button>18&lt;/div>19    );20}
+import { useStream } from "@laravel/stream-react";
+
+function App() {
+    const { data, isFetching, isStreaming, send } = useStream("chat");
+
+    const sendMessage = () => {
+        send({
+            message: `Current timestamp: ${Date.now()}`,
+        });
+    };
+
+    return (
+        &lt;div>
+            &lt;div>{data}&lt;/div>
+            {isFetching && &lt;div>Connecting...&lt;/div>}
+            {isStreaming && &lt;div>Generating...&lt;/div>}
+            &lt;button onClick={sendMessage}>Send Message&lt;/button>
+        &lt;/div>
+    );
+}</code></pre></div><div><pre><code> 1&lt;scriptsetuplang="ts"> 2import { useStream } from"@laravel/stream-vue"; 3  4const { data, isFetching, isStreaming, send } =useStream("chat"); 5  6constsendMessage=()=> { 7send({ 8        message: `Current timestamp: ${Date.now()}`, 9    });10};11&lt;/script>12 13&lt;template>14&lt;div>15&lt;div>{{ data }}&lt;/div>16&lt;divv-if="isFetching">Connecting...&lt;/div>17&lt;divv-if="isStreaming">Generating...&lt;/div>18&lt;button @click="sendMessage">Send Message&lt;/button>19&lt;/div>20&lt;/template>
+&lt;script setup lang="ts">
+import { useStream } from "@laravel/stream-vue";
+
+const { data, isFetching, isStreaming, send } = useStream("chat");
+
+const sendMessage = () => {
+    send({
+        message: `Current timestamp: ${Date.now()}`,
+    });
+};
+&lt;/script>
+
+&lt;template>
+    &lt;div>
+        &lt;div>{{ data }}&lt;/div>
+        &lt;div v-if="isFetching">Connecting...&lt;/div>
+        &lt;div v-if="isStreaming">Generating...&lt;/div>
+        &lt;button @click="sendMessage">Send Message&lt;/button>
+    &lt;/div>
+&lt;/template></code></pre></div></div></div><p>When sending data back to the stream via <code>send</code>, the active connection to the stream is canceled before sending the new data. All requests are sent as JSON <code>POST</code> requests.<div><p>Since the <code>useStream</code> hook makes a <code>POST</code> request to your application, a valid CSRF token is required. The easiest way to provide the CSRF token is to <a href=csrf.htm#csrf-x-csrf-token>include it via a meta tag in your application layout's head</a>.</div><p>The second argument given to <code>useStream</code> is an options object that you may use to customize the stream consumption behavior. The default values for this object are shown below:<div><div><div><pre><code> 1import { useStream } from"@laravel/stream-react"; 2  3functionApp() { 4const { data } =useStream("chat", { 5        id: undefined, 6        initialInput: undefined, 7        headers: undefined, 8        csrfToken: undefined, 9onResponse: (response:Response)=>void,10onData: (data:string)=>void,11onCancel: ()=>void,12onFinish: ()=>void,13onError: (error:Error)=>void,14    });15 16return&lt;div>{data}&lt;/div>;17}
+import { useStream } from "@laravel/stream-react";
+
+function App() {
+    const { data } = useStream("chat", {
+        id: undefined,
+        initialInput: undefined,
+        headers: undefined,
+        csrfToken: undefined,
+        onResponse: (response: Response) => void,
+        onData: (data: string) => void,
+        onCancel: () => void,
+        onFinish: () => void,
+        onError: (error: Error) => void,
+    });
+
+    return &lt;div>{data}&lt;/div>;
+}</code></pre></div><div><pre><code> 1&lt;scriptsetuplang="ts"> 2import { useStream } from"@laravel/stream-vue"; 3  4const { data } =useStream("chat", { 5    id: undefined, 6    initialInput: undefined, 7    headers: undefined, 8    csrfToken: undefined, 9onResponse: (response:Response)=>void,10onData: (data:string)=>void,11onCancel: ()=>void,12onFinish: ()=>void,13onError: (error:Error)=>void,14});15&lt;/script>16 17&lt;template>18&lt;div>{{ data }}&lt;/div>19&lt;/template>
+&lt;script setup lang="ts">
+import { useStream } from "@laravel/stream-vue";
+
+const { data } = useStream("chat", {
+    id: undefined,
+    initialInput: undefined,
+    headers: undefined,
+    csrfToken: undefined,
+    onResponse: (response: Response) => void,
+    onData: (data: string) => void,
+    onCancel: () => void,
+    onFinish: () => void,
+    onError: (error: Error) => void,
+});
+&lt;/script>
+
+&lt;template>
+    &lt;div>{{ data }}&lt;/div>
+&lt;/template></code></pre></div></div></div><p><code>onResponse</code> is triggered after a successful initial response from the stream and the raw <a href=https://developer.mozilla.org/en-US/docs/Web/API/Response>Response</a> is passed to the callback. <code>onData</code> is called as each chunk is received - the current chunk is passed to the callback. <code>onFinish</code> is called when a stream has finished and when an error is thrown during the fetch / read cycle.<p>By default, a request is not made to the stream on initialization. You may pass an initial payload to the stream by using the <code>initialInput</code> option:<div><div><div><pre><code> 1import { useStream } from"@laravel/stream-react"; 2  3functionApp() { 4const { data } =useStream("chat", { 5        initialInput: { 6            message: "Introduce yourself.", 7        }, 8    }); 9 10return&lt;div>{data}&lt;/div>;11}
+import { useStream } from "@laravel/stream-react";
+
+function App() {
+    const { data } = useStream("chat", {
+        initialInput: {
+            message: "Introduce yourself.",
+        },
+    });
+
+    return &lt;div>{data}&lt;/div>;
+}</code></pre></div><div><pre><code> 1&lt;scriptsetuplang="ts"> 2import { useStream } from"@laravel/stream-vue"; 3  4const { data } =useStream("chat", { 5    initialInput: { 6        message: "Introduce yourself.", 7    }, 8}); 9&lt;/script>10 11&lt;template>12&lt;div>{{ data }}&lt;/div>13&lt;/template>
+&lt;script setup lang="ts">
+import { useStream } from "@laravel/stream-vue";
+
+const { data } = useStream("chat", {
+    initialInput: {
+        message: "Introduce yourself.",
+    },
+});
+&lt;/script>
+
+&lt;template>
+    &lt;div>{{ data }}&lt;/div>
+&lt;/template></code></pre></div></div></div><p>To cancel a stream manually, you may use the <code>cancel</code> method returned from the hook:<div><div><div><pre><code> 1import { useStream } from"@laravel/stream-react"; 2  3functionApp() { 4const { data,cancel } =useStream("chat"); 5  6return ( 7&lt;div> 8&lt;div>{data}&lt;/div> 9&lt;buttononClick={cancel}>Cancel&lt;/button>10&lt;/div>11    );12}
+import { useStream } from "@laravel/stream-react";
+
+function App() {
+    const { data, cancel } = useStream("chat");
+
+    return (
+        &lt;div>
+            &lt;div>{data}&lt;/div>
+            &lt;button onClick={cancel}>Cancel&lt;/button>
+        &lt;/div>
+    );
+}</code></pre></div><div><pre><code> 1&lt;scriptsetuplang="ts"> 2import { useStream } from"@laravel/stream-vue"; 3  4const { data, cancel } =useStream("chat"); 5&lt;/script> 6  7&lt;template> 8&lt;div> 9&lt;div>{{ data }}&lt;/div>10&lt;button @click="cancel">Cancel&lt;/button>11&lt;/div>12&lt;/template>
+&lt;script setup lang="ts">
+import { useStream } from "@laravel/stream-vue";
+
+const { data, cancel } = useStream("chat");
+&lt;/script>
+
+&lt;template>
+    &lt;div>
+        &lt;div>{{ data }}&lt;/div>
+        &lt;button @click="cancel">Cancel&lt;/button>
+    &lt;/div>
+&lt;/template></code></pre></div></div></div><p>Each time the <code>useStream</code> hook is used, a random <code>id</code> is generated to identify the stream. This is sent back to the server with each request in the <code>X-STREAM-ID</code> header. When consuming the same stream from multiple components, you can read and write to the stream by providing your own <code>id</code>:<div><div><div><pre><code> 1// App.tsx 2import { useStream } from"@laravel/stream-react"; 3  4functionApp() { 5const { data,id } =useStream("chat"); 6  7return ( 8&lt;div> 9&lt;div>{data}&lt;/div>10&lt;StreamStatusid={id} />11&lt;/div>12    );13}14 15// StreamStatus.tsx16import { useStream } from"@laravel/stream-react";17 18functionStreamStatus({ id }) {19const { isFetching,isStreaming } =useStream("chat", { id });20 21return (22&lt;div>23{isFetching &&&lt;div>Connecting...&lt;/div>}24{isStreaming &&&lt;div>Generating...&lt;/div>}25&lt;/div>26    );27}
+// App.tsx
+import { useStream } from "@laravel/stream-react";
+
+function App() {
+    const { data, id } = useStream("chat");
+
+    return (
+        &lt;div>
+            &lt;div>{data}&lt;/div>
+            &lt;StreamStatus id={id} />
+        &lt;/div>
+    );
+}
+
+// StreamStatus.tsx
+import { useStream } from "@laravel/stream-react";
+
+function StreamStatus({ id }) {
+    const { isFetching, isStreaming } = useStream("chat", { id });
+
+    return (
+        &lt;div>
+            {isFetching && &lt;div>Connecting...&lt;/div>}
+            {isStreaming && &lt;div>Generating...&lt;/div>}
+        &lt;/div>
+    );
+}</code></pre></div><div><pre><code> 1 App.vue --> 2&lt;scriptsetuplang="ts"> 3import { useStream } from"@laravel/stream-vue"; 4import StreamStatus from"./StreamStatus.vue"; 5  6const { data, id } =useStream("chat"); 7&lt;/script> 8  9&lt;template>10&lt;div>11&lt;div>{{ data }}&lt;/div>12&lt;StreamStatus :id="id" />13&lt;/div>14&lt;/template>15 16 StreamStatus.vue -->17&lt;scriptsetuplang="ts">18import { useStream } from"@laravel/stream-vue";19 20constprops=defineProps&lt;{21    id:string;22}>();23 24const { isFetching, isStreaming } =useStream("chat", { id: props.id });25&lt;/script>26 27&lt;template>28&lt;div>29&lt;divv-if="isFetching">Connecting...&lt;/div>30&lt;divv-if="isStreaming">Generating...&lt;/div>31&lt;/div>32&lt;/template></code></pre></div></div></div><h3><a href=#streamed-json-responses>Streamed JSON Responses</a></h3><p>If you need to stream JSON data incrementally, you may utilize the <code>streamJson</code> method. This method is especially useful for large datasets that need to be sent progressively to the browser in a format that can be easily parsed by JavaScript:<div><pre><code>1use App\Models\User;2 3Route::get('/users.json', function() {4returnresponse()->streamJson([5'users'=>User::cursor(),6    ]);7});
+use App\Models\User;
+
+Route::get('/users.json', function () {
+    return response()->streamJson([
+        'users' => User::cursor(),
+    ]);
+});</code></pre></div><p>The <code>useJsonStream</code> hook is identical to the <a href=#consuming-streamed-responses>useStream hook</a> except that it will attempt to parse the data as JSON once it has finished streaming:<div><div><div><pre><code> 1import { useJsonStream } from"@laravel/stream-react"; 2  3type User = { 4    id:number; 5    name:string; 6    email:string; 7}; 8  9functionApp() {10const { data,send } =useJsonStream&lt;{ users:User[] }>("users");11 12constloadUsers=()=> {13send({14            query: "taylor",15        });16    };17 18return (19&lt;div>20&lt;ul>21{data?.users.map((user)=> (22&lt;li>23{user.id}: {user.name}24&lt;/li>25                ))}26&lt;/ul>27&lt;buttononClick={loadUsers}>Load Users&lt;/button>28&lt;/div>29    );30}
+import { useJsonStream } from "@laravel/stream-react";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+function App() {
+    const { data, send } = useJsonStream&lt;{ users: User[] }>("users");
+
+    const loadUsers = () => {
+        send({
+            query: "taylor",
+        });
+    };
+
+    return (
+        &lt;div>
+            &lt;ul>
+                {data?.users.map((user) => (
+                    &lt;li>
+                        {user.id}: {user.name}
+                    &lt;/li>
+                ))}
+            &lt;/ul>
+            &lt;button onClick={loadUsers}>Load Users&lt;/button>
+        &lt;/div>
+    );
+}</code></pre></div><div><pre><code> 1&lt;scriptsetuplang="ts"> 2import { useJsonStream } from"@laravel/stream-vue"; 3  4type User = { 5    id:number; 6    name:string; 7    email:string; 8}; 9 10const { data, send } =useJsonStream&lt;{ users:User[] }>("users");11 12constloadUsers=()=> {13send({14        query: "taylor",15    });16};17&lt;/script>18 19&lt;template>20&lt;div>21&lt;ul>22&lt;liv-for="user in data?.users" :key="user.id">23                {{ user.id }}: {{ user.name }}24&lt;/li>25&lt;/ul>26&lt;button @click="loadUsers">Load Users&lt;/button>27&lt;/div>28&lt;/template>
+&lt;script setup lang="ts">
+import { useJsonStream } from "@laravel/stream-vue";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+const { data, send } = useJsonStream&lt;{ users: User[] }>("users");
+
+const loadUsers = () => {
+    send({
+        query: "taylor",
+    });
+};
+&lt;/script>
+
+&lt;template>
+    &lt;div>
+        &lt;ul>
+            &lt;li v-for="user in data?.users" :key="user.id">
+                {{ user.id }}: {{ user.name }}
+            &lt;/li>
+        &lt;/ul>
+        &lt;button @click="loadUsers">Load Users&lt;/button>
+    &lt;/div>
+&lt;/template></code></pre></div></div></div><h3><a href=#event-streams>Event Streams (SSE)</a></h3><p>The <code>eventStream</code> method may be used to return a server-sent events (SSE) streamed response using the <code>text/event-stream</code> content type. The <code>eventStream</code> method accepts a closure which should <a href=https://www.php.net/manual/en/language.generators.overview.php>yield</a> responses to the stream as the responses become available:<div><pre><code>1Route::get('/chat', function() {2returnresponse()->eventStream(function() {3$stream=OpenAI::client()->chat()->createStreamed(...);4 5foreach ($streamas$response) {6yield$response->choices[0];7        }8    });9});
+Route::get('/chat', function () {
+    return response()->eventStream(function () {
+        $stream = OpenAI::client()->chat()->createStreamed(...);
+
+        foreach ($stream as $response) {
+            yield $response->choices[0];
+        }
+    });
+});</code></pre></div><p>If you would like to customize the name of the event, you may yield an instance of the <code>StreamedEvent</code> class:<div><pre><code>1use Illuminate\Http\StreamedEvent;2 3yieldnewStreamedEvent(4    event: 'update',5    data: $response->choices[0],6);
+use Illuminate\Http\StreamedEvent;
+
+yield new StreamedEvent(
+    event: 'update',
+    data: $response->choices[0],
+);</code></pre></div><h4><a href=#consuming-event-streams>Consuming Event Streams</a></h4><p>Event streams may be consumed using Laravel's <code>stream</code> npm package, which provides a convenient API for interacting with Laravel event streams. To get started, install the <code>@laravel/stream-react</code> or <code>@laravel/stream-vue</code> package:<div><div><div><pre><code>1npm install@laravel/stream-react
+npm install @laravel/stream-react</code></pre></div><div><pre><code>1npm install@laravel/stream-vue
+npm install @laravel/stream-vue</code></pre></div></div></div><p>Then, <code>useEventStream</code> may be used to consume the event stream. After providing your stream URL, the hook will automatically update the <code>message</code> with the concatenated response as messages are returned from your Laravel application:<div><div><div><pre><code>1import { useEventStream } from"@laravel/stream-react";2 3functionApp() {4const { message } =useEventStream("/chat");5 6return&lt;div>{message}&lt;/div>;7}
+import { useEventStream } from "@laravel/stream-react";
+
+function App() {
+  const { message } = useEventStream("/chat");
+
+  return &lt;div>{message}&lt;/div>;
+}</code></pre></div><div><pre><code>1&lt;scriptsetuplang="ts">2import { useEventStream } from"@laravel/stream-vue";3 4const { message } =useEventStream("/chat");5&lt;/script>6 7&lt;template>8&lt;div>{{ message }}&lt;/div>9&lt;/template>
+&lt;script setup lang="ts">
+import { useEventStream } from "@laravel/stream-vue";
+
+const { message } = useEventStream("/chat");
+&lt;/script>
+
+&lt;template>
+  &lt;div>{{ message }}&lt;/div>
+&lt;/template></code></pre></div></div></div><p>The second argument given to <code>useEventStream</code> is an options object that you may use to customize the stream consumption behavior. The default values for this object are shown below:<div><div><div><pre><code> 1import { useEventStream } from"@laravel/stream-react"; 2  3functionApp() { 4const { message } =useEventStream("/stream", { 5    eventName: "update", 6onMessage: (message)=> { 7// 8    }, 9onError: (error)=> {10//11    },12onComplete: ()=> {13//14    },15    endSignal: "&lt;/stream>",16    glue: "",17  });18 19return&lt;div>{message}&lt;/div>;20}
+import { useEventStream } from "@laravel/stream-react";
+
+function App() {
+  const { message } = useEventStream("/stream", {
+    eventName: "update",
+    onMessage: (message) => {
+      //
+    },
+    onError: (error) => {
+      //
+    },
+    onComplete: () => {
+      //
+    },
+    endSignal: "&lt;/stream>",
+    glue: " ",
+  });
+
+  return &lt;div>{message}&lt;/div>;
+}</code></pre></div><div><pre><code> 1&lt;scriptsetuplang="ts"> 2import { useEventStream } from"@laravel/stream-vue"; 3  4const { message } =useEventStream("/chat", { 5  eventName: "update", 6onMessage: (message)=> { 7// ... 8  }, 9onError: (error)=> {10// ...11  },12onComplete: ()=> {13// ...14  },15  endSignal: "&lt;/stream>",16  glue: "",17});18&lt;/script>
+&lt;script setup lang="ts">
+import { useEventStream } from "@laravel/stream-vue";
+
+const { message } = useEventStream("/chat", {
+  eventName: "update",
+  onMessage: (message) => {
+    // ...
+  },
+  onError: (error) => {
+    // ...
+  },
+  onComplete: () => {
+    // ...
+  },
+  endSignal: "&lt;/stream>",
+  glue: " ",
+});
+&lt;/script></code></pre></div></div></div><p>Event streams may also be manually consumed via an <a href=https://developer.mozilla.org/en-US/docs/Web/API/EventSource>EventSource</a> object by your application's frontend. The <code>eventStream</code> method will automatically send a <code>&lt;/stream></code> update to the event stream when the stream is complete:<div><pre><code> 1constsource=newEventSource('/chat'); 2  3source.addEventListener('update', (event)=> { 4if (event.data==='&lt;/stream>') { 5        source.close(); 6  7return; 8    } 9 10    console.log(event.data);11});
+const source = new EventSource('/chat');
+
+source.addEventListener('update', (event) => {
+    if (event.data === '&lt;/stream>') {
+        source.close();
+
+        return;
+    }
+
+    console.log(event.data);
+});</code></pre></div><p>To customize the final event that is sent to the event stream, you may provide a <code>StreamedEvent</code> instance to the <code>eventStream</code> method's <code>endStreamWith</code> argument:<div><pre><code>1returnresponse()->eventStream(function() {2// ...3}, endStreamWith: newStreamedEvent(event: 'update', data: '&lt;/stream>'));
+return response()->eventStream(function () {
+    // ...
+}, endStreamWith: new StreamedEvent(event: 'update', data: '&lt;/stream>'));</code></pre></div><h3><a href=#streamed-downloads>Streamed Downloads</a></h3><p>Sometimes you may wish to turn the string response of a given operation into a downloadable response without having to write the contents of the operation to disk. You may use the <code>streamDownload</code> method in this scenario. This method accepts a callback, filename, and an optional array of headers as its arguments:<div><pre><code>1use App\Services\GitHub;2 3returnresponse()->streamDownload(function() {4echoGitHub::api('repo')5->contents()6->readme('laravel', 'laravel')['contents'];7}, 'laravel-readme.md');
+use App\Services\GitHub;
+
+return response()->streamDownload(function () {
+    echo GitHub::api('repo')
+        ->contents()
+        ->readme('laravel', 'laravel')['contents'];
+}, 'laravel-readme.md');</code></pre></div><h2><a href=#response-macros>Response Macros</a></h2><p>If you would like to define a custom response that you can re-use in a variety of your routes and controllers, you may use the <code>macro</code> method on the <code>Response</code> facade. Typically, you should call this method from the <code>boot</code> method of one of your application's <a href=providers.htm>service providers</a>, such as the <code>App\Providers\AppServiceProvider</code> service provider:<div><pre><code> 1&lt;?php 2  3namespace App\Providers; 4  5use Illuminate\Support\Facades\Response; 6use Illuminate\Support\ServiceProvider; 7  8classAppServiceProviderextendsServiceProvider 9{10/**11     * Bootstrap any application services.12*/13publicfunctionboot():void14    {15Response::macro('caps', function(string$value) {16returnResponse::make(strtoupper($value));17        });18    }19}
+&lt;?php
+
+namespace App\Providers;
+
+use Illuminate\Support\Facades\Response;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        Response::macro('caps', function (string $value) {
+            return Response::make(strtoupper($value));
+        });
+    }
+}</code></pre></div><p>The <code>macro</code> function accepts a name as its first argument and a closure as its second argument. The macro's closure will be executed when calling the macro name from a <code>ResponseFactory</code> implementation or the <code>response</code> helper:<div><pre><code>1returnresponse()->caps('foo');
+return response()->caps('foo');</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#creating-responses> Creating Responses </a> <ul><li><a href=#attaching-headers-to-responses> Attaching Headers to Responses </a><li><a href=#attaching-cookies-to-responses> Attaching Cookies to Responses </a><li><a href=#cookies-and-encryption> Cookies and Encryption </a></ul><li><a href=#redirects> Redirects </a> <ul><li><a href=#redirecting-named-routes> Redirecting to Named Routes </a><li><a href=#redirecting-controller-actions> Redirecting to Controller Actions </a><li><a href=#redirecting-external-domains> Redirecting to External Domains </a><li><a href=#redirecting-with-flashed-session-data> Redirecting With Flashed Session Data </a></ul><li><a href=#other-response-types> Other Response Types </a> <ul><li><a href=#view-responses> View Responses </a><li><a href=#json-responses> JSON Responses </a><li><a href=#file-downloads> File Downloads </a><li><a href=#file-responses> File Responses </a></ul><li><a href=#streamed-responses> Streamed Responses </a> <ul><li><a href=#consuming-streamed-responses> Consuming Streamed Responses </a><li><a href=#streamed-json-responses> Streamed JSON Responses </a><li><a href=#event-streams> Event Streams (SSE) </a><li><a href=#streamed-downloads> Streamed Downloads </a></ul><li><a href=#response-macros> Response Macros </a></ul></div></div></div></div></div></div></div></div></div>

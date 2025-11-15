@@ -12,10 +12,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController as WLearnedController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordOparate\AppQyV1WordReadingStatusController as WReadController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordOparate\AppQyV1WordWeightController as WWeightController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordOparate\AppQyV1WordReviewStatusController as WReviewedController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController as WLearnedController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordReadingStatusController as WReadController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordWeightController as WWeightController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordReviewStatusController as WReviewedController;
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;
 Route::prefix($apiVersionPrefix)->group(function () {

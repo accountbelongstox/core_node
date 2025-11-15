@@ -1,0 +1,210 @@
+================================================================================
+Laravel App Directory Tree
+================================================================================
+Generated: 2025-10-22 16:27:19
+App: AwyV0
+Mode: code
+Laravel Root: /mnt/d/programing/core_node/poly_apps/laravel_main
+================================================================================
+
+AwyV0 [code]
+├── app/Apps/AwyV0/
+│   ├── AwyV0Api
+│   │   ├── AwyV0api_controller_log.md
+│   │   ├── AwyV0api_create.py
+│   │   ├── AwyV0apis.awy.md
+│   │   ├── AwyV0apis.awy.sheets.md
+│   │   ├── AwyV0desgin_rule.md
+│   │   └── AwyV0host.md
+│   ├── AwyV0ApiInfo.php
+│   ├── AwyV0Auth
+│   │   ├── AwyV0AuthPublic
+│   │   │   ├── AwyV0AwyUserGen.php
+│   │   │   ├── AwyV0UserInitEnsure.php
+│   │   │   └── AwyV0UserLogin.php
+│   │   ├── AwyV0AuthenticatedSessionCtl.php
+│   │   ├── AwyV0AvatarPublic.php
+│   │   ├── AwyV0AwyloginCtl.php
+│   │   ├── AwyV0AwyregisteredUserCtl.php
+│   │   ├── AwyV0ConfirmablePasswordCtl.php
+│   │   ├── AwyV0EmailVerificationNotificationCtl.php
+│   │   ├── AwyV0EmailVerificationPromptCtl.php
+│   │   ├── AwyV0NewPasswordCtl.php
+│   │   ├── AwyV0PasswordResetLinkCtl.php
+│   │   └── AwyV0VerifyEmailCtl.php
+│   ├── AwyV0DBTablesBrige
+│   │   └── AwyV0TableMaps.php
+│   ├── AwyV0Gvar
+│   │   └── AwyV0Gvar.php
+│   ├── AwyV0Welcome
+│   │   └── AwyV0Awywelcome.php
+│   ├── AwyV0_tree_code.txt
+│   ├── Controllers
+│   │   ├── AwyV0AuthCtl.php
+│   │   ├── AwyV0ChatCtl.php
+│   │   ├── AwyV0DeviceCtl.php
+│   │   ├── AwyV0FriendCtl.php
+│   │   ├── AwyV0HealthCtl.php
+│   │   └── AwyV0UserCtl.php
+│   └── Utils
+│       └── GenVoiceName.php
+├── app/
+│   ├── Apps
+│   │   └── AwyV0
+│   ├── Console
+│   │   └── Commands
+│   │       ├── CheckCertbotCommand.php
+│   │       ├── ExternalStorageCommand.php
+│   │       └── PrintDatabaseConfig.php
+│   ├── Controller.php
+│   ├── Exceptions
+│   │   └── Handler.php
+│   ├── Helpers
+│   │   ├── AppVersionHelper.php
+│   │   ├── BrowserSimulator.php
+│   │   ├── ClashDefaultConfigProcessor.php
+│   │   ├── DatabasePathHelper.php
+│   │   ├── ExternalStorageHelper.php
+│   │   ├── GlobalSecretReader.php
+│   │   ├── HtmlContentCleaner.php
+│   │   └── ProxyNameProcessor.php
+│   ├── Http
+│   │   ├── Api
+│   │   │   └── TestController.php
+│   │   ├── Clash
+│   │   │   ├── ConfigController.php
+│   │   │   ├── DashboardController.php
+│   │   │   ├── GroupController.php
+│   │   │   ├── GroupViewController.php
+│   │   │   ├── SubscriptionController.php
+│   │   │   └── SubscriptionListController.php
+│   │   ├── Common
+│   │   │   ├── CommonAuthService.php
+│   │   │   ├── CommonAvatarPublic.php
+│   │   │   ├── CommonGvar.php
+│   │   │   └── CommonUserGen.php
+│   │   ├── Controllers
+│   │   │   ├── Auth
+│   │   │   │   ├── AuthenticatedSessionController.php
+│   │   │   │   ├── AvatarPublic.php
+│   │   │   │   ├── ConfirmablePasswordController.php
+│   │   │   │   ├── EmailVerificationNotificationController.php
+│   │   │   │   ├── EmailVerificationPromptController.php
+│   │   │   │   ├── LoginController.php
+│   │   │   │   ├── NewPasswordController.php
+│   │   │   │   ├── PasswordResetLinkController.php
+│   │   │   │   ├── RegisteredUserController.php
+│   │   │   │   └── VerifyEmailController.php
+│   │   │   ├── Controller.php
+│   │   │   └── Settings
+│   │   │       ├── PasswordController.php
+│   │   │       └── ProfileController.php
+│   │   ├── EnvironmentApiInfo
+│   │   │   ├── ApiInfoIndex.php
+│   │   │   ├── ApiParamsCache.php
+│   │   │   ├── CommonApiInfo.php
+│   │   │   ├── DebugIndex.php
+│   │   │   ├── GlobalApiConstants.php
+│   │   │   ├── SystemInfoService.php
+│   │   │   └── debug_interface_template.html
+│   │   ├── Middleware
+│   │   │   ├── ClientTokenAuth.php
+│   │   │   ├── CustomAuthenticate.php
+│   │   │   ├── EnsureEmailIsVerified.php
+│   │   │   ├── GoLatency.php
+│   │   │   ├── HandleAppearance.php
+│   │   │   ├── HandleInertiaRequests.php
+│   │   │   ├── MidPublic
+│   │   │   │   └── ApiDebugTokenAuth.php
+│   │   │   └── RemoveFrameworkFingerprints.php
+│   │   ├── OldApis
+│   │   │   └── WorkLookupController.php
+│   │   ├── Requests
+│   │   │   ├── Auth
+│   │   │   │   └── LoginRequest.php
+│   │   │   └── Settings
+│   │   │       └── ProfileUpdateRequest.php
+│   │   ├── SetLocale.php
+│   │   ├── StaticServer
+│   │   │   ├── DownloadController.php
+│   │   │   ├── EditorController.php
+│   │   │   ├── FileBackupController.php
+│   │   │   ├── FileController.php
+│   │   │   ├── StaticFileController.php
+│   │   │   └── UploadController.php
+│   │   └── System
+│   │       ├── StatusController.php
+│   │       └── TokenSessionController.php
+│   ├── Models
+│   │   ├── ClashUrlsConfig.php
+│   │   ├── Config.php
+│   │   ├── Dictionary.php
+│   │   ├── DownloadTask.php
+│   │   ├── Group.php
+│   │   ├── PersonalDictionaries.php
+│   │   ├── User.php
+│   │   └── WordGroup.php
+│   ├── Providers
+│   │   ├── AppServiceProvider.php
+│   │   ├── GlobalTablesMap.php
+│   │   └── GlobalVar.php
+│   └── Utils
+│       ├── ArrTool.php
+│       ├── FileReader.php
+│       ├── ParameterTool.php
+│       └── StrTool.php
+├── config/
+│   ├── app.php
+│   ├── auth.php
+│   ├── cache.php
+│   ├── cors.php
+│   ├── database.php
+│   ├── deepseek.php
+│   ├── dictauth.php
+│   ├── dictv1.php
+│   ├── filesystems.php
+│   ├── laravolt
+│   │   └── avatar.php
+│   ├── logging.php
+│   ├── mail.php
+│   ├── queue.php
+│   ├── sanctum.php
+│   ├── services.php
+│   ├── session.php
+│   └── storage.php
+├── database/
+│   ├── .gitignore
+│   └── migrations
+│       ├── 0001_01_01_000000_create_users_table.php
+│       ├── 0001_01_01_000001_create_cache_table.php
+│       ├── 0001_01_01_000002_create_jobs_table.php
+│       ├── 2024_01_01_000001_create_bankv1_tables.php
+│       ├── 2024_02_05_create_download_tasks_table.php
+│       ├── 2024_03_20_000000_create_global_groups_table.php
+│       ├── 2025_02_03_190838_create_clash_urls_config_table.php
+│       ├── 2025_04_02_074632_create_dict_v1_word_groups_table.php
+│       ├── 2025_04_02_082636_create_dict_v1_personal_dictionaries_table.php
+│       ├── 2025_04_03_140552_create_personal_access_tokens_table.php
+│       ├── 2025_04_16_170153_create_dict_v1_dictionaries_table.php
+│       ├── 2025_04_19_064603_create_admin_user.php
+│       ├── 2025_08_20_010000_create_user_tokens_table.php
+│       ├── 2025_09_07_001928_create_servermanagerv1_tables.php
+│       ├── 2025_10_21_000001_create_codemart_users_verification_table.php
+│       ├── 2025_10_21_000002_create_codemart_projects_table.php
+│       ├── 2025_10_21_000003_create_codemart_tasks_table.php
+│       └── 2025_10_21_000004_create_codemart_payment_tables.php
+└── routes/
+    ├── AwyV0Router
+    │   ├── AwyV0Auth.php
+    │   ├── AwyV0Chat.php
+    │   ├── AwyV0Device.php
+    │   ├── AwyV0Friend.php
+    │   └── AwyV0User.php
+    ├── api
+    │   ├── auth.php
+    │   ├── channels.php
+    │   └── system.php
+    ├── api.php
+    ├── console.php
+    ├── settings.php
+    └── web.php

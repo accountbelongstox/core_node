@@ -68,29 +68,87 @@ check_certbot() {
 # Function to install Certbot
 install_certbot() {
     echo "[$SCRIPT_INDEX] Installing Certbot..."
-    
+
     # Update package list
     $USE_SUDO apt update
-    
+
     # Install Certbot and Nginx plugin
     $USE_SUDO apt install -y certbot python3-certbot-nginx
-    
+
     # Install DNS plugins for supported providers
     $USE_SUDO apt install -y python3-certbot-dns-cloudflare python3-certbot-dns-route53 || true
 
-    # Install DNSPod plugin via python3 -m pip
-    echo "[$SCRIPT_INDEX] Installing DNSPod plugin for Certbot..."
-    if command_exists python3; then
-        $USE_SUDO python3 -m pip install certbot-dnspod || {
-            echo "[$SCRIPT_INDEX] Warning: Failed to install certbot-dnspod via python3 -m pip"
-            echo "[$SCRIPT_INDEX] You can install it manually later: python3 -m pip install certbot-dnspod"
+    echo "[$SCRIPT_INDEX] Certbot installed successfully"
+}
+
+# Function to install certbot-dns-dnspod plugin
+install_certbot_dnspod() {
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] INSTALLING CERTBOT-DNS-DNSPOD PLUGIN"
+    echo "[$SCRIPT_INDEX] =================================="
+
+    # Check if certbot is installed (should be from install_certbot)
+    if ! command -v certbot >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] certbot not found, installing base certbot first..."
+        $USE_SUDO apt-get update >/dev/null 2>&1
+        $USE_SUDO apt-get install -y certbot >/dev/null 2>&1 || {
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install certbot"
+            return 1
         }
+        echo "[$SCRIPT_INDEX] [OK] certbot installed"
     else
-        echo "[$SCRIPT_INDEX] Warning: python3 not found, skipping DNSPod plugin installation"
-        echo "[$SCRIPT_INDEX] Install python3 and run: python3 -m pip install certbot-dnspod"
+        echo "[$SCRIPT_INDEX] [OK] certbot is available"
     fi
 
-    echo "[$SCRIPT_INDEX] Certbot installed successfully"
+    # Check if pip3 is available
+    if ! command -v pip3 >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] pip3 not found, installing python3-pip..."
+        $USE_SUDO apt-get update >/dev/null 2>&1
+        $USE_SUDO apt-get install -y python3-pip >/dev/null 2>&1 || {
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install python3-pip"
+            return 1
+        }
+        echo "[$SCRIPT_INDEX] [OK] python3-pip installed"
+    else
+        echo "[$SCRIPT_INDEX] [OK] pip3 is available"
+    fi
+
+    # Check for zope.interface module (required by certbot-dns-dnspod)
+    echo "[$SCRIPT_INDEX] Checking zope.interface module..."
+    if python3 -c "import zope.interface" 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] [OK] zope.interface is available"
+    else
+        echo "[$SCRIPT_INDEX] zope.interface not found, installing..."
+        if $USE_SUDO apt-get install -y python3-zope.interface >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] [OK] zope.interface installed via apt-get"
+        elif $USE_SUDO pip3 install zope.interface --break-system-packages 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] [OK] zope.interface installed via pip3"
+        else
+            echo "[$SCRIPT_INDEX] [WARN] Failed to install zope.interface"
+        fi
+    fi
+
+    # Check if certbot-dns-dnspod is already installed
+    if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod already installed"
+        local version=$(pip3 show certbot-dns-dnspod 2>/dev/null | grep "Version:" | cut -d' ' -f2)
+        echo "[$SCRIPT_INDEX]   Version: ${version:-unknown}"
+        return 0
+    fi
+
+    # Install certbot-dns-dnspod
+    echo "[$SCRIPT_INDEX] Installing certbot-dns-dnspod..."
+    $USE_SUDO pip3 install certbot-dns-dnspod --break-system-packages 2>&1 | while IFS= read -r line; do
+        echo "[$SCRIPT_INDEX]   $line"
+    done
+
+    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod installed successfully"
+        return 0
+    else
+        echo "[$SCRIPT_INDEX] [WARN] certbot-dns-dnspod installation had issues"
+        return 1
+    fi
 }
 
 
@@ -640,13 +698,19 @@ else
     echo "[$SCRIPT_INDEX] ?Certbot installed successfully: $(certbot --version 2>&1)"
 fi
 
-# Step 2: Show Laravel ServerManager certificate configuration
+# Step 2: Install certbot-dns-dnspod plugin
+echo ""
+install_certbot_dnspod || {
+    echo "[$SCRIPT_INDEX] Warning: certbot-dns-dnspod installation failed, continuing..."
+}
+
+# Step 3: Show Laravel ServerManager certificate configuration
 show_certificate_config
 
-# Step 3: Setup auto-renewal
+# Step 4: Setup auto-renewal
 setup_auto_renewal
 
-# Step 8: Store Certbot information
+# Step 5: Store Certbot information
 store_certbot_info
 
 # Step 9: Verify installation

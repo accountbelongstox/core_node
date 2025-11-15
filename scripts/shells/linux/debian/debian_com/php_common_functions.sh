@@ -202,6 +202,16 @@ configure_php_fpm_pool_from_php_common() {
         $USE_SUDO sed -i 's/^listen.owner = .*/listen.owner = www-data/' "$pool_config"
         $USE_SUDO sed -i 's/^listen.group = .*/listen.group = www-data/' "$pool_config"
         
+        # CRITICAL: Remove open_basedir restrictions from pool config
+        # This matches ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig() behavior
+        # Remove php_value[open_basedir] and php_admin_value[open_basedir] settings
+        # See: ../../../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
+        print_step_from_common_functions "$script_index Removing open_basedir restrictions from pool config"
+        $USE_SUDO sed -i '/^php_value\[open_basedir\]/d' "$pool_config"
+        $USE_SUDO sed -i '/^php_admin_value\[open_basedir\]/d' "$pool_config"
+        $USE_SUDO sed -i '/^;php_value\[open_basedir\]/d' "$pool_config"
+        $USE_SUDO sed -i '/^;php_admin_value\[open_basedir\]/d' "$pool_config"
+        
         print_success_from_common_functions "$script_index PHP-FPM pool configured successfully"
         return 0
     else

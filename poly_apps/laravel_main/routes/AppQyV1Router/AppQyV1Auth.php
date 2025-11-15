@@ -13,12 +13,12 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationLoginController as DictloginController;
-use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationEmailVerificationNotificationController as EmailVerificationNotificationController;
-use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationPasswordResetController as NewPasswordController;
-use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationPasswordResetLinkController as PasswordResetLinkController;
-use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationRegistrationController as DictregisteredUserController;
-use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationEmailVerificationController as VerifyEmailController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth\AppQyV1AuthenticationLoginController as DictloginController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth\AppQyV1AuthenticationEmailVerificationNotificationController as EmailVerificationNotificationController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth\AppQyV1AuthenticationPasswordResetController as NewPasswordController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth\AppQyV1AuthenticationPasswordResetLinkController as PasswordResetLinkController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth\AppQyV1AuthenticationRegistrationController as DictregisteredUserController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth\AppQyV1AuthenticationEmailVerificationController as VerifyEmailController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;

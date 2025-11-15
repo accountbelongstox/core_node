@@ -800,3 +800,43 @@ print_debug_from_common_functions() {
     local msg="$1"
     echo -e "\033[0;35m[DEBUG] ${msg}\033[0m"
 }
+
+# Print file content with prefix (from common_functions.sh)
+print_file_with_prefix_from_common_functions() {
+    local file_path="$1"
+    local prefix="${2:-    }"
+
+    if [[ ! -f "$file_path" ]]; then
+        print_warning_from_common_functions "File not found: $file_path"
+        return 1
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        echo "${prefix}${line}"
+    done < "$file_path"
+}
+
+# Show post-install artifacts for verification (from common_functions.sh)
+show_post_install_artifacts_from_common_functions() {
+    local launch_script="$1"
+    local desktop_entry="$2"
+    local system_desktop_disabled="$3"
+
+    print_step_from_common_functions "Displaying generated launch artifacts"
+
+    if [[ -n "$launch_script" ]] && [[ -f "$launch_script" ]]; then
+        print_info_from_common_functions "Launch script: $launch_script"
+        print_file_with_prefix_from_common_functions "$launch_script"
+        echo ""
+    fi
+
+    if [[ -n "$desktop_entry" ]] && [[ -f "$desktop_entry" ]]; then
+        print_info_from_common_functions "Desktop entry: $desktop_entry"
+        print_file_with_prefix_from_common_functions "$desktop_entry"
+        echo ""
+    fi
+
+    if [[ -n "$system_desktop_disabled" ]] && [[ -f "$system_desktop_disabled" ]]; then
+        print_info_from_common_functions "System desktop entry disabled: $system_desktop_disabled"
+    fi
+}

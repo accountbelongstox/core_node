@@ -24,6 +24,13 @@ class AppQyV1WordGroupModel extends Model
     use HasFactory, SoftDeletes;
 
     /**
+     * The database connection name for the model.
+     *
+     * @var string
+     */
+    protected $connection = 'AppQyV1';
+
+    /**
      * The table associated with the model.
      *
      * @var string

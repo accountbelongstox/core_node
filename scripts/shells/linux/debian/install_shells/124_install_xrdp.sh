@@ -1,9 +1,30 @@
 #!/bin/bash
+# ================================================================================
+# ⚠️  DEPRECATED - DO NOT USE ⚠️
+# ================================================================================
+# This script is DEPRECATED and should NOT be used on Ubuntu 24.04+
+#
+# Reason: Ubuntu 24.04 uses Wayland by default, xrdp only supports X11
+# Result: Remote desktop connections will disconnect immediately after login
+#
+# RECOMMENDED ALTERNATIVES:
+#   1. GNOME Remote Desktop (recommended):
+#      sudo bash 125_setup_gnome_rdp.sh
+#
+#   2. RustDesk (no login required):
+#      sudo bash 126_install_rustdesk.sh
+#
+# To remove existing xrdp installation:
+#   sudo bash 127_cleanup_xrdp.sh
+#
+# For more information, see: REMOTE_DESKTOP_GUIDE.txt
+# ================================================================================
+#
 # XRDP Remote Desktop Installation Script
 #
 # Prerequisites:
 #   - Desktop environment (GNOME, XFCE, etc.) must be installed
-#   - Ubuntu 22.04+ or Debian 11+
+#   - Ubuntu 22.04 or Debian 11 (NOT Ubuntu 24.04+)
 #
 # Usage:
 #   ./124_install_xrdp.sh                    # Normal installation
@@ -166,9 +187,9 @@ diagnose_xrdp() {
     print_step_from_common_functions "Checking desktop session availability..."
     for cmd in gnome-session startxfce4 startkde startlxde mate-session; do
         if command -v $cmd >/dev/null 2>&1; then
-            echo "�?$cmd found"
+            echo "�?$cmd found"
         else
-            echo "�?$cmd not found"
+            echo "�?$cmd not found"
         fi
     done
 
@@ -176,10 +197,10 @@ diagnose_xrdp() {
     print_success_from_common_functions "Diagnostic complete!"
     echo ""
     print_info_from_common_functions "Common issues and solutions:"
-    echo "  1. 'connection closed' after login �?Check .xsession and desktop session"
-    echo "  2. 'authentication required' popup �?Check PolicyKit rules"
-    echo "  3. 'could not start X server' �?Check Xwrapper.config permissions"
-    echo "  4. Black screen �?Check desktop environment installation"
+    echo "  1. 'connection closed' after login �?Check .xsession and desktop session"
+    echo "  2. 'authentication required' popup �?Check PolicyKit rules"
+    echo "  3. 'could not start X server' �?Check Xwrapper.config permissions"
+    echo "  4. Black screen �?Check desktop environment installation"
     echo ""
     echo "To see full logs, run:"
     echo "  sudo tail -f /var/log/xrdp-sesman.log"
@@ -681,24 +702,49 @@ EOF
         print_info_from_common_functions "DEBUG: Will use $desktop_session for user sessions"
     fi
 
-    # Create session configuration for ALL existing users (including root)
-    print_step_from_common_functions "Creating session files for all users..."
-    print_info_from_common_functions "DEBUG: Scanning /etc/passwd for users to configure"
+    # Create session configuration for detected desktop user
+    print_step_from_common_functions "Creating session files for desktop user..."
 
-    # Get list of real users (UID >= 1000 or root)
-    local users_to_configure=("root")
-    while IFS=: read -r username _ uid _ _ homedir _; do
-        if [[ $uid -ge 1000 ]] && [[ -d "$homedir" ]]; then
-            users_to_configure+=("$username")
-            print_info_from_common_functions "DEBUG: Found user: $username (UID: $uid, home: $homedir)"
+    # Use ACTUAL_DESKTOP_USER from gvar_common.sh (already sourced)
+    local target_user=""
+    local target_home=""
+
+    if [[ -n "${ACTUAL_DESKTOP_USER:-}" ]] && [[ -n "${ACTUAL_DESKTOP_USER_HOME:-}" ]]; then
+        target_user="$ACTUAL_DESKTOP_USER"
+        target_home="$ACTUAL_DESKTOP_USER_HOME"
+        print_info_from_common_functions "Using detected desktop user from gvar_common.sh: $target_user"
+        print_info_from_common_functions "DEBUG: User home: $target_home"
+    else
+        # Fallback: detect manually
+        print_warning_from_common_functions "ACTUAL_DESKTOP_USER not set, using fallback detection"
+        if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+            target_user="$SUDO_USER"
+            target_home=$(getent passwd "$target_user" 2>/dev/null | cut -d: -f6)
+        else
+            # Find first user with Desktop folder
+            for user_home in /home/*; do
+                if [[ -d "$user_home/Desktop" ]]; then
+                    target_user=$(basename "$user_home")
+                    target_home="$user_home"
+                    break
+                fi
+            done
         fi
-    done < /etc/passwd
 
-    print_info_from_common_functions "DEBUG: Total users to configure: ${#users_to_configure[@]}"
-    print_info_from_common_functions "DEBUG: Users list: ${users_to_configure[*]}"
+        if [[ -z "$target_user" ]] || [[ -z "$target_home" ]]; then
+            print_warning_from_common_functions "Could not detect desktop user, skipping user-specific configuration"
+            print_info_from_common_functions "XRDP will be configured with system defaults only"
+            return 0
+        fi
+    fi
+
+    print_info_from_common_functions "Configuring XRDP session for user: $target_user ($target_home)"
+
+    # Configure only the detected desktop user
+    local users_to_configure=("$target_user")
 
     for user in "${users_to_configure[@]}"; do
-        local user_home=$(eval echo ~$user)
+        local user_home="$target_home"
         print_info_from_common_functions "DEBUG: Processing user: $user (home: $user_home)"
 
         # Skip if home directory doesn't exist
@@ -709,18 +755,44 @@ EOF
 
         print_info_from_common_functions "Configuring session for user: $user"
 
-        # Create .xsession
+        # Create .xsession with improved Ubuntu GNOME session support
         local xsession_file="$user_home/.xsession"
         print_info_from_common_functions "DEBUG: Creating .xsession: $xsession_file"
         if [[ -n "$desktop_session" ]]; then
-            $USE_SUDO bash -c "cat > $xsession_file" <<EOF
+            $USE_SUDO bash -c "cat > $xsession_file" <<'EOF'
 #!/bin/bash
-# XRDP session startup
-$desktop_session
+# XRDP session startup for Ubuntu
+
+# Load session environment
+if [ -f ~/.xsessionrc ]; then
+    . ~/.xsessionrc
+fi
+
+# Start desktop session
+if command -v gnome-session >/dev/null 2>&1; then
+    # Try Ubuntu session first (more stable in XRDP)
+    if [ -f /usr/share/gnome-session/sessions/ubuntu.session ]; then
+        exec gnome-session --session=ubuntu
+    elif [ -f /usr/share/xsessions/ubuntu.desktop ]; then
+        exec gnome-session --session=ubuntu
+    else
+        # Fallback to default GNOME
+        exec gnome-session
+    fi
+elif command -v startxfce4 >/dev/null 2>&1; then
+    exec startxfce4
+elif command -v startkde >/dev/null 2>&1; then
+    exec startkde
+elif command -v mate-session >/dev/null 2>&1; then
+    exec mate-session
+else
+    # Last resort: try to start X terminal
+    exec xterm
+fi
 EOF
             $USE_SUDO chmod +x "$xsession_file"
             $USE_SUDO chown $user:$user "$xsession_file" 2>/dev/null || true
-            print_info_from_common_functions "DEBUG: Created .xsession with command: $desktop_session"
+            print_info_from_common_functions "DEBUG: Created .xsession with Ubuntu session support"
         else
             print_info_from_common_functions "DEBUG: Skipped .xsession creation - no desktop session detected"
         fi
@@ -881,34 +953,105 @@ start_xrdp_service() {
 }
 
 # Cleanup XRDP installation
+# Check if XRDP is installed
+check_xrdp_installed() {
+    if dpkg -l 2>/dev/null | grep -q "^ii.*xrdp"; then
+        return 0  # Installed
+    else
+        return 1  # Not installed
+    fi
+}
+
+# Detect Ubuntu version and display server type
+detect_environment() {
+    local ubuntu_version=""
+    local is_wayland=false
+
+    # Detect Ubuntu version
+    if [ -f /etc/os-release ]; then
+        ubuntu_version=$(grep "VERSION_ID" /etc/os-release | cut -d'"' -f2)
+    fi
+
+    # Detect display server
+    if [ -n "${XDG_SESSION_TYPE:-}" ]; then
+        if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+            is_wayland=true
+        fi
+    fi
+
+    # Also check for active Wayland sessions
+    if pgrep -x "gnome-shell" >/dev/null && [ -n "$(pgrep -f wayland)" ]; then
+        is_wayland=true
+    fi
+
+    echo "$ubuntu_version|$is_wayland"
+}
+
 cleanup_xrdp() {
     print_header_from_common_functions "Cleaning up XRDP installation"
 
-    # Stop and disable service
-    if $USE_SUDO systemctl is-active --quiet xrdp 2>/dev/null; then
-        print_step_from_common_functions "Stopping XRDP service..."
-        $USE_SUDO systemctl stop xrdp
+    # Check if xrdp is installed
+    if ! check_xrdp_installed; then
+        print_info_from_common_functions "XRDP is not installed, nothing to clean up"
+        return 0
     fi
 
-    if $USE_SUDO systemctl is-enabled --quiet xrdp 2>/dev/null; then
-        print_step_from_common_functions "Disabling XRDP service..."
-        $USE_SUDO systemctl disable xrdp
-    fi
+    # Stop and disable services
+    print_step_from_common_functions "Stopping XRDP services..."
+    $USE_SUDO systemctl stop xrdp 2>/dev/null || true
+    $USE_SUDO systemctl stop xrdp-sesman 2>/dev/null || true
+
+    print_step_from_common_functions "Disabling XRDP services..."
+    $USE_SUDO systemctl disable xrdp 2>/dev/null || true
+    $USE_SUDO systemctl disable xrdp-sesman 2>/dev/null || true
 
     # Remove packages
     print_step_from_common_functions "Removing XRDP packages..."
     $USE_SUDO apt-get remove --purge -y xrdp xorgxrdp 2>/dev/null || true
-    $USE_SUDO apt-get autoremove -y 2>/dev/null || true
 
-    # Remove configuration files
-    if [[ -f "$XRDP_CONFIG_FILE" ]]; then
-        print_step_from_common_functions "Removing configuration files..."
-        $USE_SUDO rm -rf /etc/xrdp
+    # Remove additional xrdp-related packages
+    print_step_from_common_functions "Removing additional packages..."
+    $USE_SUDO apt-get remove --purge -y libpipewire-0.3-modules-xrdp pipewire-module-xrdp 2>/dev/null || true
+
+    print_step_from_common_functions "Cleaning up unused packages..."
+    $USE_SUDO apt-get autoremove -y 2>/dev/null || true
+    $USE_SUDO apt-get autoclean 2>/dev/null || true
+
+    # Remove configuration and log files
+    print_step_from_common_functions "Removing XRDP configuration and logs..."
+    $USE_SUDO rm -rf /etc/xrdp 2>/dev/null || true
+    $USE_SUDO rm -rf /var/log/xrdp 2>/dev/null || true
+    $USE_SUDO rm -rf /var/run/xrdp 2>/dev/null || true
+
+    # Remove user session files created by XRDP
+    if [[ -n "${ACTUAL_DESKTOP_USER:-}" ]]; then
+        local user_home="${ACTUAL_DESKTOP_USER_HOME:-/home/$ACTUAL_DESKTOP_USER}"
+
+        print_step_from_common_functions "Removing user session files for $ACTUAL_DESKTOP_USER..."
+
+        # Backup and remove .xsession if it exists
+        if [ -f "$user_home/.xsession" ]; then
+            print_info_from_common_functions "Backing up .xsession to .xsession.xrdp.bak"
+            $USE_SUDO -u "$ACTUAL_DESKTOP_USER" cp "$user_home/.xsession" "$user_home/.xsession.xrdp.bak" 2>/dev/null || true
+            $USE_SUDO -u "$ACTUAL_DESKTOP_USER" rm -f "$user_home/.xsession" 2>/dev/null || true
+        fi
+
+        # Remove other xrdp-related session files
+        $USE_SUDO -u "$ACTUAL_DESKTOP_USER" rm -f "$user_home/.xsessionrc" 2>/dev/null || true
     fi
 
-    # Remove firewall rule using firewall_manager.sh
-    print_step_from_common_functions "Removing firewall rule..."
+    # Remove firewall rules
+    print_step_from_common_functions "Removing firewall rules..."
     firewall_remove_port "$XRDP_PORT" "tcp" 2>/dev/null || true
+
+    # Also try to remove any UFW rules with xrdp comment
+    if command -v ufw &>/dev/null; then
+        $USE_SUDO ufw status numbered 2>/dev/null | grep -i xrdp | awk -F'[][]' '{print $2}' | sort -rn | while read num; do
+            if [ -n "$num" ]; then
+                echo "y" | $USE_SUDO ufw delete "$num" 2>/dev/null || true
+            fi
+        done
+    fi
 
     # Remove log collection service
     remove_xrdp_log_service
@@ -919,7 +1062,18 @@ cleanup_xrdp() {
         $USE_SUDO rm -f "$XRDP_INSTALLED_FLAG"
     fi
 
-    print_success_from_common_functions "XRDP cleanup completed"
+    echo ""
+    print_success_from_common_functions "XRDP has been completely removed from the system"
+    echo ""
+    print_info_from_common_functions "Recommended alternatives for Ubuntu 24.04:"
+    echo "  1. GNOME Remote Desktop (built-in):"
+    echo "     sudo bash 125_setup_gnome_rdp.sh"
+    echo ""
+    echo "  2. RustDesk (via desktop applications installer):"
+    echo "     sudo bash 120_install_desktop_applications.sh"
+    echo "     # Then select RustDesk from the menu"
+    echo ""
+
     return 0
 }
 
@@ -1107,11 +1261,106 @@ main() {
     # Parse arguments
     parse_arguments "$@"
 
-    # Handle cleanup mode
+    # Handle cleanup mode early
     if [[ "$CLEANUP_MODE" == true ]]; then
         cleanup_xrdp
         exit $?
     fi
+
+    # ========================================================================
+    # AUTO-DETECT INCOMPATIBLE ENVIRONMENT
+    # ========================================================================
+    local env_info=$(detect_environment)
+    local ubuntu_ver=$(echo "$env_info" | cut -d'|' -f1)
+    local is_wayland=$(echo "$env_info" | cut -d'|' -f2)
+
+    # Check if running on Ubuntu 24.04+ or Wayland
+    local is_incompatible=false
+    if [[ -n "$ubuntu_ver" ]]; then
+        # Compare version (24.04 or higher)
+        if awk "BEGIN {exit !($ubuntu_ver >= 24.04)}"; then
+            is_incompatible=true
+        fi
+    fi
+
+    if [[ "$is_wayland" == "true" ]]; then
+        is_incompatible=true
+    fi
+
+    # If incompatible environment detected and XRDP is installed, auto-cleanup
+    if [[ "$is_incompatible" == "true" ]] && check_xrdp_installed; then
+        echo ""
+        echo "════════════════════════════════════════════════════════════════════"
+        echo "⚠️  INCOMPATIBLE ENVIRONMENT DETECTED"
+        echo "════════════════════════════════════════════════════════════════════"
+        echo ""
+        if [[ -n "$ubuntu_ver" ]]; then
+            echo "Ubuntu Version: $ubuntu_ver (XRDP requires < 24.04)"
+        fi
+        if [[ "$is_wayland" == "true" ]]; then
+            echo "Display Server: Wayland (XRDP requires X11)"
+        fi
+        echo ""
+        echo "XRDP is currently installed but will not work on this system."
+        echo "Automatic cleanup will remove XRDP and suggest alternatives."
+        echo ""
+        echo "════════════════════════════════════════════════════════════════════"
+        echo ""
+        read -p "Automatically remove XRDP and exit? (Y/n): " -n 1 -r
+        echo ""
+        case "$REPLY" in
+            [nN]|[nN][oO])
+                print_warning_from_common_functions "Cleanup cancelled. XRDP will remain installed but non-functional."
+                exit 1
+                ;;
+            *)
+                cleanup_xrdp
+                exit 0
+                ;;
+        esac
+    fi
+
+    # ========================================================================
+    # DEPRECATION WARNING - Show for new installations
+    # ========================================================================
+    echo ""
+    echo "════════════════════════════════════════════════════════════════════"
+    echo "⚠️  WARNING: This script is DEPRECATED for Ubuntu 24.04+"
+    echo "════════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Ubuntu 24.04 uses Wayland by default. XRDP only supports X11."
+    echo "Result: Connections will disconnect immediately after login."
+    echo ""
+    if [[ -n "$ubuntu_ver" ]]; then
+        echo "Detected Ubuntu Version: $ubuntu_ver"
+    fi
+    if [[ "$is_wayland" == "true" ]]; then
+        echo "Detected Display Server: Wayland"
+    fi
+    echo ""
+    echo "RECOMMENDED ALTERNATIVES:"
+    echo "  1. GNOME Remote Desktop (built-in, recommended):"
+    echo "     sudo bash 125_setup_gnome_rdp.sh"
+    echo ""
+    echo "  2. RustDesk (via desktop applications menu):"
+    echo "     sudo bash 120_install_desktop_applications.sh"
+    echo ""
+    echo "See REMOTE_DESKTOP_GUIDE.txt for detailed comparison"
+    echo "════════════════════════════════════════════════════════════════════"
+    echo ""
+    echo -n "Are you sure you want to continue with deprecated XRDP? (y/N): "
+    read -r continue_response
+    case "$continue_response" in
+        [yY]|[yY][eE][sS])
+            echo ""
+            print_warning_from_common_functions "Continuing with XRDP installation (not recommended)"
+            ;;
+        *)
+            echo ""
+            print_info_from_common_functions "Installation cancelled. Use 125_setup_gnome_rdp.sh instead."
+            exit 0
+            ;;
+    esac
 
     # Check if desktop environment is available (auto-detect from gvar_common.sh)
     if [[ "$HAS_DESKTOP_ENVIRONMENT" != true ]] && [[ "$FORCE_INSTALL" != true ]]; then

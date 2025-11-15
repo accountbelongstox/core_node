@@ -14,10 +14,10 @@
 use Illuminate\Support\Facades\Route;
 
 # System and Initialization Routes for AppQyV1
-use App\Apps\AppQyV1\Controllers\AppQyV1System\AppQyV1SystemInitializationController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordQurey\AppQyV1UntranslatedWordsController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
-use App\Apps\AppQyV1\Controllers\AppQyV1WordSubmit\AppQyV1WordDataSubmissionController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SystemInitializationController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1UntranslatedWordsController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordSubmit\AppQyV1WordDataSubmissionController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;

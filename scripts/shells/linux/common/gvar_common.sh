@@ -22,6 +22,10 @@ DESKTOP_WINDOWS_MOUNT_PATH=""
 DESKTOP_WINDOWS_DRIVES=""
 WSL_USERS_PATH="/mnt/c/Users"
 
+# Detected actual desktop user (when running as root)
+ACTUAL_DESKTOP_USER=""
+ACTUAL_DESKTOP_USER_HOME=""
+
 # Check and set sudo
 if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
@@ -119,8 +123,98 @@ detect_desktop_environment() {
     fi
 }
 
+# Function to detect actual desktop user when running as root
+# This is useful for services that need to interact with the desktop user's session
+detect_actual_desktop_user() {
+    # If not running as root, return current user
+    if [ "$(id -u)" -ne 0 ]; then
+        ACTUAL_DESKTOP_USER="$USER"
+        ACTUAL_DESKTOP_USER_HOME="$HOME"
+        return 0
+    fi
+
+    local detected_user=""
+    local detected_home=""
+
+    # Priority 1: Check SUDO_USER environment variable
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        detected_user="$SUDO_USER"
+        detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$detected_home" ] && [ -d "$detected_home" ]; then
+            ACTUAL_DESKTOP_USER="$detected_user"
+            ACTUAL_DESKTOP_USER_HOME="$detected_home"
+            return 0
+        fi
+    fi
+
+    # Priority 2: Find user with active desktop session
+    for user_home in /home/*; do
+        if [ -d "$user_home" ]; then
+            detected_user="$(basename "$user_home")"
+
+            # Check if user has active desktop session process
+            if pgrep -u "$detected_user" -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session" >/dev/null 2>&1; then
+                detected_home="$user_home"
+                ACTUAL_DESKTOP_USER="$detected_user"
+                ACTUAL_DESKTOP_USER_HOME="$detected_home"
+                return 0
+            fi
+        fi
+    done
+
+    # Priority 3: Find user with Desktop folder (typical desktop user)
+    for user_home in /home/*; do
+        if [ -d "$user_home/Desktop" ]; then
+            detected_user="$(basename "$user_home")"
+            detected_home="$user_home"
+            ACTUAL_DESKTOP_USER="$detected_user"
+            ACTUAL_DESKTOP_USER_HOME="$detected_home"
+            return 0
+        fi
+    done
+
+    # Priority 4: Find user with most running processes (likely the active user)
+    local max_processes=0
+    local best_user=""
+    local best_home=""
+    for user_home in /home/*; do
+        if [ -d "$user_home" ]; then
+            detected_user="$(basename "$user_home")"
+            local proc_count=$(pgrep -u "$detected_user" 2>/dev/null | wc -l)
+            if [ "$proc_count" -gt "$max_processes" ]; then
+                max_processes=$proc_count
+                best_user="$detected_user"
+                best_home="$user_home"
+            fi
+        fi
+    done
+
+    if [ -n "$best_user" ] && [ "$max_processes" -gt 0 ]; then
+        ACTUAL_DESKTOP_USER="$best_user"
+        ACTUAL_DESKTOP_USER_HOME="$best_home"
+        return 0
+    fi
+
+    # Priority 5: Find first non-system user (UID >= 1000, < 60000)
+    while IFS=: read -r username _ uid _ _ homedir _; do
+        if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$homedir" ]; then
+            ACTUAL_DESKTOP_USER="$username"
+            ACTUAL_DESKTOP_USER_HOME="$homedir"
+            return 0
+        fi
+    done < /etc/passwd
+
+    # Fallback: return empty (no user detected)
+    ACTUAL_DESKTOP_USER=""
+    ACTUAL_DESKTOP_USER_HOME=""
+    return 1
+}
+
 # Detect desktop environment first
 detect_desktop_environment
+
+# Detect actual desktop user (if running as root)
+detect_actual_desktop_user
 
 # Check if running in WSL
 if [ -d "$WSL_USERS_PATH" ]; then
@@ -835,8 +929,12 @@ map_web_path() {
     elif [ "$IS_PRODUCTION" = true ]; then
         base_path="/www"
     else
-        # Use data base directory + www
-        base_path="$data_base/www"
+        # Desktop environment: use data base + /www, unless data base is already /www
+        if [ "$data_base" = "/www" ]; then
+            base_path="/www"
+        else
+            base_path="$data_base/www"
+        fi
     fi
 
     # Map paths using common base path

@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\Route;
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
 
+// OCR API Routes (for MCP bridge)
+require_once __DIR__ . '/api_ocr.php';
+
+// McpV1 Routes
+require_once __DIR__ . '/McpV1Router/api.php';
+
 // AwyV0 Routes
 require_once __DIR__ . '/AwyV0Router/AwyV0Auth.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0User.php';
@@ -102,3 +108,6 @@ require_once __DIR__ . '/VipClubV1Router/api.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
+
+// McpV1 routes - MCP application
+require_once __DIR__ . '/McpV1Router/api.php';
