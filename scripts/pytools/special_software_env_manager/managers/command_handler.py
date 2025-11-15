@@ -108,6 +108,9 @@ class CommandHandler:
         print()
         selected_action = show_menu("Script Selection", menu_items)
 
+        if selected_action is None:
+            return None, None
+
         if selected_action.startswith('create_'):
             mode = 'create'
             file_number = int(selected_action.replace('create_', ''))
@@ -126,7 +129,7 @@ class CommandHandler:
 
         for var in config['Variables']:
             var_name = var['Name']
-            display_name = var['DisplayName']
+            display_name = var.get('DisplayName', var['Name'])
             existing_value = None
 
             secret_key_name = f"{var_name}_{file_number}"
@@ -176,6 +179,12 @@ class CommandHandler:
             return
 
         mode, file_number = self._select_file_number(config, command_prefix)
+
+        if mode is None or file_number is None:
+            ColorMessage.write("Operation cancelled.", 'info')
+            print()
+            input("Press Enter to continue...")
+            return
 
         clear_screen()
         ColorMessage.write(f"Add Global Command for {config_name}", 'info')

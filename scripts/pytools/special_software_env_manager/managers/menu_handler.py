@@ -60,6 +60,9 @@ class MenuHandler:
 
             action = show_menu("Special Software Environment Variables Manager", menu_items)
 
+            if action is None:
+                continue
+
             if action == 'addpath':
                 handlers['env_var_manager'].add_scripts_to_path()
             elif action == 'viewall':
@@ -156,6 +159,9 @@ class MenuHandler:
             ])
 
             submenu_action = show_menu(f"{display_name} Menu", menu_items)
+
+            if submenu_action is None:
+                continue
 
             if submenu_action == 'addcommand':
                 handlers['command_handler'].add_global_command(config_name, config)
