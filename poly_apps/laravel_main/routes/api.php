@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\Route;
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
 
+// Octane Timer Status API Routes
+require_once __DIR__ . '/api/octane_timer.php';
+
 // OCR API Routes (for MCP bridge)
 require_once __DIR__ . '/api_ocr.php';
 

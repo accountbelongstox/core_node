@@ -14,4 +14,5 @@
 
 return [
     App\Providers\AppServiceProvider::class,
+    App\Providers\OctaneTimerServiceProvider::class,
 ];
