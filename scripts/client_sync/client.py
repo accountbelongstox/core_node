@@ -54,7 +54,7 @@ from common.config import (
 
 # Configuration
 LISTEN_PORT = SYNC_PORT
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent.parent.parent  # D:\programing\core_node
 SERVER_PORT = SYNC_PORT
 
 # Global state
