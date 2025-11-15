@@ -46,9 +46,8 @@ import json
 import hashlib
 from pathlib import Path
 from datetime import datetime
-import platform
 
-from common.network_util import get_local_ip, get_network_segment, scan_lan_hosts
+from common.network_util import get_local_ip, get_network_segment, scan_lan_hosts, get_all_available_ips, is_client_host, HostIdentifier
 from common.config import (
     SYNC_PORT, SYNC_INTERVAL, IGNORE_DIRS, IGNORE_EXTENSIONS, IGNORE_FILES,
     CHUNK_SIZE, SOCKET_TIMEOUT, SCAN_TIMEOUT
@@ -147,64 +146,6 @@ def get_file_mtime(file_path):
         return None
 
 
-def get_all_available_ips():
-    """Get all available IP addresses on this machine"""
-    ips = set()
-    
-    hostname = socket.gethostname()
-    try:
-        host_ips = socket.gethostbyname_ex(hostname)[2]
-        ips.update(host_ips)
-    except:
-        pass
-    
-    try:
-        host_ips = socket.gethostbyname_ex("localhost")[2]
-        ips.update(host_ips)
-    except:
-        pass
-    
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        ips.add(local_ip)
-        s.close()
-    except:
-        pass
-    
-    if platform.system() == "Windows":
-        try:
-            import subprocess
-            result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
-            for line in result.stdout.split("\n"):
-                if "IPv4" in line or "IP Address" in line:
-                    parts = line.split(":")
-                    if len(parts) > 1:
-                        ip = parts[1].strip()
-                        if ip and ip != "0.0.0.0":
-                            try:
-                                socket.inet_aton(ip)
-                                ips.add(ip)
-                            except:
-                                pass
-        except:
-            pass
-    else:
-        try:
-            import subprocess
-            result = subprocess.run(["hostname", "-I"], capture_output=True, text=True, timeout=5)
-            for ip in result.stdout.strip().split():
-                if ip:
-                    try:
-                        socket.inet_aton(ip)
-                        ips.add(ip)
-                    except:
-                        pass
-        except:
-            pass
-    
-    return sorted(list(ips))
 
 def send_file_to_client(sock, file_path, relative_path):
     """
@@ -339,6 +280,7 @@ def sync_files_to_client():
             print(f"Error in sync loop: {e}")
             time.sleep(SYNC_INTERVAL)
 
+
 def scan_for_other_servers(local_ip, network_segment, available_ips):
     """
     Scan LAN for other servers running on the same port
@@ -346,10 +288,11 @@ def scan_for_other_servers(local_ip, network_segment, available_ips):
     PURPOSE: Detect if other servers are already running before starting
     MULTIPLE SERVER DETECTION: If other servers are found, server will stop and prompt
     
-    NOTE: Scans for hosts with port open (could be servers or clients, but we check anyway)
+    NOTE: Filters out clients - only reports actual other servers
+    USES: HostIdentifier class for server/client identification
     
     RETURNS:
-    - list: List of other server IPs found (excluding all local IPs)
+    - list: List of other server IPs found (excluding all local IPs and clients)
     - None: If network segment cannot be detected
     """
     if not network_segment:
@@ -366,15 +309,37 @@ def scan_for_other_servers(local_ip, network_segment, available_ips):
     
     # Filter out all local IP addresses (this server's IPs)
     local_ips_set = set(available_ips)
-    other_servers = [ip for ip in all_hosts if ip not in local_ips_set]
+    other_hosts = [ip for ip in all_hosts if ip not in local_ips_set]
+    
+    if not other_hosts:
+        print(f"[SCAN] No other hosts found (only this server's IPs detected)")
+        return []
+    
+    # Use HostIdentifier class to filter out clients
+    print(f"[SCAN] Checking {len(other_hosts)} host(s) to identify clients vs servers...")
+    identifier = HostIdentifier(CLIENT_PORT, SCAN_TIMEOUT)
+    filtered = identifier.filter_hosts(other_hosts, exclude_local_ips=local_ips_set, exclude_type="client")
+    
+    clients_found = filtered["clients"]
+    other_servers = filtered["servers"]
+    
+    # Display identification results
+    for host_ip in other_hosts:
+        host_type = identifier.identify_host(host_ip)
+        if host_type == "client":
+            print(f"[SCAN] {host_ip}:{CLIENT_PORT} - identified as CLIENT (ignoring)")
+        elif host_type == "server":
+            print(f"[SCAN] {host_ip}:{CLIENT_PORT} - identified as SERVER (WARNING)")
+    
+    if clients_found:
+        print(f"[SCAN] Filtered out {len(clients_found)} client(s)")
     
     if other_servers:
-        print(f"[SCAN] Found {len(other_servers)} other host(s) on port {CLIENT_PORT}:")
-        for i, host_ip in enumerate(other_servers, 1):
-            print(f"  {i}. {host_ip}:{CLIENT_PORT}")
-        print(f"[SCAN] WARNING: These may be other servers or clients")
+        print(f"[SCAN] Found {len(other_servers)} other server(s):")
+        for i, server_ip in enumerate(other_servers, 1):
+            print(f"  {i}. {server_ip}:{CLIENT_PORT}")
     else:
-        print(f"[SCAN] No other hosts found (only this server's IPs detected)")
+        print(f"[SCAN] No other servers found (only clients detected)")
     
     return other_servers
 
