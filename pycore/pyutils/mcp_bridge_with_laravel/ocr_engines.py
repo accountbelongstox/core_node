@@ -10,11 +10,34 @@ import sys
 import json
 import base64
 import logging
-import requests
 import time
+import tempfile
+import importlib.util
 from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
-import tempfile
+
+from pycore.pyfoundations.third_party import requests
+
+# Check for optional dependencies at module level
+_paddleocr_available = importlib.util.find_spec("paddleocr") is not None
+_paddle_available = importlib.util.find_spec("paddle") is not None
+_cnocr_available = importlib.util.find_spec("cnocr") is not None
+
+# Import if available
+if _paddleocr_available:
+    from paddleocr import PaddleOCR
+else:
+    PaddleOCR = None
+
+if _paddle_available:
+    import paddle
+else:
+    paddle = None
+
+if _cnocr_available:
+    import cnocr
+else:
+    cnocr = None
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -262,10 +285,8 @@ class PaddleOCREngine:
             if self.is_initialized:
                 return True
 
-            # Try to import PaddleOCR
-            try:
-                from paddleocr import PaddleOCR
-            except ImportError:
+            # Check if PaddleOCR is available
+            if not _paddleocr_available or PaddleOCR is None:
                 self.initialization_error = "PaddleOCR not installed. Install with: pip install paddleocr"
                 logger.error(self.initialization_error)
                 return False
@@ -289,8 +310,9 @@ class PaddleOCREngine:
 
     def _check_gpu_support(self) -> bool:
         """Check if GPU support is available"""
+        if not _paddle_available or paddle is None:
+            return False
         try:
-            import paddle
             return paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0
         except:
             return False
@@ -479,19 +501,12 @@ class OCRManager:
                 available.append(name)
             elif name == 'paddle':
                 # Check if PaddleOCR is available
-                try:
-                    import paddle
-                    import paddleocr
+                if _paddle_available and _paddleocr_available:
                     available.append(name)
-                except ImportError:
-                    pass
             elif name == 'cnocr':
                 # Check if CnOCR is available
-                try:
-                    import cnocr
+                if _cnocr_available:
                     available.append(name)
-                except ImportError:
-                    pass
         return available
 
     def recognize(self, image_path: str, engine: str = None, **kwargs) -> OCRResult:

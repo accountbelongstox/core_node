@@ -252,6 +252,7 @@ def check_and_install_dependencies():
 
     Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
     """
+    ColorPrint.blue("[INFO] Checking for required Python packages...")
     # Allow callers to skip dependency checks via environment variable
     if os.environ.get('PYCORE_SKIP_DEP_CHECK') == '1':
         ENCYCLOPEDIA['pycore_dependencies_checked'] = True
@@ -271,7 +272,6 @@ def check_and_install_dependencies():
     # Check and install system packages first (before Python packages)
     install_system_packages()
 
-    ColorPrint.blue("[INFO] Checking for required Python packages...")
     installed_packages = set()
     missing_packages = set()
     installed_packages_list = []
@@ -382,7 +382,6 @@ def check_and_install_dependencies():
         else:
             installed_packages.add(package_name)
             installed_packages_list.append(package_name)
-            ColorPrint.green(f"[OK] Package '{import_name_to_check}' ('{package_name}') is already installed")
     
     # Report failed packages if any
     if failed_packages:
@@ -394,27 +393,6 @@ def check_and_install_dependencies():
         ColorPrint.blue(f"[INFO] Found installed packages: {', '.join(sorted(installed_packages))}")
     ColorPrint.green("[INFO] All required packages are available.")
 
-    # GPU Detection and Setup (default: enabled, auto_install: False)
-    enable_gpu_setup = os.environ.get('PYCORE_ENABLE_GPU_SETUP', 'true').lower() == 'true'
-    auto_install_gpu = os.environ.get('PYCORE_AUTO_INSTALL_GPU', 'false').lower() == 'true'
-    
-    if enable_gpu_setup:
-        try:
-            # Delay import to avoid circular dependency
-            from pycore.pyutils.ultralytics.unified_gpu_manager import get_gpu_manager
-
-            # Initialize GPU manager (verbose=True to show detection info)
-            # auto_install will install PyTorch CUDA if GPU detected
-            gpu_manager = get_gpu_manager(verbose=True, auto_install=auto_install_gpu)
-
-            # Store GPU info in ENCYCLOPEDIA for quick access
-            ENCYCLOPEDIA.add("pycore_gpu_info", gpu_manager.get_info())
-        except ImportError:
-            # GPU manager not available (pyutils.ultralytics not installed)
-            ColorPrint.blue("[INFO] GPU manager not available, skipping GPU setup")
-        except Exception as e:
-            # Non-critical error, continue
-            ColorPrint.yellow(f"[WARNING] GPU setup failed: {e}")
 
     # Mark as checked in ENCYCLOPEDIA (persists for entire Python process)
     ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
@@ -446,8 +424,10 @@ import netifaces
 import websockets
 import requests
 import uvicorn
+import fastapi
 import PIL
 import cv2
+import pyautogui
 import psutil
 import mss
 import torch
@@ -457,29 +437,25 @@ import adb_shell
 import av
 import loguru
 import yaml
-# Azure Cognitive Services Speech SDK
-try:
-    import azure.cognitiveservices.speech
-    speechsdk = azure.cognitiveservices.speech
-except ImportError:
-    speechsdk = None
+import webview
+import tkinterweb
+import tkhtmlview
+import pystray
+import cnocr
+# Azure Cognitive Services Speech SDK - trust it's installed if in DEPENDENCY_MAP
+import azure.cognitiveservices.speech
+speechsdk = azure.cognitiveservices.speech
 
-# Edge TTS (Microsoft Edge Text-to-Speech)
-try:
-    import edge_tts
-except ImportError:
-    edge_tts = None
+# Edge TTS (Microsoft Edge Text-to-Speech) - trust it's installed if in DEPENDENCY_MAP
+import edge_tts
 
-# MCP (Model Context Protocol)
-try:
-    import mcp
-    from mcp.server.fastmcp import FastMCP
-except ImportError:
-    mcp = None
-    FastMCP = None
+# MCP (Model Context Protocol) - trust it's installed if in DEPENDENCY_MAP
+import mcp
+from mcp.server.fastmcp import FastMCP
 
 # Windows-only packages (only available on Windows)
-if platform.system() == 'Windows':
+current_platform = platform.system()
+if current_platform == 'Windows':
     import win32gui
     import win32con
     import win32api
@@ -499,7 +475,6 @@ else:
 
 
 __all__ = [
-    'check_and_install_dependencies',
     'check_system_package_installed',
     'install_system_packages',
     'DEPENDENCY_MAP',
@@ -536,3 +511,10 @@ __all__ = [
     'FastMCP',
     # Windows-only packages (only available on Windows)
     'win32gui',
+    'win32con',
+    'win32api',
+    'win32ui',
+    'pywinauto',
+    'pygetwindow',
+    'uiautomation',
+]

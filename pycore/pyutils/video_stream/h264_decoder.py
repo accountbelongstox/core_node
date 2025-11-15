@@ -1,12 +1,12 @@
 """H.264 decoder using PyAV"""
 
-import av
-import numpy as np
 from typing import Generator, Optional
 from io import BytesIO
 
+from pycore.pyfoundations.third_party import av, numpy
 from pycore.pyutils.video_stream.video_decoder import VideoDecoder
 from pycore.pyutils.video_stream.stream_types import VideoFrame, VideoFormat
+import numpy as np
 
 
 class H264Decoder(VideoDecoder):

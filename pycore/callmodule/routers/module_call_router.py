@@ -3,12 +3,13 @@
 Module Call Router - Module calling API routes
 """
 
-from fastapi import APIRouter
+from pycore.pyfoundations.third_party import fastapi
 
 from ..controllers import ModuleCallController
 from ..models.request_models import ModuleCallRequest, ModuleCallResponse
 from ..models.response_models import HistoryResponse
 
+APIRouter = fastapi.APIRouter
 module_call_router = APIRouter(prefix="/api", tags=["Module Call"])
 
 # Initialize controller

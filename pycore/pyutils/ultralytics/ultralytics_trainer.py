@@ -11,8 +11,9 @@ import glob
 from pathlib import Path
 from typing import Optional, Dict, List, Union, Any, Callable
 from dataclasses import dataclass, field
-import yaml
 import json
+
+from pycore.pyfoundations.third_party import yaml
 
 
 def process_image_config(source_dir: Path, image_config, config_name: str = "images", subdirectory: Optional[str] = None) -> List[Path]:

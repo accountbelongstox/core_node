@@ -14,7 +14,13 @@ from typing import Tuple, Optional, Dict, Any, List, Union
 from pathlib import Path
 
 from pycore.pyfoundations.third_party import PIL
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
+ImageEnhance = PIL.ImageEnhance
+ImageFilter = PIL.ImageFilter
+ImageOps = PIL.ImageOps
 
 logger = logging.getLogger(__name__)
 

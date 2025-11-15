@@ -2,12 +2,13 @@ import os
 import threading
 import time
 import subprocess
-import psutil
 from queue import Queue, Empty
 from typing import Callable, Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
+
+from pycore.pyfoundations.third_party import psutil
 
 from pycore.pygvar import (
     SEVEN_ZIP_EXECUTABLE,

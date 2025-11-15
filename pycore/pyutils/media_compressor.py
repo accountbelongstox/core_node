@@ -14,8 +14,6 @@ Features:
 - Task-level and queue-level callbacks
 """
 
-import cv2
-import numpy as np
 import subprocess
 import threading
 import queue
@@ -24,8 +22,11 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple, Union, List, Callable
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from pycore.pyfoundations.third_party import cv2, numpy
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
+import numpy as np
 
 
 @dataclass

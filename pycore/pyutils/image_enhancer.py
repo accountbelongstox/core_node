@@ -11,7 +11,9 @@ from abc import ABC, abstractmethod
 
 from pycore.pyfoundations.third_party import cv2, numpy, PIL
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
 
 
 class ImageEnhancement(ABC):

@@ -12,7 +12,8 @@ from typing import Dict, Optional, Any
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import aiohttp
-from aiohttp.web_ws import WebSocketResponse
+
+WebSocketResponse = aiohttp.web_ws.WebSocketResponse
 
 
 class ClientManager:

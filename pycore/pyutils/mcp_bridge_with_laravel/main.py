@@ -36,7 +36,7 @@ import mimetypes
 import threading
 
 # FastMCP framework
-from mcp.server.fastmcp import FastMCP
+from pycore.pyfoundations.third_party import FastMCP
 
 # Import OCR engines and queue system
 try:
