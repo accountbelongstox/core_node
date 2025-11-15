@@ -217,11 +217,11 @@ start_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl start "$octane_service"; then
-                    echo -e "${GREEN}âœ“ Started $octane_service${NC}"
+                    echo -e "${GREEN}âœ?Started $octane_service${NC}"
                     $USE_SUDO systemctl enable "$octane_service" 2>/dev/null
                     ((success_count++))
                 else
-                    echo -e "${RED}âœ— Failed to start $octane_service${NC}"
+                    echo -e "${RED}âœ?Failed to start $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -286,10 +286,10 @@ stop_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl stop "$octane_service"; then
-                    echo -e "${GREEN}âœ“ Stopped $octane_service${NC}"
+                    echo -e "${GREEN}âœ?Stopped $octane_service${NC}"
                     ((success_count++))
                 else
-                    echo -e "${RED}âœ— Failed to stop $octane_service${NC}"
+                    echo -e "${RED}âœ?Failed to stop $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -338,10 +338,10 @@ restart_service() {
 
         for octane_service in $octane_services; do
             if $USE_SUDO systemctl restart "$octane_service"; then
-                echo -e "${GREEN}âœ“ Restarted $octane_service${NC}"
+                echo -e "${GREEN}âœ?Restarted $octane_service${NC}"
                 ((success_count++))
             else
-                echo -e "${RED}âœ— Failed to restart $octane_service${NC}"
+                echo -e "${RED}âœ?Failed to restart $octane_service${NC}"
                 ((fail_count++))
             fi
         done
@@ -642,13 +642,13 @@ show_main_menu() {
 
             # Show quick action hints
             if [ "$status" = "NOT_INSTALLED" ]; then
-                echo -e "  ${YELLOW}â†’ ${index}i${NC} Install"
+                echo -e "  ${YELLOW}â†?${index}i${NC} Install"
             else
                 # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
                 if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
-                    echo -e "  ${YELLOW}â†’ ${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}â†?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
                 else
-                    echo -e "  ${YELLOW}â†’ ${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}â†?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
                 fi
             fi
 

@@ -369,10 +369,10 @@ restart_all_octane() {
 
     for service in $services; do
         if systemctl restart "$service" 2>/dev/null; then
-            echo -e "${GREEN}âœ“ $service${NC}"
+            echo -e "${GREEN}âœ?$service${NC}"
             ((success_count++))
         else
-            echo -e "${RED}âœ— $service${NC}"
+            echo -e "${RED}âœ?$service${NC}"
             ((fail_count++))
         fi
         sleep 1
