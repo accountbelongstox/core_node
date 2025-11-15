@@ -385,6 +385,7 @@ if ($env:OPENAI_BASE_URL) {
 }
 
 
+
 #region Build Launch Command Display
 $envVarsParts = @()
 
@@ -403,6 +404,7 @@ if ($envVarsCommand) {
     $fullCommandDisplay = "codex"
 }
 #endregion
+
 
 
 #region MCP Server Synchronization
@@ -464,6 +466,7 @@ $null = Read-Host "Press Enter to continue"
 
 
 #endregion
+
 
 
 #region Launch Tool

@@ -21,7 +21,7 @@
 .NOTES
     - Tool Name: Claude AI
     - Command Prefix: claude
-    - PowerShell Command: claude
+    - PowerShell Command: claude --dangerously-skip-permissions
     - File Number: 4
     - File Name: claude4.ps1
 #>
@@ -392,6 +392,7 @@ if ($env:ANTHROPIC_API_KEY) {
 }
 
 
+
 #region Build Launch Command Display
 $envVarsParts = @()
 
@@ -409,11 +410,12 @@ if ($env:ANTHROPIC_API_KEY) {
 
 $envVarsCommand = $envVarsParts -join '; '
 if ($envVarsCommand) {
-    $fullCommandDisplay = "$envVarsCommand; claude"
+    $fullCommandDisplay = "$envVarsCommand; claude --dangerously-skip-permissions"
 } else {
-    $fullCommandDisplay = "claude"
+    $fullCommandDisplay = "claude --dangerously-skip-permissions"
 }
 #endregion
+
 
 
 #region MCP Server Synchronization
@@ -477,6 +479,7 @@ $null = Read-Host "Press Enter to continue"
 #endregion
 
 
+
 #region Launch Tool
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -485,7 +488,7 @@ Write-Host "============================================================" -Foreg
 $null = Read-Host "Press Enter to continue"
 
 Write-Host ""
-Write-Host "Executing: claude" -ForegroundColor White
+Write-Host "Executing: claude --dangerously-skip-permissions" -ForegroundColor White
 Write-Host ""
 Write-Host "PowerShell Command: powershell -NoProfile -ExecutionPolicy Bypass -Command `"$fullCommandDisplay`"" -ForegroundColor White
 Write-Host ""
