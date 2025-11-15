@@ -8,6 +8,7 @@ Sub-app that imports logic from controller in mcpserver
 
 import sys
 import asyncio
+import argparse
 from pathlib import Path
 
 # Add project root to path
@@ -20,7 +21,6 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 def parse_args():
     """Parse command line arguments"""
-    import argparse
 
     parser = argparse.ArgumentParser(description='Document Offline Crawler')
     parser.add_argument('target_url', help='URL to crawl')

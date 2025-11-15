@@ -236,6 +236,7 @@ class ServerManagerV1DomainManager
             'php_mode' => $phpMode,
             'swoole_port' => $swoolePort,
             'swoole_service_name' => $swooleServiceName,
+            'swoole_host' => $config['swoole_host'] ?? '0.0.0.0',
             'swoole_workers' => $config['swoole_workers'] ?? 4,
             'ssl_enabled' => $config['ssl_enabled'] ?? false,
             'ssl_provider' => $config['ssl_provider'] ?? 'dnspod',

@@ -219,6 +219,7 @@ class ServerManagerV1OctaneServiceManager
      * @param string|null $serviceUser Service user (defaults based on context)
      * @param string|null $serviceGroup Service group (defaults to $serviceUser)
      * @param string|null $description Optional description (e.g., list of domains using this service)
+     * @param string $host Host to bind to (default: 0.0.0.0 for all interfaces, use 127.0.0.1 for localhost only)
      */
     public static function createOctaneServiceFromPath(
         string $wwwDir,
@@ -227,7 +228,8 @@ class ServerManagerV1OctaneServiceManager
         ?string $laravelPath = null,
         ?string $serviceUser = null,
         ?string $serviceGroup = null,
-        ?string $description = null
+        ?string $description = null,
+        string $host = '0.0.0.0'
     ): bool {
         // Auto-assign port if not provided
         if ($port === null) {
@@ -278,7 +280,8 @@ class ServerManagerV1OctaneServiceManager
             $serviceName,
             $serviceUser,
             $serviceGroup,
-            $description
+            $description,
+            $host
         );
         $timerContent = self::generateTimerFileContent($serviceName);
 
@@ -409,6 +412,7 @@ class ServerManagerV1OctaneServiceManager
      * - 48-hour auto-restart via timer (prevents memory leaks)
      * - Configurable service user (default: root for CLI, www-data for API)
      * - Path-based naming: One service per directory, shared by multiple domains
+     * - Configurable host binding (0.0.0.0 for all IPs, 127.0.0.1 for localhost only)
      */
     private static function generateServiceFileContentFromPath(
         string $wwwDir,
@@ -418,7 +422,8 @@ class ServerManagerV1OctaneServiceManager
         string $serviceName,
         string $serviceUser,
         string $serviceGroup,
-        ?string $description = null
+        ?string $description = null,
+        string $host = '0.0.0.0'
     ): string {
         // Calculate 20% of system memory
         $memInfo = file_get_contents('/proc/meminfo');
@@ -445,7 +450,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart=/usr/bin/php {$laravelPath}/artisan octane:start --host=127.0.0.1 --port={$port} --workers={$workers}
+ExecStart=/usr/bin/php {$laravelPath}/artisan octane:start --host={$host} --port={$port} --workers={$workers}
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -531,7 +536,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart=/usr/bin/php {$laravelPath}/artisan octane:start --host=127.0.0.1 --port={$port} --workers={$workers}
+ExecStart=/usr/bin/php {$laravelPath}/artisan octane:start --host=0.0.0.0 --port={$port} --workers={$workers}
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -902,6 +907,7 @@ EOF;
      * @param string|null $serviceUser Service user
      * @param string|null $serviceGroup Service group
      * @param string|null $description Optional description (e.g., list of domains)
+     * @param string $host Host to bind to (default: 0.0.0.0 for all interfaces)
      */
     public static function deployOctaneServiceFromPath(
         string $wwwDir,
@@ -910,7 +916,8 @@ EOF;
         ?string $laravelPath = null,
         ?string $serviceUser = null,
         ?string $serviceGroup = null,
-        ?string $description = null
+        ?string $description = null,
+        string $host = '0.0.0.0'
     ): bool {
         Log::info('Deploying Octane service for path (idempotent)', [
             'www_dir' => $wwwDir,
@@ -938,7 +945,7 @@ EOF;
                 ]);
 
                 // Regenerate service file with updated description
-                if (!self::createOctaneServiceFromPath($wwwDir, $existing['port'], $workers, $laravelPath, $serviceUser, $serviceGroup, $description)) {
+                if (!self::createOctaneServiceFromPath($wwwDir, $existing['port'], $workers, $laravelPath, $serviceUser, $serviceGroup, $description, $host)) {
                     Log::warning('Failed to update service description, continuing anyway');
                 } else {
                     // Reload systemd daemon to pick up the updated description
@@ -992,7 +999,7 @@ EOF;
         }
 
         // STEP 4: Create new service
-        if (!self::createOctaneServiceFromPath($wwwDir, $port, $workers, $laravelPath, $serviceUser, $serviceGroup, $description)) {
+        if (!self::createOctaneServiceFromPath($wwwDir, $port, $workers, $laravelPath, $serviceUser, $serviceGroup, $description, $host)) {
             Log::error('Failed to create new service');
             return false;
         }

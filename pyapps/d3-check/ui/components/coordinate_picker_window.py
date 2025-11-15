@@ -7,10 +7,12 @@ Large screenshot display with coordinate picking tools
 
 import tkinter as tk
 from tkinter import ttk
-from PIL import Image, ImageTk, ImageDraw
 from typing import Optional, Callable, List, Dict
 from pathlib import Path
 import sys
+
+from pycore.pyfoundations.third_party import PIL
+from PIL import Image, ImageTk, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 

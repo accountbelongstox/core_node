@@ -26,7 +26,6 @@ from pathlib import Path
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
 
-# Trust programming - import packages that are in DEPENDENCY_MAP
 from pycore.pyfoundations.third_party import torch, cv2
 
 

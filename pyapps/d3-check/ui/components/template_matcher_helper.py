@@ -6,11 +6,13 @@ Handles template image matching and visualization on screenshots
 """
 
 import tkinter as tk
-from PIL import Image, ImageDraw
 from typing import Optional, List, Dict, Tuple
 from pathlib import Path
 import sys
 import copy
+
+from pycore.pyfoundations.third_party import PIL
+from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 

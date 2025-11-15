@@ -1,47 +1,12 @@
 {
     "mcpServers": {
         "AutoContext7MCP": {
-            "command": "bash",
-            "args": [
-                "/www/programing/core_node/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
-            ],
-            "env": {
-                "MAX_RETRIES": "3",
-                "RETRY_DELAY": "2",
-                "FORCE_REINSTALL": "false"
-            },
-            "disabled": false,
-            "autoApprove": [],
-            "timeout": 120000
-        },
-        "McpAlchemy": {
-            "command": "python3",
-            "args": [
-                "/www/programing/core_node/ncore/mcp_server/mcp-alchemy/main.py"
-            ],
-            "env": {
-                "EXECUTE_QUERY_MAX_CHARS": "4000"
-            },
-            "disabled": false,
-            "autoApprove": [
-                "get_namespace_guide",
-                "start_namespace_negotiation",
-                "confirm_namespace",
-                "list_session_databases",
-                "register_database",
-                "all_table_names",
-                "filter_table_names",
-                "schema_definitions",
-                "get_database_info",
-                "batch_insert",
-                "batch_update",
-                "batch_delete",
-                "batch_upsert",
-                "batch_select",
-                "analyze_table_performance",
-                "create_optimized_index",
-                "get_database_stats"
-            ]
+            "type": "streamable-http",
+            "url": "https://mcp.context7.com/mcp",
+            "headers": {
+                "CONTEXT7_API_KEY": "YOUR_API_KEY",
+                "Accept": "application/json, text/event-stream"
+            }
         },
         "AlibabaDataworks": {
             "command": "node",
@@ -71,87 +36,6 @@
             },
             "disabled": false,
             "autoApprove": []
-        },
-        "PlaceholderImageGenerator": {
-            "command": "python3",
-            "args": [
-                "/www/programing/core_node/ncore/mcp_server/placeholder_image_generator/main.py"
-            ],
-            "env": {
-                "MCP_ALLOW_ALL_PATHS": "true"
-            },
-            "disabled": false,
-            "autoApprove": [
-                "generate_placeholder",
-                "list_placeholders",
-                "check_path_access",
-                "health_check"
-            ]
-        },
-        "FileProcessor": {
-            "command": "python3",
-            "args": [
-                "/www/programing/core_node/ncore/mcp_server/file_processor/main.py"
-            ],
-            "env": {
-                "MCP_ALLOW_ALL_PATHS": "true"
-            },
-            "disabled": true,
-            "autoApprove": [
-                "parse_document",
-                "convert_document",
-                "write_document",
-                "batch_convert",
-                "list_supported_formats",
-                "list_conversion_formats",
-                "initialize_packages",
-                "ocr_recognize",
-                "configure_ocr",
-                "list_ocr_engines",
-                "smart_ocr_recognize",
-                "get_ocr_task_status",
-                "get_ocr_batch_status",
-                "get_ocr_system_status",
-                "analyze_image_pixels",
-                "health_check"
-            ]
-        },
-        "CodebaseScanner": {
-            "command": "python3",
-            "args": [
-                "/www/programing/core_node/ncore/mcp_server/codebase-scanner/main.py"
-            ],
-            "env": {
-                "ENABLE_GLOBAL_ACCESS": "true"
-            },
-            "disabled": true,
-            "autoApprove": [
-                "generate_directory_tree",
-                "find_file_by_name",
-                "search_content_in_files",
-                "get_codebase_stats",
-                "find_file_by_path",
-                "scan_flutter_apps",
-                "print_flutter_app_structure",
-                "health_check"
-            ]
-        },
-        "CodebaseContentHub": {
-            "command": "python3",
-            "args": [
-                "/www/programing/core_node/pymain.py",
-                "app=codebase_content_hub"
-            ],
-            "env": {
-                "MCP_ALLOW_ALL_PATHS": "true"
-            },
-            "disabled": false,
-            "autoApprove": [
-                "get_directory_tree",
-                "describe_directory",
-                "get_file_content",
-                "health_check"
-            ]
         },
         "AICollaboration": {
             "command": "python3",
@@ -198,6 +82,40 @@
             ],
             "timeout": 60000,
             "description": "Universal MCP Bridge for Laravel McpV1 application - MCP app located at app/Apps/McpV1/ (per LARAVEL_GUIDE), bridges stdio MCP with HTTP MCP server at /mcp/mcpv1 (lowercase per guide), automatically handles file operations. Uses pycore.pyfoundations.third_party for dependency management (aiohttp, mcp packages)."
+        },
+        "MCPUnifiedServer": {
+            "command": "python3",
+            "args": [
+                "/www/programing/core_node/pymain.py",
+                "app=mcp"
+            ],
+            "env": {
+                "MCP_ALLOW_ALL_PATHS": "true"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "get_file_info_with_ocr_and_document_parsing_tool",
+                "generate_placeholder_image_with_ocr_tool",
+                "query_file_processing_history_tool",
+                "clear_file_cache_tool",
+                "database_namespace_negotiation_tool",
+                "database_register_and_connect_tool",
+                "database_execute_query_with_safety_tool",
+                "database_batch_operations_tool",
+                "database_schema_inspection_tool",
+                "database_get_statistics_tool",
+                "database_health_check_tool",
+                "codebase_get_directory_tree_tool",
+                "codebase_find_files_by_pattern_tool",
+                "codebase_search_content_tool",
+                "codebase_get_file_content_tool",
+                "codebase_analyze_statistics_tool",
+                "codebase_describe_directory_tool",
+                "codebase_scan_framework_apps_tool",
+                "codebase_health_check_tool"
+            ],
+            "timeout": 120000,
+            "description": "Unified MCP Server v2.0: File Processing + Database Management + Codebase Analysis (19 tools total). Consolidates McpAlchemy, CodebaseScanner, and CodebaseContentHub."
         }
     }
 }
