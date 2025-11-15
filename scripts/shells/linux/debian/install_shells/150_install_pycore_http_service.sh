@@ -11,12 +11,12 @@ source "$PARENT_DIR_LEVEL_2/common/debian_service_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 
 SERVICE_NAME="pycore-module-caller"
-SERVICE_DESCRIPTION="Pycore Module Caller HTTP Service"
+SERVICE_DESCRIPTION="Pycore Module Caller FastAPI Service"
 SERVICE_PORT=59000
 SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore_module_caller.py"
 SERVICE_WORKING_DIR="$CORE_NODE_ROOT_FROM_SCRIPTS"
 SERVICE_USER="root"
-SERVICE_EXEC="/usr/bin/python3 $SERVICE_SCRIPT"
+SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/bin/python3 $SERVICE_SCRIPT"
 
 echo "Installing $SERVICE_DESCRIPTION..."
 echo "  Port: $SERVICE_PORT"
@@ -48,19 +48,20 @@ sleep 3
 
 # Check service status
 if systemctl is-active --quiet "$SERVICE_NAME.service"; then
-    echo "âœ?Pycore HTTP service started successfully"
+    echo "âœ“ Pycore FastAPI service started successfully"
     echo "  Service: $SERVICE_NAME"
     echo "  Port: $SERVICE_PORT"
-    echo "  URL: http://127.0.0.1:$SERVICE_PORT"
+    echo "  Health: http://127.0.0.1:$SERVICE_PORT/health"
+    echo "  API Docs: http://127.0.0.1:$SERVICE_PORT/docs"
 
     # Test health endpoint
     if curl -s "http://127.0.0.1:$SERVICE_PORT/health" > /dev/null 2>&1; then
-        echo "âœ?Health check passed"
+        echo "âœ“ Health check passed"
     else
-        echo "âš?Health check failed"
+        echo "âœ— Health check failed"
     fi
 else
-    echo "âœ?Failed to start Pycore HTTP service"
+    echo "âœ— Failed to start Pycore FastAPI service"
     systemctl status "$SERVICE_NAME.service" --no-pager
     exit 1
 fi

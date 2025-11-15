@@ -431,6 +431,74 @@ echo "[$SCRIPT_INDEX] =================================="
 # Update hosts file for local domains
 update_hosts_file
 
+# Offer to install Laravel Octane File Watcher Daemon
+echo "[$SCRIPT_INDEX]"
+echo "[$SCRIPT_INDEX] =================================="
+echo "[$SCRIPT_INDEX] OCTANE FILE WATCHER DAEMON"
+echo "[$SCRIPT_INDEX] =================================="
+echo "[$SCRIPT_INDEX]"
+echo "[$SCRIPT_INDEX] The Octane File Watcher automatically restarts Octane services"
+echo "[$SCRIPT_INDEX] when Laravel files change. This is useful for active development."
+echo "[$SCRIPT_INDEX]"
+
+# Detect environment type
+is_wsl=false
+is_desktop=false
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    is_wsl=true
+    echo "[$SCRIPT_INDEX] Environment detected: WSL (Windows Subsystem for Linux)"
+elif [ -n "$DESKTOP_SESSION" ] || [ -n "$XDG_CURRENT_DESKTOP" ]; then
+    is_desktop=true
+    echo "[$SCRIPT_INDEX] Environment detected: Desktop Linux"
+else
+    echo "[$SCRIPT_INDEX] Environment detected: Server Linux"
+fi
+
+echo "[$SCRIPT_INDEX]"
+
+# Default answer based on environment
+if [ "$is_wsl" = true ] || [ "$is_desktop" = true ]; then
+    default_install="Y"
+    prompt_text="[$SCRIPT_INDEX] Install Octane File Watcher Daemon? (Y/n): "
+else
+    default_install="N"
+    prompt_text="[$SCRIPT_INDEX] Install Octane File Watcher Daemon? (y/N): "
+fi
+
+read -p "$prompt_text" install_watcher
+
+# Normalize answer
+if [ -z "$install_watcher" ]; then
+    install_watcher="$default_install"
+fi
+
+if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
+    echo "[$SCRIPT_INDEX] Installing Laravel Octane File Watcher..."
+    echo "[$SCRIPT_INDEX]"
+
+    watcher_install_script="$INSTALL_SHELLS_DIR/151_install_octane_watcher_daemon.sh"
+
+    if [ -f "$watcher_install_script" ]; then
+        bash "$watcher_install_script"
+
+        if [ $? -eq 0 ]; then
+            echo "[$SCRIPT_INDEX]"
+            echo "[$SCRIPT_INDEX] ✓ Octane File Watcher installed successfully"
+        else
+            echo "[$SCRIPT_INDEX]"
+            echo "[$SCRIPT_INDEX] ⚠ Octane File Watcher installation failed"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] Error: Watcher installation script not found"
+        echo "[$SCRIPT_INDEX]   Expected: $watcher_install_script"
+    fi
+else
+    echo "[$SCRIPT_INDEX] Skipping Octane File Watcher installation"
+    echo "[$SCRIPT_INDEX] You can install it later by running:"
+    echo "[$SCRIPT_INDEX]   bash $INSTALL_SHELLS_DIR/151_install_octane_watcher_daemon.sh"
+fi
+
 echo "[$SCRIPT_INDEX]"
 echo "[$SCRIPT_INDEX] Next Steps:"
 echo "[$SCRIPT_INDEX]   1. Run 134_setup_html_domains.sh to setup HTML domains"

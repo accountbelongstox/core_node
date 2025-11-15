@@ -78,8 +78,12 @@ SERVICE_SYSTEMD["laravel"]="laravel-octane"
 SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
 
+SERVICE_NAME["octane-watcher"]="Octane Watcher"
+SERVICE_SYSTEMD["octane-watcher"]="laravel-octane-watcher"
+SERVICE_INSTALL_SCRIPT["octane-watcher"]="151_install_octane_watcher_daemon.sh"
+
 # Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel")
+SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel" "octane-watcher")
 
 # Function to check if service is installed
 is_service_installed() {
@@ -217,11 +221,11 @@ start_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl start "$octane_service"; then
-                    echo -e "${GREEN}âœ?Started $octane_service${NC}"
+                    echo -e "${GREEN}ï¿½?Started $octane_service${NC}"
                     $USE_SUDO systemctl enable "$octane_service" 2>/dev/null
                     ((success_count++))
                 else
-                    echo -e "${RED}âœ?Failed to start $octane_service${NC}"
+                    echo -e "${RED}ï¿½?Failed to start $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -286,10 +290,10 @@ stop_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl stop "$octane_service"; then
-                    echo -e "${GREEN}âœ?Stopped $octane_service${NC}"
+                    echo -e "${GREEN}ï¿½?Stopped $octane_service${NC}"
                     ((success_count++))
                 else
-                    echo -e "${RED}âœ?Failed to stop $octane_service${NC}"
+                    echo -e "${RED}ï¿½?Failed to stop $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -338,10 +342,10 @@ restart_service() {
 
         for octane_service in $octane_services; do
             if $USE_SUDO systemctl restart "$octane_service"; then
-                echo -e "${GREEN}âœ?Restarted $octane_service${NC}"
+                echo -e "${GREEN}ï¿½?Restarted $octane_service${NC}"
                 ((success_count++))
             else
-                echo -e "${RED}âœ?Failed to restart $octane_service${NC}"
+                echo -e "${RED}ï¿½?Failed to restart $octane_service${NC}"
                 ((fail_count++))
             fi
         done
@@ -642,13 +646,13 @@ show_main_menu() {
 
             # Show quick action hints
             if [ "$status" = "NOT_INSTALLED" ]; then
-                echo -e "  ${YELLOW}â†?${index}i${NC} Install"
+                echo -e "  ${YELLOW}ï¿½?${index}i${NC} Install"
             else
                 # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
                 if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
-                    echo -e "  ${YELLOW}â†?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}ï¿½?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
                 else
-                    echo -e "  ${YELLOW}â†?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}ï¿½?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
                 fi
             fi
 
