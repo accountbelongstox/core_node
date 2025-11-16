@@ -28,7 +28,7 @@
 #     - Command: claude --dangerously-skip-permissions
 #     - File Number: 2
 #     - File Name: claude2.sh
-#     - Generation Time: 2025-11-16 23:06:45
+#     - Generation Time: 2025-11-17 00:45:55
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
@@ -153,9 +153,9 @@ fi
 
 if [ ${#env_vars_parts[@]} -gt 0 ]; then
     env_vars_command=$(IFS=' ' ; echo "${env_vars_parts[*]}")
-    full_command_display="$env_vars_command claude "
+    full_command_display="$env_vars_command claude --dangerously-skip-permissions"
 else
-    full_command_display="claude "
+    full_command_display="claude --dangerously-skip-permissions"
 fi
 #endregion
 
