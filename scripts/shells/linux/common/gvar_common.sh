@@ -999,6 +999,47 @@ map_web_path() {
             # Keep logs in Linux filesystem
             mapped_path="/var/log"
             ;;
+        "programing")
+            # Programming/development directory under base_path
+            mapped_path="$base_path/programing"
+            ;;
+        "core_node")
+            # Core node project directory under programing
+            mapped_path="$base_path/programing/core_node"
+            ;;
+        "npm_global")
+            # NPM global packages directory (in compile_dir)
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+                local data_base=$(get_base_data_directory)
+                mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
+            else
+                mapped_path="/usr/${sys_name}_${sys_version}/npm-global"
+            fi
+            ;;
+        "dev_system")
+            # Development system directory (same as compile_dir)
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+                local data_base=$(get_base_data_directory)
+                mapped_path="${data_base}/_${sys_name}_${sys_version}"
+            else
+                mapped_path="/usr/${sys_name}_${sys_version}"
+            fi
+            ;;
+        "dev_system_old")
+            # Old development system directory naming (dev_ubuntu24 style - no underscore prefix)
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+                local data_base=$(get_base_data_directory)
+                mapped_path="${data_base}/dev_${sys_name}${sys_version}"
+            else
+                mapped_path="/usr/dev_${sys_name}${sys_version}"
+            fi
+            ;;
         *)
             # Default: return the key as-is (assume it's already a path)
             mapped_path="$path_key"

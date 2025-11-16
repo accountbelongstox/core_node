@@ -1423,6 +1423,27 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    mRemoteNG = @{
+        PackageId           = "mRemoteNG.mRemoteNG"
+        Exec               = "mRemoteNG.exe"
+        Name               = "mRemoteNG"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_NETWORK_TOOLS
+        Description        = "Multi-protocol remote connections manager (RDP, VNC, SSH, Telnet, HTTP/S)"
+        InstallType        = "winget"
+        ForceToInstallDir  = $false
+        VerifySuffix       = ""
+        AdditionalKeywords = @("mRemoteNG", "rdp-manager", "remote-desktop-manager")
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     OpenAICodex = @{
         PackageId         = "@openai/codex"
         Exec              = "codex.exe"
