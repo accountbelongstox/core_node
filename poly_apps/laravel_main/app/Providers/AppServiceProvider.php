@@ -26,6 +26,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SyncComm
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1AdvancedCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1NginxInspectCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SwooleCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1NuxtAppCommand;
 use App\Console\Commands\CheckCertbotCommand;
 class AppServiceProvider extends ServiceProvider
 {
@@ -63,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
                 ServerManagerV1AdvancedCommand::class,
                 ServerManagerV1NginxInspectCommand::class,
                 ServerManagerV1SwooleCommand::class,
+                ServerManagerV1NuxtAppCommand::class,
                 CheckCertbotCommand::class,
             ]);
         }

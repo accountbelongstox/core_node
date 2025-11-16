@@ -121,7 +121,7 @@ Write-Host ""
         pre_launch_script_name = self.path_config.get_pre_launch_script_path(tool_type, 'linux').name
 
         pre_launch_section = f"""# Execute pre-launch script if it exists
-preLaunchScript="$aiToolsDirPath/{pre_launch_script_name}"
+preLaunchScript="$ai_tools_dir_path/{pre_launch_script_name}"
 if [ -f "$preLaunchScript" ]; then
     current_working_dir="$(pwd)"
     echo "[INFO] Executing pre-launch script: $preLaunchScript"
@@ -143,7 +143,7 @@ read -p "Do you want to upgrade {tool_display_name}? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
     echo "[INFO] Launching {tool_display_name} upgrade in separate terminal..."
-    upgrade_script="$aiToolsDirPath/{update_script_name}"
+    upgrade_script="$ai_tools_dir_path/{update_script_name}"
     if [ -f "$upgrade_script" ]; then
         if command -v gnome-terminal &> /dev/null; then
             gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
@@ -192,7 +192,7 @@ fi
 echo ""
 echo "Syncing MCP Server Configurations..."
 echo ""
-sync_script="$aiToolsDirPath/{sync_script_name}"
+sync_script="$ai_tools_dir_path/{sync_script_name}"
 if [ -f "$sync_script" ]; then
     echo "[INFO] Executing: python -u '$sync_script' --target {target_name} --working-dir '$current_working_dir'"
     echo "[INFO] Working Directory: $current_working_dir"
