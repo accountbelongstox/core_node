@@ -11,7 +11,9 @@ from typing import Tuple, List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 from PIL import Image
 
 # Add project paths

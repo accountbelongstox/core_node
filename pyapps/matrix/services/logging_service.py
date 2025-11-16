@@ -6,7 +6,9 @@ import sys
 import logging
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import loguru
+from pycore.pyfoundations.third_party import get_third_package_loguru
+
+loguru = get_third_package_loguru()
 
 try:
     logger = loguru.logger

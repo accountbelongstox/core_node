@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import win32gui, win32con, win32ui, PIL
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32ui, get_third_package_PIL
+
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32ui = get_third_package_win32ui()
+PIL = get_third_package_PIL()
 
 Image = PIL.Image
 ImageDraw = PIL.ImageDraw

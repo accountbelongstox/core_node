@@ -23,7 +23,9 @@ from pathlib import Path
 from typing import Dict, Optional, Callable, Any
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 
 web = aiohttp.web
 

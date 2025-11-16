@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Dict, Set, Optional, Tuple, Any
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 from aiohttp import web
 
 # Add pycore to path

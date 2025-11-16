@@ -11,7 +11,9 @@ from typing import Optional, Callable, List, Dict
 from pathlib import Path
 import sys
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 from PIL import Image, ImageTk, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

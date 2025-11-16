@@ -9,7 +9,10 @@ import logging
 from typing import Dict, Any, List, Tuple
 from collections import Counter
 
-from pycore.pyfoundations.third_party import PIL_Image, numpy
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_numpy
+
+PIL_Image = get_third_package_PIL_Image()
+numpy = get_third_package_numpy()
 
 logger = logging.getLogger(__name__)
 

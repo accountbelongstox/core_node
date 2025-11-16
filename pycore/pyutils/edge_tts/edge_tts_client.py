@@ -16,7 +16,9 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import edge_tts
+from pycore.pyfoundations.third_party import get_third_package_edge_tts
+
+edge_tts = get_third_package_edge_tts()
 from pycore.pyutils.edge_tts.config import TTSConfig
 
 

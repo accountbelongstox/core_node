@@ -132,11 +132,27 @@ pyapps/{appname}/
 ## 6. Third-party Packages
 
 ### 6.1 Dependency Management
-- All third-party packages MUST be registered in `pycore/pyfoundations/third_party.py` `DEPENDENCY_MAP` (maps import name to PyPI package name)
-- Windows-only packages go in `WINDOWS_ONLY_PACKAGES` dict in `third_party.py`
-- **REQUIRED**: All third-party packages MUST be imported from `pycore.pyfoundations.third_party`
-- **Forbidden**: Direct import of third-party packages (e.g., `import aiohttp` is forbidden, use `from pycore.pyfoundations.third_party import aiohttp`)
-- `third_party.py` automatically checks and installs missing packages on first import, uses ENCYCLOPEDIA cache (runs once per process), can be skipped via `PYCORE_SKIP_DEP_CHECK=1`
+- All third-party packages MUST be registered in `pycore/pyfoundations/third_party.py`:
+  - **DEPENDENCY_MAP**: Maps import name to PyPI package name (required packages)
+  - **OPTIONAL_PACKAGES**: Optional packages that won't cause import failure if missing (not auto-installed)
+  - **WINDOWS_ONLY_PACKAGES**: Windows-specific packages (automatically skipped on Linux/Mac)
+  - **SYSTEM_PACKAGES**: System packages for Linux/Debian/Ubuntu (installed via apt-get, not pip)
+- `third_party.py` automatically checks and installs missing packages on first import:
+  - Uses ENCYCLOPEDIA cache (runs once per process)
+  - Upgrades pip first if any packages need installation
+  - On Linux: checks and installs system packages via apt-get (requires sudo)
+  - Windows-only packages are automatically skipped on non-Windows systems
+  - Optional packages are NOT auto-installed (must be installed manually if needed)
+  - Can be skipped via `PYCORE_SKIP_DEP_CHECK=1` environment variable
+- Platform-specific pip flags: On Linux/Mac, uses `--break-system-packages --ignore-installed` for reliable installation
+
+### 6.2 Lazy Loading Pattern (REQUIRED)
+- **REQUIRED**: Import getter functions from `pycore.pyfoundations.third_party` (e.g., `get_third_package_torch`)
+- **REQUIRED**: Call getter function to obtain package (e.g., `torch = get_third_package_torch()`)
+- **Forbidden**: Direct package import (e.g., `import torch` or `from third_party import torch`)
+- **Performance**: Reduces import time from ~12s to <1s, packages load only when getter is called
+- **Caching**: Each package loads once, cached globally for subsequent calls
+- **Naming**: All getters follow pattern `get_third_package_{package_name}` (e.g., `get_third_package_numpy`, `get_third_package_PIL_Image`)
 
 ## 7. OCR (Optical Character Recognition) Utilities
 
@@ -164,3 +180,26 @@ Pycore Module Caller (`pycore.callmodule`) is a FastAPI service providing HTTP A
 
 ### 6.3 Unified Utils Export
 All pyutils utilities are exported from `pycore.pyutils` with `*_AVAILABLE` flags. Import pattern: `from pycore.pyutils import ocr_manager, OCR_AVAILABLE`. Use `get_available_utilities()` to check all available utilities. GUI components require `PYUTILS_LOAD_GUI=1` environment variable.
+
+## 8. Database System
+
+### 8.1 Database Specification
+- **Location**: `pycore/database/` (independent module, NOT in pyutils)
+- **Models Location**: `pycore/database/models/` (NOT `pycore/database_models/` - models are inside database module)
+- **Dependencies**: Only `pygvar`, `pyfoundations`, `sqlalchemy`
+- **Import**: `from pycore.database import database_manager, BaseModel, DATABASE_AVAILABLE`
+- **Models Import**: `from pycore.database.models import TableKeys, TableNamespaces, {ModelName}`
+
+### 8.2 Table Naming Rules
+- **Namespace Format**: `common`, `app_{name}`, `util_{name}`
+- **Table Key Format**: `{namespace}.{table_name}` (e.g., `common.config`, `app_myapp.users`)
+- **FORBIDDEN**: Hardcoded table name strings - ALL table names MUST be defined in `TableKeys` class
+- **Model Creation**: Add namespace to `TableNamespaces`, add table key to `TableKeys`, create model in `pycore/database/models/{namespace}/`
+
+### 8.3 Usage Pattern
+- **Register**: `database_manager.register_database("dbname")`
+- **Load**: `database_manager.load_tables([TableKeys.YOUR_TABLE], [YourModel], "dbname")`
+- **Access**: `with database_manager.get_connection("dbname") as conn: table = database_manager.get_table(TableKeys.YOUR_TABLE)`
+- **Transaction**: `with database_manager.transaction("dbname") as conn: # auto-commit/rollback`
+- **Base CRUD**: `insert()`, `select()`, `update()`, `delete()`, `count()` - Add custom methods in model class
+- **Storage**: Uses `map_web_path("www", "pycore_db")` - Windows: `D:/www/pycore_db/`, Linux: `/www/pycore_db/`

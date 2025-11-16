@@ -183,10 +183,12 @@ def launch_native_ui(
     main_entry: Callable,
     mode: LaunchMode = LaunchMode.DEBUG_WITH_TRAY,
     port_start: int = 54000,
+    enable_speech: bool = False,
+    speech_mode: str = "single",
     **kwargs
 ) -> LaunchResult:
     """
-    Convenience function for launching
+    Convenience function for launching with optional speech
 
     Args:
         app_id: Application ID
@@ -194,6 +196,8 @@ def launch_native_ui(
         main_entry: Main entry function
         mode: Launch mode
         port_start: Starting port
+        enable_speech: Enable speech transcription thread
+        speech_mode: Speech mode ("single" or "dual")
         **kwargs: Additional parameters
 
     Returns:
@@ -204,9 +208,208 @@ def launch_native_ui(
         port_start=port_start,
         debug=True
     )
-    return launcher.launch(
+    result = launcher.launch(
         app_name=app_name,
         main_entry=main_entry,
         mode=mode,
         **kwargs
     )
+
+    # Start speech thread if enabled
+    if enable_speech:
+        start_speech_thread(mode=speech_mode)
+
+    return result
+
+
+# ============================================================
+# Speech Launcher
+# ============================================================
+
+def launch_speech_only(
+    mode: str = "single",
+    mic_language: str = "zh-CN",
+    system_language: str = "en-US",
+    check_platform: bool = True
+) -> bool:
+    """
+    Launch speech transcription only (no UI)
+
+    Platform-specific handling:
+    - Windows: Full support (WASAPI loopback)
+    - Linux: Check for PulseAudio/ALSA
+    - macOS: Requires BlackHole for system audio
+
+    Args:
+        mode: Transcription mode ("single" or "dual")
+        mic_language: Language for microphone
+        system_language: Language for system audio
+        check_platform: Check platform compatibility
+
+    Returns:
+        True if launched successfully
+    """
+    import platform
+    current_platform = platform.system()
+
+    # Platform compatibility check
+    if check_platform:
+        ColorPrint.blue(f"[Launcher] Platform: {current_platform}")
+
+        if current_platform == "Linux":
+            # Check for audio requirements on Linux
+            if not _check_linux_audio_support():
+                ColorPrint.yellow("[Launcher] Limited audio support on Linux")
+                ColorPrint.yellow("[Launcher] Ensure PulseAudio or ALSA is installed")
+
+                user_input = input("Continue anyway? (y/n) [default: y]: ").strip().lower()
+                if user_input == 'n':
+                    ColorPrint.red("[Launcher] Launch cancelled by user")
+                    return False
+
+        elif current_platform == "Darwin":
+            ColorPrint.yellow("[Launcher] macOS detected")
+            ColorPrint.yellow("[Launcher] System audio requires BlackHole or Soundflower")
+
+    # Create and start speech thread
+    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+
+    thread = SpeechTranscriptionThread(
+        mode=mode,
+        mic_language=mic_language,
+        system_language=system_language,
+        daemon=False  # Not daemon for standalone mode
+    )
+
+    ColorPrint.green(f"[Launcher] Starting speech transcription - Mode: {mode}")
+    thread.start()
+
+    # Send start event
+    THREAD_BUS.signal("speech.launcher.started", {
+        "mode": mode,
+        "platform": current_platform,
+        "mic_language": mic_language,
+        "system_language": system_language
+    })
+
+    # Wait for thread to complete (blocking)
+    thread.join()
+
+    ColorPrint.blue("[Launcher] Speech transcription completed")
+    return True
+
+
+def start_speech_thread(
+    mode: str = "single",
+    mic_language: str = "zh-CN",
+    system_language: str = "en-US",
+    daemon: bool = True
+) -> Optional['SpeechTranscriptionThread']:
+    """
+    Start speech transcription thread (non-blocking)
+
+    Args:
+        mode: Transcription mode ("single" or "dual")
+        mic_language: Language for microphone
+        system_language: Language for system audio
+        daemon: Run as daemon thread
+
+    Returns:
+        SpeechTranscriptionThread instance or None if failed
+    """
+    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+
+    thread = SpeechTranscriptionThread(
+        mode=mode,
+        mic_language=mic_language,
+        system_language=system_language,
+        daemon=daemon
+    )
+
+    ColorPrint.green(f"[Launcher] Starting speech thread - Mode: {mode}")
+    thread.start()
+
+    # Send start event
+    THREAD_BUS.signal("speech.thread.launched", {
+        "mode": mode,
+        "daemon": daemon
+    })
+
+    return thread
+
+
+def launch_speech_service(
+    auto_start: bool = False,
+    daemon: bool = True
+) -> Optional['SpeechServiceThread']:
+    """
+    Launch speech service thread (background service)
+
+    Service can be controlled via THREAD_BUS commands:
+    - "speech.service.start" - Start transcription
+    - "speech.service.stop" - Stop service
+    - "speech.service.status" - Query status
+
+    Args:
+        auto_start: Auto-start transcription on launch
+        daemon: Run as daemon thread
+
+    Returns:
+        SpeechServiceThread instance or None if failed
+    """
+    from pycore.pyctl.speech.speech_thread import SpeechServiceThread
+
+    thread = SpeechServiceThread(
+        auto_start=auto_start,
+        daemon=daemon
+    )
+
+    ColorPrint.green(f"[Launcher] Starting speech service - Auto-start: {auto_start}")
+    thread.start()
+
+    # Send start event
+    THREAD_BUS.signal("speech.service.launched", {
+        "auto_start": auto_start,
+        "daemon": daemon
+    })
+
+    return thread
+
+
+def _check_linux_audio_support() -> bool:
+    """
+    Check Linux audio support
+
+    Returns:
+        True if audio support detected
+    """
+    import subprocess
+    import shutil
+
+    # Check for PulseAudio
+    if shutil.which("pulseaudio"):
+        ColorPrint.green("[Launcher] PulseAudio detected")
+        return True
+
+    # Check for pactl
+    if shutil.which("pactl"):
+        try:
+            result = subprocess.run(
+                ["pactl", "info"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0:
+                ColorPrint.green("[Launcher] PulseAudio running")
+                return True
+        except:
+            pass
+
+    # Check for ALSA
+    if shutil.which("aplay"):
+        ColorPrint.yellow("[Launcher] ALSA detected (basic support)")
+        return True
+
+    ColorPrint.yellow("[Launcher] No audio system detected")
+    return False

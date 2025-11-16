@@ -16,7 +16,9 @@ import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 
 Image = PIL.Image
 ImageStat = PIL.ImageStat

@@ -13,7 +13,9 @@ from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import requests
+from pycore.pyfoundations.third_party import get_third_package_requests
+
+requests = get_third_package_requests()
 from pycore.pyutils.common.tts_models import DocumentModel
 from pycore.pyutils.edge_tts.processor import TTSProcessor
 from pycore.pyutils.edge_tts.config import TTSConfig

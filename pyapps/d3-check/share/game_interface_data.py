@@ -15,9 +15,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import PIL, numpy, cv2
+from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_numpy, get_third_package_cv2
+
+PIL = get_third_package_PIL()
+numpy = get_third_package_numpy()
+cv2 = get_third_package_cv2()
 from PIL import Image
-import numpy as np
 
 # Add project path
 current_dir = os.path.dirname(os.path.abspath(__file__))

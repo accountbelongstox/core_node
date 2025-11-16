@@ -36,8 +36,11 @@ from dataclasses import dataclass
 import argparse
 import json
 
-from pycore.pyfoundations.third_party import cv2, numpy, yaml
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
+yaml = get_third_package_yaml()
 
 
 @dataclass
@@ -129,7 +132,6 @@ class UnifiedDetector:
             return device
 
         try:
-            import torch
             if torch.cuda.is_available():
                 return 'cuda'
             elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():

@@ -59,7 +59,9 @@ from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 
 Image = PIL.Image
 ImageTk = PIL.ImageTk

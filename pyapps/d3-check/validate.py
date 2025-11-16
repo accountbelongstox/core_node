@@ -11,8 +11,11 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import argparse
 
-from pycore.pyfoundations.third_party import cv2, numpy, yaml
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
+yaml = get_third_package_yaml()
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

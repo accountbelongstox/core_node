@@ -10,9 +10,11 @@ import sys
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import numpy, cv2
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
+
+numpy = get_third_package_numpy()
+cv2 = get_third_package_cv2()
 from pycore.pyfoundations.color_print import ColorPrint
-import numpy as np
 
 
 class PNGMatcher:

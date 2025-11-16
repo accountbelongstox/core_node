@@ -5,7 +5,10 @@ import time
 from pathlib import Path
 
 # Add parent directory to path for dependency checking
-from pycore.pyfoundations.third_party import psutil, pywinauto
+from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_pywinauto
+
+psutil = get_third_package_psutil()
+pywinauto = get_third_package_pywinauto()
 from pywinauto import Application
 
 class AppLauncher:

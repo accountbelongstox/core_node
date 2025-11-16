@@ -18,7 +18,9 @@ import json
 import time
 from typing import Set, Dict, Optional, Callable
 
-from pycore.pyfoundations.third_party import websockets
+from pycore.pyfoundations.third_party import get_third_package_websockets
+
+websockets = get_third_package_websockets()
 
 WebSocketServerProtocol = websockets.server.WebSocketServerProtocol
 
