@@ -7,12 +7,12 @@ Validates both classification and detection models automatically
 
 import os
 import sys
-import cv2
-import numpy as np
-import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import argparse
+
+from pycore.pyfoundations.third_party import cv2, numpy, yaml
+import numpy as np
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

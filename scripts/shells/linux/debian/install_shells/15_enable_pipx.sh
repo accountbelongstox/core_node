@@ -11,6 +11,15 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Declare all variables at the beginning
+SCRIPT_CURRENT_DIR=""
+PARENT_DIR_LEVEL_1=""
+PARENT_DIR_LEVEL_2=""
+PIPX_VENV_DIR=""
+PIPX_BIN=""
+PIPX_HOME=""
+PIPX_BIN_DIR=""
+
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -22,7 +31,16 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Source shared Python setup function
 source "$PARENT_DIR_LEVEL_1/debian_com/shared_python_setup.sh"
 
-# pipx is a default tool installation - no conditional check needed
+# Set pipx venv directory from COMPILE_DIR
+PIPX_VENV_DIR="$COMPILE_DIR/pipx_venv"
+PIPX_BIN="$PIPX_VENV_DIR/bin/pipx"
+PIPX_HOME="$COMPILE_DIR/pipx_home"
+PIPX_BIN_DIR="/usr/local/bin"
+
+echo "COMPILE_DIR: $COMPILE_DIR"
+echo "PIPX_VENV_DIR: $PIPX_VENV_DIR"
+echo "PIPX_HOME: $PIPX_HOME (where pipx stores installed packages)"
+echo "PIPX_BIN_DIR: $PIPX_BIN_DIR (where pipx creates executable symlinks)"
 
 # Function to check if a command exists
 command_exists() {
@@ -99,111 +117,147 @@ ensure_pip3_installed() {
     fi
 }
 
-# Function to install pipx and additional packages
-install_pipx_packages() {
-    echo "Installing pipx and additional packages..."
-    
-    # Try to ensure pip3 is installed first
-    ensure_pip3_installed || echo "Warning: pip3 installation had issues, but continuing..."
-    
-    # Ensure Python environment is set up
-    if ! ensure_python_environment; then
-        echo "Failed to set up Python environment" >&2
+# Function to install pipx in uv venv
+install_pipx_in_uv_venv() {
+    echo "Installing pipx in uv virtual environment..."
+
+    # Check if uv is available
+    if ! command_exists uv; then
+        echo "Error: uv not found. Please install uv first (script 18_install_uv.sh)"
         return 1
     fi
-    
-    # Try to install pipx using apt first
-    echo "Attempting to install pipx via apt..."
-    if $USE_SUDO apt install -y pipx 2>/dev/null; then
-        echo "pipx installed successfully via apt"
-        return 0
+
+    # Ensure COMPILE_DIR exists
+    if [ ! -d "$COMPILE_DIR" ]; then
+        echo "Creating compile directory: $COMPILE_DIR"
+        $USE_SUDO mkdir -p "$COMPILE_DIR"
+        $USE_SUDO chmod 755 "$COMPILE_DIR"
+    fi
+
+    # Create venv if it doesn't exist
+    if [ ! -d "$PIPX_VENV_DIR" ]; then
+        echo "Creating pipx virtual environment using uv: $PIPX_VENV_DIR"
+        if uv venv "$PIPX_VENV_DIR"; then
+            echo "Virtual environment created successfully"
+        else
+            echo "Failed to create virtual environment"
+            return 1
+        fi
     else
-        echo "Warning: Failed to install pipx via apt"
-        
-        # Try alternative installation methods
-        echo "Trying alternative pipx installation methods..."
-        
-        # Method 1: Try using pip3 if available
-        if command_exists pip3; then
-            echo "Trying to install pipx via pip3..."
-            if pip3 install pipx --user 2>/dev/null; then
-                echo "pipx installed successfully via pip3 (user install)"
-                return 0
-            fi
-        fi
-        
-        # Method 2: Try using python3 -m pip if available
-        if command_exists python3; then
-            echo "Trying to install pipx via python3 -m pip..."
-            if python3 -m pip install pipx --user 2>/dev/null; then
-                echo "pipx installed successfully via python3 -m pip (user install)"
-                return 0
-            fi
-        fi
-        
-        # Method 3: Try using ensurepip and then pip
-        echo "Trying to install pipx via ensurepip method..."
-        if python3 -m ensurepip --upgrade 2>/dev/null && python3 -m pip install pipx --user 2>/dev/null; then
-            echo "pipx installed successfully via ensurepip method (user install)"
-            return 0
-        fi
-        
-        echo "Error: All pipx installation methods failed" >&2
+        echo "Virtual environment already exists at: $PIPX_VENV_DIR"
+    fi
+
+    # Install pipx in the venv using uv
+    echo "Installing pipx using uv..."
+    if uv pip install --python "$PIPX_VENV_DIR/bin/python3" pipx; then
+        echo "pipx installed successfully in venv"
+    else
+        echo "Failed to install pipx in venv"
         return 1
     fi
+
+    # Verify pipx binary exists
+    if [ ! -f "$PIPX_BIN" ]; then
+        echo "Error: pipx binary not found at: $PIPX_BIN"
+        return 1
+    fi
+
+    echo "pipx installed successfully in uv venv"
+    return 0
 }
 
-# Function to configure pipx globally
-configure_pipx() {
-    echo "Configuring pipx for global access..."
+# Function to setup pipx symlink with correctness detection
+setup_pipx_symlink() {
+    echo "Setting up pipx symlink..."
 
-    # Create pipx directories
-    $USE_SUDO mkdir -p /opt/pipx
-    $USE_SUDO chmod 755 /opt/pipx
+    if [ ! -f "$PIPX_BIN" ]; then
+        echo "Error: pipx binary not found at: $PIPX_BIN"
+        return 1
+    fi
 
-    # Set pipx environment variables
-    export PIPX_HOME=/opt/pipx
-    export PIPX_BIN_DIR=/usr/local/bin
+    # Check if symlink exists and verify its correctness
+    if [ -e "/usr/local/bin/pipx" ]; then
+        local current_target=$(readlink -f "/usr/local/bin/pipx" 2>/dev/null || echo "")
+        local expected_target=$(readlink -f "$PIPX_BIN" 2>/dev/null || echo "$PIPX_BIN")
 
-    # Initialize pipx
-    if command_exists pipx; then
-        echo "Running pipx ensurepath..."
-        $USE_SUDO PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx ensurepath --force
+        if [ "$current_target" = "$expected_target" ]; then
+            echo "Symlink /usr/local/bin/pipx already points to correct location, skipping"
+        else
+            echo "Symlink exists but incorrect, updating to: $PIPX_BIN"
+            $USE_SUDO rm -f "/usr/local/bin/pipx"
+            $USE_SUDO ln -sf "$PIPX_BIN" "/usr/local/bin/pipx"
+            echo "Updated symlink: /usr/local/bin/pipx -> $PIPX_BIN"
+        fi
     else
-        echo "Warning: pipx command not found, skipping ensurepath"
+        $USE_SUDO ln -sf "$PIPX_BIN" "/usr/local/bin/pipx"
+        echo "Created symlink: /usr/local/bin/pipx -> $PIPX_BIN"
     fi
 
-    # Use common function to set up environment and symlinks
-    # Add pipx installation directory to global path
-    add_to_global_path_from_common_functions "/opt/pipx"
-    
-    # Add pipx binary to global path and create symlinks
-    local pipx_bin_path=""
-    if [ -f /usr/bin/pipx ]; then
-        pipx_bin_path="/usr/bin/pipx"
-        add_to_global_path_from_common_functions "$pipx_bin_path"
+    # Make binary executable
+    $USE_SUDO chmod +x "$PIPX_BIN"
+
+    echo "pipx symlink setup completed"
+    return 0
+}
+
+# Function to configure pipx environment
+configure_pipx_environment() {
+    echo "Configuring pipx environment..."
+
+    # Create pipx home directory
+    $USE_SUDO mkdir -p "$PIPX_HOME"
+    $USE_SUDO chmod 755 "$PIPX_HOME"
+
+    # Ensure PIPX_BIN_DIR exists (should already exist as /usr/local/bin)
+    if [ ! -d "$PIPX_BIN_DIR" ]; then
+        $USE_SUDO mkdir -p "$PIPX_BIN_DIR"
+        $USE_SUDO chmod 755 "$PIPX_BIN_DIR"
     fi
 
-    echo "pipx configured for global access"
+    # Set environment variables in /etc/environment
+    set_env_and_var "PIPX_HOME" "$PIPX_HOME"
+    set_env_and_var "PIPX_BIN_DIR" "$PIPX_BIN_DIR"
+
+    # Export for current session
+    export PIPX_HOME="$PIPX_HOME"
+    export PIPX_BIN_DIR="$PIPX_BIN_DIR"
+
+    # Run pipx ensurepath with configured directories
+    if [ -f "$PIPX_BIN" ]; then
+        echo "Running pipx ensurepath..."
+        PIPX_HOME="$PIPX_HOME" PIPX_BIN_DIR="$PIPX_BIN_DIR" "$PIPX_BIN" ensurepath --force 2>/dev/null || true
+    fi
+
+    echo "pipx environment configured successfully"
+    echo "  PIPX_HOME: $PIPX_HOME (package venvs storage)"
+    echo "  PIPX_BIN_DIR: $PIPX_BIN_DIR (executable symlinks)"
     return 0
 }
 
 # Main execution
 echo "pipx Installation and Configuration Script"
 
-# Install pipx and required packages
-if command_exists pipx; then
-    echo "pipx is already installed: $(pipx --version)"
+# Check if pipx is already installed in venv
+if [ -f "$PIPX_BIN" ]; then
+    echo "pipx is already installed at: $PIPX_BIN"
+    echo "Version: $("$PIPX_BIN" --version 2>/dev/null || echo 'unknown')"
 else
-    echo "Installing pipx and required packages..."
-    if ! install_pipx_packages; then
+    echo "Installing pipx in uv venv..."
+    if ! install_pipx_in_uv_venv; then
+        echo "Error: Failed to install pipx"
         exit 1
     fi
 fi
 
-# Configure pipx
-if ! configure_pipx; then
+# Setup symlink
+if ! setup_pipx_symlink; then
+    echo "Error: Failed to setup pipx symlink"
     exit 1
+fi
+
+# Configure pipx environment
+if ! configure_pipx_environment; then
+    echo "Warning: Failed to configure pipx environment"
 fi
 
 # Verify and print pipx information
@@ -242,4 +296,11 @@ fi
 
 echo -e "\npipx installation and configuration completed successfully!"
 echo "pipx is now available globally and can be used to install Python CLI tools."
-echo "Example usage: $USE_SUDO pipx install <package_name>"
+echo ""
+echo "Configuration:"
+echo "  pipx binary: /usr/local/bin/pipx -> $PIPX_BIN"
+echo "  PIPX_HOME: $PIPX_HOME"
+echo "  PIPX_BIN_DIR: $PIPX_BIN_DIR"
+echo ""
+echo "Usage: pipx install <package_name>"
+echo "Installed packages will have their executables in: $PIPX_BIN_DIR"

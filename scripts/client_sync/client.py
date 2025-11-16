@@ -38,6 +38,7 @@ KEY FEATURES:
 """
 
 import os
+import sys
 import socket
 import threading
 import json
@@ -53,7 +54,7 @@ from common.config import (
 
 # Configuration
 LISTEN_PORT = SYNC_PORT
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent.parent.parent  # D:\programing\core_node
 SERVER_PORT = SYNC_PORT
 
 # Global state
@@ -268,21 +269,28 @@ def receive_batch_files(sock):
         file_list = batch_info.get("files", [])
         file_count = batch_info.get("count", len(file_list))
 
-        print(f"[CLIENT] Received metadata for {file_count} files, evaluating...")
-
         # Phase 2: Make decisions for all files
         accepted_files = []
+        rejected_files = []
         file_decisions = {}  # path -> (should_accept, size, mtime, reason)
+
+        total_files = len(file_list)
+        processed = 0
 
         for file_meta in file_list:
             file_path = file_meta["path"]
             file_size = file_meta["size"]
             server_mtime = file_meta["mtime"]
+            processed += 1
+
+            # Show progress with line refresh
+            sys.stdout.write(f"\r[CLIENT] Evaluating files: {processed}/{total_files}...")
+            sys.stdout.flush()
 
             # CLIENT DECISION 1: Check ignore rules
             if should_ignore_path(file_path):
-                file_decisions[file_path] = (False, file_size, server_mtime, "in ignore list")
-                print(f"  [REJECT] {file_path} - in ignore list")
+                file_decisions[file_path] = (False, file_size, server_mtime, "ignored")
+                rejected_files.append((file_path, "ignored"))
                 continue
 
             target_path = ROOT_DIR / file_path
@@ -295,9 +303,9 @@ def receive_batch_files(sock):
                 local_mtime = os.path.getmtime(target_path)
                 if local_mtime >= server_mtime:
                     should_update = False
-                    decision_reason = f"local is newer/same (local: {local_mtime:.0f}, server: {server_mtime:.0f})"
+                    decision_reason = "local newer/same"
                 else:
-                    decision_reason = f"server is newer (local: {local_mtime:.0f}, server: {server_mtime:.0f})"
+                    decision_reason = "server newer"
             else:
                 decision_reason = "new file"
 
@@ -305,9 +313,12 @@ def receive_batch_files(sock):
 
             if should_update:
                 accepted_files.append(file_path)
-                print(f"  [ACCEPT] {file_path} - {decision_reason}")
             else:
-                print(f"  [REJECT] {file_path} - {decision_reason}")
+                rejected_files.append((file_path, decision_reason))
+
+        # Clear progress line and print summary
+        sys.stdout.write("\r" + " " * 80 + "\r")
+        sys.stdout.flush()
 
         # Phase 3: Send decision to server
         decision_response = {
@@ -321,24 +332,28 @@ def receive_batch_files(sock):
         sock.sendall(decision_size.to_bytes(4, 'big'))
         sock.sendall(decision_json)
 
-        print(f"[CLIENT] Decision sent: {len(accepted_files)} accepted, {len(file_list) - len(accepted_files)} rejected")
-
         if not accepted_files:
-            # No files to receive
+            # No files to receive - print summary
+            print(f"[SUMMARY] Batch: {len(accepted_files)} accepted, {len(rejected_files)} rejected")
             return True
 
         # Phase 4: Receive accepted files
         received_count = 0
         failed_count = 0
+        current_file = 0
 
         for file_path in accepted_files:
             should_accept, file_size, server_mtime, reason = file_decisions[file_path]
             target_path = ROOT_DIR / file_path
             target_path.parent.mkdir(parents=True, exist_ok=True)
+            current_file += 1
 
             size_kb = file_size / 1024
             size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb/1024:.2f}MB"
-            print(f"  [RECEIVING] {file_path} ({size_str})")
+
+            # Show progress with line refresh
+            sys.stdout.write(f"\r[RECEIVING] [{current_file}/{len(accepted_files)}] {file_path} ({size_str})..." + " " * 20)
+            sys.stdout.flush()
 
             # Receive file data
             received = 0
@@ -355,20 +370,25 @@ def receive_batch_files(sock):
                 if received == file_size:
                     # Success: Set file modification time to match server
                     os.utime(target_path, (server_mtime, server_mtime))
-                    print(f"  [SAVED] {file_path}")
                     received_count += 1
                 else:
                     # Incomplete transfer
-                    print(f"  [INCOMPLETE] {file_path} ({received}/{file_size} bytes)")
+                    sys.stdout.write(f"\r[INCOMPLETE] {file_path} ({received}/{file_size} bytes)\n")
+                    sys.stdout.flush()
                     if target_path.exists():
                         target_path.unlink()
                     failed_count += 1
 
             except Exception as e:
-                print(f"  [ERROR] {file_path}: {e}")
+                sys.stdout.write(f"\r[ERROR] {file_path}: {e}\n")
+                sys.stdout.flush()
                 if target_path.exists():
                     target_path.unlink()
                 failed_count += 1
+
+        # Clear progress line
+        sys.stdout.write("\r" + " " * 120 + "\r")
+        sys.stdout.flush()
 
         # Phase 5: Send batch confirmation
         confirmation = {
@@ -383,8 +403,15 @@ def receive_batch_files(sock):
         sock.sendall(confirm_size.to_bytes(4, 'big'))
         sock.sendall(confirm_json)
 
-        print(f"[CLIENT] Batch complete: {received_count} received, {failed_count} failed")
-        return True
+        # Return batch statistics instead of printing
+        total_size = sum(file_decisions[f][1] for f in accepted_files)
+        return {
+            "success": True,
+            "received": received_count,
+            "failed": failed_count,
+            "rejected": len(rejected_files),
+            "size_bytes": total_size
+        }
 
     except Exception as e:
         print(f"[CLIENT] Error receiving batch: {e}")
@@ -401,7 +428,7 @@ def receive_batch_files(sock):
             sock.sendall(error_json)
         except:
             pass
-        return False
+        return {"success": False, "received": 0, "failed": 0, "rejected": 0, "size_bytes": 0}
 
 def handle_client(sock, addr):
     """
@@ -454,11 +481,29 @@ def handle_client(sock, addr):
             return
         
         # Process batch files from single server
+        total_received = 0
+        total_failed = 0
+        total_rejected = 0
+        total_size_bytes = 0
+        batch_count = 0
+
         while running:
-            if receive_batch_files(sock):
+            result = receive_batch_files(sock)
+            if result and result.get("success"):
+                batch_count += 1
+                total_received += result.get("received", 0)
+                total_failed += result.get("failed", 0)
+                total_rejected += result.get("rejected", 0)
+                total_size_bytes += result.get("size_bytes", 0)
                 continue
             else:
                 break
+
+        # Print final summary after all batches
+        if batch_count > 0:
+            total_size_mb = total_size_bytes / (1024 * 1024)
+            print(f"[SUMMARY] Session complete: {total_received} received ({total_size_mb:.2f}MB), {total_failed} failed, {total_rejected} rejected across {batch_count} batch(es)")
+
     except Exception as e:
         print(f"Error handling client: {e}")
     finally:

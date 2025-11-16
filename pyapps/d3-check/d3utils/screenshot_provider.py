@@ -18,9 +18,10 @@ import tkinter as tk
 from typing import Optional, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
-import numpy as np
-import cv2
+
+from pycore.pyfoundations.third_party import PIL, numpy, cv2
 from PIL import Image
+import numpy as np
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

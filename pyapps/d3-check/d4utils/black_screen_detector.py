@@ -8,8 +8,10 @@ Detects if a region is completely black (used for map switching detection)
 import sys
 from pathlib import Path
 from typing import Union, Tuple
-import numpy as np
+
+from pycore.pyfoundations.third_party import PIL, numpy
 from PIL import Image
+import numpy as np
 
 # Add project paths
 current_dir = Path(__file__).parent.parent

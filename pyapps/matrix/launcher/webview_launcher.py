@@ -6,17 +6,13 @@ Uses webview to display Nuxt frontend in a window
 
 import subprocess
 import time
-import requests
 import threading
 from pathlib import Path
 from typing import Optional
 
-try:
-    import webview
-    WEBVIEW_AVAILABLE = True
-except ImportError:
-    WEBVIEW_AVAILABLE = False
-    print("Warning: pywebview not installed. Will use browser fallback.")
+from pycore.pyfoundations.third_party import requests, webview
+
+WEBVIEW_AVAILABLE = True
 
 from ..config import Config
 

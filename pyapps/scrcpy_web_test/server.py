@@ -14,10 +14,11 @@ import base64
 import io
 import struct
 from pathlib import Path
-from aiohttp import web
-import aiohttp
 from typing import Dict, Set, Optional, Tuple, Any
 from datetime import datetime
+
+from pycore.pyfoundations.third_party import aiohttp
+from aiohttp import web
 
 # Add pycore to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'pycore'))

@@ -8,9 +8,11 @@ Detects and analyzes D4 game window regions and coordinates
 import sys
 from pathlib import Path
 from typing import Tuple, List, Dict, Any, Optional
-from PIL import Image
 from dataclasses import dataclass
 from datetime import datetime
+
+from pycore.pyfoundations.third_party import PIL
+from PIL import Image
 
 # Add project paths
 current_dir = Path(__file__).parent.parent

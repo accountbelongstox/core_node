@@ -7,10 +7,12 @@ Displays debug images from D4 region detection
 
 import tkinter as tk
 from tkinter import ttk
-from PIL import Image, ImageTk
 import sys
 import os
 from typing import Optional
+
+from pycore.pyfoundations.third_party import PIL
+from PIL import Image, ImageTk
 
 # Add project paths
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))

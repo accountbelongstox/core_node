@@ -26,11 +26,12 @@ Usage:
 
 import os
 import sys
-import cv2
-import numpy as np
 from typing import Optional, Union, Dict, List, Tuple
 from pathlib import Path
+
+from pycore.pyfoundations.third_party import PIL, cv2, numpy
 from PIL import Image
+import numpy as np
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
