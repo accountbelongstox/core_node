@@ -229,8 +229,7 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
             rejected_count = len(file_metadata) - len(accepted_paths)
 
             if not accepted_paths:
-                print(f"[{client_ip}] Client rejected all {len(file_metadata)} files")
-                return {"successful": 0, "failed": 0, "accepted_files": []}
+                return {"successful": 0, "failed": 0, "rejected": len(file_metadata), "accepted_files": [], "size_bytes": 0}
 
             # Phase 3: Send accepted files
             accepted_path_set = set(accepted_paths)
@@ -308,15 +307,15 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
 
             client_received = confirmation.get("received_count", 0)
 
-            # Print batch summary
+            # Return batch statistics
             total_size = sum(os.path.getsize(fp) for fp, rp, _ in files_batch if rp in accepted_path_set)
-            size_mb = total_size / (1024 * 1024)
-            print(f"[{client_ip}] Batch complete: {successful_transfers} sent ({size_mb:.2f}MB), {failed_transfers} failed, {rejected_count} rejected")
 
             return {
                 "successful": successful_transfers,
                 "failed": failed_transfers,
-                "accepted_files": accepted_paths
+                "rejected": rejected_count,
+                "accepted_files": accepted_paths,
+                "size_bytes": total_size
             }
 
         except socket.timeout:
@@ -326,7 +325,7 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
                 continue
             else:
                 print(f"[{client_ip}] Batch timeout after {max_retries} attempts")
-                return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+                return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
         except (ConnectionError, OSError) as e:
             if attempt < max_retries - 1:
@@ -335,13 +334,13 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
                 continue
             else:
                 print(f"[{client_ip}] Batch connection error after {max_retries} attempts: {e}")
-                return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+                return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
         except Exception as e:
             print(f"[{client_ip}] Batch error: {e}")
-            return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+            return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
-    return {"successful": 0, "failed": len(files_batch), "accepted_files": []}
+    return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
 def sync_files_to_client(client_ip, is_new_client=False):
     """
@@ -426,6 +425,8 @@ def sync_files_to_client(client_ip, is_new_client=False):
         updated_client_checksums = client_file_checksums.copy()
         successful_syncs = 0
         failed_syncs = 0
+        total_rejected = 0
+        total_size_bytes = 0
         total_batches = (len(files_to_sync) + BATCH_SIZE - 1) // BATCH_SIZE
 
         # Open ONE connection for all batches
@@ -443,8 +444,10 @@ def sync_files_to_client(client_ip, is_new_client=False):
                     # Send batch through existing connection
                     result = send_batch_files_to_client(sock, batch, client_ip)
 
-                    successful_syncs += result["successful"]
-                    failed_syncs += result["failed"]
+                    successful_syncs += result.get("successful", 0)
+                    failed_syncs += result.get("failed", 0)
+                    total_rejected += result.get("rejected", 0)
+                    total_size_bytes += result.get("size_bytes", 0)
 
                     # Update client checksums for successfully transferred files
                     for accepted_path in result["accepted_files"]:
@@ -464,6 +467,10 @@ def sync_files_to_client(client_ip, is_new_client=False):
                     break  # Connection likely broken, exit batch loop
 
             sock.close()
+
+            # Print final summary after all batches
+            total_size_mb = total_size_bytes / (1024 * 1024)
+            print(f"[SUMMARY] {client_ip}: {successful_syncs} sent ({total_size_mb:.2f}MB), {failed_syncs} failed, {total_rejected} rejected across {total_batches} batch(es)")
 
         except Exception as e:
             print(f"[{client_ip}] Connection error: {e}")
