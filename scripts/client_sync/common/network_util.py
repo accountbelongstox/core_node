@@ -71,7 +71,7 @@ def scan_lan_hosts(network_segment, port, timeout=0.5, service_name="service"):
         is_active = test_port(ip, port, timeout)
         completed += 1
         progress = (completed / total_hosts) * 100
-        
+          
         if is_active:
             print(f"[SCAN] ✓ {ip}:{port} - {service_name.upper()} FOUND [{progress:.1f}%]")
             return ip
