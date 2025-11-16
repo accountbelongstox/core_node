@@ -12,6 +12,8 @@ from typing import Dict, List, Any, Optional
 
 from config.path_config import get_path_config
 from script_sections.mcp_section import MCPSectionGenerator
+from script_sections.user_directory_section import UserDirectorySectionGenerator
+from script_sections.env_loading_section import EnvLoadingSectionGenerator
 from script_sections.ssh_command_generator import SSHCommandGenerator
 
 
@@ -23,6 +25,8 @@ class LinuxCommandContentGenerator:
         self.project_root = self.path_config.project_root
         self.scripts_dir = self.path_config.scripts_dir
         self.mcp_generator = MCPSectionGenerator(self.path_config)
+        self.user_dir_generator = UserDirectorySectionGenerator()
+        self.env_loading_generator = EnvLoadingSectionGenerator()
         self.ssh_generator = SSHCommandGenerator()
 
     def get_mcp_sync_script_path(self, tool_type: str) -> Path:
@@ -126,6 +130,35 @@ ai_tools_dir_path="$pytools_dir_path/ai_tools"
 #endregion
 """
 
+        # Generate environment variable loading section
+        env_loading_section = self.env_loading_generator.generate_linux_env_loading_section(variables, file_number)
+
+        # Build command display code
+        build_command_code = """
+#region Build Launch Command Display
+env_vars_parts=()
+
+"""
+        for var in variables:
+            var_name = var['Name']
+            build_command_code += f"""if [ -n "${{{var_name}:-}}" ]; then
+    env_vars_parts+=("{var_name}='${{{var_name}}}'")
+fi
+
+"""
+
+        build_command_code += f"""if [ ${{#env_vars_parts[@]}} -gt 0 ]; then
+    env_vars_command=$(IFS=' ' ; echo "${{env_vars_parts[*]}}")
+    full_command_display="$env_vars_command {bash_command}"
+else
+    full_command_display="{bash_command}"
+fi
+#endregion
+
+"""
+
+        env_section = env_loading_section + build_command_code + "\n"
+
         mcp_section_content = ""
         if mcp_section:
             mcp_section_content = f"""
@@ -152,7 +185,11 @@ read -p "Press Enter to continue"
 echo ""
 echo "Executing: {bash_command}"
 echo ""
-{bash_command}
+echo "Command: $full_command_display"
+echo ""
+echo "Press Enter to continue..."
+read
+eval "$full_command_display"
 
 echo ""
 echo "Press Enter to exit..."
@@ -160,7 +197,7 @@ read
 #endregion
 """
 
-        return f"""{header}{file_name_display}{path_resolution}{mcp_section_content}{launch_section}"""
+        return f"""{header}{file_name_display}{path_resolution}{env_section}{mcp_section_content}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

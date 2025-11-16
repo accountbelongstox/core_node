@@ -53,6 +53,53 @@ from ai_tools_common import (
     merge_mcp_servers,
     replace_project_name_in_template
 )
+from mcp_context7_helper import process_all_mcp_servers_for_context7
+
+
+def filter_mcp_servers_by_target(mcp_servers: Dict[str, Any], target: str) -> Dict[str, Any]:
+    """
+    Filter MCP servers based on target AI tool.
+
+    Args:
+        mcp_servers: Dictionary of MCP server configurations
+        target: Target AI tool (claude, droid, codex, etc.)
+
+    Returns:
+        Filtered MCP servers dictionary
+    """
+    if not isinstance(mcp_servers, dict):
+        return mcp_servers
+
+    target_lower = target.lower()
+
+    excluded_servers_by_target = {
+        'claude': ['feedbackenhanced', 'feedback'],
+        'droid': ['feedbackenhanced', 'feedback'],
+        'codex': ['feedbackenhanced', 'feedback'],
+    }
+
+    excluded_list = excluded_servers_by_target.get(target_lower, [])
+
+    if not excluded_list:
+        return mcp_servers
+
+    filtered_servers = {}
+    removed_servers = []
+
+    for server_name, server_config in mcp_servers.items():
+        server_name_lower = server_name.lower()
+
+        if server_name_lower in excluded_list:
+            removed_servers.append(server_name)
+            continue
+
+        filtered_servers[server_name] = server_config
+
+    if removed_servers:
+        print(f"[INFO] Filtered out MCP servers for {target}: {', '.join(removed_servers)}")
+
+    return filtered_servers
+
 
 def load_mcp_template() -> Dict[str, Any]:
     """
@@ -407,6 +454,14 @@ def sync_mcp_configuration(target: str = "claude", working_dir: Optional[str] = 
         print("[INFO] Continuing with empty MCP configuration")
         template_servers = {}
     else:
+        # Process Context7 API key replacement
+        print_same_line("[1/4] Processing Context7 API keys...")
+        template_servers = process_all_mcp_servers_for_context7(template_servers)
+
+        # Filter servers based on target
+        template_servers = filter_mcp_servers_by_target(template_servers, target)
+
+        #
         # Dynamically find and update all mcpServers objects in template_data
         if target.lower() == "claude" and working_dir:
             template_mcp_paths = find_mcp_servers_objects(template_data)
