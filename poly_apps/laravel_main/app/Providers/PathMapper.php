@@ -64,7 +64,26 @@ class PathMapper
             'nginx' => self::findActualPath('/etc/nginx'),
             'php' => self::findActualPath('/etc/php'),
             'logs' => self::findLaravelLogPath($basePath),
-            default => $pathKey, // Default: return the key as-is (assume it's already a path)
+
+            // Script paths
+            'scripts_dir' => self::getCoreNodeDir() . '/scripts',
+            'shells_dir' => self::getCoreNodeDir() . '/scripts/shells',
+            'linux_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux',
+            'debian_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/debian',
+            'install_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/debian/install_shells',
+            'common_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/common',
+            'dd_helper_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/dd_helper',
+
+            // System paths - Binary symlinks
+            'node_symlink' => '/usr/local/bin/node',
+            'go_symlink' => '/usr/local/bin/go',
+            'flutter_symlink' => '/usr/local/bin/flutter',
+
+            // System paths - System directories
+            'systemd_dir' => '/etc/systemd/system',
+            'systemd_bin' => '/usr/bin/systemctl',
+
+            default => $pathKey,
         };
         
         // If sub_path is provided, concatenate it to the mapped path
@@ -651,29 +670,29 @@ class PathMapper
     /**
      * Get core_node directory path
      * Uses absolute path based on current file location
-     * 
+     *
      * @return string|null The path to core_node directory
      */
     public static function getCoreNodeDir(): ?string
     {
         static $cachedPath = null;
-        
+
         if ($cachedPath !== null) {
             return $cachedPath;
         }
-        
+
         // Start from PathMapper file location
         // PathMapper is at: core_node/poly_apps/laravel_main/app/Providers/PathMapper.php
-        // Need to go up 5 levels: Providers -> app -> laravel_main -> poly_apps -> core_node
+        // Need to go up 4 levels: Providers -> app -> laravel_main -> poly_apps -> core_node
         $currentFile = __FILE__;
         $currentDir = dirname($currentFile);
-        
-        // Go up 5 levels to reach core_node
+
+        // Go up 4 levels to reach core_node
         $coreNodeDir = $currentDir;
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 4; $i++) {
             $coreNodeDir = dirname($coreNodeDir);
         }
-        
+
         $cachedPath = $coreNodeDir;
         return $cachedPath;
     }
@@ -715,12 +734,206 @@ class PathMapper
     /**
      * Get Laravel main public directory path
      * Uses getLaravelMainDir() for relative positioning
-     * 
+     *
      * @return string The path to laravel_main/public directory
      */
     public static function getLaravelMainPublicDir(): string
     {
         return self::getLaravelMainDir() . '/public';
+    }
+
+    // ==========================================
+    // Script Directory Methods
+    // ==========================================
+
+    /**
+     * Get scripts directory
+     */
+    public static function getScriptsDir(): string
+    {
+        return self::mapWebPath('scripts_dir');
+    }
+
+    /**
+     * Get shells directory
+     */
+    public static function getShellsDir(): string
+    {
+        return self::mapWebPath('shells_dir');
+    }
+
+    /**
+     * Get Linux shells directory
+     */
+    public static function getLinuxShellsDir(): string
+    {
+        return self::mapWebPath('linux_shells_dir');
+    }
+
+    /**
+     * Get Debian shells directory
+     */
+    public static function getDebianShellsDir(): string
+    {
+        return self::mapWebPath('debian_shells_dir');
+    }
+
+    /**
+     * Get install shells directory
+     */
+    public static function getInstallShellsDir(): string
+    {
+        return self::mapWebPath('install_shells_dir');
+    }
+
+    /**
+     * Get common shells directory
+     */
+    public static function getCommonShellsDir(): string
+    {
+        return self::mapWebPath('common_shells_dir');
+    }
+
+    /**
+     * Get dd helper directory
+     */
+    public static function getDdHelperDir(): string
+    {
+        return self::mapWebPath('dd_helper_dir');
+    }
+
+    /**
+     * Get node installation script path
+     */
+    public static function getNodeInstallScript(): string
+    {
+        return self::getInstallShellsDir() . '/14_install_node_22.sh';
+    }
+
+    /**
+     * Get Go installation script path
+     */
+    public static function getGoInstallScript(): string
+    {
+        return self::getInstallShellsDir() . '/53_install_golang22.sh';
+    }
+
+    /**
+     * Get Flutter installation script path
+     */
+    public static function getFlutterInstallScript(): string
+    {
+        return self::getInstallShellsDir() . '/38_install_flutter.sh';
+    }
+
+    // ==========================================
+    // Binary Path Detection Methods
+    // ==========================================
+
+    /**
+     * Get Node binary path
+     * Follows the installation script pattern from 14_install_node_22.sh
+     *
+     * Priority:
+     * 1. Symlink at /usr/local/bin/node (created by installation script)
+     * 2. NODE_HOME environment variable + /bin/node
+     * 3. which node command
+     * 4. Fallback to symlink path
+     *
+     * @return string Path to node binary
+     */
+    public static function getNodeBinaryPath(): string
+    {
+        $symlinkPath = self::mapWebPath('node_symlink');
+        if (file_exists($symlinkPath)) {
+            return $symlinkPath;
+        }
+
+        $nodeHome = getenv('NODE_HOME');
+        if ($nodeHome && file_exists("$nodeHome/bin/node")) {
+            return "$nodeHome/bin/node";
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which node');
+        if ($result->successful()) {
+            $nodePath = trim($result->output());
+            if (!empty($nodePath) && file_exists($nodePath)) {
+                return $nodePath;
+            }
+        }
+
+        return $symlinkPath;
+    }
+
+    /**
+     * Get Go binary path
+     * Follows the installation script pattern from 53_install_golang22.sh
+     *
+     * Priority:
+     * 1. Symlink at /usr/local/bin/go (created by installation script)
+     * 2. $COMPILE_DIR/go/bin/go (GO_DIR from installation script)
+     * 3. which go command
+     * 4. Fallback to symlink path
+     *
+     * @return string Path to go binary
+     */
+    public static function getGoBinaryPath(): string
+    {
+        $symlinkPath = self::mapWebPath('go_symlink');
+        if (file_exists($symlinkPath)) {
+            return $symlinkPath;
+        }
+
+        $compileDir = self::mapWebPath('compile_dir');
+        $goBin = "$compileDir/go/bin/go";
+        if (file_exists($goBin)) {
+            return $goBin;
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which go');
+        if ($result->successful()) {
+            $goPath = trim($result->output());
+            if (!empty($goPath) && file_exists($goPath)) {
+                return $goPath;
+            }
+        }
+
+        return $symlinkPath;
+    }
+
+    /**
+     * Get Flutter binary path
+     * Follows the installation script pattern from 38_install_flutter.sh
+     *
+     * Priority:
+     * 1. Symlink at /usr/local/bin/flutter (created by installation script)
+     * 2. Snap installation at /snap/bin/flutter
+     * 3. which flutter command
+     * 4. Fallback to symlink path
+     *
+     * @return string Path to flutter binary
+     */
+    public static function getFlutterBinaryPath(): string
+    {
+        $symlinkPath = self::mapWebPath('flutter_symlink');
+        if (file_exists($symlinkPath)) {
+            return $symlinkPath;
+        }
+
+        $snapPath = '/snap/bin/flutter';
+        if (file_exists($snapPath)) {
+            return $snapPath;
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which flutter');
+        if ($result->successful()) {
+            $flutterPath = trim($result->output());
+            if (!empty($flutterPath) && file_exists($flutterPath)) {
+                return $flutterPath;
+            }
+        }
+
+        return $symlinkPath;
     }
 }
 

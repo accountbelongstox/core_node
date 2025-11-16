@@ -24,9 +24,16 @@ use App\Providers\PathMapper;
 class ServerManagerV1NuxtServiceManager
 {
     private const NUXT_SERVICE_PREFIX = 'nuxt-';
-    private const SYSTEMD_DIR = '/etc/systemd/system';
-    private const NUXT_PORT_START = 3000;
-    private const NUXT_PORT_END = 3100;
+    private const NUXT_PORT_START = 10000;
+    private const NUXT_PORT_END = 11000;
+
+    /**
+     * Get systemd directory from PathMapper
+     */
+    private static function getSystemdDir(): string
+    {
+        return PathMapper::mapWebPath('systemd_dir');
+    }
 
     /**
      * Get Nuxt service name from app namespace
@@ -105,7 +112,7 @@ class ServerManagerV1NuxtServiceManager
     public static function findPortForApp(string $appname): ?int
     {
         $serviceName = self::getNuxtServiceName($appname);
-        $servicePath = self::SYSTEMD_DIR . "/$serviceName.service";
+        $servicePath = self::getSystemdDir() . "/$serviceName.service";
 
         if (!file_exists($servicePath)) {
             return null;
@@ -131,23 +138,37 @@ class ServerManagerV1NuxtServiceManager
 
     /**
      * Create systemd service file for Nuxt app
+     *
+     * @param string $appname App namespace
+     * @param int $port Port number
+     * @param string|null $user Service user (default: auto-detect)
+     * @param bool $debugMode If true, runs directly from source; if false, runs from factory build
+     * @return bool Success status
      */
-    public static function createServiceFile(string $appname, int $port, string $user = null): bool
+    public static function createServiceFile(string $appname, int $port, string $user = null, bool $debugMode = false): bool
     {
         if ($user === null) {
             $user = self::getDefaultServiceUser();
         }
 
         $serviceName = self::getNuxtServiceName($appname);
-        $factoryPath = self::getFactoryPath($appname);
-        $serviceContent = self::generateServiceFileContent($appname, $factoryPath, $port, $user);
 
-        $servicePath = self::SYSTEMD_DIR . "/$serviceName.service";
+        if ($debugMode) {
+            $serviceContent = self::generateDebugServiceFileContent($appname, $port, $user);
+            $mode = 'debug';
+        } else {
+            $factoryPath = self::getFactoryPath($appname);
+            $serviceContent = self::generateServiceFileContent($appname, $factoryPath, $port, $user);
+            $mode = 'production';
+        }
+
+        $servicePath = self::getSystemdDir() . "/$serviceName.service";
 
         if (!file_put_contents($servicePath, $serviceContent)) {
             Log::error('Failed to create Nuxt service file', [
                 'service_name' => $serviceName,
-                'path' => $servicePath
+                'path' => $servicePath,
+                'mode' => $mode
             ]);
             return false;
         }
@@ -158,20 +179,22 @@ class ServerManagerV1NuxtServiceManager
             'service_name' => $serviceName,
             'port' => $port,
             'user' => $user,
-            'factory_path' => $factoryPath
+            'mode' => $mode
         ]);
 
         return true;
     }
 
     /**
-     * Generate systemd service file content
+     * Generate systemd service file content for production mode (factory build)
      */
     private static function generateServiceFileContent(string $appname, string $factoryPath, int $port, string $user): string
     {
+        $nodePath = PathMapper::getNodeBinaryPath();
+
         return <<<SERVICE
 [Unit]
-Description=Nuxt PolyApp - $appname
+Description=Nuxt PolyApp - $appname (Production)
 After=network.target
 
 [Service]
@@ -182,9 +205,43 @@ Environment="NODE_ENV=production"
 Environment="PORT=$port"
 Environment="NITRO_PORT=$port"
 Environment="NUXT_APP_NAMESPACE=$appname"
-ExecStart=/usr/bin/node $factoryPath/.output/server/index.mjs
+ExecStart=$nodePath $factoryPath/.output/server/index.mjs
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SERVICE;
+    }
+
+    /**
+     * Generate systemd service file content for debug mode (direct source)
+     */
+    private static function generateDebugServiceFileContent(string $appname, int $port, string $user): string
+    {
+        $nodePath = PathMapper::getNodeBinaryPath();
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
+        $switchScript = "$nuxtMainPath/scripts/switch-app-entry-plus.js";
+
+        return <<<SERVICE
+[Unit]
+Description=Nuxt PolyApp - $appname (Debug Mode)
+After=network.target
+
+[Service]
+Type=simple
+User=$user
+WorkingDirectory=$nuxtMainPath
+Environment="NODE_ENV=development"
+Environment="PORT=$port"
+Environment="NITRO_PORT=$port"
+Environment="NUXT_APP_NAMESPACE=$appname"
+ExecStart=$nodePath $switchScript --app $appname
+Restart=always
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
@@ -316,7 +373,7 @@ SERVICE;
         self::stopService($serviceName);
         self::disableService($serviceName);
 
-        $servicePath = self::SYSTEMD_DIR . "/$serviceName.service";
+        $servicePath = self::getSystemdDir() . "/$serviceName.service";
         if (file_exists($servicePath)) {
             if (!unlink($servicePath)) {
                 Log::error('Failed to remove Nuxt service file', [
@@ -430,5 +487,220 @@ SERVICE;
         }
 
         return $result->output();
+    }
+
+    /**
+     * Detect the current mode of an existing service
+     *
+     * @param string $serviceName Service name
+     * @return string|null 'debug' or 'production' or null if service doesn't exist
+     */
+    public static function detectServiceMode(string $serviceName): ?string
+    {
+        $servicePath = self::getSystemdDir() . "/$serviceName.service";
+
+        if (!file_exists($servicePath)) {
+            return null;
+        }
+
+        $content = file_get_contents($servicePath);
+
+        // Check for debug mode markers
+        if (str_contains($content, 'Debug Mode') ||
+            str_contains($content, 'switch-app-entry-plus.js') ||
+            str_contains($content, 'NODE_ENV=development')) {
+            return 'debug';
+        }
+
+        // Check for production mode markers
+        if (str_contains($content, 'Production') ||
+            str_contains($content, '.output/server/index.mjs') ||
+            str_contains($content, 'NODE_ENV=production')) {
+            return 'production';
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if service needs mode refresh (current mode differs from requested mode)
+     *
+     * @param string $appname App namespace
+     * @param bool $requestedDebugMode Requested debug mode
+     * @return bool True if refresh is needed
+     */
+    public static function needsModeRefresh(string $appname, bool $requestedDebugMode): bool
+    {
+        $serviceName = self::getNuxtServiceName($appname);
+        $currentMode = self::detectServiceMode($serviceName);
+
+        if ($currentMode === null) {
+            return false; // Service doesn't exist, no refresh needed
+        }
+
+        $requestedMode = $requestedDebugMode ? 'debug' : 'production';
+
+        return $currentMode !== $requestedMode;
+    }
+
+    /**
+     * Refresh service configuration (recreate with potentially different mode)
+     *
+     * @param string $appname App namespace
+     * @param int $port Port number
+     * @param string|null $user Service user
+     * @param bool $debugMode Debug mode flag
+     * @return bool Success status
+     */
+    public static function refreshService(string $appname, int $port, string $user = null, bool $debugMode = false): bool
+    {
+        $serviceName = self::getNuxtServiceName($appname);
+        $currentMode = self::detectServiceMode($serviceName);
+        $requestedMode = $debugMode ? 'debug' : 'production';
+
+        if (!self::serviceExists($serviceName)) {
+            Log::warning('Cannot refresh non-existent service', ['service_name' => $serviceName]);
+            return false;
+        }
+
+        // Check if mode changed
+        $modeChanged = ($currentMode !== $requestedMode);
+
+        if ($modeChanged) {
+            Log::info('Service mode changed, refreshing service', [
+                'service_name' => $serviceName,
+                'old_mode' => $currentMode,
+                'new_mode' => $requestedMode
+            ]);
+        }
+
+        // Stop the service before updating
+        $wasActive = self::getServiceStatus($serviceName)['active'];
+        if ($wasActive) {
+            self::stopService($serviceName);
+        }
+
+        // Recreate the service file
+        if (!self::createServiceFile($appname, $port, $user, $debugMode)) {
+            Log::error('Failed to refresh service file', ['service_name' => $serviceName]);
+            return false;
+        }
+
+        // Restart if it was running before
+        if ($wasActive) {
+            sleep(1); // Brief pause before restart
+            if (!self::startService($serviceName)) {
+                Log::error('Failed to restart service after refresh', ['service_name' => $serviceName]);
+                return false;
+            }
+        }
+
+        Log::info('Service refreshed successfully', [
+            'service_name' => $serviceName,
+            'mode' => $requestedMode,
+            'mode_changed' => $modeChanged
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Resolve duplicate services (ensure only one service per app)
+     * Removes any duplicate or conflicting service configurations
+     *
+     * @param string $appname App namespace
+     * @return array Information about removed duplicates
+     */
+    public static function resolveDuplicateServices(string $appname): array
+    {
+        $serviceName = self::getNuxtServiceName($appname);
+        $removed = [];
+
+        // List all systemd services
+        $result = Process::run("systemctl list-unit-files --type=service --all | grep nuxt-");
+
+        if ($result->failed()) {
+            return $removed;
+        }
+
+        $lines = explode("\n", trim($result->output()));
+        $pattern = '/^\\s*(' . preg_quote(self::NUXT_SERVICE_PREFIX, '/') . preg_quote($appname, '/') . '[^\\s]*)\\.service/';
+
+        foreach ($lines as $line) {
+            if (preg_match($pattern, $line, $matches)) {
+                $foundService = $matches[1];
+
+                // If it's not the exact service name, it's a duplicate
+                if ($foundService !== $serviceName) {
+                    Log::warning('Found duplicate service', [
+                        'expected' => $serviceName,
+                        'found' => $foundService
+                    ]);
+
+                    // Remove the duplicate
+                    if (self::removeService($foundService)) {
+                        $removed[] = $foundService;
+                        Log::info('Removed duplicate service', ['service_name' => $foundService]);
+                    }
+                }
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * Smart service creation with duplicate resolution and mode detection
+     *
+     * @param string $appname App namespace
+     * @param int $port Port number
+     * @param string|null $user Service user
+     * @param bool $debugMode Debug mode flag
+     * @param bool $autoResolve Auto-resolve duplicates and refresh mode
+     * @return array Status information
+     */
+    public static function createOrRefreshService(string $appname, int $port, string $user = null, bool $debugMode = false, bool $autoResolve = true): array
+    {
+        $serviceName = self::getNuxtServiceName($appname);
+        $result = [
+            'success' => false,
+            'action' => 'none',
+            'mode' => $debugMode ? 'debug' : 'production',
+            'duplicates_removed' => [],
+            'mode_changed' => false
+        ];
+
+        // Step 1: Resolve duplicates if enabled
+        if ($autoResolve) {
+            $duplicates = self::resolveDuplicateServices($appname);
+            $result['duplicates_removed'] = $duplicates;
+        }
+
+        // Step 2: Check if service exists and needs refresh
+        if (self::serviceExists($serviceName)) {
+            $currentMode = self::detectServiceMode($serviceName);
+            $requestedMode = $debugMode ? 'debug' : 'production';
+            $modeChanged = ($currentMode !== $requestedMode);
+
+            $result['mode_changed'] = $modeChanged;
+            $result['action'] = $modeChanged ? 'refreshed_mode_change' : 'refreshed';
+
+            // Refresh the service
+            $success = self::refreshService($appname, $port, $user, $debugMode);
+            $result['success'] = $success;
+
+            return $result;
+        }
+
+        // Step 3: Create new service
+        $result['action'] = 'created';
+        $success = self::createServiceFile($appname, $port, $user, $debugMode);
+        $result['success'] = $success;
+
+        if ($success) {
+            self::enableService($serviceName);
+        }
+
+        return $result;
     }
 }

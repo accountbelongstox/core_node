@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use App\Providers\PathMapper;
 
 /**
  * Firewall Manager for ServerManagerV1
@@ -13,15 +14,18 @@ use Illuminate\Support\Facades\Process;
  *
  * IMPORTANT: Does NOT install firewall if not present - only manages existing installations
  *
- * This class wraps the functionality from:
- * /www/programing/core_node/scripts/shells/linux/common/firewall_manager.sh
+ * This class wraps the functionality from firewall_manager.sh in common shells directory
  */
 class ServerManagerV1FirewallManager
 {
     /**
-     * Firewall script path
+     * Get firewall script path from PathMapper
      */
-    private const FIREWALL_SCRIPT = '/www/programing/core_node/scripts/shells/linux/common/firewall_manager.sh';
+    private static function getFirewallScriptPath(): string
+    {
+        $commonShellsDir = PathMapper::mapWebPath('common_shells_dir');
+        return "$commonShellsDir/firewall_manager.sh";
+    }
 
     /**
      * Detect available and active firewalls
@@ -30,7 +34,7 @@ class ServerManagerV1FirewallManager
      */
     public static function detectFirewall(): array
     {
-        $result = Process::run("bash -c 'source " . self::FIREWALL_SCRIPT . " && firewall_get_status'");
+        $result = Process::run("bash -c 'source " . self::getFirewallScriptPath() . " && firewall_get_status'");
 
         $output = $result->output();
 
@@ -105,7 +109,7 @@ class ServerManagerV1FirewallManager
         ]);
 
         $result = Process::run(
-            "bash -c 'source " . self::FIREWALL_SCRIPT . " && firewall_allow_port {$port} {$protocol} \"" . addslashes($comment) . "\"'"
+            "bash -c 'source " . self::getFirewallScriptPath() . " && firewall_allow_port {$port} {$protocol} \"" . addslashes($comment) . "\"'"
         );
 
         if ($result->successful() || str_contains($result->output(), 'No active firewall detected')) {
@@ -168,7 +172,7 @@ class ServerManagerV1FirewallManager
         ]);
 
         $result = Process::run(
-            "bash -c 'source " . self::FIREWALL_SCRIPT . " && firewall_allow_port_range {$startPort} {$endPort} {$protocol} \"" . addslashes($comment) . "\"'"
+            "bash -c 'source " . self::getFirewallScriptPath() . " && firewall_allow_port_range {$startPort} {$endPort} {$protocol} \"" . addslashes($comment) . "\"'"
         );
 
         if ($result->successful() || str_contains($result->output(), 'No active firewall detected')) {
@@ -218,7 +222,7 @@ class ServerManagerV1FirewallManager
         ]);
 
         $result = Process::run(
-            "bash -c 'source " . self::FIREWALL_SCRIPT . " && firewall_remove_port {$port} {$protocol}'"
+            "bash -c 'source " . self::getFirewallScriptPath() . " && firewall_remove_port {$port} {$protocol}'"
         );
 
         if ($result->successful() || str_contains($result->output(), 'No active firewall detected')) {
@@ -247,7 +251,7 @@ class ServerManagerV1FirewallManager
     public static function listRules(): array
     {
         $result = Process::run(
-            "bash -c 'source " . self::FIREWALL_SCRIPT . " && firewall_list_rules'"
+            "bash -c 'source " . self::getFirewallScriptPath() . " && firewall_list_rules'"
         );
 
         return [
