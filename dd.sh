@@ -100,6 +100,7 @@ declare -a SOURCE_FILES=(
     "$DD_HELPER_DIR/secret_functions.sh"
     "$DD_HELPER_DIR/main_execution.sh"
     "$GVAR_COMMON_FILE"
+    "$DD_HELPER_DIR/webpath_permissions.sh"
 )
 
 
@@ -299,6 +300,10 @@ main() {
     echo ""
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
+
+    # Step 3.5: Set web path permissions for real user (when running as root)
+    echo ""
+    set_webpath_execute_permissions
 
     # Step 4: Create and initialize global variable directory
     echo ""
