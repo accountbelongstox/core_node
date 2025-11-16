@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple
 
 # Third-party imports
-from pycore.pyfoundations.third_party import cv2, numpy
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

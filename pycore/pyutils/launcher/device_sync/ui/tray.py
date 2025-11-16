@@ -17,7 +17,10 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Optional
 
-from pycore.pyfoundations.third_party import pystray, PIL
+from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL
+
+pystray = get_third_package_pystray()
+PIL = get_third_package_PIL()
 
 Image = PIL.Image
 ImageDraw = PIL.ImageDraw

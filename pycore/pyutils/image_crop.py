@@ -11,8 +11,11 @@ from typing import Tuple, Union, Optional, Dict
 from pathlib import Path
 from collections import OrderedDict
 
-from pycore.pyfoundations.third_party import numpy, PIL, cv2
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL, get_third_package_cv2
+
+numpy = get_third_package_numpy()
+PIL = get_third_package_PIL()
+cv2 = get_third_package_cv2()
 PILImage = PIL.Image
 
 # Import ColorPrint for logging

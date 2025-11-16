@@ -3,7 +3,9 @@
 Module Call Router - Module calling API routes
 """
 
-from pycore.pyfoundations.third_party import fastapi
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+fastapi = get_third_package_fastapi()
 
 from ..controllers import ModuleCallController
 from ..models.request_models import ModuleCallRequest, ModuleCallResponse

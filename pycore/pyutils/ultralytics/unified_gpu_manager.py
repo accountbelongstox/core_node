@@ -26,7 +26,10 @@ from pathlib import Path
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
 
-from pycore.pyfoundations.third_party import torch, cv2
+from pycore.pyfoundations.third_party import get_third_package_torch, get_third_package_cv2
+
+torch = get_third_package_torch()
+cv2 = get_third_package_cv2()
 
 
 class UnifiedGPUManager:

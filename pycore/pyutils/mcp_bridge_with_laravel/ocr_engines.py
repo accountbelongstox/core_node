@@ -16,7 +16,9 @@ import importlib.util
 from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import requests
+from pycore.pyfoundations.third_party import get_third_package_requests
+
+requests = get_third_package_requests()
 
 # Check for optional dependencies at module level
 _paddleocr_available = importlib.util.find_spec("paddleocr") is not None

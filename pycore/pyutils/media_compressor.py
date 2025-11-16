@@ -23,10 +23,12 @@ from typing import Optional, Dict, Tuple, Union, List, Callable
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from pycore.pyfoundations.third_party import cv2, numpy
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
-import numpy as np
 
 
 @dataclass
@@ -159,7 +161,6 @@ class MediaCompressor:
         """Detect GPU availability via PyTorch and OpenCV"""
         # Try PyTorch first
         try:
-            import torch
             if torch.cuda.is_available():
                 self.cuda_available = True
                 self.gpu_device_count = torch.cuda.device_count()

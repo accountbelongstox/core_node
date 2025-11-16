@@ -16,7 +16,6 @@ Usage:
     result = detect_red_portal(img)
 
     # From numpy array
-    import cv2
     img = cv2.imread("screenshot.png")
     result = detect_red_portal(img)
 
@@ -28,9 +27,12 @@ import sys
 from pathlib import Path
 from typing import Union, Optional, Tuple, List
 
-from pycore.pyfoundations.third_party import PIL, cv2, numpy
+from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_cv2, get_third_package_numpy
+
+PIL = get_third_package_PIL()
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
 from PIL import Image
-import numpy as np
 
 # Add parent directory to path for imports
 current_dir = Path(__file__).resolve().parent.parent

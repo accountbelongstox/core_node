@@ -14,7 +14,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 
 from pycore.pyutils.pybrowser.interfaces import IPlugin
 

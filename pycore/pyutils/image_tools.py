@@ -13,7 +13,9 @@ import math
 from typing import Tuple, Optional, Dict, Any, List, Union
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 
 Image = PIL.Image
 ImageDraw = PIL.ImageDraw

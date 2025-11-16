@@ -10,7 +10,9 @@ import os
 import asyncio
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 from typing import Dict, Any
 from datetime import datetime
 from urllib.parse import urlparse

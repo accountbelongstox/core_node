@@ -8,7 +8,9 @@
 from pathlib import Path
 import sys
 
-from pycore.pyfoundations.third_party import requests
+from pycore.pyfoundations.third_party import get_third_package_requests
+
+requests = get_third_package_requests()
 
 def download_scrcpy_server():
     """下载scrcpy-server.jar v3.3.3"""

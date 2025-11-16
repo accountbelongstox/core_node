@@ -10,7 +10,12 @@ import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import PIL_Image, PIL_ImageDraw, PIL_ImageFont, numpy
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont, get_third_package_numpy
+
+PIL_Image = get_third_package_PIL_Image()
+PIL_ImageDraw = get_third_package_PIL_ImageDraw()
+PIL_ImageFont = get_third_package_PIL_ImageFont()
+numpy = get_third_package_numpy()
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.ocr import ocr_manager
 from pycore.pyutils.mcp.file_processing.color_palette_extractor_with_dominant_colors_and_histogram import (

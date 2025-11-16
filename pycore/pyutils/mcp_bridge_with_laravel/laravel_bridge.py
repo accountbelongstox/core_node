@@ -11,7 +11,9 @@ import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import requests
+from pycore.pyfoundations.third_party import get_third_package_requests
+
+requests = get_third_package_requests()
 from pycore.pyutils.mcp_bridge_with_laravel.config import (
     LARAVEL_BASE_URL,
     LARAVEL_API_PREFIX,

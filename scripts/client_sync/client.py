@@ -333,9 +333,14 @@ def receive_batch_files(sock):
         sock.sendall(decision_json)
 
         if not accepted_files:
-            # No files to receive - print summary
-            print(f"[SUMMARY] Batch: {len(accepted_files)} accepted, {len(rejected_files)} rejected")
-            return True
+            # No files to receive - return stats without transfer
+            return {
+                "success": True,
+                "received": 0,
+                "failed": 0,
+                "rejected": len(rejected_files),
+                "size_bytes": 0
+            }
 
         # Phase 4: Receive accepted files
         received_count = 0

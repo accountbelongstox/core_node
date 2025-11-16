@@ -8,12 +8,14 @@ Uses ORB features for fast, robust matching with perspective transformation
 
 import os
 import sys
-import numpy as np
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import numpy, cv2
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
+
+numpy = get_third_package_numpy()
+cv2 = get_third_package_cv2()
 from pycore.pyfoundations.color_print import ColorPrint
 
 
@@ -435,7 +437,6 @@ class ImageMatcher:
         # Load target image - handle Chinese characters in path
         try:
             from PIL import Image as PILImage
-            import numpy as np
 
             # Load with PIL to handle Chinese characters
             pil_target = PILImage.open(str(target_image_path))
