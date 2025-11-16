@@ -403,11 +403,15 @@ def receive_batch_files(sock):
         sock.sendall(confirm_size.to_bytes(4, 'big'))
         sock.sendall(confirm_json)
 
-        # Print batch summary
+        # Return batch statistics instead of printing
         total_size = sum(file_decisions[f][1] for f in accepted_files)
-        size_mb = total_size / (1024 * 1024)
-        print(f"[SUMMARY] Batch complete: {received_count} received ({size_mb:.2f}MB), {failed_count} failed, {len(rejected_files)} rejected")
-        return True
+        return {
+            "success": True,
+            "received": received_count,
+            "failed": failed_count,
+            "rejected": len(rejected_files),
+            "size_bytes": total_size
+        }
 
     except Exception as e:
         print(f"[CLIENT] Error receiving batch: {e}")
@@ -424,7 +428,7 @@ def receive_batch_files(sock):
             sock.sendall(error_json)
         except:
             pass
-        return False
+        return {"success": False, "received": 0, "failed": 0, "rejected": 0, "size_bytes": 0}
 
 def handle_client(sock, addr):
     """
@@ -477,11 +481,29 @@ def handle_client(sock, addr):
             return
         
         # Process batch files from single server
+        total_received = 0
+        total_failed = 0
+        total_rejected = 0
+        total_size_bytes = 0
+        batch_count = 0
+
         while running:
-            if receive_batch_files(sock):
+            result = receive_batch_files(sock)
+            if result and result.get("success"):
+                batch_count += 1
+                total_received += result.get("received", 0)
+                total_failed += result.get("failed", 0)
+                total_rejected += result.get("rejected", 0)
+                total_size_bytes += result.get("size_bytes", 0)
                 continue
             else:
                 break
+
+        # Print final summary after all batches
+        if batch_count > 0:
+            total_size_mb = total_size_bytes / (1024 * 1024)
+            print(f"[SUMMARY] Session complete: {total_received} received ({total_size_mb:.2f}MB), {total_failed} failed, {total_rejected} rejected across {batch_count} batch(es)")
+
     except Exception as e:
         print(f"Error handling client: {e}")
     finally:
