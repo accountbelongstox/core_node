@@ -25,11 +25,12 @@ Returns:
 """
 
 import sys
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import Union, Optional, Tuple, List
+
+from pycore.pyfoundations.third_party import PIL, cv2, numpy
 from PIL import Image
+import numpy as np
 
 # Add parent directory to path for imports
 current_dir = Path(__file__).resolve().parent.parent

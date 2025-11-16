@@ -14,6 +14,7 @@ from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
 
 # Third-party imports
+from pycore.pyfoundations.third_party import PIL
 from PIL import Image, ImageDraw, ImageFont
 
 # Add paths

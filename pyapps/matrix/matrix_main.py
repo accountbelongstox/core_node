@@ -9,6 +9,7 @@ Usage:
 
 import sys
 import time
+import webbrowser
 from pathlib import Path
 
 # Add project root to path
@@ -16,7 +17,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app, TrayMenuItem
+from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app, TrayMenuItem, get_i18n_manager
 from pyapps.matrix.controller import MatrixService, MatrixServiceConfig
 from pyapps.matrix.config import Config
 
@@ -56,7 +57,6 @@ def main_app_entry():
 
 def on_closing():
     """Cleanup callback when app closes"""
-    from pycore.pyutils.native_ui import get_i18n_manager
     i18n = get_i18n_manager()
     ColorPrint.yellow(f"[Matrix] {i18n.get('matrix.closing')}")
     if matrix_service_ref[0]:
@@ -65,7 +65,6 @@ def on_closing():
 
 def _open_browser(url):
     """Open URL in default browser"""
-    import webbrowser
     webbrowser.open(url)
     ColorPrint.blue(f"[Matrix] Opened in browser: {url}")
 
@@ -76,7 +75,6 @@ def start():
     icon_path = str(PROJECT_ROOT / "pyapps" / "matrix" / "icon.png")
 
     # Get i18n manager for tray menu text
-    from pycore.pyutils.native_ui import get_i18n_manager
     i18n = get_i18n_manager()
 
     # Tray menu items

@@ -20,6 +20,7 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 # Third-party imports
+from pycore.pyfoundations.third_party import PIL
 from PIL import Image
 from providor.common_imports import ColorPrint, ImageAnnotator
 
