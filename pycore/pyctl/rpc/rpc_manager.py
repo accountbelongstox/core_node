@@ -17,11 +17,14 @@ Features:
 import asyncio
 import threading
 import base64
+import time
+import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.rpc.server.unified_server import UnifiedRpcServer
+from pycore.pyutils.tts_cache import tts_cache_manager
 from pycore.pyctl.speech import get_speech_manager
 
 
