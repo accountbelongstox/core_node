@@ -421,7 +421,8 @@ def sync_files_to_client(client_ip, is_new_client=False):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [{client_ip}] {sync_type}: {len(files_to_sync)} files ({size_mb:.2f}MB) to sync")
         
         # Batch files into groups for better protocol handling
-        BATCH_SIZE = 50
+        BATCH_SIZE = 20  # Reduced from 50 to prevent connection overflow
+        BATCHES_PER_CONNECTION = 10  # Reconnect after every 10 batches
         updated_client_checksums = client_file_checksums.copy()
         successful_syncs = 0
         failed_syncs = 0
@@ -429,56 +430,69 @@ def sync_files_to_client(client_ip, is_new_client=False):
         total_size_bytes = 0
         total_batches = (len(files_to_sync) + BATCH_SIZE - 1) // BATCH_SIZE
 
-        # Open ONE connection for all batches
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(SOCKET_TIMEOUT)
-            sock.connect((client_ip, CLIENT_PORT))
-            print(f"[{client_ip}] Connected - processing {total_batches} batches...")
+        print(f"[{client_ip}] Starting sync: {total_batches} batches ({len(files_to_sync)} files)")
 
-            for batch_start in range(0, len(files_to_sync), BATCH_SIZE):
-                batch = files_to_sync[batch_start:batch_start + BATCH_SIZE]
-                batch_num = (batch_start // BATCH_SIZE) + 1
+        # Process batches in groups with reconnection
+        for connection_start in range(0, total_batches, BATCHES_PER_CONNECTION):
+            connection_end = min(connection_start + BATCHES_PER_CONNECTION, total_batches)
+            connection_num = (connection_start // BATCHES_PER_CONNECTION) + 1
+            total_connections = (total_batches + BATCHES_PER_CONNECTION - 1) // BATCHES_PER_CONNECTION
 
-                try:
-                    # Send batch through existing connection
-                    result = send_batch_files_to_client(sock, batch, client_ip)
-
-                    successful_syncs += result.get("successful", 0)
-                    failed_syncs += result.get("failed", 0)
-                    total_rejected += result.get("rejected", 0)
-                    total_size_bytes += result.get("size_bytes", 0)
-
-                    # Update client checksums for successfully transferred files
-                    for accepted_path in result["accepted_files"]:
-                        if accepted_path in file_checksums:
-                            updated_client_checksums[accepted_path] = file_checksums[accepted_path].copy()
-
-                    # Track rejected files to avoid re-attempting in next sync
-                    rejected_paths = [fp for fp, rp, _ in batch if rp not in result["accepted_files"]]
-                    for file_path, relative_path, mtime in batch:
-                        if relative_path not in result["accepted_files"] and relative_path in file_checksums:
-                            # Track rejected file with current server mtime so we don't retry unless file changes
-                            updated_client_checksums[relative_path] = file_checksums[relative_path].copy()
-
-                except Exception as e:
-                    print(f"[{client_ip}] Error processing batch {batch_num}: {e}")
-                    failed_syncs += len(batch)
-                    break  # Connection likely broken, exit batch loop
-
-            sock.close()
-
-            # Print final summary after all batches
-            total_size_mb = total_size_bytes / (1024 * 1024)
-            print(f"[SUMMARY] {client_ip}: {successful_syncs} sent ({total_size_mb:.2f}MB), {failed_syncs} failed, {total_rejected} rejected across {total_batches} batch(es)")
-
-        except Exception as e:
-            print(f"[{client_ip}] Connection error: {e}")
-            failed_syncs = len(files_to_sync)
             try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(SOCKET_TIMEOUT)
+                sock.connect((client_ip, CLIENT_PORT))
+                print(f"[{client_ip}] Connection {connection_num}/{total_connections} - processing batches {connection_start + 1}-{connection_end}")
+
+                for batch_idx in range(connection_start, connection_end):
+                    batch_start = batch_idx * BATCH_SIZE
+                    batch = files_to_sync[batch_start:batch_start + BATCH_SIZE]
+                    batch_num = batch_idx + 1
+
+                    try:
+                        # Send batch through existing connection
+                        result = send_batch_files_to_client(sock, batch, client_ip)
+
+                        successful_syncs += result.get("successful", 0)
+                        failed_syncs += result.get("failed", 0)
+                        total_rejected += result.get("rejected", 0)
+                        total_size_bytes += result.get("size_bytes", 0)
+
+                        # Update client checksums for successfully transferred files
+                        for accepted_path in result["accepted_files"]:
+                            if accepted_path in file_checksums:
+                                updated_client_checksums[accepted_path] = file_checksums[accepted_path].copy()
+
+                        # Track rejected files to avoid re-attempting in next sync
+                        for file_path, relative_path, mtime in batch:
+                            if relative_path not in result["accepted_files"] and relative_path in file_checksums:
+                                # Track rejected file with current server mtime so we don't retry unless file changes
+                                updated_client_checksums[relative_path] = file_checksums[relative_path].copy()
+
+                    except Exception as e:
+                        print(f"[{client_ip}] Error processing batch {batch_num}: {e}")
+                        failed_syncs += len(batch)
+                        break  # Connection likely broken, exit batch loop
+
                 sock.close()
-            except:
-                pass
+
+            except Exception as e:
+                print(f"[{client_ip}] Connection error: {e}")
+                # Mark remaining batches in this connection group as failed
+                for batch_idx in range(connection_start, connection_end):
+                    if batch_idx * BATCH_SIZE < len(files_to_sync):
+                        batch_start = batch_idx * BATCH_SIZE
+                        batch = files_to_sync[batch_start:batch_start + BATCH_SIZE]
+                        failed_syncs += len(batch)
+                try:
+                    sock.close()
+                except:
+                    pass
+                continue  # Try next connection group
+
+        # Print final summary after all batches
+        total_size_mb = total_size_bytes / (1024 * 1024)
+        print(f"[SUMMARY] {client_ip}: {successful_syncs} sent ({total_size_mb:.2f}MB), {failed_syncs} failed, {total_rejected} rejected across {total_batches} batch(es)")
 
         # Save updated client checksums
         with sync_lock:
