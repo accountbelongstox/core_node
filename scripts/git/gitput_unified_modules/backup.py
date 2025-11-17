@@ -7,6 +7,7 @@ Backup module for working directory
 import shutil
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 from gitput_unified_modules.utils import write_color_text, get_core_node_dir
 
 
