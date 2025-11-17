@@ -100,45 +100,45 @@ class ColorPrint:
         _color_print_callback.notify(message, color_type, log_level)
     
     @staticmethod
-    def green(message):
+    def green(message, end='\n'):
         """Print green text"""
-        print(f"{ColorPrint.GREEN}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.GREEN}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "green", "SUCCESS")
 
     @staticmethod
-    def red(message):
+    def red(message, end='\n'):
         """Print red text"""
-        print(f"{ColorPrint.RED}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.RED}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "red", "ERROR")
 
     @staticmethod
-    def yellow(message):
+    def yellow(message, end='\n'):
         """Print yellow text"""
-        print(f"{ColorPrint.YELLOW}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.YELLOW}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "yellow", "WARNING")
 
     @staticmethod
-    def gray(message):
+    def gray(message, end='\n'):
         """Print gray text"""
-        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     @staticmethod
-    def white(message):
+    def white(message, end='\n'):
         """Print white text"""
-        print(f"{ColorPrint.WHITE}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.WHITE}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "white", "INFO")
 
     @staticmethod
-    def blue(message):
+    def blue(message, end='\n'):
         """Print blue text"""
-        print(f"{ColorPrint.BLUE}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.BLUE}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "blue", "INFO")
-    
+
     @staticmethod
-    def debug(message):
+    def debug(message, end='\n'):
         """Print debug text (gray)"""
-        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
+        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}", end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     # ========================================

@@ -52,31 +52,21 @@ Azure Speech Service credentials are loaded from secret manager:
 
 ## Usage
 
-### Unified Entry Point (Recommended) ✨ **NEW!**
+### Single Entry Point (Base Guide Compliant)
 
 ```bash
-# Unified entry point with configuration caching
-python speech_transcribe.py
+# Main entry point with configuration caching
+python speech_transcribe_main.py
 ```
 
 **Features:**
-- Interactive mode selection (single/dual)
+- Always launches dual-source mode (microphone + system audio)
 - **Configuration caching** - saves your preferences
 - **Multi-select languages** - choose multiple languages at once
 - **Cache info display** - see MD5 hashes and TTS cache status
-- Quick restart with cached settings (just press Enter!)
+- Quick restart with cached settings via cache reuse
 
 See [CACHE_INTEGRATION_GUIDE.md](CACHE_INTEGRATION_GUIDE.md) for detailed documentation.
-
-### Legacy Entry Points (Still Supported)
-
-```bash
-# Single-source mode
-python speech_transcribe_main.py
-
-# Dual-source mode
-python speech_transcribe_dual_main.py
-```
 
 ### Feature Highlights
 

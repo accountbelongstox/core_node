@@ -19,6 +19,14 @@ from pycore.pyutils.speech_recognition.speech_recognizer import (
     get_speech_recognizer
 )
 
+from pycore.pyutils.speech_recognition.azure_provider import (
+    AzureSpeechRecognitionProvider
+)
+
+from pycore.pyutils.speech_recognition.base_provider import (
+    BaseSpeechRecognitionProvider
+)
+
 # Check if speech recognition is available
 SPEECH_RECOGNITION_AVAILABLE = True
 
@@ -30,4 +38,6 @@ __all__ = [
     'speech_recognizer',
     'get_speech_recognizer',
     'SPEECH_RECOGNITION_AVAILABLE',
+    'AzureSpeechRecognitionProvider',
+    'BaseSpeechRecognitionProvider',
 ]
