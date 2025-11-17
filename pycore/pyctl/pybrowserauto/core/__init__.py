@@ -10,7 +10,7 @@ Core functionality for document offline downloads:
 - URLRewriter: URL rewriting for offline viewing
 
 Usage:
-    from pycore.pyctl.document_offline.core import (
+    from pycore.pyctl.pybrowserauto.core import (
         DomainContext, URLQueue, FileMapper, URLRewriter
     )
 
@@ -30,10 +30,10 @@ Usage:
     rewritten_html = rewriter.rewrite_html(html_content)
 """
 
-from pycore.pyctl.document_offline.core.domain_context import DomainContext
-from pycore.pyctl.document_offline.core.url_queue import URLQueue
-from pycore.pyctl.document_offline.core.file_mapper import FileMapper
-from pycore.pyctl.document_offline.core.url_rewriter import URLRewriter
+from pycore.pyctl.pybrowserauto.core.domain_context import DomainContext
+from pycore.pyctl.pybrowserauto.core.url_queue import URLQueue
+from pycore.pyctl.pybrowserauto.core.file_mapper import FileMapper
+from pycore.pyctl.pybrowserauto.core.url_rewriter import URLRewriter
 
 __all__ = [
     'DomainContext',

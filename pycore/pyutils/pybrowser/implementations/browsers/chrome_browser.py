@@ -9,12 +9,11 @@ Each instance is a self-contained thread that manages its own Selenium driver.
 import os
 import shutil
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 
 from pycore import ColorPrint
 from pycore.pyutils.pybrowser.core.threaded_browser import ThreadedBrowser
@@ -28,6 +27,7 @@ class ChromeBrowser(ThreadedBrowser):
     - Launches and manages its own Chrome WebDriver
     - Processes commands via internal queue
     - Provides thread-safe API for browser operations
+    - Supports cookie persistence with multiple profiles
 
     Usage:
         browser = ChromeBrowser(config={'headless': False})
@@ -46,11 +46,13 @@ class ChromeBrowser(ThreadedBrowser):
             config: Browser configuration
                 - headless: bool (default: False)
                 - args: list of Chrome arguments
-                - user_data_dir: Chrome profile directory
+                - profile_dir: Browser profile directory (unified parameter)
+                - user_data_dir: Alias for profile_dir (Chrome-specific, deprecated)
                 - download_dir: Download directory
                 - window_size: tuple (width, height)
                 - driver_mode: str (auto, local, system_path, auto_download)
                 - driver_path: str (path to chromedriver)
+                - cookie_config: Cookie persistence configuration (see ThreadedBrowser)
             thread_name: Custom thread name (default: auto-generated)
         """
         super().__init__(config, thread_name or 'ChromeBrowser', daemon=True)
@@ -126,10 +128,16 @@ class ChromeBrowser(ThreadedBrowser):
             return Service(downloaded_path)
 
         # All methods failed - provide clear guidance
-        error_msg = (
+        error_msg = self._get_driver_not_found_error('ChromeDriver', driver_path, driver_mode)
+        ColorPrint.red(error_msg)
+        raise RuntimeError(error_msg)
+
+    def _get_driver_not_found_error(self, driver_name: str, driver_path: str, driver_mode: str) -> str:
+        """Generate driver not found error message (unified)"""
+        return (
             f"\n"
             f"=================================================================\n"
-            f" ChromeDriver Not Found - Configuration Required\n"
+            f" {driver_name} Not Found - Configuration Required\n"
             f"=================================================================\n"
             f"\n"
             f"Attempted methods:\n"
@@ -145,11 +153,9 @@ class ChromeBrowser(ThreadedBrowser):
             f"  - Subsequent runs use cached driver (offline)\n"
             f"\n"
             f"Option 2 (Offline): Manual driver installation\n"
-            f"  1. Download ChromeDriver from:\n"
-            f"     https://googlechromelabs.github.io/chrome-for-testing/\n"
-            f"     or https://registry.npmmirror.com/binary.html?path=chromedriver/\n"
-            f"  2. Place at: D:\\drivers\\chromedriver.exe (Windows)\n"
-            f"  3. Config: {{\"driver_mode\": \"local\", \"driver_path\": \"D:/drivers/chromedriver.exe\"}}\n"
+            f"  1. Download {driver_name} from appropriate source\n"
+            f"  2. Place at: D:\\drivers\\{driver_name.lower()}.exe (Windows)\n"
+            f"  3. Config: {{\"driver_mode\": \"local\", \"driver_path\": \"D:/drivers/{driver_name.lower()}.exe\"}}\n"
             f"\n"
             f"Option 3: System PATH\n"
             f"  1. Download driver and add to system PATH\n"
@@ -160,8 +166,6 @@ class ChromeBrowser(ThreadedBrowser):
             f"\n"
             f"================================================================="
         )
-        ColorPrint.red(error_msg)
-        raise RuntimeError(error_msg)
 
     def _launch_browser(self):
         """
@@ -192,10 +196,12 @@ class ChromeBrowser(ThreadedBrowser):
         chrome_options.add_argument('--disable-web-security')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
-        # User data directory (profile)
-        user_data_dir = self.config.get('user_data_dir')
-        if user_data_dir:
-            chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
+        # Profile directory (unified parameter)
+        # Support both 'profile_dir' (unified) and 'user_data_dir' (Chrome-specific, deprecated)
+        profile_dir = self.config.get('profile_dir') or self.config.get('user_data_dir')
+        if profile_dir:
+            chrome_options.add_argument(f'--user-data-dir={profile_dir}')
+            ColorPrint.blue(f"{self.name}: Using profile directory: {profile_dir}")
 
         # Download directory
         download_dir = self.config.get('download_dir')
@@ -230,232 +236,18 @@ class ChromeBrowser(ThreadedBrowser):
             f"{self.name}: Chrome browser launched successfully (v{self.version})"
         )
 
-    def new_tab(self, url: str = 'about:blank') -> bool:
-        """
-        Open new tab (thread-safe)
+        # Load cookies after browser launch
+        self._load_cookies_on_launch()
 
-        Args:
-            url: URL to open in new tab
-
-        Returns:
-            True if successful
-        """
-        def _open_tab(driver, target_url):
-            driver.execute_script(f"window.open('{target_url}', '_blank');")
-            # Switch to new tab
-            driver.switch_to.window(driver.window_handles[-1])
-            return True
-
-        return self.execute(_open_tab, url)
-
-    def close_current_tab(self) -> bool:
-        """
-        Close current tab (thread-safe)
-
-        Returns:
-            True if successful, False if only one tab
-        """
-        def _close_tab(driver):
-            if len(driver.window_handles) > 1:
-                driver.close()
-                # Switch to first tab
-                driver.switch_to.window(driver.window_handles[0])
-                return True
-            return False
-
-        return self.execute(_close_tab)
-
-    def switch_to_tab(self, index: int) -> bool:
-        """
-        Switch to tab by index (thread-safe)
-
-        Args:
-            index: Tab index (0-based)
-
-        Returns:
-            True if successful, False if index out of range
-        """
-        def _switch_tab(driver, tab_index):
-            handles = driver.window_handles
-            if 0 <= tab_index < len(handles):
-                driver.switch_to.window(handles[tab_index])
-                return True
-            return False
-
-        return self.execute(_switch_tab, index)
-
-    def get_tab_count(self) -> int:
-        """
-        Get number of open tabs (thread-safe)
-
-        Returns:
-            Number of tabs
-        """
-        def _count_tabs(driver):
-            return len(driver.window_handles)
-
-        return self.execute(_count_tabs)
-
-    def screenshot(self, filepath: str) -> bool:
-        """
-        Take screenshot (thread-safe)
-
-        Args:
-            filepath: Path to save screenshot
-
-        Returns:
-            True if successful
-        """
-        def _take_screenshot(driver, path):
-            return driver.save_screenshot(path)
-
-        return self.execute(_take_screenshot, filepath)
-
-    def execute_script(self, script: str, *args) -> Any:
-        """
-        Execute JavaScript (thread-safe)
-
-        Args:
-            script: JavaScript code
-            *args: Arguments for script
-
-        Returns:
-            Script result
-        """
-        def _exec_script(driver, js_code, *js_args):
-            return driver.execute_script(js_code, *js_args)
-
-        return self.execute(_exec_script, script, *args)
-
-    def find_element(self, by: str, value: str) -> Optional[Any]:
-        """
-        Find element (thread-safe)
-
-        Args:
-            by: Locator strategy (id, css, xpath, etc.)
-            value: Locator value
-
-        Returns:
-            WebElement or None if not found
-        """
-        def _find_elem(driver, locator_by, locator_value):
-            by_mapping = {
-                'id': By.ID,
-                'name': By.NAME,
-                'css': By.CSS_SELECTOR,
-                'xpath': By.XPATH,
-                'class': By.CLASS_NAME,
-                'tag': By.TAG_NAME,
-                'link_text': By.LINK_TEXT,
-                'partial_link_text': By.PARTIAL_LINK_TEXT
-            }
-            by_method = by_mapping.get(locator_by.lower(), By.CSS_SELECTOR)
-
-            # Check if element exists before finding
-            elements = driver.find_elements(by_method, locator_value)
-            if elements:
-                return elements[0]
-            return None
-
-        return self.execute(_find_elem, by, value)
-
-    def find_elements(self, by: str, value: str) -> list:
-        """
-        Find elements (thread-safe)
-
-        Args:
-            by: Locator strategy
-            value: Locator value
-
-        Returns:
-            List of WebElements (empty list if none found)
-        """
-        def _find_elems(driver, locator_by, locator_value):
-            by_mapping = {
-                'id': By.ID,
-                'name': By.NAME,
-                'css': By.CSS_SELECTOR,
-                'xpath': By.XPATH,
-                'class': By.CLASS_NAME,
-                'tag': By.TAG_NAME,
-                'link_text': By.LINK_TEXT,
-                'partial_link_text': By.PARTIAL_LINK_TEXT
-            }
-            by_method = by_mapping.get(locator_by.lower(), By.CSS_SELECTOR)
-            return driver.find_elements(by_method, locator_value)
-
-        return self.execute(_find_elems, by, value)
-
-    def set_window_size(self, width: int, height: int) -> bool:
-        """
-        Set window size (thread-safe)
-
-        Args:
-            width: Window width
-            height: Window height
-
-        Returns:
-            True if successful
-        """
-        def _set_size(driver, w, h):
-            driver.set_window_size(w, h)
-            return True
-
-        return self.execute(_set_size, width, height)
-
-    def maximize_window(self) -> bool:
-        """
-        Maximize window (thread-safe)
-
-        Returns:
-            True if successful
-        """
-        def _maximize(driver):
-            driver.maximize_window()
-            return True
-
-        return self.execute(_maximize)
-
-    def get_cookies(self) -> list:
-        """
-        Get all cookies (thread-safe)
-
-        Returns:
-            List of cookie dictionaries
-        """
-        def _get_cookies(driver):
-            return driver.get_cookies()
-
-        return self.execute(_get_cookies)
-
-    def add_cookie(self, cookie_dict: Dict[str, Any]) -> bool:
-        """
-        Add cookie (thread-safe)
-
-        Args:
-            cookie_dict: Cookie dictionary
-
-        Returns:
-            True if successful
-        """
-        def _add_cookie(driver, cookie):
-            driver.add_cookie(cookie)
-            return True
-
-        return self.execute(_add_cookie, cookie_dict)
-
-    def delete_all_cookies(self) -> bool:
-        """
-        Delete all cookies (thread-safe)
-
-        Returns:
-            True if successful
-        """
-        def _delete_cookies(driver):
-            driver.delete_all_cookies()
-            return True
-
-        return self.execute(_delete_cookies)
+    # ============================================
+    # All common methods moved to ThreadedBrowser base class:
+    # - new_tab, close_current_tab, switch_to_tab, get_tab_count
+    # - screenshot, execute_script
+    # - find_element, find_elements
+    # - set_window_size, maximize_window
+    # - get_cookies, add_cookie, delete_all_cookies
+    # - save_cookies_manual, load_cookies_manual, list_cookie_profiles, delete_cookie_profile
+    # ============================================
 
     def __repr__(self) -> str:
         """String representation"""

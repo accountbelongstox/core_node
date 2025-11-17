@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DocumentOffline - Offline Document Downloader
+PyBrowserAuto - Offline Document Downloader
 
-High-level document offline download system.
-Downloads websites for offline viewing with resource processing.
+High-level offline download and automation system derived from the
+legacy DocumentOffline module. Downloads websites for offline viewing
+with resource processing utilities.
 
 Sub-modules:
 - core: Core components (DomainContext, URLQueue, FileMapper, URLRewriter)
@@ -13,16 +14,16 @@ Sub-modules:
 
 Usage:
     # Option 1: Use CLI controller
-    from pycore.pyctl.document_offline.controller import CLIController
+    from pycore.pyctl.pybrowserauto.controller import CLIController
     cli = CLIController()
     cli.run(['--url', 'https://example.com', '--output', './downloads'])
 
     # Option 2: Use programmatic controller
-    from pycore.pyctl.document_offline.controller import CrawlController
-    from pycore.pyctl.document_offline.core import (
+    from pycore.pyctl.pybrowserauto.controller import CrawlController
+    from pycore.pyctl.pybrowserauto.core import (
         DomainContext, URLQueue, FileMapper
     )
-    from pycore.pyctl.document_offline.processor import (
+    from pycore.pyctl.pybrowserauto.processor import (
         ResourceProcessor, HTMLProcessor, CSSProcessor
     )
 

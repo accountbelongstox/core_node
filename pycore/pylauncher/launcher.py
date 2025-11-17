@@ -644,7 +644,7 @@ def launch_services(
         instances.rpc_server.configure(
             host=config.rpc_host,
             port=config.rpc_port,
-            debug=config.rpc_debug
+            debug=config.rpc_debug if hasattr(config, 'rpc_debug') else True  # Enable debug by default
         )
         # Start as thread (Thread.start())
         instances.rpc_server.start()

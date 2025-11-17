@@ -143,7 +143,7 @@ class HTMLProcessor:
         if rewrite_urls:
             ColorPrint.blue('[HTMLProcessor] Step 2: Rewrite URLs to relative paths')
 
-            from pycore.pyctl.document_offline.core import URLRewriter
+            from pycore.pyctl.pybrowserauto.core import URLRewriter
             rewriter = URLRewriter(url, self.file_mapper)
             processed_html = rewriter.rewrite_html(html_content, preserve_external=True)
 

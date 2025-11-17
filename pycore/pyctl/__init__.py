@@ -10,7 +10,7 @@ Modules:
 - speech: Speech management (TTS + STT + RPC + AI)
   - speech.rpc: Speech API endpoints (TTS, STT, multi-language)
   - speech.ai: AI features (chat, parse, expand, translate)
-- document_offline: Offline document downloader
+- pybrowserauto: Offline web downloader / automation utilities
 
 Usage:
     # Speech - Manual initialization required
@@ -21,8 +21,8 @@ Usage:
     from pycore.pyctl.speech.rpc import get_rpc_manager
     rpc_manager = get_rpc_manager(auto_start=True)
 
-    # Document Offline
-    from pycore.pyctl.document_offline.controller import CLIController
+    # PyBrowserAuto (offline website downloader)
+    from pycore.pyctl.pybrowserauto.controller import CLIController
     cli = CLIController()
 """
 

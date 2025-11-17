@@ -32,6 +32,7 @@ class CommonConfigModel(BaseModel):
     __table_key__ = TableKeys.COMMON_CONFIG
     __namespace__ = "common"
     __table_name__ = "config"
+    __full_table_name__ = "common_config"
     __schema_version__ = 1
 
     @classmethod

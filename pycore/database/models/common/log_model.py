@@ -33,6 +33,7 @@ class CommonLogModel(BaseModel):
     __table_key__ = TableKeys.COMMON_LOGS
     __namespace__ = "common"
     __table_name__ = "logs"
+    __full_table_name__ = "common_logs"
     __schema_version__ = 1
 
     @classmethod

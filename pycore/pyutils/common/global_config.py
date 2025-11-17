@@ -80,7 +80,7 @@ class GlobalConfig:
         self._initialize()
 
     def _initialize(self):
-        """Initialize database connection and table"""
+        """Initialize database connection and table (lazy)"""
         if self._initialized:
             return
 
@@ -92,6 +92,19 @@ class GlobalConfig:
             from pycore.database.models.common.config_model import CommonConfigModel
             self._config_model = CommonConfigModel
 
+            # Register common database if not already registered
+            if 'common' not in self._db_manager.connection_strings:
+                self._db_manager.register_database(database_name='common')
+
+            # Load config table if not already loaded
+            if not self._db_manager.is_table_loaded('common.config'):
+                from pycore.database.models import TableKeys
+                self._db_manager.load_tables(
+                    table_keys=[TableKeys.COMMON_CONFIG],
+                    models=[CommonConfigModel],
+                    database_name='common'
+                )
+
             # Initialize default config if not exists
             self._ensure_defaults()
 
@@ -99,8 +112,9 @@ class GlobalConfig:
             ColorPrint.blue(f"[GlobalConfig] Initialized with SQLite database: {self.database_name}")
 
         except Exception as e:
-            ColorPrint.red(f"[GlobalConfig] Initialization failed: {e}")
-            raise
+            ColorPrint.yellow(f"[GlobalConfig] Initialization deferred: {e}")
+            # Don't raise - allow lazy initialization
+            self._initialized = False
 
     def _ensure_defaults(self):
         """Ensure all DEFAULT_CONFIG keys exist in database"""
@@ -145,6 +159,14 @@ class GlobalConfig:
         Returns:
             Configuration value
         """
+        # Ensure initialized before use
+        if not self._initialized:
+            self._initialize()
+
+        # If still not initialized, return default
+        if not self._initialized:
+            return default
+
         try:
             with self._db_manager.get_connection(self.database_name) as conn:
                 value_str = self._config_model.get_value(conn, key)
@@ -166,6 +188,14 @@ class GlobalConfig:
         Returns:
             True if saved successfully
         """
+        # Ensure initialized before use
+        if not self._initialized:
+            self._initialize()
+
+        # If still not initialized, return False
+        if not self._initialized:
+            return False
+
         try:
             value_str = self._serialize_value(value)
             with self._db_manager.get_connection(self.database_name) as conn:
@@ -183,6 +213,14 @@ class GlobalConfig:
         Returns:
             Complete configuration dictionary
         """
+        # Ensure initialized before use
+        if not self._initialized:
+            self._initialize()
+
+        # If still not initialized, return empty dict
+        if not self._initialized:
+            return {}
+
         try:
             with self._db_manager.get_connection(self.database_name) as conn:
                 all_configs = self._config_model.get_all_configs(conn)
@@ -205,6 +243,14 @@ class GlobalConfig:
         Returns:
             True if saved successfully
         """
+        # Ensure initialized before use
+        if not self._initialized:
+            self._initialize()
+
+        # If still not initialized, return False
+        if not self._initialized:
+            return False
+
         try:
             with self._db_manager.get_connection(self.database_name) as conn:
                 for key, value in config_dict.items():
