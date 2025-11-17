@@ -3,9 +3,11 @@
 from typing import Optional
 from io import BytesIO
 
-from pycore.pyfoundations.third_party import av, numpy
+from pycore.pyfoundations.third_party import get_third_package_av, get_third_package_numpy
+
+av = get_third_package_av()
+numpy = get_third_package_numpy()
 from pycore.pyutils.video_stream.stream_types import VideoFrame, VideoFormat
-import numpy as np
 
 
 class FMP4Encoder:

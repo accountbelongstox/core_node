@@ -47,7 +47,9 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import speechsdk
+from pycore.pyfoundations.third_party import get_third_package_speechsdk
+
+speechsdk = get_third_package_speechsdk()
 from pycore.pyutils.azure_speech.config import AzureSpeechConfig
 from pycore.pyutils.common.tts_models import WordModel, SentenceModel, DocumentModel
 from pycore.pyutils.common.tts_queue_ops import TTSQueueOps

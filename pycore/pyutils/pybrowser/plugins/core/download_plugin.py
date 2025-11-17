@@ -3,15 +3,14 @@
 """
 Download Plugin
 
-File download functionality
+File download functionality using synchronous requests and threading
 """
 
 import os
-import asyncio
+import requests
+import threading
 from pathlib import Path
-
-from pycore.pyfoundations.third_party import aiohttp
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
 from pycore.pyfoundations.color_print import ColorPrint
@@ -20,15 +19,16 @@ from pycore.pyutils.pybrowser.interfaces.idownloader import IDownloader
 
 
 class HttpDownloader(IDownloader):
-    """HTTP-based file downloader"""
+    """HTTP-based file downloader (synchronous with threading support)"""
 
     def __init__(self):
         super().__init__()
         self.session = None
+        self._download_threads: Dict[str, threading.Thread] = {}
 
-    async def initialize(self, options: Dict[str, Any] = None):
+    def initialize(self, options: Dict[str, Any] = None):
         """
-        Initialize HTTP downloader
+        Initialize HTTP downloader (synchronous)
 
         Args:
             options: Initialization options
@@ -40,7 +40,8 @@ class HttpDownloader(IDownloader):
 
             os.makedirs(self.download_path, exist_ok=True)
 
-            self.session = aiohttp.ClientSession()
+            # Create requests session
+            self.session = requests.Session()
             self.is_initialized = True
 
             ColorPrint.info(f"HttpDownloader initialized: {self.download_path}")
@@ -48,60 +49,100 @@ class HttpDownloader(IDownloader):
             ColorPrint.red(f'Failed to initialize HttpDownloader: {error}')
             raise
 
-    async def download(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+    def download(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Download file from URL
+        Download file from URL (synchronous)
 
         Args:
             url: File URL
             options: Download options
+                - filename: Custom filename
+                - timeout: Request timeout (default: 30)
+                - async: Run in background thread (default: False)
 
         Returns:
             Download result dictionary
         """
         try:
             options = options or {}
-            filename = options.get('filename') or self.generate_filename(url)
-            filepath = os.path.join(self.download_path, filename)
 
-            timeout = aiohttp.ClientTimeout(total=options.get('timeout', 30))
+            # If async download requested, run in thread
+            if options.get('async', False):
+                return self._download_async(url, options)
 
-            async with self.session.get(url, timeout=timeout) as response:
-                response.raise_for_status()
-
-                with open(filepath, 'wb') as f:
-                    async for chunk in response.content.iter_chunked(8192):
-                        f.write(chunk)
-
-            file_size = os.path.getsize(filepath)
-
-            return {
-                'success': True,
-                'filepath': filepath,
-                'filename': filename,
-                'size': file_size
-            }
+            # Synchronous download
+            return self._download_sync(url, options)
         except Exception as error:
             ColorPrint.red(f"Failed to download {url}: {error}")
             raise
 
-    async def download_image(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download image file"""
+    def _download_sync(self, url: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Synchronous download implementation"""
+        filename = options.get('filename') or self.generate_filename(url)
+        filepath = os.path.join(self.download_path, filename)
+        timeout = options.get('timeout', 30)
+
+        response = self.session.get(url, timeout=timeout, stream=True)
+        response.raise_for_status()
+
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        file_size = os.path.getsize(filepath)
+
+        return {
+            'success': True,
+            'filepath': filepath,
+            'filename': filename,
+            'size': file_size
+        }
+
+    def _download_async(self, url: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Start download in background thread"""
+        download_id = f"download_{datetime.now().timestamp()}"
+
+        def _download_worker():
+            try:
+                result = self._download_sync(url, options)
+                self.active_downloads[download_id] = {
+                    'status': 'completed',
+                    'result': result
+                }
+            except Exception as error:
+                self.active_downloads[download_id] = {
+                    'status': 'failed',
+                    'error': str(error)
+                }
+
+        thread = threading.Thread(target=_download_worker, daemon=True)
+        self._download_threads[download_id] = thread
+        self.active_downloads[download_id] = {'status': 'downloading'}
+        thread.start()
+
+        return {
+            'download_id': download_id,
+            'status': 'started'
+        }
+
+    def download_image(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download image file (synchronous)"""
         options = options or {}
         options['type'] = 'image'
-        return await self.download(url, options)
+        return self.download(url, options)
 
-    async def download_audio(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download audio file"""
+    def download_audio(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download audio file (synchronous)"""
         options = options or {}
         options['type'] = 'audio'
-        return await self.download(url, options)
+        return self.download(url, options)
 
-    async def download_video(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download video file"""
+    def download_video(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download video file (synchronous)"""
         options = options or {}
         options['type'] = 'video'
-        return await self.download(url, options)
+        return self.download(url, options)
 
     def generate_filename(self, url: str) -> str:
         """
@@ -121,25 +162,33 @@ class HttpDownloader(IDownloader):
 
         return f"{basename}_{timestamp}{ext}"
 
-    async def get_download_status(self, download_id: str) -> Dict[str, Any]:
-        """Get download status"""
+    def get_download_status(self, download_id: str) -> Optional[Dict[str, Any]]:
+        """Get download status (synchronous)"""
         return self.active_downloads.get(download_id)
 
-    async def cancel_download(self, download_id: str):
-        """Cancel download"""
+    def cancel_download(self, download_id: str):
+        """Cancel download (synchronous)"""
         if download_id in self.active_downloads:
-            del self.active_downloads[download_id]
+            # Note: Can't actually stop thread, but can mark as cancelled
+            self.active_downloads[download_id] = {'status': 'cancelled'}
 
-    async def cleanup(self):
-        """Cleanup downloader"""
+    def cleanup(self):
+        """Cleanup downloader (synchronous)"""
         if self.session:
-            await self.session.close()
+            self.session.close()
+
+        # Wait for all download threads to complete
+        for thread in self._download_threads.values():
+            if thread.is_alive():
+                thread.join(timeout=5)
+
+        self._download_threads.clear()
         self.active_downloads.clear()
         self.is_initialized = False
 
 
 class DownloadPlugin(IPlugin):
-    """Plugin for file download functionality"""
+    """Plugin for file download functionality (synchronous)"""
 
     def __init__(self):
         super().__init__()
@@ -147,9 +196,9 @@ class DownloadPlugin(IPlugin):
         self.version = '1.0.0'
         self.downloader = None
 
-    async def initialize(self, session: Any):
+    def initialize(self, session: Any):
         """
-        Initialize plugin with session
+        Initialize plugin with session (synchronous)
 
         Args:
             session: Session instance
@@ -157,7 +206,7 @@ class DownloadPlugin(IPlugin):
         try:
             self.session = session
             self.downloader = HttpDownloader()
-            await self.downloader.initialize()
+            self.downloader.initialize()
 
             self.is_initialized = True
             ColorPrint.info(f"DownloadPlugin initialized for session: {session.id}")
@@ -165,28 +214,28 @@ class DownloadPlugin(IPlugin):
             ColorPrint.red(f'Failed to initialize DownloadPlugin: {error}')
             raise
 
-    async def cleanup(self):
-        """Cleanup plugin resources"""
+    def cleanup(self):
+        """Cleanup plugin resources (synchronous)"""
         try:
             if self.downloader:
-                await self.downloader.cleanup()
+                self.downloader.cleanup()
             self.is_initialized = False
             ColorPrint.info('DownloadPlugin cleaned up')
         except Exception as error:
             ColorPrint.red(f'Failed to cleanup DownloadPlugin: {error}')
 
-    async def download_file(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download file"""
-        return await self.downloader.download(url, options or {})
+    def download_file(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download file (synchronous)"""
+        return self.downloader.download(url, options or {})
 
-    async def download_image(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download image"""
-        return await self.downloader.download_image(url, options or {})
+    def download_image(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download image (synchronous)"""
+        return self.downloader.download_image(url, options or {})
 
-    async def download_audio(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download audio"""
-        return await self.downloader.download_audio(url, options or {})
+    def download_audio(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download audio (synchronous)"""
+        return self.downloader.download_audio(url, options or {})
 
-    async def download_video(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Download video"""
-        return await self.downloader.download_video(url, options or {})
+    def download_video(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Download video (synchronous)"""
+        return self.downloader.download_video(url, options or {})

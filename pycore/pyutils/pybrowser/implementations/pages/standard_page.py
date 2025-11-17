@@ -30,7 +30,7 @@ class StandardPage(IPage):
             'navigations': 0
         }
 
-    async def initialize(self):
+    def initialize(self):
         """Initialize page"""
         try:
             if self.options.get('user_agent'):
@@ -44,7 +44,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Failed to initialize StandardPage: {error}')
             raise
 
-    async def goto(self, url: str, options: Dict[str, Any] = None) -> Any:
+    def goto(self, url: str, options: Dict[str, Any] = None) -> Any:
         """
         Navigate to URL
 
@@ -70,7 +70,7 @@ class StandardPage(IPage):
             ColorPrint.red(f"Failed to navigate to {url}: {error}")
             raise
 
-    async def click(self, selector: str, options: Dict[str, Any] = None):
+    def click(self, selector: str, options: Dict[str, Any] = None):
         """
         Click an element
 
@@ -97,7 +97,7 @@ class StandardPage(IPage):
             ColorPrint.red(f"Failed to click element {selector}: {error}")
             raise
 
-    async def type(self, selector: str, text: str, options: Dict[str, Any] = None):
+    def type(self, selector: str, text: str, options: Dict[str, Any] = None):
         """
         Type text into an element
 
@@ -128,7 +128,7 @@ class StandardPage(IPage):
             ColorPrint.red(f"Failed to type into element {selector}: {error}")
             raise
 
-    async def screenshot(self, options: Dict[str, Any] = None) -> bytes:
+    def screenshot(self, options: Dict[str, Any] = None) -> bytes:
         """
         Take screenshot
 
@@ -150,7 +150,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Failed to take screenshot: {error}')
             raise
 
-    async def evaluate(self, script: str, *args) -> Any:
+    def evaluate(self, script: str, *args) -> Any:
         """
         Execute JavaScript
 
@@ -168,7 +168,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Failed to evaluate script: {error}')
             raise
 
-    async def wait_for_selector(self, selector: str, options: Dict[str, Any] = None):
+    def wait_for_selector(self, selector: str, options: Dict[str, Any] = None):
         """
         Wait for element to appear
 
@@ -192,7 +192,7 @@ class StandardPage(IPage):
             ColorPrint.red(f"Timeout waiting for element {selector}: {error}")
             raise
 
-    async def wait_for_function(self, func: Callable, options: Dict[str, Any] = None):
+    def wait_for_function(self, func: Callable, options: Dict[str, Any] = None):
         """
         Wait for function to return truthy value
 
@@ -216,7 +216,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Timeout waiting for function: {error}')
             raise
 
-    async def get_content(self) -> str:
+    def get_content(self) -> str:
         """
         Get page HTML content
 
@@ -230,7 +230,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Failed to get page content: {error}')
             raise
 
-    async def get_title(self) -> str:
+    def get_title(self) -> str:
         """
         Get page title
 
@@ -245,7 +245,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Failed to get page title: {error}')
             raise
 
-    async def get_url(self) -> str:
+    def get_url(self) -> str:
         """
         Get current URL
 
@@ -260,7 +260,7 @@ class StandardPage(IPage):
             ColorPrint.red(f'Failed to get page URL: {error}')
             raise
 
-    async def close(self):
+    def close(self):
         """Close the page"""
         try:
             self.driver.close()
@@ -273,6 +273,26 @@ class StandardPage(IPage):
         """Get main frame (for compatibility)"""
         return self
 
-    async def url(self) -> str:
+    def url(self) -> str:
         """Get URL (for compatibility)"""
-        return await self.get_url()
+        return self.get_url()
+
+    def get_info(self) -> Dict[str, Any]:
+        """
+        Get page information
+
+        Returns:
+            Dictionary with page details including URL, title, metrics, etc.
+
+        Example:
+            info = page.get_info()
+            print(f"Current URL: {info['url']}")
+            print(f"Total clicks: {info['metrics']['clicks']}")
+        """
+        return {
+            'url': self.driver.current_url if self.driver else None,
+            'title': self.driver.title if self.driver else None,
+            'is_initialized': self.is_initialized,
+            'metrics': self.metrics.copy(),
+            'options': self.options
+        }

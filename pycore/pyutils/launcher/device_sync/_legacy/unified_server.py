@@ -19,7 +19,9 @@ import threading
 from pathlib import Path
 from typing import Optional, Dict, Set
 
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 
 web = aiohttp.web
 web_ws = aiohttp.web_ws

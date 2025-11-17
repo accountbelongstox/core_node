@@ -8,7 +8,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from pycore.pyfoundations.third_party import psutil
+from pycore.pyfoundations.third_party import get_third_package_psutil
+
+psutil = get_third_package_psutil()
 
 from pycore.pygvar import (
     SEVEN_ZIP_EXECUTABLE,

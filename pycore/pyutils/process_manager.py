@@ -12,9 +12,11 @@ import time
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
-from pycore.pyfoundations.third_party import psutil
+from pycore.pyfoundations.third_party import get_third_package_psutil
 
-from pyfoundations.color_print import ColorPrint
+psutil = get_third_package_psutil()
+
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class ProcessManager:

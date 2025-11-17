@@ -3,7 +3,9 @@
 Module Call Controller - Handle module calling requests
 """
 
-from pycore.pyfoundations.third_party import fastapi
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+fastapi = get_third_package_fastapi()
 
 from ..global_config import get_global_config
 from ..models.request_models import ModuleCallRequest, ModuleCallResponse

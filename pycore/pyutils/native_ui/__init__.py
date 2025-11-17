@@ -90,10 +90,17 @@ from pycore.pyutils.native_ui.step7_managers.shutdown_manager import (
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import (
     NativeUIBusManager,
     get_bus_manager,
+    get_native_ui_bus_manager,  # Consistent naming alias
     BusNamespaces,
     BusKeys,
     BusSignals,
     DependencyInfo
+)
+
+# Callback Manager
+from pycore.pyutils.native_ui.step7_managers.callback_manager import (
+    CallbackManager,
+    get_callback_manager
 )
 
 # Startup Window and Launcher
@@ -102,10 +109,11 @@ from pycore.pyutils.native_ui.step4_startup.startup_window_thread import Tkinter
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 
 # NEW: Simplified Native App Launcher (RECOMMENDED)
-from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig, TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig, TrayMenuItemDict
 from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app, launch
 from pycore.pyutils.native_ui.step2_port_url.port_allocator import get_port_range
 from pycore.pyutils.native_ui.step2_port_url.url_handler import URLHandler, process_url
+from pycore.pyutils.native_ui.step2_port_url.server_manager import ServerManager, ServerProcess, get_server_manager
 
 # Tkinter UI Components (if available)
 try:
@@ -116,6 +124,7 @@ except ImportError:
 
 # Base components (always available)
 try:
+    # DEPRECATED: UIConfig is deprecated, use NativeUIConfig instead
     from pycore.pyutils.native_ui.step1_config.config import UIConfig, WindowState
     from pycore.pyutils.native_ui.step8_utils.signals import SignalManager, SignalType, Signal, TaskTimer, MainThreadExecutor
     _BASE_AVAILABLE = True
@@ -159,10 +168,15 @@ __all__ = [
     # THREAD_BUS Manager (NEW - recommended for all UI components)
     'NativeUIBusManager',
     'get_bus_manager',
+    'get_native_ui_bus_manager',  # Consistent naming alias
     'BusNamespaces',
     'BusKeys',
     'BusSignals',
     'DependencyInfo',
+
+    # Callback Manager
+    'CallbackManager',
+    'get_callback_manager',
 
     # System Tray - moved to pyside6 package
     # 'SystemTray',  # DEPRECATED - use PySide6SystemTray
@@ -177,12 +191,17 @@ __all__ = [
 
     # NEW: Simplified Native App Launcher (RECOMMENDED)
     'NativeUIConfig',
-    'TrayMenuItem',
+    'TrayMenuItemDict',  # Type alias for simple dict-based tray menu items
     'launch_native_app',
     'launch',
     'get_port_range',
     'URLHandler',
     'process_url',
+
+    # Server Management
+    'ServerManager',
+    'ServerProcess',
+    'get_server_manager',
 ]
 
 # Add Tkinter exports if available
@@ -196,7 +215,7 @@ if _TKINTER_AVAILABLE:
 # Add base component exports if available
 if _BASE_AVAILABLE:
     __all__.extend([
-        'UIConfig',
+        'UIConfig',  # DEPRECATED: Use NativeUIConfig instead
         'WindowState',
         'SignalManager',
         'SignalType',

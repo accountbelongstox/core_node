@@ -27,8 +27,7 @@ from PySide6.QtGui import QIcon
 # Import startup window (tkinter)
 import sys
 import os
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from startup_window import StartupWindow, ColorPrintCapture
+from pycore.pyutils.native_ui.step4_startup.startup_window import StartupWindow, ColorPrintCapture
 
 # Import PySide6 components
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType

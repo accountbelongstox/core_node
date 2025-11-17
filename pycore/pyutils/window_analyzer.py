@@ -13,7 +13,14 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import win32gui, win32con, win32api, PIL, pyautogui, uiautomation
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api, get_third_package_PIL, get_third_package_pyautogui, get_third_package_uiautomation
+
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32api = get_third_package_win32api()
+PIL = get_third_package_PIL()
+pyautogui = get_third_package_pyautogui()
+uiautomation = get_third_package_uiautomation()
 import win32process
 
 Image = PIL.Image

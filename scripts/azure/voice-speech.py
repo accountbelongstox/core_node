@@ -22,7 +22,9 @@ pycore_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(pycore_dir))
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import speechsdk
+from pycore.pyfoundations.third_party import get_third_package_speechsdk
+
+speechsdk = get_third_package_speechsdk()
 
 # Azure Speech Service Configuration
 # If keys are missing, leave them empty (use environment variables or set to empty string)

@@ -9,7 +9,9 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 
-from pycore.pyfoundations.third_party import sqlalchemy
+from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+
+sqlalchemy = get_third_package_sqlalchemy()
 from pycore.pyfoundations.color_print import ColorPrint
 
 

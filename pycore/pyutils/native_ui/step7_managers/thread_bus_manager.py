@@ -31,6 +31,7 @@ Usage:
     bus_mgr.on_dependency_complete(callback_func)
 """
 
+import threading
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from pycore.pyfoundations.thread_bus import THREAD_BUS
@@ -145,23 +146,47 @@ class NativeUIBusManager:
 
     Provides scoped access with clear namespaces.
     Singleton pattern for global access.
+
+    Usage:
+        # Recommended: Use factory function
+        bus_mgr = get_bus_manager()
+
+        # Or direct instantiation (returns singleton)
+        bus_mgr = NativeUIBusManager()
     """
 
     _instance: Optional['NativeUIBusManager'] = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        """Singleton pattern implementation"""
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
 
     def __init__(self):
-        """Private constructor - use get_instance()"""
-        if NativeUIBusManager._instance is not None:
-            raise RuntimeError("Use NativeUIBusManager.get_instance()")
+        """Initialize bus manager (only once)"""
+        if getattr(self, '_initialized', False):
+            return
 
         self._bus = THREAD_BUS
 
+        from pycore import ColorPrint
+        ColorPrint.print_info("[NativeUIBusManager] Initialized (singleton)")
+        self._initialized = True
+
     @classmethod
     def get_instance(cls) -> 'NativeUIBusManager':
-        """Get singleton instance"""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        """
+        Get singleton instance (alternative to direct instantiation)
+
+        Returns:
+            NativeUIBusManager singleton instance
+        """
+        return cls()
 
     # ========================================================
     # Dependency Check Methods
@@ -392,11 +417,11 @@ class NativeUIBusManager:
                 language = event_data.get('language')
             
             if language:
-                ColorPrint.blue(f"[BusManager] Language change requested: {language}")
+                ColorPrint.print_info(f"[BusManager] Language change requested: {language}")
                 # Use bus manager to set language (triggers I18N_SET_LANGUAGE signal)
                 self.set_language(language)
             else:
-                ColorPrint.yellow(f"[BusManager] Could not determine language from event_data: {event_data}")
+                ColorPrint.print_warn(f"[BusManager] Could not determine language from event_data: {event_data}")
         
         # Register handlers for all language signals (dynamic registration)
         supported_languages = i18n.get_supported_languages()
@@ -404,7 +429,7 @@ class NativeUIBusManager:
             signal = f"{tray_set_language_signal}.{lang}"
             self._bus.register_event_handler(signal, handle_set_language)
         
-        ColorPrint.green(f"[BusManager] Registered language change handlers for {len(supported_languages)} languages")
+        ColorPrint.print_success(f"[BusManager] Registered language change handlers for {len(supported_languages)} languages")
 
     # ========================================================
     # Utility Methods
@@ -471,7 +496,19 @@ def get_bus_manager() -> NativeUIBusManager:
     Returns:
         NativeUIBusManager instance
     """
-    return NativeUIBusManager.get_instance()
+    return NativeUIBusManager()
+
+
+def get_native_ui_bus_manager() -> NativeUIBusManager:
+    """
+    Get NativeUIBusManager singleton instance (consistent naming)
+
+    This is an alias for get_bus_manager() with consistent naming pattern.
+
+    Returns:
+        NativeUIBusManager singleton instance
+    """
+    return NativeUIBusManager()
 
 
 # ============================================================
@@ -481,15 +518,15 @@ def get_bus_manager() -> NativeUIBusManager:
 if __name__ == "__main__":
     from pycore import ColorPrint
 
-    ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" THREAD_BUS MANAGER TEST")
-    ColorPrint.blue("=" * 70)
+    ColorPrint.print_info("=" * 70)
+    ColorPrint.print_info(" THREAD_BUS MANAGER TEST")
+    ColorPrint.print_info("=" * 70)
 
     # Get manager
     bus_mgr = get_bus_manager()
 
     # Test 1: Record dependency info
-    ColorPrint.green("\n[Test 1] Recording dependency info...")
+    ColorPrint.print_success("\n[Test 1] Recording dependency info...")
     bus_mgr.record_dependency_check(
         all_packages=["pkg1", "pkg2", "pkg3"],
         installed=["pkg1", "pkg2", "pkg3"],
@@ -498,30 +535,30 @@ if __name__ == "__main__":
     )
 
     # Test 2: Retrieve dependency info
-    ColorPrint.green("\n[Test 2] Retrieving dependency info...")
+    ColorPrint.print_success("\n[Test 2] Retrieving dependency info...")
     dep_info = bus_mgr.get_dependency_info()
-    ColorPrint.blue(f"Checked: {dep_info.checked}")
-    ColorPrint.blue(f"Total: {dep_info.total}")
-    ColorPrint.blue(f"Installed: {dep_info.installed}")
-    ColorPrint.blue(f"Platform: {dep_info.platform}")
+    ColorPrint.print_info(f"Checked: {dep_info.checked}")
+    ColorPrint.print_info(f"Total: {dep_info.total}")
+    ColorPrint.print_info(f"Installed: {dep_info.installed}")
+    ColorPrint.print_info(f"Platform: {dep_info.platform}")
 
     # Test 3: Listen to signals
-    ColorPrint.green("\n[Test 3] Testing signal listeners...")
+    ColorPrint.print_success("\n[Test 3] Testing signal listeners...")
     bus_mgr.on_dependency_complete(
-        lambda data: ColorPrint.green(f"Signal received: {data}")
+        lambda data: ColorPrint.print_success(f"Signal received: {data}")
     )
 
     # Test 4: Namespace dump
-    ColorPrint.green("\n[Test 4] Dumping pycore.deps namespace...")
+    ColorPrint.print_success("\n[Test 4] Dumping pycore.deps namespace...")
     state = bus_mgr.dump_state(BusNamespaces.PYCORE_DEPS)
     for key, value in state.items():
-        ColorPrint.white(f"  {key}: {value}")
+        ColorPrint.print_info(f"  {key}: {value}")
 
     # Test 5: Clear namespace
-    ColorPrint.green("\n[Test 5] Clearing namespace...")
+    ColorPrint.print_success("\n[Test 5] Clearing namespace...")
     bus_mgr.clear_namespace(BusNamespaces.PYCORE_DEPS)
-    ColorPrint.blue(f"Keys after clear: {bus_mgr.get_all_keys(BusNamespaces.PYCORE_DEPS)}")
+    ColorPrint.print_info(f"Keys after clear: {bus_mgr.get_all_keys(BusNamespaces.PYCORE_DEPS)}")
 
-    ColorPrint.blue("\n" + "=" * 70)
-    ColorPrint.green(" ALL TESTS PASSED")
-    ColorPrint.blue("=" * 70)
+    ColorPrint.print_info("\n" + "=" * 70)
+    ColorPrint.print_success(" ALL TESTS PASSED")
+    ColorPrint.print_info("=" * 70)

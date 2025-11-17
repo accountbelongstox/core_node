@@ -20,10 +20,187 @@ Directory Structure:
 """
 
 import os
+import re
 import sys
 import platform
+import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple, List
+
+
+def _is_wsl() -> bool:
+    """
+    Check if running in WSL (Windows Subsystem for Linux)
+
+    Returns:
+        bool: True if running in WSL
+    """
+    # Check for WSL-specific indicators
+    if os.path.exists('/mnt/c/Windows'):
+        return True
+
+    # Check /proc/version for Microsoft/WSL
+    if os.path.exists('/proc/version'):
+        with open('/proc/version', 'r') as f:
+            version_info = f.read().lower()
+            if 'microsoft' in version_info or 'wsl' in version_info:
+                return True
+
+    return False
+
+
+def _is_desktop_linux() -> bool:
+    """
+    Check if running on desktop Linux (has display server)
+
+    Returns:
+        bool: True if running on desktop Linux
+    """
+    # Check for display environment variables
+    if os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'):
+        return True
+
+    # Check for desktop session
+    if os.environ.get('DESKTOP_SESSION') or os.environ.get('XDG_SESSION_TYPE'):
+        return True
+
+    return False
+
+
+def _get_linux_distro_info() -> Tuple[str, str]:
+    """
+    Get Linux distribution name and version
+
+    Returns:
+        Tuple[str, str]: (distro_name, version)
+            e.g., ('ubuntu', '24.04') or ('debian', '12')
+    """
+    distro_name = 'linux'
+    version = ''
+
+    # Try to read /etc/os-release
+    if os.path.exists('/etc/os-release'):
+        with open('/etc/os-release', 'r') as f:
+            content = f.read()
+
+            # Extract ID (distro name)
+            id_match = re.search(r'^ID=([^\n]+)$', content, re.MULTILINE)
+            if id_match:
+                distro_name = id_match.group(1).strip().strip('"').lower()
+
+            # Extract VERSION_ID (version number)
+            version_match = re.search(r'^VERSION_ID=([^\n]+)$', content, re.MULTILINE)
+            if version_match:
+                version = version_match.group(1).strip().strip('"')
+
+    # Remove decimal points for version (24.04 -> 24)
+    if version and '.' in version:
+        version = version.split('.')[0]
+
+    return distro_name, version
+
+
+def _get_mounted_drives() -> List[Path]:
+    """
+    Get list of mounted drives in /mnt/ sorted by size (largest first)
+
+    Returns:
+        List[Path]: List of mounted drives sorted by available space
+    """
+    mounted_drives = []
+    mnt_path = Path('/mnt')
+
+    if not mnt_path.exists():
+        return mounted_drives
+
+    # Get all directories in /mnt/
+    for item in mnt_path.iterdir():
+        if item.is_dir() and item.name not in ['.', '..']:
+            # Check if it's actually mounted and accessible
+            try:
+                # Try to access the directory
+                if os.access(str(item), os.R_OK):
+                    # Get disk usage
+                    stat = os.statvfs(str(item))
+                    available_space = stat.f_bavail * stat.f_frsize
+                    mounted_drives.append((item, available_space))
+            except (OSError, PermissionError):
+                # Skip inaccessible mounts
+                pass
+
+    # Sort by available space (largest first)
+    mounted_drives.sort(key=lambda x: x[1], reverse=True)
+
+    # Return just the paths
+    return [drive[0] for drive in mounted_drives]
+
+
+def _get_largest_mounted_drive() -> Optional[Path]:
+    """
+    Get the largest mounted drive in /mnt/
+
+    Returns:
+        Optional[Path]: Largest mounted drive or None if no drives found
+    """
+    mounted_drives = _get_mounted_drives()
+    return mounted_drives[0] if mounted_drives else None
+
+
+def _get_actual_user() -> str:
+    """
+    Get actual logged-in user (for Linux desktop/WSL when running as root)
+
+    This function is useful when running as root to find the actual user.
+    It searches /home/ directory for user directories.
+
+    Returns:
+        str: Actual user name, or current user if detection fails
+    """
+    # First try standard methods
+    # Check SUDO_USER (when using sudo)
+    sudo_user = os.environ.get('SUDO_USER')
+    if sudo_user and sudo_user != 'root':
+        return sudo_user
+
+    # Check LOGNAME
+    logname = os.environ.get('LOGNAME')
+    if logname and logname != 'root':
+        return logname
+
+    # Check USER
+    user = os.environ.get('USER')
+    if user and user != 'root':
+        return user
+
+    # If running as root, search /home/ for actual user
+    home_path = Path('/home')
+    if home_path.exists():
+        # Get all user directories in /home/
+        user_dirs = []
+        for item in home_path.iterdir():
+            if item.is_dir() and item.name not in ['.', '..', 'lost+found']:
+                # Check if it's a valid user home directory
+                # Valid home directories usually have .bashrc or .profile
+                if (item / '.bashrc').exists() or (item / '.profile').exists() or (item / '.bash_profile').exists():
+                    # Get last modified time to find most recently used
+                    try:
+                        mtime = item.stat().st_mtime
+                        user_dirs.append((item.name, mtime))
+                    except (OSError, PermissionError):
+                        pass
+
+        if user_dirs:
+            # Sort by modification time (most recent first)
+            user_dirs.sort(key=lambda x: x[1], reverse=True)
+            return user_dirs[0][0]
+
+    # Fallback to current user from pwd module
+    import pwd
+    try:
+        return pwd.getpwuid(os.getuid()).pw_name
+    except:
+        # Final fallback
+        return os.environ.get('USER', 'user')
 
 
 def get_system_cache_dir() -> Path:
@@ -146,77 +323,101 @@ APP_LOGS_DIR = get_app_logs_dir()
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     """
     Map web path based on environment (similar to gvar_common.sh map_web_path)
-    
+
     Windows mappings:
     - applications -> d:\\applications
     - programing -> d:\\programing
     - www -> d:\\www
     - wwwroot -> d:\\www\\wwwroot
-    - compile_dir -> d:\\.dev_win11 or d:\\.dev_win10
-    
-    Linux mappings:
-    - Uses /mnt/d or /www based on environment
-    
+    - compile_dir -> d:\\_win11 or d:\\_win10
+    - old_compile_dir -> d:\\dev_win11 or d:\\dev_win10
+
+    Linux mappings (context-aware):
+    - WSL: Uses /mnt/d (or largest mounted drive)
+    - Desktop: Uses largest /mnt/* drive if available, else /www
+    - Server: Uses /www
+    - compile_dir -> /mnt/d/_ubuntu24 (or _{distro}{version})
+    - old_compile_dir -> /mnt/d/dev_ubuntu24 (or dev_{distro}{version})
+
     Args:
-        path_key: Path key (e.g., 'wwwroot', 'applications', 'programing')
+        path_key: Path key (e.g., 'wwwroot', 'applications', 'programing', 'compile_dir', 'old_compile_dir')
         sub_path: Optional sub-path to append
-    
+
     Returns:
         Path: Mapped path
     """
     is_windows = platform.system() == 'Windows'
-    
+
     if is_windows:
         # Windows mappings
         base_d = Path('D:/')
+
+        # Detect Windows version
+        win_version = platform.release()
+        if '10' in win_version:
+            win_suffix = 'win10'
+        elif '11' in win_version:
+            win_suffix = 'win11'
+        else:
+            win_suffix = f'win{win_version}'
+
         mappings = {
             'applications': base_d / 'applications',
             'programing': base_d / 'programing',
             'www': base_d / 'www',
             'wwwroot': base_d / 'www' / 'wwwroot',
-            'compile_dir': base_d / f'.dev_{platform.release().lower()}',
+            'compile_dir': base_d / f'_{win_suffix}',
+            'old_compile_dir': base_d / f'dev_{win_suffix}',
         }
-        
-        # Detect Windows version for compile_dir
-        if 'compile_dir' in path_key:
-            win_version = platform.release()
-            if '10' in win_version:
-                mappings['compile_dir'] = base_d / '.dev_win10'
-            elif '11' in win_version:
-                mappings['compile_dir'] = base_d / '.dev_win11'
-            else:
-                mappings['compile_dir'] = base_d / f'.dev_win{win_version}'
     else:
-        # Linux mappings (similar to gvar_common.sh)
-        # Check for WSL
-        is_wsl = os.path.exists('/mnt/c/Windows')
-        
+        # Linux mappings (context-aware)
+        is_wsl = _is_wsl()
+        is_desktop = _is_desktop_linux()
+
+        # Determine base path
         if is_wsl:
+            # WSL: Try /mnt/d first, fallback to largest mounted drive
             base_path = Path('/mnt/d')
+            if not base_path.exists() or not os.access(str(base_path), os.R_OK):
+                largest_drive = _get_largest_mounted_drive()
+                base_path = largest_drive if largest_drive else Path('/www')
+        elif is_desktop:
+            # Desktop: Check for mounted drives in /mnt/
+            largest_drive = _get_largest_mounted_drive()
+            if largest_drive:
+                base_path = largest_drive
+            else:
+                # No mounted drives, use /www
+                base_path = Path('/www')
         else:
-            # Production server
+            # Server: Use /www
             base_path = Path('/www')
-        
+
+        # Get distro info for compile_dir naming
+        distro_name, distro_version = _get_linux_distro_info()
+        distro_suffix = f'{distro_name}{distro_version}' if distro_version else distro_name
+
         mappings = {
             'applications': base_path / 'applications',
             'programing': base_path / 'programing',
             'www': base_path / 'www',
             'wwwroot': base_path / 'www' / 'wwwroot',
-            'compile_dir': base_path / '.dev',
+            'compile_dir': base_path / f'_{distro_suffix}',
+            'old_compile_dir': base_path / f'dev_{distro_suffix}',
         }
-    
+
     # Get mapped path
     mapped_path = mappings.get(path_key, Path(path_key))
-    
+
     # Append sub_path if provided
     if sub_path:
         sub_path = sub_path.lstrip('/').lstrip('\\')
         mapped_path = mapped_path / sub_path
-    
+
     # Create directory if it doesn't exist (only for web-related paths)
     if path_key in ['wwwroot', 'www', 'applications']:
         mapped_path.mkdir(parents=True, exist_ok=True)
-    
+
     return mapped_path
 
 

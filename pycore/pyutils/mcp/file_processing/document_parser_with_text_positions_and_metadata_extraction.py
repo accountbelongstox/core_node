@@ -12,7 +12,13 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import PyPDF2, pdfplumber, python_docx, openpyxl, python_pptx
+from pycore.pyfoundations.third_party import get_third_package_PyPDF2, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
+
+PyPDF2 = get_third_package_PyPDF2()
+pdfplumber = get_third_package_pdfplumber()
+python_docx = get_third_package_python_docx()
+openpyxl = get_third_package_openpyxl()
+python_pptx = get_third_package_python_pptx()
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PYTOOLS_TMP_DIR
 

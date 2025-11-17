@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Speech Module - Unified Speech Processing System
+
+High-level speech management combining TTS, STT, RPC, and AI utilities.
+Integrates with PyHeartbeat and TTSSwitch for task-based processing.
+
+Sub-modules:
+- speech_manager: Core speech TTS/STT functionality
+- rpc: RPC server integrated with PyHeartbeat
+- ai: AI-enhanced features (chat, parse, expand, translate)
+- launch_speech_rpc: Entry point for RPC-only service
+
+Usage:
+    # Launch RPC service (recommended)
+    from pycore.pyctl.speech import launch_speech_rpc_service
+
+    instances = launch_speech_rpc_service(port=59000)
+    # Now accessible via:
+    # POST http://localhost:59000/rpc/tts
+    # POST http://localhost:59000/rpc/stt
+
+    # Direct speech manager usage
+    from pycore.pyctl.speech import get_speech_manager
+    speech_manager = get_speech_manager()
+    result = speech_manager.recognize_from_file("audio.wav")
+    speech_manager.synthesize_to_file("Hello world", "output.mp3")
+
+    # New RPC service (PyHeartbeat-integrated)
+    from pycore.pyctl.speech.rpc import start_rpc_service
+
+Architecture:
+    Web Request → RPC Server → GlobalTaskQueue → HeartbeatPusher → TTSSwitch → Provider → Response
+"""
+
+from pycore.pyctl.speech.speech_manager import SpeechManager, get_speech_manager
+
+# New: RPC service launcher (uses PyHeartbeat + TTSSwitch)
+from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
+
+# DO NOT create instance here - let applications initialize themselves
+# This prevents auto-loading unnecessary modules
+
+__all__ = [
+    'SpeechManager',
+    'get_speech_manager',
+    'launch_speech_rpc_service',
+]

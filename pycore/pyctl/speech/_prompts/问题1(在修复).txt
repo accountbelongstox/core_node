@@ -1,0 +1,117 @@
+python ./pymain.py app=spee
+
+======================================================================
+Usage Documentation: development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md
+======================================================================
+The following output is debug/test information:
+======================================================================
+
+Traceback (most recent call last):
+  File "D:\programing\core_node\pymain.py", line 46, in <module>
+    success = launcher.start()
+  File "D:\programing\core_node\pycore\pyfoundations\app_launcher.py", line 375, in start
+    app_module.start()
+    ~~~~~~~~~~~~~~~~^^
+  File "D:\programing\core_node\pyapps\speech_transcribe\speech_transcribe_main.py", line 37, in start
+    launch_speech_only(
+    ~~~~~~~~~~~~~~~~~~^
+        mode="single",
+        ^^^^^^^^^^^^^^
+    ...<2 lines>...
+        rpc_host="0.0.0.0"
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\programing\core_node\pycore\pylauncher\launcher.py", line 393, in launch_speech_only
+    from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
+  File "D:\programing\core_node\pycore\pyctl\speech\__init__.py", line 40, in <module>
+    from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
+  File "D:\programing\core_node\pycore\pyctl\speech\launch_speech_rpc.py", line 24, in <module>
+    from pycore.pyctl.speech.rpc import start_rpc_service
+  File "D:\programing\core_node\pycore\pyctl\speech\rpc\__init__.py", line 52, in <module>
+    from pycore.pyctl.speech.rpc.rpc_service import (
+    ...<3 lines>...
+    )
+  File "D:\programing\core_node\pycore\pyctl\speech\rpc\rpc_service.py", line 27, in <module>
+    from pycore.pyctl.speech.rpc.routes import (
+    ...<5 lines>...
+    )
+  File "D:\programing\core_node\pycore\pyctl\speech\rpc\routes\__init__.py", line 33, in <module>
+    from pycore.pyctl.speech.rpc.routes.tts_routes import register_tts_routes
+  File "D:\programing\core_node\pycore\pyctl\speech\rpc\routes\tts_routes.py", line 18, in <module>
+    from pycore.pyutils.common import TTSTaskData, create_tts_task
+  File "D:\programing\core_node\pycore\pyutils\common\__init__.py", line 72, in <module>
+    from pycore.pyutils.common.global_config import (
+    ...<2 lines>...
+    )
+  File "D:\programing\core_node\pycore\pyutils\common\global_config.py", line 20, in <module>
+    from pycore.database import get_database_manager
+ImportError: cannot import name 'get_database_manager' from 'pycore.database' (D:\programing\core_node\pycore\database\__init__.py)
+[INFO] Checking for required Python packages...
+[INFO] Optional packages are not auto-installed
+[INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, beautifulsoup4, cnocr[ort-cpu], fastapi, fastmcp, loguru, mss, netifaces, numpy, opencv-python, openpyxl, pdfplumber, psutil, pyaudio, pyaudiowpatch, pyautogui, pygetwindow, pynput, pyperclip, pystray, python-docx, python-pptx, pywebview, pywin32, pywinauto, pyyaml, requests, scikit-learn, sqlalchemy, tkhtmlview, tkinterweb, torch, uiautomation, ultralytics, uvicorn[standard], websockets
+[INFO] All required packages are available.
+[TableRegistry] Initialized
+[DatabaseManager] Initialized
+[database] Database module loaded successfully
+
+======================================================================
+Python Application Launcher - Starting...
+======================================================================
+Working Directory: D:\programing\core_node
+Project Root: D:\programing\core_node
+Command Line Args: ['./pymain.py', 'app=spee']
+======================================================================
+
+Matched 'spee' to app: speech_transcribe
+
+=== Starting Python App: speech_transcribe ===
+App Directory: D:\programing\core_node\pyapps\speech_transcribe
+App Entry: D:\programing\core_node\pyapps\speech_transcribe\speech_transcribe_main.py
+
+[I18nManager] Loaded base translations for language: en
+[I18nManager] Loaded base translations for language: zh
+[I18nManager] Loaded base translations for language: ja
+[I18nManager] Registered I18N_SET_LANGUAGE event handler
+[I18nManager] Initialized (singleton)
+[Launcher] Platform: Windows
+[Launcher] Starting RPC HTTP service on 0.0.0.0:59000
+[TTSCache] Initialized at: D:\www\wwwroot\pycore_db\tts_static (file-only)
+[DatabaseManager] Registered database: speech
+  Connection: sqlite:///D:\www\pycore_db\speech.db
+[DatabaseManager] Created engine for database: speech
+[DatabaseManager] Loading 1 table(s) for database: speech
+[BaseModel] Table initialized: util_speech_tts_config (version: 1)
+[TableRegistry] Registered table: util_speech.tts_config -> SpeechTTSConfigModel
+[DatabaseManager] Loaded 1 table(s). Total loaded: 1
+[TTSConfig] Loaded 21 configs from database
+[TTSConfig] Database initialized (speech)
+
+======================================================================
+Unexpected error: cannot import name 'get_database_manager' from 'pycore.database' (D:\programing\core_node\pycore\database\__init__.py)
+======================================================================
+
+
+● 看到问题了！之前添加静态文件服务时，没有注册基础RPC库的JavaScript客户端。让我先检查原有的RPC服务器
+  如何自动注册这些文件：
+
+● Search(pattern: "add_static_dir|_add_default_static", path: "pycore\pyutils\rpc\server", output_mode:
+        "content")
+  ⎿  Found 4 lines (ctrl+o to expand)
+
+● Read(pycore\pyutils\rpc\server\unified_server.py)
+  ⎿  Read 150 lines
+
+● Read(pycore\pyutils\rpc\server\unified_server.py)
+  ⎿  Read 50 lines
+
+> 注意要全局分析。
+
+D:\programing\core_node\pycore\pyutils\tts_cache
+
+D:\programing\core_node\pycore\pyutils\config_cache\speech_config_cache.py
+D:\programing\core_node\pycore\pyutils\tts_cacheD:\programing\core_node\pycore\pyutils\tts_cache
+这些文件请全出切换为新的（新的是  D:\programing\core_node\pycore\database ），并重命名。
+
+
+继续修复，注意要全局分析。 同时继续扫描对称性问题、重复定义问题。

@@ -6,7 +6,7 @@ Automation Plugin
 Provides automation helpers for page interactions
 """
 
-import asyncio
+import time
 from typing import Dict, Any, List
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.pybrowser.interfaces.iplugin import IPlugin
@@ -20,7 +20,7 @@ class AutomationPlugin(IPlugin):
         self.name = 'automation'
         self.version = '1.0.0'
 
-    async def initialize(self, session: Any):
+    def initialize(self, session: Any):
         """
         Initialize plugin with session
 
@@ -35,7 +35,7 @@ class AutomationPlugin(IPlugin):
             ColorPrint.red(f'Failed to initialize AutomationPlugin: {error}')
             raise
 
-    async def cleanup(self):
+    def cleanup(self):
         """Cleanup plugin resources"""
         try:
             self.is_initialized = False
@@ -43,7 +43,7 @@ class AutomationPlugin(IPlugin):
         except Exception as error:
             ColorPrint.red(f'Failed to cleanup AutomationPlugin: {error}')
 
-    async def fill_form(self, page: Any, form_data: Dict[str, str]):
+    def fill_form(self, page: Any, form_data: Dict[str, str]):
         """
         Fill form fields
 
@@ -53,14 +53,14 @@ class AutomationPlugin(IPlugin):
         """
         try:
             for selector, value in form_data.items():
-                await page.type(selector, value)
+                page.type(selector, value)
 
             ColorPrint.debug(f"Filled {len(form_data)} form fields")
         except Exception as error:
             ColorPrint.red(f'Failed to fill form: {error}')
             raise
 
-    async def select_dropdown(self, page: Any, selector: str, value: str):
+    def select_dropdown(self, page: Any, selector: str, value: str):
         """
         Select dropdown option
 
@@ -75,14 +75,14 @@ class AutomationPlugin(IPlugin):
             select.value = '{value}';
             select.dispatchEvent(new Event('change', {{ bubbles: true }}));
             """
-            await page.evaluate(script)
+            page.evaluate(script)
 
             ColorPrint.debug(f"Selected dropdown option: {value}")
         except Exception as error:
             ColorPrint.red(f'Failed to select dropdown: {error}')
             raise
 
-    async def check_checkbox(self, page: Any, selector: str, checked: bool = True):
+    def check_checkbox(self, page: Any, selector: str, checked: bool = True):
         """
         Check/uncheck checkbox
 
@@ -97,14 +97,14 @@ class AutomationPlugin(IPlugin):
             checkbox.checked = {str(checked).lower()};
             checkbox.dispatchEvent(new Event('change', {{ bubbles: true }}));
             """
-            await page.evaluate(script)
+            page.evaluate(script)
 
             ColorPrint.debug(f"Checkbox {'checked' if checked else 'unchecked'}: {selector}")
         except Exception as error:
             ColorPrint.red(f'Failed to check checkbox: {error}')
             raise
 
-    async def hover(self, page: Any, selector: str):
+    def hover(self, page: Any, selector: str):
         """
         Hover over element
 
@@ -122,14 +122,14 @@ class AutomationPlugin(IPlugin):
             }});
             element.dispatchEvent(event);
             """
-            await page.evaluate(script)
+            page.evaluate(script)
 
             ColorPrint.debug(f"Hovered over element: {selector}")
         except Exception as error:
             ColorPrint.red(f'Failed to hover: {error}')
             raise
 
-    async def scroll_to(self, page: Any, selector: str = None, x: int = None, y: int = None):
+    def scroll_to(self, page: Any, selector: str = None, x: int = None, y: int = None):
         """
         Scroll to element or position
 
@@ -150,30 +150,31 @@ class AutomationPlugin(IPlugin):
             else:
                 raise ValueError("Either selector or x/y coordinates must be provided")
 
-            await page.evaluate(script)
+            page.evaluate(script)
 
             ColorPrint.debug("Scrolled to target")
         except Exception as error:
             ColorPrint.red(f'Failed to scroll: {error}')
             raise
 
-    async def wait_for_navigation(self, page: Any, timeout: int = 30):
+    def wait_for_navigation(self, page: Any, timeout: int = 30):
         """
-        Wait for page navigation
+        Wait for page navigation (synchronous)
 
         Args:
             page: Page instance
             timeout: Timeout in seconds
         """
         try:
-            await asyncio.sleep(1)
+            # Simple wait - could be enhanced with actual navigation detection
+            time.sleep(1)
 
-            ColorPrint.debug("Navigation completed")
+            ColorPrint.debug("Navigation wait completed")
         except Exception as error:
             ColorPrint.red(f'Failed to wait for navigation: {error}')
             raise
 
-    async def get_element_text(self, page: Any, selector: str) -> str:
+    def get_element_text(self, page: Any, selector: str) -> str:
         """
         Get element text content
 
@@ -186,12 +187,12 @@ class AutomationPlugin(IPlugin):
         """
         try:
             script = f"return document.querySelector('{selector}').textContent.trim();"
-            return await page.evaluate(script)
+            return page.evaluate(script)
         except Exception as error:
             ColorPrint.red(f'Failed to get element text: {error}')
             raise
 
-    async def get_element_attribute(self, page: Any, selector: str, attribute: str) -> str:
+    def get_element_attribute(self, page: Any, selector: str, attribute: str) -> str:
         """
         Get element attribute value
 
@@ -205,7 +206,7 @@ class AutomationPlugin(IPlugin):
         """
         try:
             script = f"return document.querySelector('{selector}').getAttribute('{attribute}');"
-            return await page.evaluate(script)
+            return page.evaluate(script)
         except Exception as error:
             ColorPrint.red(f'Failed to get element attribute: {error}')
             raise

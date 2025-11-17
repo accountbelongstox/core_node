@@ -13,7 +13,9 @@ import time
 from typing import Dict, Optional, Any
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 
 web = aiohttp.web
 WebSocketResponse = aiohttp.web_ws.WebSocketResponse
@@ -24,6 +26,7 @@ from pycore.pyutils.rpc.common.inventory_table import InventoryTable
 from pycore.pyutils.rpc.server.ack_manager import AckManager
 from pycore.pyutils.rpc.server.request_processor import RequestProcessor
 from pycore.pyutils.rpc.server.routes import RoutesManager
+from pycore.pyutils.rpc.server.client_manager import ClientStatus
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
 ERROR_CODES = RPC_CONSTANTS.ERROR_CODES
@@ -75,32 +78,48 @@ class WebSocketHandler:
     
     async def handle_websocket(self, request: web.Request) -> WebSocketResponse:
         """
-        Handle WebSocket connection
-        
+        Handle WebSocket connection (supports reconnection)
+
         Args:
             request: aiohttp request
-            
+
         Returns:
             WebSocket response
         """
         ws = WebSocketResponse()
         await ws.prepare(request)
-        
-        client_id = str(id(ws))
+
+        # Extract client_id from query params (for reconnection) or generate new one
+        import uuid
+        query_client_id = request.query.get('client_id')
+        client_id = query_client_id if query_client_id else str(uuid.uuid4())
         client_addr = request.remote
-        
-        # Register WebSocket client
-        self.client_manager.register_websocket_client(client_id, ws, client_addr)
-        
+
+        # Register WebSocket client (reuses existing if RECONNECTING)
+        client_info = await self.client_manager.register_websocket_client(
+            client_id=client_id,
+            ws=ws,
+            remote_addr=client_addr,
+            reuse_if_reconnecting=True  # Enable reconnection support
+        )
+
         if self.debug:
             ColorPrint.green(f"[WebSocketHandler] WebSocket client connected: {client_addr} (id: {client_id})")
-        
+
+        # Set status to CONNECTED (handshake complete)
+        await self.client_manager.set_client_status(client_id, ClientStatus.CONNECTED)
+
         # Send welcome message
         await ws.send_json({
             'type': MSG_TYPES['WELCOME'],
             'client_id': client_id,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'reconnected': len(client_info.pending_messages) > 0  # Indicate if this is a reconnection
         })
+
+        # Send pending messages if this is a reconnection
+        if client_info.pending_messages:
+            await self.client_manager.send_pending_messages(client_id)
         
         # Check for pending notifications and inventory items (check inventory on connect)
         pending_events = self.request_event_table.get_pending_notifications(client_id=client_id)
@@ -153,8 +172,8 @@ class WebSocketHandler:
                         ColorPrint.red(f"[WebSocketHandler] WebSocket error: {ws.exception()}")
         
         finally:
-            # Unregister WebSocket client
-            self.client_manager.unregister_websocket_client(client_id)
+            # Unregister WebSocket client (graceful shutdown with state transitions)
+            await self.client_manager.unregister_websocket_client(client_id)
             if self.debug:
                 ColorPrint.blue(f"[WebSocketHandler] WebSocket client disconnected: {client_addr} (id: {client_id})")
             await ws.close()
@@ -169,12 +188,15 @@ class WebSocketHandler:
     ):
         """
         Handle WebSocket message
-        
+
         Args:
             ws: WebSocket connection
             client_id: Client ID
             data: Message data
         """
+        # Update client activity on every message
+        await self.client_manager.update_client_activity(client_id)
+
         msg_type = data.get('type', MSG_TYPES['REQUEST'])
         request_id = data.get('id', str(time.time()))
         
@@ -247,10 +269,7 @@ class WebSocketHandler:
                 client_id=client_id,
                 client_type='websocket'
             )
-            
-            # Update client metadata
-            self.client_manager.update_client_metadata(client_id, 'websocket', None)
-            
+
             # Step 4: Process asynchronously
             asyncio.create_task(self.request_processor.process_request_async(
                 request_id=request_id,
@@ -272,8 +291,8 @@ class WebSocketHandler:
         
         elif msg_type == MSG_TYPES['PING']:
             # Handle ping (WebSocket heartbeat mechanism)
-            self.client_manager.update_client_metadata(client_id, 'websocket', None)
-            
+            await self.client_manager.update_client_ping(client_id)
+
             # Check for pending notifications (heartbeat includes event query)
             pending_events = self.request_event_table.get_pending_notifications(client_id=client_id)
             inventory_items = self.inventory_table.get_by_client(client_id)

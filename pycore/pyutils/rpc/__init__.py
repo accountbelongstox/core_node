@@ -16,6 +16,11 @@ from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
 from pycore.pyutils.rpc.config.rpc_config import RPCConfig, get_rpc_config
 from pycore.pyutils.rpc.common.event_cache import EventCache, default_event_cache
 from pycore.pyutils.rpc.common.request_manager import RequestManager, default_request_manager
+
+# Server implementations
+# ThreadedRpcServer - Pure thread-based (NO asyncio) - RECOMMENDED
+from pycore.pyutils.rpc.server.threaded_server import ThreadedRpcServer, get_threaded_rpc_server
+# UnifiedRpcServer - asyncio-based (legacy, for backward compatibility)
 from pycore.pyutils.rpc.server.unified_server import UnifiedRpcServer
 
 # Discovery components
@@ -34,7 +39,7 @@ from pycore.pyutils.rpc.protocol.rpc_protocol import (
 # Address provider
 from pycore.pyutils.rpc.address.address_provider import RPCAddressProvider, RPCAddress
 
-__version__ = '2.0.0'
+__version__ = '3.0.0'  # Major version bump for threading refactor
 __all__ = [
     'RPC_CONSTANTS',
     'RPCConfig',
@@ -43,13 +48,18 @@ __all__ = [
     'default_event_cache',
     'RequestManager',
     'default_request_manager',
-    'UnifiedRpcServer',
+    # Server implementations
+    'ThreadedRpcServer',  # NEW: Pure thread-based (recommended)
+    'get_threaded_rpc_server',  # NEW: Singleton accessor
+    'UnifiedRpcServer',  # Legacy: asyncio-based
+    # Discovery
     'NetworkScanner',
     'NetworkHost',
     'RPCDiscovery',
     'DiscoveredRPCService',
     'get_local_lan_ip',
     'confirm_local_lan_ip',
+    # Protocol
     'RPCProtocolServer',
     'RPCProtocolClient',
     'RPCServiceInfo',

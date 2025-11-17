@@ -19,7 +19,7 @@ class ContentPlugin(IPlugin):
         self.name = 'content'
         self.version = '1.0.0'
 
-    async def initialize(self, session: Any):
+    def initialize(self, session: Any):
         """
         Initialize plugin with session
 
@@ -34,7 +34,7 @@ class ContentPlugin(IPlugin):
             ColorPrint.red(f'Failed to initialize ContentPlugin: {error}')
             raise
 
-    async def cleanup(self):
+    def cleanup(self):
         """Cleanup plugin resources"""
         try:
             self.is_initialized = False
@@ -42,7 +42,7 @@ class ContentPlugin(IPlugin):
         except Exception as error:
             ColorPrint.red(f'Failed to cleanup ContentPlugin: {error}')
 
-    async def extract_text(self, page: Any) -> str:
+    def extract_text(self, page: Any) -> str:
         """
         Extract text content from page
 
@@ -53,12 +53,12 @@ class ContentPlugin(IPlugin):
             Text content
         """
         try:
-            return await page.evaluate('return document.body.innerText;')
+            return page.evaluate('return document.body.innerText;')
         except Exception as error:
             ColorPrint.red(f'Failed to extract text: {error}')
             raise
 
-    async def extract_html(self, page: Any) -> str:
+    def extract_html(self, page: Any) -> str:
         """
         Extract HTML content from page
 
@@ -69,12 +69,12 @@ class ContentPlugin(IPlugin):
             HTML content
         """
         try:
-            return await page.get_content()
+            return page.get_content()
         except Exception as error:
             ColorPrint.red(f'Failed to extract HTML: {error}')
             raise
 
-    async def extract_images(self, page: Any) -> List[Dict[str, Any]]:
+    def extract_images(self, page: Any) -> List[Dict[str, Any]]:
         """
         Extract image information from page
 
@@ -93,12 +93,12 @@ class ContentPlugin(IPlugin):
                 height: img.height
             }));
             """
-            return await page.evaluate(script)
+            return page.evaluate(script)
         except Exception as error:
             ColorPrint.red(f'Failed to extract images: {error}')
             raise
 
-    async def extract_links(self, page: Any) -> List[Dict[str, Any]]:
+    def extract_links(self, page: Any) -> List[Dict[str, Any]]:
         """
         Extract links from page
 
@@ -116,12 +116,12 @@ class ContentPlugin(IPlugin):
                 title: link.title
             }));
             """
-            return await page.evaluate(script)
+            return page.evaluate(script)
         except Exception as error:
             ColorPrint.red(f'Failed to extract links: {error}')
             raise
 
-    async def extract_forms(self, page: Any) -> List[Dict[str, Any]]:
+    def extract_forms(self, page: Any) -> List[Dict[str, Any]]:
         """
         Extract form information from page
 
@@ -144,12 +144,12 @@ class ContentPlugin(IPlugin):
                 }))
             }));
             """
-            return await page.evaluate(script)
+            return page.evaluate(script)
         except Exception as error:
             ColorPrint.red(f'Failed to extract forms: {error}')
             raise
 
-    async def extract_meta(self, page: Any) -> Dict[str, str]:
+    def extract_meta(self, page: Any) -> Dict[str, str]:
         """
         Extract meta tags from page
 
@@ -175,14 +175,14 @@ class ContentPlugin(IPlugin):
 
             return result;
             """
-            return await page.evaluate(script)
+            return page.evaluate(script)
         except Exception as error:
             ColorPrint.red(f'Failed to extract meta: {error}')
             raise
 
-    async def extract_all(self, page: Any) -> Dict[str, Any]:
+    def extract_all(self, page: Any) -> Dict[str, Any]:
         """
-        Extract all content types from page
+        Extract all content types from page (synchronous)
 
         Args:
             page: Page instance
@@ -191,29 +191,18 @@ class ContentPlugin(IPlugin):
             Dictionary with all extracted content
         """
         try:
-            import asyncio
             from datetime import datetime
 
-            results = await asyncio.gather(
-                self.extract_text(page),
-                self.extract_html(page),
-                self.extract_images(page),
-                self.extract_links(page),
-                self.extract_forms(page),
-                self.extract_meta(page),
-                page.get_url(),
-                page.get_title()
-            )
-
+            # Extract all content synchronously
             return {
-                'text': results[0],
-                'html': results[1],
-                'images': results[2],
-                'links': results[3],
-                'forms': results[4],
-                'meta': results[5],
-                'url': results[6],
-                'title': results[7],
+                'text': self.extract_text(page),
+                'html': self.extract_html(page),
+                'images': self.extract_images(page),
+                'links': self.extract_links(page),
+                'forms': self.extract_forms(page),
+                'meta': self.extract_meta(page),
+                'url': page.get_url(),
+                'title': page.get_title(),
                 'timestamp': datetime.now().isoformat()
             }
         except Exception as error:

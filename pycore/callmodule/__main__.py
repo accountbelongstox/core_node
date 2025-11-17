@@ -55,7 +55,9 @@ def main():
     )
 
     # Run server
-    from pycore.pyfoundations.third_party import uvicorn
+    from pycore.pyfoundations.third_party import get_third_package_uvicorn
+
+uvicorn = get_third_package_uvicorn()
     uvicorn.run(
         "pycore.callmodule.app:create_app",
         host=args.host,

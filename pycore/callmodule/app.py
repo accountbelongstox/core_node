@@ -3,7 +3,9 @@
 FastAPI Application Factory
 """
 
-from pycore.pyfoundations.third_party import fastapi
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+fastapi = get_third_package_fastapi()
 
 from .routers import health_router, module_call_router, ocr_router
 from .global_config import get_global_config
