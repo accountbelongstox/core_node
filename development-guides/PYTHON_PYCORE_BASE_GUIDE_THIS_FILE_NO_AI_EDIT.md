@@ -69,6 +69,8 @@
 - Provides higher-level abstractions that combine multiple pyutils modules
 - Should focus on organizing and orchestrating pyutils functionality rather than re-implementing it
 
+A
+
 ### 3.4 pygvar Usage
 - Central location for all constants and variables
 - Import pattern: `from pycore.pygvar import CONSTANT_NAME`
