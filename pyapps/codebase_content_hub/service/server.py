@@ -16,7 +16,9 @@ import importlib
 
 from pyapps.codebase_content_hub.service.constants import ContentHubConstants
 
-from pycore.pyfoundations.third_party import fastmcp
+from pycore.pyfoundations.third_party import get_third_package_fastmcp
+
+fastmcp = get_third_package_fastmcp()
 from fastmcp import FastMCP
 
 mcp = FastMCP(ContentHubConstants.SERVICE_NAME)

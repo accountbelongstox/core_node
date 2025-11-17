@@ -9,9 +9,12 @@ import sys
 from pathlib import Path
 from typing import Union
 
-from pycore.pyfoundations.third_party import PIL, cv2, numpy
+from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_cv2, get_third_package_numpy
+
+PIL = get_third_package_PIL()
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
 from PIL import Image
-import numpy as np
 
 # Add project paths
 current_dir = Path(__file__).parent.parent.parent

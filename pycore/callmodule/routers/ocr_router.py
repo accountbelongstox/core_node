@@ -8,7 +8,9 @@ Provides direct API endpoints for OCR operations without needing to pass module 
 from pydantic import BaseModel
 from typing import Optional, List
 
-from pycore.pyfoundations.third_party import fastapi
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+fastapi = get_third_package_fastapi()
 
 APIRouter = fastapi.APIRouter
 HTTPException = fastapi.HTTPException

@@ -47,7 +47,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional, Callable
 
-from pycore.pyutils.native_ui.tkinter.theme_system import ThemeSystem
+from pycore.pyutils.native_ui.step5_main_ui.tkinter.theme_system import ThemeSystem
 
 
 class StyledWidgets:

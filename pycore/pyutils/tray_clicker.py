@@ -14,7 +14,11 @@ import shutil
 import traceback
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import win32api, win32con, pywinauto
+from pycore.pyfoundations.third_party import get_third_package_win32api, get_third_package_win32con, get_third_package_pywinauto
+
+win32api = get_third_package_win32api()
+win32con = get_third_package_win32con()
+pywinauto = get_third_package_pywinauto()
 from pywinauto import Desktop
 
 # --- Embedded ColorPrint Class for rich console output ---

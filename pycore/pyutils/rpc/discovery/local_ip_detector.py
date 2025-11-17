@@ -8,7 +8,9 @@ Provides methods to detect and confirm local LAN IP address.
 
 import socket
 import ipaddress
-from pycore.pyfoundations.third_party import netifaces
+from pycore.pyfoundations.third_party import get_third_package_netifaces
+
+netifaces = get_third_package_netifaces()
 from typing import Optional
 
 from pycore import ColorPrint

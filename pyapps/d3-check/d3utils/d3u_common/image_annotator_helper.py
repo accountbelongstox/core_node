@@ -7,8 +7,6 @@ Common methods for drawing template match results
 
 import os
 import sys
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -21,7 +19,9 @@ sys.path.insert(0, project_root)
 from providor.common_imports import ColorPrint, ImageAnnotator
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 from PIL import Image
 
 # Import TMP_DIR from providor_index (unified source)

@@ -10,7 +10,10 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.third_party import requests, webview
+from pycore.pyfoundations.third_party import get_third_package_requests, get_third_package_webview
+
+requests = get_third_package_requests()
+webview = get_third_package_webview()
 
 WEBVIEW_AVAILABLE = True
 

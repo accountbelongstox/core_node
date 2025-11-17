@@ -12,7 +12,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
-from pycore.pyfoundations.third_party import win32gui, win32con, PIL, pyautogui, mss
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_PIL, get_third_package_pyautogui, get_third_package_mss
+
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+PIL = get_third_package_PIL()
+pyautogui = get_third_package_pyautogui()
+mss = get_third_package_mss()
 
 ImageGrab = PIL.ImageGrab
 Image = PIL.Image

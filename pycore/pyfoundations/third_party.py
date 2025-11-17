@@ -89,6 +89,9 @@ DEPENDENCY_MAP = {
     "openpyxl": "openpyxl",
     "pptx": "python-pptx",
 
+    # For HTML parsing
+    "bs4": "beautifulsoup4",
+
     # For machine learning and color analysis
     "sklearn": "scikit-learn",
 
@@ -103,6 +106,16 @@ DEPENDENCY_MAP = {
     #       Package name uses hyphens (azure-cognitiveservices-speech)
     #       Install with: pip install azure-cognitiveservices-speech
     "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
+
+    # For audio input/output (cross-platform)
+    # Standard PyAudio for Linux/macOS
+    "pyaudio": "pyaudio",
+
+    # For global hotkey listening (keyboard and mouse)
+    "pynput": "pynput",
+
+    # For clipboard operations (cross-platform)
+    "pyperclip": "pyperclip",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -130,6 +143,9 @@ WINDOWS_ONLY_PACKAGES = {
 
     # For UI automation (Windows-specific)
     "uiautomation": "uiautomation",
+
+    # For audio with WASAPI loopback support (Windows-specific)
+    "pyaudiowpatch": "pyaudiowpatch",
 }
 
 # System packages required for Python packages (Debian/Ubuntu only)
@@ -143,6 +159,7 @@ SYSTEM_PACKAGES = [
     "python3-gi-cairo",         # Required for Cairo graphics with GObject
     "python3-pil",              # Required for PIL/Pillow image processing
     "python3-pil.imagetk",      # Required for PIL/Pillow with Tkinter support
+    "portaudio19-dev",          # Required for pyaudio (audio input/output)
 ]
 
 
@@ -550,142 +567,480 @@ except Exception as e:
     ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
 
 
-# Direct imports after dependency check
-# All third-party packages are imported directly and exported
-# Packages are already installed by check_and_install_dependencies() above
+# ============================================================================
+# LAZY LOADING IMPLEMENTATION
+# ============================================================================
+# Packages are loaded only when first accessed via getter functions
+# This significantly reduces initial import time (from ~12s to <1s)
+# All packages are cached after first load to avoid repeated imports
+# ============================================================================
 
-# Standard packages
-import aiohttp
-import netifaces
-import websockets
-import requests
-import uvicorn
-import fastapi
-import PIL
-import cv2
-import pyautogui
-import psutil
-import mss
-import torch
-import ultralytics
-import numpy
-import adb_shell
-import av
-import loguru
-import yaml
-import webview
-import tkinterweb
-import tkhtmlview
-import pystray
-import cnocr
+# Global cache for loaded packages
+_PACKAGE_CACHE = {}
+
+
+def _lazy_import(package_name: str, import_statement: str):
+    """
+    Lazy import helper with caching
+
+    Args:
+        package_name: Cache key for the package
+        import_statement: Python import statement to execute
+
+    Returns:
+        The imported module/package
+    """
+    if package_name not in _PACKAGE_CACHE:
+        # Execute import statement and cache result
+        local_vars = {}
+        exec(import_statement, globals(), local_vars)
+        _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
+    return _PACKAGE_CACHE[package_name]
+
+
+# Standard packages getter functions
+def get_third_package_aiohttp():
+    """Get aiohttp package (lazy load)"""
+    return _lazy_import('aiohttp', 'import aiohttp')
+
+
+def get_third_package_aiohttp_web():
+    """Get aiohttp.web (lazy load)"""
+    if 'aiohttp_web' not in _PACKAGE_CACHE:
+        from aiohttp import web as aiohttp_web
+        _PACKAGE_CACHE['aiohttp_web'] = aiohttp_web
+    return _PACKAGE_CACHE['aiohttp_web']
+
+
+def get_third_package_netifaces():
+    """Get netifaces package (lazy load)"""
+    return _lazy_import('netifaces', 'import netifaces')
+
+
+def get_third_package_websockets():
+    """Get websockets package (lazy load)"""
+    return _lazy_import('websockets', 'import websockets')
+
+
+def get_third_package_requests():
+    """Get requests package (lazy load)"""
+    return _lazy_import('requests', 'import requests')
+
+
+def get_third_package_uvicorn():
+    """Get uvicorn package (lazy load)"""
+    return _lazy_import('uvicorn', 'import uvicorn')
+
+
+def get_third_package_fastapi():
+    """Get fastapi package (lazy load)"""
+    return _lazy_import('fastapi', 'import fastapi')
+
+
+def get_third_package_PIL():
+    """Get PIL package (lazy load)"""
+    return _lazy_import('PIL', 'import PIL')
+
+
+def get_third_package_PIL_Image():
+    """Get PIL.Image (lazy load)"""
+    if 'PIL_Image' not in _PACKAGE_CACHE:
+        from PIL import Image as PIL_Image
+        _PACKAGE_CACHE['PIL_Image'] = PIL_Image
+    return _PACKAGE_CACHE['PIL_Image']
+
+
+def get_third_package_PIL_ImageDraw():
+    """Get PIL.ImageDraw (lazy load)"""
+    if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
+        from PIL import ImageDraw as PIL_ImageDraw
+        _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
+    return _PACKAGE_CACHE['PIL_ImageDraw']
+
+
+def get_third_package_PIL_ImageFont():
+    """Get PIL.ImageFont (lazy load)"""
+    if 'PIL_ImageFont' not in _PACKAGE_CACHE:
+        from PIL import ImageFont as PIL_ImageFont
+        _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
+    return _PACKAGE_CACHE['PIL_ImageFont']
+
+
+def get_third_package_PIL_ImageTk():
+    """Get PIL.ImageTk (lazy load)"""
+    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
+        from PIL import ImageTk as PIL_ImageTk
+        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
+    return _PACKAGE_CACHE['PIL_ImageTk']
+
+
+def get_third_package_cv2():
+    """Get cv2 package (lazy load)"""
+    return _lazy_import('cv2', 'import cv2')
+
+
+def get_third_package_pyautogui():
+    """Get pyautogui package (lazy load)"""
+    return _lazy_import('pyautogui', 'import pyautogui')
+
+
+def get_third_package_psutil():
+    """Get psutil package (lazy load)"""
+    return _lazy_import('psutil', 'import psutil')
+
+
+def get_third_package_mss():
+    """Get mss package (lazy load)"""
+    return _lazy_import('mss', 'import mss')
+
+
+def get_third_package_torch():
+    """Get torch package (lazy load) - Heavy package ~2s load time"""
+    return _lazy_import('torch', 'import torch')
+
+
+def get_third_package_ultralytics():
+    """Get ultralytics package (lazy load) - Heavy package ~2s load time"""
+    return _lazy_import('ultralytics', 'import ultralytics')
+
+
+def get_third_package_numpy():
+    """Get numpy package (lazy load)"""
+    return _lazy_import('numpy', 'import numpy')
+
+
+def get_third_package_adb_shell():
+    """Get adb_shell package (lazy load)"""
+    return _lazy_import('adb_shell', 'import adb_shell')
+
+
+def get_third_package_av():
+    """Get av package (lazy load)"""
+    return _lazy_import('av', 'import av')
+
+
+def get_third_package_loguru():
+    """Get loguru package (lazy load)"""
+    return _lazy_import('loguru', 'import loguru')
+
+
+def get_third_package_yaml():
+    """Get yaml package (lazy load)"""
+    return _lazy_import('yaml', 'import yaml')
+
+
+def get_third_package_webview():
+    """Get webview package (lazy load)"""
+    return _lazy_import('webview', 'import webview')
+
+
+def get_third_package_tkinterweb():
+    """Get tkinterweb package (lazy load)"""
+    return _lazy_import('tkinterweb', 'import tkinterweb')
+
+
+def get_third_package_tkhtmlview():
+    """Get tkhtmlview package (lazy load)"""
+    return _lazy_import('tkhtmlview', 'import tkhtmlview')
+
+
+def get_third_package_pystray():
+    """Get pystray package (lazy load)"""
+    return _lazy_import('pystray', 'import pystray')
+
+
+def get_third_package_cnocr():
+    """Get cnocr package (lazy load) - Heavy package"""
+    return _lazy_import('cnocr', 'import cnocr')
+
+
+def get_third_package_pynput():
+    """Get pynput package (lazy load)"""
+    return _lazy_import('pynput', 'import pynput')
+
+
+def get_third_package_pyperclip():
+    """Get pyperclip package (lazy load)"""
+    return _lazy_import('pyperclip', 'import pyperclip')
+
 
 # Document processing packages
-import PyPDF2
-import pdfplumber
-import docx
-import openpyxl
-import pptx
+def get_third_package_PyPDF2():
+    """Get PyPDF2 package (lazy load)"""
+    return _lazy_import('PyPDF2', 'import PyPDF2')
+
+
+def get_third_package_pdfplumber():
+    """Get pdfplumber package (lazy load)"""
+    return _lazy_import('pdfplumber', 'import pdfplumber')
+
+
+def get_third_package_docx():
+    """Get docx package (lazy load)"""
+    return _lazy_import('docx', 'import docx')
+
+
+def get_third_package_python_docx():
+    """Get python-docx package (alias for docx, lazy load)"""
+    return get_third_package_docx()
+
+
+def get_third_package_openpyxl():
+    """Get openpyxl package (lazy load)"""
+    return _lazy_import('openpyxl', 'import openpyxl')
+
+
+def get_third_package_pptx():
+    """Get pptx package (lazy load)"""
+    return _lazy_import('pptx', 'import pptx')
+
+
+def get_third_package_python_pptx():
+    """Get python-pptx package (alias for pptx, lazy load)"""
+    return get_third_package_pptx()
+
+
+# HTML parsing
+def get_third_package_bs4():
+    """Get bs4 (BeautifulSoup4) package (lazy load)"""
+    return _lazy_import('bs4', 'import bs4')
+
+
+def get_third_package_BeautifulSoup():
+    """Get BeautifulSoup class from bs4 (lazy load)"""
+    if 'BeautifulSoup' not in _PACKAGE_CACHE:
+        from bs4 import BeautifulSoup
+        _PACKAGE_CACHE['BeautifulSoup'] = BeautifulSoup
+    return _PACKAGE_CACHE['BeautifulSoup']
+
 
 # Machine learning
-import sklearn
+def get_third_package_sklearn():
+    """Get sklearn package (lazy load) - Heavy package"""
+    return _lazy_import('sklearn', 'import sklearn')
+
 
 # Database operations
-import sqlalchemy
+def get_third_package_sqlalchemy():
+    """Get sqlalchemy package (lazy load)"""
+    return _lazy_import('sqlalchemy', 'import sqlalchemy')
+
 
 # MCP (Model Context Protocol) - FastMCP v2
-import fastmcp
-from fastmcp import FastMCP, Context
+def get_third_package_fastmcp():
+    """Get fastmcp package (lazy load)"""
+    return _lazy_import('fastmcp', 'import fastmcp')
 
-# Convenience aliases for PIL
-from PIL import Image as PIL_Image, ImageDraw as PIL_ImageDraw, ImageFont as PIL_ImageFont
 
-# Convenience aliases for document libraries
-python_docx = docx
-python_pptx = pptx
+def get_third_package_FastMCP():
+    """Get FastMCP class (lazy load)"""
+    if 'FastMCP' not in _PACKAGE_CACHE:
+        from fastmcp import FastMCP
+        _PACKAGE_CACHE['FastMCP'] = FastMCP
+    return _PACKAGE_CACHE['FastMCP']
 
-# Azure Speech SDK - optional import (if needed)
-# Package: azure-cognitiveservices-speech (install with: pip install azure-cognitiveservices-speech)
-# Import: azure.cognitiveservices.speech (note: dots in import, hyphens in package name)
-# Direct call to install function which handles import and installation
-speechsdk = install_and_reimport_azure()
 
-# Edge TTS (Microsoft Edge Text-to-Speech) - optional import
-# Direct call to install function which handles import and installation
-edge_tts = install_and_reimport_edge_tts()
+def get_third_package_Context():
+    """Get MCP Context class (lazy load)"""
+    if 'Context' not in _PACKAGE_CACHE:
+        from fastmcp import Context
+        _PACKAGE_CACHE['Context'] = Context
+    return _PACKAGE_CACHE['Context']
 
-# Windows-only packages (only available on Windows)
-current_platform = platform.system()
-if current_platform == 'Windows':
-    import win32gui
-    import win32con
-    import win32api
-    import win32ui
-    import pywinauto
-    import pygetwindow
-    import uiautomation
-else:
-    # Create None placeholders for non-Windows systems
-    win32gui = None
-    win32con = None
-    win32api = None
-    win32ui = None
-    pywinauto = None
-    pygetwindow = None
-    uiautomation = None
+
+# Optional packages
+def get_third_package_speechsdk():
+    """Get Azure Speech SDK (lazy load, optional)"""
+    if 'speechsdk' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
+    return _PACKAGE_CACHE['speechsdk']
+
+
+def get_third_package_edge_tts():
+    """Get Edge TTS (lazy load, optional)"""
+    if 'edge_tts' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['edge_tts'] = install_and_reimport_edge_tts()
+    return _PACKAGE_CACHE['edge_tts']
+
+
+# Audio packages
+def get_third_package_pyaudio():
+    """Get pyaudio package (lazy load, may be None if not installed)"""
+    if 'pyaudio' not in _PACKAGE_CACHE:
+        try:
+            import pyaudio
+            _PACKAGE_CACHE['pyaudio'] = pyaudio
+        except ImportError:
+            ColorPrint.yellow("[WARNING] pyaudio not available")
+            _PACKAGE_CACHE['pyaudio'] = None
+    return _PACKAGE_CACHE['pyaudio']
+
+
+# Windows-only packages
+def get_third_package_win32gui():
+    """Get win32gui package (lazy load, Windows only)"""
+    if 'win32gui' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import win32gui
+            _PACKAGE_CACHE['win32gui'] = win32gui
+        else:
+            _PACKAGE_CACHE['win32gui'] = None
+    return _PACKAGE_CACHE['win32gui']
+
+
+def get_third_package_win32con():
+    """Get win32con package (lazy load, Windows only)"""
+    if 'win32con' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import win32con
+            _PACKAGE_CACHE['win32con'] = win32con
+        else:
+            _PACKAGE_CACHE['win32con'] = None
+    return _PACKAGE_CACHE['win32con']
+
+
+def get_third_package_win32api():
+    """Get win32api package (lazy load, Windows only)"""
+    if 'win32api' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import win32api
+            _PACKAGE_CACHE['win32api'] = win32api
+        else:
+            _PACKAGE_CACHE['win32api'] = None
+    return _PACKAGE_CACHE['win32api']
+
+
+def get_third_package_win32ui():
+    """Get win32ui package (lazy load, Windows only)"""
+    if 'win32ui' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import win32ui
+            _PACKAGE_CACHE['win32ui'] = win32ui
+        else:
+            _PACKAGE_CACHE['win32ui'] = None
+    return _PACKAGE_CACHE['win32ui']
+
+
+def get_third_package_pywinauto():
+    """Get pywinauto package (lazy load, Windows only)"""
+    if 'pywinauto' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import pywinauto
+            _PACKAGE_CACHE['pywinauto'] = pywinauto
+        else:
+            _PACKAGE_CACHE['pywinauto'] = None
+    return _PACKAGE_CACHE['pywinauto']
+
+
+def get_third_package_pygetwindow():
+    """Get pygetwindow package (lazy load, Windows only)"""
+    if 'pygetwindow' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import pygetwindow
+            _PACKAGE_CACHE['pygetwindow'] = pygetwindow
+        else:
+            _PACKAGE_CACHE['pygetwindow'] = None
+    return _PACKAGE_CACHE['pygetwindow']
+
+
+def get_third_package_uiautomation():
+    """Get uiautomation package (lazy load, Windows only)"""
+    if 'uiautomation' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import uiautomation
+            _PACKAGE_CACHE['uiautomation'] = uiautomation
+        else:
+            _PACKAGE_CACHE['uiautomation'] = None
+    return _PACKAGE_CACHE['uiautomation']
+
+
+def get_third_package_pyaudiowpatch():
+    """Get pyaudiowpatch package (lazy load, Windows only)"""
+    if 'pyaudiowpatch' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            try:
+                import pyaudiowpatch
+                _PACKAGE_CACHE['pyaudiowpatch'] = pyaudiowpatch
+            except ImportError:
+                ColorPrint.yellow("[WARNING] pyaudiowpatch not available (Windows loopback may not work)")
+                _PACKAGE_CACHE['pyaudiowpatch'] = None
+        else:
+            _PACKAGE_CACHE['pyaudiowpatch'] = None
+    return _PACKAGE_CACHE['pyaudiowpatch']
 
 
 __all__ = [
+    # Dependency management utilities
     'check_system_package_installed',
     'install_system_packages',
-    'aiohttp',
-    'netifaces',
-    'websockets',
-    'requests',
-    'uvicorn',
-    'PIL',
-    'cv2',
-    'pyautogui',
-    'psutil',
-    'mss',
-    'torch',
-    'ultralytics',
-    'numpy',
-    'adb_shell',
-    'av',
-    'webview',
-    'tkinterweb',
-    'tkhtmlview',
-    'pystray',
-    'loguru',
-    'yaml',
-    'cnocr',
+
+    # Lazy loading getter functions (use these instead of direct imports)
+    'get_third_package_aiohttp',
+    'get_third_package_aiohttp_web',
+    'get_third_package_netifaces',
+    'get_third_package_websockets',
+    'get_third_package_requests',
+    'get_third_package_uvicorn',
+    'get_third_package_fastapi',
+    'get_third_package_PIL',
+    'get_third_package_PIL_Image',
+    'get_third_package_PIL_ImageDraw',
+    'get_third_package_PIL_ImageFont',
+    'get_third_package_PIL_ImageTk',
+    'get_third_package_cv2',
+    'get_third_package_pyautogui',
+    'get_third_package_psutil',
+    'get_third_package_mss',
+    'get_third_package_torch',
+    'get_third_package_ultralytics',
+    'get_third_package_numpy',
+    'get_third_package_adb_shell',
+    'get_third_package_av',
+    'get_third_package_loguru',
+    'get_third_package_yaml',
+    'get_third_package_webview',
+    'get_third_package_tkinterweb',
+    'get_third_package_tkhtmlview',
+    'get_third_package_pystray',
+    'get_third_package_cnocr',
+    'get_third_package_pynput',
+    'get_third_package_pyperclip',
     # Document processing packages
-    'PyPDF2',
-    'pdfplumber',
-    'docx',
-    'python_docx',  # alias
-    'openpyxl',
-    'pptx',
-    'python_pptx',  # alias
-    'sklearn',
-    'sqlalchemy',
-    # PIL convenience aliases
-    'PIL_Image',
-    'PIL_ImageDraw',
-    'PIL_ImageFont',
-    # MCP (Model Context Protocol) - FastMCP v2
-    'fastmcp',         # FastMCP module
-    'FastMCP',         # FastMCP server class
-    'Context',         # MCP context for tools/resources
-    # Optional packages (may be None if not installed)
-    'speechsdk',       # Azure Speech SDK (optional)
-    'edge_tts',        # Edge TTS (optional)
-    # Windows-only packages (only available on Windows, None on Linux/Mac)
-    'win32gui',
-    'win32con',
-    'win32api',
-    'win32ui',
-    'pywinauto',
-    'pygetwindow',
-    'uiautomation',
+    'get_third_package_PyPDF2',
+    'get_third_package_pdfplumber',
+    'get_third_package_docx',
+    'get_third_package_python_docx',
+    'get_third_package_openpyxl',
+    'get_third_package_pptx',
+    'get_third_package_python_pptx',
+    # Machine learning
+    'get_third_package_sklearn',
+    # Database
+    'get_third_package_sqlalchemy',
+    # MCP (Model Context Protocol)
+    'get_third_package_fastmcp',
+    'get_third_package_FastMCP',
+    'get_third_package_Context',
+    # Optional packages
+    'get_third_package_speechsdk',
+    'get_third_package_edge_tts',
+    # Audio packages
+    'get_third_package_pyaudio',
+    # Windows-only packages
+    'get_third_package_win32gui',
+    'get_third_package_win32con',
+    'get_third_package_win32api',
+    'get_third_package_win32ui',
+    'get_third_package_pywinauto',
+    'get_third_package_pygetwindow',
+    'get_third_package_uiautomation',
+    'get_third_package_pyaudiowpatch',
 ]

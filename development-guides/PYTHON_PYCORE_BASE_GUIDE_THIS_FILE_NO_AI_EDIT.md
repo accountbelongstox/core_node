@@ -132,11 +132,27 @@ pyapps/{appname}/
 ## 6. Third-party Packages
 
 ### 6.1 Dependency Management
-- All third-party packages MUST be registered in `pycore/pyfoundations/third_party.py` `DEPENDENCY_MAP` (maps import name to PyPI package name)
-- Windows-only packages go in `WINDOWS_ONLY_PACKAGES` dict in `third_party.py`
-- **REQUIRED**: All third-party packages MUST be imported from `pycore.pyfoundations.third_party`
-- **Forbidden**: Direct import of third-party packages (e.g., `import aiohttp` is forbidden, use `from pycore.pyfoundations.third_party import aiohttp`)
-- `third_party.py` automatically checks and installs missing packages on first import, uses ENCYCLOPEDIA cache (runs once per process), can be skipped via `PYCORE_SKIP_DEP_CHECK=1`
+- All third-party packages MUST be registered in `pycore/pyfoundations/third_party.py`:
+  - **DEPENDENCY_MAP**: Maps import name to PyPI package name (required packages)
+  - **OPTIONAL_PACKAGES**: Optional packages that won't cause import failure if missing (not auto-installed)
+  - **WINDOWS_ONLY_PACKAGES**: Windows-specific packages (automatically skipped on Linux/Mac)
+  - **SYSTEM_PACKAGES**: System packages for Linux/Debian/Ubuntu (installed via apt-get, not pip)
+- `third_party.py` automatically checks and installs missing packages on first import:
+  - Uses ENCYCLOPEDIA cache (runs once per process)
+  - Upgrades pip first if any packages need installation
+  - On Linux: checks and installs system packages via apt-get (requires sudo)
+  - Windows-only packages are automatically skipped on non-Windows systems
+  - Optional packages are NOT auto-installed (must be installed manually if needed)
+  - Can be skipped via `PYCORE_SKIP_DEP_CHECK=1` environment variable
+- Platform-specific pip flags: On Linux/Mac, uses `--break-system-packages --ignore-installed` for reliable installation
+
+### 6.2 Lazy Loading Pattern (REQUIRED)
+- **REQUIRED**: Import getter functions from `pycore.pyfoundations.third_party` (e.g., `get_third_package_torch`)
+- **REQUIRED**: Call getter function to obtain package (e.g., `torch = get_third_package_torch()`)
+- **Forbidden**: Direct package import (e.g., `import torch` or `from third_party import torch`)
+- **Performance**: Reduces import time from ~12s to <1s, packages load only when getter is called
+- **Caching**: Each package loads once, cached globally for subsequent calls
+- **Naming**: All getters follow pattern `get_third_package_{package_name}` (e.g., `get_third_package_numpy`, `get_third_package_PIL_Image`)
 
 ## 7. OCR (Optical Character Recognition) Utilities
 
@@ -164,3 +180,209 @@ Pycore Module Caller (`pycore.callmodule`) is a FastAPI service providing HTTP A
 
 ### 6.3 Unified Utils Export
 All pyutils utilities are exported from `pycore.pyutils` with `*_AVAILABLE` flags. Import pattern: `from pycore.pyutils import ocr_manager, OCR_AVAILABLE`. Use `get_available_utilities()` to check all available utilities. GUI components require `PYUTILS_LOAD_GUI=1` environment variable.
+
+## 8. Database System
+
+### 8.1 Database Specification
+- **Location**: `pycore/database/` (independent module, NOT in pyutils)
+- **Models Location**: `pycore/database/models/` (NOT `pycore/database_models/` - models are inside database module)
+- **Dependencies**: Only `pygvar`, `pyfoundations`, `sqlalchemy`
+- **Import**: `from pycore.database import database_manager, BaseModel, DATABASE_AVAILABLE`
+- **Models Import**: `from pycore.database.models import TableKeys, TableNamespaces, {ModelName}`
+
+### 8.2 Table Naming Rules
+- **Namespace Format**: `common`, `app_{name}`, `util_{name}`
+- **Table Key Format**: `{namespace}.{table_name}` (e.g., `common.config`, `app_myapp.users`)
+- **FORBIDDEN**: Hardcoded table name strings - ALL table names MUST be defined in `TableKeys` class
+- **Model Creation**: Add namespace to `TableNamespaces`, add table key to `TableKeys`, create model in `pycore/database/models/{namespace}/`
+
+### 8.3 Usage Pattern
+- **Register**: `database_manager.register_database("dbname")`
+- **Load**: `database_manager.load_tables([TableKeys.YOUR_TABLE], [YourModel], "dbname")`
+- **Access**: `with database_manager.get_connection("dbname") as conn: table = database_manager.get_table(TableKeys.YOUR_TABLE)`
+- **Transaction**: `with database_manager.transaction("dbname") as conn: # auto-commit/rollback`
+- **Base CRUD**: `insert()`, `select()`, `update()`, `delete()`, `count()` - Add custom methods in model class
+- **Storage**: Uses `map_web_path("www", "pycore_db")` - Windows: `D:/www/pycore_db/`, Linux: `/www/pycore_db/`
+
+## 9. Global Heartbeat System
+
+### 9.1 Architecture Overview
+- **Location**: `pycore/pyfoundations/heartbeat/`
+- **Thread Type**: Direct Thread inheritance (NOT using thread to start another thread)
+- **Synchronization**: NO thread locks - uses atomic operations and state machines
+- **Registration**: HARD-CODED in `pycore/pyfoundations/heartbeat/registry.py`
+- **Pattern**: Model-Handler with state machine (IDLE, PROCESSING, ERROR, DISABLED)
+
+### 9.2 Core Design Principles
+
+**Thread Design:**
+- HeartbeatThread directly inherits from `threading.Thread`
+- NO thread locks - relies on Python GIL for atomic operations
+- State machine controls handler synchronization (IDLE → PROCESSING → IDLE)
+- Base tick interval: 1 second
+
+**Registration Pattern:**
+- ALL registrations are HARD-CODED in `registry.py`
+- NO dynamic discovery or runtime registration
+- Each library implements: `TaskModel` (data source) + `TaskHandler` (processor)
+- Handler states: `IDLE`, `PROCESSING`, `ERROR`, `DISABLED`
+
+### 9.3 Implementation Requirements
+
+**TaskModel (Data Source):**
+```python
+class MyTaskModel(TaskModel):
+    def get_name(self) -> str:
+        return "task_name"  # Unique identifier
+
+    def has_pending_data(self) -> bool:
+        return True  # Check if data available
+
+    def get_pending_data(self) -> Any:
+        return self._data  # Return data to process
+
+    def get_handler_class(self) -> str:
+        return "pycore.mylib.heartbeat.MyTaskHandler"  # Handler path
+
+    def get_interval(self) -> int:
+        return 5  # Check every 5 seconds
+
+    def get_priority(self) -> int:
+        return 100  # Lower = higher priority
+```
+
+**TaskHandler (Processor):**
+```python
+class MyTaskHandler(TaskHandler):
+    def __init__(self):
+        super().__init__()
+        # self._state is HandlerState.IDLE by default
+
+    def process(self, data: Any) -> bool:
+        # Process data (state auto-managed by heartbeat)
+        # Return True on success, False on failure
+        return True
+
+    def on_error(self, error: Exception):
+        # Handle errors (optional)
+        pass
+```
+
+### 9.4 Registration Rules (HARD-CODED)
+
+**Registry File:** `pycore/pyfoundations/heartbeat/registry.py`
+
+```python
+HEARTBEAT_REGISTRY = {
+    # Format: 'namespace.task_name' -> (model_path, handler_path)
+    'rpc.ack_check': (
+        'pycore.pyutils.rpc.heartbeat.RpcAckCheckModel',
+        'pycore.pyutils.rpc.heartbeat.RpcAckCheckHandler'
+    ),
+    'tts.cache_cleanup': (
+        'pycore.pyutils.tts_cache.heartbeat.TTSCacheCleanupModel',
+        'pycore.pyutils.tts_cache.heartbeat.TTSCacheCleanupHandler'
+    ),
+    'ui.thread_bus_check': (
+        'pycore.pyutils.native_ui.heartbeat.UIThreadBusModel',
+        'pycore.pyutils.native_ui.heartbeat.UIThreadBusHandler'
+    ),
+}
+```
+
+**Adding New Task:**
+1. Create `TaskModel` in your library (e.g., `pycore/pyutils/mylib/heartbeat.py`)
+2. Create `TaskHandler` in your library
+3. Add entry to `HEARTBEAT_REGISTRY` in `registry.py` (HARD-CODED)
+4. Handler automatically loaded on heartbeat start
+
+### 9.5 Handler State Machine
+
+```
+IDLE → PROCESSING → IDLE (success)
+                  ↘
+                   ERROR → IDLE (after error handling)
+
+DISABLED (never processed)
+```
+
+**State Transitions:**
+- `IDLE`: Ready to process data
+- `PROCESSING`: Currently processing (skipped by heartbeat)
+- `ERROR`: Error occurred (auto-resets to IDLE)
+- `DISABLED`: Manually disabled (never processed)
+
+**NO LOCKS:**
+- State is atomic Python assignment (`handler._state = HandlerState.PROCESSING`)
+- GIL ensures atomicity for single assignments
+- No mutex, semaphore, or condition variables
+
+### 9.6 Usage in pylauncher
+
+```python
+from pycore.pyfoundations.heartbeat import get_heartbeat_thread, load_all_handlers
+
+def start_application():
+    # Load all handlers from HARD-CODED registry
+    load_all_handlers()
+
+    # Start heartbeat thread
+    heartbeat = get_heartbeat_thread()
+    heartbeat.start()  # Direct Thread.start()
+
+    # Application logic...
+
+    # Stop on shutdown (optional - daemon thread)
+    heartbeat.stop()
+```
+
+### 9.7 Best Practices
+
+**REQUIRED:**
+- Models in library's `heartbeat.py` or `heartbeat/` directory
+- Hard-code ALL registrations in `registry.py`
+- Keep `process()` fast (< 100ms)
+- Use state machine, NOT locks
+
+**FORBIDDEN:**
+- Thread locks (mutex, semaphore, Lock, RLock)
+- Dynamic/runtime registration
+- `await`/async in handlers (thread-based, not asyncio)
+- Starting multiple heartbeat threads
+
+**Handler Implementation:**
+- Return `True` on success, `False` on failure
+- State auto-managed by heartbeat (don't set manually)
+- Use `on_error()` for error logging (optional)
+- Check `has_pending_data()` to avoid unnecessary processing
+
+### 9.8 Statistics and Monitoring
+
+```python
+heartbeat = get_heartbeat_thread()
+status = heartbeat.get_status()
+# {
+#   'running': True,
+#   'total_ticks': 3600,
+#   'uptime': 3600.0,
+#   'model_count': 5,
+#   'handlers': {
+#     'rpc.ack_check': {
+#       'state': 'idle',
+#       'run_count': 720,
+#       'error_count': 0,
+#       'last_run': 1234567890.0,
+#       ...
+#     }
+#   }
+# }
+```
+
+### 9.9 Namespace Convention
+
+- `system.*` - Built-in system tasks
+- `rpc.*` - RPC server tasks
+- `tts.*` - Text-to-Speech tasks
+- `ui.*` - Native UI tasks
+- `app_{name}.*` - Application-specific tasks
+- `util_{name}.*` - Utility module tasks

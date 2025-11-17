@@ -29,7 +29,10 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import FastMCP, Context
+from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_Context
+
+FastMCP = get_third_package_FastMCP()
+Context = get_third_package_Context()
 
 # Import controllers
 from pyapps.mcp.controller import (

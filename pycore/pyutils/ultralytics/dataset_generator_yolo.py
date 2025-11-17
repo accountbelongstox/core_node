@@ -16,8 +16,10 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Callable, Union
 from abc import ABC, abstractmethod
 
-from pycore.pyfoundations.third_party import cv2, numpy
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
 
 # Import enhancer utilities (used in direct patch mode)
 try:

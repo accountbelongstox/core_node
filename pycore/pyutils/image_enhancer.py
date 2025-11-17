@@ -9,8 +9,11 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Union, Dict, Any
 from abc import ABC, abstractmethod
 
-from pycore.pyfoundations.third_party import cv2, numpy, PIL
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
+PIL = get_third_package_PIL()
 Image = PIL.Image
 ImageDraw = PIL.ImageDraw
 ImageFont = PIL.ImageFont

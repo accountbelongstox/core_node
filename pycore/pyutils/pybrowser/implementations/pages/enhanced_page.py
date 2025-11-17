@@ -92,16 +92,13 @@ class EnhancedPage(StandardPage):
         return self.resource_collector
 
     def is_blank_url(self, url: str) -> bool:
-        blank_urls = [
-            'about:blank',
-            'chrome://newtab/',
-            'edge://newtab/',
-            'chrome://new-tab-page/',
-            'edge://new-tab-page/',
-            'about:newtab',
-            ''
-        ]
-        return url in blank_urls
+        """
+        Check if URL is a blank page
+
+        Delegates to TabUtils for consistency.
+        """
+        from pycore.pyutils.pybrowser.utils.tab_utils import TabUtils
+        return TabUtils.is_blank_url(url)
 
     def equal_domain(self, url1: str, url2: str) -> bool:
         try:
@@ -124,11 +121,11 @@ class EnhancedPage(StandardPage):
         wait_for_complete = options.get('waitForComplete', True)
         timeout = options.get('timeout', 120000)
         logging = options.get('logging', True)
-        url_strict = options.get('urlStrict', self.url_comparison_strict)
+        exact_match = options.get('exactMatch', self.url_comparison_strict)
 
         try:
             if self.browser:
-                existing_page_index = await self.find_normalized_url_index(url, url_strict)
+                existing_page_index = await self.find_normalized_url_index(url, exact_match)
                 if existing_page_index != -1:
                     await self.switch_to_page_by_index(existing_page_index)
                     self.metrics['tabSwitches'] += 1
@@ -153,49 +150,37 @@ class EnhancedPage(StandardPage):
             raise
 
     async def find_blank_page_index(self) -> int:
-        try:
-            if not self.browser:
-                return -1
+        """
+        Find blank page index
 
-            handles = self.driver.window_handles
-            ColorPrint.debug(f'Checking {len(handles)} pages for blank pages')
-
-            for i, handle in enumerate(handles):
-                self.driver.switch_to.window(handle)
-                url = self.driver.current_url
-                ColorPrint.debug(f'Page {i}: {url}')
-
-                if self.is_blank_url(url):
-                    ColorPrint.debug(f'Found blank page at index {i}: {url}')
-                    return i
-
-            ColorPrint.debug('No blank pages found')
-            return -1
-        except Exception as error:
-            ColorPrint.red(f'Error finding blank page index: {error}')
+        Delegates to TabUtils for consistency.
+        Maintains async signature for backward compatibility.
+        """
+        if not self.browser:
             return -1
 
-    async def find_normalized_url_index(self, url: str, url_strict: bool = False) -> int:
-        try:
-            if not self.browser:
-                return -1
+        from pycore.pyutils.pybrowser.utils.tab_utils import TabUtils
+        return TabUtils.find_blank_tab(self.driver)
 
-            handles = self.driver.window_handles
-            for i, handle in enumerate(handles):
-                self.driver.switch_to.window(handle)
-                cur_url = self.driver.current_url
+    async def find_normalized_url_index(self, url: str, exact_match: bool = False) -> int:
+        """
+        Find tab index by normalized URL
 
-                if url_strict:
-                    if self.equal_domain_full(cur_url, url):
-                        return i
-                else:
-                    if self.equal_domain(cur_url, url):
-                        return i
+        Delegates to TabUtils for consistency.
+        Maintains async signature for backward compatibility.
 
+        Args:
+            url: Target URL
+            exact_match: If True, match domain + path; if False, only domain (default: False)
+
+        Returns:
+            Tab index if found, -1 otherwise
+        """
+        if not self.browser:
             return -1
-        except Exception as error:
-            ColorPrint.red(f'Error finding normalized URL index: {error}')
-            return -1
+
+        from pycore.pyutils.pybrowser.utils.tab_utils import TabUtils
+        return TabUtils.find_tab_by_url_domain(self.driver, url, exact_match=exact_match)
 
     async def switch_to_page_by_index(self, index: int):
         try:

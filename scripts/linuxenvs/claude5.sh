@@ -25,10 +25,10 @@
 # Notes:
 #     - Tool Name: Claude AI
 #     - Command Prefix: claude
-#     - Command: claude --dangerously-skip-permissions
+#     - Command: $claude_command
 #     - File Number: 5
 #     - File Name: claude5.sh
-#     - Generation Time: 2025-11-16 05:10:22
+#     - Generation Time: 2025-11-17 03:01:40
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
@@ -36,6 +36,21 @@
 # =============================================================================
 
 set -e
+
+# Check if running as root - skip --dangerously-skip-permissions flag for root
+if [ "$EUID" -eq 0 ]; then
+    echo ""
+    echo "============================================================"
+    echo "WARNING: Running as root user"
+    echo "============================================================"
+    echo "Root user already has all permissions."
+    echo "--dangerously-skip-permissions flag is NOT added."
+    echo "============================================================"
+    echo ""
+    claude_command="claude"
+else
+    claude_command="claude --dangerously-skip-permissions"
+fi
 
 echo ""
 echo "============================================================"
@@ -55,6 +70,112 @@ pytools_dir_path="$scripts_dir_path/pytools"
 ai_tools_dir_path="$pytools_dir_path/ai_tools"
 #endregion
 
+# =============================================================================
+# Load Environment Variables from Secret Manager
+# =============================================================================
+echo ""
+echo "============================================================"
+echo "Loading Environment Variables"
+echo "============================================================"
+echo ""
+
+python_exec="python3"
+if ! command -v "$python_exec" &> /dev/null; then
+    if command -v python &> /dev/null; then
+        python_exec="python"
+    else
+        echo "[ERROR] Python is required to load secrets"
+        exit 1
+    fi
+fi
+
+# Use relative path from script location to project root
+secret_manager_script="$project_root_path/pycore/pyfoundations/secret_manager.py"
+
+echo "[DEBUG] Python executable: $python_exec"
+echo "[DEBUG] Project root: $project_root_path"
+echo "[DEBUG] Secret manager script: $secret_manager_script"
+echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
+
+load_secret_value() {
+    local key_name="$1"
+    local env_name="$2"
+    local display_name="$3"
+    local value=""
+
+    echo "[DEBUG] Loading secret key: $key_name -> $env_name"
+    echo "[DEBUG] Working directory: $project_root_path"
+    echo "[DEBUG] Command: cd "$project_root_path" && $python_exec "$secret_manager_script" get_secret_key "$key_name""
+
+    # Capture stderr to temp file for debugging
+    local tmp_err=$(mktemp)
+    # Switch to project root before calling Python
+    value=$(cd "$project_root_path" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    local exit_code=$?
+
+    # Show stderr if there were errors
+    if [ -s "$tmp_err" ]; then
+        echo "[DEBUG] Python stderr:"
+        cat "$tmp_err"
+    fi
+    rm -f "$tmp_err"
+
+    echo "[DEBUG] Exit code: $exit_code"
+    echo "[DEBUG] Returned value length: ${#value}"
+
+    if [ -n "$value" ]; then
+        export "$env_name"="$value"
+        echo "[SUCCESS] Loaded $display_name = $value"
+        echo "[INFO] Command executed: export $env_name="$value""
+        
+        # Verify environment variable is correctly set
+        current_value="${!env_name}"
+        if [ "$current_value" = "$value" ]; then
+            echo "[VERIFY] Environment variable $env_name is correctly set"
+            echo "[VERIFY] Current value: $current_value"
+        else
+            echo "[WARNING] Environment variable $env_name verification failed"
+            echo "[WARNING] Expected: $value"
+            echo "[WARNING] Actual: $current_value"
+        fi
+        return 0
+    fi
+
+    echo "[WARNING] Failed to load $display_name (empty value returned)"
+    return 1
+}
+
+load_secret_value "ANTHROPIC_BASE_URL_5" "ANTHROPIC_BASE_URL" "ANTHROPIC_BASE_URL"
+load_secret_value "ANTHROPIC_AUTH_TOKEN_5" "ANTHROPIC_AUTH_TOKEN" "ANTHROPIC_AUTH_TOKEN"
+load_secret_value "ANTHROPIC_API_KEY_5" "ANTHROPIC_API_KEY" "ANTHROPIC_API_KEY"
+
+echo ""
+
+#region Build Launch Command Display
+env_vars_parts=()
+
+if [ -n "${ANTHROPIC_BASE_URL:-}" ]; then
+    env_vars_parts+=("ANTHROPIC_BASE_URL='${ANTHROPIC_BASE_URL}'")
+fi
+
+if [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
+    env_vars_parts+=("ANTHROPIC_AUTH_TOKEN='${ANTHROPIC_AUTH_TOKEN}'")
+fi
+
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    env_vars_parts+=("ANTHROPIC_API_KEY='${ANTHROPIC_API_KEY}'")
+fi
+
+if [ ${#env_vars_parts[@]} -gt 0 ]; then
+    env_vars_command=$(IFS=' ' ; echo "${env_vars_parts[*]}")
+    full_command_display="$env_vars_command $claude_command"
+else
+    full_command_display="$claude_command"
+fi
+#endregion
+
+
+
 #region MCP Server Synchronization
 echo ""
 echo "============================================================"
@@ -66,7 +187,7 @@ echo "Claude AI - Pre-Launch Tasks"
 echo ""
 
 # Execute pre-launch script if it exists
-preLaunchScript="$aiToolsDirPath/claude_pre_launch.sh"
+preLaunchScript="$ai_tools_dir_path/claude_pre_launch.sh"
 if [ -f "$preLaunchScript" ]; then
     current_working_dir="$(pwd)"
     echo "[INFO] Executing pre-launch script: $preLaunchScript"
@@ -85,7 +206,7 @@ read -p "Do you want to upgrade Claude AI? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
     echo "[INFO] Launching Claude AI upgrade in separate terminal..."
-    upgrade_script="$aiToolsDirPath/claude_update.sh"
+    upgrade_script="$ai_tools_dir_path/claude_update.sh"
     if [ -f "$upgrade_script" ]; then
         if command -v gnome-terminal &> /dev/null; then
             gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
@@ -107,7 +228,7 @@ current_working_dir="$(pwd)"
 echo ""
 echo "Syncing MCP Server Configurations..."
 echo ""
-sync_script="$aiToolsDirPath/claude_sync_mcp_servers.py"
+sync_script="$ai_tools_dir_path/claude_sync_mcp_servers.py"
 if [ -f "$sync_script" ]; then
     echo "[INFO] Executing: python -u '$sync_script' --target claude --working-dir '$current_working_dir'"
     echo "[INFO] Working Directory: $current_working_dir"
@@ -146,9 +267,13 @@ echo "============================================================"
 read -p "Press Enter to continue"
 
 echo ""
-echo "Executing: claude --dangerously-skip-permissions"
+echo "Executing: $claude_command"
 echo ""
-claude --dangerously-skip-permissions
+echo "Command: $full_command_display"
+echo ""
+echo "Press Enter to continue..."
+read
+eval "$full_command_display"
 
 echo ""
 echo "Press Enter to exit..."

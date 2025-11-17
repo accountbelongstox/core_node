@@ -18,7 +18,9 @@ import http.client
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 
-from pycore.pyfoundations.third_party import netifaces
+from pycore.pyfoundations.third_party import get_third_package_netifaces
+
+netifaces = get_third_package_netifaces()
 
 from pycore import ColorPrint
 from pycore.pyutils.rpc.config.rpc_config import get_rpc_config

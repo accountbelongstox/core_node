@@ -12,7 +12,9 @@ import time
 from typing import Dict, Optional, Any
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp
+
+aiohttp = get_third_package_aiohttp()
 
 web = aiohttp.web
 
@@ -99,7 +101,17 @@ class HttpHandler:
             
             # Extract route and params
             route = data.get('route') or request.match_info.get('route')
-            params = data.get('params', {})
+
+            # Support both formats:
+            # 1. Wrapped format: {"route": "tts", "params": {...}}
+            # 2. Direct format: {"text": "test", "language": "zh-CN"}
+            if 'params' in data:
+                # Format 1: params explicitly provided
+                params = data.get('params', {})
+            else:
+                # Format 2: all data except metadata fields are params
+                params = {k: v for k, v in data.items() if k not in ['route', 'id', 'session_id']}
+
             request_id = data.get('id', str(time.time()))
             session_id = data.get('session_id', request.headers.get('X-Session-ID', str(id(request))))
             

@@ -150,7 +150,7 @@ def get_file_mtime(file_path):
 
 
 
-def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RETRIES):
+def send_batch_files_to_client(sock, files_batch, client_ip):
     """
     Send multiple files to client in a single batch transfer
 
@@ -174,12 +174,10 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
         sock: Connected socket to client
         files_batch: List of (file_path, relative_path, mtime) tuples
         client_ip: Client IP for logging
-        max_retries: Maximum retry attempts
 
     RETURNS: Dict with {successful: int, failed: int, accepted_files: [paths]}
     """
-    for attempt in range(max_retries):
-        try:
+    try:
             # Phase 1: Send metadata for all files in batch
             file_metadata = []
             for file_path, relative_path, mtime in files_batch:
@@ -318,29 +316,17 @@ def send_batch_files_to_client(sock, files_batch, client_ip, max_retries=MAX_RET
                 "size_bytes": total_size
             }
 
-        except socket.timeout:
-            if attempt < max_retries - 1:
-                print(f"[{client_ip}] Batch timeout (attempt {attempt + 1}/{max_retries}), retrying...")
-                time.sleep(RETRY_DELAY)
-                continue
-            else:
-                print(f"[{client_ip}] Batch timeout after {max_retries} attempts")
-                return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
+    except socket.timeout as e:
+        print(f"[{client_ip}] Batch timeout: {e}")
+        return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
-        except (ConnectionError, OSError) as e:
-            if attempt < max_retries - 1:
-                print(f"[{client_ip}] Batch connection error (attempt {attempt + 1}/{max_retries}): {e}, retrying...")
-                time.sleep(RETRY_DELAY)
-                continue
-            else:
-                print(f"[{client_ip}] Batch connection error after {max_retries} attempts: {e}")
-                return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
+    except (ConnectionError, OSError) as e:
+        print(f"[{client_ip}] Batch connection error: {e}")
+        return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
-        except Exception as e:
-            print(f"[{client_ip}] Batch error: {e}")
-            return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
-
-    return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
+    except Exception as e:
+        print(f"[{client_ip}] Batch error: {e}")
+        return {"successful": 0, "failed": len(files_batch), "rejected": 0, "accepted_files": [], "size_bytes": 0}
 
 def sync_files_to_client(client_ip, is_new_client=False):
     """

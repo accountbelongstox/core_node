@@ -23,9 +23,9 @@ from pathlib import Path
 from typing import Dict, Optional, Callable, Any
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import aiohttp
+from pycore.pyfoundations.third_party import get_third_package_aiohttp_web
 
-web = aiohttp.web
+web = get_third_package_aiohttp_web()
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
 from pycore.pyutils.rpc.common.event_cache import EventCache, default_event_cache
@@ -42,7 +42,7 @@ from pycore.pyutils.rpc.common.inventory_table import (
     default_inventory_table
 )
 
-from pycore.pyutils.rpc.server.client_manager import ClientManager
+from pycore.pyutils.rpc.server.client_manager import ClientManager, ClientStatus
 from pycore.pyutils.rpc.server.routes import RoutesManager
 from pycore.pyutils.rpc.server.ack_manager import AckManager
 from pycore.pyutils.rpc.server.request_processor import RequestProcessor
@@ -163,7 +163,7 @@ class UnifiedRpcServer:
         self.ack_manager = AckManager(
             request_event_table=self.request_event_table,
             inventory_table=self.inventory_table,
-            ws_clients=self.client_manager.ws_clients,
+            client_manager=self.client_manager,  # ✅ Pass ClientManager for dynamic ws_clients access
             debug=self.debug
         )
         self.request_processor = RequestProcessor(
@@ -312,7 +312,28 @@ class UnifiedRpcServer:
             if self.debug:
                 ColorPrint.yellow("[UnifiedRpcServer] Server already running")
             return
-        
+
+        # Set exception handler for asyncio to suppress ConnectionResetError
+        # This is a Windows Proactor event loop issue that occurs during connection cleanup
+        loop = asyncio.get_event_loop()
+
+        def exception_handler(loop, context):
+            """Handle asyncio exceptions (suppress connection errors on Windows)"""
+            exception = context.get('exception')
+
+            # Suppress connection errors (Windows proactor issue during cleanup)
+            if isinstance(exception, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+                # These are normal when clients disconnect abruptly
+                return
+
+            # Log other exceptions
+            if 'message' in context:
+                ColorPrint.red(f"[UnifiedRpcServer] Asyncio exception: {context['message']}")
+            if exception:
+                ColorPrint.red(f"[UnifiedRpcServer] Exception: {exception}")
+
+        loop.set_exception_handler(exception_handler)
+
         # Create aiohttp app
         self.app = web.Application()
         
@@ -356,22 +377,19 @@ class UnifiedRpcServer:
                 'ws_clients': len(self.client_manager.get_all_websocket_clients()),
                 'http_sessions': len(self.client_manager.http_sessions),
                 'pending_requests': len([e for e in self.request_event_table.events.values() if e.status == RequestStatus.PENDING]),
-                'inventory_items': self.inventory_table.size()
+                'inventory_items': len(self.inventory_table.items)  # Fixed: use items dict directly
             })
         
         self.app.router.add_get('/health', health_check)
         
         # Add query result endpoint (must be before dynamic route)
         self.app.router.add_get(f'{HTTP_PATH_PREFIX}/query/{{request_id}}', self.http_handler.handle_query_result)
-        
-        # Add HTTP RPC routes (dynamic route, must be last)
-        self.app.router.add_post(f'{HTTP_PATH_PREFIX}/{{route}}', self.http_handler.handle_http_rpc)
-        self.app.router.add_get(f'{HTTP_PATH_PREFIX}/{{route}}', self.http_handler.handle_http_rpc)
-        
-        # Add WebSocket route
+
+        # ✅ Add WebSocket route BEFORE dynamic HTTP route (order matters!)
+        # Dynamic route /rpc/{route} would match /rpc/ws if registered first
         self.app.router.add_get(WS_PATH, self.websocket_handler.handle_websocket)
-        
-        # Add heartbeat endpoint for HTTP
+
+        # Add heartbeat endpoint for HTTP (before dynamic route)
         async def http_heartbeat(request):
             session_id = request.headers.get('X-Session-ID', str(id(request)))
             self.client_manager.update_client_metadata(session_id, 'http', request.remote)
@@ -407,7 +425,12 @@ class UnifiedRpcServer:
         
         self.app.router.add_get(f'{HTTP_PATH_PREFIX}/heartbeat', http_heartbeat)
         self.app.router.add_post(f'{HTTP_PATH_PREFIX}/heartbeat', http_heartbeat)
-        
+
+        # ✅ Add HTTP RPC dynamic routes LAST (catch-all for /rpc/{route})
+        # This must be after all specific routes like /rpc/ws, /rpc/heartbeat, /rpc/query/{id}
+        self.app.router.add_post(f'{HTTP_PATH_PREFIX}/{{route}}', self.http_handler.handle_http_rpc)
+        self.app.router.add_get(f'{HTTP_PATH_PREFIX}/{{route}}', self.http_handler.handle_http_rpc)
+
         # Start server
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
@@ -425,23 +448,37 @@ class UnifiedRpcServer:
         """Stop unified RPC server"""
         if not self._running:
             return
-        
+
         self._running = False
-        
-        # Close all WebSocket connections
-        for client_id, ws in list(self.client_manager.ws_clients.items()):
-            try:
-                await ws.close()
-            except Exception:
-                pass
-        self.client_manager.ws_clients.clear()
-        
+
+        # Close all WebSocket connections gracefully
+        for client_id in list(self.client_manager.clients.keys()):
+            client = self.client_manager.get_client(client_id)
+            if client and client.ws:
+                try:
+                    # Set status to DISCONNECTING before closing
+                    await self.client_manager.set_client_status(
+                        client_id,
+                        ClientStatus.DISCONNECTING,
+                        validate_transition=False  # Skip validation during shutdown
+                    )
+
+                    # Close WebSocket gracefully
+                    if not client.ws.closed:
+                        await client.ws.close(code=1000, message=b'Server shutting down')
+                except Exception as e:
+                    if self.debug:
+                        ColorPrint.yellow(f"[UnifiedRpcServer] Error closing connection {client_id[:8]}...: {e}")
+
+            # Remove client from registry
+            await self.client_manager.remove_client(client_id)
+
         # Stop server
         if self.site:
             await self.site.stop()
         if self.runner:
             await self.runner.cleanup()
-        
+
         ColorPrint.blue("[UnifiedRpcServer] Server stopped")
     
     def is_running(self) -> bool:

@@ -3,28 +3,43 @@
 """
 EnhancedDownloadPlugin
 
-Advanced download plugin with file monitoring and link detection
+Advanced download plugin with file monitoring and link detection (synchronous)
 """
 
 import os
 import re
 import time
-from typing import Dict, Any, List
+import requests
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import aiohttp
-
 from pycore.pyutils.pybrowser.interfaces import IPlugin
 
 
 class FileMonitor:
+    """File monitor for tracking download completion (synchronous)"""
+
     def __init__(self, download_path: str):
         self.download_path = download_path
         self.min_file_size = 1024
 
-    async def wait_for_file(self, pattern: str, options: Dict[str, Any]):
+    def wait_for_file(self, pattern: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wait for file matching pattern to appear and stabilize (synchronous)
+
+        Args:
+            pattern: Regex pattern to match filenames
+            options: Wait options
+                - timeout: Maximum wait time in milliseconds (default: 300000)
+                - pollInterval: Polling interval in milliseconds (default: 2000)
+                - stableTime: Time file must remain same size (default: 3000)
+                - onProgress: Progress callback function
+
+        Returns:
+            File information dictionary
+        """
         start_time = time.time() * 1000
         timeout = options.get('timeout', 300000)
         poll_interval = options.get('pollInterval', 2000) / 1000
@@ -62,7 +77,8 @@ class FileMonitor:
 
         raise TimeoutError(f'Timeout waiting for file pattern: {pattern}')
 
-    def find_files_by_pattern(self, pattern: str):
+    def find_files_by_pattern(self, pattern: str) -> List[Dict[str, Any]]:
+        """Find files matching pattern in download directory"""
         matched_files = []
         regex = re.compile(pattern)
 
@@ -73,6 +89,7 @@ class FileMonitor:
             files = os.listdir(self.download_path)
 
             for file_name in files:
+                # Skip duplicate downloads (Chrome naming convention)
                 if re.search(r'\(\d+\)', file_name):
                     continue
 
@@ -95,11 +112,13 @@ class FileMonitor:
 
 
 class EnhancedDownloadPlugin(IPlugin):
+    """Enhanced download plugin with file monitoring (synchronous)"""
+
     def __init__(self):
         super().__init__()
         self.name = 'EnhancedDownloadPlugin'
         self.version = '2.0.0'
-        self.spider = None
+        self.session = None  # Session instance
         self.download_path = None
         self.file_monitor = None
         self.active_downloads = {}
@@ -111,9 +130,15 @@ class EnhancedDownloadPlugin(IPlugin):
             'fileDetections': 0
         }
 
-    async def initialize(self, spider):
+    def initialize(self, session: Any):
+        """
+        Initialize plugin (synchronous)
+
+        Args:
+            session: Session instance
+        """
         try:
-            self.spider = spider
+            self.session = session
             self.download_path = str(Path.home() / 'Downloads' / 'spider_downloads')
 
             os.makedirs(self.download_path, exist_ok=True)
@@ -126,7 +151,8 @@ class EnhancedDownloadPlugin(IPlugin):
             ColorPrint.red(f'Failed to initialize EnhancedDownloadPlugin: {error}')
             raise
 
-    async def cleanup(self):
+    def cleanup(self):
+        """Cleanup plugin (synchronous)"""
         try:
             self.active_downloads.clear()
             self.is_initialized = False
@@ -134,7 +160,17 @@ class EnhancedDownloadPlugin(IPlugin):
         except Exception as error:
             ColorPrint.red(f'Failed to cleanup EnhancedDownloadPlugin: {error}')
 
-    async def download_file(self, url: str, options: Dict[str, Any] = None):
+    def download_file(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Download file from URL (synchronous)
+
+        Args:
+            url: File URL
+            options: Download options
+
+        Returns:
+            Download result dictionary
+        """
         options = options or {}
         try:
             filename = options.get('filename') or self.generate_filename(url)
@@ -142,11 +178,15 @@ class EnhancedDownloadPlugin(IPlugin):
 
             ColorPrint.green(f'Starting download: {url} -> {filepath}')
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=options.get('timeout', 300000) / 1000)) as response:
-                    with open(filepath, 'wb') as f:
-                        async for chunk in response.content.iter_chunked(8192):
-                            f.write(chunk)
+            timeout = options.get('timeout', 300000) / 1000  # Convert to seconds
+
+            response = requests.get(url, timeout=timeout, stream=True)
+            response.raise_for_status()
+
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
 
             self.download_metrics['totalDownloads'] += 1
             self.download_metrics['successfulDownloads'] += 1
@@ -164,18 +204,30 @@ class EnhancedDownloadPlugin(IPlugin):
             ColorPrint.red(f'Failed to download {url}: {error}')
             raise
 
-    async def click_download_and_wait(self, selector: str, file_pattern: str, options: Dict[str, Any] = None):
+    def click_download_and_wait(self, selector: str, file_pattern: str,
+                                 options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Click download button and wait for file (synchronous)
+
+        Args:
+            selector: CSS selector for download button
+            file_pattern: Regex pattern to match downloaded file
+            options: Wait options
+
+        Returns:
+            Download result dictionary
+        """
         options = options or {}
         try:
-            page = await self.spider.get_page()
+            page = self.session.get_page()
             if not page:
                 raise RuntimeError('No page available for download')
 
-            await page.click(selector)
+            page.click(selector)
             ColorPrint.green(f'Clicked download link: {selector}')
             self.download_metrics['buttonClicks'] += 1
 
-            downloaded_file = await self.wait_for_file_by_pattern(file_pattern, options)
+            downloaded_file = self.wait_for_file_by_pattern(file_pattern, options)
             self.download_metrics['fileDetections'] += 1
 
             return {
@@ -191,10 +243,22 @@ class EnhancedDownloadPlugin(IPlugin):
                 'message': 'Download failed'
             }
 
-    async def find_and_click_download_link(self, keywords: List[str], file_pattern: str, options: Dict[str, Any] = None):
+    def find_and_click_download_link(self, keywords: List[str], file_pattern: str,
+                                      options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Find and click download link by keywords (synchronous)
+
+        Args:
+            keywords: List of keywords to search for
+            file_pattern: Regex pattern to match downloaded file
+            options: Wait options
+
+        Returns:
+            Download result dictionary
+        """
         options = options or {}
         try:
-            page = await self.spider.get_page()
+            page = self.session.get_page()
             if not page:
                 raise RuntimeError('No page available for download')
 
@@ -214,7 +278,7 @@ class EnhancedDownloadPlugin(IPlugin):
             }));
             """
 
-            download_links = await page.evaluate(script, keywords)
+            download_links = page.evaluate(script, keywords)
 
             if len(download_links) == 0:
                 raise ValueError(f'No download links found with keywords: {", ".join(keywords)}')
@@ -224,7 +288,7 @@ class EnhancedDownloadPlugin(IPlugin):
             target_link = download_links[0]
             ColorPrint.green(f'Clicking download link: {target_link["text"]}')
 
-            return await self.click_download_and_wait(f'a[href="{target_link["href"]}"]', file_pattern, options)
+            return self.click_download_and_wait(f'a[href="{target_link["href"]}"]', file_pattern, options)
 
         except Exception as error:
             ColorPrint.red(f'Failed to find or click download link: {error}')
@@ -234,18 +298,31 @@ class EnhancedDownloadPlugin(IPlugin):
                 'message': 'Failed to find or click download link'
             }
 
-    async def wait_for_file_by_pattern(self, pattern: str, options: Dict[str, Any] = None):
+    def wait_for_file_by_pattern(self, pattern: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Wait for file matching pattern (synchronous)
+
+        Args:
+            pattern: Regex pattern
+            options: Wait options
+
+        Returns:
+            File information dictionary
+        """
         default_options = {
             'timeout': 300000,
             'pollInterval': 2000,
             'stableTime': 3000,
-            'onProgress': lambda elapsed, total: ColorPrint.green(f'Waiting for download... {round(elapsed/1000)}s / {round(total/1000)}s') if elapsed % 30000 == 0 else None
+            'onProgress': lambda elapsed, total: ColorPrint.green(
+                f'Waiting for download... {round(elapsed/1000)}s / {round(total/1000)}s'
+            ) if elapsed % 30000 == 0 else None
         }
 
         merged_options = {**default_options, **(options or {})}
-        return await self.file_monitor.wait_for_file(pattern, merged_options)
+        return self.file_monitor.wait_for_file(pattern, merged_options)
 
-    def generate_filename(self, url: str):
+    def generate_filename(self, url: str) -> str:
+        """Generate filename from URL"""
         try:
             parsed = urlparse(url)
             pathname = parsed.path
@@ -257,10 +334,12 @@ class EnhancedDownloadPlugin(IPlugin):
         except Exception:
             return f'download_{int(time.time() * 1000)}'
 
-    def get_download_metrics(self):
+    def get_download_metrics(self) -> Dict[str, Any]:
+        """Get download metrics"""
         success_rate = 0
         if self.download_metrics['totalDownloads'] > 0:
-            success_rate = (self.download_metrics['successfulDownloads'] / self.download_metrics['totalDownloads']) * 100
+            success_rate = (self.download_metrics['successfulDownloads'] /
+                            self.download_metrics['totalDownloads']) * 100
 
         return {
             **self.download_metrics,

@@ -3,7 +3,9 @@
 Health Router - Health check and status routes
 """
 
-from pycore.pyfoundations.third_party import fastapi
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+fastapi = get_third_package_fastapi()
 
 from ..controllers import HealthController
 from ..models.response_models import HealthResponse, StatusResponse

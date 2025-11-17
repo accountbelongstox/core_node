@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import io
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 from PIL import Image
 
 # Add project paths

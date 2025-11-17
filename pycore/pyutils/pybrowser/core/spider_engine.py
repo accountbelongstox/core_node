@@ -33,15 +33,15 @@ class SpiderEngine:
             'start_time': None
         }
 
-    async def initialize(self):
+    def initialize(self):
         """Initialize spider engine"""
         try:
             ColorPrint.info('Initializing SpiderEngine...')
             self.metrics['start_time'] = time.time()
 
-            await self.config.load()
-            await self.resource_pool.initialize()
-            await self.plugin_manager.load_plugins()
+            self.config.load()
+            self.resource_pool.initialize()
+            self.plugin_manager.load_plugins()
 
             self.is_initialized = True
             self.event_bus.emit('engine:initialized', self.get_info())
@@ -52,7 +52,7 @@ class SpiderEngine:
             ColorPrint.red(f'Failed to initialize SpiderEngine: {error}')
             raise
 
-    async def create_session(self, options: Dict[str, Any] = None) -> Session:
+    def create_session(self, options: Dict[str, Any] = None) -> Session:
         """
         Create new browser session
 
@@ -67,9 +67,9 @@ class SpiderEngine:
 
         try:
             session_config = self.config.merge_session_config(options or {})
-            session = await self.session_manager.create(session_config)
+            session = self.session_manager.create(session_config)
 
-            await self.plugin_manager.initialize_session(session)
+            self.plugin_manager.initialize_session(session)
             self.metrics['sessions_created'] += 1
 
             self.event_bus.emit('session:created', session.get_info())
@@ -80,7 +80,7 @@ class SpiderEngine:
             ColorPrint.red(f'Failed to create session: {error}')
             raise
 
-    async def close_session(self, session_id: str) -> Optional[Session]:
+    def close_session(self, session_id: str) -> Optional[Session]:
         """
         Close a session
 
@@ -91,7 +91,7 @@ class SpiderEngine:
             Closed session or None
         """
         try:
-            session = await self.session_manager.close(session_id)
+            session = self.session_manager.close(session_id)
             if session:
                 self.metrics['sessions_closed'] += 1
                 self.event_bus.emit('session:closed', session.get_info())
@@ -122,7 +122,7 @@ class SpiderEngine:
         """
         return self.session_manager.get_all()
 
-    async def load_plugin(self, plugin: Any):
+    def load_plugin(self, plugin: Any):
         """
         Load a plugin
 
@@ -130,7 +130,7 @@ class SpiderEngine:
             plugin: Plugin instance
         """
         try:
-            await self.plugin_manager.load_plugin(plugin)
+            self.plugin_manager.load_plugin(plugin)
             self.metrics['plugins_loaded'] += 1
             self.event_bus.emit('plugin:loaded', plugin.get_info())
             ColorPrint.info(f"Plugin loaded: {plugin.name}")
@@ -138,7 +138,7 @@ class SpiderEngine:
             ColorPrint.red(f"Failed to load plugin {plugin.name}: {error}")
             raise
 
-    async def unload_plugin(self, plugin_name: str):
+    def unload_plugin(self, plugin_name: str):
         """
         Unload a plugin
 
@@ -146,21 +146,21 @@ class SpiderEngine:
             plugin_name: Plugin name
         """
         try:
-            await self.plugin_manager.unload_plugin(plugin_name)
+            self.plugin_manager.unload_plugin(plugin_name)
             self.event_bus.emit('plugin:unloaded', {'name': plugin_name})
             ColorPrint.info(f"Plugin unloaded: {plugin_name}")
         except Exception as error:
             ColorPrint.red(f"Failed to unload plugin {plugin_name}: {error}")
             raise
 
-    async def shutdown(self):
+    def shutdown(self):
         """Shutdown spider engine"""
         try:
             ColorPrint.info('Shutting down SpiderEngine...')
 
-            await self.session_manager.close_all()
-            await self.plugin_manager.cleanup()
-            await self.resource_pool.cleanup()
+            self.session_manager.close_all()
+            self.plugin_manager.cleanup()
+            self.resource_pool.cleanup()
 
             self.is_initialized = False
             self.event_bus.emit('engine:shutdown', self.get_metrics())

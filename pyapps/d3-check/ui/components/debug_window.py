@@ -11,7 +11,9 @@ import sys
 import os
 from typing import Optional
 
-from pycore.pyfoundations.third_party import PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL
+
+PIL = get_third_package_PIL()
 from PIL import Image, ImageTk
 
 # Add project paths
