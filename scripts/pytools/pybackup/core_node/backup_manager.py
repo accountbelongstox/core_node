@@ -17,6 +17,11 @@ from typing import List, Dict, Set
 # Add pycore to path for imports
 script_dir = Path(__file__).parent  # scripts/pytools/pybackup/core_node
 project_root = script_dir.parent.parent.parent.parent  # core_node root
+
+# Ensure both the project root (for the pycore package) and the pycore
+# directory itself are on sys.path so imports resolve correctly when run
+# from PowerShell/Windows entrypoints.
+sys.path.insert(0, str(project_root))
 pycore_path = project_root / "pycore"
 sys.path.insert(0, str(pycore_path))
 
