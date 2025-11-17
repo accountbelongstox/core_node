@@ -12,10 +12,10 @@
 
 ### 修复的问题
 
-1. ✅ **Session Cookies 处理问题**（P0 - 重要）
-2. ✅ **文档注释不一致**（P1 - 中等）
-3. ✅ **Cookie 域名匹配优化**（P1 - 中等）
-4. ✅ **文件位置确认**（P0 - 重要）
+1. [OK] **Session Cookies 处理问题**（P0 - 重要）
+2. [OK] **文档注释不一致**（P1 - 中等）
+3. [OK] **Cookie 域名匹配优化**（P1 - 中等）
+4. [OK] **文件位置确认**（P0 - 重要）
 
 ---
 
@@ -40,9 +40,9 @@ def _separate_cookies(cookies) -> tuple[List[Dict], List[Dict]]:
 #### 修改的方法
 
 **`save_cookies()` 方法**:
-- ✅ 新增 `save_session_cookies` 参数（默认 True）
-- ✅ 自动分离 session/persistent cookies
-- ✅ 新格式存储：
+- [OK] 新增 `save_session_cookies` 参数（默认 True）
+- [OK] 自动分离 session/persistent cookies
+- [OK] 新格式存储：
   ```json
   {
     "persistent_cookies": [...],
@@ -56,19 +56,19 @@ def _separate_cookies(cookies) -> tuple[List[Dict], List[Dict]]:
   ```
 
 **`load_cookies()` 方法**:
-- ✅ 新增 `include_session` 参数（默认 False）
-- ✅ 支持新旧两种格式
-- ✅ 自动识别和过滤 session cookies
-- ✅ 详细日志输出（显示加载的 cookie 类型分布）
+- [OK] 新增 `include_session` 参数（默认 False）
+- [OK] 支持新旧两种格式
+- [OK] 自动识别和过滤 session cookies
+- [OK] 详细日志输出（显示加载的 cookie 类型分布）
 
 **`update_cookies_realtime()` 方法**:
-- ✅ 新增 `save_session_cookies` 参数
-- ✅ 使用新格式实时更新
+- [OK] 新增 `save_session_cookies` 参数
+- [OK] 使用新格式实时更新
 
 **向后兼容**:
-- ✅ 完全兼容旧格式 cookie 文件
-- ✅ 加载旧格式时自动分离 session/persistent cookies
-- ✅ 显示 "Legacy format detected" 警告
+- [OK] 完全兼容旧格式 cookie 文件
+- [OK] 加载旧格式时自动分离 session/persistent cookies
+- [OK] 显示 "Legacy format detected" 警告
 
 ---
 
@@ -88,13 +88,13 @@ cookie_config = {
 #### 修改的方法
 
 **`_init_cookie_manager()` 方法**:
-- ✅ 新增 `self.cookie_include_session` 属性
-- ✅ 新增 `self.cookie_save_session` 属性
-- ✅ 增强的日志输出
+- [OK] 新增 `self.cookie_include_session` 属性
+- [OK] 新增 `self.cookie_save_session` 属性
+- [OK] 增强的日志输出
 
 **`_load_cookies_on_launch()` 方法** - **重大优化**:
-- ✅ 支持 `include_session` 参数
-- ✅ **域名分组加载优化**：
+- [OK] 支持 `include_session` 参数
+- [OK] **域名分组加载优化**：
   ```python
   # 按域名分组 cookies
   domain_groups = {}
@@ -108,21 +108,21 @@ cookie_config = {
   for domain, domain_cookies in domain_groups.items():
       ...
   ```
-- ✅ 详细的加载统计（loaded/skipped/domains）
+- [OK] 详细的加载统计（loaded/skipped/domains）
 
 **`_save_cookies_on_cleanup()` 方法**:
-- ✅ 传递 `save_session_cookies` 参数
+- [OK] 传递 `save_session_cookies` 参数
 
 **`_update_cookies_realtime()` 方法**:
-- ✅ 传递 `save_session_cookies` 参数
+- [OK] 传递 `save_session_cookies` 参数
 
 **`save_cookies_manual()` 方法**:
-- ✅ 新增 `save_session` 参数（可选）
-- ✅ 运行时动态控制是否保存 session cookies
+- [OK] 新增 `save_session` 参数（可选）
+- [OK] 运行时动态控制是否保存 session cookies
 
 **`load_cookies_manual()` 方法**:
-- ✅ 新增 `include_session` 参数（可选）
-- ✅ 运行时动态控制是否加载 session cookies
+- [OK] 新增 `include_session` 参数（可选）
+- [OK] 运行时动态控制是否加载 session cookies
 
 ---
 
@@ -132,8 +132,8 @@ cookie_config = {
 
 **文件**: `pycore/pyutils/pybrowser/implementations/browsers/chrome_browser.py`
 
-- ✅ 已统一，明确标注 `profile_dir` 为推荐参数
-- ✅ `user_data_dir` 标注为 deprecated
+- [OK] 已统一，明确标注 `profile_dir` 为推荐参数
+- [OK] `user_data_dir` 标注为 deprecated
 
 #### EdgeBrowser
 
@@ -171,9 +171,9 @@ cookie_config = {
 ### 4. 文件检查
 
 **检查结果**:
-- ✅ 只存在一个 `cookie_manager.py` 文件
-- ✅ 位置：`pycore/pyutils/pybrowser/utils/cookie_manager.py`
-- ✅ 无重复文件
+- [OK] 只存在一个 `cookie_manager.py` 文件
+- [OK] 位置：`pycore/pyutils/pybrowser/utils/cookie_manager.py`
+- [OK] 无重复文件
 
 ---
 
@@ -207,13 +207,13 @@ cookie_config = {
 
 | 功能 | v2.0.0 | v2.1.0 |
 |------|--------|--------|
-| Cookie 持久化 | ✅ | ✅ |
-| 多 Profile 支持 | ✅ | ✅ |
-| 实时保存 | ✅ | ✅ |
-| Session/Persistent 分离 | ❌ | ✅ |
-| 选择性加载 session cookies | ❌ | ✅ |
-| 域名分组加载优化 | ❌ | ✅ |
-| 旧格式兼容 | N/A | ✅ |
+| Cookie 持久化 | [OK] | [OK] |
+| 多 Profile 支持 | [OK] | [OK] |
+| 实时保存 | [OK] | [OK] |
+| Session/Persistent 分离 | [ERROR] | [OK] |
+| 选择性加载 session cookies | [ERROR] | [OK] |
+| 域名分组加载优化 | [ERROR] | [OK] |
+| 旧格式兼容 | N/A | [OK] |
 | 详细统计日志 | 基础 | 增强 |
 
 ---
@@ -239,10 +239,10 @@ browser = BrowserFactory.create('chrome')
 browser.start()
 
 # 行为（与 v2.0.0 完全一致）：
-# ✅ 加载所有 cookies（包括 session）
-# ✅ 保存所有 cookies
-# ✅ 新增：自动分离存储到不同数组
-# ✅ 新增：可选择性加载
+# [OK] 加载所有 cookies（包括 session）
+# [OK] 保存所有 cookies
+# [OK] 新增：自动分离存储到不同数组
+# [OK] 新增：可选择性加载
 ```
 
 ### v2.1.0 可选的安全增强
@@ -250,22 +250,22 @@ browser.start()
 ```python
 browser = BrowserFactory.create('chrome', config={
     'cookie_config': {
-        'include_session_cookies': False,  # ← 只加载 persistent（可选）
-        'save_session_cookies': True       # ← 但保存用于分析
+        'include_session_cookies': False,  # <-  只加载 persistent（可选）
+        'save_session_cookies': True       # <-  但保存用于分析
     }
 })
 browser.start()
 
 # 行为（可选的安全模式）：
-# ✅ 只加载 persistent cookies
-# ✅ Session cookies 需要重新登录获取
-# ✅ 符合浏览器标准行为
-# ✅ 避免会话冲突
+# [OK] 只加载 persistent cookies
+# [OK] Session cookies 需要重新登录获取
+# [OK] 符合浏览器标准行为
+# [OK] 避免会话冲突
 ```
 
 ---
 
-## 📊 文件格式变化
+## [STATS] 文件格式变化
 
 ### 旧格式 (v2.0.0)
 
@@ -297,14 +297,14 @@ browser.start()
 ```
 
 **优势**:
-- ✅ 清晰区分两种类型
-- ✅ 可以选择性加载
-- ✅ 更好的统计信息
-- ✅ 向后兼容旧格式
+- [OK] 清晰区分两种类型
+- [OK] 可以选择性加载
+- [OK] 更好的统计信息
+- [OK] 向后兼容旧格式
 
 ---
 
-## ⚠️ 破坏性变更
+## [WARN] 破坏性变更
 
 ### 默认行为
 
@@ -396,13 +396,13 @@ browser.load_cookies_manual('test_separation', include_session=True)
 
 ### 完成的工作
 
-1. ✅ 完全修复 Session Cookies 处理问题
-2. ✅ 实现分离存储和选择性加载
-3. ✅ 优化 Cookie 加载逻辑（域名分组）
-4. ✅ 统一浏览器实现类文档
-5. ✅ 创建详细的使用指南和示例
-6. ✅ 完全向后兼容
-7. ✅ 增强的日志和统计
+1. [OK] 完全修复 Session Cookies 处理问题
+2. [OK] 实现分离存储和选择性加载
+3. [OK] 优化 Cookie 加载逻辑（域名分组）
+4. [OK] 统一浏览器实现类文档
+5. [OK] 创建详细的使用指南和示例
+6. [OK] 完全向后兼容
+7. [OK] 增强的日志和统计
 
 ### 影响范围
 
@@ -427,15 +427,15 @@ browser.load_cookies_manual('test_separation', include_session=True)
 
 ### 质量保证
 
-- ✅ 向后兼容（无破坏性变更）
-- ✅ 详细的日志输出
-- ✅ 完整的文档和示例
-- ✅ 符合浏览器标准行为
-- ✅ 安全性增强（默认不加载 session cookies）
+- [OK] 向后兼容（无破坏性变更）
+- [OK] 详细的日志输出
+- [OK] 完整的文档和示例
+- [OK] 符合浏览器标准行为
+- [OK] 安全性增强（默认不加载 session cookies）
 
 ---
 
 **版本**: v2.1.0
 **发布日期**: 2025-11-17
 **维护者**: Claude Code Assistant
-**状态**: ✅ 已完成并测试
+**状态**: [OK] 已完成并测试

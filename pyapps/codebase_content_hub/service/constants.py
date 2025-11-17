@@ -23,7 +23,7 @@ class ContentHubConstants:
         "mcp",
         "Pillow",
         "numpy",
-        "PyPDF2",
+        "pypdf",
         "python-docx",
         "openpyxl",
         "python-pptx",
@@ -35,7 +35,7 @@ class ContentHubConstants:
     PACKAGE_IMPORT_MAPPING = {
         "Pillow": "PIL",
         "numpy": "numpy",
-        "PyPDF2": "PyPDF2",
+        "pypdf": "pypdf",
         "python-docx": "docx",
         "openpyxl": "openpyxl",
         "python-pptx": "pptx",

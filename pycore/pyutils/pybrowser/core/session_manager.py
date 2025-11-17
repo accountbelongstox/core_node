@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.pybrowser.factories.browser_factory import BrowserFactory
 
 
 class Session:
@@ -34,29 +35,23 @@ class Session:
 
     def initialize(self):
         """Initialize session with browser"""
-        try:
-            ColorPrint.info(f"Initializing session: {self.id}")
+        ColorPrint.info(f"Initializing session: {self.id}")
 
-            from pycore.pyutils.pybrowser.factories.browser_factory import BrowserFactory
+        browser_type = self.config.get('browser', 'edge')
+        browser_config = self.config.get('browser_options', {})
 
-            browser_type = self.config.get('browser', 'edge')
-            browser_config = self.config.get('browser_options', {})
+        # Create and start browser (ThreadedBrowser)
+        self.browser = BrowserFactory.create(browser_type, config=browser_config, auto_start=True)
 
-            # Create and start browser (ThreadedBrowser)
-            self.browser = BrowserFactory.create(browser_type, config=browser_config, auto_start=True)
+        # Wait for browser to be ready
+        if not self.browser.wait_until_ready(timeout=30):
+            raise RuntimeError("Browser failed to start within timeout")
 
-            # Wait for browser to be ready
-            if not self.browser.wait_until_ready(timeout=30):
-                raise RuntimeError(f"Browser failed to start within timeout")
+        self.is_initialized = True
+        self.last_activity = datetime.now().isoformat()
 
-            self.is_initialized = True
-            self.last_activity = datetime.now().isoformat()
-
-            ColorPrint.info(f"Session initialized: {self.id}")
-            return self
-        except Exception as error:
-            ColorPrint.red(f"Failed to initialize session {self.id}: {error}")
-            raise
+        ColorPrint.info(f"Session initialized: {self.id}")
+        return self
 
     def new_page(self, options: Dict[str, Any] = None) -> Any:
         """
@@ -68,22 +63,17 @@ class Session:
         Returns:
             Page instance
         """
-        try:
-            # Use IBrowser interface to create page
-            page = self.browser.new_page(options or {})
+        # Use IBrowser interface to create page
+        page = self.browser.new_page(options or {})
 
-            page_id = str(uuid.uuid4())
-            self.pages[page_id] = page
-            self.active_page = page
-            self.metrics['pages_created'] += 1
-            self.last_activity = datetime.now().isoformat()
+        page_id = str(uuid.uuid4())
+        self.pages[page_id] = page
+        self.active_page = page
+        self.metrics['pages_created'] += 1
+        self.last_activity = datetime.now().isoformat()
 
-            ColorPrint.info(f"Page created in session {self.id}: {page_id}")
-            return page
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f"Failed to create page in session {self.id}: {error}")
-            raise
+        ColorPrint.info(f"Page created in session {self.id}: {page_id}")
+        return page
 
     def close_page(self, page_id: str):
         """
@@ -92,22 +82,17 @@ class Session:
         Args:
             page_id: Page identifier
         """
-        try:
-            page = self.pages.get(page_id)
-            if page:
-                page.close()
-                del self.pages[page_id]
-                self.metrics['pages_closed'] += 1
-                self.last_activity = datetime.now().isoformat()
+        page = self.pages.get(page_id)
+        if page:
+            page.close()
+            del self.pages[page_id]
+            self.metrics['pages_closed'] += 1
+            self.last_activity = datetime.now().isoformat()
 
-                if self.active_page == page:
-                    self.active_page = next(iter(self.pages.values()), None)
+            if self.active_page == page:
+                self.active_page = next(iter(self.pages.values()), None)
 
-                ColorPrint.info(f"Page closed in session {self.id}: {page_id}")
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f"Failed to close page {page_id} in session {self.id}: {error}")
-            raise
+            ColorPrint.info(f"Page closed in session {self.id}: {page_id}")
 
     def get_page(self, page_id: str = None) -> Optional[Any]:
         """
@@ -139,13 +124,9 @@ class Session:
         Args:
             plugin: Plugin instance
         """
-        try:
-            plugin.initialize(self)
-            self.plugins[plugin.name] = plugin
-            ColorPrint.info(f"Plugin {plugin.name} loaded in session {self.id}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to load plugin {plugin.name} in session {self.id}: {error}")
-            raise
+        plugin.initialize(self)
+        self.plugins[plugin.name] = plugin
+        ColorPrint.info(f"Plugin {plugin.name} loaded in session {self.id}")
 
     def unload_plugin(self, plugin_name: str):
         """
@@ -154,15 +135,11 @@ class Session:
         Args:
             plugin_name: Plugin name
         """
-        try:
-            plugin = self.plugins.get(plugin_name)
-            if plugin:
-                plugin.cleanup()
-                del self.plugins[plugin_name]
-                ColorPrint.info(f"Plugin {plugin_name} unloaded from session {self.id}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to unload plugin {plugin_name} from session {self.id}: {error}")
-            raise
+        plugin = self.plugins.get(plugin_name)
+        if plugin:
+            plugin.cleanup()
+            del self.plugins[plugin_name]
+            ColorPrint.info(f"Plugin {plugin_name} unloaded from session {self.id}")
 
     def get_plugin(self, plugin_name: str) -> Optional[Any]:
         """
@@ -178,35 +155,22 @@ class Session:
 
     def close(self):
         """Close session and cleanup resources"""
-        try:
-            ColorPrint.info(f"Closing session: {self.id}")
+        ColorPrint.info(f"Closing session: {self.id}")
 
-            # Close all pages
-            for page_id, page in list(self.pages.items()):
-                try:
-                    page.close()
-                except Exception as error:
-                    ColorPrint.warn(f"Failed to close page {page_id}: {error}")
+        # Close all pages
+        for page_id, page in list(self.pages.items()):
+            page.close()
 
-            # Cleanup all plugins
-            for plugin_name, plugin in list(self.plugins.items()):
-                try:
-                    plugin.cleanup()
-                except Exception as error:
-                    ColorPrint.warn(f"Failed to cleanup plugin {plugin_name}: {error}")
+        # Cleanup all plugins
+        for plugin_name, plugin in list(self.plugins.items()):
+            plugin.cleanup()
 
-            # Close browser using IBrowser interface
-            if self.browser:
-                try:
-                    self.browser.close()
-                except Exception as error:
-                    ColorPrint.warn(f"Failed to close browser: {error}")
+        # Close browser using IBrowser interface
+        if self.browser:
+            self.browser.close()
 
-            self.is_initialized = False
-            ColorPrint.info(f"Session closed: {self.id}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to close session {self.id}: {error}")
-            raise
+        self.is_initialized = False
+        ColorPrint.info(f"Session closed: {self.id}")
 
     def get_browser(self) -> Any:
         """
@@ -307,10 +271,7 @@ class SessionManager:
     def close_all(self):
         """Close all sessions"""
         for session_id in list(self.sessions.keys()):
-            try:
-                self.close(session_id)
-            except Exception as error:
-                ColorPrint.warn(f"Failed to close session {session_id}: {error}")
+            self.close(session_id)
 
         ColorPrint.info('All sessions closed')
 

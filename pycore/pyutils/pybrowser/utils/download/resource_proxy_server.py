@@ -12,6 +12,8 @@ import json
 import hashlib
 import tempfile
 import asyncio
+import time
+from urllib.parse import urlparse
 from typing import Dict, Any, Optional
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
@@ -79,6 +81,7 @@ class ResourceProxyHandler(BaseHTTPRequestHandler):
         download_id = self.headers.get('X-Download-Id') or self.server.generate_download_id()
 
         if not resource_url:
+            self.server.stats['failedDownloads'] += 1
             self.send_response(400)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -86,68 +89,70 @@ class ResourceProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': 'Missing X-Resource-Url header'}).encode())
             return
 
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-
-            if content_length > self.server.max_body_size:
-                self.send_response(413)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(json.dumps({'error': 'Resource too large'}).encode())
-                return
-
-            logger.debug(f'[PROXY] Receiving resource: {resource_url} ({download_id})')
-
-            buffer = self.rfile.read(content_length)
-            file_name = resource_name or self.server.generate_file_name(resource_url)
-            file_path = os.path.join(self.server.temp_dir, file_name)
-
-            with open(file_path, 'wb') as f:
-                f.write(buffer)
-
-            self.server.stats['successfulDownloads'] += 1
-            self.server.stats['bytesReceived'] += len(buffer)
-
-            download_info = {
-                'downloadId': download_id,
-                'resourceUrl': resource_url,
-                'fileName': file_name,
-                'filePath': file_path,
-                'size': len(buffer),
-                'timestamp': asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0,
-                'success': True
-            }
-
-            self.server.downloaded_resources[download_id] = download_info
-
-            if download_id in self.server.pending_downloads:
-                future = self.server.pending_downloads[download_id]
-                if not future.done():
-                    future.set_result(download_info)
-                del self.server.pending_downloads[download_id]
-
-            logger.info(f'[PROXY] Resource received: {file_name} ({len(buffer)} bytes)')
-
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            response = {
-                'success': True,
-                'downloadId': download_id,
-                'fileName': file_name,
-                'size': len(buffer)
-            }
-            self.wfile.write(json.dumps(response).encode())
-        except Exception as error:
+        content_length_header = self.headers.get('Content-Length')
+        if not content_length_header or not content_length_header.isdigit():
             self.server.stats['failedDownloads'] += 1
-            logger.error(f'[PROXY] Failed to save resource: {error}')
-
-            self.send_response(500)
+            self.send_response(400)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
+            self.wfile.write(json.dumps({'error': 'Invalid Content-Length header'}).encode())
+            return
+
+        content_length = int(content_length_header)
+
+        if content_length > self.server.max_body_size:
+            self.server.stats['failedDownloads'] += 1
+            self.send_response(413)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': 'Resource too large'}).encode())
+            return
+
+        logger.debug(f'[PROXY] Receiving resource: {resource_url} ({download_id})')
+
+        buffer = self.rfile.read(content_length)
+        file_name = resource_name or self.server.generate_file_name(resource_url)
+        file_path = os.path.join(self.server.temp_dir, file_name)
+
+        with open(file_path, 'wb') as f:
+            f.write(buffer)
+
+        self.server.stats['successfulDownloads'] += 1
+        self.server.stats['bytesReceived'] += len(buffer)
+
+        download_info = {
+            'downloadId': download_id,
+            'resourceUrl': resource_url,
+            'fileName': file_name,
+            'filePath': file_path,
+            'size': len(buffer),
+            'timestamp': time.time(),
+            'success': True
+        }
+
+        self.server.downloaded_resources[download_id] = download_info
+
+        if download_id in self.server.pending_downloads:
+            future = self.server.pending_downloads[download_id]
+            if not future.done():
+                future.set_result(download_info)
+            del self.server.pending_downloads[download_id]
+
+        logger.info(f'[PROXY] Resource received: {file_name} ({len(buffer)} bytes)')
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        response = {
+            'success': True,
+            'downloadId': download_id,
+            'fileName': file_name,
+            'size': len(buffer)
+        }
+        self.wfile.write(json.dumps(response).encode())
             self.wfile.write(json.dumps({'success': False, 'error': str(error)}).encode())
 
     def handle_status_check(self, download_id: str):
@@ -223,53 +228,46 @@ class ResourceProxyServer:
                 'url': f'http://{self.host}:{self.port}'
             }
 
-        try:
-            self.server = HTTPServer((self.host, self.port), ResourceProxyHandler)
-            self.server.stats = self.stats
-            self.server.downloaded_resources = self.downloaded_resources
-            self.server.pending_downloads = self.pending_downloads
-            self.server.temp_dir = self.temp_dir
-            self.server.max_body_size = self.max_body_size
-            self.server.is_running = True
-            self.server.generate_download_id = lambda: hashlib.md5(os.urandom(16)).hexdigest()
-            self.server.generate_file_name = self.generate_file_name
+        self.server = HTTPServer((self.host, self.port), ResourceProxyHandler)
+        self.server.stats = self.stats
+        self.server.downloaded_resources = self.downloaded_resources
+        self.server.pending_downloads = self.pending_downloads
+        self.server.temp_dir = self.temp_dir
+        self.server.max_body_size = self.max_body_size
+        self.server.is_running = True
+        self.server.generate_download_id = lambda: hashlib.md5(os.urandom(16)).hexdigest()
+        self.server.generate_file_name = self.generate_file_name
 
-            self.port = self.server.server_address[1]
-            self.is_running = True
+        self.port = self.server.server_address[1]
+        self.is_running = True
 
-            self.server_thread = Thread(target=self.server.serve_forever, daemon=True)
-            self.server_thread.start()
+        self.server_thread = Thread(target=self.server.serve_forever, daemon=True)
+        self.server_thread.start()
 
-            logger.info(f'Resource proxy server started at http://{self.host}:{self.port}')
+        logger.info(f'Resource proxy server started at http://{self.host}:{self.port}')
 
-            return {
-                'host': self.host,
-                'port': self.port,
-                'url': f'http://{self.host}:{self.port}'
-            }
-        except Exception as error:
-            logger.error(f'Failed to start proxy server: {error}')
-            raise
+        return {
+            'host': self.host,
+            'port': self.port,
+            'url': f'http://{self.host}:{self.port}'
+        }
 
     def stop(self):
         """Stop proxy server"""
         if not self.is_running:
             return
 
-        try:
-            if self.server:
-                self.server.shutdown()
-                self.server.server_close()
-                self.server = None
+        if self.server:
+            self.server.shutdown()
+            self.server.server_close()
+            self.server = None
 
-            if self.server_thread:
-                self.server_thread.join(timeout=5)
-                self.server_thread = None
+        if self.server_thread:
+            self.server_thread.join(timeout=5)
+            self.server_thread = None
 
-            self.is_running = False
-            logger.info('Resource proxy server stopped')
-        except Exception as error:
-            logger.error(f'Error stopping proxy server: {error}')
+        self.is_running = False
+        logger.info('Resource proxy server stopped')
 
     def generate_download_id(self) -> str:
         """Generate unique download ID"""
@@ -277,21 +275,17 @@ class ResourceProxyServer:
 
     def generate_file_name(self, url: str) -> str:
         """Generate file name from URL"""
-        try:
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            file_name = os.path.basename(parsed.path)
+        parsed = urlparse(url)
+        file_name = os.path.basename(parsed.path)
 
-            if not file_name or file_name == '/':
-                file_name = f'download_{int(asyncio.get_event_loop().time() * 1000)}'
+        if not file_name or file_name == '/':
+            file_name = f'download_{int(time.time() * 1000)}'
 
-            ext = os.path.splitext(file_name)[1]
-            if not ext:
-                file_name += '.bin'
+        ext = os.path.splitext(file_name)[1]
+        if not ext:
+            file_name += '.bin'
 
-            return file_name
-        except Exception:
-            return f'download_{int(asyncio.get_event_loop().time() * 1000)}.bin'
+        return file_name
 
     async def wait_for_download(self, download_id: str, timeout: int = 60000) -> Dict[str, Any]:
         """
@@ -311,13 +305,16 @@ class ResourceProxyServer:
         future = loop.create_future()
         self.pending_downloads[download_id] = future
 
-        try:
-            result = await asyncio.wait_for(future, timeout=timeout / 1000)
-            return result
-        except asyncio.TimeoutError:
-            if download_id in self.pending_downloads:
-                del self.pending_downloads[download_id]
-            raise TimeoutError(f'Download timeout: {download_id}')
+        def on_timeout():
+            if download_id in self.pending_downloads and not future.done():
+                self.pending_downloads.pop(download_id, None)
+                future.set_exception(TimeoutError(f'Download timeout: {download_id}'))
+
+        timeout_handle = loop.call_later(timeout / 1000, on_timeout)
+        result = await future
+        timeout_handle.cancel()
+        self.pending_downloads.pop(download_id, None)
+        return result
 
     def get_download_info(self, download_id: str) -> Optional[Dict[str, Any]]:
         """Get download information by ID"""
@@ -342,22 +339,17 @@ class ResourceProxyServer:
 
     def cleanup_temp_files(self):
         """Cleanup temporary files"""
-        try:
-            files = os.listdir(self.temp_dir)
-            cleaned_count = 0
+        files = os.listdir(self.temp_dir)
+        cleaned_count = 0
 
-            for file_name in files:
-                file_path = os.path.join(self.temp_dir, file_name)
-                try:
-                    os.unlink(file_path)
-                    cleaned_count += 1
-                except Exception as error:
-                    logger.warn(f'Failed to delete temp file: {file_path}', error)
+        for file_name in files:
+            file_path = os.path.join(self.temp_dir, file_name)
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+                cleaned_count += 1
 
-            if cleaned_count > 0:
-                logger.info(f'Cleaned up {cleaned_count} temp files')
-        except Exception as error:
-            logger.warn(f'Failed to cleanup temp files: {error}')
+        if cleaned_count > 0:
+            logger.info(f'Cleaned up {cleaned_count} temp files')
 
     def get_server_url(self) -> Optional[str]:
         """Get server URL"""

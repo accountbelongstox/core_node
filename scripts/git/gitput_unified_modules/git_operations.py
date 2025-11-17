@@ -8,39 +8,33 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 from gitput_unified_modules.utils import write_color_text, get_core_node_dir
+from pycore.pyfoundations.pybasecommon import Commander
 
 
 def run_git_command(command: str, cwd: Optional[Path] = None, capture_output: bool = False) -> str:
-    """Execute git command and return output"""
+    """
+    Execute git command and return output
+    
+    Note: Uses Commander.exec_realtime() which collects output.
+    Recommended to check returned string instead of return code.
+    """
     if cwd is None:
         cwd = get_core_node_dir()
     
     try:
         write_color_text(f"Executing: {command}", "DarkGray")
         
-        result = subprocess.run(
-            command,
-            cwd=str(cwd),
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT if not capture_output else subprocess.PIPE,
-            universal_newlines=True,
-            timeout=60
-        )
-        
+        # Use Commander for execution
         if capture_output:
-            return result.stdout.strip() if result.returncode == 0 else ""
+            # Silent mode for capture
+            result = Commander.exec_silent(command, info=False, cwd=str(cwd))
         else:
-            if result.stdout:
-                output_lines = result.stdout.strip().split('\n')
-                for line in output_lines:
-                    if line.strip():
-                        print(line)
-            return result.stdout.strip() if result.returncode == 0 else ""
+            # Real-time output mode
+            result = Commander.exec_realtime(command, info=False, show_output=True, cwd=str(cwd))
+        
+        # Return combined output (recommended approach)
+        return result.get_output().strip()
             
-    except subprocess.TimeoutExpired:
-        write_color_text(f"Command timeout: {command}", "Red")
-        return ""
     except Exception as e:
         write_color_text(f"Command failed: {e}", "Red")
         return ""
@@ -144,10 +138,10 @@ def pull_branch(branch: str, no_edit: bool = True) -> Tuple[bool, str]:
         if no_edit:
             cmd += " --no-edit"
         
-        result = run_git_command(cmd, capture_output=True)
-        output = run_git_command(cmd)
+        # Use real-time output to see progress and collect result
+        output = run_git_command(cmd, capture_output=False)
         
-        # Check for merge conflicts
+        # Check for merge conflicts in output (recommended approach)
         if "CONFLICT" in output.upper() or "conflict" in output.lower():
             return False, output
         

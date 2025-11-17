@@ -4,7 +4,7 @@
 Launch Speech RPC Service
 
 Entry point for starting speech RPC service using PyLauncher.
-Starts RPC server only (no UI) with PyHeartbeat and TTSSwitch.
+Starts RPC server only (no UI) with PyHeartbeat and the unified SpeechSwitch.
 
 Usage:
     python -m pycore.pyctl.speech.launch_speech_rpc
@@ -28,22 +28,24 @@ def initialize_speech_config():
     """
     Initialize speech service configuration on startup
 
-    NOTE: All default configs are now defined in GlobalConfig.DEFAULT_CONFIG
-    This function just triggers initialization (auto-creates missing keys).
+    Uses dedicated SpeechConfig (util_speech.config table).
+    Auto-migrates from GlobalConfig if needed.
     """
-    from pycore.pyutils.common import global_config
+    from pycore.pyutils.common import speech_config
 
-    # GlobalConfig will automatically initialize DEFAULT_CONFIG on first access
+    # SpeechConfig will automatically:
+    # 1. Initialize defaults from SpeechConfigModel.DEFAULT_CONFIG
+    # 2. Auto-migrate speech_* keys from GlobalConfig
     # Just trigger initialization by accessing config
-    all_config = global_config.get_all()
+    all_config = speech_config.get_all()
 
-    ColorPrint.blue(f"[SpeechConfig] Loaded {len(all_config)} config keys from database")
+    ColorPrint.blue(f"[SpeechConfig] Loaded {len(all_config)} config keys from speech database")
 
-    # Check if speech-specific keys exist
-    speech_keys = [k for k in all_config.keys() if k.startswith('speech_')]
-    ColorPrint.blue(f"[SpeechConfig] Speech-specific keys: {len(speech_keys)}")
+    # Get statistics by category
+    stats = speech_config.get_statistics()
+    ColorPrint.blue(f"[SpeechConfig] By category: {stats.get('by_category', {})}")
 
-    return len(speech_keys)
+    return len(all_config)
 
 
 def launch_speech_rpc_service(
@@ -58,9 +60,9 @@ def launch_speech_rpc_service(
 
     Uses pylauncher to:
     1. Start PyHeartbeat system
-    2. Start TTSSwitch with provider routing
-    3. Start ThreadedRpcServer (as thread)
-    4. Register speech routes on running server
+    2. Start the SpeechSwitch with provider routing
+    3. Start the FastAPI-based RPC server (HTTP + WebSocket) in a thread
+    4. Register speech routes on the running server
 
     Args:
         port: RPC server port
@@ -93,22 +95,39 @@ def launch_speech_rpc_service(
     ColorPrint.blue(f"[SpeechRPC] TTS Provider: {tts_provider}")
     ColorPrint.blue(f"[SpeechRPC] Queue Size: {tts_queue_size}")
 
-    # Step 2: Launch services via pylauncher
-    # This starts: Heartbeat, TTSSwitch, ThreadedRpcServer (as thread)
+    # Step 2: Prepare static web directory path (BEFORE launching services)
+    from pathlib import Path
+    web_dir = Path(__file__).parent / 'rpc' / 'web'
+
+    # Step 3: Create RPC server and configure static directories BEFORE starting
+    from pycore.pyutils.rpc import UnifiedRpcServerRunner
+    rpc_server = UnifiedRpcServerRunner(
+        host=config.rpc_host,
+        port=config.rpc_port,
+        debug=debug
+    )
+
+    # Add static directory BEFORE starting server
+    if web_dir.exists():
+        rpc_server.add_static_dir('/', str(web_dir))
+        ColorPrint.blue(f"[SpeechRPC] Configured static web directory: / -> {web_dir}")
+
+    # Step 4: Launch other services (Heartbeat, SpeechSwitch) WITHOUT RPC server
+    config.enable_rpc = False  # We'll manage RPC server manually
     instances = launch_services(config)
+
+    # Step 5: Start RPC server (static directories already configured)
+    rpc_server.start()
+    instances.rpc_server = rpc_server  # Store in instances
 
     if not instances.rpc_server:
         ColorPrint.red("[SpeechRPC] Failed to start RPC server thread")
         return instances
 
-    # Step 3: Register static web directory
-    from pathlib import Path
-    web_dir = Path(__file__).parent / 'rpc' / 'web'
-    if web_dir.exists():
-        instances.rpc_server.add_static_dir('/', str(web_dir))
-        ColorPrint.blue(f"[SpeechRPC] Web UI: http://{host}:{port}/")
+    ColorPrint.green(f"[SpeechRPC] RPC Server started on {host}:{port}")
+    ColorPrint.blue(f"[SpeechRPC] Web UI: http://{host}:{port}/")
 
-    # Step 4: Register speech routes on running RPC server
+    # Step 6: Register speech routes on running RPC server
     ColorPrint.blue("[SpeechRPC] Registering speech routes...")
 
     rpc_service = start_rpc_service(

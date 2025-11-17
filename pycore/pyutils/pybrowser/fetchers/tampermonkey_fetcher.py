@@ -11,6 +11,7 @@ import threading
 from typing import Dict, Any, List
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.pybrowser.fetchers.base_fetcher import BaseFetcher
+from pycore.pyutils.pybrowser.utils.tampermonkey.tampermonkey_server import TampermonkeyServer
 
 
 class TampermonkeyFetchResult:
@@ -62,8 +63,6 @@ class TampermonkeyFetcher(BaseFetcher):
             True if successful
         """
         options = options or {}
-
-        from pycore.pyutils.pybrowser.utils.tampermonkey.tampermonkey_server import TampermonkeyServer
 
         # Create server instance
         server_options = {

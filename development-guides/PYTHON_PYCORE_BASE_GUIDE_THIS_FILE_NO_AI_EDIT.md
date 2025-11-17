@@ -51,10 +51,11 @@
 ## 3. Module Development Rules
 
 ### 3.1 pyfoundations Rules
-- Store most basic modules (ColorPrint, Encyclopedia, EventBus, ThreadBus, SecretManager)
+- Store most basic modules (ColorPrint, Encyclopedia, EventBus, ThreadBus, SecretManager, Commander)
 - Only use Python standard library, no third-party packages
 - Can only import from other pyfoundations modules
 - Provides foundational functions and base classes
+- **Commander**: Unified command executor with real-time output and result collection (`from pycore.pyfoundations.pybasecommon import Commander`)
 
 ### 3.2 pyutils Rules
 - Can reference pyfoundations and pygvar

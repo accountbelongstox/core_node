@@ -109,7 +109,7 @@
                 reconnect: options.reconnect !== false,
                 reconnectInterval: options.reconnectInterval || 3000,
                 maxReconnectAttempts: options.maxReconnectAttempts || 10,
-                httpFallback: options.httpFallback !== false,
+                httpFallback: options.httpFallback === true, // default: disable HTTP fallback unless explicitly enabled
                 preferWebSocket: options.preferWebSocket !== false,
                 wsPath: options.wsPath || '/rpc/ws',
                 httpPath: options.httpPath || '/rpc',
@@ -139,6 +139,7 @@
                                     .then(resolve)
                                     .catch(reject);
                             } else {
+                                this._log('HTTP fallback disabled; propagating WebSocket error');
                                 reject(error);
                             }
                         });
@@ -152,47 +153,48 @@
 
         _connectWebSocket() {
             return new Promise((resolve, reject) => {
-                try {
-                    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + this.options.wsPath;
-                    this._log(`Connecting to WebSocket: ${wsUrl}`);
+                const wsUrl = this.baseUrl.replace(/^http/, 'ws') + this.options.wsPath;
+                this._log(`Connecting to WebSocket: ${wsUrl}`);
 
-                    this.ws = new WebSocket(wsUrl);
+                this.ws = new WebSocket(wsUrl);
 
-                    this.ws.onopen = () => {
-                        this.connected = true;
-                        this.mode = 'ws';
-                        this.reconnectAttempts = 0;
-                        this._log('WebSocket connected');
-                        this._emit(EVENTS.CONNECTION, { mode: 'websocket' });
-                        resolve();
-                    };
+                this.ws.onopen = () => {
+                    this.connected = true;
+                    this.mode = 'ws';
+                    this.reconnectAttempts = 0;
+                    this._log('WebSocket connected');
 
-                    this.ws.onmessage = (event) => {
-                        this._handleWebSocketMessage(event.data);
-                    };
+                    // Send client ID to server for reconnection handling
+                    // Server will push pending tasks if this client has disconnected history
+                    this._sendClientId();
 
-                    this.ws.onerror = (error) => {
-                        this._log('WebSocket error:', error);
-                        this._emit(EVENTS.ERROR, error);
-                        if (!this.connected) {
-                            reject(error);
-                        }
-                    };
+                    this._emit(EVENTS.CONNECTION, { mode: 'websocket' });
+                    resolve();
+                };
 
-                    this.ws.onclose = () => {
-                        this.connected = false;
-                        this._log('WebSocket disconnected');
-                        this._emit(EVENTS.DISCONNECT, { mode: 'websocket' });
+                this.ws.onmessage = (event) => {
+                    this._handleWebSocketMessage(event.data);
+                };
 
-                        if (this.options.reconnect && this.mode === 'ws') {
-                            this._attemptReconnect();
-                        }
-                    };
+                this.ws.onerror = (error) => {
+                    const errorInfo = error && error.message ? error.message : JSON.stringify(error);
+                    this._log('WebSocket error event:', errorInfo);
+                    this._emit(EVENTS.ERROR, error);
+                    if (!this.connected) {
+                        reject(new Error(`WebSocket connection error: ${errorInfo}`));
+                    }
+                };
 
-                } catch (error) {
-                    this._log('WebSocket connection error:', error);
-                    reject(error);
-                }
+                this.ws.onclose = (event) => {
+                    this.connected = false;
+                    const closeInfo = event ? `code=${event.code}, reason=${event.reason || 'n/a'}` : 'unknown';
+                    this._log(`WebSocket disconnected (${closeInfo})`);
+                    this._emit(EVENTS.DISCONNECT, { mode: 'websocket', info: closeInfo });
+
+                    if (this.options.reconnect && this.mode === 'ws') {
+                        this._attemptReconnect();
+                    }
+                };
             });
         }
 
@@ -238,10 +240,21 @@
                     return;
                 }
 
+                if (message.type === 'inventory') {
+                    // Server pushed pending tasks from inventory (reconnection with history)
+                    this._log('Received inventory push:', message.items?.length || 0, 'items');
+                    this._emit('inventory_push', message.items || []);
+
+                    // Send ACK for inventory push
+                    if (message.requires_ack && message.id) {
+                        this._sendAck(message.id);
+                    }
+                    return;
+                }
+
                 if (message.type === MSG_TYPES.RESPONSE) {
                     const pending = this.pendingRequests.get(message.id);
                     if (pending) {
-                        clearTimeout(pending.timeout);
                         this.pendingRequests.delete(message.id);
 
                         if (message.success) {
@@ -258,7 +271,6 @@
                 } else if (message.type === MSG_TYPES.ERROR) {
                     const pending = this.pendingRequests.get(message.id);
                     if (pending) {
-                        clearTimeout(pending.timeout);
                         this.pendingRequests.delete(message.id);
                         pending.reject(new Error(message.error || message.message || 'Unknown error'));
                     }
@@ -285,8 +297,20 @@
         }
 
         async call(route, params = {}, options = {}) {
+            /**
+             * RPC Call - Event-driven async RPC implementation (NO TIMEOUT)
+             *
+             * Architecture:
+             * - WebSocket mode: Send request → Register callback → Wait indefinitely for server push → Execute callback
+             * - HTTP mode: Send request → Detect 'accepted' → Auto-poll indefinitely (1s interval) → Execute callback
+             * - Event ID system: Both client and server store eventId for correlation
+             * - Callback storage: pendingRequests Map stores eventId → {resolve, reject}
+             * - NO TIMEOUT: Suitable for long-running tasks (hours)
+             * - WebSocket: Wait for push indefinitely
+             * - HTTP: Poll every 1 second indefinitely until 'completed' or 'failed'
+             */
             const requestId = generateUUID();
-            const timeout = options.timeout || this.options.timeout;
+            const timeout = options.timeout || this.options.timeout; // Kept for backward compatibility but not used
 
             return new Promise((resolve, reject) => {
                 if (this.mode === 'ws' && this.connected && this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -298,12 +322,9 @@
         }
 
         _callWebSocket(requestId, route, params, timeout, resolve, reject) {
-            const timeoutId = setTimeout(() => {
-                this.pendingRequests.delete(requestId);
-                reject(new Error('Request timeout'));
-            }, timeout);
-
-            this.pendingRequests.set(requestId, { resolve, reject, timeout: timeoutId });
+            // ✅ No timeout - wait indefinitely for server push
+            // For long-running tasks (hours), rely on event-driven architecture
+            this.pendingRequests.set(requestId, { resolve, reject });
 
             const message = {
                 type: MSG_TYPES.REQUEST,
@@ -315,7 +336,6 @@
             try {
                 this.ws.send(JSON.stringify(message));
             } catch (error) {
-                clearTimeout(timeoutId);
                 this.pendingRequests.delete(requestId);
                 reject(error);
             }
@@ -329,20 +349,16 @@
                 params: params
             };
 
-            const timeoutId = setTimeout(() => {
-                reject(new Error('Request timeout'));
-            }, timeout);
-
+            // ✅ No timeout - HTTP polling will continue indefinitely until result is ready
             this._httpPost(url, requestData)
                 .then((response) => {
                     // Handle async response format: { status: 'accepted', id: '...' }
                     if (response.status === 'accepted' && response.id) {
                         this._log('Request accepted, polling for result...');
-                        // Poll for result
-                        this._pollForResult(response.id, timeout - 1000, timeoutId, resolve, reject);
+                        // Poll for result indefinitely
+                        this._pollForResult(response.id, resolve, reject);
                     } else if (response.success !== undefined) {
                         // Standard response format: { success: true, result: ... }
-                        clearTimeout(timeoutId);
                         if (response.success) {
                             resolve(response.result || response.data || response);
                         } else {
@@ -350,53 +366,51 @@
                         }
                     } else if (response.result !== undefined) {
                         // Direct result format
-                        clearTimeout(timeoutId);
                         resolve(response.result);
                     } else {
                         // Unknown format, return as-is
-                        clearTimeout(timeoutId);
                         resolve(response);
                     }
                 })
                 .catch((error) => {
-                    clearTimeout(timeoutId);
                     reject(error);
                 });
         }
 
-        _pollForResult(requestId, remainingTimeout, timeoutId, resolve, reject) {
+        _pollForResult(requestId, resolve, reject) {
+            /**
+             * ✅ Infinite HTTP polling - no timeout
+             *
+             * For long-running tasks (hours), this will poll every 1 second indefinitely
+             * until the server returns 'completed' or 'failed' status.
+             *
+             * Architecture:
+             * - Poll interval: 1 second
+             * - No timeout limit - suitable for long tasks
+             * - Network errors: auto-retry
+             */
             const pollUrl = `${this.baseUrl}${this.options.httpPath}/query/${requestId}`;
             const pollInterval = 1000; // Poll every 1 second
-            const startTime = Date.now();
 
             const poll = () => {
-                if (Date.now() - startTime > remainingTimeout) {
-                    clearTimeout(timeoutId);
-                    reject(new Error('Polling timeout'));
-                    return;
-                }
-
                 this._httpGet(pollUrl)
                     .then((response) => {
                         this._log('Poll response:', response);
 
                         // Check if result is ready
                         if (response.status === 'completed' || response.result !== undefined) {
-                            clearTimeout(timeoutId);
                             if (response.error) {
                                 reject(new Error(response.error));
                             } else {
                                 resolve(response.result || response.data || response);
                             }
                         } else if (response.status === 'failed') {
-                            clearTimeout(timeoutId);
                             reject(new Error(response.error || 'Request failed'));
                         } else if (response.status === 'processing' || response.status === 'pending') {
-                            // Still processing, poll again
+                            // Still processing, poll again after 1 second
                             setTimeout(poll, pollInterval);
                         } else {
                             // Unknown status, try to extract result
-                            clearTimeout(timeoutId);
                             if (response.success === false) {
                                 reject(new Error(response.error || response.message || 'Request failed'));
                             } else {
@@ -405,8 +419,8 @@
                         }
                     })
                     .catch((error) => {
-                        this._log('Poll error:', error);
-                        // Retry on network error
+                        this._log('Poll error (will retry):', error);
+                        // Auto-retry on network error after 1 second
                         setTimeout(poll, pollInterval);
                     });
             };
@@ -530,6 +544,26 @@
             }
         }
 
+        _sendClientId() {
+            /**
+             * Send client ID to server after WebSocket connection
+             *
+             * Server will check if this client has pending tasks (inventory)
+             * and push them if reconnecting with history.
+             */
+            if (this.mode === 'ws' && this.connected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                try {
+                    this.ws.send(JSON.stringify({
+                        type: 'client_id',
+                        client_id: this.options.clientId
+                    }));
+                    this._log('Sent client ID to server:', this.options.clientId);
+                } catch (error) {
+                    this._log('Failed to send client ID:', error);
+                }
+            }
+        }
+
         _sendAck(requestId) {
             /**
              * Send ACK confirmation for received message
@@ -577,8 +611,8 @@
                 this.ws = null;
             }
 
-            this.pendingRequests.forEach(({ timeout, reject }) => {
-                clearTimeout(timeout);
+            // Reject all pending requests
+            this.pendingRequests.forEach(({ reject }) => {
                 reject(new Error('Client closed'));
             });
 

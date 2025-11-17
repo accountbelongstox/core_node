@@ -21,6 +21,7 @@ import platform
 
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon import Commander
 
 # Dependency Map
 # Maps the required import name to the official PyPI package name.
@@ -83,7 +84,7 @@ DEPENDENCY_MAP = {
     "cnocr": "cnocr[ort-cpu]",
 
     # For document processing
-    "PyPDF2": "PyPDF2",
+    "pypdf": "pypdf",
     "pdfplumber": "pdfplumber",
     "docx": "python-docx",
     "openpyxl": "openpyxl",
@@ -94,6 +95,10 @@ DEPENDENCY_MAP = {
 
     # For machine learning and color analysis
     "sklearn": "scikit-learn",
+
+    # For browser automation (pybrowser)
+    "selenium": "selenium",
+    "webdriver_manager": "webdriver-manager",
 
     # For database operations
     "sqlalchemy": "sqlalchemy",
@@ -106,6 +111,9 @@ DEPENDENCY_MAP = {
     #       Package name uses hyphens (azure-cognitiveservices-speech)
     #       Install with: pip install azure-cognitiveservices-speech
     "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
+
+    # For offline STT (local provider)
+    "vosk": "vosk",
 
     # For audio input/output (cross-platform)
     # Standard PyAudio for Linux/macOS
@@ -281,21 +289,25 @@ def install_system_packages():
 def build_pip_install_command(package_name: str) -> list:
     """
     Build pip install command with platform-specific flags.
-    
+
     Args:
         package_name: The package name to install
-    
+
     Returns:
         List of command arguments for subprocess.run()
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]
-    
+
     # On Linux/Mac, use --break-system-packages --ignore-installed for reliable installation
     # On Windows, use normal pip install
     if current_platform != 'Windows':
         pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
-    
+    else:
+        # On Windows, use --no-user to avoid installing to user directory
+        # This ensures packages are installed to the Python interpreter's site-packages
+        pip_cmd.append("--no-user")
+
     pip_cmd.append(package_name)
     return pip_cmd
 
@@ -310,39 +322,18 @@ def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> bo
     
     Returns:
         True if installation succeeded, False otherwise
+    
+    Note: Uses Commander.exec_realtime() which collects output.
+    Recommended to check output string instead of return code.
     """
-    try:
-        process = subprocess.Popen(
-            pip_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            universal_newlines=True
-        )
-        
-        # Read output line by line in real-time
-        for line in process.stdout:
-            line = line.strip()
-            if line:
-                # Show important installation progress lines
-                if any(keyword in line.lower() for keyword in [
-                    "downloading", "installing", "collecting", "successfully",
-                    "building", "wheels", "already satisfied", "requirement"
-                ]):
-                    ColorPrint.gray(f"   {line}")
-        
-        # Wait for process to complete
-        process.wait()
-        
-        if process.returncode == 0:
-            return True
-        else:
-            ColorPrint.red(f"[ERROR] Installation failed with return code {process.returncode}")
-            return False
-            
-    except Exception as e:
-        ColorPrint.red(f"[ERROR] Command execution failed: {e}")
+    result = Commander.exec_realtime(pip_cmd, info=True, show_output=True)
+    
+    # Check output for success indicators (recommended approach)
+    output = result.get_output().lower()
+    if "successfully installed" in output or "already satisfied" in output or result.success:
+        return True
+    else:
+        ColorPrint.red(f"[ERROR] Installation failed. Output: {result.get_output()}")
         return False
 
 
@@ -356,35 +347,20 @@ def run_command_with_realtime_output(cmd: list, description: str = "") -> bool:
     
     Returns:
         True if command succeeded, False otherwise
+    
+    Note: Uses Commander.exec_realtime() which collects output.
+    Recommended to check output string instead of return code.
     """
-    try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            universal_newlines=True
-        )
-        
-        # Read output line by line in real-time
-        for line in process.stdout:
-            line = line.strip()
-            if line:
-                ColorPrint.gray(f"   {line}")
-        
-        # Wait for process to complete
-        process.wait()
-        
-        if process.returncode == 0:
-            return True
-        else:
-            ColorPrint.red(f"[ERROR] Command failed with return code {process.returncode}")
-            return False
-            
-    except Exception as e:
-        ColorPrint.red(f"[ERROR] Command execution failed: {e}")
+    result = Commander.exec_realtime(cmd, info=bool(description), show_output=True)
+    
+    # Check output for success (recommended approach)
+    if result.success and result.has_output():
+        return True
+    elif not result.success:
+        ColorPrint.red(f"[ERROR] Command failed. Output: {result.get_output()}")
         return False
+    else:
+        return result.success
 
 
 def install_and_reimport_azure():
@@ -523,9 +499,13 @@ def check_and_install_dependencies():
     # Upgrade pip first if any packages need installation
     if needs_installation:
         ColorPrint.blue("[INFO] Upgrading pip to latest version...")
+        # Note: Don't use --target for pip itself, it's a special case
         pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
         if current_platform != 'Windows':
             pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
+        else:
+            # On Windows, use --no-user to avoid user directory issues
+            pip_upgrade_cmd.append("--no-user")
         if run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip"):
             ColorPrint.green("[SUCCESS] pip upgraded successfully")
         else:
@@ -756,6 +736,72 @@ def get_third_package_numpy():
     return _lazy_import('numpy', 'import numpy')
 
 
+def get_third_package_selenium():
+    """Get selenium package (lazy load)"""
+    return _lazy_import('selenium', 'import selenium')
+
+
+def get_third_package_selenium_webdriver():
+    """Get selenium.webdriver module (lazy load)"""
+    if 'selenium_webdriver' not in _PACKAGE_CACHE:
+        from selenium import webdriver as selenium_webdriver
+        _PACKAGE_CACHE['selenium_webdriver'] = selenium_webdriver
+    return _PACKAGE_CACHE['selenium_webdriver']
+
+
+def get_third_package_selenium_by():
+    """Get selenium.webdriver.common.by.By (lazy load)"""
+    if 'selenium_by' not in _PACKAGE_CACHE:
+        from selenium.webdriver.common.by import By as selenium_by
+        _PACKAGE_CACHE['selenium_by'] = selenium_by
+    return _PACKAGE_CACHE['selenium_by']
+
+
+def get_third_package_selenium_support_ui():
+    """Get selenium.webdriver.support.ui module (lazy load)"""
+    if 'selenium_support_ui' not in _PACKAGE_CACHE:
+        from selenium.webdriver.support import ui as selenium_support_ui
+        _PACKAGE_CACHE['selenium_support_ui'] = selenium_support_ui
+    return _PACKAGE_CACHE['selenium_support_ui']
+
+
+def get_third_package_selenium_support_expected_conditions():
+    """Get selenium.webdriver.support.expected_conditions module (lazy load)"""
+    if 'selenium_support_expected_conditions' not in _PACKAGE_CACHE:
+        from selenium.webdriver.support import expected_conditions as selenium_expected_conditions
+        _PACKAGE_CACHE['selenium_support_expected_conditions'] = selenium_expected_conditions
+    return _PACKAGE_CACHE['selenium_support_expected_conditions']
+
+
+def get_third_package_webdriver_manager():
+    """Get webdriver_manager package (lazy load)"""
+    return _lazy_import('webdriver_manager', 'import webdriver_manager')
+
+
+def get_third_package_webdriver_manager_chrome():
+    """Get webdriver_manager.chrome.ChromeDriverManager (lazy load)"""
+    if 'webdriver_manager_chrome' not in _PACKAGE_CACHE:
+        from webdriver_manager.chrome import ChromeDriverManager as _ChromeDriverManager
+        _PACKAGE_CACHE['webdriver_manager_chrome'] = _ChromeDriverManager
+    return _PACKAGE_CACHE['webdriver_manager_chrome']
+
+
+def get_third_package_webdriver_manager_edge():
+    """Get webdriver_manager.microsoft.EdgeChromiumDriverManager (lazy load)"""
+    if 'webdriver_manager_edge' not in _PACKAGE_CACHE:
+        from webdriver_manager.microsoft import EdgeChromiumDriverManager as _EdgeChromiumDriverManager
+        _PACKAGE_CACHE['webdriver_manager_edge'] = _EdgeChromiumDriverManager
+    return _PACKAGE_CACHE['webdriver_manager_edge']
+
+
+def get_third_package_webdriver_manager_firefox():
+    """Get webdriver_manager.firefox.GeckoDriverManager (lazy load)"""
+    if 'webdriver_manager_firefox' not in _PACKAGE_CACHE:
+        from webdriver_manager.firefox import GeckoDriverManager as _GeckoDriverManager
+        _PACKAGE_CACHE['webdriver_manager_firefox'] = _GeckoDriverManager
+    return _PACKAGE_CACHE['webdriver_manager_firefox']
+
+
 def get_third_package_adb_shell():
     """Get adb_shell package (lazy load)"""
     return _lazy_import('adb_shell', 'import adb_shell')
@@ -812,9 +858,14 @@ def get_third_package_pyperclip():
 
 
 # Document processing packages
+def get_third_package_pypdf():
+    """Get pypdf package (lazy load)"""
+    return _lazy_import('pypdf', 'import pypdf')
+
+
 def get_third_package_PyPDF2():
-    """Get PyPDF2 package (lazy load)"""
-    return _lazy_import('PyPDF2', 'import PyPDF2')
+    """Deprecated compatibility alias for pypdf"""
+    return get_third_package_pypdf()
 
 
 def get_third_package_pdfplumber():
@@ -908,6 +959,18 @@ def get_third_package_edge_tts():
     if 'edge_tts' not in _PACKAGE_CACHE:
         _PACKAGE_CACHE['edge_tts'] = install_and_reimport_edge_tts()
     return _PACKAGE_CACHE['edge_tts']
+
+
+def get_third_package_vosk():
+    """Get Vosk package (lazy load, optional)"""
+    if 'vosk' not in _PACKAGE_CACHE:
+        try:
+            import vosk
+            _PACKAGE_CACHE['vosk'] = vosk
+        except ImportError:
+            ColorPrint.yellow("[WARNING] Vosk not available")
+            _PACKAGE_CACHE['vosk'] = None
+    return _PACKAGE_CACHE['vosk']
 
 
 # Audio packages
@@ -1061,6 +1124,7 @@ __all__ = [
     'get_third_package_pynput',
     'get_third_package_pyperclip',
     # Document processing packages
+    'get_third_package_pypdf',
     'get_third_package_PyPDF2',
     'get_third_package_pdfplumber',
     'get_third_package_docx',

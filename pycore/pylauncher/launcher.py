@@ -402,31 +402,42 @@ def launch_speech_only(
         else:
             ColorPrint.red("[Launcher] Failed to start RPC service")
 
+    # TODO: Temporarily disabled - device selection needs fixing
     # Create and start speech thread
-    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+    # from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+    #
+    # thread = SpeechTranscriptionThread(
+    #     mode=mode,
+    #     mic_language=mic_language,
+    #     system_language=system_language,
+    #     daemon=False  # Not daemon for standalone mode
+    # )
+    #
+    # ColorPrint.green(f"[Launcher] Starting speech transcription - Mode: {mode}")
+    # thread.start()
+    #
+    # # Send start event
+    # THREAD_BUS.signal("speech.launcher.started", {
+    #     "mode": mode,
+    #     "platform": current_platform,
+    #     "mic_language": mic_language,
+    #     "system_language": system_language,
+    #     "rpc_enabled": enable_rpc,
+    #     "rpc_port": rpc_port if enable_rpc else None
+    # })
+    #
+    # # Wait for thread to complete (blocking)
+    # thread.join()
 
-    thread = SpeechTranscriptionThread(
-        mode=mode,
-        mic_language=mic_language,
-        system_language=system_language,
-        daemon=False  # Not daemon for standalone mode
-    )
-
-    ColorPrint.green(f"[Launcher] Starting speech transcription - Mode: {mode}")
-    thread.start()
-
-    # Send start event
-    THREAD_BUS.signal("speech.launcher.started", {
-        "mode": mode,
-        "platform": current_platform,
-        "mic_language": mic_language,
-        "system_language": system_language,
-        "rpc_enabled": enable_rpc,
-        "rpc_port": rpc_port if enable_rpc else None
-    })
-
-    # Wait for thread to complete (blocking)
-    thread.join()
+    # Keep RPC server running if enabled
+    if enable_rpc and rpc_instances:
+        ColorPrint.yellow("[Launcher] RPC-only mode - Press Ctrl+C to stop")
+        try:
+            import time
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            ColorPrint.blue("\n[Launcher] Shutting down...")
 
     # Cleanup RPC if started
     if rpc_instances:
@@ -434,7 +445,7 @@ def launch_speech_only(
         from pycore.pylauncher import stop_services
         stop_services(rpc_instances)
 
-    ColorPrint.blue("[Launcher] Speech transcription completed")
+    ColorPrint.blue("[Launcher] Service completed")
     return True
 
 
@@ -642,25 +653,20 @@ def launch_services(
         instances.tts_switch = instances.speech_switch
         instances.stt_switch = instances.speech_switch
 
-    # Step 4: Start RPC Server (thread-based, non-blocking)
+    # Step 4: Start RPC Server (HTTP + WebSocket with CORS support)
     if config.enable_rpc:
-        ColorPrint.blue("[Launcher] Starting RPC Server Thread...")
-        # Use ThreadedRpcServer - pure thread-based, NO asyncio
-        from pycore.pyutils.rpc import get_threaded_rpc_server
-        instances.rpc_server = get_threaded_rpc_server()
-        instances.rpc_server.configure(
+        ColorPrint.blue("[Launcher] Starting RPC Server (HTTP/WebSocket)...")
+        # Use UnifiedRpcServerRunner - aiohttp + WebSocket on same port
+        from pycore.pyutils.rpc import UnifiedRpcServerRunner
+        instances.rpc_server = UnifiedRpcServerRunner(
             host=config.rpc_host,
             port=config.rpc_port,
-            debug=config.rpc_debug if hasattr(config, 'rpc_debug') else True  # Enable debug by default
+            debug=config.rpc_debug if hasattr(config, 'rpc_debug') else True
         )
-        # Start as thread (Thread.start())
         instances.rpc_server.start()
-        ColorPrint.green(f"[Launcher] RPC Server Thread started (port: {config.rpc_port})")
+        ColorPrint.green(f"[Launcher] RPC Server started on {config.rpc_host}:{config.rpc_port}")
         ColorPrint.blue(f"[Launcher] HTTP RPC: http://{config.rpc_host}:{config.rpc_port}/rpc/<route>")
-
-        # NOTE: RPC Server does NOT register to GlobalThreadPool
-        # It is an HTTP interface layer, not a task processor
-        # Only task processors (SpeechSwitch) should register
+        ColorPrint.blue(f"[Launcher] WebSocket RPC: ws://{config.rpc_host}:{config.rpc_port}/rpc/ws")
 
         # Store in THREAD_BUS for other modules to access
         THREAD_BUS.send_message("launcher.rpc_server", instances.rpc_server)

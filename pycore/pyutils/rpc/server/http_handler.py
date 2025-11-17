@@ -19,7 +19,7 @@ aiohttp = get_third_package_aiohttp()
 web = aiohttp.web
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
-from pycore.pyutils.rpc.common.request_event_table import RequestEventTable, RequestStatus
+from pycore.pyutils.rpc.common.task_table import RequestEventTable, RequestStatus
 from pycore.pyutils.rpc.common.inventory_table import InventoryTable
 from pycore.pyutils.rpc.server.ack_manager import AckManager
 
@@ -165,23 +165,34 @@ class HttpHandler:
             if existing_event:
                 if existing_event.status == RequestStatus.COMPLETED:
                     # Result ready, return it with requires_ack flag
+                    # ✅ Unified message format: type, id, status, success, result, error, timestamp, queue
+                    import time
                     return self.ack_manager.prepare_http_response_with_ack(
                         request_id=request_id,
                         data={
+                            'type': 'completed',  # ✅ Added: message type
                             'id': request_id,
+                            'status': 'completed',  # ✅ Added: task status
+                            'success': existing_event.error is None,
                             'result': existing_event.result,
                             'error': existing_event.error,
-                            'success': existing_event.error is None
+                            'timestamp': existing_event.completed_at or int(time.time() * 1000),  # ✅ Added: timestamp
+                            'queue': None  # ✅ Added: queue info (null for completed)
                         },
                         status_code=200,
                         event=existing_event
                     )
                 elif existing_event.status == RequestStatus.PROCESSING:
                     # Still processing, return accepted
+                    # ✅ Unified message format: type, id, status, message, timestamp, queue
+                    import time
                     return web.json_response({
+                        'type': 'processing',  # ✅ Added: message type
                         'id': request_id,
                         'status': 'processing',
-                        'message': 'Request is being processed'
+                        'message': 'Request is being processed',
+                        'timestamp': int(time.time() * 1000),  # ✅ Added: timestamp
+                        'queue': None  # ✅ Added: queue info (could add queue position if available)
                     }, status=202)  # 202 Accepted
             
             # Step 3: Create event in event table
@@ -295,28 +306,44 @@ class HttpHandler:
             
             if event.status == RequestStatus.COMPLETED:
                 # Return result with requires_ack flag
+                # ✅ Unified message format: type, id, status, success, result, error, timestamp, queue
+                import time
                 return self.ack_manager.prepare_http_response_with_ack(
                     request_id=request_id,
                     data={
+                        'type': 'completed',  # ✅ Added: message type
                         'id': request_id,
+                        'status': 'completed',  # ✅ Added: task status
+                        'success': event.error is None,
                         'result': event.result,
                         'error': event.error,
-                        'success': event.error is None
+                        'timestamp': event.completed_at or int(time.time() * 1000),  # ✅ Added: timestamp
+                        'queue': None  # ✅ Added: queue info (null for completed)
                     },
                     status_code=200,
                     event=event
                 )
             elif event.status == RequestStatus.PROCESSING:
+                # ✅ Unified message format: type, id, status, message, timestamp, queue
+                import time
                 return web.json_response({
+                    'type': 'processing',  # ✅ Added: message type
                     'id': request_id,
                     'status': 'processing',
-                    'message': 'Request is being processed'
+                    'message': 'Request is being processed',
+                    'timestamp': int(time.time() * 1000),  # ✅ Added: timestamp
+                    'queue': None  # ✅ Added: queue info (could add queue position if available)
                 }, status=202)  # 202 Accepted (not ready yet)
             elif event.status == RequestStatus.PENDING:
+                # ✅ Unified message format: type, id, status, message, timestamp, queue
+                import time
                 return web.json_response({
+                    'type': 'pending',  # ✅ Added: message type
                     'id': request_id,
                     'status': 'pending',
-                    'message': 'Request is pending'
+                    'message': 'Request is pending',
+                    'timestamp': int(time.time() * 1000),  # ✅ Added: timestamp
+                    'queue': None  # ✅ Added: queue info (could add queue position if available)
                 }, status=202)  # 202 Accepted (not ready yet)
             else:
                 return web.json_response({

@@ -10,6 +10,7 @@ import time
 from typing import Dict, Any, List
 from urllib.parse import urlparse
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.pybrowser.core.spider_engine import SpiderEngine
 from pycore.pyutils.pybrowser.fetchers.base_fetcher import BaseFetcher, FetchResult
 
 
@@ -63,8 +64,6 @@ class IframeFetcher(BaseFetcher):
             True if successful
         """
         options = options or {}
-
-        from pycore.pyutils.pybrowser.core.spider_engine import SpiderEngine
 
         # Create engine
         self.engine = SpiderEngine()

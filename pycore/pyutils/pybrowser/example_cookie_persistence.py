@@ -44,7 +44,7 @@ def example_1_basic_usage():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Cookies saved to 'default' profile")
+    ColorPrint.green("\n[OK] Cookies saved to 'default' profile")
 
 
 def example_2_load_latest():
@@ -78,7 +78,7 @@ def example_2_load_latest():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Example completed")
+    ColorPrint.green("\n[OK] Example completed")
 
 
 def example_3_multiple_sessions():
@@ -133,7 +133,7 @@ def example_3_multiple_sessions():
     browser_b.stop()
     browser_b.join()
 
-    ColorPrint.green("\n✓ Two separate cookie sessions created: account_a, account_b")
+    ColorPrint.green("\n[OK] Two separate cookie sessions created: account_a, account_b")
 
 
 def example_4_realtime_save():
@@ -170,7 +170,7 @@ def example_4_realtime_save():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Cookies saved in real-time after each navigation")
+    ColorPrint.green("\n[OK] Cookies saved in real-time after each navigation")
 
 
 def example_5_manual_control():
@@ -200,13 +200,13 @@ def example_5_manual_control():
     # Manually save cookies
     ColorPrint.blue("Manually saving cookies to 'my_session'...")
     profile_name = browser.save_cookies_manual('my_session')
-    ColorPrint.green(f"✓ Cookies saved to profile: {profile_name}")
+    ColorPrint.green(f"[OK] Cookies saved to profile: {profile_name}")
 
     # Manually load cookies
     ColorPrint.blue("\nManually loading cookies from 'my_session'...")
     success = browser.load_cookies_manual('my_session')
     if success:
-        ColorPrint.green("✓ Cookies loaded successfully")
+        ColorPrint.green("[OK] Cookies loaded successfully")
 
     # List all profiles
     profiles = browser.list_cookie_profiles()
@@ -253,7 +253,7 @@ def example_6_new_session():
     browser2.wait_until_ready()
 
     profiles = browser2.list_cookie_profiles()
-    ColorPrint.green(f"\n✓ New session created. All profiles: {profiles}")
+    ColorPrint.green(f"\n[OK] New session created. All profiles: {profiles}")
 
     browser2.stop()
     browser2.join()
@@ -292,7 +292,7 @@ def example_7_profile_management():
         # Cleanup old profiles (keep 10 most recent)
         ColorPrint.blue("\nCleaning up old profiles (keeping 10 most recent)...")
         deleted = browser.cookie_manager.cleanup_old_profiles(keep_count=10)
-        ColorPrint.green(f"✓ Deleted {deleted} old profiles")
+        ColorPrint.green(f"[OK] Deleted {deleted} old profiles")
 
     browser.stop()
     browser.join()
@@ -327,7 +327,7 @@ def example_8_disable_persistence():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Browser ran without cookie persistence")
+    ColorPrint.green("\n[OK] Browser ran without cookie persistence")
 
 
 def main():
@@ -357,25 +357,12 @@ def main():
     if choice == "":
         # Run all examples
         for name, func in examples:
-            try:
-                func()
-                time.sleep(2)
-            except KeyboardInterrupt:
-                ColorPrint.yellow("\n\nExamples interrupted by user")
-                break
-            except Exception as e:
-                ColorPrint.red(f"\n✗ Error in {name}: {e}")
-                import traceback
-                traceback.print_exc()
+            func()
+            time.sleep(2)
     elif choice.isdigit() and 1 <= int(choice) <= len(examples):
         # Run specific example
         name, func = examples[int(choice) - 1]
-        try:
-            func()
-        except Exception as e:
-            ColorPrint.red(f"\n✗ Error in {name}: {e}")
-            import traceback
-            traceback.print_exc()
+        func()
     else:
         ColorPrint.red("Invalid choice")
 

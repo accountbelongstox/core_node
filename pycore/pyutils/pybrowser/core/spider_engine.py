@@ -35,22 +35,18 @@ class SpiderEngine:
 
     def initialize(self):
         """Initialize spider engine"""
-        try:
-            ColorPrint.info('Initializing SpiderEngine...')
-            self.metrics['start_time'] = time.time()
+        ColorPrint.info('Initializing SpiderEngine...')
+        self.metrics['start_time'] = time.time()
 
-            self.config.load()
-            self.resource_pool.initialize()
-            self.plugin_manager.load_plugins()
+        self.config.load()
+        self.resource_pool.initialize()
+        self.plugin_manager.load_plugins()
 
-            self.is_initialized = True
-            self.event_bus.emit('engine:initialized', self.get_info())
+        self.is_initialized = True
+        self.event_bus.emit('engine:initialized', self.get_info())
 
-            ColorPrint.info('SpiderEngine initialized successfully')
-            return self
-        except Exception as error:
-            ColorPrint.red(f'Failed to initialize SpiderEngine: {error}')
-            raise
+        ColorPrint.info('SpiderEngine initialized successfully')
+        return self
 
     def create_session(self, options: Dict[str, Any] = None) -> Session:
         """
@@ -65,20 +61,16 @@ class SpiderEngine:
         if not self.is_initialized:
             raise RuntimeError('SpiderEngine must be initialized before creating sessions')
 
-        try:
-            session_config = self.config.merge_session_config(options or {})
-            session = self.session_manager.create(session_config)
+        session_config = self.config.merge_session_config(options or {})
+        session = self.session_manager.create(session_config)
 
-            self.plugin_manager.initialize_session(session)
-            self.metrics['sessions_created'] += 1
+        self.plugin_manager.initialize_session(session)
+        self.metrics['sessions_created'] += 1
 
-            self.event_bus.emit('session:created', session.get_info())
-            ColorPrint.info(f"Session created: {session.id}")
+        self.event_bus.emit('session:created', session.get_info())
+        ColorPrint.info(f"Session created: {session.id}")
 
-            return session
-        except Exception as error:
-            ColorPrint.red(f'Failed to create session: {error}')
-            raise
+        return session
 
     def close_session(self, session_id: str) -> Optional[Session]:
         """
@@ -90,16 +82,12 @@ class SpiderEngine:
         Returns:
             Closed session or None
         """
-        try:
-            session = self.session_manager.close(session_id)
-            if session:
-                self.metrics['sessions_closed'] += 1
-                self.event_bus.emit('session:closed', session.get_info())
-                ColorPrint.info(f"Session closed: {session_id}")
-            return session
-        except Exception as error:
-            ColorPrint.red(f"Failed to close session {session_id}: {error}")
-            raise
+        session = self.session_manager.close(session_id)
+        if session:
+            self.metrics['sessions_closed'] += 1
+            self.event_bus.emit('session:closed', session.get_info())
+            ColorPrint.info(f"Session closed: {session_id}")
+        return session
 
     def get_session(self, session_id: str) -> Optional[Session]:
         """
@@ -129,14 +117,10 @@ class SpiderEngine:
         Args:
             plugin: Plugin instance
         """
-        try:
-            self.plugin_manager.load_plugin(plugin)
-            self.metrics['plugins_loaded'] += 1
-            self.event_bus.emit('plugin:loaded', plugin.get_info())
-            ColorPrint.info(f"Plugin loaded: {plugin.name}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to load plugin {plugin.name}: {error}")
-            raise
+        self.plugin_manager.load_plugin(plugin)
+        self.metrics['plugins_loaded'] += 1
+        self.event_bus.emit('plugin:loaded', plugin.get_info())
+        ColorPrint.info(f"Plugin loaded: {plugin.name}")
 
     def unload_plugin(self, plugin_name: str):
         """
@@ -145,30 +129,22 @@ class SpiderEngine:
         Args:
             plugin_name: Plugin name
         """
-        try:
-            self.plugin_manager.unload_plugin(plugin_name)
-            self.event_bus.emit('plugin:unloaded', {'name': plugin_name})
-            ColorPrint.info(f"Plugin unloaded: {plugin_name}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to unload plugin {plugin_name}: {error}")
-            raise
+        self.plugin_manager.unload_plugin(plugin_name)
+        self.event_bus.emit('plugin:unloaded', {'name': plugin_name})
+        ColorPrint.info(f"Plugin unloaded: {plugin_name}")
 
     def shutdown(self):
         """Shutdown spider engine"""
-        try:
-            ColorPrint.info('Shutting down SpiderEngine...')
+        ColorPrint.info('Shutting down SpiderEngine...')
 
-            self.session_manager.close_all()
-            self.plugin_manager.cleanup()
-            self.resource_pool.cleanup()
+        self.session_manager.close_all()
+        self.plugin_manager.cleanup()
+        self.resource_pool.cleanup()
 
-            self.is_initialized = False
-            self.event_bus.emit('engine:shutdown', self.get_metrics())
+        self.is_initialized = False
+        self.event_bus.emit('engine:shutdown', self.get_metrics())
 
-            ColorPrint.info('SpiderEngine shutdown completed')
-        except Exception as error:
-            ColorPrint.red(f'Failed to shutdown SpiderEngine: {error}')
-            raise
+        ColorPrint.info('SpiderEngine shutdown completed')
 
     def get_info(self) -> Dict[str, Any]:
         """

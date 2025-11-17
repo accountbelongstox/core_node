@@ -15,18 +15,14 @@ from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
 
 from ocr_config import OCRLimits, ProcessingConfig
+from pycore.pyfoundations.third_party import get_third_package_pypdf
 
 logger = logging.getLogger(__name__)
 
 # Check for optional dependencies at module level
-_PyPDF2_available = importlib.util.find_spec("PyPDF2") is not None
 _pdf2image_available = importlib.util.find_spec("pdf2image") is not None
 
-# Import if available
-if _PyPDF2_available:
-    import PyPDF2
-else:
-    PyPDF2 = None
+pypdf = get_third_package_pypdf()
 
 if _pdf2image_available:
     from pdf2image import convert_from_path
@@ -75,8 +71,8 @@ class PDFProcessor:
 
     def _analyze_pdf(self, pdf_path: str) -> Dict[str, Any]:
         """Analyze PDF structure and properties"""
-        if not _PyPDF2_available or PyPDF2 is None:
-            logger.warning("PyPDF2 not available, returning minimal PDF info")
+        if pypdf is None:
+            logger.warning("pypdf not available, returning minimal PDF info")
             return {
                 "file_path": pdf_path,
                 "file_size": os.path.getsize(pdf_path),
@@ -99,7 +95,7 @@ class PDFProcessor:
             }
 
             with open(pdf_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = pypdf.PdfReader(file)
                 pdf_info["total_pages"] = len(pdf_reader.pages)
 
                 # Extract metadata
@@ -208,8 +204,8 @@ class PDFProcessor:
 
     def _create_chunk_file(self, pdf_path: str, start_page: int, end_page: int, chunk_id: int) -> str:
         """Create a PDF chunk file with specified page range"""
-        if not _PyPDF2_available or PyPDF2 is None:
-            logger.error("PyPDF2 not available, cannot create PDF chunk")
+        if pypdf is None:
+            logger.error("pypdf not available, cannot create PDF chunk")
             return pdf_path
         
         try:
@@ -219,11 +215,11 @@ class PDFProcessor:
             chunk_file = os.path.join(temp_dir, f"{original_name}_chunk_{chunk_id}_p{start_page}-{end_page}.pdf")
 
             # Create PDF writer
-            pdf_writer = PyPDF2.PdfWriter()
+            pdf_writer = pypdf.PdfWriter()
 
             # Read source PDF
             with open(pdf_path, 'rb') as input_file:
-                pdf_reader = PyPDF2.PdfReader(input_file)
+                pdf_reader = pypdf.PdfReader(input_file)
 
                 # Add specified pages (convert to 0-based indexing)
                 for page_num in range(start_page - 1, end_page):

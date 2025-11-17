@@ -1,60 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Common Utilities - TTS Switch and Shared Components
+Common Speech Utilities
 
-Provides unified TTS routing and common utilities.
-Integrates with PyHeartbeat system for task management.
+Provides the unified SpeechSwitch plus legacy compatibility helpers.
+Integrates with PyHeartbeat for task management.
 
 Components:
-- TTSSwitch: Routes TTS tasks to available providers (edge_tts, azure_tts)
-- Shared utilities for speech processing
-
-Usage:
-    from pycore.pyutils.common import get_tts_switch, initialize_tts_switch
-
-    # Initialize TTS switch
-    switch = initialize_tts_switch(
-        max_queue_size=50,
-        default_provider='edge',
-        register_heartbeat=True  # Register with GlobalThreadPool
-    )
-
-    # Check status
-    status = switch.get_status()
-    print(f"Available: {switch.get_available_providers()}")
-
-    # Direct task submission (bypassing heartbeat)
-    from pycore.pyfoundations import Task
-    task = Task(task_type='tts', task_data={'text': 'Hello', 'language': 'en-US'})
-    switch.accept_task(task)
-
-Architecture:
-    Web Request → RPC → GlobalTaskQueue → HeartbeatPusher → TTSSwitch → Provider → Callback
-    or
-    Direct → TTSSwitch.accept_task() → Provider → Callback
-
-Thread Safety:
-    - All operations are thread-safe
-    - Uses internal queue for task processing
-    - Integrates with PyHeartbeat GlobalThreadPool
-    - Non-blocking task acceptance
+- SpeechSwitch: Routes both TTS and STT tasks based on provider status
+- Legacy wrappers: TTSSwitch/STTSwitch aliases for backward compatibility
+- Shared task models and provider status helpers
 """
 
-# TTS Switch exports
+# Legacy switch exports (proxies to SpeechSwitch)
 from pycore.pyutils.common.tts_switch import (
     TTSProvider,
     TTSSwitch,
     get_tts_switch,
-    initialize_tts_switch
+    initialize_tts_switch,
 )
-
-# STT Switch exports
 from pycore.pyutils.common.stt_switch import (
     STTProvider,
     STTSwitch,
     get_stt_switch,
-    initialize_stt_switch
+    initialize_stt_switch,
 )
 
 # Speech Task Models exports
@@ -72,6 +41,12 @@ from pycore.pyutils.common.speech_task_models import (
 from pycore.pyutils.common.global_config import (
     GlobalConfig,
     global_config
+)
+
+# Speech Configuration exports (SQLite-backed, util_speech namespace)
+from pycore.pyutils.common.speech_config import (
+    SpeechConfig,
+    speech_config
 )
 
 # Provider Status exports
@@ -110,6 +85,9 @@ __all__ = [
     # Global Configuration
     'GlobalConfig',
     'global_config',
+    # Speech Configuration
+    'SpeechConfig',
+    'speech_config',
     # Provider Status
     'ProviderStatus',
     'ProviderInfo',

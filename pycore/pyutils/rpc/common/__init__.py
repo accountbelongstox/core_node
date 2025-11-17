@@ -6,12 +6,14 @@ RPC Common Utilities
 Common utilities shared by HTTP and WebSocket RPC implementations.
 """
 
-from pycore.pyutils.rpc.common.event_cache import EventCache, default_event_cache
-from pycore.pyutils.rpc.common.request_manager import RequestManager, default_request_manager
-from pycore.pyutils.rpc.common.request_event_table import (
+from pycore.pyutils.rpc.common.task_table import (
+    TaskTable,
+    Task,
+    RequestStatus,
+    default_task_table,
+    # Backward compatibility
     RequestEventTable,
     RequestEvent,
-    RequestStatus,
     default_request_event_table
 )
 from pycore.pyutils.rpc.common.inventory_table import (
@@ -21,14 +23,16 @@ from pycore.pyutils.rpc.common.inventory_table import (
 )
 
 __all__ = [
-    'EventCache',
-    'default_event_cache',
-    'RequestManager',
-    'default_request_manager',
+    # New async task API
+    'TaskTable',
+    'Task',
+    'RequestStatus',
+    'default_task_table',
+    # Backward compatibility
     'RequestEventTable',
     'RequestEvent',
-    'RequestStatus',
     'default_request_event_table',
+    # Inventory
     'InventoryTable',
     'InventoryItem',
     'default_inventory_table',

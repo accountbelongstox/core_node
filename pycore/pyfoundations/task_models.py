@@ -25,10 +25,11 @@ class TaskState(Enum):
 
 class TaskPriority(Enum):
     """Task priority levels (lower value = higher priority)"""
-    CRITICAL = 1
-    HIGH = 2
-    NORMAL = 3
-    LOW = 4
+    URGENT = 0      # Highest priority (immediate execution)
+    CRITICAL = 1    # Critical tasks (system-level)
+    HIGH = 2        # High priority tasks
+    NORMAL = 3      # Normal priority (default)
+    LOW = 4         # Low priority tasks
 
 
 @dataclass

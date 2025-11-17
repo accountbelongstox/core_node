@@ -15,6 +15,9 @@ from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
 
+# Import type converter for automatic type conversion
+from pycore.database.type_converter import DatabaseTypeConverter
+
 
 class BaseModel(ABC):
     """
@@ -144,7 +147,10 @@ class BaseModel(ABC):
         if not cls.__is_initialized__:
             raise RuntimeError(f"Table {cls.__table_key__} not initialized. Call load_tables() first.")
 
-        result = conn.execute(cls.__table__.insert().values(**data))
+        # Type conversion: Python objects → Database-compatible types
+        converted_data = DatabaseTypeConverter.prepare_data_for_db(data)
+
+        result = conn.execute(cls.__table__.insert().values(**converted_data))
         conn.commit()
         return result.inserted_primary_key[0]
 
@@ -166,7 +172,10 @@ class BaseModel(ABC):
         if not data_list:
             return 0
 
-        result = conn.execute(cls.__table__.insert(), data_list)
+        # Type conversion: Convert all rows in batch
+        converted_list = [DatabaseTypeConverter.prepare_data_for_db(data) for data in data_list]
+
+        result = conn.execute(cls.__table__.insert(), converted_list)
         conn.commit()
         return result.rowcount
 
@@ -245,13 +254,17 @@ class BaseModel(ABC):
         if not cls.__is_initialized__:
             raise RuntimeError(f"Table {cls.__table_key__} not initialized. Call load_tables() first.")
 
+        # Type conversion: Python objects → Database-compatible types
+        converted_data = DatabaseTypeConverter.prepare_data_for_db(data)
+        converted_where = DatabaseTypeConverter.prepare_data_for_db(where)
+
         query = cls.__table__.update()
 
         # Add where conditions
-        for key, value in where.items():
+        for key, value in converted_where.items():
             query = query.where(getattr(cls.__table__.c, key) == value)
 
-        query = query.values(**data)
+        query = query.values(**converted_data)
         result = conn.execute(query)
         conn.commit()
         return result.rowcount

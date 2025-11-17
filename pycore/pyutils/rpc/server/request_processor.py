@@ -12,7 +12,7 @@ from typing import Dict, Optional, Any, Callable
 
 from pycore import ColorPrint
 
-from pycore.pyutils.rpc.common.request_event_table import RequestEventTable, RequestStatus
+from pycore.pyutils.rpc.common.task_table import RequestEventTable, RequestStatus
 
 
 class RequestProcessor:

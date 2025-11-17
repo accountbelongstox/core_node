@@ -23,7 +23,7 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
     Register TTS routes on RPC server
 
     Args:
-        rpc_server: ThreadedRpcServer instance
+        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
         service_instances: Dict with 'tts_switch', 'stt_switch', etc.
     """
 
@@ -120,7 +120,7 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
             task.error_callback = on_error
 
         # Submit to GlobalTaskQueue
-        # HeartbeatPusher will route to TTSSwitch
+        # HeartbeatPusher will route to the unified SpeechSwitch
         task_queue = get_global_task_queue()
         task_queue.put(task)
 

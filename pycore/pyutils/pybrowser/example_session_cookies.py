@@ -55,14 +55,14 @@ def example_1_default_behavior():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Next startup will only load persistent cookies")
+    ColorPrint.green("\n[OK] Next startup will only load persistent cookies")
 
 
 def example_2_include_session():
     """
     Example 2: Include Session Cookies - For automation/testing
 
-    ⚠️ Use only in controlled environments (automation, testing)
+    [WARN] Use only in controlled environments (automation, testing)
     """
     ColorPrint.green("\n" + "=" * 70)
     ColorPrint.green("Example 2: Include Session Cookies (Testing/Automation)")
@@ -72,7 +72,7 @@ def example_2_include_session():
         'headless': False,
         'cookie_config': {
             'load_strategy': 'default',
-            'include_session_cookies': True,  # ← Load session cookies
+            'include_session_cookies': True,  # <-  Load session cookies
             'save_session_cookies': True,
             'realtime_save': True  # Keep session fresh
         }
@@ -82,7 +82,7 @@ def example_2_include_session():
     browser.wait_until_ready()
 
     ColorPrint.blue("This browser will load session cookies from previous run")
-    ColorPrint.yellow("⚠️ Note: Session may be invalid if server-side session expired")
+    ColorPrint.yellow("[WARN] Note: Session may be invalid if server-side session expired")
 
     browser.navigate('https://www.example.com')
     time.sleep(2)
@@ -90,7 +90,7 @@ def example_2_include_session():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Session cookies preserved across restarts")
+    ColorPrint.green("\n[OK] Session cookies preserved across restarts")
 
 
 def example_3_no_session_save():
@@ -107,7 +107,7 @@ def example_3_no_session_save():
         'headless': False,
         'cookie_config': {
             'include_session_cookies': False,  # Don't load
-            'save_session_cookies': False      # ← Don't save either
+            'save_session_cookies': False      # <-  Don't save either
         }
     })
 
@@ -123,7 +123,7 @@ def example_3_no_session_save():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Maximum security: session cookies never stored")
+    ColorPrint.green("\n[OK] Maximum security: session cookies never stored")
 
 
 def example_4_manual_control():
@@ -164,7 +164,7 @@ def example_4_manual_control():
     browser.stop()
     browser.join()
 
-    ColorPrint.green("\n✓ Manual control allows per-operation flexibility")
+    ColorPrint.green("\n[OK] Manual control allows per-operation flexibility")
 
 
 def example_5_inspect_cookies():
@@ -208,14 +208,14 @@ def example_5_inspect_cookies():
             ColorPrint.yellow(f"[Session] {cookie['name']}: no expiry (browser session only)")
 
     ColorPrint.blue(
-        f"\n📊 Summary: {len(cookies)} total "
+        f"\n[STATS] Summary: {len(cookies)} total "
         f"({len(persistent_cookies)} persistent, {len(session_cookies)} session)"
     )
 
     # Save and inspect file
     profile_name = browser.save_cookies_manual('inspection_demo')
 
-    ColorPrint.blue(f"\n✓ Cookies saved to: {profile_name}")
+    ColorPrint.blue(f"\n[OK] Cookies saved to: {profile_name}")
     ColorPrint.blue(f"Check file: D:/www/pycore_db/cookies/{profile_name}.json")
 
     browser.stop()
@@ -253,7 +253,7 @@ def example_6_multi_profile_session_handling():
     browser1.stop()
     browser1.join()
 
-    ColorPrint.green("✓ Production profile: persistent cookies only")
+    ColorPrint.green("[OK] Production profile: persistent cookies only")
 
     # Profile 2: Testing (with session)
     ColorPrint.blue("\nCreating testing profile (with session cookies)...")
@@ -276,9 +276,9 @@ def example_6_multi_profile_session_handling():
     browser2.stop()
     browser2.join()
 
-    ColorPrint.green("✓ Testing profile: all cookies including session")
+    ColorPrint.green("[OK] Testing profile: all cookies including session")
 
-    ColorPrint.blue("\n✓ Two profiles with different session cookie policies created")
+    ColorPrint.blue("\n[OK] Two profiles with different session cookie policies created")
 
 
 def example_7_inspect_saved_format():
@@ -313,7 +313,7 @@ def example_7_inspect_saved_format():
             data = json.load(f)
 
         if 'persistent_cookies' in data:
-            ColorPrint.green("✅ New format detected!")
+            ColorPrint.green("[OK] New format detected!")
             ColorPrint.blue(f"  - Persistent cookies: {data.get('persistent_count', 0)}")
             ColorPrint.blue(f"  - Session cookies: {data.get('session_count', 0)}")
             ColorPrint.blue(f"  - Session saved: {data.get('session_saved', False)}")
@@ -329,10 +329,10 @@ def example_7_inspect_saved_format():
                 ColorPrint.yellow("\nSample session cookie:")
                 print(json.dumps(data['session_cookies'][0], indent=2))
         else:
-            ColorPrint.yellow("⚠️ Legacy format detected")
+            ColorPrint.yellow("[WARN] Legacy format detected")
             ColorPrint.blue(f"  - Total cookies: {data.get('count', 0)}")
     else:
-        ColorPrint.red(f"❌ File not found: {cookie_path}")
+        ColorPrint.red(f"[ERROR] File not found: {cookie_path}")
 
 
 def main():
@@ -361,25 +361,12 @@ def main():
     if choice == "":
         # Run all examples
         for name, func in examples:
-            try:
-                func()
-                time.sleep(2)
-            except KeyboardInterrupt:
-                ColorPrint.yellow("\n\nExamples interrupted by user")
-                break
-            except Exception as e:
-                ColorPrint.red(f"\n✗ Error in {name}: {e}")
-                import traceback
-                traceback.print_exc()
+            func()
+            time.sleep(2)
     elif choice.isdigit() and 1 <= int(choice) <= len(examples):
         # Run specific example
         name, func = examples[int(choice) - 1]
-        try:
-            func()
-        except Exception as e:
-            ColorPrint.red(f"\n✗ Error in {name}: {e}")
-            import traceback
-            traceback.print_exc()
+        func()
     else:
         ColorPrint.red("Invalid choice")
 

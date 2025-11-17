@@ -68,10 +68,7 @@ class EventBus:
         ColorPrint.debug(f"Emitting event: {event} to {len(listeners)} listeners")
 
         for callback in listeners:
-            try:
-                callback(data)
-            except Exception as error:
-                ColorPrint.red(f"Error in event listener for {event}: {error}")
+            callback(data)
 
     async def emit_async(self, event: str, data: Any = None):
         """
@@ -89,13 +86,10 @@ class EventBus:
 
         tasks = []
         for callback in listeners:
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    tasks.append(callback(data))
-                else:
-                    callback(data)
-            except Exception as error:
-                ColorPrint.red(f"Error in async event listener for {event}: {error}")
+            if asyncio.iscoroutinefunction(callback):
+                tasks.append(callback(data))
+            else:
+                callback(data)
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

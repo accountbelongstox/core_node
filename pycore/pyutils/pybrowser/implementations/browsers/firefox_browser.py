@@ -11,13 +11,19 @@ import shutil
 import time
 from typing import Dict, Any, Optional
 
-from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.common.by import By
-
 from pycore import ColorPrint
+from pycore.pyfoundations.third_party import (
+    get_third_package_selenium_webdriver,
+    get_third_package_selenium_by,
+    get_third_package_webdriver_manager_firefox
+)
 from pycore.pyutils.pybrowser.core.threaded_browser import ThreadedBrowser
+
+webdriver = get_third_package_selenium_webdriver()
+By = get_third_package_selenium_by()
+GeckoDriverManager = get_third_package_webdriver_manager_firefox()
+Service = webdriver.firefox.service.Service
+Options = webdriver.firefox.options.Options
 
 
 class FirefoxBrowser(ThreadedBrowser):
@@ -94,8 +100,6 @@ class FirefoxBrowser(ThreadedBrowser):
             ColorPrint.yellow(f"{self.name}: Driver not found locally, attempting download...")
             ColorPrint.yellow(f"{self.name}: Note: This requires internet connection")
 
-            from webdriver_manager.firefox import GeckoDriverManager
-
             # Let download errors propagate naturally
             downloaded_path = GeckoDriverManager().install()
             ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
@@ -122,7 +126,6 @@ class FirefoxBrowser(ThreadedBrowser):
         # Mode 3: Auto-download (requires internet)
         if driver_mode == 'auto_download':
             ColorPrint.blue(f"{self.name}: Attempting to download GeckoDriver...")
-            from webdriver_manager.firefox import GeckoDriverManager
             downloaded_path = GeckoDriverManager().install()
             ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
             return Service(downloaded_path)

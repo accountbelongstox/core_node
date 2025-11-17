@@ -25,8 +25,7 @@ pyaudiowpatch = get_third_package_pyaudiowpatch()
 from pycore.pyutils.audio_utils import SilenceDetector
 from pycore.pyutils.clipboard import clipboard_manager, add_recognition_to_clipboard
 from pycore.pyutils.hotkey import HotkeyListener
-from pycore.pyutils.config_cache import speech_config_cache
-from pycore.pyutils.tts_cache import tts_cache_manager
+from pycore.pyutils.common import speech_config
 
 # Platform detection
 CURRENT_PLATFORM = platform.system()  # 'Windows', 'Linux', 'Darwin' (macOS)
@@ -783,13 +782,12 @@ def select_language_with_cache(source: str = "default", allow_multi_select: bool
         List of selected language codes
     """
     # Check cache first
-    cached_languages = speech_config_cache.get_languages(source)
+    cached_languages = speech_config.get(f"ui_languages_{source}")
     if cached_languages:
         ColorPrint.green(f"\n[Cached {source} languages: {cached_languages}]")
 
         # Check if auto-use cached config is enabled
-        from pycore.pyutils.common import global_config
-        auto_use_cached = global_config.get('speech_auto_use_cached', True)
+        auto_use_cached = speech_config.get('auto_use_cached', True)
 
         if auto_use_cached:
             ColorPrint.blue("[Auto-using cached languages (speech_auto_use_cached=True)]")
@@ -847,14 +845,14 @@ def select_language_with_cache(source: str = "default", allow_multi_select: bool
 
             if valid and selected_languages:
                 # Cache selection
-                speech_config_cache.set_languages(selected_languages, source)
+                speech_config.set(f"ui_languages_{source}", selected_languages)
                 return selected_languages
         else:
             # Single select
             if choice in language_map:
                 language = language_map[choice]
                 # Cache selection
-                speech_config_cache.set_languages([language], source)
+                speech_config.set(f"ui_languages_{source}", [language])
                 return [language]
 
         ColorPrint.yellow("Invalid choice, please try again")
@@ -871,41 +869,63 @@ def select_device_with_cache(device_manager, device_type: str = "default"):
     Returns:
         Selected device tuple or None
     """
-    devices = device_manager.list_devices()
+    all_devices = device_manager.list_devices()
 
-    if not devices:
+    if not all_devices:
         ColorPrint.red("\nNo audio devices found")
         return None
 
+    # Filter devices based on device_type
+    if device_type == "microphone":
+        # Only show microphones (non-loopback)
+        devices = [d for d in all_devices if d[0] != 'loopback']
+        selection_title = "Select Microphone Device"
+    elif device_type == "system":
+        # Only show loopback devices (system audio)
+        devices = [d for d in all_devices if d[0] == 'loopback']
+        selection_title = "Select System Audio Device (Loopback)"
+    else:
+        # Show all devices
+        devices = all_devices
+        selection_title = "Select Audio Device"
+
+    if not devices:
+        ColorPrint.red(f"\nNo {device_type} devices found")
+        return None
+
     # Check cache
-    cached_device_index = speech_config_cache.get_audio_device(device_type)
+    cached_device_index = speech_config.get(f"ui_audio_device_{device_type}")
     if cached_device_index is not None:
         ColorPrint.green(f"\n[Cached {device_type} device: {cached_device_index}]")
 
         # Check if auto-use cached config is enabled
-        from pycore.pyutils.common import global_config
-        auto_use_cached = global_config.get('speech_auto_use_cached', True)
+        auto_use_cached = speech_config.get('auto_use_cached', True)
 
-        if auto_use_cached:
-            ColorPrint.blue("[Auto-using cached device (speech_auto_use_cached=True)]")
-            # Find device by index
-            for dev in devices:
-                if dev[1] == cached_device_index:
-                    return dev
+        # Find device by index in filtered list
+        cached_device = None
+        for dev in devices:
+            if dev[1] == cached_device_index:
+                cached_device = dev
+                break
+
+        if cached_device:
+            if auto_use_cached:
+                ColorPrint.blue("[Auto-using cached device (auto_use_cached=True)]")
+                return cached_device
+            else:
+                use_cached = input("Use cached device? (y/n) [default: y]: ").strip().lower()
+                if use_cached != 'n':
+                    return cached_device
         else:
-            use_cached = input("Use cached device? (y/n) [default: y]: ").strip().lower()
-            if use_cached != 'n':
-                # Find device by index
-                for dev in devices:
-                    if dev[1] == cached_device_index:
-                        return dev
+            ColorPrint.yellow(f"[Warning] Cached device (index {cached_device_index}) not found in current {device_type} device list")
+            ColorPrint.yellow("[Action] Please select a new device")
 
     # Select device
     selected = device_manager.select_device(devices)
     if selected:
         _, device_index, _ = selected
         # Cache selection
-        speech_config_cache.set_audio_device(device_index, device_type)
+        speech_config.set(f"ui_audio_device_{device_type}", device_index)
 
     return selected
 
@@ -918,32 +938,31 @@ def select_duration_with_cache():
         Duration in seconds (None for continuous)
     """
     # Check cache
-    cached_mode = speech_config_cache.get_duration_mode()
+    cached_mode = speech_config.get("ui_duration_mode")
     if cached_mode:
         ColorPrint.green(f"\n[Cached duration mode: {cached_mode}]")
         if cached_mode == "continuous":
             ColorPrint.green("[Cached: Continuous mode]")
         else:
-            cached_seconds = speech_config_cache.get_duration_seconds()
+            cached_seconds = speech_config.get("ui_duration_seconds")
             ColorPrint.green(f"[Cached: Limited mode - {cached_seconds}s]")
 
         # Check if auto-use cached config is enabled
-        from pycore.pyutils.common import global_config
-        auto_use_cached = global_config.get('speech_auto_use_cached', True)
+        auto_use_cached = speech_config.get('auto_use_cached', True)
 
         if auto_use_cached:
             ColorPrint.blue("[Auto-using cached duration (speech_auto_use_cached=True)]")
             if cached_mode == "continuous":
                 return None
             else:
-                return speech_config_cache.get_duration_seconds()
+                return speech_config.get("ui_duration_seconds")
         else:
             use_cached = input("Use cached duration? (y/n) [default: y]: ").strip().lower()
             if use_cached != 'n':
                 if cached_mode == "continuous":
                     return None
                 else:
-                    return speech_config_cache.get_duration_seconds()
+                    return speech_config.get("ui_duration_seconds")
 
     # Select duration
     print("\n" + "="*70)
@@ -958,7 +977,7 @@ def select_duration_with_cache():
             mode = "1"
 
         if mode == "1":
-            speech_config_cache.set_duration_mode("continuous")
+            speech_config.set("ui_duration_mode", "continuous")
             return None
         elif mode == "2":
             while True:
@@ -973,8 +992,8 @@ def select_duration_with_cache():
 
                 ColorPrint.yellow("Please enter a valid positive number")
 
-            speech_config_cache.set_duration_mode("limited")
-            speech_config_cache.set_duration_seconds(duration)
+            speech_config.set("ui_duration_mode", "limited")
+            speech_config.set("ui_duration_seconds", duration)
             return duration
         else:
             ColorPrint.yellow("Invalid choice, please try again")
@@ -990,12 +1009,11 @@ def print_recognition_cache_info(text: str, language: str, speech_manager=None):
         speech_manager: SpeechManager instance (optional, to show default TTS provider)
     """
     import hashlib
+    from pycore.database import database_manager, DATABASE_AVAILABLE
+    from pycore.database.models import SpeechTTSCacheModel, TableKeys
 
     # Calculate MD5 for text
     md5_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-
-    # Check TTS cache for this text
-    tts_stats = tts_cache_manager.get_statistics()
 
     print("\n" + "-" * 70)
     ColorPrint.blue("[Cache Info]")
@@ -1003,41 +1021,59 @@ def print_recognition_cache_info(text: str, language: str, speech_manager=None):
     print(f"MD5: {md5_hash}")
     print(f"Language: {language}")
 
-    # Get default TTS provider if speech_manager is available
-    default_provider = None
-    if speech_manager and hasattr(speech_manager, '_default_tts_provider'):
-        default_provider = speech_manager._default_tts_provider
-        ColorPrint.blue(f"Default TTS Provider: {default_provider}")
+    if not DATABASE_AVAILABLE:
+        ColorPrint.yellow("Database not available for cache lookup")
+        print("-" * 70)
+        return
 
-    # Check cache for default provider first (if available)
-    if default_provider:
-        has_cache = tts_cache_manager.has_cache(default_provider, text, language)
-        if has_cache:
-            cache_path = tts_cache_manager.get_cache_path(default_provider, text, language)
-            ColorPrint.green(f"[{default_provider.upper()}] TTS Cache: EXISTS - {cache_path.name}")
-        else:
-            ColorPrint.yellow(f"[{default_provider.upper()}] TTS Cache: NOT FOUND")
-    else:
-        # No default provider, check both
-        has_edge_cache = tts_cache_manager.has_cache("edge", text, language)
-        has_azure_cache = tts_cache_manager.has_cache("azure", text, language)
+    try:
+        # Initialize database if needed
+        if "speech" not in database_manager.connection_strings:
+            database_manager.register_database("speech")
+            database_manager.load_tables(
+                database_name="speech",
+                table_keys=[TableKeys.SPEECH_TTS_CACHE],
+                models=[SpeechTTSCacheModel]
+            )
 
-        if has_edge_cache:
-            cache_path = tts_cache_manager.get_cache_path("edge", text, language)
-            ColorPrint.green(f"Edge TTS Cache: EXISTS - {cache_path.name}")
-        else:
-            ColorPrint.yellow(f"Edge TTS Cache: NOT FOUND")
+        # Get default TTS provider if speech_manager is available
+        default_provider = None
+        if speech_manager and hasattr(speech_manager, '_default_tts_provider'):
+            default_provider = speech_manager._default_tts_provider
+            ColorPrint.blue(f"Default TTS Provider: {default_provider}")
 
-        if has_azure_cache:
-            cache_path = tts_cache_manager.get_cache_path("azure", text, language)
-            ColorPrint.green(f"Azure TTS Cache: EXISTS - {cache_path.name}")
-        else:
-            ColorPrint.yellow(f"Azure TTS Cache: NOT FOUND")
+        # Check cache using database
+        with database_manager.get_connection("speech") as conn:
+            # Check cache for default provider first (if available)
+            if default_provider:
+                record = SpeechTTSCacheModel.query_cache(conn, md5_hash, language, default_provider, verify_file=True)
+                if record:
+                    ColorPrint.green(f"[{default_provider.upper()}] TTS Cache: EXISTS - {Path(record['file_path']).name}")
+                else:
+                    ColorPrint.yellow(f"[{default_provider.upper()}] TTS Cache: NOT FOUND")
+            else:
+                # No default provider, check both
+                edge_record = SpeechTTSCacheModel.query_cache(conn, md5_hash, language, "edge", verify_file=True)
+                azure_record = SpeechTTSCacheModel.query_cache(conn, md5_hash, language, "azure", verify_file=True)
 
-    # Print overall cache stats
-    print(f"\nTotal TTS Cache Files: {tts_stats['total_cached_files']}")
-    print(f"Total Cache Size: {tts_stats['total_cache_size_mb']:.2f} MB")
-    print(f"Cache Hit Rate: {tts_stats['hit_rate']:.2f}%")
+                if edge_record:
+                    ColorPrint.green(f"Edge TTS Cache: EXISTS - {Path(edge_record['file_path']).name}")
+                else:
+                    ColorPrint.yellow(f"Edge TTS Cache: NOT FOUND")
+
+                if azure_record:
+                    ColorPrint.green(f"Azure TTS Cache: EXISTS - {Path(azure_record['file_path']).name}")
+                else:
+                    ColorPrint.yellow(f"Azure TTS Cache: NOT FOUND")
+
+            # Print overall cache stats
+            tts_stats = SpeechTTSCacheModel.get_cache_statistics(conn)
+            print(f"\nTotal TTS Cache Entries: {tts_stats['total_entries']}")
+            print(f"Total Cache Size: {tts_stats['total_cache_size_mb']:.2f} MB")
+
+    except Exception as e:
+        ColorPrint.yellow(f"Cache lookup failed: {e}")
+
     print("-" * 70)
 
 
@@ -1081,7 +1117,7 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
     else:
         # Non-interactive: use provided language or try cached
         if not language:
-            cached_languages = speech_config_cache.get_languages("default")
+            cached_languages = speech_config.get("ui_languages_default")
             if cached_languages:
                 language = cached_languages[0]
             else:
@@ -1118,7 +1154,7 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
 
         if not selected_device:
             # Try cached device
-            cached_device_index = speech_config_cache.get_audio_device("default")
+            cached_device_index = speech_config.get("ui_audio_device_default")
             if cached_device_index is not None:
                 for dev in devices:
                     if dev[1] == cached_device_index:
@@ -1140,9 +1176,9 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
     else:
         # Non-interactive: use provided duration or continuous
         if duration is None:
-            cached_mode = speech_config_cache.get_duration_mode()
+            cached_mode = speech_config.get("ui_duration_mode")
             if cached_mode == "limited":
-                duration = speech_config_cache.get_duration_seconds()
+                duration = speech_config.get("ui_duration_seconds")
             # else keep as None (continuous)
         ColorPrint.blue(f"[Non-Interactive] Duration: {'Continuous' if duration is None else f'{duration}s'}")
 

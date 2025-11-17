@@ -8,6 +8,7 @@ Browser-based fetcher using PyBrowser for JS-rendered HTML retrieval
 
 from typing import Dict, Any
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.pybrowser.core.spider_engine import SpiderEngine
 from pycore.pyutils.pybrowser.fetchers.base_fetcher import BaseFetcher, FetchResult
 
 
@@ -37,8 +38,6 @@ class BrowserFetcher(BaseFetcher):
             True if successful
         """
         options = options or {}
-
-        from pycore.pyutils.pybrowser.core.spider_engine import SpiderEngine
 
         # Create engine
         self.engine = SpiderEngine()

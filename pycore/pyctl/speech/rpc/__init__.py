@@ -3,14 +3,14 @@
 """
 RPC Service - Launcher-integrated Speech RPC
 
-Integrates with PyHeartbeat and TTSSwitch for task-based processing.
+Integrates with PyHeartbeat and the unified SpeechSwitch for task-based processing.
 Receives RPC server instance from pylauncher for non-blocking operation.
 
 Features:
 - Text-to-Speech (TTS) via PyHeartbeat queue
 - Speech-to-Text (STT) via PyHeartbeat queue
 - Task-based async processing
-- TTSSwitch routing to providers (edge/azure)
+- SpeechSwitch routing to providers (edge/azure)
 - Global state in Encyclopedia
 
 Usage:
@@ -18,7 +18,7 @@ Usage:
     from pycore.pylauncher import launch_services, create_speech_service_config
     from pycore.pyctl.speech.rpc import start_rpc_service
 
-    # Launch services (creates RPC server + heartbeat + tts_switch)
+    # Launch services (creates RPC server + heartbeat + speech_switch)
     config = create_speech_service_config(rpc_port=59000)
     instances = launch_services(config)
 
@@ -48,28 +48,15 @@ API Endpoints:
         Response: {"success": true, "stats": {"tasks_pushed": 100, ...}}
 """
 
-# New launcher-integrated RPC service
+# Launcher-integrated RPC service
 from pycore.pyctl.speech.rpc.rpc_service import (
     RPCService,
     get_rpc_service,
     start_rpc_service
 )
 
-# Legacy RPC manager (uses old task_queue system)
-# Kept for backward compatibility but deprecated
-try:
-    from pycore.pyctl.speech.rpc.rpc_manager import RpcManager, get_rpc_manager
-except ImportError:
-    RpcManager = None
-    get_rpc_manager = None
-
 __all__ = [
-    # New (PyHeartbeat-integrated)
     'RPCService',
     'get_rpc_service',
     'start_rpc_service',
-
-    # Legacy (deprecated)
-    'RpcManager',
-    'get_rpc_manager',
 ]

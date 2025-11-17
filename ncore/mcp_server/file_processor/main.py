@@ -75,11 +75,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+try:
+    from pycore.pyfoundations.third_party import get_third_package_pypdf  # type: ignore
+except Exception:
+    get_third_package_pypdf = None
+
+if get_third_package_pypdf is not None:
+    try:
+        PYPDF_LIB = get_third_package_pypdf()
+    except Exception as exc:
+        logger.warning(f"Failed to load pypdf via pycore third-party loader: {exc}")
+        try:
+            import pypdf as _pypdf_lib
+            PYPDF_LIB = _pypdf_lib
+        except ImportError:
+            logger.warning("pypdf not available in the current environment")
+            PYPDF_LIB = None
+else:
+    try:
+        import pypdf as _pypdf_lib
+        PYPDF_LIB = _pypdf_lib
+    except ImportError:
+        logger.warning("pypdf not available in the current environment")
+        PYPDF_LIB = None
+
 class PackageManager:
     """Smart package installation manager with non-blocking initialization"""
 
     PACKAGE_MAPPING = {
-        'pdf': ['PyPDF2', 'pdfplumber', 'pytesseract'],
+        'pdf': ['pypdf', 'pdfplumber', 'pytesseract'],
         'xmind': ['xmindparser'],
         'office': ['python-docx', 'openpyxl', 'python-pptx'],
         'ocr': ['pytesseract', 'Pillow', 'requests'],
@@ -536,7 +560,8 @@ class DocumentParser:
             if not PackageManager.ensure_packages('pdf'):
                 raise ImportError("PDF parsing packages not available")
 
-            import PyPDF2
+            if PYPDF_LIB is None:
+                raise ImportError("pypdf not available")
             import pdfplumber
 
             result = {
@@ -551,9 +576,9 @@ class DocumentParser:
                 }
             }
 
-            # Extract text with PyPDF2
+            # Extract text with pypdf
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PYPDF_LIB.PdfReader(file)
                 result["metadata"] = {
                     "num_pages": len(pdf_reader.pages),
                     "title": pdf_reader.metadata.get('/Title', '') if pdf_reader.metadata else '',

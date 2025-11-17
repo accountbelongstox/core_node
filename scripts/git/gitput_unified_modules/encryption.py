@@ -12,6 +12,7 @@ from gitput_unified_modules.utils import (
     get_core_node_dir,
     read_masked_password,
 )
+from pycore.pyfoundations.pybasecommon import Commander
 
 
 def find_disguise_js() -> Optional[Path]:
@@ -74,24 +75,23 @@ def encrypt_file(file_path: Path, password: str, output_dir: Path) -> bool:
         write_color_text(f"  - Password: {masked_password}", "DarkGray")
         write_color_text(f"  - Output Dir: {output_dir}", "DarkGray")
         
-        result = subprocess.run(
+        # Use Commander for execution
+        result = Commander.exec_silent(
             ["node", str(disguise_js), str(file_path), password, str(output_dir)],
-            capture_output=True,
-            text=True,
-            timeout=60
+            info=False,
+            cwd=None
         )
         
-        if result.returncode == 0:
+        # Check output for success (recommended approach)
+        output = result.get_output().lower()
+        if result.success and ("success" in output or "encrypted" in output or result.return_code == 0):
             write_color_text(f"SUCCESS: Encrypted {file_path.name}", "Green")
             return True
         else:
             write_color_text(f"WARNING: Failed to encrypt {file_path.name}", "Yellow")
-            write_color_text(f"Error: {result.stderr}", "Yellow")
+            write_color_text(f"Error: {result.get_output()}", "Yellow")
             return False
             
-    except subprocess.TimeoutExpired:
-        write_color_text(f"Timeout while encrypting {file_path.name}", "Red")
-        return False
     except Exception as e:
         write_color_text(f"Error encrypting {file_path.name}: {e}", "Red")
         return False

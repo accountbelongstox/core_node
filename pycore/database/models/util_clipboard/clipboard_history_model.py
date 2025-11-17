@@ -64,7 +64,7 @@ class ClipboardHistoryModel(BaseModel):
             sqlalchemy.Column('file_size', sqlalchemy.Integer, nullable=True),
             sqlalchemy.Column('client_id', sqlalchemy.String(100), nullable=False, index=True),
             sqlalchemy.Column('timestamp', sqlalchemy.Float, nullable=False, index=True),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
+            sqlalchemy.Column('created_at', sqlalchemy.String(32), nullable=False),
 
             # Indexes
             sqlalchemy.Index('idx_clipboard_timestamp', 'timestamp'),

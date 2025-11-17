@@ -11,7 +11,6 @@ import sys
 import platform
 import subprocess
 import shutil
-import threading
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -38,6 +37,7 @@ class EdgeTTSClient:
         self._edge_tts_binary: Optional[str] = None
         self._voices_cache: Optional[List[Dict[str, Any]]] = None
         self._initialized = False
+        self._active_tasks = 0
     
     def _find_edge_tts_binary(self) -> Optional[str]:
         """
@@ -186,43 +186,44 @@ class EdgeTTSClient:
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        if edge_tts:
-            # Use Python package (async)
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            async def _synthesize_async():
-                communicate = edge_tts.Communicate(text, voice)
-                await communicate.save(str(output_path))
+        self._mark_task_start()
+        try:
+            if edge_tts:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                async def _synthesize_async():
+                    communicate = edge_tts.Communicate(text, voice)
+                    await communicate.save(str(output_path))
+                    if subtitle_path:
+                        await communicate.save_subtitles(str(subtitle_path), subtitle_format="srt")
+
+                loop.run_until_complete(_synthesize_async())
                 return True
-            
-            loop.run_until_complete(_synthesize_async())
-        else:
-            # Use command line
+
             binary = self._find_edge_tts_binary()
             if not binary:
                 return False
-            
+
             cmd = [binary, '--voice', voice, '--text', text, '--write-media', str(output_path)]
-            
             if subtitle_path:
                 subtitle_path.parent.mkdir(parents=True, exist_ok=True)
                 cmd.extend(['--write-subtitles', str(subtitle_path)])
-            
+
             if binary == 'python':
                 cmd = [binary, '-m', 'edge_tts'] + cmd[1:]
-            
+
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
             if result.returncode != 0:
                 ColorPrint.red(f"[EdgeTTS] Synthesis failed: {result.stderr}")
                 return False
-        
-        return True
+            return True
+        finally:
+            self._mark_task_end()
     
     def find_voice_by_locale(self, locale: str, gender: str = 'female') -> Optional[str]:
         """
@@ -249,17 +250,24 @@ class EdgeTTSClient:
         
         return None
 
+    def is_busy(self) -> bool:
+        return self._active_tasks > 0
+
+    def _mark_task_start(self) -> None:
+        self._active_tasks += 1
+
+    def _mark_task_end(self) -> None:
+        self._active_tasks = max(0, self._active_tasks - 1)
+
 
 # Global Edge TTS client instance
 _global_edge_tts_client: Optional[EdgeTTSClient] = None
-_client_lock = threading.Lock()
 
 
 def get_edge_tts_client() -> EdgeTTSClient:
     """Get global Edge TTS client instance"""
     global _global_edge_tts_client
-    with _client_lock:
-        if _global_edge_tts_client is None:
-            _global_edge_tts_client = EdgeTTSClient()
-        return _global_edge_tts_client
+    if _global_edge_tts_client is None:
+        _global_edge_tts_client = EdgeTTSClient()
+    return _global_edge_tts_client
 

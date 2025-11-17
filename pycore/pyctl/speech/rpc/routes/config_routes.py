@@ -23,7 +23,7 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
     Register configuration management routes
 
     Args:
-        rpc_server: ThreadedRpcServer instance
+        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
         service_instances: Dict with service instances
     """
 

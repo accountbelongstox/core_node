@@ -21,21 +21,14 @@ class ScreenshotPlugin(IPlugin):
 
     async def initialize(self, session: Any):
         """Initialize plugin with session"""
-        try:
-            self.session = session
-            self.is_initialized = True
-            ColorPrint.info(f"ScreenshotPlugin initialized for session: {session.id}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to initialize ScreenshotPlugin: {error}')
-            raise
+        self.session = session
+        self.is_initialized = True
+        ColorPrint.info(f"ScreenshotPlugin initialized for session: {session.id}")
 
     async def cleanup(self):
         """Cleanup plugin resources"""
-        try:
-            self.is_initialized = False
-            ColorPrint.info('ScreenshotPlugin cleaned up')
-        except Exception as error:
-            ColorPrint.red(f'Failed to cleanup ScreenshotPlugin: {error}')
+        self.is_initialized = False
+        ColorPrint.info('ScreenshotPlugin cleaned up')
 
     async def take_screenshot(self, page: Any, options: Dict[str, Any] = None) -> bytes:
         """
@@ -61,19 +54,15 @@ class ScreenshotPlugin(IPlugin):
         Returns:
             Screenshot bytes
         """
-        try:
-            total_height = await page.evaluate('return document.body.scrollHeight')
-            total_width = await page.evaluate('return document.body.scrollWidth')
+        total_height = await page.evaluate('return document.body.scrollHeight')
+        total_width = await page.evaluate('return document.body.scrollWidth')
 
-            original_size = await page.driver.get_window_size()
+        original_size = await page.driver.get_window_size()
 
-            await page.driver.set_window_size(total_width, total_height)
+        await page.driver.set_window_size(total_width, total_height)
 
-            screenshot = await page.screenshot({'path': path} if path else {})
+        screenshot = await page.screenshot({'path': path} if path else {})
 
-            await page.driver.set_window_size(original_size['width'], original_size['height'])
+        await page.driver.set_window_size(original_size['width'], original_size['height'])
 
-            return screenshot
-        except Exception as error:
-            ColorPrint.red(f'Failed to take fullpage screenshot: {error}')
-            raise
+        return screenshot

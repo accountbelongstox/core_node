@@ -22,9 +22,9 @@ pybrowser 现在支持区分和分别处理 **Session Cookies** 和 **Persistent
 **v2.1.0+ 默认配置：加载和保存所有 cookies（包括 session cookies）**
 
 这确保了：
-- ✅ 最大的兼容性
-- ✅ 会话持久性（无需重复登录）
-- ✅ 与 v2.0.0 行为一致
+- [OK] 最大的兼容性
+- [OK] 会话持久性（无需重复登录）
+- [OK] 与 v2.0.0 行为一致
 
 如果您需要更高的安全性或符合浏览器标准行为，可以设置 `include_session_cookies: False`。
 
@@ -110,10 +110,10 @@ browser.join()
 ```
 
 **行为**:
-- ✅ 所有 cookies（包括 session）都会被保存
-- ✅ 下次启动时，所有 cookies（包括 session）都会被加载
-- ✅ 无需重复登录，保持会话状态
-- ✅ 最大兼容性和便利性
+- [OK] 所有 cookies（包括 session）都会被保存
+- [OK] 下次启动时，所有 cookies（包括 session）都会被加载
+- [OK] 无需重复登录，保持会话状态
+- [OK] 最大兼容性和便利性
 
 ### 场景 2: 高安全模式 - 只加载 Persistent Cookies
 
@@ -123,8 +123,8 @@ browser.join()
 browser = BrowserFactory.create('chrome', config={
     'cookie_config': {
         'load_strategy': 'default',
-        'include_session_cookies': False,  # ← 只加载 persistent cookies
-        'save_session_cookies': True       # ← 但仍保存 session cookies 用于分析
+        'include_session_cookies': False,  # <-  只加载 persistent cookies
+        'save_session_cookies': True       # <-  但仍保存 session cookies 用于分析
     }
 })
 
@@ -137,9 +137,9 @@ browser.navigate('https://example.com/login')
 ```
 
 **特点**:
-- ✅ 更符合浏览器标准行为
-- ✅ Session cookies 需要重新获取（更安全）
-- ✅ 但仍保存 session cookies 用于调试分析
+- [OK] 更符合浏览器标准行为
+- [OK] Session cookies 需要重新获取（更安全）
+- [OK] 但仍保存 session cookies 用于调试分析
 
 ### 场景 3: 完全不保存 Session Cookies
 
@@ -150,15 +150,15 @@ browser = BrowserFactory.create('chrome', config={
     'cookie_config': {
         'load_strategy': 'default',
         'include_session_cookies': False,  # 不载入
-        'save_session_cookies': False      # ← 也不保存
+        'save_session_cookies': False      # <-  也不保存
     }
 })
 ```
 
 **行为**:
-- ✅ 只保存/加载 persistent cookies
-- ✅ Session cookies 完全不触及磁盘
-- ✅ 最符合隐私和安全标准
+- [OK] 只保存/加载 persistent cookies
+- [OK] Session cookies 完全不触及磁盘
+- [OK] 最符合隐私和安全标准
 
 ### 场景 4: 调试模式 - 查看 Session Cookie 内容
 
@@ -262,7 +262,7 @@ browser.load_cookies_manual('my_profile', include_session=True)
 browser.load_cookies_manual('my_profile')
 ```
 
-## 📊 文件格式兼容性
+## [STATS] 文件格式兼容性
 
 ### 向后兼容
 
@@ -299,9 +299,9 @@ browser.load_cookies_manual('my_profile')
 }
 ```
 
-## ⚠️ 最佳实践
+## [WARN] 最佳实践
 
-### ✅ 推荐做法
+### [OK] 推荐做法
 
 1. **默认配置（最大兼容性）**
    ```python
@@ -321,7 +321,7 @@ browser.load_cookies_manual('my_profile')
    - 一般用途：使用默认配置（加载所有 cookies）
    - 高安全要求：设置 `include_session_cookies: False`
 
-### ❌ 不推荐做法
+### [ERROR] 不推荐做法
 
 1. **在多实例环境中共享 session cookies**
    - 可能导致会话冲突
@@ -367,12 +367,12 @@ with open(profile_path) as f:
     data = json.load(f)
 
 if 'persistent_cookies' in data:
-    print("✅ New format detected")
+    print("[OK] New format detected")
     print(f"Persistent: {data['persistent_count']}")
     print(f"Session: {data['session_count']}")
     print(f"Session saved: {data['session_saved']}")
 else:
-    print("⚠️ Legacy format detected")
+    print("[WARN] Legacy format detected")
     print(f"Total cookies: {data['count']}")
 ```
 
@@ -383,9 +383,9 @@ else:
 如果您之前使用的是 v2.0.0 或更早版本：
 
 **无需任何修改**，新版本会：
-1. ✅ 自动读取旧格式文件
-2. ✅ **默认加载所有 cookies（包括 session）- 与 v2.0.0 行为一致**
-3. ✅ 保存时使用新格式（自动分离存储）
+1. [OK] 自动读取旧格式文件
+2. [OK] **默认加载所有 cookies（包括 session）- 与 v2.0.0 行为一致**
+3. [OK] 保存时使用新格式（自动分离存储）
 
 **完全向后兼容**:
 

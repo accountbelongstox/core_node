@@ -131,7 +131,7 @@ class SpeechSwitch:
         # Azure STT
         if self._provider_status.is_available('stt', 'azure'):
             try:
-                from pycore.pyutils.speech_recognition import AzureSpeechRecognitionProvider
+                from pycore.pyutils.azure_speech import AzureSpeechRecognitionProvider
                 provider = AzureSpeechRecognitionProvider()
                 # Initialize provider to verify credentials
                 if provider.initialize():
@@ -492,6 +492,14 @@ class SpeechSwitch:
         except Exception as e:
             ColorPrint.red(f"[SpeechSwitch] Failed to register: {e}")
             return False
+
+    def stop(self) -> None:
+        """Release initialized providers (compatibility helper)."""
+        with self._lock:
+            self._tts_providers.clear()
+            self._stt_providers.clear()
+            self._initialized = False
+        ColorPrint.blue("[SpeechSwitch] Stopped")
 
     def get_status(self) -> Dict:
         """

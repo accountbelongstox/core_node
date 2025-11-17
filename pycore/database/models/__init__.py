@@ -42,6 +42,9 @@ from pycore.database.models.util_cache import (
 from pycore.database.models.util_speech import (
     SpeechTTSCacheModel,
     SpeechTTSConfigModel,
+    SpeechSTTCacheModel,
+    SpeechSTTConfigModel,
+    SpeechConfigModel,
 )
 
 # ===== Util Clipboard Models =====
@@ -75,6 +78,9 @@ __all__ = [
     # Util speech models
     'SpeechTTSCacheModel',
     'SpeechTTSConfigModel',
+    'SpeechSTTCacheModel',
+    'SpeechSTTConfigModel',
+    'SpeechConfigModel',
 
     # Util clipboard models
     'ClipboardHistoryModel',
