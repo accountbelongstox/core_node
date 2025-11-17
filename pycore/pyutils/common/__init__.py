@@ -81,6 +81,13 @@ from pycore.pyutils.common.provider_status import (
     get_provider_status
 )
 
+# Unified Speech Switch exports
+from pycore.pyutils.common.speech_switch import (
+    SpeechSwitch,
+    get_speech_switch,
+    initialize_speech_switch
+)
+
 __all__ = [
     # TTS Switch
     'TTSProvider',
@@ -106,5 +113,9 @@ __all__ = [
     # Provider Status
     'ProviderStatus',
     'ProviderInfo',
-    'get_provider_status'
+    'get_provider_status',
+    # Unified Speech Switch
+    'SpeechSwitch',
+    'get_speech_switch',
+    'initialize_speech_switch'
 ]

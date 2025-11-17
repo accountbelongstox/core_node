@@ -442,6 +442,52 @@ class SpeechSwitch:
         """
         return self.process_task(task)
 
+    def register_with_heartbeat(self) -> bool:
+        """
+        Register with GlobalThreadPool for PyHeartbeat integration
+
+        Returns:
+            True if registered successfully
+        """
+        try:
+            from pycore.pyheartbeat import get_global_thread_pool
+            import threading
+
+            if not self._initialized:
+                self.initialize()
+
+            thread_pool = get_global_thread_pool()
+
+            # Use current thread as placeholder (SpeechSwitch runs in HeartbeatPusher's thread)
+            current_thread = threading.current_thread()
+
+            thread_pool.register_thread(
+                name='speech_switch',
+                instance=current_thread,
+                task_handlers={
+                    # TTS task types
+                    'tts': self.accept_task,
+                    'audio_synthesis': self.accept_task,
+                    'text_to_speech': self.accept_task,
+                    # STT task types
+                    'stt': self.accept_task,
+                    'speech_recognition': self.accept_task,
+                    'speech_to_text': self.accept_task
+                },
+                metadata={
+                    'description': 'Unified Speech Switch - Routes TTS and STT tasks',
+                    'provider_status': self._provider_status.get_all_status(),
+                    'stats': self._stats.copy()
+                }
+            )
+
+            ColorPrint.green("[SpeechSwitch] Registered with GlobalThreadPool")
+            return True
+
+        except Exception as e:
+            ColorPrint.red(f"[SpeechSwitch] Failed to register: {e}")
+            return False
+
     def get_status(self) -> Dict:
         """
         Get switch status

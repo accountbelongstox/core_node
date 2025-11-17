@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DocumentOffline Core Components
+PyBrowserAuto Core Components
 
-Core functionality for document offline downloads:
+Core functionality for PyBrowserAuto offline downloads:
 - DomainContext: URL validation and scope management
 - URLQueue: Thread-safe URL queue with deduplication
 - FileMapper: URL to file path mapping

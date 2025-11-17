@@ -3,7 +3,7 @@
 """
 Crawl Controller
 
-Orchestrates the document offline download process.
+Orchestrates the PyBrowserAuto offline download process.
 """
 
 import time
@@ -13,7 +13,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 class CrawlController:
     """
-    Crawl controller for document offline downloads
+    Crawl controller for PyBrowserAuto offline downloads
 
     Orchestrates the entire crawling and processing pipeline.
 
@@ -171,7 +171,7 @@ class CrawlController:
             Crawl result dictionary with statistics
         """
         ColorPrint.green('\n' + '='*60)
-        ColorPrint.green('DocumentOffline Crawl Started')
+        ColorPrint.green('PyBrowserAuto Crawl Started')
         ColorPrint.green('='*60)
         ColorPrint.blue(f'Start URL: {start_url}')
         ColorPrint.blue(f'Max Depth: {max_depth}')
@@ -233,7 +233,7 @@ class CrawlController:
         stats['elapsed_time'] = elapsed_time
 
         ColorPrint.green('\n' + '='*60)
-        ColorPrint.green('DocumentOffline Crawl Completed')
+        ColorPrint.green('PyBrowserAuto Crawl Completed')
         ColorPrint.green('='*60)
         ColorPrint.blue(f'Total Pages: {self.total_pages}')
         ColorPrint.blue(f'Successful: {self.successful_pages}')
