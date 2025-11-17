@@ -3,7 +3,7 @@
 """
 CLI Controller
 
-Command-line interface for document offline downloads.
+Command-line interface for PyBrowserAuto offline downloads.
 """
 
 import sys
@@ -15,7 +15,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 class CLIController:
     """
-    CLI controller for document offline downloads
+    CLI controller for PyBrowserAuto offline downloads
 
     Provides command-line interface for crawling and downloading documents.
 
@@ -38,7 +38,7 @@ class CLIController:
             ArgumentParser instance
         """
         parser = argparse.ArgumentParser(
-            description='DocumentOffline - Download websites for offline viewing',
+            description='PyBrowserAuto - Download websites for offline viewing',
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
@@ -147,7 +147,7 @@ Examples:
 
         # Display configuration
         ColorPrint.green('\n' + '='*60)
-        ColorPrint.green('DocumentOffline CLI')
+        ColorPrint.green('PyBrowserAuto CLI')
         ColorPrint.green('='*60)
         ColorPrint.blue(f'URL: {parsed_args.url}')
         ColorPrint.blue(f'Output: {parsed_args.output}')
