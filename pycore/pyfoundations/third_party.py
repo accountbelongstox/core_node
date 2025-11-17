@@ -300,6 +300,93 @@ def build_pip_install_command(package_name: str) -> list:
     return pip_cmd
 
 
+def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> bool:
+    """
+    Run pip install command with real-time output.
+    
+    Args:
+        pip_cmd: List of command arguments
+        package_name: Name of package being installed (for display)
+    
+    Returns:
+        True if installation succeeded, False otherwise
+    """
+    try:
+        process = subprocess.Popen(
+            pip_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Read output line by line in real-time
+        for line in process.stdout:
+            line = line.strip()
+            if line:
+                # Show important installation progress lines
+                if any(keyword in line.lower() for keyword in [
+                    "downloading", "installing", "collecting", "successfully",
+                    "building", "wheels", "already satisfied", "requirement"
+                ]):
+                    ColorPrint.gray(f"   {line}")
+        
+        # Wait for process to complete
+        process.wait()
+        
+        if process.returncode == 0:
+            return True
+        else:
+            ColorPrint.red(f"[ERROR] Installation failed with return code {process.returncode}")
+            return False
+            
+    except Exception as e:
+        ColorPrint.red(f"[ERROR] Command execution failed: {e}")
+        return False
+
+
+def run_command_with_realtime_output(cmd: list, description: str = "") -> bool:
+    """
+    Run command with real-time output.
+    
+    Args:
+        cmd: List of command arguments
+        description: Description of what is being executed (for display)
+    
+    Returns:
+        True if command succeeded, False otherwise
+    """
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Read output line by line in real-time
+        for line in process.stdout:
+            line = line.strip()
+            if line:
+                ColorPrint.gray(f"   {line}")
+        
+        # Wait for process to complete
+        process.wait()
+        
+        if process.returncode == 0:
+            return True
+        else:
+            ColorPrint.red(f"[ERROR] Command failed with return code {process.returncode}")
+            return False
+            
+    except Exception as e:
+        ColorPrint.red(f"[ERROR] Command execution failed: {e}")
+        return False
+
+
 def install_and_reimport_azure():
     """
     Install Azure Speech SDK package and reimport it.
@@ -320,32 +407,18 @@ def install_and_reimport_azure():
     ColorPrint.blue("[INFO] Installing Azure Speech SDK package...")
     pip_cmd = build_pip_install_command("azure-cognitiveservices-speech")
     
+    # Run installation with real-time output
+    run_pip_install_with_realtime_output(pip_cmd, "azure-cognitiveservices-speech")
+    
+    # Verify installation by trying to import (not by return code)
+    importlib.invalidate_caches()
     try:
-        result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
-        ColorPrint.green("[SUCCESS] Successfully installed Azure Speech SDK")
-        
-        # Invalidate import caches
-        importlib.invalidate_caches()
-        
-        # Try hard import again
-        try:
-            import azure.cognitiveservices.speech
-            ColorPrint.green("[SUCCESS] Successfully imported Azure Speech SDK")
-            return azure.cognitiveservices.speech
-        except ImportError as e:
-            ColorPrint.yellow("[WARNING] Package installed but import still failed")
-            ColorPrint.yellow("[WARNING] This may require a Python restart")
-            return None
-            
-    except subprocess.CalledProcessError as e:
-        ColorPrint.red("[ERROR] Failed to install Azure Speech SDK")
-        if e.stdout:
-            ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")
-        if e.stderr:
-            ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")
-        return None
-    except Exception as e:
-        ColorPrint.red("[ERROR] Unexpected error installing Azure Speech SDK")
+        import azure.cognitiveservices.speech
+        ColorPrint.green("[SUCCESS] Successfully installed and imported Azure Speech SDK")
+        return azure.cognitiveservices.speech
+    except ImportError as e:
+        ColorPrint.yellow("[WARNING] Package installation completed but import still failed")
+        ColorPrint.yellow("[WARNING] This may require a Python restart")
         return None
 
 
@@ -369,32 +442,18 @@ def install_and_reimport_edge_tts():
     ColorPrint.blue("[INFO] Installing Edge TTS package...")
     pip_cmd = build_pip_install_command("edge-tts")
     
+    # Run installation with real-time output
+    run_pip_install_with_realtime_output(pip_cmd, "edge-tts")
+    
+    # Verify installation by trying to import (not by return code)
+    importlib.invalidate_caches()
     try:
-        result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
-        ColorPrint.green("[SUCCESS] Successfully installed Edge TTS")
-        
-        # Invalidate import caches
-        importlib.invalidate_caches()
-        
-        # Try hard import again
-        try:
-            import edge_tts
-            ColorPrint.green("[SUCCESS] Successfully imported Edge TTS")
-            return edge_tts
-        except ImportError as e:
-            ColorPrint.yellow("[WARNING] Package installed but import still failed")
-            ColorPrint.yellow("[WARNING] This may require a Python restart")
-            return None
-            
-    except subprocess.CalledProcessError as e:
-        ColorPrint.red("[ERROR] Failed to install Edge TTS")
-        if e.stdout:
-            ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")
-        if e.stderr:
-            ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")
-        return None
-    except Exception as e:
-        ColorPrint.red("[ERROR] Unexpected error installing Edge TTS")
+        import edge_tts
+        ColorPrint.green("[SUCCESS] Successfully installed and imported Edge TTS")
+        return edge_tts
+    except ImportError as e:
+        ColorPrint.yellow("[WARNING] Package installation completed but import still failed")
+        ColorPrint.yellow("[WARNING] This may require a Python restart")
         return None
 
 
@@ -464,14 +523,13 @@ def check_and_install_dependencies():
     # Upgrade pip first if any packages need installation
     if needs_installation:
         ColorPrint.blue("[INFO] Upgrading pip to latest version...")
-        try:
-            pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
-            if current_platform != 'Windows':
-                pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
-            subprocess.run(pip_upgrade_cmd, check=True, capture_output=True, text=True)
+        pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
+        if current_platform != 'Windows':
+            pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
+        if run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip"):
             ColorPrint.green("[SUCCESS] pip upgraded successfully")
-        except subprocess.CalledProcessError as e:
-            ColorPrint.yellow(f"[WARNING] Failed to upgrade pip: {e}")
+        else:
+            ColorPrint.yellow("[WARNING] Failed to upgrade pip")
             ColorPrint.yellow("[WARNING] Continuing with package installation anyway...")
 
     failed_packages = []
@@ -503,34 +561,23 @@ def check_and_install_dependencies():
             # Build pip install command using reusable helper
             pip_cmd = build_pip_install_command(package_name)
 
+            # Run installation with real-time output
+            run_pip_install_with_realtime_output(pip_cmd, package_name)
+            
+            # Verify installation by checking if module can be imported (not by return code)
+            importlib.invalidate_caches()
             try:
-                result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
-                ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
-                
-                # Verify installation by checking if module can be imported
-                importlib.invalidate_caches()
-                try:
-                    module_spec = importlib.util.find_spec(import_name_to_check)
-                    if module_spec is None:
-                        ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
-                        ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
-                        failed_packages.append((package_name, import_name_to_check))
-                    else:
-                        installed_packages.add(package_name)
-                        installed_packages_list.append(package_name)
-                except Exception as e:
-                    ColorPrint.yellow(f"[WARNING] Error verifying '{import_name_to_check}' after installation: {e}")
+                module_spec = importlib.util.find_spec(import_name_to_check)
+                if module_spec is None:
+                    ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
+                    ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
                     failed_packages.append((package_name, import_name_to_check))
-            except subprocess.CalledProcessError as e:
-                ColorPrint.red(f"[ERROR] Failed to install {package_name}: {e}")
-                if e.stdout:
-                    ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")  # Last 500 chars
-                if e.stderr:
-                    ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")  # Last 500 chars
-                if current_platform != 'Windows':
-                    ColorPrint.yellow(f"[WARNING] Please install manually: pip install --break-system-packages --ignore-installed {package_name}")
                 else:
-                    ColorPrint.yellow(f"[WARNING] Please install manually: pip install {package_name}")
+                    ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
+                    installed_packages.add(package_name)
+                    installed_packages_list.append(package_name)
+            except Exception as e:
+                ColorPrint.yellow(f"[WARNING] Error verifying '{import_name_to_check}' after installation: {e}")
                 failed_packages.append((package_name, import_name_to_check))
         else:
             installed_packages.add(package_name)
