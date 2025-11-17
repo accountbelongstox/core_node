@@ -1,3 +1,36 @@
+=====================================================================
+Available Audio Devices (Windows)
+======================================================================
+
+[System Audio] - Loopback Devices:
+----------------------------------------------------------------------
+  [0] 扬声器 (Senary Audio) [Loopback]
+      Sample Rate: 48000 Hz
+  [1] HDMI (NVIDIA High Definition Audio) [Loopback]
+      Sample Rate: 48000 Hz
+
+[Microphones]:
+----------------------------------------------------------------------
+  [2] Microsoft Sound Mapper - Input
+      Sample Rate: 44100 Hz
+  [3] 阵列麦克风 (AMD Audio Device)
+      Sample Rate: 44100 Hz
+  [4] Primary Sound Capture Driver
+      Sample Rate: 44100 Hz
+  [5] 阵列麦克风 (AMD Audio Device)
+      Sample Rate: 44100 Hz
+  [6] 阵列麦克风 (AMD Audio Device)
+      Sample Rate: 48000 Hz
+======================================================================
+
+[Cached system device: 13] 请只显示一次设备
+，之后选择需要被系统录间的设备，再选择microphon，当然这是根据
+配置是否要双录音决定的。默认是双录音，但根据 配置可以修改为只录系统 音或暂停录。
+
+● 我看到问题了。设备列表已经正确过滤显示一次了，但缓存的设备索引(13)与当前显示的设备不匹配。让我检查
+
+
+
 Update:2
 
 

@@ -50,30 +50,26 @@ class FileMonitor:
         stable_start_time = None
 
         while (time.time() * 1000) - start_time < timeout:
-            try:
-                files = self.find_files_by_pattern(pattern)
+            files = self.find_files_by_pattern(pattern)
 
-                if len(files) > 0:
-                    latest_file = files[0]
-                    current_size = latest_file['size']
+            if len(files) > 0:
+                latest_file = files[0]
+                current_size = latest_file['size']
 
-                    if current_size == last_file_size:
-                        if stable_start_time is None:
-                            stable_start_time = time.time() * 1000
-                        elif (time.time() * 1000) - stable_start_time >= stable_time:
-                            ColorPrint.green(f'File download completed: {latest_file["path"]}')
-                            return latest_file
-                    else:
-                        stable_start_time = None
-                        last_file_size = current_size
+                if current_size == last_file_size:
+                    if stable_start_time is None:
+                        stable_start_time = time.time() * 1000
+                    elif (time.time() * 1000) - stable_start_time >= stable_time:
+                        ColorPrint.green(f'File download completed: {latest_file["path"]}')
+                        return latest_file
+                else:
+                    stable_start_time = None
+                    last_file_size = current_size
 
-                if on_progress:
-                    on_progress((time.time() * 1000) - start_time, timeout)
+            if on_progress:
+                on_progress((time.time() * 1000) - start_time, timeout)
 
-                time.sleep(poll_interval)
-            except Exception as error:
-                ColorPrint.red(f'Error monitoring file: {error}')
-                time.sleep(poll_interval)
+            time.sleep(poll_interval)
 
         raise TimeoutError(f'Timeout waiting for file pattern: {pattern}')
 
@@ -82,31 +78,28 @@ class FileMonitor:
         matched_files = []
         regex = re.compile(pattern)
 
-        try:
-            if not os.path.exists(self.download_path):
-                return matched_files
+        if not os.path.exists(self.download_path):
+            return matched_files
 
-            files = os.listdir(self.download_path)
+        files = os.listdir(self.download_path)
 
-            for file_name in files:
-                # Skip duplicate downloads (Chrome naming convention)
-                if re.search(r'\(\d+\)', file_name):
-                    continue
+        for file_name in files:
+            # Skip duplicate downloads (Chrome naming convention)
+            if re.search(r'\(\d+\)', file_name):
+                continue
 
-                if regex.search(file_name):
-                    file_path = os.path.join(self.download_path, file_name)
-                    stats = os.stat(file_path)
+            if regex.search(file_name):
+                file_path = os.path.join(self.download_path, file_name)
+                stats = os.stat(file_path)
 
-                    if stats.st_size >= self.min_file_size:
-                        matched_files.append({
-                            'path': file_path,
-                            'name': file_name,
-                            'size': stats.st_size,
-                            'modified': stats.st_mtime,
-                            'directory': self.download_path
-                        })
-        except Exception as error:
-            ColorPrint.red(f'Cannot read directory {self.download_path}: {error}')
+                if stats.st_size >= self.min_file_size:
+                    matched_files.append({
+                        'path': file_path,
+                        'name': file_name,
+                        'size': stats.st_size,
+                        'modified': stats.st_mtime,
+                        'directory': self.download_path
+                    })
 
         return sorted(matched_files, key=lambda x: x['modified'], reverse=True)
 
@@ -137,28 +130,21 @@ class EnhancedDownloadPlugin(IPlugin):
         Args:
             session: Session instance
         """
-        try:
-            self.session = session
-            self.download_path = str(Path.home() / 'Downloads' / 'spider_downloads')
+        self.session = session
+        self.download_path = str(Path.home() / 'Downloads' / 'spider_downloads')
 
-            os.makedirs(self.download_path, exist_ok=True)
+        os.makedirs(self.download_path, exist_ok=True)
 
-            self.file_monitor = FileMonitor(self.download_path)
+        self.file_monitor = FileMonitor(self.download_path)
 
-            self.is_initialized = True
-            ColorPrint.green(f'EnhancedDownloadPlugin initialized: {self.download_path}')
-        except Exception as error:
-            ColorPrint.red(f'Failed to initialize EnhancedDownloadPlugin: {error}')
-            raise
+        self.is_initialized = True
+        ColorPrint.green(f'EnhancedDownloadPlugin initialized: {self.download_path}')
 
     def cleanup(self):
         """Cleanup plugin (synchronous)"""
-        try:
-            self.active_downloads.clear()
-            self.is_initialized = False
-            ColorPrint.green('EnhancedDownloadPlugin cleaned up')
-        except Exception as error:
-            ColorPrint.red(f'Failed to cleanup EnhancedDownloadPlugin: {error}')
+        self.active_downloads.clear()
+        self.is_initialized = False
+        ColorPrint.green('EnhancedDownloadPlugin cleaned up')
 
     def download_file(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -172,37 +158,31 @@ class EnhancedDownloadPlugin(IPlugin):
             Download result dictionary
         """
         options = options or {}
-        try:
-            filename = options.get('filename') or self.generate_filename(url)
-            filepath = os.path.join(self.download_path, filename)
+        filename = options.get('filename') or self.generate_filename(url)
+        filepath = os.path.join(self.download_path, filename)
 
-            ColorPrint.green(f'Starting download: {url} -> {filepath}')
+        ColorPrint.green(f'Starting download: {url} -> {filepath}')
 
-            timeout = options.get('timeout', 300000) / 1000  # Convert to seconds
+        timeout = options.get('timeout', 300000) / 1000  # Convert to seconds
 
-            response = requests.get(url, timeout=timeout, stream=True)
-            response.raise_for_status()
+        response = requests.get(url, timeout=timeout, stream=True)
+        response.raise_for_status()
 
-            with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
 
-            self.download_metrics['totalDownloads'] += 1
-            self.download_metrics['successfulDownloads'] += 1
-            ColorPrint.green(f'Download completed: {filepath}')
+        self.download_metrics['totalDownloads'] += 1
+        self.download_metrics['successfulDownloads'] += 1
+        ColorPrint.green(f'Download completed: {filepath}')
 
-            return {
-                'success': True,
-                'filepath': filepath,
-                'filename': filename,
-                'size': os.path.getsize(filepath)
-            }
-        except Exception as error:
-            self.download_metrics['totalDownloads'] += 1
-            self.download_metrics['failedDownloads'] += 1
-            ColorPrint.red(f'Failed to download {url}: {error}')
-            raise
+        return {
+            'success': True,
+            'filepath': filepath,
+            'filename': filename,
+            'size': os.path.getsize(filepath)
+        }
 
     def click_download_and_wait(self, selector: str, file_pattern: str,
                                  options: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -218,30 +198,26 @@ class EnhancedDownloadPlugin(IPlugin):
             Download result dictionary
         """
         options = options or {}
-        try:
-            page = self.session.get_page()
-            if not page:
-                raise RuntimeError('No page available for download')
-
-            page.click(selector)
-            ColorPrint.green(f'Clicked download link: {selector}')
-            self.download_metrics['buttonClicks'] += 1
-
-            downloaded_file = self.wait_for_file_by_pattern(file_pattern, options)
-            self.download_metrics['fileDetections'] += 1
-
-            return {
-                'success': True,
-                'file': downloaded_file,
-                'message': 'Download completed successfully'
-            }
-        except Exception as error:
-            ColorPrint.red(f'Download failed: {error}')
+        page = self.session.get_page()
+        if not page:
             return {
                 'success': False,
-                'error': str(error),
+                'error': 'No page available for download',
                 'message': 'Download failed'
             }
+
+        page.click(selector)
+        ColorPrint.green(f'Clicked download link: {selector}')
+        self.download_metrics['buttonClicks'] += 1
+
+        downloaded_file = self.wait_for_file_by_pattern(file_pattern, options)
+        self.download_metrics['fileDetections'] += 1
+
+        return {
+            'success': True,
+            'file': downloaded_file,
+            'message': 'Download completed successfully'
+        }
 
     def find_and_click_download_link(self, keywords: List[str], file_pattern: str,
                                       options: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -257,46 +233,45 @@ class EnhancedDownloadPlugin(IPlugin):
             Download result dictionary
         """
         options = options or {}
-        try:
-            page = self.session.get_page()
-            if not page:
-                raise RuntimeError('No page available for download')
-
-            script = """
-            return Array.from(document.querySelectorAll('a')).filter(link => {
-                const text = link.textContent.toLowerCase();
-                const href = link.href.toLowerCase();
-                return arguments[0].some(keyword =>
-                    text.includes(keyword.toLowerCase()) ||
-                    href.includes(keyword.toLowerCase())
-                );
-            }).map(link => ({
-                href: link.href,
-                text: link.textContent.trim(),
-                id: link.id,
-                className: link.className
-            }));
-            """
-
-            download_links = page.evaluate(script, keywords)
-
-            if len(download_links) == 0:
-                raise ValueError(f'No download links found with keywords: {", ".join(keywords)}')
-
-            ColorPrint.green(f'Found {len(download_links)} potential download links')
-
-            target_link = download_links[0]
-            ColorPrint.green(f'Clicking download link: {target_link["text"]}')
-
-            return self.click_download_and_wait(f'a[href="{target_link["href"]}"]', file_pattern, options)
-
-        except Exception as error:
-            ColorPrint.red(f'Failed to find or click download link: {error}')
+        page = self.session.get_page()
+        if not page:
             return {
                 'success': False,
-                'error': str(error),
+                'error': 'No page available for download',
                 'message': 'Failed to find or click download link'
             }
+
+        script = """
+        return Array.from(document.querySelectorAll('a')).filter(link => {
+            const text = link.textContent.toLowerCase();
+            const href = link.href.toLowerCase();
+            return arguments[0].some(keyword =>
+                text.includes(keyword.toLowerCase()) ||
+                href.includes(keyword.toLowerCase())
+            );
+        }).map(link => ({
+            href: link.href,
+            text: link.textContent.trim(),
+            id: link.id,
+            className: link.className
+        }));
+        """
+
+        download_links = page.evaluate(script, keywords)
+
+        if len(download_links) == 0:
+            return {
+                'success': False,
+                'error': f'No download links found with keywords: {", ".join(keywords)}',
+                'message': 'Failed to find or click download link'
+            }
+
+        ColorPrint.green(f'Found {len(download_links)} potential download links')
+
+        target_link = download_links[0]
+        ColorPrint.green(f'Clicking download link: {target_link["text"]}')
+
+        return self.click_download_and_wait(f'a[href="{target_link["href"]}"]', file_pattern, options)
 
     def wait_for_file_by_pattern(self, pattern: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -323,16 +298,13 @@ class EnhancedDownloadPlugin(IPlugin):
 
     def generate_filename(self, url: str) -> str:
         """Generate filename from URL"""
-        try:
-            parsed = urlparse(url)
-            pathname = parsed.path
-            ext = os.path.splitext(pathname)[1] or '.html'
-            basename = os.path.splitext(os.path.basename(pathname))[0] or 'download'
-            timestamp = int(time.time() * 1000)
+        parsed = urlparse(url)
+        pathname = parsed.path
+        ext = os.path.splitext(pathname)[1] or '.html'
+        basename = os.path.splitext(os.path.basename(pathname))[0] or 'download'
+        timestamp = int(time.time() * 1000)
 
-            return f'{basename}_{timestamp}{ext}'
-        except Exception:
-            return f'download_{int(time.time() * 1000)}'
+        return f'{basename}_{timestamp}{ext}'
 
     def get_download_metrics(self) -> Dict[str, Any]:
         """Get download metrics"""

@@ -17,6 +17,30 @@ from ocr_config import OCRLimits, ProcessingConfig
 
 logger = logging.getLogger(__name__)
 
+try:
+    from pycore.pyfoundations.third_party import get_third_package_pypdf  # type: ignore
+except Exception:
+    get_third_package_pypdf = None
+
+if get_third_package_pypdf is not None:
+    try:
+        pypdf = get_third_package_pypdf()
+    except Exception as exc:
+        logger.warning(f"Failed to load pypdf via pycore third-party loader: {exc}")
+        try:
+            import pypdf as _pypdf
+            pypdf = _pypdf
+        except ImportError:
+            logger.warning("pypdf not available in the current environment")
+            pypdf = None
+else:
+    try:
+        import pypdf as _pypdf
+        pypdf = _pypdf
+    except ImportError:
+        logger.warning("pypdf not available in the current environment")
+        pypdf = None
+
 class PDFProcessor:
     """Smart PDF processor for OCR batch processing"""
 
@@ -59,9 +83,19 @@ class PDFProcessor:
 
     def _analyze_pdf(self, pdf_path: str) -> Dict[str, Any]:
         """Analyze PDF structure and properties"""
+        if pypdf is None:
+            logger.warning("pypdf not available, returning minimal PDF info")
+            return {
+                "file_path": pdf_path,
+                "file_size": os.path.getsize(pdf_path),
+                "total_pages": 1,
+                "has_text": False,
+                "has_images": True,
+                "metadata": {},
+                "page_info": [{"page_number": 1, "estimated_complexity": "unknown"}]
+            }
+
         try:
-            # Try with PyPDF2 first
-            import PyPDF2
 
             pdf_info = {
                 "file_path": pdf_path,
@@ -74,7 +108,7 @@ class PDFProcessor:
             }
 
             with open(pdf_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = pypdf.PdfReader(file)
                 pdf_info["total_pages"] = len(pdf_reader.pages)
 
                 # Extract metadata
@@ -183,20 +217,21 @@ class PDFProcessor:
 
     def _create_chunk_file(self, pdf_path: str, start_page: int, end_page: int, chunk_id: int) -> str:
         """Create a PDF chunk file with specified page range"""
+        if pypdf is None:
+            logger.error("pypdf not available, cannot create PDF chunk")
+            return pdf_path
         try:
-            import PyPDF2
-
             # Generate output path
             original_name = Path(pdf_path).stem
             temp_dir = tempfile.gettempdir()
             chunk_file = os.path.join(temp_dir, f"{original_name}_chunk_{chunk_id}_p{start_page}-{end_page}.pdf")
 
             # Create PDF writer
-            pdf_writer = PyPDF2.PdfWriter()
+            pdf_writer = pypdf.PdfWriter()
 
             # Read source PDF
             with open(pdf_path, 'rb') as input_file:
-                pdf_reader = PyPDF2.PdfReader(input_file)
+                pdf_reader = pypdf.PdfReader(input_file)
 
                 # Add specified pages (convert to 0-based indexing)
                 for page_num in range(start_page - 1, end_page):

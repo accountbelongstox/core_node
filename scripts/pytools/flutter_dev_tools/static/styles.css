@@ -1,0 +1,15 @@
+:root { font-family: Arial, sans-serif; color: #1f2933; background: #f3f4f6; }
+body { margin: 0; padding: 0; }
+header { background: #0f172a; color: #fff; padding: 1.5rem; }
+main { padding: 1rem 2rem 2rem; }
+.tab-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.tab { padding: 0.6rem 1rem; border-radius: 6px; cursor: pointer; background: #e2e8f0; border: none; font-size: 0.95rem; }
+.tab.active { background: #1d4ed8; color: #fff; }
+.panel { background: #fff; border-radius: 8px; padding: 1rem 1.5rem; box-shadow: 0 10px 30px rgba(15,23,42,0.1); min-height: 200px; }
+.panel h2 { margin-top: 0; }
+.issue-list { margin: 0; padding-left: 1.2rem; }
+.status-ok { color: #15803d; font-weight: 600; }
+.status-bad { color: #b91c1c; font-weight: 600; }
+code { background: #f8fafc; padding: 0.1rem 0.3rem; border-radius: 4px; }
+button.primary { margin-top: 1rem; padding: 0.65rem 1.2rem; border: none; border-radius: 6px; background: #1d4ed8; color: #fff; font-size: 0.95rem; cursor: pointer; }
+button.primary:disabled { background: #93c5fd; cursor: not-allowed; }

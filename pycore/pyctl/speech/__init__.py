@@ -4,7 +4,7 @@
 Speech Module - Unified Speech Processing System
 
 High-level speech management combining TTS, STT, RPC, and AI utilities.
-Integrates with PyHeartbeat and TTSSwitch for task-based processing.
+Integrates with PyHeartbeat and the unified SpeechSwitch for task-based processing.
 
 Sub-modules:
 - speech_manager: Core speech TTS/STT functionality
@@ -31,12 +31,12 @@ Usage:
     from pycore.pyctl.speech.rpc import start_rpc_service
 
 Architecture:
-    Web Request → RPC Server → GlobalTaskQueue → HeartbeatPusher → TTSSwitch → Provider → Response
+    Web Request → RPC Server → GlobalTaskQueue → HeartbeatPusher → SpeechSwitch → Provider → Response
 """
 
 from pycore.pyctl.speech.speech_manager import SpeechManager, get_speech_manager
 
-# New: RPC service launcher (uses PyHeartbeat + TTSSwitch)
+# New: RPC service launcher (uses PyHeartbeat + SpeechSwitch)
 from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
 
 # DO NOT create instance here - let applications initialize themselves

@@ -3,13 +3,13 @@
 ## 📋 概述
 
 pybrowser 现已支持完整的 Cookie 持久化功能，包括：
-- ✅ 自动加载历史 cookies
-- ✅ 实时保存 cookies
-- ✅ 多 profile 支持
-- ✅ 灵活的加载/保存策略
-- ✅ 统一的配置参数
-- ✅ **Session/Persistent Cookie 分离** (v2.1.0+)
-- ✅ **域名分组优化加载** (v2.1.0+)
+- [OK] 自动加载历史 cookies
+- [OK] 实时保存 cookies
+- [OK] 多 profile 支持
+- [OK] 灵活的加载/保存策略
+- [OK] 统一的配置参数
+- [OK] **Session/Persistent Cookie 分离** (v2.1.0+)
+- [OK] **域名分组优化加载** (v2.1.0+)
 
 ## 📦 存储路径
 
@@ -285,7 +285,7 @@ prod_browser = BrowserFactory.create('chrome', config={
 })
 ```
 
-## 📊 Cookie 文件格式
+## [STATS] Cookie 文件格式
 
 ### Cookie 数据文件（`*.json`） - 新格式 (v2.1.0+)
 
@@ -428,7 +428,7 @@ browser.start()
 browser.stop()
 ```
 
-## ⚠️ 注意事项
+## [WARN] 注意事项
 
 1. **Session Cookies 处理** (v2.1.0+)：
    - **默认配置：加载和保存所有 cookies（包括 session cookies）**
@@ -499,29 +499,29 @@ if browser.cookie_manager:
 ## 📝 变更总结
 
 ### v2.1.0 新增功能 (2025-11-17)
-- ✅ **Session/Persistent Cookie 分离存储**
-- ✅ **域名分组优化 Cookie 加载**
-- ✅ 新增 `include_session_cookies` 配置（默认 False）
-- ✅ 新增 `save_session_cookies` 配置（默认 True）
-- ✅ 向后兼容旧格式 cookie 文件
-- ✅ 增强的日志输出（显示 session/persistent 分布）
+- [OK] **Session/Persistent Cookie 分离存储**
+- [OK] **域名分组优化 Cookie 加载**
+- [OK] 新增 `include_session_cookies` 配置（默认 False）
+- [OK] 新增 `save_session_cookies` 配置（默认 True）
+- [OK] 向后兼容旧格式 cookie 文件
+- [OK] 增强的日志输出（显示 session/persistent 分布）
 
 ### v2.0.0 功能 (2025-01-17)
-- ✅ `CookieManager` 类：完整的 cookie 持久化管理
-- ✅ 自动加载/保存 cookies
-- ✅ 多 profile 支持
-- ✅ 实时 cookie 更新
-- ✅ Cookie 元数据跟踪
+- [OK] `CookieManager` 类：完整的 cookie 持久化管理
+- [OK] 自动加载/保存 cookies
+- [OK] 多 profile 支持
+- [OK] 实时 cookie 更新
+- [OK] Cookie 元数据跟踪
 
 ### 优化改进
-- ✅ 统一配置参数（`profile_dir` 替代 `user_data_dir`/`profile_dir`）
-- ✅ 重构 `ThreadedBrowser` 基类，消除代码重复
-- ✅ 统一错误消息生成
-- ✅ 所有通用方法移至基类
+- [OK] 统一配置参数（`profile_dir` 替代 `user_data_dir`/`profile_dir`）
+- [OK] 重构 `ThreadedBrowser` 基类，消除代码重复
+- [OK] 统一错误消息生成
+- [OK] 所有通用方法移至基类
 
 ### 破坏性变更
-- ⚠️ 推荐使用统一的 `profile_dir` 参数（仍向后兼容 `user_data_dir`）
-- ⚠️ Cookie 配置现在嵌套在 `cookie_config` 下
+- [WARN] 推荐使用统一的 `profile_dir` 参数（仍向后兼容 `user_data_dir`）
+- [WARN] Cookie 配置现在嵌套在 `cookie_config` 下
 
 ## 🎉 开始使用
 

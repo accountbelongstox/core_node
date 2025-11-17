@@ -9,6 +9,8 @@ Manages plugin lifecycle and hooks
 from typing import Dict, List, Any, Callable
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.pybrowser.interfaces.iplugin import IPlugin
+from pycore.pyutils.pybrowser.plugins.core.content_plugin import ContentPlugin
+from pycore.pyutils.pybrowser.plugins.core.automation_plugin import AutomationPlugin
 
 
 class PluginManager:
@@ -27,20 +29,13 @@ class PluginManager:
 
     def load_plugins(self):
         """Load built-in plugins"""
-        try:
-            ColorPrint.info('Loading built-in plugins...')
+        ColorPrint.info('Loading built-in plugins...')
 
-            from pycore.pyutils.pybrowser.plugins.core.content_plugin import ContentPlugin
-            from pycore.pyutils.pybrowser.plugins.core.automation_plugin import AutomationPlugin
+        self.load_plugin(ContentPlugin())
+        self.load_plugin(AutomationPlugin())
 
-            self.load_plugin(ContentPlugin())
-            self.load_plugin(AutomationPlugin())
-
-            self.is_initialized = True
-            ColorPrint.info('Built-in plugins loaded successfully')
-        except Exception as error:
-            ColorPrint.red(f'Failed to load plugins: {error}')
-            raise
+        self.is_initialized = True
+        ColorPrint.info('Built-in plugins loaded successfully')
 
     def load_plugin(self, plugin: IPlugin):
         """
@@ -58,15 +53,11 @@ class PluginManager:
             ColorPrint.warn(f"Plugin {plugin.name} is already loaded")
             return
 
-        try:
-            # Just register the plugin, don't initialize yet
-            self.plugins[plugin.name] = plugin
-            self.metrics['plugins_loaded'] += 1
+        # Just register the plugin, don't initialize yet
+        self.plugins[plugin.name] = plugin
+        self.metrics['plugins_loaded'] += 1
 
-            ColorPrint.info(f"Plugin registered: {plugin.name} v{plugin.version}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to load plugin {plugin.name}: {error}")
-            raise
+        ColorPrint.info(f"Plugin registered: {plugin.name} v{plugin.version}")
 
     def unload_plugin(self, plugin_name: str):
         """
@@ -80,15 +71,11 @@ class PluginManager:
             ColorPrint.warn(f"Plugin {plugin_name} not found")
             return
 
-        try:
-            plugin.cleanup()
-            del self.plugins[plugin_name]
-            self.metrics['plugins_unloaded'] += 1
+        plugin.cleanup()
+        del self.plugins[plugin_name]
+        self.metrics['plugins_unloaded'] += 1
 
-            ColorPrint.info(f"Plugin unloaded: {plugin_name}")
-        except Exception as error:
-            ColorPrint.red(f"Failed to unload plugin {plugin_name}: {error}")
-            raise
+        ColorPrint.info(f"Plugin unloaded: {plugin_name}")
 
     def get_plugin(self, plugin_name: str) -> IPlugin:
         """
@@ -121,17 +108,14 @@ class PluginManager:
             session: Session instance
         """
         for plugin_name, plugin_template in self.plugins.items():
-            try:
-                # Create a new instance of the plugin for this session
-                # (to avoid sharing state between sessions)
-                plugin_class = type(plugin_template)
-                session_plugin = plugin_class()
+            # Create a new instance of the plugin for this session
+            # (to avoid sharing state between sessions)
+            plugin_class = type(plugin_template)
+            session_plugin = plugin_class()
 
-                # Load into session (which will initialize it)
-                session.load_plugin(session_plugin)
-                ColorPrint.debug(f"Plugin {plugin_name} initialized for session {session.id}")
-            except Exception as error:
-                ColorPrint.red(f"Failed to initialize plugin {plugin_name} for session {session.id}: {error}")
+            # Load into session (which will initialize it)
+            session.load_plugin(session_plugin)
+            ColorPrint.debug(f"Plugin {plugin_name} initialized for session {session.id}")
 
     def execute_hook(self, hook_name: str, *args) -> List[Any]:
         """
@@ -150,13 +134,9 @@ class PluginManager:
         ColorPrint.debug(f"Executing hook: {hook_name} with {len(hooks)} handlers")
 
         for hook in hooks:
-            try:
-                result = hook(*args)
-                results.append(result)
-                self.metrics['hooks_executed'] += 1
-            except Exception as error:
-                self.metrics['hook_errors'] += 1
-                ColorPrint.red(f"Hook {hook_name} failed: {error}")
+            result = hook(*args)
+            results.append(result)
+            self.metrics['hooks_executed'] += 1
 
         return results
 
@@ -192,23 +172,16 @@ class PluginManager:
 
     def cleanup(self):
         """Cleanup all plugins"""
-        try:
-            ColorPrint.info('Cleaning up PluginManager...')
+        ColorPrint.info('Cleaning up PluginManager...')
 
-            for plugin_name, plugin in list(self.plugins.items()):
-                try:
-                    plugin.cleanup()
-                except Exception as error:
-                    ColorPrint.warn(f"Failed to cleanup plugin {plugin_name}: {error}")
+        for plugin_name, plugin in list(self.plugins.items()):
+            plugin.cleanup()
 
-            self.plugins.clear()
-            self.hooks.clear()
-            self.is_initialized = False
+        self.plugins.clear()
+        self.hooks.clear()
+        self.is_initialized = False
 
-            ColorPrint.info('PluginManager cleanup completed')
-        except Exception as error:
-            ColorPrint.red(f'Failed to cleanup PluginManager: {error}')
-            raise
+        ColorPrint.info('PluginManager cleanup completed')
 
     def get_info(self) -> Dict[str, Any]:
         """

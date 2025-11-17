@@ -10,18 +10,16 @@ Pattern inspired by seleniumThread.py - each browser is a self-contained thread.
 
 import threading
 import time
-from queue import Queue, Empty
+from queue import Queue
 from typing import Dict, Any, Optional, Callable, List
 from pathlib import Path
 from pycore import ColorPrint
 from pycore.pyutils.pybrowser.interfaces.ibrowser import IBrowser
 from pycore.pyutils.pybrowser.utils.cookie_manager import CookieManager, LoadStrategy, SaveStrategy
+from pycore.pyfoundations.third_party import get_third_package_selenium_by
 
-# Import Selenium By for common element finding
-try:
-    from selenium.webdriver.common.by import By
-except ImportError:
-    By = None
+# Selenium By for common element finding (lazy-loaded via third_party)
+By = get_third_package_selenium_by()
 
 
 class ThreadedBrowser(threading.Thread, IBrowser):
@@ -139,22 +137,16 @@ class ThreadedBrowser(threading.Thread, IBrowser):
             2. Enter event loop (process commands)
             3. Cleanup on exit
         """
-        try:
-            self._running = True
-            ColorPrint.green(f"Thread started: {self.name}")
+        self._running = True
+        ColorPrint.green(f"Thread started: {self.name}")
 
-            # Launch browser in this thread
-            self._launch_browser()
+        # Launch browser in this thread
+        self._launch_browser()
 
-            # Process commands until stopped
-            self._event_loop()
+        # Process commands until stopped
+        self._event_loop()
 
-        except Exception as e:
-            ColorPrint.red(f"Thread error in {self.name}: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            self._cleanup()
+        self._cleanup()
 
     def _launch_browser(self):
         """
@@ -177,15 +169,12 @@ class ThreadedBrowser(threading.Thread, IBrowser):
         Commands are processed with timeout to allow checking _running flag.
         """
         while self._running:
-            try:
-                # Get command with timeout to allow exit check
-                command = self._command_queue.get(timeout=0.1)
-                self._process_command(command)
-            except Empty:
-                # Timeout - no command, continue loop
-                pass
-            except Exception as e:
-                ColorPrint.red(f"Event loop error: {e}")
+            if self._command_queue.empty():
+                time.sleep(0.1)
+                continue
+
+            command = self._command_queue.get()
+            self._process_command(command)
 
     def _process_command(self, command: Dict[str, Any]):
         """
@@ -202,21 +191,17 @@ class ThreadedBrowser(threading.Thread, IBrowser):
         """
         cmd_type = command.get('type')
 
-        try:
-            if cmd_type == 'navigate':
-                self._cmd_navigate(command)
-            elif cmd_type == 'execute':
-                self._cmd_execute(command)
-            elif cmd_type == 'get_attribute':
-                self._cmd_get_attribute(command)
-            elif cmd_type == 'stop':
-                self._running = False
-            else:
-                # Allow subclass to handle custom commands
-                self._process_custom_command(command)
-        except Exception as e:
-            ColorPrint.red(f"Command error ({cmd_type}): {e}")
-            self._result_queue.put({'success': False, 'error': str(e)})
+        if cmd_type == 'navigate':
+            self._cmd_navigate(command)
+        elif cmd_type == 'execute':
+            self._cmd_execute(command)
+        elif cmd_type == 'get_attribute':
+            self._cmd_get_attribute(command)
+        elif cmd_type == 'stop':
+            self._running = False
+        else:
+            # Allow subclass to handle custom commands
+            self._process_custom_command(command)
 
     def _cmd_navigate(self, command: Dict[str, Any]):
         """Navigate to URL"""
@@ -264,101 +249,82 @@ class ThreadedBrowser(threading.Thread, IBrowser):
         if not self.cookie_manager:
             return
 
-        try:
-            # Load cookies using configured strategy (with session cookie option)
-            cookies = self.cookie_manager.load_cookies(
-                strategy=self.cookie_load_strategy,
-                profile_name=self.cookie_load_profile,
-                include_session=self.cookie_include_session
-            )
+        cookies = self.cookie_manager.load_cookies(
+            strategy=self.cookie_load_strategy,
+            profile_name=self.cookie_load_profile,
+            include_session=self.cookie_include_session
+        )
 
-            if cookies and self.driver:
-                # Group cookies by domain for optimized loading
-                domain_groups = {}
-                for cookie in cookies:
-                    domain = cookie.get('domain', '')
-                    if domain not in domain_groups:
-                        domain_groups[domain] = []
-                    domain_groups[domain].append(cookie)
+        if cookies and self.driver:
+            # Group cookies by domain for optimized loading
+            domain_groups = {}
+            for cookie in cookies:
+                domain = cookie.get('domain', '')
+                if domain not in domain_groups:
+                    domain_groups[domain] = []
+                domain_groups[domain].append(cookie)
 
-                ColorPrint.blue(f"{self.name}: Loading cookies from {len(domain_groups)} domains...")
+            ColorPrint.blue(f"{self.name}: Loading cookies from {len(domain_groups)} domains...")
 
-                # Navigate to a page first (cookies need domain context)
-                current_url = self.driver.current_url
-                if not current_url or current_url == 'data:,':
-                    self.driver.get('about:blank')
+            # Navigate to a page first (cookies need domain context)
+            current_url = self.driver.current_url
+            if not current_url or current_url == 'data:,':
+                self.driver.get('about:blank')
 
-                # Load cookies grouped by domain
-                loaded_count = 0
-                skipped_count = 0
+            # Load cookies grouped by domain
+            loaded_count = 0
 
-                for domain, domain_cookies in domain_groups.items():
-                    for cookie in domain_cookies:
-                        try:
-                            self.driver.add_cookie(cookie)
-                            loaded_count += 1
-                        except Exception as e:
-                            # Cookie might be domain-specific, silently skip
-                            skipped_count += 1
-                            ColorPrint.debug(f"Skipped cookie {cookie.get('name')} (domain: {domain}): {e}")
+            for domain, domain_cookies in domain_groups.items():
+                for cookie in domain_cookies:
+                    self.driver.add_cookie(cookie)
+                    loaded_count += 1
 
-                if loaded_count > 0:
-                    ColorPrint.green(
-                        f"{self.name}: Loaded {loaded_count}/{len(cookies)} cookies "
-                        f"(skipped: {skipped_count}, domains: {len(domain_groups)})"
-                    )
-
-        except Exception as e:
-            ColorPrint.yellow(f"{self.name}: Failed to load cookies: {e}")
+            if loaded_count > 0:
+                ColorPrint.green(
+                    f"{self.name}: Loaded {loaded_count}/{len(cookies)} cookies "
+                    f"(domains: {len(domain_groups)})"
+                )
 
     def _save_cookies_on_cleanup(self):
         """Save cookies before browser shutdown"""
         if not self.cookie_manager or not self.cookie_auto_save:
             return
 
-        try:
-            if self.driver:
-                cookies = self.driver.get_cookies()
+        if self.driver:
+            cookies = self.driver.get_cookies()
 
-                if cookies:
-                    # Determine save profile
-                    save_profile = self.cookie_save_profile if self.cookie_save_strategy == 'specified' else None
+            if cookies:
+                # Determine save profile
+                save_profile = self.cookie_save_profile if self.cookie_save_strategy == 'specified' else None
 
-                    # Save cookies (with session cookie option)
-                    profile_name = self.cookie_manager.save_cookies(
-                        cookies,
-                        strategy=self.cookie_save_strategy,
-                        profile_name=save_profile,
-                        metadata={
-                            'browser_type': self.browser_type,
-                            'browser_version': self.version,
-                            'thread_name': self.name
-                        },
-                        save_session_cookies=self.cookie_save_session
-                    )
+                # Save cookies (with session cookie option)
+                profile_name = self.cookie_manager.save_cookies(
+                    cookies,
+                    strategy=self.cookie_save_strategy,
+                    profile_name=save_profile,
+                    metadata={
+                        'browser_type': self.browser_type,
+                        'browser_version': self.version,
+                        'thread_name': self.name
+                    },
+                    save_session_cookies=self.cookie_save_session
+                )
 
-                    ColorPrint.green(
-                        f"{self.name}: Saved cookies to profile: {profile_name}"
-                    )
-
-        except Exception as e:
-            ColorPrint.red(f"{self.name}: Failed to save cookies on cleanup: {e}")
+                ColorPrint.green(
+                    f"{self.name}: Saved cookies to profile: {profile_name}"
+                )
 
     def _update_cookies_realtime(self):
         """Update cookies in real-time (called after navigation if enabled)"""
         if not self.cookie_manager or not self.cookie_realtime_save:
             return
 
-        try:
-            if self.driver:
-                cookies = self.driver.get_cookies()
-                self.cookie_manager.update_cookies_realtime(
-                    cookies,
-                    save_session_cookies=self.cookie_save_session
-                )
-
-        except Exception as e:
-            ColorPrint.debug(f"{self.name}: Real-time cookie update failed: {e}")
+        if self.driver:
+            cookies = self.driver.get_cookies()
+            self.cookie_manager.update_cookies_realtime(
+                cookies,
+                save_session_cookies=self.cookie_save_session
+            )
 
     def _cleanup(self):
         """Cleanup browser resources"""
@@ -368,15 +334,13 @@ class ThreadedBrowser(threading.Thread, IBrowser):
         self._save_cookies_on_cleanup()
 
         with self._lock:
-            if self.driver:
-                try:
-                    self.driver.quit()
-                    ColorPrint.green(f"{self.name} driver closed")
-                except Exception as e:
-                    ColorPrint.red(f"Error closing driver: {e}")
-                finally:
-                    self.driver = None
-                    self.is_launched = False
+            driver = self.driver
+            self.driver = None
+            self.is_launched = False
+
+            if driver:
+                driver.quit()
+                ColorPrint.green(f"{self.name} driver closed")
 
         ColorPrint.blue(f"{self.name} thread stopped")
 
@@ -907,11 +871,8 @@ class ThreadedBrowser(threading.Thread, IBrowser):
             # Add loaded cookies
             success_count = 0
             for cookie in cookies:
-                try:
-                    self.add_cookie(cookie)
-                    success_count += 1
-                except Exception as e:
-                    ColorPrint.debug(f"Failed to add cookie {cookie.get('name')}: {e}")
+                self.add_cookie(cookie)
+                success_count += 1
 
             ColorPrint.green(f"{self.name}: Loaded {success_count}/{len(cookies)} cookies")
             return success_count > 0

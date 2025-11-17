@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 
 from pycore import ColorPrint
 from pycore.pyfoundations.heartbeat.heartbeat_thread import TaskModel, TaskHandler
-from pycore.pyutils.rpc.common.request_event_table import RequestStatus
+from pycore.pyutils.rpc.common.task_table import RequestStatus
 
 
 class RpcAckCheckModel(TaskModel):

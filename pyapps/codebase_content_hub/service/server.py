@@ -161,10 +161,10 @@ def read_pdf_file(file_path: Path, max_chars: int) -> Dict[str, Any]:
             })
         doc.close()
     else:
-        PyPDF2 = _import_optional("PyPDF2")
-        if PyPDF2:
+        pypdf_module = _import_optional("pypdf")
+        if pypdf_module:
             with open(file_path, "rb") as handle:
-                reader = PyPDF2.PdfReader(handle)
+                reader = pypdf_module.PdfReader(handle)
                 metadata["page_count"] = len(reader.pages)
                 for index, page in enumerate(reader.pages):
                     text = page.extract_text() or ""

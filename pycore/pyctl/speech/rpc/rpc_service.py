@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RPC Service - Thread-based RPC Service for Speech (Modular Routes)
+RPC Service - WebSocket-enabled RPC Service for Speech (Modular Routes)
 
-Uses ThreadedRpcServer (NO asyncio) with PyHeartbeat integration.
+Uses the FastAPIRPCServer (HTTP + WebSocket + CORS) with PyHeartbeat + SpeechSwitch integration.
 Routes are organized in separate modules for better maintainability.
 
 Usage:
     from pycore.pylauncher import launch_services, create_speech_service_config
     from pycore.pyctl.speech.rpc import start_rpc_service
 
-    # Launch services (starts ThreadedRpcServer thread)
+    # Launch services (starts UnifiedRpcServer with WebSocket support)
     config = create_speech_service_config(rpc_port=59000)
     instances = launch_services(config)
 
@@ -29,13 +29,14 @@ from pycore.pyctl.speech.rpc.routes import (
     register_stt_routes,
     register_config_routes,
     register_status_routes,
-    register_queue_routes
+    register_queue_routes,
+    register_clipboard_routes
 )
 
 
 class RPCService:
     """
-    RPC Service - Registers speech routes on ThreadedRpcServer
+    RPC Service - Registers speech routes on the FastAPI RPC server
 
     Modular design with routes organized by functional area:
     - TTS Routes: Text-to-Speech endpoints
@@ -57,9 +58,9 @@ class RPCService:
         Initialize RPC Service
 
         Args:
-            rpc_server: ThreadedRpcServer instance (already running as thread)
-            tts_switch: TTSSwitch instance (optional)
-            stt_switch: STTSwitch instance (optional)
+            rpc_server: FastAPIRPCServerRunner instance (HTTP + WebSocket + CORS)
+            tts_switch: SpeechSwitch instance (optional, kept for compatibility)
+            stt_switch: SpeechSwitch instance (optional, kept for compatibility)
         """
         self.server = rpc_server
         self.service_instances = {
@@ -82,6 +83,7 @@ class RPCService:
         register_config_routes(self.server, self.service_instances)
         register_status_routes(self.server, self.service_instances)
         register_queue_routes(self.server, self.service_instances)
+        register_clipboard_routes(self.server, self.service_instances)
 
         self._registered = True
 
@@ -103,6 +105,9 @@ class RPCService:
         ColorPrint.blue("  Queue:")
         ColorPrint.blue("    - POST /rpc/queue_stats")
         ColorPrint.blue("    - POST /rpc/task_status")
+        ColorPrint.blue("  Clipboard:")
+        ColorPrint.blue("    - POST /rpc/clipboard_get")
+        ColorPrint.blue("    - POST /rpc/clipboard_sync")
 
     def get_status(self) -> Dict[str, Any]:
         """Get RPC service status"""
@@ -135,9 +140,9 @@ def start_rpc_service(rpc_server, tts_switch=None, stt_switch=None) -> RPCServic
     Register speech routes on running RPC server
 
     Args:
-        rpc_server: ThreadedRpcServer instance (already running)
-        tts_switch: TTSSwitch instance (optional)
-        stt_switch: STTSwitch instance (optional)
+        rpc_server: FastAPIRPCServerRunner instance (HTTP + WebSocket + CORS)
+        tts_switch: SpeechSwitch instance (optional)
+        stt_switch: SpeechSwitch instance (optional)
 
     Returns:
         RPCService instance

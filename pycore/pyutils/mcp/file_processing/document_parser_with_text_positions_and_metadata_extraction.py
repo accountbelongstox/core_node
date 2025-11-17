@@ -12,9 +12,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PyPDF2, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
+from pycore.pyfoundations.third_party import get_third_package_pypdf, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
 
-PyPDF2 = get_third_package_PyPDF2()
+pypdf = get_third_package_pypdf()
 pdfplumber = get_third_package_pdfplumber()
 python_docx = get_third_package_python_docx()
 openpyxl = get_third_package_openpyxl()
@@ -146,7 +146,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
                     if page_tables:
                         processing_methods.append("table_extraction")
 
-        # Extract metadata using PyPDF2
+        # Extract metadata using pypdf
         metadata = await self._extract_pdf_metadata(pdf_path)
 
         # Extract images if requested
@@ -186,7 +186,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
             "processing_methods_applied": processing_methods,
             "processing_engine_versions": {
                 "pdf_parser": "pdfplumber",
-                "pdf_metadata": "PyPDF2"
+                "pdf_metadata": "pypdf"
             },
             "errors_and_warnings": []
         }
@@ -413,7 +413,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         }
 
     async def _extract_pdf_metadata(self, pdf_path: str) -> Dict[str, Any]:
-        """Extract PDF metadata using PyPDF2"""
+        """Extract PDF metadata using pypdf"""
         metadata = {
             "title": "",
             "author": "",
@@ -427,7 +427,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         }
 
         with open(pdf_path, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
+            pdf_reader = pypdf.PdfReader(file)
             if pdf_reader.metadata:
                 metadata["title"] = pdf_reader.metadata.get('/Title', '') or ''
                 metadata["author"] = pdf_reader.metadata.get('/Author', '') or ''

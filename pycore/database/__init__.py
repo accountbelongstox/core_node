@@ -23,6 +23,21 @@ try:
     # Import core components
     from pycore.database.base_model import BaseModel
     from pycore.database.database_manager import database_manager, get_database_manager
+    from pycore.database.type_converter import (
+        DatabaseTypeConverter,
+        to_db,
+        to_db_dict,
+        from_db,
+        from_db_dict
+    )
+    from pycore.database.json_serializer import (
+        DatabaseJSONEncoder,
+        serialize_row,
+        serialize_rows,
+        serialize_query_result,
+        to_json,
+        to_json_pretty
+    )
 
     DATABASE_AVAILABLE = True
     ColorPrint.green("[database] Database module loaded successfully")
@@ -35,6 +50,17 @@ except ImportError as e:
     BaseModel = None
     database_manager = None
     get_database_manager = None
+    DatabaseTypeConverter = None
+    to_db = None
+    to_db_dict = None
+    from_db = None
+    from_db_dict = None
+    DatabaseJSONEncoder = None
+    serialize_row = None
+    serialize_rows = None
+    serialize_query_result = None
+    to_json = None
+    to_json_pretty = None
 
 
 # Export main interfaces
@@ -43,4 +69,15 @@ __all__ = [
     'get_database_manager',
     'BaseModel',
     'DATABASE_AVAILABLE',
+    'DatabaseTypeConverter',
+    'to_db',
+    'to_db_dict',
+    'from_db',
+    'from_db_dict',
+    'DatabaseJSONEncoder',
+    'serialize_row',
+    'serialize_rows',
+    'serialize_query_result',
+    'to_json',
+    'to_json_pretty',
 ]

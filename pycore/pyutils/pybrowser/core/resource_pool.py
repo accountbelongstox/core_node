@@ -30,13 +30,9 @@ class ResourcePool:
 
     def initialize(self):
         """Initialize resource pool"""
-        try:
-            ColorPrint.info('Initializing ResourcePool...')
-            self.is_initialized = True
-            ColorPrint.info('ResourcePool initialized')
-        except Exception as error:
-            ColorPrint.red(f'Failed to initialize ResourcePool: {error}')
-            raise
+        ColorPrint.info('Initializing ResourcePool...')
+        self.is_initialized = True
+        ColorPrint.info('ResourcePool initialized')
 
     def get_browser(self, browser_type: str = 'edge') -> Any:
         """
@@ -73,13 +69,10 @@ class ResourcePool:
         Args:
             browser: Browser instance
         """
-        try:
-            if hasattr(browser, 'mark_idle'):
-                browser.mark_idle()
-            self.metrics['browsers_released'] += 1
-            ColorPrint.debug(f"Browser released to pool: {browser.browser_type}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to release browser: {error}')
+        if hasattr(browser, 'mark_idle'):
+            browser.mark_idle()
+        self.metrics['browsers_released'] += 1
+        ColorPrint.debug(f"Browser released to pool: {browser.browser_type}")
 
     def create_browser(self, browser_type: str) -> Any:
         """
@@ -156,43 +149,29 @@ class ResourcePool:
         Args:
             page: Page instance
         """
-        try:
-            if hasattr(page, 'mark_idle'):
-                page.mark_idle()
-            self.metrics['pages_released'] += 1
-            ColorPrint.debug(f"Page released to pool: {page.browser_type}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to release page: {error}')
+        if hasattr(page, 'mark_idle'):
+            page.mark_idle()
+        self.metrics['pages_released'] += 1
+        ColorPrint.debug(f"Page released to pool: {page.browser_type}")
 
     def cleanup(self):
         """Cleanup all resources"""
-        try:
-            ColorPrint.info('Cleaning up ResourcePool...')
+        ColorPrint.info('Cleaning up ResourcePool...')
 
-            for browser_type, browsers in self.browser_pool.items():
-                for browser in browsers:
-                    try:
-                        # Stop ThreadedBrowser
-                        browser.stop()
-                        browser.join(timeout=10)
-                    except Exception as error:
-                        ColorPrint.warn(f"Failed to close browser {browser_type}: {error}")
+        for browser_type, browsers in self.browser_pool.items():
+            for browser in browsers:
+                browser.stop()
+                browser.join(timeout=10)
 
-            for page_type, pages in self.page_pool.items():
-                for page in pages:
-                    try:
-                        page.close()
-                    except Exception as error:
-                        ColorPrint.warn(f"Failed to close page {page_type}: {error}")
+        for page_type, pages in self.page_pool.items():
+            for page in pages:
+                page.close()
 
-            self.browser_pool.clear()
-            self.page_pool.clear()
-            self.is_initialized = False
+        self.browser_pool.clear()
+        self.page_pool.clear()
+        self.is_initialized = False
 
-            ColorPrint.info('ResourcePool cleanup completed')
-        except Exception as error:
-            ColorPrint.red(f'Failed to cleanup ResourcePool: {error}')
-            raise
+        ColorPrint.info('ResourcePool cleanup completed')
 
     def get_info(self) -> Dict[str, Any]:
         """

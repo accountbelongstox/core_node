@@ -10,6 +10,7 @@ import time
 import asyncio
 from typing import Dict, Any, Callable, List
 from datetime import datetime
+from urllib.parse import urlparse
 
 from pycore.pyfoundations.color_print import ColorPrint
 
@@ -94,12 +95,10 @@ class Validator:
 
     @staticmethod
     def is_url(url):
-        try:
-            from urllib.parse import urlparse
-            result = urlparse(url)
-            return all([result.scheme, result.netloc])
-        except Exception:
+        if not isinstance(url, str):
             return False
+        result = urlparse(url)
+        return bool(result.scheme and result.netloc)
 
     @staticmethod
     def is_email(email):
@@ -164,22 +163,21 @@ class RetryHandler:
         current_delay = self.delay
 
         for attempt in range(1, self.max_attempts + 1):
-            try:
-                if asyncio.iscoroutinefunction(fn):
-                    result = await fn(*args)
-                else:
-                    result = fn(*args)
-                return result
-            except Exception as error:
-                last_error = error
+            task = await self._run_once(fn, *args)
+            error = task.exception()
 
-                if attempt == self.max_attempts or not self.retry_condition(error):
-                    raise error
+            if error is None:
+                return task.result()
 
-                ColorPrint.yellow(f'Attempt {attempt} failed, retrying in {current_delay}s: {str(error)}')
-                await self.sleep(current_delay)
+            last_error = error
 
-                current_delay = min(current_delay * self.backoff, self.max_delay)
+            if attempt == self.max_attempts or not self.retry_condition(error):
+                raise error
+
+            ColorPrint.yellow(f'Attempt {attempt} failed, retrying in {current_delay}s: {str(error)}')
+            await self.sleep(current_delay)
+
+            current_delay = min(current_delay * self.backoff, self.max_delay)
 
         raise last_error
 
@@ -189,6 +187,17 @@ class RetryHandler:
     @staticmethod
     def create(options: Dict[str, Any] = None):
         return RetryHandler(options)
+
+    async def _run_once(self, fn: Callable, *args):
+        if asyncio.iscoroutinefunction(fn):
+            task = asyncio.create_task(fn(*args))
+            await asyncio.wait({task})
+            return task
+
+        loop = asyncio.get_running_loop()
+        future = loop.run_in_executor(None, lambda: fn(*args))
+        await asyncio.wait({future})
+        return future
 
 
 class PerformanceMonitor:

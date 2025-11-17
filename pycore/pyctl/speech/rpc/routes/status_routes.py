@@ -19,7 +19,7 @@ def register_status_routes(rpc_server, service_instances: Dict[str, Any]):
     Register status routes on RPC server
 
     Args:
-        rpc_server: ThreadedRpcServer instance
+        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
         service_instances: Dict with service instances
     """
 

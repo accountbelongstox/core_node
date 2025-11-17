@@ -42,7 +42,6 @@ For full API reference, see:
 https://learn.microsoft.com/python/api/azure-cognitiveservices-speech/
 """
 
-import threading
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -53,6 +52,11 @@ speechsdk = get_third_package_speechsdk()
 from pycore.pyutils.azure_speech.config import AzureSpeechConfig
 from pycore.pyutils.common.tts_models import WordModel, SentenceModel, DocumentModel
 from pycore.pyutils.common.tts_queue_ops import TTSQueueOps
+from pycore.pyutils.azure_speech.quota_state import (
+    mark_tts_quota_exceeded,
+    clear_tts_quota_issue,
+    is_tts_quota_blocked,
+)
 
 
 class AzureSpeechClient:
@@ -82,6 +86,7 @@ class AzureSpeechClient:
         """
         self._initialized = False
         self._speech_config: Optional[speechsdk.SpeechConfig] = None
+        self._active_tasks = 0
     
     def initialize(self) -> bool:
         """
@@ -148,6 +153,8 @@ class AzureSpeechClient:
         if not self.initialize():
             return False
         
+        self._mark_task_start()
+        
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Set voice name if provided
@@ -166,23 +173,24 @@ class AzureSpeechClient:
         
         # Check result reason using ResultReason enum
         # Reference: speechsdk.ResultReason enumeration
-        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            # Write audio data to file
-            # Property: SpeechSynthesisResult.audio_data (bytes)
-            with open(output_path, 'wb') as f:
-                f.write(result.audio_data)
-            ColorPrint.green(f"[AzureSpeech] Synthesis completed: {output_path}")
-            return True
-        else:
-            # Handle other result reasons (Canceled, etc.)
-            # Reference: speechsdk.CancellationDetails for cancellation info
+        try:
+            if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                with open(output_path, 'wb') as f:
+                    f.write(result.audio_data)
+                clear_tts_quota_issue()
+                ColorPrint.green(f"[AzureSpeech] Synthesis completed: {output_path}")
+                return True
             ColorPrint.red(f"[AzureSpeech] Synthesis failed: {result.reason}")
             if result.reason == speechsdk.ResultReason.Canceled:
                 cancellation = speechsdk.SpeechSynthesisCancellationDetails(result)
                 ColorPrint.red(f"[AzureSpeech] Cancellation reason: {cancellation.reason}")
                 if cancellation.reason == speechsdk.CancellationReason.Error:
-                    ColorPrint.red(f"[AzureSpeech] Error details: {cancellation.error_details}")
+                    error_details = cancellation.error_details or ""
+                    ColorPrint.red(f"[AzureSpeech] Error details: {error_details}")
+                    self._check_quota_failure(error_details)
             return False
+        finally:
+            self._mark_task_end()
     
     def add_to_queue(self, item: WordModel | SentenceModel | DocumentModel) -> bool:
         """
@@ -202,17 +210,38 @@ class AzureSpeechClient:
             return TTSQueueOps.add_word(item)
         return False
 
+    def is_busy(self) -> bool:
+        """Return True while synthesis tasks are running."""
+        return self._active_tasks > 0
+
+    def has_quota_issue(self) -> bool:
+        """Expose whether Azure TTS is currently blocked due to quota."""
+        blocked, _ = is_tts_quota_blocked()
+        return blocked
+
+    def _mark_task_start(self) -> None:
+        self._active_tasks += 1
+
+    def _mark_task_end(self) -> None:
+        self._active_tasks = max(0, self._active_tasks - 1)
+
+    def _check_quota_failure(self, error_details: str) -> None:
+        """Detect quota-related failures from Azure SDK error details."""
+        if not error_details:
+            return
+        lowered = error_details.lower()
+        if "quota" in lowered or "exceed" in lowered or "usage limit" in lowered:
+            mark_tts_quota_exceeded(error_details)
+
 
 # Global Azure Speech client instance
 _global_azure_speech_client: Optional[AzureSpeechClient] = None
-_client_lock = threading.Lock()
 
 
 def get_azure_speech_client() -> AzureSpeechClient:
     """Get global Azure Speech client instance"""
     global _global_azure_speech_client
-    with _client_lock:
-        if _global_azure_speech_client is None:
-            _global_azure_speech_client = AzureSpeechClient()
-        return _global_azure_speech_client
+    if _global_azure_speech_client is None:
+        _global_azure_speech_client = AzureSpeechClient()
+    return _global_azure_speech_client
 

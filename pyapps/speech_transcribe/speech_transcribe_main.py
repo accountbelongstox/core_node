@@ -20,19 +20,19 @@ sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure'
 os.environ['PYTHONUNBUFFERED'] = '1'
 
 from pycore.pylauncher.launcher import launch_speech_only
-from pycore.pyutils.config_cache import speech_config_cache
+from pycore.pyutils.common import speech_config
 from pycore.pyfoundations.color_print import ColorPrint
 
 
 def _print_cache_details() -> None:
     """Emit cache information without prompting the user."""
-    if not speech_config_cache.has_cache():
+    if not speech_config.has_key("ui_transcription_mode"):
         return
 
     ColorPrint.green("\n[Configuration cache detected]")
     show_cache = os.environ.get("SPEECH_TRANSCRIBE_SHOW_CACHE", "").strip().lower()
     if show_cache in {"1", "true", "yes", "y"}:
-        speech_config_cache.print_cached_config()
+        speech_config.print_config()
 
 
 def start():
@@ -48,7 +48,7 @@ def start():
 
     # Hard-coded dual-source mode (microphone + system audio)
     mode = "dual"
-    speech_config_cache.set_transcription_mode(mode)
+    speech_config.set("ui_transcription_mode", mode)
 
     ColorPrint.green("\n[Launching dual-source mode (microphone + system audio)]")
 

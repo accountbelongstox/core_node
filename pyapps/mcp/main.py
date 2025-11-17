@@ -29,7 +29,12 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.stdio_utils import ensure_stdio_has_buffer_attributes
 from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_Context
+
+# Ensure fastmcp can wrap sys.stdout/sys.stderr even when the host replaces the
+# streams with raw BufferedWriter objects (common in sandboxed CLIs).
+ensure_stdio_has_buffer_attributes()
 
 FastMCP = get_third_package_FastMCP()
 Context = get_third_package_Context()

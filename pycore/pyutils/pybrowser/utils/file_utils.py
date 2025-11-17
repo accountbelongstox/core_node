@@ -40,25 +40,21 @@ class FileUtils:
             ColorPrint.red('[FileUtils] Path is required')
             return False
 
-        try:
-            # Convert to Path if string
-            if isinstance(path, str):
-                path = Path(path)
+        # Convert to Path if string
+        if isinstance(path, str):
+            path = Path(path)
 
-            # Handle file paths (ensure parent directory)
-            if path.suffix:
-                path = path.parent
+        # Handle file paths (ensure parent directory)
+        if path.suffix:
+            path = path.parent
 
-            # Create directory if doesn't exist
-            if not path.exists():
-                path.mkdir(parents=True, exist_ok=True)
-                if log:
-                    ColorPrint.blue(f'[FileUtils] Created directory: {path}')
+        # Create directory if doesn't exist
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+            if log:
+                ColorPrint.blue(f'[FileUtils] Created directory: {path}')
 
-            return True
-        except Exception as error:
-            ColorPrint.red(f'[FileUtils] Failed to create directory {path}: {error}')
-            return False
+        return True
 
     @staticmethod
     def ensure_file_directory(filepath: Union[str, Path], log: bool = True) -> bool:
@@ -82,15 +78,11 @@ class FileUtils:
             ColorPrint.red('[FileUtils] File path is required')
             return False
 
-        try:
-            if isinstance(filepath, str):
-                filepath = Path(filepath)
+        if isinstance(filepath, str):
+            filepath = Path(filepath)
 
-            directory = filepath.parent
-            return FileUtils.ensure_directory(directory, log=log)
-        except Exception as error:
-            ColorPrint.red(f'[FileUtils] Failed to ensure directory for {filepath}: {error}')
-            return False
+        directory = filepath.parent
+        return FileUtils.ensure_directory(directory, log=log)
 
     @staticmethod
     def get_next_filename(
@@ -143,13 +135,9 @@ class FileUtils:
         for file in existing_files:
             stem = file.stem  # filename without extension
             # Extract number part after prefix_
-            try:
-                parts = stem.split('_')
-                if len(parts) >= 2:
-                    num = int(parts[-1])
-                    numbers.append(num)
-            except ValueError:
-                continue
+            parts = stem.split('_')
+            if len(parts) >= 2 and parts[-1].isdigit():
+                numbers.append(int(parts[-1]))
 
         # Determine next number
         if numbers:
@@ -222,11 +210,7 @@ class FileUtils:
         if not path.exists() or not path.is_file():
             return None
 
-        try:
-            return path.stat().st_size
-        except Exception as error:
-            ColorPrint.red(f'[FileUtils] Failed to get file size for {path}: {error}')
-            return None
+        return path.stat().st_size
 
     @staticmethod
     def normalize_path(path: Union[str, Path], absolute: bool = False) -> str:

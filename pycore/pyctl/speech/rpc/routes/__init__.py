@@ -35,11 +35,13 @@ from pycore.pyctl.speech.rpc.routes.stt_routes import register_stt_routes
 from pycore.pyctl.speech.rpc.routes.config_routes import register_config_routes
 from pycore.pyctl.speech.rpc.routes.status_routes import register_status_routes
 from pycore.pyctl.speech.rpc.routes.queue_routes import register_queue_routes
+from pycore.pyctl.speech.rpc.routes.clipboard_routes import register_clipboard_routes
 
 __all__ = [
     'register_tts_routes',
     'register_stt_routes',
     'register_config_routes',
     'register_status_routes',
-    'register_queue_routes'
+    'register_queue_routes',
+    'register_clipboard_routes'
 ]

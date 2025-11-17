@@ -4,23 +4,27 @@
 Speech Manager
 
 Orchestrates speech utilities from pyutils:
-- Speech Recognition (STT) - pyutils.speech_recognition
+- Speech Recognition (STT) - pyutils.azure_speech
 - Speech Synthesis (TTS) - pyutils.azure_speech / pyutils.edge_tts
 
 Provides unified high-level interface for all speech operations.
 """
 
 import asyncio
+import hashlib
+import shutil
 import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, Union
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
+from pycore.pyfoundations.system_paths import map_web_path
 
 edge_tts_module = get_third_package_edge_tts()
-from pycore.pyutils.speech_recognition import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
-from pycore.pyutils.tts_cache import tts_cache_manager
+from pycore.pyutils.azure_speech import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
+from pycore.database import database_manager, DATABASE_AVAILABLE
+from pycore.database.models import SpeechTTSCacheModel, TableKeys
 
 
 class SpeechManager:
@@ -28,7 +32,7 @@ class SpeechManager:
     Speech Manager - Unified interface for speech operations
 
     Combines multiple pyutils modules:
-    - pyutils.speech_recognition - STT operations
+    - pyutils.azure_speech - STT operations
     - pyutils.azure_speech - Azure TTS
     - pyutils.edge_tts - Edge TTS
 
@@ -44,6 +48,9 @@ class SpeechManager:
         self._default_tts_provider = "edge"  # Default to edge-tts (free)
         self._edge_tts_available = False
         self._azure_tts_available = False
+        self._db_initialized = False
+        self._cache_root = map_web_path("wwwroot", "pycore_db/tts_static")
+        self._initialize_cache_database()
 
     def initialize(self) -> bool:
         """
@@ -120,6 +127,82 @@ class SpeechManager:
         # but we don't need it for basic TTS synthesis
         ColorPrint.green("[SpeechManager] Edge TTS available (free)")
         return True
+
+    # ========== TTS Cache Database Methods ==========
+
+    def _initialize_cache_database(self):
+        """Initialize TTS cache database"""
+        if not DATABASE_AVAILABLE:
+            ColorPrint.yellow("[SpeechManager] Database not available, cache disabled")
+            self._tts_cache_enabled = False
+            return
+
+        try:
+            database_manager.register_database("speech")
+            database_manager.load_tables(
+                database_name="speech",
+                table_keys=[TableKeys.SPEECH_TTS_CACHE],
+                models=[SpeechTTSCacheModel]
+            )
+            self._db_initialized = True
+            ColorPrint.blue("[SpeechManager] TTS cache database initialized")
+        except Exception as e:
+            ColorPrint.yellow(f"[SpeechManager] Cache database init failed: {e}")
+            self._tts_cache_enabled = False
+
+    def _get_text_hash(self, text: str) -> str:
+        """Calculate MD5 hash of text"""
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+
+    def _get_cache_path(self, provider: str, text: str, language: str, extension: str = "mp3") -> Path:
+        """Get cache file path"""
+        text_hash = self._get_text_hash(text)
+        lang_safe = language.replace('-', '_')
+        cache_dir = Path(self._cache_root) / provider / language
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"{lang_safe}_{text_hash}.{extension}"
+
+    def _copy_from_cache(self, provider: str, text: str, language: str, output_path: Path) -> bool:
+        """Copy cached file to output location"""
+        if not self._db_initialized:
+            # Fallback to file-only check
+            cache_path = self._get_cache_path(provider, text, language)
+            if cache_path.exists():
+                shutil.copy2(cache_path, output_path)
+                return True
+            return False
+
+        try:
+            text_md5 = self._get_text_hash(text)
+            with database_manager.get_connection("speech") as conn:
+                record = SpeechTTSCacheModel.query_cache(conn, text_md5, language, provider, verify_file=True)
+                if record:
+                    cache_file = Path(record['file_path'])
+                    if cache_file.exists():
+                        shutil.copy2(cache_file, output_path)
+                        return True
+            return False
+        except Exception as e:
+            ColorPrint.yellow(f"[SpeechManager] Cache lookup failed: {e}")
+            return False
+
+    def _save_to_cache(self, provider: str, text: str, language: str, source_file: Path):
+        """Save file to cache"""
+        cache_path = self._get_cache_path(provider, text, language)
+        shutil.copy2(source_file, cache_path)
+
+        if not self._db_initialized:
+            return
+
+        try:
+            text_md5 = self._get_text_hash(text)
+            with database_manager.get_connection("speech") as conn:
+                SpeechTTSCacheModel.add_cache_entry(
+                    conn, text_md5, text, language, provider, str(cache_path.absolute())
+                )
+            ColorPrint.blue(f"[SpeechManager] Cached: {cache_path.name}")
+        except Exception as e:
+            ColorPrint.yellow(f"[SpeechManager] Cache save failed: {e}")
 
     # ========== Speech Recognition (STT) Methods ==========
 
@@ -280,7 +363,7 @@ class SpeechManager:
 
         # Check cache first (if enabled)
         if use_cache:
-            if tts_cache_manager.copy_from_cache(provider, text, language, output_path):
+            if self._copy_from_cache(provider, text, language, output_path):
                 ColorPrint.green(f"[SpeechManager] Used cached TTS: {output_path.name}")
                 return True
 
@@ -312,7 +395,7 @@ class SpeechManager:
 
         # Save to cache if successful and cache enabled
         if success and use_cache and output_path.exists():
-            tts_cache_manager.save_cache(provider, text, language, output_path)
+            self._save_to_cache(provider, text, language, output_path)
 
         return success
 

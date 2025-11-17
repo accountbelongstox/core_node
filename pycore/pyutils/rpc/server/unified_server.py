@@ -21,6 +21,7 @@ import asyncio
 import time
 from pathlib import Path
 from typing import Dict, Optional, Callable, Any
+import threading
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_aiohttp_web
@@ -28,9 +29,7 @@ from pycore.pyfoundations.third_party import get_third_package_aiohttp_web
 web = get_third_package_aiohttp_web()
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
-from pycore.pyutils.rpc.common.event_cache import EventCache, default_event_cache
-from pycore.pyutils.rpc.common.request_manager import RequestManager, default_request_manager
-from pycore.pyutils.rpc.common.request_event_table import (
+from pycore.pyutils.rpc.common.task_table import (
     RequestEventTable,
     RequestEvent,
     RequestStatus,
@@ -138,13 +137,7 @@ class UnifiedRpcServer:
         self.host = options.get('host', DEFAULTS['SERVER_HOST'])
         self.debug = options.get('debug', False)
         self.max_requests = options.get('max_requests', 10000000)
-        
-        # Shared event cache
-        self.event_cache: EventCache = options.get('event_cache', default_event_cache)
-        
-        # Request manager
-        self.request_manager: RequestManager = options.get('request_manager', default_request_manager)
-        
+
         # Request event table
         self.request_event_table: RequestEventTable = options.get(
             'request_event_table',
@@ -334,16 +327,22 @@ class UnifiedRpcServer:
 
         loop.set_exception_handler(exception_handler)
 
-        # Create aiohttp app
-        self.app = web.Application()
-        
-        # Add static directories (must be added before other routes)
-        for url_prefix, directory in self.static_dirs.items():
-            self.app.router.add_static(url_prefix, directory)
-            if self.debug:
-                ColorPrint.blue(f"[UnifiedRpcServer] Serving static files: {url_prefix} -> {directory}")
-        
-        # Add protocol endpoints for service discovery (must be before dynamic routes)
+        # Create aiohttp app with CORS middleware
+        @web.middleware
+        async def cors_middleware(request, handler):
+            if request.method == 'OPTIONS':
+                response = web.Response(status=200)
+            else:
+                response = await handler(request)
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = '*'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            return response
+
+        self.app = web.Application(middlewares=[cors_middleware])
+
+        # Add protocol endpoints for service discovery (highest priority - most specific routes)
         async def rpc_status(request):
             """Handle /rpc/status endpoint for service discovery"""
             return web.json_response({
@@ -367,6 +366,7 @@ class UnifiedRpcServer:
         
         self.app.router.add_get(RPC_STATUS_PATH, rpc_status)
         self.app.router.add_get(RPC_INFO_PATH, rpc_info)
+        self.app.router.add_route('OPTIONS', '/{tail:.*}', lambda request: web.Response(status=200))
         
         # Add health check (unified basic route)
         async def health_check(request):
@@ -426,10 +426,34 @@ class UnifiedRpcServer:
         self.app.router.add_get(f'{HTTP_PATH_PREFIX}/heartbeat', http_heartbeat)
         self.app.router.add_post(f'{HTTP_PATH_PREFIX}/heartbeat', http_heartbeat)
 
-        # ✅ Add HTTP RPC dynamic routes LAST (catch-all for /rpc/{route})
+        # ✅ Add HTTP RPC dynamic routes (catch-all for /rpc/{route})
         # This must be after all specific routes like /rpc/ws, /rpc/heartbeat, /rpc/query/{id}
         self.app.router.add_post(f'{HTTP_PATH_PREFIX}/{{route}}', self.http_handler.handle_http_rpc)
         self.app.router.add_get(f'{HTTP_PATH_PREFIX}/{{route}}', self.http_handler.handle_http_rpc)
+
+        # ✅ Add explicit root path handler (BEFORE static routes)
+        # This matches ThreadedRpcServer's explicit '/' -> '/index.html' rewrite logic
+        async def serve_index(request):
+            """Serve index.html for root path (explicit rewrite like ThreadedRpcServer)"""
+            if '/' in self.static_dirs:
+                from pathlib import Path
+                index_path = Path(self.static_dirs['/']) / 'index.html'
+                if index_path.exists():
+                    return web.FileResponse(index_path)
+            # If no index.html, return simple status page
+            return web.Response(text="RPC Server Running - No index.html configured", status=200)
+
+        self.app.router.add_get('/', serve_index)
+
+        # ✅ Add static directories LAST (lowest priority, after all specific routes)
+        # This prevents static '/' from catching /rpc/ws and other specific routes
+        # Static routes are now registered AFTER all RPC routes
+        for url_prefix, directory in self.static_dirs.items():
+            # show_index=True: automatically serve index.html when directory is accessed
+            # follow_symlinks=True: allow symlinks in static directories
+            self.app.router.add_static(url_prefix, directory, show_index=True, follow_symlinks=True)
+            if self.debug:
+                ColorPrint.blue(f"[UnifiedRpcServer] Serving static files: {url_prefix} -> {directory}")
 
         # Start server
         self.runner = web.AppRunner(self.app)
@@ -486,5 +510,64 @@ class UnifiedRpcServer:
         return self._running
 
 
-__all__ = ['UnifiedRpcServer']
+class UnifiedRpcServerRunner:
+    """
+    Helper to run UnifiedRpcServer inside a background thread so callers
+    don't need to manage an asyncio event loop directly.
+    """
+
+    def __init__(self, host: str = DEFAULTS['SERVER_HOST'], port: int = DEFAULTS['SERVER_PORT'], debug: bool = False, options: Optional[Dict] = None):
+        opts = dict(options or {})
+        opts.setdefault('host', host)
+        opts.setdefault('port', port)
+        opts.setdefault('debug', debug)
+        self.server = UnifiedRpcServer(options=opts)
+        self._thread: Optional[threading.Thread] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._start_event = threading.Event()
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+
+        def runner():
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            try:
+                self._loop.run_until_complete(self.server.start())
+            finally:
+                self._start_event.set()
+            self._loop.run_forever()
+
+        self._thread = threading.Thread(target=runner, name='UnifiedRpcServerThread', daemon=True)
+        self._thread.start()
+        self._start_event.wait()
+
+    def stop(self):
+        if not self._loop:
+            return
+        try:
+            future = asyncio.run_coroutine_threadsafe(self.server.stop(), self._loop)
+            future.result(timeout=5)
+        finally:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._thread:
+                self._thread.join(timeout=5)
+
+    def route(self, name: str, handler: Callable):
+        self.server.route(name, handler)
+
+    def add_static_dir(self, url_prefix: str, directory: str):
+        self.server.add_static_dir(url_prefix, directory)
+
+    @property
+    def host(self) -> str:
+        return self.server.host
+
+    @property
+    def port(self) -> int:
+        return self.server.port
+
+
+__all__ = ['UnifiedRpcServer', 'UnifiedRpcServerRunner']
 

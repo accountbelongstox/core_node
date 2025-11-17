@@ -11,12 +11,19 @@ import shutil
 import time
 from typing import Dict, Any
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-
 from pycore import ColorPrint
+from pycore.pyfoundations.third_party import (
+    get_third_package_selenium_webdriver,
+    get_third_package_selenium_by,
+    get_third_package_webdriver_manager_chrome
+)
 from pycore.pyutils.pybrowser.core.threaded_browser import ThreadedBrowser
+
+webdriver = get_third_package_selenium_webdriver()
+By = get_third_package_selenium_by()
+ChromeDriverManager = get_third_package_webdriver_manager_chrome()
+Service = webdriver.chrome.service.Service
+Options = webdriver.chrome.options.Options
 
 
 class ChromeBrowser(ThreadedBrowser):
@@ -93,8 +100,6 @@ class ChromeBrowser(ThreadedBrowser):
             # Fallback to auto-download
             ColorPrint.yellow(f"{self.name}: Driver not found locally, attempting download...")
             ColorPrint.yellow(f"{self.name}: Note: This requires internet connection")
-
-            from webdriver_manager.chrome import ChromeDriverManager
 
             # Let download errors propagate naturally
             downloaded_path = ChromeDriverManager().install()

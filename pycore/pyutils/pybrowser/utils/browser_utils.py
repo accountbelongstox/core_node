@@ -23,12 +23,8 @@ class BrowserUtils:
             width: Viewport width
             height: Viewport height
         """
-        try:
-            page.driver.set_window_size(width, height)
-            ColorPrint.debug(f"Viewport set to {width}x{height}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to set viewport: {error}')
-            raise
+        page.driver.set_window_size(width, height)
+        ColorPrint.debug(f"Viewport set to {width}x{height}")
 
     @staticmethod
     async def set_user_agent(page: Any, user_agent: str):
@@ -39,13 +35,10 @@ class BrowserUtils:
             page: Page instance
             user_agent: User agent string
         """
-        try:
-            page.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-                'userAgent': user_agent
-            })
-            ColorPrint.debug(f"User agent set: {user_agent[:50]}...")
-        except Exception as error:
-            ColorPrint.debug(f'CDP not supported, user agent not set: {error}')
+        page.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+            'userAgent': user_agent
+        })
+        ColorPrint.debug(f"User agent set: {user_agent[:50]}...")
 
     @staticmethod
     async def get_browser_info(browser: Any) -> Dict[str, Any]:
@@ -58,12 +51,8 @@ class BrowserUtils:
         Returns:
             Browser info dictionary
         """
-        try:
-            return {
-                'type': browser.browser_type,
-                'version': browser.version,
-                'is_launched': browser.is_launched
-            }
-        except Exception as error:
-            ColorPrint.red(f'Failed to get browser info: {error}')
-            return {}
+        return {
+            'type': browser.browser_type,
+            'version': browser.version,
+            'is_launched': browser.is_launched
+        }

@@ -19,7 +19,7 @@ aiohttp = get_third_package_aiohttp()
 web = aiohttp.web
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
-from pycore.pyutils.rpc.common.request_event_table import RequestEventTable, RequestEvent, RequestStatus
+from pycore.pyutils.rpc.common.task_table import RequestEventTable, RequestEvent, RequestStatus
 from pycore.pyutils.rpc.common.inventory_table import InventoryTable
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
@@ -152,8 +152,9 @@ class AckManager:
         try:
             ws = self.ws_clients.get(client_id)
             if not ws or ws.closed:
-                if self.debug:
-                    ColorPrint.yellow(f"[AckManager] WebSocket client {client_id} not connected, attempt {attempt + 1}/{max_retries}")
+                # Only log first and last attempts to reduce noise
+                if self.debug and (attempt == 0 or attempt == max_retries - 1):
+                    ColorPrint.yellow(f"[AckManager] WebSocket client {client_id[:8]}... not connected, attempt {attempt + 1}/{max_retries}")
 
                 if attempt < max_retries - 1:
                     # Schedule next retry (non-blocking)
@@ -172,17 +173,22 @@ class AckManager:
                         )
                         self.request_event_table.mark_stored(request_id)
                         if self.debug:
-                            ColorPrint.blue(f"[AckManager] Stored result in inventory for request {request_id}")
+                            ColorPrint.blue(f"[AckManager] Stored result in inventory for request {request_id[:12]}... (route: {event.route})")
                 return
 
             # Send response with requires_ack flag
+            # ✅ Unified message format: type, id, success, status, result, error, requires_ack, timestamp, queue
+            import time
             await ws.send_json({
                 'type': MSG_TYPES['RESPONSE'],
                 'id': request_id,
+                'success': error is None,
+                'status': 'completed' if error is None else 'failed',  # ✅ Added: task status
                 'result': result,
                 'error': error,
-                'success': error is None,
-                'requires_ack': True  # Request ACK confirmation
+                'requires_ack': True,  # Request ACK confirmation
+                'timestamp': int(time.time() * 1000),  # ✅ Added: timestamp in milliseconds
+                'queue': None  # ✅ Added: queue info (null for completed tasks)
             })
 
             # Update status to ACK_PENDING (waiting for client ACK)
@@ -230,20 +236,37 @@ class AckManager:
     ):
         """
         Check ACK timeout (non-blocking)
-        
+
+        ✅ Non-blocking implementation using call_later instead of await sleep
         If no ACK received within timeout, retry or store in inventory
         """
-        await asyncio.sleep(self.ack_timeout)
-        
+        # ✅ Non-blocking: Use call_later to schedule timeout check
+        asyncio.get_event_loop().call_later(
+            self.ack_timeout,
+            lambda: asyncio.create_task(self._handle_ack_timeout(
+                request_id, client_id, result, error
+            ))
+        )
+
+    async def _handle_ack_timeout(
+        self,
+        request_id: str,
+        client_id: str,
+        result: Any,
+        error: Optional[str]
+    ):
+        """
+        Handle ACK timeout event (called by call_later)
+        """
         # Check if ACK was received (status changed from ACK_PENDING)
         current_event = self.request_event_table.get_event(request_id)
         if current_event and current_event.status == RequestStatus.ACK_PENDING:
             # ACK not received, retry or store
             if self.debug:
                 ColorPrint.yellow(f"[AckManager] ACK timeout for request {request_id}, retrying...")
-            
+
             # Retry notification
-            await self.notify_websocket_with_retry(
+            self.notify_websocket_with_retry(
                 client_id=client_id,
                 request_id=request_id,
                 result=result,
@@ -326,15 +349,25 @@ class AckManager:
     async def _check_http_ack_timeout(self, request_id: str, event: RequestEvent):
         """
         Check HTTP ACK timeout (non-blocking)
-        
+
+        ✅ Non-blocking implementation using call_later instead of await sleep
+
         Development Guidelines:
         - HTTP ACK is confirmed by status 200 response
         - Client receives HTTP 200 = ACK confirmed
         - If timeout and still ACK_PENDING, mark as ACK_RECEIVED (HTTP 200 was sent)
         - HTTP protocol: status 200 = ACK received (client confirms receipt by receiving 200)
         """
-        await asyncio.sleep(self.ack_timeout)
-        
+        # ✅ Non-blocking: Use call_later to schedule timeout check
+        asyncio.get_event_loop().call_later(
+            self.ack_timeout,
+            lambda: self._handle_http_ack_timeout(request_id)
+        )
+
+    def _handle_http_ack_timeout(self, request_id: str):
+        """
+        Handle HTTP ACK timeout event (called by call_later)
+        """
         # Check if ACK was received (status changed from ACK_PENDING)
         current_event = self.request_event_table.get_event(request_id)
         if current_event and current_event.status == RequestStatus.ACK_PENDING:
@@ -342,7 +375,7 @@ class AckManager:
             # HTTP protocol: status 200 = ACK received
             self.request_event_table.update_status(request_id, RequestStatus.ACK_RECEIVED)
             self.request_event_table.mark_notified(request_id)
-            
+
             if self.debug:
                 ColorPrint.blue(f"[AckManager] HTTP ACK confirmed for request {request_id} (status 200 sent and received)")
 

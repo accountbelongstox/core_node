@@ -20,7 +20,7 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
     Register queue management routes on RPC server
 
     Args:
-        rpc_server: ThreadedRpcServer instance
+        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
         service_instances: Dict with service instances
     """
 
@@ -31,6 +31,7 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
         Returns:
             {
                 "success": true,
+                "queue_size": int,  # Top-level queue size for easy access
                 "stats": {
                     "task_queue": {...},
                     "heartbeat_pusher": {...},
@@ -45,14 +46,21 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
         if not heartbeat_system:
             return {
                 'success': False,
-                'error': 'Heartbeat system not initialized'
+                'error': 'Heartbeat system not initialized',
+                'queue_size': 0
             }
 
         stats = heartbeat_system.get_stats()
 
+        # Extract queue size from stats for convenience
+        queue_size = 0
+        if stats and 'task_queue' in stats and 'queue_size' in stats['task_queue']:
+            queue_size = stats['task_queue']['queue_size']
+
         return {
             'success': True,
-            'stats': stats
+            'queue_size': queue_size,  # Top-level for easy access
+            'stats': stats  # Full stats for detailed analysis
         }
 
     def handle_task_status(params: Dict, request_id: str, context: Dict) -> Dict[str, Any]:

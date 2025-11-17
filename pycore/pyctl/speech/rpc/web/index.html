@@ -1200,18 +1200,22 @@
             return div.innerHTML;
         }
 
-        // Auto-sync clipboard
+        // Auto-sync clipboard - only poll in HTTP mode
+        // In WebSocket mode, server can push clipboard updates via events
         setInterval(async () => {
-            const result = await apiCall('clipboard_sync', {
-                since: lastSyncTime,
-                client_id: null
-            });
+            // Only poll if using HTTP mode
+            if (rpcClient.getMode() === 'http') {
+                const result = await apiCall('clipboard_sync', {
+                    since: lastSyncTime,
+                    client_id: null
+                });
 
-            if (result.success && result.items.length > 0) {
-                lastSyncTime = result.server_time;
-                loadClipboardHistory();
+                if (result.success && result.items.length > 0) {
+                    lastSyncTime = result.server_time;
+                    loadClipboardHistory();
+                }
             }
-        }, 5000);  // Sync every 5 seconds
+        }, 5000);  // Sync every 5 seconds in HTTP mode
 
         /**
          * Update queue statistics (every 1 second) ✅
@@ -1276,8 +1280,14 @@
             }).join('');
         }
 
-        // Auto-update queue stats every 1 second ✅
-        setInterval(updateQueueStats, 1000);
+        // Auto-update queue stats - only poll in HTTP mode
+        // In WebSocket mode, server can push updates via events
+        setInterval(async () => {
+            // Only poll if using HTTP mode
+            if (rpcClient.getMode() === 'http') {
+                await updateQueueStats();
+            }
+        }, 5000);  // Poll every 5 seconds in HTTP mode
 
         // Initialize
         (async function init() {

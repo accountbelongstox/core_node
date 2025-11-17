@@ -8,6 +8,7 @@ Wraps new SpiderEngine with legacy interface
 """
 
 from typing import Dict, Any, Optional
+from pycore.pyutils.pybrowser.core import SpiderEngine
 from pycore.pyutils.pybrowser.utils.logger import Logger
 
 logger = Logger({'prefix': 'LegacyAdapter'})
@@ -35,22 +36,16 @@ class LegacyAdapter:
         Returns:
             Self for chaining
         """
-        try:
-            from pycore.pyutils.pybrowser.core import SpiderEngine
+        self.new_spider = SpiderEngine()
+        await self.new_spider.initialize()
 
-            self.new_spider = SpiderEngine()
-            await self.new_spider.initialize()
+        self.session = await self.new_spider.create_session({
+            'browser': browser_type
+        })
 
-            self.session = await self.new_spider.create_session({
-                'browser': browser_type
-            })
-
-            self.is_initialized = True
-            logger.info('LegacyAdapter initialized')
-            return self
-        except Exception as error:
-            logger.error(f'Failed to initialize LegacyAdapter: {error}')
-            raise
+        self.is_initialized = True
+        logger.info('LegacyAdapter initialized')
+        return self
 
     def get_page(self):
         """Get current page"""
@@ -66,20 +61,16 @@ class LegacyAdapter:
 
     async def close(self):
         """Close adapter and cleanup resources"""
-        try:
-            if self.session:
-                await self.session.close()
-                self.session = None
+        if self.session:
+            await self.session.close()
+            self.session = None
 
-            if self.new_spider:
-                await self.new_spider.shutdown()
-                self.new_spider = None
+        if self.new_spider:
+            await self.new_spider.shutdown()
+            self.new_spider = None
 
-            self.is_initialized = False
-            logger.info('LegacyAdapter closed')
-        except Exception as error:
-            logger.error(f'Failed to close LegacyAdapter: {error}')
-            raise
+        self.is_initialized = False
+        logger.info('LegacyAdapter closed')
 
     def get_info(self) -> Dict[str, Any]:
         """Get adapter information"""
@@ -108,29 +99,25 @@ class MigrationTool:
         Returns:
             Migrated configuration
         """
-        try:
-            new_config = {
-                'browser': old_config.get('browserType', 'chrome'),
-                'headless': old_config.get('headless', True),
-                'viewport': old_config.get('viewport', {'width': 1920, 'height': 1080}),
-                'timeout': old_config.get('timeout', 30000),
-                'retries': old_config.get('retries', 3),
-                'delay': old_config.get('delay', 1000)
-            }
+        new_config = {
+            'browser': old_config.get('browserType', 'chrome'),
+            'headless': old_config.get('headless', True),
+            'viewport': old_config.get('viewport', {'width': 1920, 'height': 1080}),
+            'timeout': old_config.get('timeout', 30000),
+            'retries': old_config.get('retries', 3),
+            'delay': old_config.get('delay', 1000)
+        }
 
-            # Migrate browser-specific options
-            if old_config.get('browserOptions'):
-                new_config['browserOptions'] = old_config['browserOptions']
+        # Migrate browser-specific options
+        if old_config.get('browserOptions'):
+            new_config['browserOptions'] = old_config['browserOptions']
 
-            # Migrate session options
-            if old_config.get('sessionOptions'):
-                new_config['sessionOptions'] = old_config['sessionOptions']
+        # Migrate session options
+        if old_config.get('sessionOptions'):
+            new_config['sessionOptions'] = old_config['sessionOptions']
 
-            logger.info('Old config migrated to new format')
-            return new_config
-        except Exception as error:
-            logger.error(f'Failed to migrate old config: {error}')
-            raise
+        logger.info('Old config migrated to new format')
+        return new_config
 
     @staticmethod
     def migrate_old_code(old_code: str) -> str:
@@ -143,32 +130,28 @@ class MigrationTool:
         Returns:
             Migrated code
         """
-        try:
-            migrated_code = old_code
+        migrated_code = old_code
 
-            # Replace class instantiation
-            migrated_code = migrated_code.replace('PuppeteerSpider(', 'SpiderEngine(')
+        # Replace class instantiation
+        migrated_code = migrated_code.replace('PuppeteerSpider(', 'SpiderEngine(')
 
-            # Replace initialization calls
-            migrated_code = migrated_code.replace('.initialize(', '.createSession(')
+        # Replace initialization calls
+        migrated_code = migrated_code.replace('.initialize(', '.createSession(')
 
-            # Replace page access
-            migrated_code = migrated_code.replace('.getPage()', '.getCurrentPage()')
+        # Replace page access
+        migrated_code = migrated_code.replace('.getPage()', '.getCurrentPage()')
 
-            # Replace browser access
-            migrated_code = migrated_code.replace('.getBrowser()', '.getBrowser()')
+        # Replace browser access
+        migrated_code = migrated_code.replace('.getBrowser()', '.getBrowser()')
 
-            # Replace instance manager calls
-            migrated_code = migrated_code.replace('PuppeteerInstanceManager', 'SessionManager')
+        # Replace instance manager calls
+        migrated_code = migrated_code.replace('PuppeteerInstanceManager', 'SessionManager')
 
-            # Replace global instances
-            migrated_code = migrated_code.replace('GLOBAL_INSTANCES', 'SpiderRegistry')
+        # Replace global instances
+        migrated_code = migrated_code.replace('GLOBAL_INSTANCES', 'SpiderRegistry')
 
-            logger.info('Old code migrated to new API')
-            return migrated_code
-        except Exception as error:
-            logger.error(f'Failed to migrate old code: {error}')
-            raise
+        logger.info('Old code migrated to new API')
+        return migrated_code
 
     @staticmethod
     def generate_migration_report(old_files: list) -> Dict[str, Any]:
@@ -181,38 +164,34 @@ class MigrationTool:
         Returns:
             Migration report
         """
-        try:
-            report = {
-                'totalFiles': len(old_files),
-                'migratedFiles': 0,
-                'errors': [],
-                'suggestions': []
-            }
+        report = {
+            'totalFiles': len(old_files),
+            'migratedFiles': 0,
+            'errors': [],
+            'suggestions': []
+        }
 
-            for file_info in old_files:
-                try:
-                    migrated_code = MigrationTool.migrate_old_code(file_info.get('content', ''))
-                    report['migratedFiles'] += 1
-                except Exception as error:
-                    report['errors'].append({
-                        'file': file_info.get('path'),
-                        'error': str(error)
-                    })
+        for file_info in old_files:
+            migrated_code = MigrationTool.migrate_old_code(file_info.get('content', ''))
+            if migrated_code is None:
+                report['errors'].append({
+                    'file': file_info.get('path'),
+                    'error': 'Migration returned None'
+                })
+            else:
+                report['migratedFiles'] += 1
 
-            # Add suggestions
-            report['suggestions'].extend([
-                'Update imports to use new module structure',
-                'Replace PuppeteerSpider with SpiderEngine',
-                'Use session-based API instead of global instances',
-                'Update plugin usage to new plugin system',
-                'Migrate configuration to new config format'
-            ])
+        # Add suggestions
+        report['suggestions'].extend([
+            'Update imports to use new module structure',
+            'Replace PuppeteerSpider with SpiderEngine',
+            'Use session-based API instead of global instances',
+            'Update plugin usage to new plugin system',
+            'Migrate configuration to new config format'
+        ])
 
-            logger.info(f"Migration report generated: {report['migratedFiles']}/{report['totalFiles']} files migrated")
-            return report
-        except Exception as error:
-            logger.error(f'Failed to generate migration report: {error}')
-            raise
+        logger.info(f"Migration report generated: {report['migratedFiles']}/{report['totalFiles']} files migrated")
+        return report
 
     @staticmethod
     def validate_migration(migrated_code: str) -> Dict[str, Any]:
@@ -225,29 +204,25 @@ class MigrationTool:
         Returns:
             Validation result with issues
         """
-        try:
-            issues = []
+        issues = []
 
-            # Check for old API usage
-            if 'PuppeteerSpider' in migrated_code:
-                issues.append('Found old PuppeteerSpider class usage')
+        # Check for old API usage
+        if 'PuppeteerSpider' in migrated_code:
+            issues.append('Found old PuppeteerSpider class usage')
 
-            if 'PuppeteerInstanceManager' in migrated_code:
-                issues.append('Found old PuppeteerInstanceManager usage')
+        if 'PuppeteerInstanceManager' in migrated_code:
+            issues.append('Found old PuppeteerInstanceManager usage')
 
-            if 'GLOBAL_INSTANCES' in migrated_code:
-                issues.append('Found old GLOBAL_INSTANCES usage')
+        if 'GLOBAL_INSTANCES' in migrated_code:
+            issues.append('Found old GLOBAL_INSTANCES usage')
 
-            if '.initialize(' in migrated_code:
-                issues.append('Found old initialize() method usage')
+        if '.initialize(' in migrated_code:
+            issues.append('Found old initialize() method usage')
 
-            if '.getPage()' in migrated_code:
-                issues.append('Found old getPage() method usage')
+        if '.getPage()' in migrated_code:
+            issues.append('Found old getPage() method usage')
 
-            return {
-                'isValid': len(issues) == 0,
-                'issues': issues
-            }
-        except Exception as error:
-            logger.error(f'Failed to validate migration: {error}')
-            raise
+        return {
+            'isValid': len(issues) == 0,
+            'issues': issues
+        }

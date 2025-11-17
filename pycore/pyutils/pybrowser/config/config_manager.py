@@ -23,16 +23,12 @@ class ConfigManager:
 
     def load(self):
         """Load configuration and presets"""
-        try:
-            ColorPrint.debug('Loading configuration...')
+        ColorPrint.debug('Loading configuration...')
 
-            self.load_presets()
+        self.load_presets()
 
-            self.is_loaded = True
-            ColorPrint.debug('Configuration loaded')
-        except Exception as error:
-            ColorPrint.red(f'Failed to load configuration: {error}')
-            raise
+        self.is_loaded = True
+        ColorPrint.debug('Configuration loaded')
 
     def load_presets(self):
         """Load preset configurations"""
@@ -45,12 +41,9 @@ class ConfigManager:
         for preset_name, preset_file in preset_files.items():
             preset_path = self.config_dir / preset_file
             if preset_path.exists():
-                try:
-                    with open(preset_path, 'r', encoding='utf-8') as f:
-                        self.presets[preset_name] = json.load(f)
-                        ColorPrint.debug(f"Loaded preset: {preset_name}")
-                except Exception as error:
-                    ColorPrint.warn(f"Failed to load preset {preset_name}: {error}")
+                with open(preset_path, 'r', encoding='utf-8') as f:
+                    self.presets[preset_name] = json.load(f)
+                    ColorPrint.debug(f"Loaded preset: {preset_name}")
             else:
                 self.presets[preset_name] = self.get_default_preset(preset_name)
                 ColorPrint.debug(f"Using default preset: {preset_name}")
