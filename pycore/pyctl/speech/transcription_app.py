@@ -679,10 +679,21 @@ class TranscriptionSession:
         self.has_error = True
         self.error_message = error_msg
 
+        # Report provider failure to ProviderStatus
+        try:
+            from pycore.pyutils.common import get_provider_status
+            provider_status = get_provider_status()
+        except:
+            provider_status = None
+
         # Check for critical errors that require session termination
         if "Quota exceeded" in error_msg or "Error code: 1007" in error_msg:
             self.quota_exceeded = True
             self.should_stop = True
+
+            # Report Azure STT as unavailable due to quota
+            if provider_status:
+                provider_status.mark_unavailable('stt', 'azure', 'Quota exceeded (Error 1007)')
 
             # Show critical error message
             print("\n" + "="*70)
@@ -706,11 +717,19 @@ class TranscriptionSession:
             ColorPrint.yellow("Check your internet connection and Azure service status")
             self.should_stop = True
 
+            # Report Azure STT as unavailable due to connection
+            if provider_status:
+                provider_status.mark_unavailable('stt', 'azure', 'Connection lost')
+
         elif "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
             # Authentication error
             ColorPrint.red("\n[CRITICAL] Azure authentication failed")
             ColorPrint.yellow("Check your API key and subscription status")
             self.should_stop = True
+
+            # Report Azure STT as unavailable due to auth
+            if provider_status:
+                provider_status.mark_unavailable('stt', 'azure', 'Authentication failed')
 
     def get_session_summary(self) -> dict:
         """Get session summary statistics"""

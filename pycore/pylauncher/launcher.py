@@ -614,26 +614,33 @@ def launch_services(
         instances.heartbeat_system.start()
         ColorPrint.green("[Launcher] Heartbeat System started")
 
-    # Step 3: Start TTS Switch
-    if config.enable_tts_switch:
-        ColorPrint.blue("[Launcher] Starting TTS Switch...")
-        from pycore.pyutils.common import initialize_tts_switch
-        instances.tts_switch = initialize_tts_switch(
-            max_queue_size=config.tts_max_queue_size,
-            default_provider=config.tts_default_provider,
-            register_heartbeat=config.enable_heartbeat
-        )
-        ColorPrint.green(f"[Launcher] TTS Switch started (providers: {instances.tts_switch.get_available_providers()})")
+    # Step 3: Start Unified Speech Switch (replaces TTS Switch + STT Switch)
+    if config.enable_tts_switch or config.enable_stt_switch:
+        ColorPrint.blue("[Launcher] Starting Unified Speech Switch...")
+        from pycore.pyutils.common import initialize_speech_switch, get_provider_status
 
-    # Step 3.5: Start STT Switch (symmetric with TTS Switch)
-    if config.enable_stt_switch:
-        ColorPrint.blue("[Launcher] Starting STT Switch...")
-        from pycore.pyutils.common import initialize_stt_switch
-        instances.stt_switch = initialize_stt_switch(
-            max_queue_size=config.stt_max_queue_size,
-            register_heartbeat=config.enable_heartbeat
-        )
-        ColorPrint.green(f"[Launcher] STT Switch started (providers: {instances.stt_switch.get_available_providers()})")
+        # Initialize unified speech switch
+        instances.speech_switch = initialize_speech_switch()
+
+        # Register with heartbeat if enabled
+        if config.enable_heartbeat:
+            instances.speech_switch.register_with_heartbeat()
+
+        # Get provider status for reporting
+        provider_status = get_provider_status()
+        status = provider_status.get_all_status()
+
+        # Report available providers
+        tts_providers = [p for p, info in status['tts'].items() if info['available']]
+        stt_providers = [p for p, info in status['stt'].items() if info['available']]
+
+        ColorPrint.green(f"[Launcher] Speech Switch started")
+        ColorPrint.green(f"[Launcher]   TTS providers: {tts_providers}")
+        ColorPrint.green(f"[Launcher]   STT providers: {stt_providers}")
+
+        # Store references for backward compatibility
+        instances.tts_switch = instances.speech_switch
+        instances.stt_switch = instances.speech_switch
 
     # Step 4: Start RPC Server (thread-based, non-blocking)
     if config.enable_rpc:
@@ -653,7 +660,7 @@ def launch_services(
 
         # NOTE: RPC Server does NOT register to GlobalThreadPool
         # It is an HTTP interface layer, not a task processor
-        # Only task processors (TTSSwitch, STTSwitch) should register
+        # Only task processors (SpeechSwitch) should register
 
         # Store in THREAD_BUS for other modules to access
         THREAD_BUS.send_message("launcher.rpc_server", instances.rpc_server)

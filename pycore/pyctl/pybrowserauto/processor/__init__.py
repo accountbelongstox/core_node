@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DocumentOffline Processor Components
+PyBrowserAuto Processor Components
 
-Processing layer for document offline downloads:
+Processing layer for PyBrowserAuto offline downloads:
 - ResourceProcessor: Extract, download, and save resources (CSS, JS, images, fonts)
 - HTMLProcessor: Process HTML content, coordinate resource downloads and URL rewriting
 - CSSProcessor: Process CSS content, download resources and rewrite URLs
