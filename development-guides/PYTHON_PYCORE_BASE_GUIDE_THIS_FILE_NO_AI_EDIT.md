@@ -203,3 +203,186 @@ All pyutils utilities are exported from `pycore.pyutils` with `*_AVAILABLE` flag
 - **Transaction**: `with database_manager.transaction("dbname") as conn: # auto-commit/rollback`
 - **Base CRUD**: `insert()`, `select()`, `update()`, `delete()`, `count()` - Add custom methods in model class
 - **Storage**: Uses `map_web_path("www", "pycore_db")` - Windows: `D:/www/pycore_db/`, Linux: `/www/pycore_db/`
+
+## 9. Global Heartbeat System
+
+### 9.1 Architecture Overview
+- **Location**: `pycore/pyfoundations/heartbeat/`
+- **Thread Type**: Direct Thread inheritance (NOT using thread to start another thread)
+- **Synchronization**: NO thread locks - uses atomic operations and state machines
+- **Registration**: HARD-CODED in `pycore/pyfoundations/heartbeat/registry.py`
+- **Pattern**: Model-Handler with state machine (IDLE, PROCESSING, ERROR, DISABLED)
+
+### 9.2 Core Design Principles
+
+**Thread Design:**
+- HeartbeatThread directly inherits from `threading.Thread`
+- NO thread locks - relies on Python GIL for atomic operations
+- State machine controls handler synchronization (IDLE → PROCESSING → IDLE)
+- Base tick interval: 1 second
+
+**Registration Pattern:**
+- ALL registrations are HARD-CODED in `registry.py`
+- NO dynamic discovery or runtime registration
+- Each library implements: `TaskModel` (data source) + `TaskHandler` (processor)
+- Handler states: `IDLE`, `PROCESSING`, `ERROR`, `DISABLED`
+
+### 9.3 Implementation Requirements
+
+**TaskModel (Data Source):**
+```python
+class MyTaskModel(TaskModel):
+    def get_name(self) -> str:
+        return "task_name"  # Unique identifier
+
+    def has_pending_data(self) -> bool:
+        return True  # Check if data available
+
+    def get_pending_data(self) -> Any:
+        return self._data  # Return data to process
+
+    def get_handler_class(self) -> str:
+        return "pycore.mylib.heartbeat.MyTaskHandler"  # Handler path
+
+    def get_interval(self) -> int:
+        return 5  # Check every 5 seconds
+
+    def get_priority(self) -> int:
+        return 100  # Lower = higher priority
+```
+
+**TaskHandler (Processor):**
+```python
+class MyTaskHandler(TaskHandler):
+    def __init__(self):
+        super().__init__()
+        # self._state is HandlerState.IDLE by default
+
+    def process(self, data: Any) -> bool:
+        # Process data (state auto-managed by heartbeat)
+        # Return True on success, False on failure
+        return True
+
+    def on_error(self, error: Exception):
+        # Handle errors (optional)
+        pass
+```
+
+### 9.4 Registration Rules (HARD-CODED)
+
+**Registry File:** `pycore/pyfoundations/heartbeat/registry.py`
+
+```python
+HEARTBEAT_REGISTRY = {
+    # Format: 'namespace.task_name' -> (model_path, handler_path)
+    'rpc.ack_check': (
+        'pycore.pyutils.rpc.heartbeat.RpcAckCheckModel',
+        'pycore.pyutils.rpc.heartbeat.RpcAckCheckHandler'
+    ),
+    'tts.cache_cleanup': (
+        'pycore.pyutils.tts_cache.heartbeat.TTSCacheCleanupModel',
+        'pycore.pyutils.tts_cache.heartbeat.TTSCacheCleanupHandler'
+    ),
+    'ui.thread_bus_check': (
+        'pycore.pyutils.native_ui.heartbeat.UIThreadBusModel',
+        'pycore.pyutils.native_ui.heartbeat.UIThreadBusHandler'
+    ),
+}
+```
+
+**Adding New Task:**
+1. Create `TaskModel` in your library (e.g., `pycore/pyutils/mylib/heartbeat.py`)
+2. Create `TaskHandler` in your library
+3. Add entry to `HEARTBEAT_REGISTRY` in `registry.py` (HARD-CODED)
+4. Handler automatically loaded on heartbeat start
+
+### 9.5 Handler State Machine
+
+```
+IDLE → PROCESSING → IDLE (success)
+                  ↘
+                   ERROR → IDLE (after error handling)
+
+DISABLED (never processed)
+```
+
+**State Transitions:**
+- `IDLE`: Ready to process data
+- `PROCESSING`: Currently processing (skipped by heartbeat)
+- `ERROR`: Error occurred (auto-resets to IDLE)
+- `DISABLED`: Manually disabled (never processed)
+
+**NO LOCKS:**
+- State is atomic Python assignment (`handler._state = HandlerState.PROCESSING`)
+- GIL ensures atomicity for single assignments
+- No mutex, semaphore, or condition variables
+
+### 9.6 Usage in pylauncher
+
+```python
+from pycore.pyfoundations.heartbeat import get_heartbeat_thread, load_all_handlers
+
+def start_application():
+    # Load all handlers from HARD-CODED registry
+    load_all_handlers()
+
+    # Start heartbeat thread
+    heartbeat = get_heartbeat_thread()
+    heartbeat.start()  # Direct Thread.start()
+
+    # Application logic...
+
+    # Stop on shutdown (optional - daemon thread)
+    heartbeat.stop()
+```
+
+### 9.7 Best Practices
+
+**REQUIRED:**
+- Models in library's `heartbeat.py` or `heartbeat/` directory
+- Hard-code ALL registrations in `registry.py`
+- Keep `process()` fast (< 100ms)
+- Use state machine, NOT locks
+
+**FORBIDDEN:**
+- Thread locks (mutex, semaphore, Lock, RLock)
+- Dynamic/runtime registration
+- `await`/async in handlers (thread-based, not asyncio)
+- Starting multiple heartbeat threads
+
+**Handler Implementation:**
+- Return `True` on success, `False` on failure
+- State auto-managed by heartbeat (don't set manually)
+- Use `on_error()` for error logging (optional)
+- Check `has_pending_data()` to avoid unnecessary processing
+
+### 9.8 Statistics and Monitoring
+
+```python
+heartbeat = get_heartbeat_thread()
+status = heartbeat.get_status()
+# {
+#   'running': True,
+#   'total_ticks': 3600,
+#   'uptime': 3600.0,
+#   'model_count': 5,
+#   'handlers': {
+#     'rpc.ack_check': {
+#       'state': 'idle',
+#       'run_count': 720,
+#       'error_count': 0,
+#       'last_run': 1234567890.0,
+#       ...
+#     }
+#   }
+# }
+```
+
+### 9.9 Namespace Convention
+
+- `system.*` - Built-in system tasks
+- `rpc.*` - RPC server tasks
+- `tts.*` - Text-to-Speech tasks
+- `ui.*` - Native UI tasks
+- `app_{name}.*` - Application-specific tasks
+- `util_{name}.*` - Utility module tasks

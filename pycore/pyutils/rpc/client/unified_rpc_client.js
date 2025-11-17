@@ -83,8 +83,28 @@
     class UnifiedRpcClient {
         constructor(baseUrl, options = {}) {
             this.baseUrl = baseUrl.replace(/\/$/, '');
+
+            // ✅ Load clientId from localStorage for persistence across refreshes
+            const storageKey = 'rpc_client_id';
+            let clientId = options.clientId;
+
+            if (!clientId && isBrowser) {
+                // Try to restore from localStorage
+                clientId = localStorage.getItem(storageKey);
+            }
+
+            if (!clientId) {
+                // Generate new UUID
+                clientId = generateUUID();
+            }
+
+            // Save to localStorage for persistence
+            if (isBrowser) {
+                localStorage.setItem(storageKey, clientId);
+            }
+
             this.options = {
-                clientId: options.clientId || generateUUID(),
+                clientId: clientId,
                 timeout: options.timeout || 30000,
                 reconnect: options.reconnect !== false,
                 reconnectInterval: options.reconnectInterval || 3000,
@@ -94,6 +114,7 @@
                 wsPath: options.wsPath || '/rpc/ws',
                 httpPath: options.httpPath || '/rpc',
                 debug: options.debug || false,
+                storageKey: storageKey,
                 ...options
             };
 
@@ -229,6 +250,11 @@
                             pending.reject(new Error(message.error || message.message || 'Request failed'));
                         }
                     }
+
+                    // ✅ Send ACK confirmation if required
+                    if (message.requires_ack && message.id) {
+                        this._sendAck(message.id);
+                    }
                 } else if (message.type === MSG_TYPES.ERROR) {
                     const pending = this.pendingRequests.get(message.id);
                     if (pending) {
@@ -236,8 +262,18 @@
                         this.pendingRequests.delete(message.id);
                         pending.reject(new Error(message.error || message.message || 'Unknown error'));
                     }
+
+                    // ✅ Send ACK for error responses too
+                    if (message.requires_ack && message.id) {
+                        this._sendAck(message.id);
+                    }
                 } else if (message.type === MSG_TYPES.EVENT) {
                     this._emit(message.event || 'message', message.data);
+
+                    // ✅ Send ACK for events if required
+                    if (message.requires_ack && message.id) {
+                        this._sendAck(message.id);
+                    }
                 } else if (message.type === MSG_TYPES.PONG) {
                     this._log('Received pong');
                 }
@@ -299,17 +335,98 @@
 
             this._httpPost(url, requestData)
                 .then((response) => {
-                    clearTimeout(timeoutId);
-                    if (response.success) {
+                    // Handle async response format: { status: 'accepted', id: '...' }
+                    if (response.status === 'accepted' && response.id) {
+                        this._log('Request accepted, polling for result...');
+                        // Poll for result
+                        this._pollForResult(response.id, timeout - 1000, timeoutId, resolve, reject);
+                    } else if (response.success !== undefined) {
+                        // Standard response format: { success: true, result: ... }
+                        clearTimeout(timeoutId);
+                        if (response.success) {
+                            resolve(response.result || response.data || response);
+                        } else {
+                            reject(new Error(response.error || response.message || 'Request failed'));
+                        }
+                    } else if (response.result !== undefined) {
+                        // Direct result format
+                        clearTimeout(timeoutId);
                         resolve(response.result);
                     } else {
-                        reject(new Error(response.error || response.message || 'Request failed'));
+                        // Unknown format, return as-is
+                        clearTimeout(timeoutId);
+                        resolve(response);
                     }
                 })
                 .catch((error) => {
                     clearTimeout(timeoutId);
                     reject(error);
                 });
+        }
+
+        _pollForResult(requestId, remainingTimeout, timeoutId, resolve, reject) {
+            const pollUrl = `${this.baseUrl}${this.options.httpPath}/query/${requestId}`;
+            const pollInterval = 1000; // Poll every 1 second
+            const startTime = Date.now();
+
+            const poll = () => {
+                if (Date.now() - startTime > remainingTimeout) {
+                    clearTimeout(timeoutId);
+                    reject(new Error('Polling timeout'));
+                    return;
+                }
+
+                this._httpGet(pollUrl)
+                    .then((response) => {
+                        this._log('Poll response:', response);
+
+                        // Check if result is ready
+                        if (response.status === 'completed' || response.result !== undefined) {
+                            clearTimeout(timeoutId);
+                            if (response.error) {
+                                reject(new Error(response.error));
+                            } else {
+                                resolve(response.result || response.data || response);
+                            }
+                        } else if (response.status === 'failed') {
+                            clearTimeout(timeoutId);
+                            reject(new Error(response.error || 'Request failed'));
+                        } else if (response.status === 'processing' || response.status === 'pending') {
+                            // Still processing, poll again
+                            setTimeout(poll, pollInterval);
+                        } else {
+                            // Unknown status, try to extract result
+                            clearTimeout(timeoutId);
+                            if (response.success === false) {
+                                reject(new Error(response.error || response.message || 'Request failed'));
+                            } else {
+                                resolve(response.result || response.data || response);
+                            }
+                        }
+                    })
+                    .catch((error) => {
+                        this._log('Poll error:', error);
+                        // Retry on network error
+                        setTimeout(poll, pollInterval);
+                    });
+            };
+
+            // Start polling after 1 second delay
+            setTimeout(poll, pollInterval);
+        }
+
+        _httpGet(url) {
+            if (isBrowser) {
+                return fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        return response.json();
+                    });
+            } else {
+                return this._nodeHttpRequest(url, 'GET');
+            }
         }
 
         _httpPost(url, data) {
@@ -410,6 +527,28 @@
                     type: MSG_TYPES.PING,
                     timestamp: Date.now()
                 }));
+            }
+        }
+
+        _sendAck(requestId) {
+            /**
+             * Send ACK confirmation for received message
+             *
+             * Development Guidelines:
+             * - Send ACK message after receiving response/event with requires_ack flag
+             * - Uses fixed protocol format: { type: 'ack', id: requestId }
+             * - Only for WebSocket connections
+             */
+            if (this.mode === 'ws' && this.connected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                try {
+                    this.ws.send(JSON.stringify({
+                        type: 'ack',
+                        id: requestId
+                    }));
+                    this._log('Sent ACK for request:', requestId);
+                } catch (error) {
+                    this._log('Failed to send ACK:', error);
+                }
             }
         }
 

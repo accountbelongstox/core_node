@@ -7,8 +7,70 @@ Helper functions for page operations
 """
 
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pycore.pyfoundations.color_print import ColorPrint
+
+
+class PageWrapper:
+    """
+    Minimal Page Wrapper
+
+    Provides a lightweight page interface compatible with ScreenshotManager.
+    Wraps a Selenium WebDriver to provide screenshot() method.
+
+    This wrapper is useful when you have a driver but not a full Page object,
+    and need to take screenshots using ScreenshotManager.
+    """
+
+    def __init__(self, driver):
+        """
+        Initialize page wrapper
+
+        Args:
+            driver: Selenium WebDriver instance
+        """
+        if not driver:
+            ColorPrint.red('[PageWrapper] Driver is required')
+            raise ValueError('Driver is required')
+
+        self.driver = driver
+
+    def screenshot(self, options: Dict[str, Any] = None) -> Optional[bytes]:
+        """
+        Take screenshot
+
+        Compatible with ScreenshotManager's expected interface.
+
+        Args:
+            options: Screenshot options
+                - path: Save path (optional)
+
+        Returns:
+            Screenshot bytes, or None if failed
+
+        Example:
+            wrapper = PageWrapper(driver)
+            screenshot_bytes = wrapper.screenshot({'path': '/tmp/screenshot.png'})
+        """
+        options = options or {}
+        path = options.get('path')
+
+        if not self.driver:
+            ColorPrint.red('[PageWrapper] Driver is None')
+            return None
+
+        try:
+            if path:
+                # Save to file and read back
+                self.driver.save_screenshot(path)
+                with open(path, 'rb') as f:
+                    return f.read()
+            else:
+                # Return bytes directly
+                return self.driver.get_screenshot_as_png()
+        except Exception as error:
+            ColorPrint.red(f'[PageWrapper] Screenshot failed: {error}')
+            return None
 
 
 class PageUtils:
@@ -116,3 +178,6 @@ class PageUtils:
         except Exception as error:
             ColorPrint.red(f'Failed to clear cookies: {error}')
             raise
+
+
+__all__ = ['PageWrapper', 'PageUtils']

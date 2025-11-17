@@ -33,7 +33,13 @@ def start():
     - All logic orchestrated by launcher + pyctl
     """
     # Single launcher call - launches speech-only mode
-    launch_speech_only(mode="single")
+    # RPC service is explicitly enabled here (not auto-started)
+    launch_speech_only(
+        mode="single",
+        enable_rpc=True,  # Start RPC HTTP service
+        rpc_port=59000,  # Port 59000 (changed from 8080 to avoid conflicts)
+        rpc_host="0.0.0.0"
+    )
 
 
 if __name__ == "__main__":

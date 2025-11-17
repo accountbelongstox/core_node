@@ -59,12 +59,10 @@ from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
-ImageTk = PIL.ImageTk
+Image = get_third_package_PIL_Image()
+ImageTk = get_third_package_PIL_ImageTk()
 
 
 class TkinterStartupThread(threading.Thread):
@@ -134,7 +132,7 @@ class TkinterStartupThread(threading.Thread):
         thread_name = self.__class__.__name__
 
         # 1. Log startup
-        ColorPrint.blue(f"[{thread_name}] Thread starting")
+        ColorPrint.print_info(f"[{thread_name}] Thread starting")
 
         # 2. Set starting state
         THREAD_BUS.set_thread_state(thread_name, 'starting',
@@ -160,25 +158,25 @@ class TkinterStartupThread(threading.Thread):
         self._cleanup()
 
         # 7. Check if tray should be started
-        ColorPrint.blue(f"[{thread_name}] Mainloop ended, checking tray status...")
-        ColorPrint.blue(f"  enable_tray={self.enable_tray}")
-        ColorPrint.blue(f"  stop_event.is_set()={self._stop_event.is_set()}")
+        ColorPrint.print_info(f"[{thread_name}] Mainloop ended, checking tray status...")
+        ColorPrint.print_info(f"  enable_tray={self.enable_tray}")
+        ColorPrint.print_info(f"  stop_event.is_set()={self._stop_event.is_set()}")
 
         if self.enable_tray and not self._stop_event.is_set():
-            ColorPrint.blue(f"[{thread_name}] Debug window closed, starting tray menu...")
+            ColorPrint.print_info(f"[{thread_name}] Debug window closed, starting tray menu...")
             self._run_tray_mode()
         else:
             if not self.enable_tray:
-                ColorPrint.yellow(f"[{thread_name}] Tray not enabled, skipping tray mode")
+                ColorPrint.print_warn(f"[{thread_name}] Tray not enabled, skipping tray mode")
             if self._stop_event.is_set():
-                ColorPrint.yellow(f"[{thread_name}] Stop event set, skipping tray mode")
+                ColorPrint.print_warn(f"[{thread_name}] Stop event set, skipping tray mode")
 
         # 8. Set stopped state + send stopped signal
         THREAD_BUS.set_thread_state(thread_name, 'stopped')
         THREAD_BUS.signal('TkinterStartup_stopped', True)
 
         # 9. Log completion
-        ColorPrint.blue(f"[{thread_name}] Thread stopped")
+        ColorPrint.print_info(f"[{thread_name}] Thread stopped")
 
     def _initialize_ui(self):
         """Initialize Tkinter UI"""
@@ -437,22 +435,22 @@ class TkinterStartupThread(threading.Thread):
     def _process_logs(self):
         """Process log messages from queue"""
         # Debug: Log every call to track execution
-        # ColorPrint.blue(f"[_process_logs] Called - running={self._running}, root={self.root is not None}, close_requested={self._close_requested.is_set()}")
+        # ColorPrint.print_info(f"[_process_logs] Called - running={self._running}, root={self.root is not None}, close_requested={self._close_requested.is_set()}")
 
         # IMPORTANT: Check close request FIRST, before checking _running
         # This ensures external close requests are processed even if window was closed by user
         if self._close_requested.is_set():
-            ColorPrint.blue(f"[TkinterStartupThread] Close requested, closing window... (root={self.root is not None}, running={self._running})")
+            ColorPrint.print_info(f"[TkinterStartupThread] Close requested, closing window... (root={self.root is not None}, running={self._running})")
             if self.root and self._running:
-                ColorPrint.blue("[TkinterStartupThread] Calling _close_window()...")
+                ColorPrint.print_info("[TkinterStartupThread] Calling _close_window()...")
                 self._close_window()
             else:
-                ColorPrint.yellow(f"[TkinterStartupThread] Cannot close: root={self.root is not None}, running={self._running}")
+                ColorPrint.print_warn(f"[TkinterStartupThread] Cannot close: root={self.root is not None}, running={self._running}")
             return
 
         # Now check if we should continue processing
         if not self._running or not self.root:
-            # ColorPrint.yellow(f"[_process_logs] Stopping: running={self._running}, root={self.root is not None}")
+            # ColorPrint.print_warn(f"[_process_logs] Stopping: running={self._running}, root={self.root is not None}")
             return
 
         # Process all pending logs
@@ -489,10 +487,10 @@ class TkinterStartupThread(threading.Thread):
         tray_config = bus_mgr.get_tray_config()
 
         if not tray_config or not tray_config.enabled:
-            ColorPrint.yellow("[TkinterStartupThread] No tray config found or tray disabled")
+            ColorPrint.print_warn("[TkinterStartupThread] No tray config found or tray disabled")
             return
 
-        ColorPrint.green("[TkinterStartupThread] Tray config found in THREAD_BUS")
+        ColorPrint.print_success("[TkinterStartupThread] Tray config found in THREAD_BUS")
 
         # Store original tray_config for language updates
         self._tray_config = tray_config
@@ -511,28 +509,28 @@ class TkinterStartupThread(threading.Thread):
         def on_tray_stop(event_data):
             """Handle TRAY_STOP event - stop the tray"""
             source = event_data.get('source', 'unknown')
-            ColorPrint.yellow(f"[TkinterStartupThread] Received TRAY_STOP signal (source: {source})")
+            ColorPrint.print_warn(f"[TkinterStartupThread] Received TRAY_STOP signal (source: {source})")
             if self.tray:
                 self.tray.stop()
 
         THREAD_BUS.register_event_handler(BusSignals.TRAY_STOP, on_tray_stop, priority=20)
-        ColorPrint.green("[TkinterStartupThread] Registered TRAY_STOP event handler")
+        ColorPrint.print_success("[TkinterStartupThread] Registered TRAY_STOP event handler")
 
         # Register event handler for UI redraw (language change)
         def on_ui_redraw(event_data):
             """Handle UI redraw event - update tray menu when language changes"""
             reason = event_data.get('reason', '')
             if reason == 'language_changed' and self.tray and self._tray_config:
-                ColorPrint.blue("[TkinterStartupThread] Language changed, updating tray menu...")
+                ColorPrint.print_info("[TkinterStartupThread] Language changed, updating tray menu...")
                 # Rebuild menu items with new translations
                 new_menu_items = self._build_tray_menu_items(self._tray_config)
                 self.tray.update_menu(new_menu_items)
-                ColorPrint.green("[TkinterStartupThread] Tray menu updated with new language")
+                ColorPrint.print_success("[TkinterStartupThread] Tray menu updated with new language")
 
         bus_mgr.on_ui_redraw(on_ui_redraw)
-        ColorPrint.green("[TkinterStartupThread] Registered UI redraw event handler")
+        ColorPrint.print_success("[TkinterStartupThread] Registered UI redraw event handler")
 
-        ColorPrint.blue("[TkinterStartupThread] Starting system tray...")
+        ColorPrint.print_info("[TkinterStartupThread] Starting system tray...")
 
         # Signal that tray is starting
         THREAD_BUS.set_thread_state('TkinterStartupThread', 'tray_running')
@@ -540,7 +538,7 @@ class TkinterStartupThread(threading.Thread):
         # Run tray (blocks until stopped)
         self.tray.run()
 
-        ColorPrint.blue("[TkinterStartupThread] Tray stopped")
+        ColorPrint.print_info("[TkinterStartupThread] Tray stopped")
 
     def _build_tray_menu_items(self, tray_config):
         """
@@ -647,21 +645,21 @@ class TkinterStartupThread(threading.Thread):
 
     def _close_window(self):
         """Actually close the window"""
-        ColorPrint.blue("[TkinterStartupThread] _close_window() called")
+        ColorPrint.print_info("[TkinterStartupThread] _close_window() called")
         self._running = False
 
         # Send closed signal
         THREAD_BUS.signal('TkinterStartup_closed', True)
-        ColorPrint.blue("[TkinterStartupThread] Sent TkinterStartup_closed signal")
+        ColorPrint.print_info("[TkinterStartupThread] Sent TkinterStartup_closed signal")
 
         # Destroy window
         if self.root:
-            ColorPrint.blue("[TkinterStartupThread] Destroying window...")
+            ColorPrint.print_info("[TkinterStartupThread] Destroying window...")
             self.root.quit()
             self.root.destroy()
-            ColorPrint.blue("[TkinterStartupThread] Window destroyed")
+            ColorPrint.print_info("[TkinterStartupThread] Window destroyed")
         else:
-            ColorPrint.yellow("[TkinterStartupThread] No root window to destroy")
+            ColorPrint.print_warn("[TkinterStartupThread] No root window to destroy")
 
     # ============ Public API (thread-safe) ============
 
@@ -734,7 +732,7 @@ class TkinterStartupThread(threading.Thread):
         IMPORTANT: Does not use root.after() to avoid "main thread is not in main loop" error.
         Instead, sets a flag that is checked by _process_logs() which runs in the Tkinter thread.
         """
-        ColorPrint.blue("[TkinterStartupThread] Close request received from external thread")
+        ColorPrint.print_info("[TkinterStartupThread] Close request received from external thread")
         self._close_requested.set()
 
     def stop(self):
@@ -765,18 +763,18 @@ class TkinterStartupThread(threading.Thread):
 if __name__ == "__main__":
     from pycore import THREAD_BUS
 
-    ColorPrint.blue("=== Testing TkinterStartupThread ===")
+    ColorPrint.print_info("=== Testing TkinterStartupThread ===")
 
     # Start window thread
     startup = TkinterStartupThread(app_name="Test Application")
     startup.start()
 
     # Wait for ready
-    ColorPrint.yellow("Waiting for window to be ready...")
+    ColorPrint.print_warn("Waiting for window to be ready...")
     if THREAD_BUS.wait_signal('TkinterStartup_ready', timeout=3.0):
-        ColorPrint.green("Window is ready!")
+        ColorPrint.print_success("Window is ready!")
     else:
-        ColorPrint.red("Window startup timeout!")
+        ColorPrint.print_error("Window startup timeout!")
 
     # Add logs
     startup.log("Checking dependencies...", "info")
@@ -789,18 +787,18 @@ if __name__ == "__main__":
     time.sleep(2)
 
     # Close window
-    ColorPrint.yellow("Closing window...")
+    ColorPrint.print_warn("Closing window...")
     startup.request_close()
 
     # Wait for closed
     if THREAD_BUS.wait_signal('TkinterStartup_closed', timeout=3.0):
-        ColorPrint.green("Window closed!")
+        ColorPrint.print_success("Window closed!")
     else:
-        ColorPrint.red("Window close timeout!")
+        ColorPrint.print_error("Window close timeout!")
 
     # Wait for thread to stop
     if THREAD_BUS.wait_signal('TkinterStartup_stopped', timeout=3.0):
-        ColorPrint.green("Thread stopped!")
+        ColorPrint.print_success("Thread stopped!")
 
-    ColorPrint.blue("\n=== Test Complete ===")
-    ColorPrint.blue(f"THREAD_BUS stats: {THREAD_BUS.stats()}")
+    ColorPrint.print_info("\n=== Test Complete ===")
+    ColorPrint.print_info(f"THREAD_BUS stats: {THREAD_BUS.stats()}")

@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech & Clipboard Service</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header .status {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            background: transparent;
+            font-size: 1em;
+        }
+
+        .tab:hover {
+            background: #e0e0e0;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input,
+        .input-group textarea,
+        .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border 0.3s;
+        }
+
+        .input-group input:focus,
+        .input-group textarea:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .checkbox-group,
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group label,
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+        }
+
+        .result.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .result.success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .history-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .history-item {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+
+        .history-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .history-item .time {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .history-item .content {
+            font-size: 1em;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .history-item .actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .history-item .actions button {
+            padding: 5px 15px;
+            font-size: 0.9em;
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .clipboard-quick {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #667eea;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+        }
+
+        .clipboard-quick:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Task Queue Stats */
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Speech & Clipboard Service</h1>
+            <div class="status" id="status">Connecting...</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('tts')">Text to Speech</button>
+            <button class="tab" onclick="switchTab('stt')">Speech to Text</button>
+            <button class="tab" onclick="switchTab('clipboard')">Clipboard</button>
+            <button class="tab" onclick="switchTab('queue')">Task Queue</button>
+            <button class="tab" onclick="switchTab('config')">Settings</button>
+        </div>
+
+        <div class="content">
+            <!-- TTS Panel -->
+            <div id="tts-panel" class="panel active">
+                <div class="input-group">
+                    <label>Input Text</label>
+                    <textarea id="tts-text" placeholder="Enter text to convert to speech..." rows="4"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label>Target Language (Select ONE)</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="tts-lang" value="zh-CN" checked> 中文 (Chinese)</label>
+                        <label><input type="radio" name="tts-lang" value="en-US"> English</label>
+                        <label><input type="radio" name="tts-lang" value="ja-JP"> 日本語 (Japanese)</label>
+                        <label><input type="radio" name="tts-lang" value="ko-KR"> 한국어 (Korean)</label>
+                        <label><input type="radio" name="tts-lang" value="lo-LA"> ລາວ (Lao)</label>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="convertTTS()">🎵 Convert to Speech</button>
+
+                <div id="tts-result"></div>
+
+                <div class="history-section" style="margin-top: 20px;">
+                    <h3>TTS History</h3>
+                    <div id="tts-history" class="history-list"></div>
+                </div>
+            </div>
+
+            <!-- STT Panel -->
+            <div id="stt-panel" class="panel">
+                <div class="input-group">
+                    <label>Upload Audio File</label>
+                    <input type="file" id="stt-file" accept="audio/*">
+                </div>
+
+                <div class="input-group">
+                    <label>Select Language</label>
+                    <select id="stt-language">
+                        <option value="zh-CN">中文 (Chinese)</option>
+                        <option value="en-US">English</option>
+                        <option value="ja-JP">日本語 (Japanese)</option>
+                        <option value="ko-KR">한국어 (Korean)</option>
+                        <option value="lo-LA">ລາວ (Lao)</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" onclick="convertSTT()">📝 Convert to Text</button>
+
+                <div id="stt-result"></div>
+            </div>
+
+            <!-- Clipboard Panel -->
+            <div id="clipboard-panel" class="panel">
+                <div class="input-group">
+                    <label>Quick Add to Clipboard (Auto-saves 2s after typing)</label>
+                    <textarea id="clipboard-input" placeholder="Enter content - will auto-save after 2 seconds..." rows="4"></textarea>
+                    <small style="color: #666;">Status: <span id="clipboard-status">Ready</span></small>
+                </div>
+
+                <button class="btn btn-secondary" onclick="loadClipboardHistory()">🔄 Refresh History</button>
+
+                <div class="history-list" id="clipboard-history"></div>
+            </div>
+
+            <!-- Task Queue Panel (NEW) -->
+            <div id="queue-panel" class="panel">
+                <h2 style="margin-bottom: 20px;">📊 Task Queue Status</h2>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div class="stat-card">
+                        <div class="stat-label">Queue Size</div>
+                        <div class="stat-value" id="queue-size">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Active Tasks</div>
+                        <div class="stat-value" id="active-tasks-count">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Processed</div>
+                        <div class="stat-value" id="total-processed">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Success Rate</div>
+                        <div class="stat-value" id="success-rate">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Process Time</div>
+                        <div class="stat-value" id="avg-process-time">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Wait Time</div>
+                        <div class="stat-value" id="avg-wait-time">-</div>
+                    </div>
+                </div>
+
+                <h3>Currently Polling Tasks</h3>
+                <div id="polling-tasks" style="margin-top: 10px;"></div>
+
+                <button class="btn btn-secondary" onclick="updateQueueStats()" style="margin-top: 20px;">🔄 Refresh Stats</button>
+            </div>
+
+            <!-- Config Panel -->
+            <div id="config-panel" class="panel">
+                <h2 style="margin-bottom: 20px;">⚙️ Speech Service Settings</h2>
+
+                <div class="input-group">
+                    <label>Default Language</label>
+                    <select id="config-speech-default-language">
+                        <option value="zh-CN">中文 (Chinese)</option>
+                        <option value="en-US">English</option>
+                        <option value="ja-JP">日本語 (Japanese)</option>
+                        <option value="ko-KR">한국어 (Korean)</option>
+                        <option value="lo-LA">ລາວ (Lao)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Default TTS Voice</label>
+                    <input type="text" id="config-speech-tts-voice" placeholder="e.g., zh-CN-XiaoxiaoNeural">
+                    <small style="color: #666;">Azure/Edge voice name for TTS</small>
+                </div>
+
+                <div class="input-group">
+                    <label>TTS Speech Rate</label>
+                    <input type="text" id="config-speech-tts-rate" placeholder="e.g., +0%, +10%, -10%">
+                    <small style="color: #666;">Speed adjustment (e.g., +10% for faster, -10% for slower)</small>
+                </div>
+
+                <div class="input-group">
+                    <label>TTS Volume</label>
+                    <input type="text" id="config-speech-tts-volume" placeholder="e.g., +0%, +10%, -10%">
+                    <small style="color: #666;">Volume adjustment</small>
+                </div>
+
+                <div class="input-group">
+                    <label>Default Mode</label>
+                    <select id="config-speech-default-mode">
+                        <option value="microphone">Microphone</option>
+                        <option value="system">System Audio</option>
+                        <option value="file">File Upload</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="config-speech-auto-use-cached" style="width: auto;">
+                        Auto-use Cached Settings (Skip Interactive Prompts)
+                    </label>
+                    <small style="color: #666;">When enabled, automatically uses cached device/language without prompting</small>
+                </div>
+
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="config-speech-stt-continuous" style="width: auto;">
+                        Continuous STT Recognition
+                    </label>
+                    <small style="color: #666;">Keep listening after recognition completes</small>
+                </div>
+
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="config-speech-cache-audio" style="width: auto;">
+                        Cache Audio Files
+                    </label>
+                </div>
+
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="config-speech-cache-text" style="width: auto;">
+                        Cache Transcription Text
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="saveConfig()">💾 Save Settings</button>
+                    <button class="btn btn-secondary" onclick="loadConfig()">🔄 Reload</button>
+                    <button class="btn btn-secondary" onclick="resetConfig()">🔙 Reset to Defaults</button>
+                </div>
+
+                <div id="config-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="clipboard-quick" onclick="quickClipboard()">
+        📋 Quick Clipboard
+    </div>
+
+    <!-- ✅ Use unified RPC client library for consistency -->
+    <!-- Path is /js/rpc/ as configured by UnifiedRpcServer._add_default_static_dirs() -->
+    <script src="/js/rpc/unified_rpc_client.js"></script>
+
+    <script>
+        // Configuration - using unified client
+        const API_BASE = '/rpc';
+        let lastSyncTime = 0;
+
+        // ========================================
+        // ✅ Use UnifiedRpcClient instead of custom WebSocketManager
+        // ========================================
+        const rpcClient = new UnifiedRpcClient(`http://${window.location.hostname}:${window.location.port || 8765}`, {
+            clientId: localStorage.getItem('clientId') || undefined,  // Auto-generate if not exists
+            debug: true,
+            wsPath: '/rpc/ws',
+            httpPath: '/rpc',
+            reconnect: true,
+            maxReconnectAttempts: 10,
+            reconnectInterval: 3000
+        });
+
+        // Save client ID for persistence
+        const clientId = rpcClient.getClientId();
+        localStorage.setItem('clientId', clientId);
+
+        // Connect to server
+        rpcClient.connect().then(() => {
+            console.log('[RpcClient] Connected in mode:', rpcClient.getMode());
+            document.getElementById('status').textContent = `✅ Service running - ${clientId} (${rpcClient.getMode()})`;
+        }).catch((error) => {
+            console.error('[RpcClient] Connection failed:', error);
+            document.getElementById('status').textContent = '❌ Connection failed';
+        });
+
+        // ✅ Listen for connection events
+        rpcClient.on('connection', (data) => {
+            console.log('[RpcClient] Connected:', data);
+            document.getElementById('status').textContent = `✅ Service running - ${clientId} (${data.mode})`;
+        });
+
+        rpcClient.on('disconnect', (data) => {
+            console.log('[RpcClient] Disconnected:', data);
+            document.getElementById('status').textContent = '⚠️ Reconnecting...';
+        });
+
+        rpcClient.on('reconnect', (data) => {
+            console.log('[RpcClient] Reconnecting:', data);
+            document.getElementById('status').textContent = `⚠️ Reconnecting (${data.attempt})...`;
+        });
+
+        rpcClient.on('reconnect_failed', () => {
+            console.error('[RpcClient] Reconnect failed');
+            document.getElementById('status').textContent = '❌ Connection lost';
+        });
+
+        // ✅ Listen for task_completed events (pushed from server)
+        rpcClient.on('task_completed', (data) => {
+            console.log('[Task Completed]', data);
+            handleTaskCompletedEvent(data);
+        });
+
+        // ✅ Handle task completed event
+        function handleTaskCompletedEvent(data) {
+            const taskType = data.type;
+
+            if (taskType === 'TTS') {
+                handleTTSCompleted(data);
+            } else if (taskType === 'STT') {
+                handleSTTCompleted(data);
+            }
+        }
+
+        // ✅ Handle TTS completion
+        function handleTTSCompleted(data) {
+            console.log('[TTS Completed]', data);
+
+            const taskId = data.task_id;
+            const status = data.status;
+
+            if (status === 'completed' && data.data) {
+                const audioData = data.data.audio_base64;
+                const language = data.data.language;
+
+                if (audioData) {
+                    const audio = `<audio controls class="audio-player"><source src="data:audio/mp3;base64,${audioData}" type="audio/mp3"></audio>`;
+                    showResult('tts-result', 'success',
+                        `✅ Conversion successful (${language})<br>` +
+                        `Duration: ${data.duration?.toFixed(2)}s<br>${audio}`
+                    );
+
+                    // Add to history
+                    addToTTSHistory({
+                        text: window.lastTTSText || '',
+                        language: language,
+                        audio_base64: audioData,
+                        timestamp: Date.now()
+                    });
+                } else {
+                    showResult('tts-result', 'error', '❌ No audio data in result');
+                }
+            } else if (status === 'failed') {
+                showResult('tts-result', 'error', '❌ ' + (data.error || 'Task failed'));
+            }
+        }
+
+        // ✅ Handle STT completion
+        function handleSTTCompleted(data) {
+            console.log('[STT Completed]', data);
+
+            const status = data.status;
+
+            if (status === 'completed' && data.data) {
+                const text = data.data.text;
+                const confidence = data.data.confidence;
+
+                if (text) {
+                    showResult('stt-result', 'success',
+                        `✅ Recognition successful<br>` +
+                        `<strong>Text:</strong> ${text}<br>` +
+                        `<strong>Confidence:</strong> ${(confidence * 100).toFixed(1)}%<br>` +
+                        `Duration: ${data.duration?.toFixed(2)}s`
+                    );
+                } else {
+                    showResult('stt-result', 'error', '❌ No text in result');
+                }
+            } else if (status === 'failed') {
+                showResult('stt-result', 'error', '❌ ' + (data.error || 'Task failed'));
+            }
+        }
+
+        // ========================================
+        // ✅ Unified API call using UnifiedRpcClient
+        // ========================================
+        async function apiCall(route, params) {
+            try {
+                const result = await rpcClient.call(route, params);
+                // UnifiedRpcClient returns the result directly
+                return unwrapResponse({ success: true, ...result });
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Switch tabs
+        function switchTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update panels
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(tab + '-panel').classList.add('active');
+        }
+
+        // Unwrap unified response format
+        function unwrapResponse(response) {
+            // Handle unified response wrapper format
+            // New format: { success, data: {...}, error, timestamp }
+            // Old format: { success, audio_base64, text, ... }
+
+            if (response.data !== undefined && typeof response.data === 'object') {
+                // New unified format - merge data into response
+                return { ...response, ...response.data };
+            }
+
+            // Old format - return as is
+            return response;
+        }
+
+        // ✅ OLD apiCall removed - now using UnifiedRpcClient.call() via apiCall wrapper above
+
+        // TTS History storage
+        let ttsHistory = [];
+
+        // Active tasks tracking
+        let activeTasks = {};  // {taskId: {type, startTime, pollInterval}}
+
+        /**
+         * Start polling task status (every 1 second)
+         * @param {string} taskId - Task ID to poll
+         * @param {string} taskType - Task type (tts/stt)
+         * @param {object} callbacks - {onUpdate, onComplete, onError}
+         */
+        function startTaskPolling(taskId, taskType, callbacks) {
+            // Check if already polling
+            if (activeTasks[taskId]) {
+                console.warn(`Task ${taskId} is already being polled`);
+                return;
+            }
+
+            const { onUpdate, onComplete, onError } = callbacks;
+            const startTime = Date.now();
+
+            console.log(`[TaskPolling] Started polling task ${taskId} (${taskType})`);
+
+            // Poll function
+            const pollTask = async () => {
+                try {
+                    const statusResult = await apiCall('task_status', { task_id: taskId });
+
+                    if (!statusResult.success) {
+                        console.error(`[TaskPolling] Failed to get status for ${taskId}:`, statusResult.error);
+                        stopTaskPolling(taskId);
+                        if (onError) onError(statusResult.error || 'Failed to get task status');
+                        return;
+                    }
+
+                    const status = statusResult.data;
+                    console.log(`[TaskPolling] Task ${taskId}: ${status.status}`);
+
+                    // Call onUpdate callback
+                    if (onUpdate) onUpdate(status);
+
+                    // Check if task is complete
+                    if (status.status === 'completed') {
+                        stopTaskPolling(taskId);
+                        console.log(`[TaskPolling] Task ${taskId} completed in ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
+                        if (onComplete) onComplete(status);
+                    } else if (status.status === 'failed') {
+                        stopTaskPolling(taskId);
+                        console.error(`[TaskPolling] Task ${taskId} failed:`, status.error);
+                        if (onError) onError(status.error || 'Task failed');
+                    } else if (status.status === 'cancelled') {
+                        stopTaskPolling(taskId);
+                        console.warn(`[TaskPolling] Task ${taskId} was cancelled`);
+                        if (onError) onError('Task was cancelled');
+                    }
+                    // Otherwise, continue polling (pending/processing)
+
+                } catch (error) {
+                    console.error(`[TaskPolling] Error polling ${taskId}:`, error);
+                    stopTaskPolling(taskId);
+                    if (onError) onError(error.message || 'Polling error');
+                }
+            };
+
+            // Start polling (every 1 second) ✅
+            const intervalId = setInterval(pollTask, 1000);
+
+            // Store active task
+            activeTasks[taskId] = {
+                type: taskType,
+                startTime: startTime,
+                pollInterval: intervalId
+            };
+
+            // Initial poll (immediate)
+            pollTask();
+        }
+
+        /**
+         * Stop polling a task
+         */
+        function stopTaskPolling(taskId) {
+            const task = activeTasks[taskId];
+            if (task) {
+                clearInterval(task.pollInterval);
+                delete activeTasks[taskId];
+                console.log(`[TaskPolling] Stopped polling task ${taskId}`);
+            }
+        }
+
+        /**
+         * Get active tasks count
+         */
+        function getActiveTasksCount() {
+            return Object.keys(activeTasks).length;
+        }
+
+        // TTS Conversion (NEW: Async mode with polling)
+        async function convertTTS() {
+            const textArea = document.getElementById('tts-text');
+            const text = textArea.value.trim();
+
+            if (!text) {
+                showResult('tts-result', 'error', 'Please enter text');
+                return;
+            }
+
+            const selectedLang = document.querySelector('#tts-panel input[type=radio]:checked');
+            if (!selectedLang) {
+                showResult('tts-result', 'error', 'Please select a language');
+                return;
+            }
+
+            const language = selectedLang.value;
+
+            showResult('tts-result', 'info', '<span class="loading"></span> Submitting task to queue...');
+
+            // Submit task (ASYNC mode)
+            const submitResult = await apiCall('tts', {
+                text: text,
+                language: language,
+                return_base64: true,
+                async: true,  // ✅ Async mode
+                priority: 'NORMAL'
+            });
+
+            console.log('TTS Submit Result:', submitResult);
+
+            if (!submitResult.success) {
+                showResult('tts-result', 'error', '❌ ' + (submitResult.error || 'Task submission failed'));
+                return;
+            }
+
+            // Get task ID
+            const taskId = submitResult.data?.task_id;
+            if (!taskId) {
+                showResult('tts-result', 'error', '❌ No task ID returned');
+                return;
+            }
+
+            // Show task submitted
+            showResult('tts-result', 'info',
+                `<span class="loading"></span> Task submitted: ${taskId.substring(0, 8)}...<br>` +
+                `Status: Waiting in queue...`
+            );
+
+            // Start polling task status (every 1 second)
+            startTaskPolling(taskId, 'tts', {
+                onUpdate: (status) => {
+                    // Update UI during processing
+                    const statusText = {
+                        'pending': 'Waiting in queue...',
+                        'processing': 'Processing...',
+                        'completed': 'Completed!',
+                        'failed': 'Failed',
+                        'cancelled': 'Cancelled'
+                    }[status.status] || status.status;
+
+                    showResult('tts-result', 'info',
+                        `<span class="loading"></span> Task ${taskId.substring(0, 8)}...<br>` +
+                        `Status: ${statusText}`
+                    );
+                },
+                onComplete: (result) => {
+                    // Task completed - show result
+                    const data = result.result?.data;
+                    if (data && data.audio_base64) {
+                        const audio = `<audio controls class="audio-player"><source src="data:audio/mp3;base64,${data.audio_base64}" type="audio/mp3"></audio>`;
+                        showResult('tts-result', 'success',
+                            `✅ Conversion successful (${data.language})<br>` +
+                            `Duration: ${result.duration?.toFixed(2)}s<br>${audio}`
+                        );
+
+                        // Add to history
+                        addToTTSHistory({
+                            text: text,
+                            language: language,
+                            audio_base64: data.audio_base64,
+                            timestamp: Date.now()
+                        });
+                    } else {
+                        showResult('tts-result', 'error', '❌ No audio data in result');
+                    }
+                },
+                onError: (error) => {
+                    // Task failed
+                    showResult('tts-result', 'error', '❌ ' + error);
+                }
+            });
+        }
+
+        // Add to TTS History
+        function addToTTSHistory(item) {
+            ttsHistory.unshift(item);
+            if (ttsHistory.length > 20) {
+                ttsHistory = ttsHistory.slice(0, 20);
+            }
+            displayTTSHistory();
+        }
+
+        // Display TTS History
+        function displayTTSHistory() {
+            const historyDiv = document.getElementById('tts-history');
+            if (ttsHistory.length === 0) {
+                historyDiv.innerHTML = '<p style="text-align:center;color:#999;">No TTS history yet</p>';
+                return;
+            }
+
+            historyDiv.innerHTML = ttsHistory.map((item, index) => `
+                <div class="history-item" style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div style="margin-bottom: 8px;">
+                        <strong>${item.language}</strong> - ${new Date(item.timestamp).toLocaleString()}
+                    </div>
+                    <div style="margin-bottom: 8px; color: #333;">
+                        "${item.text.substring(0, 100)}${item.text.length > 100 ? '...' : ''}"
+                    </div>
+                    <audio controls class="audio-player" style="width: 100%;">
+                        <source src="data:audio/mp3;base64,${item.audio_base64}" type="audio/mp3">
+                    </audio>
+                </div>
+            `).join('');
+        }
+
+        // STT Conversion (NEW: Async mode with polling)
+        async function convertSTT() {
+            const fileInput = document.getElementById('stt-file');
+            const language = document.getElementById('stt-language').value;
+
+            if (!fileInput.files.length) {
+                showResult('stt-result', 'error', 'Please select an audio file');
+                return;
+            }
+
+            showResult('stt-result', 'info', '<span class="loading"></span> Reading file...');
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                const base64 = e.target.result.split(',')[1];
+
+                showResult('stt-result', 'info', '<span class="loading"></span> Submitting task to queue...');
+
+                // Submit task (ASYNC mode)
+                const submitResult = await apiCall('stt', {
+                    audio: base64,
+                    language: language,
+                    async: true,  // ✅ Async mode
+                    priority: 'NORMAL'
+                });
+
+                if (!submitResult.success) {
+                    showResult('stt-result', 'error', '❌ ' + (submitResult.error || 'Task submission failed'));
+                    return;
+                }
+
+                const taskId = submitResult.data?.task_id;
+                if (!taskId) {
+                    showResult('stt-result', 'error', '❌ No task ID returned');
+                    return;
+                }
+
+                showResult('stt-result', 'info',
+                    `<span class="loading"></span> Task submitted: ${taskId.substring(0, 8)}...<br>` +
+                    `Status: Waiting in queue...`
+                );
+
+                // Start polling
+                startTaskPolling(taskId, 'stt', {
+                    onUpdate: (status) => {
+                        const statusText = {
+                            'pending': 'Waiting in queue...',
+                            'processing': 'Processing...',
+                            'completed': 'Completed!',
+                            'failed': 'Failed',
+                            'cancelled': 'Cancelled'
+                        }[status.status] || status.status;
+
+                        showResult('stt-result', 'info',
+                            `<span class="loading"></span> Task ${taskId.substring(0, 8)}...<br>` +
+                            `Status: ${statusText}`
+                        );
+                    },
+                    onComplete: (result) => {
+                        const data = result.result?.data;
+                        if (data && data.text) {
+                            showResult('stt-result', 'success',
+                                `✅ Recognition successful<br>` +
+                                `<strong>Text:</strong> ${data.text}<br>` +
+                                `<strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%<br>` +
+                                `Duration: ${result.duration?.toFixed(2)}s`
+                            );
+                        } else {
+                            showResult('stt-result', 'error', '❌ No text in result');
+                        }
+                    },
+                    onError: (error) => {
+                        showResult('stt-result', 'error', '❌ ' + error);
+                    }
+                });
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // Clipboard auto-save with debounce
+        let clipboardSaveTimeout = null;
+
+        // Clipboard functions
+        async function addToClipboard() {
+            const content = document.getElementById('clipboard-input').value.trim();
+            if (!content) {
+                return;
+            }
+
+            const statusSpan = document.getElementById('clipboard-status');
+            statusSpan.textContent = 'Saving...';
+            statusSpan.style.color = '#ff9800';
+
+            const result = await apiCall('clipboard_add', {
+                content: content,
+                client_id: clientId,
+                content_type: 'text'
+            });
+
+            if (result.success) {
+                statusSpan.textContent = 'Saved ✓';
+                statusSpan.style.color = '#4caf50';
+                setTimeout(() => {
+                    statusSpan.textContent = 'Ready';
+                    statusSpan.style.color = '#666';
+                }, 2000);
+                loadClipboardHistory();
+            } else {
+                statusSpan.textContent = 'Failed ✗';
+                statusSpan.style.color = '#f44336';
+            }
+        }
+
+        // Auto-save clipboard with 2-second debounce
+        function onClipboardInput() {
+            const statusSpan = document.getElementById('clipboard-status');
+            statusSpan.textContent = 'Typing...';
+            statusSpan.style.color = '#2196f3';
+
+            // Clear previous timeout
+            if (clipboardSaveTimeout) {
+                clearTimeout(clipboardSaveTimeout);
+            }
+
+            // Set new timeout
+            clipboardSaveTimeout = setTimeout(() => {
+                addToClipboard();
+            }, 2000);
+        }
+
+        async function loadClipboardHistory() {
+            const result = await apiCall('clipboard_get', {
+                limit: 50,
+                client_id: null  // Get all clients
+            });
+
+            if (result.success) {
+                const historyDiv = document.getElementById('clipboard-history');
+                if (result.items.length === 0) {
+                    historyDiv.innerHTML = '<p style="text-align:center;color:#999;">No history records</p>';
+                } else {
+                    historyDiv.innerHTML = result.items.map(item => {
+                        const escapedContent = escapeHtml(item.content);
+                        return `
+                        <div class="history-item">
+                            <div class="time">${new Date(item.timestamp * 1000).toLocaleString()} - ${item.client_id}</div>
+                            <div class="content">${escapedContent}</div>
+                            <div class="actions">
+                                <button class="btn btn-secondary" onclick="copyPlainText(\`${escapedContent.replace(/`/g, '\\`')}\`)">📋 Copy</button>
+                            </div>
+                        </div>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
+        // Copy as plain text only (no formatting)
+        function copyPlainText(htmlText) {
+            // Create temporary div to decode HTML entities
+            const temp = document.createElement('div');
+            temp.innerHTML = htmlText;
+            const plainText = temp.textContent || temp.innerText;
+
+            // Copy plain text to clipboard
+            navigator.clipboard.writeText(plainText).then(() => {
+                // Show temporary notification
+                const notification = document.createElement('div');
+                notification.textContent = '✓ Copied as plain text';
+                notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 10px 20px; border-radius: 4px; z-index: 10000;';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                alert('Copy failed');
+            });
+        }
+
+        // Deprecated - use copyPlainText instead
+        function copyToClipboard(text) {
+            copyPlainText(text);
+        }
+
+        // Config functions
+        async function loadConfig() {
+            try {
+                showResult('config-result', 'info', '<span class="loading"></span> Loading settings...');
+
+                const result = await apiCall('config.get_all', {});
+
+                if (!result.success) {
+                    showResult('config-result', 'error', '❌ Failed to load settings: ' + (result.error || 'Unknown error'));
+                    return;
+                }
+
+                const config = result.config || {};
+
+                // Populate form fields
+                const setSelectValue = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el && value !== undefined) el.value = value;
+                };
+
+                const setCheckbox = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el && value !== undefined) el.checked = !!value;
+                };
+
+                const setInputValue = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el && value !== undefined && value !== null) el.value = value;
+                };
+
+                // Apply config values
+                setSelectValue('config-speech-default-language', config.speech_default_language);
+                setInputValue('config-speech-tts-voice', config.speech_tts_voice);
+                setInputValue('config-speech-tts-rate', config.speech_tts_rate);
+                setInputValue('config-speech-tts-volume', config.speech_tts_volume);
+                setSelectValue('config-speech-default-mode', config.speech_default_mode);
+                setCheckbox('config-speech-auto-use-cached', config.speech_auto_use_cached);
+                setCheckbox('config-speech-stt-continuous', config.speech_stt_continuous);
+                setCheckbox('config-speech-cache-audio', config.speech_cache_audio);
+                setCheckbox('config-speech-cache-text', config.speech_cache_text);
+
+                showResult('config-result', 'success', '✅ Settings loaded');
+            } catch (error) {
+                showResult('config-result', 'error', '❌ Error loading settings: ' + error.message);
+            }
+        }
+
+        async function saveConfig() {
+            try {
+                showResult('config-result', 'info', '<span class="loading"></span> Saving settings...');
+
+                // Collect all values
+                const settings = {
+                    speech_default_language: document.getElementById('config-speech-default-language').value,
+                    speech_tts_voice: document.getElementById('config-speech-tts-voice').value,
+                    speech_tts_rate: document.getElementById('config-speech-tts-rate').value,
+                    speech_tts_volume: document.getElementById('config-speech-tts-volume').value,
+                    speech_default_mode: document.getElementById('config-speech-default-mode').value,
+                    speech_auto_use_cached: document.getElementById('config-speech-auto-use-cached').checked,
+                    speech_stt_continuous: document.getElementById('config-speech-stt-continuous').checked,
+                    speech_cache_audio: document.getElementById('config-speech-cache-audio').checked,
+                    speech_cache_text: document.getElementById('config-speech-cache-text').checked
+                };
+
+                // Save each setting
+                let savedCount = 0;
+                for (const [key, value] of Object.entries(settings)) {
+                    const result = await apiCall('config.set', { key: key, value: value });
+                    if (result.success) {
+                        savedCount++;
+                    } else {
+                        console.error(`Failed to save ${key}:`, result.error);
+                    }
+                }
+
+                if (savedCount === Object.keys(settings).length) {
+                    showResult('config-result', 'success', `✅ All settings saved (${savedCount} items)`);
+                } else {
+                    showResult('config-result', 'error', `⚠️ Partially saved (${savedCount}/${Object.keys(settings).length} items)`);
+                }
+            } catch (error) {
+                showResult('config-result', 'error', '❌ Error saving settings: ' + error.message);
+            }
+        }
+
+        async function resetConfig() {
+            if (!confirm('Reset all settings to defaults? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                showResult('config-result', 'info', '<span class="loading"></span> Resetting to defaults...');
+
+                const result = await apiCall('config.reset', {});
+
+                if (result.success) {
+                    showResult('config-result', 'success', '✅ Settings reset to defaults');
+                    // Reload to show updated values
+                    setTimeout(() => loadConfig(), 500);
+                } else {
+                    showResult('config-result', 'error', '❌ Failed to reset: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showResult('config-result', 'error', '❌ Error resetting settings: ' + error.message);
+            }
+        }
+
+        // Quick clipboard
+        function quickClipboard() {
+            const content = prompt('Enter content to add to clipboard history:');
+            if (content) {
+                document.getElementById('clipboard-input').value = content;
+                switchTab('clipboard');
+                addToClipboard();
+            }
+        }
+
+        // Helper functions
+        function showResult(elementId, type, message) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultDiv.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Auto-sync clipboard
+        setInterval(async () => {
+            const result = await apiCall('clipboard_sync', {
+                since: lastSyncTime,
+                client_id: null
+            });
+
+            if (result.success && result.items.length > 0) {
+                lastSyncTime = result.server_time;
+                loadClipboardHistory();
+            }
+        }, 5000);  // Sync every 5 seconds
+
+        /**
+         * Update queue statistics (every 1 second) ✅
+         */
+        async function updateQueueStats() {
+            try {
+                const stats = await apiCall('queue_stats', {});
+
+                if (!stats.success) {
+                    console.error('Failed to get queue stats:', stats.error);
+                    return;
+                }
+
+                const data = stats.data;
+
+                // Update stats display
+                document.getElementById('queue-size').textContent = data.queue_size || 0;
+                document.getElementById('active-tasks-count').textContent = data.active_tasks || 0;
+                document.getElementById('total-processed').textContent = data.total_processed || 0;
+
+                // Calculate success rate
+                const totalCompleted = data.total_completed || 0;
+                const totalFailed = data.total_failed || 0;
+                const total = totalCompleted + totalFailed;
+                const successRate = total > 0 ? ((totalCompleted / total) * 100).toFixed(1) : '100';
+                document.getElementById('success-rate').textContent = successRate + '%';
+
+                // Average times
+                document.getElementById('avg-process-time').textContent = (data.avg_processing_time || 0).toFixed(3) + 's';
+                document.getElementById('avg-wait-time').textContent = (data.avg_wait_time || 0).toFixed(3) + 's';
+
+                // Update polling tasks display
+                updatePollingTasksDisplay();
+
+            } catch (error) {
+                console.error('Error updating queue stats:', error);
+            }
+        }
+
+        /**
+         * Update polling tasks display
+         */
+        function updatePollingTasksDisplay() {
+            const pollingDiv = document.getElementById('polling-tasks');
+            const taskIds = Object.keys(activeTasks);
+
+            if (taskIds.length === 0) {
+                pollingDiv.innerHTML = '<p style="color:#999;text-align:center;">No tasks currently polling</p>';
+                return;
+            }
+
+            pollingDiv.innerHTML = taskIds.map(taskId => {
+                const task = activeTasks[taskId];
+                const elapsed = ((Date.now() - task.startTime) / 1000).toFixed(1);
+
+                return `
+                    <div style="padding: 10px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #667eea;">
+                        <strong>${task.type.toUpperCase()}</strong> - ${taskId.substring(0, 12)}...
+                        <span style="float: right; color: #666;">${elapsed}s</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Auto-update queue stats every 1 second ✅
+        setInterval(updateQueueStats, 1000);
+
+        // Initialize
+        (async function init() {
+            const status = await apiCall('status', {});
+            if (status.success !== false) {
+                document.getElementById('status').textContent = '✅ Service running - ' + clientId;
+            }
+            loadClipboardHistory();
+            displayTTSHistory();
+            updateQueueStats();  // Initial queue stats update ✅
+            loadConfig();  // Load configuration settings ✅
+
+            // Add event listener for clipboard auto-save
+            const clipboardInput = document.getElementById('clipboard-input');
+            if (clipboardInput) {
+                clipboardInput.addEventListener('input', onClipboardInput);
+            }
+        })();
+    </script>
+</body>
+</html>

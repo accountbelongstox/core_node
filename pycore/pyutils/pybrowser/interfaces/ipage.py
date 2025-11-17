@@ -18,7 +18,7 @@ class IPage:
         self.url = None
         self.title = None
 
-    async def goto(self, url: str, options: Dict[str, Any] = None) -> Any:
+    def goto(self, url: str, options: Dict[str, Any] = None) -> Any:
         """
         Navigate to URL
 
@@ -31,7 +31,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.goto() must be implemented by subclass')
 
-    async def click(self, selector: str, options: Dict[str, Any] = None):
+    def click(self, selector: str, options: Dict[str, Any] = None):
         """
         Click an element
 
@@ -41,7 +41,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.click() must be implemented by subclass')
 
-    async def type(self, selector: str, text: str, options: Dict[str, Any] = None):
+    def type(self, selector: str, text: str, options: Dict[str, Any] = None):
         """
         Type text into an element
 
@@ -52,7 +52,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.type() must be implemented by subclass')
 
-    async def screenshot(self, options: Dict[str, Any] = None) -> bytes:
+    def screenshot(self, options: Dict[str, Any] = None) -> bytes:
         """
         Take screenshot
 
@@ -64,7 +64,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.screenshot() must be implemented by subclass')
 
-    async def evaluate(self, script: str, *args) -> Any:
+    def evaluate(self, script: str, *args) -> Any:
         """
         Execute JavaScript
 
@@ -77,7 +77,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.evaluate() must be implemented by subclass')
 
-    async def wait_for_selector(self, selector: str, options: Dict[str, Any] = None):
+    def wait_for_selector(self, selector: str, options: Dict[str, Any] = None):
         """
         Wait for element to appear
 
@@ -87,7 +87,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.wait_for_selector() must be implemented by subclass')
 
-    async def wait_for_function(self, func: Callable, options: Dict[str, Any] = None):
+    def wait_for_function(self, func: Callable, options: Dict[str, Any] = None):
         """
         Wait for function to return truthy value
 
@@ -97,7 +97,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.wait_for_function() must be implemented by subclass')
 
-    async def get_content(self) -> str:
+    def get_content(self) -> str:
         """
         Get page HTML content
 
@@ -106,7 +106,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.get_content() must be implemented by subclass')
 
-    async def get_title(self) -> str:
+    def get_title(self) -> str:
         """
         Get page title
 
@@ -115,7 +115,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.get_title() must be implemented by subclass')
 
-    async def get_url(self) -> str:
+    def get_url(self) -> str:
         """
         Get current URL
 
@@ -124,7 +124,7 @@ class IPage:
         """
         raise NotImplementedError('IPage.get_url() must be implemented by subclass')
 
-    async def close(self):
+    def close(self):
         """Close the page"""
         raise NotImplementedError('IPage.close() must be implemented by subclass')
 
@@ -140,3 +140,21 @@ class IPage:
             'url': self.url,
             'title': self.title
         }
+
+    def main_frame(self) -> 'IPage':
+        """
+        Get main frame (for compatibility with Puppeteer-like APIs)
+
+        Returns:
+            Self (main page is the main frame)
+        """
+        return self
+
+    def url(self) -> str:
+        """
+        Get current URL (alternative method for compatibility)
+
+        Returns:
+            URL string
+        """
+        return self.get_url()

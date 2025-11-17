@@ -236,8 +236,8 @@ class NativeUIConfig:
             if icon_png.exists():
                 self.icon_path = str(icon_png)
                 if self.debug:
-                    from pycore.pyfoundations import ColorPrint
-                    ColorPrint.blue(f"[Config] Auto-detected icon: {self.icon_path}")
+                    from pycore import ColorPrint
+                    ColorPrint.print_info(f"[Config] Auto-detected icon: {self.icon_path}")
 
         # Auto-detect logo path (same as icon by default)
         if self.logo_path is None:
@@ -248,8 +248,8 @@ class NativeUIConfig:
                 if logo_png.exists():
                     self.logo_path = str(logo_png)
                     if self.debug:
-                        from pycore.pyfoundations import ColorPrint
-                        ColorPrint.blue(f"[Config] Auto-detected logo: {self.logo_path}")
+                        from pycore import ColorPrint
+                        ColorPrint.print_info(f"[Config] Auto-detected logo: {self.logo_path}")
 
     def __post_init__(self):
         """Post-initialization: validate, auto-detect paths, and generate keys"""
@@ -268,12 +268,21 @@ class NativeUIConfig:
         if self.window_title_key is None:
             self.window_title_key = f"{self.app_id}.window.title"
             if self.debug:
-                from pycore.pyfoundations import ColorPrint
-                ColorPrint.blue(
+                from pycore import ColorPrint
+                ColorPrint.print_info(
                     f"[Config] Auto-generated window title key: {self.window_title_key}"
                 )
 
 
 # Convenience type alias
-TrayMenuItem = Dict[str, Union[str, Callable]]
-"""Type alias for tray menu item: {'text': str, 'callback': Callable}"""
+# DEPRECATED: Use TrayMenuItemDict instead to avoid conflict with tray_config.TrayMenuItem
+TrayMenuItemDict = Dict[str, Union[str, Callable]]
+"""Type alias for simple tray menu item dict: {'text': str, 'callback': Callable}"""
+
+# Keep old name for backward compatibility but mark as deprecated
+TrayMenuItem = TrayMenuItemDict
+"""
+DEPRECATED: Use TrayMenuItemDict instead.
+This conflicts with tray_config.TrayMenuItem dataclass.
+Type alias for simple tray menu item dict: {'text': str, 'callback': Callable}
+"""

@@ -19,6 +19,12 @@ from pycore.pyutils.native_ui.step2_port_url.url_handler import (
     URLType,
 )
 
+from pycore.pyutils.native_ui.step2_port_url.server_manager import (
+    ServerManager,
+    ServerProcess,
+    get_server_manager,
+)
+
 __all__ = [
     "get_port_range",
     "register_port_range",
@@ -27,4 +33,7 @@ __all__ = [
     "URLHandler",
     "process_url",
     "URLType",
+    "ServerManager",
+    "ServerProcess",
+    "get_server_manager",
 ]

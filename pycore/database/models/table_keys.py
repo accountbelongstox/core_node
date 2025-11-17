@@ -41,6 +41,10 @@ class TableKeys:
 
     # ===== Util Speech Tables =====
     SPEECH_TTS_CACHE = f"{TableNamespaces.UTIL_SPEECH}.tts_cache"
+    SPEECH_TTS_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.tts_config"
+
+    # ===== Util Clipboard Tables =====
+    CLIPBOARD_HISTORY = f"{TableNamespaces.UTIL_CLIPBOARD}.history"
 
     # ===== Voice App Tables =====
     VOICE_DICTIONARIES = f"{TableNamespaces.APP_VOICE}.dictionaries"

@@ -218,12 +218,22 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
 
 # DEPRECATED: Use thread_bus_manager.BusKeys and BusSignals instead
 # This class is kept for backward compatibility only
+import warnings
+
 class TrayBusKeys:
     """
     DEPRECATED: Use thread_bus_manager.BusKeys and BusSignals instead
 
     Standard THREAD_BUS keys for tray system
     """
+
+    def __init__(self):
+        warnings.warn(
+            "TrayBusKeys is deprecated. Use BusKeys and BusSignals from "
+            "pycore.pyutils.native_ui.step7_managers.thread_bus_manager instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
     # Configuration - use thread_bus_manager.BusKeys.TRAY_CONFIG
     TRAY_CONFIG = "ui.tray.config"
