@@ -14,9 +14,12 @@ import glob
 from pathlib import Path
 from typing import List, Dict, Set
 
-# Add pycore to path for imports
+# Add project root and pycore to path for imports
 script_dir = Path(__file__).parent  # scripts/pytools/pybackup/core_node
 project_root = script_dir.parent.parent.parent.parent  # core_node root
+
+# Ensure pycore (imported as package pycore.*) resolves when launched from PowerShell
+sys.path.insert(0, str(project_root))
 pycore_path = project_root / "pycore"
 sys.path.insert(0, str(pycore_path))
 
@@ -31,9 +34,9 @@ class BackupManager:
         
         # Backup configuration
         self.backup_name_prefix = "core_node_bak"
-        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.backup_name = f"{self.backup_name_prefix}_{self.timestamp}"
-        self.backup_path = self.backup_parent_dir / self.backup_name
+        self.timestamp = ""
+        self.backup_name = ""
+        self.backup_path = None
         
         # Directories to skip during backup
         self.skip_dirs = {
@@ -58,6 +61,13 @@ class BackupManager:
             '.o', '.obj', '.a', '.lib', '.dylib',
             '.map', '.min.js', '.min.css',
             '.lock', '.pid'
+        }
+        
+        # Windows reserved device names that cannot be created/copied on Windows
+        self.windows_reserved_names = {
+            'con', 'prn', 'aux', 'nul',
+            'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+            'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
         }
         
         # Compilation directories to skip
@@ -93,10 +103,15 @@ class BackupManager:
             else:
                 print("Invalid option. Please try again.")
 
+    def refresh_backup_destination(self) -> None:
+        """Generate a new timestamped backup path each time backup starts"""
+        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.backup_name = f"{self.backup_name_prefix}_{self.timestamp}"
+        self.backup_path = self.backup_parent_dir / self.backup_name
+
     def start_backup(self):
         """Start the backup process"""
         ColorPrint.blue(f"\nStarting backup of {self.project_root}")
-        ColorPrint.blue(f"Backup will be saved to: {self.backup_path}")
         
         # Print skip information
         ColorPrint.yellow("\nSkipping the following directories and files:")
@@ -110,6 +125,10 @@ class BackupManager:
         if confirm != 'y':
             ColorPrint.red("Backup cancelled.")
             return
+        
+        # Generate a fresh backup path only when backup actually starts
+        self.refresh_backup_destination()
+        ColorPrint.blue(f"Backup will be saved to: {self.backup_path}")
         
         try:
             # Create backup directory
@@ -198,15 +217,23 @@ class BackupManager:
 
     def should_skip_directory(self, dir_name: str) -> bool:
         """Check if directory should be skipped"""
-        return (dir_name in self.skip_dirs or 
-                dir_name in self.compilation_dirs or
-                dir_name.startswith('.') and dir_name != '.git')
-
+        name_lower = dir_name.lower()
+        return (
+            dir_name in self.skip_dirs or 
+            dir_name in self.compilation_dirs or
+            name_lower in self.windows_reserved_names or
+            dir_name.startswith('.') and dir_name != '.git'
+        )
+    
     def should_skip_file(self, file_name: str) -> bool:
         """Check if file should be skipped"""
         file_path = Path(file_name)
-        return (file_path.suffix.lower() in self.skip_extensions or
-                file_name.startswith('.') and file_name not in ['.gitignore', '.gitattributes'])
+        name_lower = file_path.name.lower()
+        return (
+            file_path.suffix.lower() in self.skip_extensions or
+            name_lower in self.windows_reserved_names or
+            file_name.startswith('.') and file_name not in ['.gitignore', '.gitattributes']
+        )
 
     def list_backups(self):
         """List all available backups"""

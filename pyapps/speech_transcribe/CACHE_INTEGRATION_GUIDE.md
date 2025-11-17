@@ -26,10 +26,10 @@ The speech transcription application now features comprehensive configuration ca
 - Primary + secondary language support
 
 ### 3. **Unified Entry Point** ✓
-- Single entry point for both single and dual modes
-- File: `pyapps/speech_transcribe/speech_transcribe.py`
-- Automatic mode selection with caching
-- Seamless switching between modes
+- Single entry point per base development guide
+- File: `pyapps/speech_transcribe/speech_transcribe_main.py`
+- Launches dual-source mode with configuration caching
+- Seamless restart experience using cached settings
 
 ### 4. **Cache Info Display** ✓
 - MD5 hash calculation for recognized text
@@ -42,12 +42,8 @@ The speech transcription application now features comprehensive configuration ca
 ### Starting the Application
 
 ```bash
-# Unified entry point (recommended)
-python pyapps/speech_transcribe/speech_transcribe.py
-
-# Legacy entry points (still work)
-python pyapps/speech_transcribe/speech_transcribe_main.py       # Single mode
-python pyapps/speech_transcribe/speech_transcribe_dual_main.py  # Dual mode
+# Single entry point (base guide compliant)
+python pyapps/speech_transcribe/speech_transcribe_main.py
 ```
 
 ### First Run (No Cache)
@@ -235,10 +231,10 @@ print_recognition_cache_info("Hello world", "en-US")
    - Package initialization
    - Singleton export
 
-3. **`pyapps/speech_transcribe/speech_transcribe.py`**
-   - Unified entry point
-   - Mode selection with cache
-   - Integrated launcher
+3. **`pyapps/speech_transcribe/speech_transcribe_main.py`**
+   - Single entry point (dual-source by default)
+   - Configuration cache awareness
+   - Integrated launcher call
 
 ### Files Modified
 
@@ -251,10 +247,11 @@ print_recognition_cache_info("Hello world", "en-US")
    - Integrated cache info display after recognition
 
 2. **`pyapps/speech_transcribe/speech_transcribe_main.py`**
-   - Updated to use unified launcher (unchanged functionality)
+   - Hosts the unified launch logic per base guide
+   - Always starts dual-source mode with RPC enabled
 
-3. **`pyapps/speech_transcribe/speech_transcribe_dual_main.py`**
-   - Updated to use unified launcher (unchanged functionality)
+3. **Removed Legacy Entry (`speech_transcribe_dual_main.py`)**
+   - Dual-mode functionality now handled by the main entry
 
 ## Benefits
 
@@ -315,9 +312,7 @@ python pyapps/speech_transcribe/test_cache_integration.py
 
 **No migration needed!** The new system is backward compatible:
 
-1. Old entry points still work:
-   - `speech_transcribe_main.py` → single mode
-   - `speech_transcribe_dual_main.py` → dual mode
+1. Single entry point: `speech_transcribe_main.py` (dual-source mode)
 
 2. Cache is created automatically on first selection
 
@@ -326,15 +321,13 @@ python pyapps/speech_transcribe/test_cache_integration.py
 ### Recommended Workflow
 
 ```bash
-# First time: Use unified entry point
-python speech_transcribe.py
+# First time
+python speech_transcribe_main.py
 
-# Configure settings interactively
-# Settings are automatically cached
+# Configure settings interactively (cache created automatically)
 
-# Next time: Just press Enter for all cached settings
-python speech_transcribe.py
-# [Enter] [Enter] [Enter] ... Done!
+# Subsequent runs reuse cache instantly
+python speech_transcribe_main.py
 ```
 
 ## Troubleshooting
