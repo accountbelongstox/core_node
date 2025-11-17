@@ -183,10 +183,10 @@ switcher = PageSwitcher(chrome)
 switcher.switch_by_index(1)  # Switch to 2nd tab (Google)
 
 # Switch by URL
-switcher.switch_by_url('https://example.com', strict=False)
+switcher.switch_by_url('https://example.com', exact_match=False)
 
 # Switch by title
-switcher.switch_by_title('GitHub', partial=True)
+switcher.switch_by_title('GitHub', exact_match=False)
 
 chrome.close()
 ```
