@@ -22,7 +22,7 @@ try:
 
     # Import core components
     from pycore.database.base_model import BaseModel
-    from pycore.database.database_manager import database_manager
+    from pycore.database.database_manager import database_manager, get_database_manager
 
     DATABASE_AVAILABLE = True
     ColorPrint.green("[database] Database module loaded successfully")
@@ -34,11 +34,13 @@ except ImportError as e:
     # Create placeholder for imports
     BaseModel = None
     database_manager = None
+    get_database_manager = None
 
 
 # Export main interfaces
 __all__ = [
     'database_manager',
+    'get_database_manager',
     'BaseModel',
     'DATABASE_AVAILABLE',
 ]

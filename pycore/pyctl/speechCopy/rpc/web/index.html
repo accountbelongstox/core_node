@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech & Clipboard Service</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header .status {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            background: transparent;
+            font-size: 1em;
+        }
+
+        .tab:hover {
+            background: #e0e0e0;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input,
+        .input-group textarea,
+        .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border 0.3s;
+        }
+
+        .input-group input:focus,
+        .input-group textarea:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .checkbox-group,
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group label,
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+        }
+
+        .result.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .result.success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .history-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .history-item {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+
+        .history-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .history-item .time {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .history-item .content {
+            font-size: 1em;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .history-item .actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .history-item .actions button {
+            padding: 5px 15px;
+            font-size: 0.9em;
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .clipboard-quick {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #667eea;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+        }
+
+        .clipboard-quick:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Speech & Clipboard Service</h1>
+            <div class="status" id="status">Connecting...</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('tts')">Text to Speech</button>
+            <button class="tab" onclick="switchTab('stt')">Speech to Text</button>
+            <button class="tab" onclick="switchTab('clipboard')">Clipboard</button>
+            <button class="tab" onclick="switchTab('config')">Settings</button>
+        </div>
+
+        <div class="content">
+            <!-- TTS Panel -->
+            <div id="tts-panel" class="panel active">
+                <div class="input-group">
+                    <label>Input Text</label>
+                    <textarea id="tts-text" placeholder="Enter text to convert to speech..." rows="4"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label>Target Language (Select ONE)</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="tts-lang" value="zh-CN" checked> 中文 (Chinese)</label>
+                        <label><input type="radio" name="tts-lang" value="en-US"> English</label>
+                        <label><input type="radio" name="tts-lang" value="ja-JP"> 日本語 (Japanese)</label>
+                        <label><input type="radio" name="tts-lang" value="ko-KR"> 한국어 (Korean)</label>
+                        <label><input type="radio" name="tts-lang" value="lo-LA"> ລາວ (Lao)</label>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="convertTTS()">🎵 Convert to Speech</button>
+
+                <div id="tts-result"></div>
+
+                <div class="history-section" style="margin-top: 20px;">
+                    <h3>TTS History</h3>
+                    <div id="tts-history" class="history-list"></div>
+                </div>
+            </div>
+
+            <!-- STT Panel -->
+            <div id="stt-panel" class="panel">
+                <div class="input-group">
+                    <label>Upload Audio File</label>
+                    <input type="file" id="stt-file" accept="audio/*">
+                </div>
+
+                <div class="input-group">
+                    <label>Select Language</label>
+                    <select id="stt-language">
+                        <option value="zh-CN">中文 (Chinese)</option>
+                        <option value="en-US">English</option>
+                        <option value="ja-JP">日本語 (Japanese)</option>
+                        <option value="ko-KR">한국어 (Korean)</option>
+                        <option value="lo-LA">ລາວ (Lao)</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" onclick="convertSTT()">📝 Convert to Text</button>
+
+                <div id="stt-result"></div>
+            </div>
+
+            <!-- Clipboard Panel -->
+            <div id="clipboard-panel" class="panel">
+                <div class="input-group">
+                    <label>Quick Add to Clipboard (Auto-saves 2s after typing)</label>
+                    <textarea id="clipboard-input" placeholder="Enter content - will auto-save after 2 seconds..." rows="4"></textarea>
+                    <small style="color: #666;">Status: <span id="clipboard-status">Ready</span></small>
+                </div>
+
+                <button class="btn btn-secondary" onclick="loadClipboardHistory()">🔄 Refresh History</button>
+
+                <div class="history-list" id="clipboard-history"></div>
+            </div>
+
+            <!-- Config Panel -->
+            <div id="config-panel" class="panel">
+                <div class="input-group">
+                    <label>Default Language</label>
+                    <select id="config-language">
+                        <option value="zh-CN">中文 (Chinese)</option>
+                        <option value="en-US">English</option>
+                        <option value="ja-JP">日本語 (Japanese)</option>
+                        <option value="ko-KR">한국어 (Korean)</option>
+                        <option value="lo-LA">ລາວ (Lao)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Default TTS Provider</label>
+                    <select id="config-provider">
+                        <option value="edge">Edge TTS (Free)</option>
+                        <option value="azure">Azure TTS</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveConfig()">💾 Save Settings</button>
+
+                <div id="config-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="clipboard-quick" onclick="quickClipboard()">
+        📋 Quick Clipboard
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/rpc';
+        let clientId = localStorage.getItem('clientId') || generateClientId();
+        let lastSyncTime = 0;
+
+        // Generate unique client ID
+        function generateClientId() {
+            const id = 'web_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('clientId', id);
+            return id;
+        }
+
+        // Switch tabs
+        function switchTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update panels
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(tab + '-panel').classList.add('active');
+        }
+
+        // Unwrap unified response format
+        function unwrapResponse(response) {
+            // Handle unified response wrapper format
+            // New format: { success, data: {...}, error, timestamp }
+            // Old format: { success, audio_base64, text, ... }
+
+            if (response.data !== undefined && typeof response.data === 'object') {
+                // New unified format - merge data into response
+                return { ...response, ...response.data };
+            }
+
+            // Old format - return as is
+            return response;
+        }
+
+        // API call helper with automatic polling
+        async function apiCall(route, params) {
+            try {
+                // Initial request
+                const response = await fetch(`${API_BASE}/${route}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(params)
+                });
+                const data = await response.json();
+
+                // Check if this is an async response that needs polling
+                if (data.status === 'accepted' && data.id) {
+                    // Wait for processing
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Poll for result
+                    const resultResponse = await fetch(`${API_BASE}/query/${data.id}`);
+                    const resultData = await resultResponse.json();
+
+                    // Return the actual result (unwrapped)
+                    return unwrapResponse(resultData.result || resultData);
+                }
+
+                // Direct response (unwrapped)
+                return unwrapResponse(data);
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // TTS History storage
+        let ttsHistory = [];
+
+        // TTS Conversion
+        async function convertTTS() {
+            const textArea = document.getElementById('tts-text');
+            const text = textArea.value.trim();
+
+            console.log('TTS Convert - Text value:', text); // Debug
+
+            if (!text) {
+                showResult('tts-result', 'error', 'Please enter text');
+                return;
+            }
+
+            const selectedLang = document.querySelector('#tts-panel input[type=radio]:checked');
+            if (!selectedLang) {
+                showResult('tts-result', 'error', 'Please select a language');
+                return;
+            }
+
+            const language = selectedLang.value;
+            console.log('TTS Convert - Language:', language); // Debug
+
+            showResult('tts-result', 'info', '<span class="loading"></span> Converting...');
+
+            const result = await apiCall('tts', {
+                text: text,
+                language: language,
+                return_base64: true
+            });
+
+            console.log('TTS Result:', result); // Debug
+
+            if (result.success) {
+                const audio = `<audio controls class="audio-player"><source src="data:audio/mp3;base64,${result.audio_base64}" type="audio/mp3"></audio>`;
+                showResult('tts-result', 'success', `✅ Conversion successful (${result.language})<br>${audio}`);
+
+                // Add to history
+                addToTTSHistory({
+                    text: text,
+                    language: language,
+                    audio_base64: result.audio_base64,
+                    timestamp: Date.now()
+                });
+            } else {
+                showResult('tts-result', 'error', '❌ ' + (result.error || 'Conversion failed'));
+            }
+        }
+
+        // Add to TTS History
+        function addToTTSHistory(item) {
+            ttsHistory.unshift(item);
+            if (ttsHistory.length > 20) {
+                ttsHistory = ttsHistory.slice(0, 20);
+            }
+            displayTTSHistory();
+        }
+
+        // Display TTS History
+        function displayTTSHistory() {
+            const historyDiv = document.getElementById('tts-history');
+            if (ttsHistory.length === 0) {
+                historyDiv.innerHTML = '<p style="text-align:center;color:#999;">No TTS history yet</p>';
+                return;
+            }
+
+            historyDiv.innerHTML = ttsHistory.map((item, index) => `
+                <div class="history-item" style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <div style="margin-bottom: 8px;">
+                        <strong>${item.language}</strong> - ${new Date(item.timestamp).toLocaleString()}
+                    </div>
+                    <div style="margin-bottom: 8px; color: #333;">
+                        "${item.text.substring(0, 100)}${item.text.length > 100 ? '...' : ''}"
+                    </div>
+                    <audio controls class="audio-player" style="width: 100%;">
+                        <source src="data:audio/mp3;base64,${item.audio_base64}" type="audio/mp3">
+                    </audio>
+                </div>
+            `).join('');
+        }
+
+        // STT Conversion
+        async function convertSTT() {
+            const fileInput = document.getElementById('stt-file');
+            const language = document.getElementById('stt-language').value;
+
+            if (!fileInput.files.length) {
+                showResult('stt-result', 'error', 'Please select an audio file');
+                return;
+            }
+
+            showResult('stt-result', 'info', '<span class="loading"></span> Recognizing...');
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                const base64 = e.target.result.split(',')[1];
+                const result = await apiCall('stt', {
+                    audio: base64,
+                    language: language
+                });
+
+                if (result.success) {
+                    showResult('stt-result', 'success', `✅ Recognition successful<br><strong>Text:</strong> ${result.text}<br><strong>Confidence:</strong> ${(result.confidence * 100).toFixed(1)}%`);
+                } else {
+                    showResult('stt-result', 'error', '❌ ' + (result.error || 'Recognition failed'));
+                }
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // Clipboard auto-save with debounce
+        let clipboardSaveTimeout = null;
+
+        // Clipboard functions
+        async function addToClipboard() {
+            const content = document.getElementById('clipboard-input').value.trim();
+            if (!content) {
+                return;
+            }
+
+            const statusSpan = document.getElementById('clipboard-status');
+            statusSpan.textContent = 'Saving...';
+            statusSpan.style.color = '#ff9800';
+
+            const result = await apiCall('clipboard_add', {
+                content: content,
+                client_id: clientId,
+                content_type: 'text'
+            });
+
+            if (result.success) {
+                statusSpan.textContent = 'Saved ✓';
+                statusSpan.style.color = '#4caf50';
+                setTimeout(() => {
+                    statusSpan.textContent = 'Ready';
+                    statusSpan.style.color = '#666';
+                }, 2000);
+                loadClipboardHistory();
+            } else {
+                statusSpan.textContent = 'Failed ✗';
+                statusSpan.style.color = '#f44336';
+            }
+        }
+
+        // Auto-save clipboard with 2-second debounce
+        function onClipboardInput() {
+            const statusSpan = document.getElementById('clipboard-status');
+            statusSpan.textContent = 'Typing...';
+            statusSpan.style.color = '#2196f3';
+
+            // Clear previous timeout
+            if (clipboardSaveTimeout) {
+                clearTimeout(clipboardSaveTimeout);
+            }
+
+            // Set new timeout
+            clipboardSaveTimeout = setTimeout(() => {
+                addToClipboard();
+            }, 2000);
+        }
+
+        async function loadClipboardHistory() {
+            const result = await apiCall('clipboard_get', {
+                limit: 50,
+                client_id: null  // Get all clients
+            });
+
+            if (result.success) {
+                const historyDiv = document.getElementById('clipboard-history');
+                if (result.items.length === 0) {
+                    historyDiv.innerHTML = '<p style="text-align:center;color:#999;">No history records</p>';
+                } else {
+                    historyDiv.innerHTML = result.items.map(item => {
+                        const escapedContent = escapeHtml(item.content);
+                        return `
+                        <div class="history-item">
+                            <div class="time">${new Date(item.timestamp * 1000).toLocaleString()} - ${item.client_id}</div>
+                            <div class="content">${escapedContent}</div>
+                            <div class="actions">
+                                <button class="btn btn-secondary" onclick="copyPlainText(\`${escapedContent.replace(/`/g, '\\`')}\`)">📋 Copy</button>
+                            </div>
+                        </div>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
+        // Copy as plain text only (no formatting)
+        function copyPlainText(htmlText) {
+            // Create temporary div to decode HTML entities
+            const temp = document.createElement('div');
+            temp.innerHTML = htmlText;
+            const plainText = temp.textContent || temp.innerText;
+
+            // Copy plain text to clipboard
+            navigator.clipboard.writeText(plainText).then(() => {
+                // Show temporary notification
+                const notification = document.createElement('div');
+                notification.textContent = '✓ Copied as plain text';
+                notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 10px 20px; border-radius: 4px; z-index: 10000;';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                alert('Copy failed');
+            });
+        }
+
+        // Deprecated - use copyPlainText instead
+        function copyToClipboard(text) {
+            copyPlainText(text);
+        }
+
+        // Config functions
+        async function saveConfig() {
+            const language = document.getElementById('config-language').value;
+            const provider = document.getElementById('config-provider').value;
+
+            await apiCall('config_set', { key: 'default_language', value: language });
+            await apiCall('config_set', { key: 'default_tts_provider', value: provider });
+
+            showResult('config-result', 'success', '✅ Settings saved');
+        }
+
+        // Quick clipboard
+        function quickClipboard() {
+            const content = prompt('Enter content to add to clipboard history:');
+            if (content) {
+                document.getElementById('clipboard-input').value = content;
+                switchTab('clipboard');
+                addToClipboard();
+            }
+        }
+
+        // Helper functions
+        function showResult(elementId, type, message) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultDiv.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Auto-sync clipboard
+        setInterval(async () => {
+            const result = await apiCall('clipboard_sync', {
+                since: lastSyncTime,
+                client_id: null
+            });
+
+            if (result.success && result.items.length > 0) {
+                lastSyncTime = result.server_time;
+                loadClipboardHistory();
+            }
+        }, 5000);  // Sync every 5 seconds
+
+        // Initialize
+        (async function init() {
+            const status = await apiCall('status', {});
+            if (status.success !== false) {
+                document.getElementById('status').textContent = '✅ Service running - ' + clientId;
+            }
+            loadClipboardHistory();
+            displayTTSHistory();
+
+            // Add event listener for clipboard auto-save
+            const clipboardInput = document.getElementById('clipboard-input');
+            if (clipboardInput) {
+                clipboardInput.addEventListener('input', onClipboardInput);
+            }
+        })();
+    </script>
+</body>
+</html>

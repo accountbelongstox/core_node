@@ -141,6 +141,65 @@ class ColorPrint:
         print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
+    # ========================================
+    # Semantic aliases for consistent API
+    # ========================================
+
+    @staticmethod
+    def print_info(message):
+        """Print info message (blue) - alias for blue()"""
+        ColorPrint.blue(message)
+
+    @staticmethod
+    def print_warn(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def print_warning(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def print_error(message):
+        """Print error message (red) - alias for red()"""
+        ColorPrint.red(message)
+
+    @staticmethod
+    def print_success(message):
+        """Print success message (green) - alias for green()"""
+        ColorPrint.green(message)
+
+    @staticmethod
+    def print_debug(message):
+        """Print debug message (gray) - alias for debug()"""
+        ColorPrint.debug(message)
+
+    @staticmethod
+    def info(message):
+        """Print info message (blue) - alias for blue()"""
+        ColorPrint.blue(message)
+
+    @staticmethod
+    def warn(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def warning(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def error(message):
+        """Print error message (red) - alias for red()"""
+        ColorPrint.red(message)
+
+    @staticmethod
+    def success(message):
+        """Print success message (green) - alias for green()"""
+        ColorPrint.green(message)
+
     @staticmethod
     def print_separator(char='-', length=None):
         """Print a separator line"""

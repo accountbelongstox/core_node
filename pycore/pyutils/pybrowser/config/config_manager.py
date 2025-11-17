@@ -21,7 +21,7 @@ class ConfigManager:
         self.is_loaded = False
         self.config_dir = Path(__file__).parent
 
-    async def load(self):
+    def load(self):
         """Load configuration and presets"""
         try:
             ColorPrint.debug('Loading configuration...')

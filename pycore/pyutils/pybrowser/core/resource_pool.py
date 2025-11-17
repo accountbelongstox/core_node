@@ -6,7 +6,6 @@ Resource Pool
 Manages browser and page resources for efficient reuse
 """
 
-import asyncio
 from typing import Dict, List, Any
 from pycore.pyfoundations.color_print import ColorPrint
 
@@ -29,7 +28,7 @@ class ResourcePool:
             'pool_misses': 0
         }
 
-    async def initialize(self):
+    def initialize(self):
         """Initialize resource pool"""
         try:
             ColorPrint.info('Initializing ResourcePool...')
@@ -39,7 +38,7 @@ class ResourcePool:
             ColorPrint.red(f'Failed to initialize ResourcePool: {error}')
             raise
 
-    async def get_browser(self, browser_type: str = 'edge') -> Any:
+    def get_browser(self, browser_type: str = 'edge') -> Any:
         """
         Get or create browser from pool
 
@@ -47,7 +46,7 @@ class ResourcePool:
             browser_type: Browser type ('chrome', 'edge', 'firefox')
 
         Returns:
-            Browser instance
+            Browser instance (ThreadedBrowser)
         """
         pool = self.browser_pool.get(browser_type, [])
 
@@ -58,7 +57,7 @@ class ResourcePool:
             self.metrics['pool_hits'] += 1
             ColorPrint.debug(f"Browser reused from pool: {browser_type}")
         else:
-            browser = await self.create_browser(browser_type)
+            browser = self.create_browser(browser_type)
             pool.append(browser)
             self.browser_pool[browser_type] = pool
             self.metrics['pool_misses'] += 1
@@ -67,7 +66,7 @@ class ResourcePool:
         self.metrics['browsers_created'] += 1
         return browser
 
-    async def release_browser(self, browser: Any):
+    def release_browser(self, browser: Any):
         """
         Release browser back to pool
 
@@ -82,7 +81,7 @@ class ResourcePool:
         except Exception as error:
             ColorPrint.red(f'Failed to release browser: {error}')
 
-    async def create_browser(self, browser_type: str) -> Any:
+    def create_browser(self, browser_type: str) -> Any:
         """
         Create new browser instance
 
@@ -90,11 +89,18 @@ class ResourcePool:
             browser_type: Browser type
 
         Returns:
-            Browser instance
+            Browser instance (ThreadedBrowser)
         """
         from pycore.pyutils.pybrowser.factories.browser_factory import BrowserFactory
-        browser = await BrowserFactory.create(browser_type)
 
+        # Create and start browser
+        browser = BrowserFactory.create(browser_type, auto_start=True)
+
+        # Wait for browser to be ready
+        if not browser.wait_until_ready(timeout=30):
+            raise RuntimeError(f"Browser {browser_type} failed to start")
+
+        # Add pool management methods
         browser._is_idle = True
         browser.is_idle = lambda: browser._is_idle
         browser.mark_busy = lambda: setattr(browser, '_is_idle', False)
@@ -103,7 +109,7 @@ class ResourcePool:
 
         return browser
 
-    async def get_page(self, browser_type: str = 'edge') -> Any:
+    def get_page(self, browser_type: str = 'edge') -> Any:
         """
         Get or create page from pool
 
@@ -122,8 +128,12 @@ class ResourcePool:
             self.metrics['pool_hits'] += 1
             ColorPrint.debug(f"Page reused from pool: {browser_type}")
         else:
-            browser = await self.get_browser(browser_type)
-            page = await browser.new_page()
+            browser = self.get_browser(browser_type)
+
+            # Create page using browser driver
+            from pycore.pyutils.pybrowser.implementations.pages.standard_page import StandardPage
+            page = StandardPage(browser.driver, {})
+            page.initialize()
 
             page._is_idle = True
             page.is_idle = lambda: page._is_idle
@@ -139,7 +149,7 @@ class ResourcePool:
         self.metrics['pages_created'] += 1
         return page
 
-    async def release_page(self, page: Any):
+    def release_page(self, page: Any):
         """
         Release page back to pool
 
@@ -154,7 +164,7 @@ class ResourcePool:
         except Exception as error:
             ColorPrint.red(f'Failed to release page: {error}')
 
-    async def cleanup(self):
+    def cleanup(self):
         """Cleanup all resources"""
         try:
             ColorPrint.info('Cleaning up ResourcePool...')
@@ -162,14 +172,16 @@ class ResourcePool:
             for browser_type, browsers in self.browser_pool.items():
                 for browser in browsers:
                     try:
-                        await browser.close()
+                        # Stop ThreadedBrowser
+                        browser.stop()
+                        browser.join(timeout=10)
                     except Exception as error:
                         ColorPrint.warn(f"Failed to close browser {browser_type}: {error}")
 
             for page_type, pages in self.page_pool.items():
                 for page in pages:
                     try:
-                        await page.close()
+                        page.close()
                     except Exception as error:
                         ColorPrint.warn(f"Failed to close page {page_type}: {error}")
 

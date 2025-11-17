@@ -6,7 +6,6 @@ Session Manager
 Manages browser sessions and their lifecycle
 """
 
-import asyncio
 import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -33,7 +32,7 @@ class Session:
             'errors': 0
         }
 
-    async def initialize(self):
+    def initialize(self):
         """Initialize session with browser"""
         try:
             ColorPrint.info(f"Initializing session: {self.id}")
@@ -41,10 +40,14 @@ class Session:
             from pycore.pyutils.pybrowser.factories.browser_factory import BrowserFactory
 
             browser_type = self.config.get('browser', 'edge')
-            self.browser = await BrowserFactory.create(browser_type)
+            browser_config = self.config.get('browser_options', {})
 
-            browser_options = self.config.get('browser_options', {})
-            await self.browser.launch(browser_options)
+            # Create and start browser (ThreadedBrowser)
+            self.browser = BrowserFactory.create(browser_type, config=browser_config, auto_start=True)
+
+            # Wait for browser to be ready
+            if not self.browser.wait_until_ready(timeout=30):
+                raise RuntimeError(f"Browser failed to start within timeout")
 
             self.is_initialized = True
             self.last_activity = datetime.now().isoformat()
@@ -55,7 +58,7 @@ class Session:
             ColorPrint.red(f"Failed to initialize session {self.id}: {error}")
             raise
 
-    async def new_page(self, options: Dict[str, Any] = None) -> Any:
+    def new_page(self, options: Dict[str, Any] = None) -> Any:
         """
         Create new page in session
 
@@ -66,40 +69,23 @@ class Session:
             Page instance
         """
         try:
-            pages = await self.browser.get_pages()
-            blank_page = None
-
-            for page in pages:
-                try:
-                    page_url = await page.get_url()
-                    blank_urls = ['about:blank', 'chrome://newtab/', 'edge://newtab/', 'about:newtab', '']
-                    if page_url in blank_urls:
-                        blank_page = page
-                        break
-                except Exception:
-                    continue
-
-            if blank_page:
-                wrapped_page = blank_page
-                ColorPrint.info(f"Reusing blank page in session {self.id}")
-            else:
-                wrapped_page = await self.browser.new_page(options or {})
-                ColorPrint.info(f"Created new page in session {self.id}")
+            # Use IBrowser interface to create page
+            page = self.browser.new_page(options or {})
 
             page_id = str(uuid.uuid4())
-            self.pages[page_id] = wrapped_page
-            self.active_page = wrapped_page
+            self.pages[page_id] = page
+            self.active_page = page
             self.metrics['pages_created'] += 1
             self.last_activity = datetime.now().isoformat()
 
             ColorPrint.info(f"Page created in session {self.id}: {page_id}")
-            return wrapped_page
+            return page
         except Exception as error:
             self.metrics['errors'] += 1
             ColorPrint.red(f"Failed to create page in session {self.id}: {error}")
             raise
 
-    async def close_page(self, page_id: str):
+    def close_page(self, page_id: str):
         """
         Close a page
 
@@ -109,7 +95,7 @@ class Session:
         try:
             page = self.pages.get(page_id)
             if page:
-                await page.close()
+                page.close()
                 del self.pages[page_id]
                 self.metrics['pages_closed'] += 1
                 self.last_activity = datetime.now().isoformat()
@@ -146,7 +132,7 @@ class Session:
         """
         return list(self.pages.values())
 
-    async def load_plugin(self, plugin: Any):
+    def load_plugin(self, plugin: Any):
         """
         Load plugin into session
 
@@ -154,14 +140,14 @@ class Session:
             plugin: Plugin instance
         """
         try:
-            await plugin.initialize(self)
+            plugin.initialize(self)
             self.plugins[plugin.name] = plugin
             ColorPrint.info(f"Plugin {plugin.name} loaded in session {self.id}")
         except Exception as error:
             ColorPrint.red(f"Failed to load plugin {plugin.name} in session {self.id}: {error}")
             raise
 
-    async def unload_plugin(self, plugin_name: str):
+    def unload_plugin(self, plugin_name: str):
         """
         Unload plugin from session
 
@@ -171,7 +157,7 @@ class Session:
         try:
             plugin = self.plugins.get(plugin_name)
             if plugin:
-                await plugin.cleanup()
+                plugin.cleanup()
                 del self.plugins[plugin_name]
                 ColorPrint.info(f"Plugin {plugin_name} unloaded from session {self.id}")
         except Exception as error:
@@ -190,25 +176,31 @@ class Session:
         """
         return self.plugins.get(plugin_name)
 
-    async def close(self):
+    def close(self):
         """Close session and cleanup resources"""
         try:
             ColorPrint.info(f"Closing session: {self.id}")
 
+            # Close all pages
             for page_id, page in list(self.pages.items()):
                 try:
-                    await page.close()
+                    page.close()
                 except Exception as error:
                     ColorPrint.warn(f"Failed to close page {page_id}: {error}")
 
+            # Cleanup all plugins
             for plugin_name, plugin in list(self.plugins.items()):
                 try:
-                    await plugin.cleanup()
+                    plugin.cleanup()
                 except Exception as error:
                     ColorPrint.warn(f"Failed to cleanup plugin {plugin_name}: {error}")
 
+            # Close browser using IBrowser interface
             if self.browser:
-                await self.browser.close()
+                try:
+                    self.browser.close()
+                except Exception as error:
+                    ColorPrint.warn(f"Failed to close browser: {error}")
 
             self.is_initialized = False
             ColorPrint.info(f"Session closed: {self.id}")
@@ -253,7 +245,7 @@ class SessionManager:
         self.session_counter = 0
         self.max_sessions = 10
 
-    async def create(self, config: Dict[str, Any] = None) -> Session:
+    def create(self, config: Dict[str, Any] = None) -> Session:
         """
         Create new session
 
@@ -269,7 +261,7 @@ class SessionManager:
         session_id = self.generate_session_id()
         session = Session(session_id, config or {})
 
-        await session.initialize()
+        session.initialize()
         self.sessions[session_id] = session
 
         return session
@@ -295,7 +287,7 @@ class SessionManager:
         """
         return list(self.sessions.values())
 
-    async def close(self, session_id: str) -> Optional[Session]:
+    def close(self, session_id: str) -> Optional[Session]:
         """
         Close a session
 
@@ -307,19 +299,19 @@ class SessionManager:
         """
         session = self.sessions.get(session_id)
         if session:
-            await session.close()
+            session.close()
             del self.sessions[session_id]
             return session
         return None
 
-    async def close_all(self):
+    def close_all(self):
         """Close all sessions"""
-        close_tasks = [
-            self.close(session_id)
-            for session_id in list(self.sessions.keys())
-        ]
+        for session_id in list(self.sessions.keys()):
+            try:
+                self.close(session_id)
+            except Exception as error:
+                ColorPrint.warn(f"Failed to close session {session_id}: {error}")
 
-        await asyncio.gather(*close_tasks, return_exceptions=True)
         ColorPrint.info('All sessions closed')
 
     def generate_session_id(self) -> str:

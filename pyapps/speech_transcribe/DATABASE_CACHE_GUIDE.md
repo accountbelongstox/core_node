@@ -59,7 +59,7 @@ pycore/
 │   ├── base_model.py                 # BaseModel class
 │   └── database_manager.py           # DatabaseManager singleton
 │
-├── database_models/                   # All table definitions
+├── database/models/                   # All table definitions
 │   ├── __init__.py                   # Total export
 │   ├── namespaces.py                 # TableNamespaces
 │   ├── table_keys.py                 # TableKeys
@@ -71,7 +71,30 @@ pycore/
     └── tts_cache/
         ├── __init__.py               # Exports: TTSCacheManager, tts_cache_manager
         └── tts_cache_manager.py      # TTS cache manager (DB-enabled)
+
+wwwroot/pycore_db/                    # Web-accessible storage
+├── tts_static/                       # TTS cache files (default location)
+│   ├── edge/                        # Edge TTS provider
+│   │   ├── zh-CN/                   # Language-specific caches
+│   │   ├── en-US/
+│   │   └── ja-JP/
+│   └── azure/                       # Azure TTS provider
+└── speech.db                         # SQLite database for cache lookup
 ```
+
+### Storage Paths
+
+**TTS Cache Files**: `wwwroot/pycore_db/tts_static/`
+- Windows: `D:/www/wwwroot/pycore_db/tts_static/`
+- Linux: `/www/wwwroot/pycore_db/tts_static/`
+- Web-accessible for static serving
+- Organized by provider and language
+
+**Database**: `www/pycore_db/speech.db`
+- Windows: `D:/www/pycore_db/speech.db`
+- Linux: `/www/pycore_db/speech.db`
+- SQLite database for fast cache lookup
+- Stores metadata and file references
 
 ### Key Components
 

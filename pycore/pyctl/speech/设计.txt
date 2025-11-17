@@ -1,3 +1,12 @@
+提示词：
+D:\programing\core_node\development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md 全面分析
+，当有默认配置的时候 ，直接启动，但是默认配置将放在一个全局的配置表中，同时可以通过rpc修改，[ERROR]
+Recognition canceled: CancellationReason.Error - Connection was closed by the remote host. Error code:
+ 1007. Error details: Quota exceeded. Cid:  SessionId: 0f0789bdbe224afd84454267b2f2812f
+http://127.0.0.1:8080/ 同时增加web页面，端口改为59000.web页默认显示设置，发送文字楒 调用后端语音转文字
+ ，文字 转语音，可以使用历史剪切板功能，D:\programing\core_node\pycore\pyutils\clipboard ，
+可以显示所有实时缓存语音，文字记录，先整体分析方案给我。
+
 D:\programing\core_node\pycore\pyutils 参考 规范 ，将刚才的扩展为类库，
 D:\programing\core_node\development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md
 D:\programing\core_node\pycore\pyutils 你将同时实现一个tts 语音转写提供器。一个azure的提供器，之后在

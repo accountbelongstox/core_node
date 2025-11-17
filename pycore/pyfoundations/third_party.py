@@ -89,6 +89,9 @@ DEPENDENCY_MAP = {
     "openpyxl": "openpyxl",
     "pptx": "python-pptx",
 
+    # For HTML parsing
+    "bs4": "beautifulsoup4",
+
     # For machine learning and color analysis
     "sklearn": "scikit-learn",
 
@@ -110,6 +113,9 @@ DEPENDENCY_MAP = {
 
     # For global hotkey listening (keyboard and mouse)
     "pynput": "pynput",
+
+    # For clipboard operations (cross-platform)
+    "pyperclip": "pyperclip",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -598,6 +604,14 @@ def get_third_package_aiohttp():
     return _lazy_import('aiohttp', 'import aiohttp')
 
 
+def get_third_package_aiohttp_web():
+    """Get aiohttp.web (lazy load)"""
+    if 'aiohttp_web' not in _PACKAGE_CACHE:
+        from aiohttp import web as aiohttp_web
+        _PACKAGE_CACHE['aiohttp_web'] = aiohttp_web
+    return _PACKAGE_CACHE['aiohttp_web']
+
+
 def get_third_package_netifaces():
     """Get netifaces package (lazy load)"""
     return _lazy_import('netifaces', 'import netifaces')
@@ -650,6 +664,14 @@ def get_third_package_PIL_ImageFont():
         from PIL import ImageFont as PIL_ImageFont
         _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
     return _PACKAGE_CACHE['PIL_ImageFont']
+
+
+def get_third_package_PIL_ImageTk():
+    """Get PIL.ImageTk (lazy load)"""
+    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
+        from PIL import ImageTk as PIL_ImageTk
+        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
+    return _PACKAGE_CACHE['PIL_ImageTk']
 
 
 def get_third_package_cv2():
@@ -737,6 +759,11 @@ def get_third_package_pynput():
     return _lazy_import('pynput', 'import pynput')
 
 
+def get_third_package_pyperclip():
+    """Get pyperclip package (lazy load)"""
+    return _lazy_import('pyperclip', 'import pyperclip')
+
+
 # Document processing packages
 def get_third_package_PyPDF2():
     """Get PyPDF2 package (lazy load)"""
@@ -771,6 +798,20 @@ def get_third_package_pptx():
 def get_third_package_python_pptx():
     """Get python-pptx package (alias for pptx, lazy load)"""
     return get_third_package_pptx()
+
+
+# HTML parsing
+def get_third_package_bs4():
+    """Get bs4 (BeautifulSoup4) package (lazy load)"""
+    return _lazy_import('bs4', 'import bs4')
+
+
+def get_third_package_BeautifulSoup():
+    """Get BeautifulSoup class from bs4 (lazy load)"""
+    if 'BeautifulSoup' not in _PACKAGE_CACHE:
+        from bs4 import BeautifulSoup
+        _PACKAGE_CACHE['BeautifulSoup'] = BeautifulSoup
+    return _PACKAGE_CACHE['BeautifulSoup']
 
 
 # Machine learning
@@ -943,6 +984,7 @@ __all__ = [
 
     # Lazy loading getter functions (use these instead of direct imports)
     'get_third_package_aiohttp',
+    'get_third_package_aiohttp_web',
     'get_third_package_netifaces',
     'get_third_package_websockets',
     'get_third_package_requests',
@@ -952,6 +994,7 @@ __all__ = [
     'get_third_package_PIL_Image',
     'get_third_package_PIL_ImageDraw',
     'get_third_package_PIL_ImageFont',
+    'get_third_package_PIL_ImageTk',
     'get_third_package_cv2',
     'get_third_package_pyautogui',
     'get_third_package_psutil',
@@ -969,6 +1012,7 @@ __all__ = [
     'get_third_package_pystray',
     'get_third_package_cnocr',
     'get_third_package_pynput',
+    'get_third_package_pyperclip',
     # Document processing packages
     'get_third_package_PyPDF2',
     'get_third_package_pdfplumber',

@@ -25,7 +25,7 @@ class PluginManager:
             'hook_errors': 0
         }
 
-    async def load_plugins(self):
+    def load_plugins(self):
         """Load built-in plugins"""
         try:
             ColorPrint.info('Loading built-in plugins...')
@@ -33,8 +33,8 @@ class PluginManager:
             from pycore.pyutils.pybrowser.plugins.core.content_plugin import ContentPlugin
             from pycore.pyutils.pybrowser.plugins.core.automation_plugin import AutomationPlugin
 
-            await self.load_plugin(ContentPlugin())
-            await self.load_plugin(AutomationPlugin())
+            self.load_plugin(ContentPlugin())
+            self.load_plugin(AutomationPlugin())
 
             self.is_initialized = True
             ColorPrint.info('Built-in plugins loaded successfully')
@@ -42,9 +42,11 @@ class PluginManager:
             ColorPrint.red(f'Failed to load plugins: {error}')
             raise
 
-    async def load_plugin(self, plugin: IPlugin):
+    def load_plugin(self, plugin: IPlugin):
         """
-        Load a plugin
+        Load a plugin (register it, but don't initialize)
+
+        Plugins are initialized per-session via initialize_session()
 
         Args:
             plugin: Plugin instance
@@ -57,16 +59,16 @@ class PluginManager:
             return
 
         try:
-            await plugin.initialize(self)
+            # Just register the plugin, don't initialize yet
             self.plugins[plugin.name] = plugin
             self.metrics['plugins_loaded'] += 1
 
-            ColorPrint.info(f"Plugin loaded: {plugin.name} v{plugin.version}")
+            ColorPrint.info(f"Plugin registered: {plugin.name} v{plugin.version}")
         except Exception as error:
             ColorPrint.red(f"Failed to load plugin {plugin.name}: {error}")
             raise
 
-    async def unload_plugin(self, plugin_name: str):
+    def unload_plugin(self, plugin_name: str):
         """
         Unload a plugin
 
@@ -79,7 +81,7 @@ class PluginManager:
             return
 
         try:
-            await plugin.cleanup()
+            plugin.cleanup()
             del self.plugins[plugin_name]
             self.metrics['plugins_unloaded'] += 1
 
@@ -109,21 +111,29 @@ class PluginManager:
         """
         return list(self.plugins.values())
 
-    async def initialize_session(self, session: Any):
+    def initialize_session(self, session: Any):
         """
-        Initialize all plugins for a session
+        Initialize all registered plugins for a session
+
+        This method creates new plugin instances and initializes them with the session.
 
         Args:
             session: Session instance
         """
-        for plugin_name, plugin in self.plugins.items():
+        for plugin_name, plugin_template in self.plugins.items():
             try:
-                await session.load_plugin(plugin)
+                # Create a new instance of the plugin for this session
+                # (to avoid sharing state between sessions)
+                plugin_class = type(plugin_template)
+                session_plugin = plugin_class()
+
+                # Load into session (which will initialize it)
+                session.load_plugin(session_plugin)
                 ColorPrint.debug(f"Plugin {plugin_name} initialized for session {session.id}")
             except Exception as error:
                 ColorPrint.red(f"Failed to initialize plugin {plugin_name} for session {session.id}: {error}")
 
-    async def execute_hook(self, hook_name: str, *args) -> List[Any]:
+    def execute_hook(self, hook_name: str, *args) -> List[Any]:
         """
         Execute hook with all registered handlers
 
@@ -141,7 +151,7 @@ class PluginManager:
 
         for hook in hooks:
             try:
-                result = await hook(*args)
+                result = hook(*args)
                 results.append(result)
                 self.metrics['hooks_executed'] += 1
             except Exception as error:
@@ -180,14 +190,14 @@ class PluginManager:
             hooks.remove(callback)
             ColorPrint.debug(f"Hook unregistered: {hook_name}")
 
-    async def cleanup(self):
+    def cleanup(self):
         """Cleanup all plugins"""
         try:
             ColorPrint.info('Cleaning up PluginManager...')
 
             for plugin_name, plugin in list(self.plugins.items()):
                 try:
-                    await plugin.cleanup()
+                    plugin.cleanup()
                 except Exception as error:
                     ColorPrint.warn(f"Failed to cleanup plugin {plugin_name}: {error}")
 

@@ -25,10 +25,10 @@
 # Notes:
 #     - Tool Name: Claude AI
 #     - Command Prefix: claude
-#     - Command: claude --dangerously-skip-permissions
+#     - Command: $claude_command
 #     - File Number: 4
 #     - File Name: claude4.sh
-#     - Generation Time: 2025-11-16 23:06:45
+#     - Generation Time: 2025-11-17 03:01:40
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
@@ -36,6 +36,21 @@
 # =============================================================================
 
 set -e
+
+# Check if running as root - skip --dangerously-skip-permissions flag for root
+if [ "$EUID" -eq 0 ]; then
+    echo ""
+    echo "============================================================"
+    echo "WARNING: Running as root user"
+    echo "============================================================"
+    echo "Root user already has all permissions."
+    echo "--dangerously-skip-permissions flag is NOT added."
+    echo "============================================================"
+    echo ""
+    claude_command="claude"
+else
+    claude_command="claude --dangerously-skip-permissions"
+fi
 
 echo ""
 echo "============================================================"
@@ -153,9 +168,9 @@ fi
 
 if [ ${#env_vars_parts[@]} -gt 0 ]; then
     env_vars_command=$(IFS=' ' ; echo "${env_vars_parts[*]}")
-    full_command_display="$env_vars_command claude --dangerously-skip-permissions"
+    full_command_display="$env_vars_command $claude_command"
 else
-    full_command_display="claude --dangerously-skip-permissions"
+    full_command_display="$claude_command"
 fi
 #endregion
 
@@ -252,7 +267,7 @@ echo "============================================================"
 read -p "Press Enter to continue"
 
 echo ""
-echo "Executing: claude --dangerously-skip-permissions"
+echo "Executing: $claude_command"
 echo ""
 echo "Command: $full_command_display"
 echo ""

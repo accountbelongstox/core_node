@@ -11,11 +11,12 @@ Pattern inspired by seleniumThread.py - each browser is a self-contained thread.
 import threading
 import time
 from queue import Queue, Empty
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 from pycore import ColorPrint
+from pycore.pyutils.pybrowser.interfaces.ibrowser import IBrowser
 
 
-class ThreadedBrowser(threading.Thread):
+class ThreadedBrowser(threading.Thread, IBrowser):
     """
     Base class for threaded browser instances
 
@@ -46,9 +47,13 @@ class ThreadedBrowser(threading.Thread):
         # Initialize Thread parent class
         threading.Thread.__init__(self, name=thread_name, daemon=daemon)
 
+        # Initialize IBrowser parent class
+        IBrowser.__init__(self)
+
         # Configuration
         self.config = config or {}
         self.browser_type = None  # Set by subclass (chrome/edge/firefox)
+        self.version = None  # Set by subclass after launch
 
         # Thread control
         self._running = False
@@ -56,7 +61,7 @@ class ThreadedBrowser(threading.Thread):
         self._result_queue = Queue()
         self._lock = threading.Lock()
 
-        # Browser state
+        # Browser state (override IBrowser defaults)
         self.driver = None
         self.is_launched = False
         self.launch_time = None
@@ -318,3 +323,107 @@ class ThreadedBrowser(threading.Thread):
         status = "running" if self._running else "stopped"
         launched = "launched" if self.is_launched else "not launched"
         return f"<{self.__class__.__name__} name={self.name} status={status} browser={launched}>"
+
+    # ============================================
+    # IBrowser Interface Implementation
+    # ============================================
+
+    def launch(self, options: Dict[str, Any] = None) -> Any:
+        """
+        Launch the browser (starts the thread)
+
+        Args:
+            options: Browser launch options (merged with existing config)
+
+        Returns:
+            Browser driver instance (once ready)
+        """
+        if options:
+            self.config.update(options)
+
+        # Start the thread which will call _launch_browser
+        self.start()
+
+        # Wait until browser is ready
+        if not self.wait_until_ready(timeout=30):
+            raise RuntimeError(f"Browser failed to launch within timeout")
+
+        return self.driver
+
+    def close(self):
+        """Close the browser (graceful shutdown)"""
+        self.stop()
+        self.join(timeout=10)
+
+    def new_page(self, options: Dict[str, Any] = None) -> 'IPage':
+        """
+        Create a new page/tab
+
+        Args:
+            options: Page options
+
+        Returns:
+            IPage instance
+
+        Note:
+            For ThreadedBrowser, page creation is typically handled by Session.
+            This method creates a new window/tab in the browser.
+        """
+        def _create_page(driver):
+            # Open new tab
+            driver.execute_script("window.open('about:blank', '_blank');")
+            # Switch to new tab
+            driver.switch_to.window(driver.window_handles[-1])
+
+            # Create StandardPage wrapper
+            from pycore.pyutils.pybrowser.implementations.pages.standard_page import StandardPage
+            page = StandardPage(driver, options or {})
+            page.initialize()
+            return page
+
+        return self.execute(_create_page)
+
+    def get_version(self) -> Optional[str]:
+        """
+        Get browser version
+
+        Returns:
+            Version string or None
+        """
+        return self.version
+
+    def get_pages(self) -> List['IPage']:
+        """
+        Get all open pages
+
+        Returns:
+            List of IPage instances
+
+        Note:
+            For ThreadedBrowser, this returns page wrappers for all window handles.
+        """
+        def _get_all_pages(driver):
+            from pycore.pyutils.pybrowser.implementations.pages.standard_page import StandardPage
+            pages = []
+            original_handle = driver.current_window_handle
+
+            for handle in driver.window_handles:
+                driver.switch_to.window(handle)
+                page = StandardPage(driver, {})
+                page.is_initialized = True
+                pages.append(page)
+
+            # Switch back to original
+            driver.switch_to.window(original_handle)
+            return pages
+
+        return self.execute(_get_all_pages)
+
+    def is_connected(self) -> bool:
+        """
+        Check if browser is connected
+
+        Returns:
+            True if connected
+        """
+        return self.is_launched and self._running and self.driver is not None
