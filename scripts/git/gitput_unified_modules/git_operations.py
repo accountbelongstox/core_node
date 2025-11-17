@@ -6,7 +6,7 @@ Git operations module
 
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from gitput_unified_modules.utils import write_color_text, get_core_node_dir
 
 
@@ -137,7 +137,7 @@ def commit_changes(message: str) -> bool:
         return False
 
 
-def pull_branch(branch: str, no_edit: bool = True) -> tuple[bool, str]:
+def pull_branch(branch: str, no_edit: bool = True) -> Tuple[bool, str]:
     """Pull from remote branch"""
     try:
         cmd = f"git pull origin {branch}"
