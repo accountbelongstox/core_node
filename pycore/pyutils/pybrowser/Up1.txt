@@ -1,0 +1,9 @@
+ D:\programing\core_node\pycore\pyutils\pybrowser 整体分析，扫描所有 目录
+  ，先分析一致性问题，之后了解其是否有处理session cookies的问题，能办法做到浏览器启动载入历史的cookie之
+  一，或者实时保存本次cookie，注意历史cookie可能是多个记录。 
+
+全面修复，使用最优方案，默认使用载入默认cookie，使用
+  D:\programing\core_node\pycore\pyfoundations\system_paths.py 中的 map_web_path wwwr pycore_db /
+  中的一个目录来存多个cookie，默认启动是总是载入一个，但是可以有选项，载入最新，截入默认，载入指定。同时
+  ，cookie将实时保存到文件，默认保存到默认，但可以有选项，创建新的（本次启动），追加到指定。同时修复其他
+  一已发两现的一致性问题，同时修复的同时继续扫描一致性问题。

@@ -46,12 +46,13 @@ class FirefoxBrowser(ThreadedBrowser):
             config: Browser configuration
                 - headless: bool (default: False)
                 - args: list of Firefox arguments
-                - profile_dir: Firefox profile directory
+                - profile_dir: Browser profile directory (unified parameter)
                 - download_dir: Download directory
                 - window_size: tuple (width, height)
                 - preferences: dict of Firefox preferences
                 - driver_mode: str (auto, local, system_path, auto_download)
                 - driver_path: str (path to geckodriver)
+                - cookie_config: Cookie persistence configuration (see ThreadedBrowser)
             thread_name: Custom thread name (default: auto-generated)
         """
         super().__init__(config, thread_name or 'FirefoxBrowser', daemon=True)

@@ -9,7 +9,7 @@ Processing layer for document offline downloads:
 - CSSProcessor: Process CSS content, download resources and rewrite URLs
 
 Usage:
-    from pycore.pyctl.document_offline.processor import (
+    from pycore.pyctl.pybrowserauto.processor import (
         ResourceProcessor, HTMLProcessor, CSSProcessor
     )
 
@@ -37,9 +37,9 @@ Usage:
     )
 """
 
-from pycore.pyctl.document_offline.processor.resource_processor import ResourceProcessor
-from pycore.pyctl.document_offline.processor.html_processor import HTMLProcessor
-from pycore.pyctl.document_offline.processor.css_processor import CSSProcessor
+from pycore.pyctl.pybrowserauto.processor.resource_processor import ResourceProcessor
+from pycore.pyctl.pybrowserauto.processor.html_processor import HTMLProcessor
+from pycore.pyctl.pybrowserauto.processor.css_processor import CSSProcessor
 
 __all__ = [
     'ResourceProcessor',

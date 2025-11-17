@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Speech Transcribe Dual-Source Application
+Compatibility wrapper for the consolidated speech_transcribe entry point.
 
-Real-time dual-source speech transcription with hotkey control.
-
-Features:
-- Simultaneous microphone + system audio transcription
-- Independent language settings per audio source
-- Hotkey control (Ctrl+Click, Ctrl+DoubleClick)
-- Clipboard integration
-- TTS playback
-
-Entry point following pycore standards: Single pyctl call only.
+Previously specific to dual-source launches; now it simply delegates to the
+shared implementation inside speech_transcribe.py so that every legacy entry
+point behaves identically.
 """
 
-from pycore.pylauncher.launcher import launch_speech_only
+import sys
+import os
+from pathlib import Path
+
+# Add project root to path for absolute imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Force unbuffered output for real-time logs
+sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+os.environ['PYTHONUNBUFFERED'] = '1'
+
+from pyapps.speech_transcribe.speech_transcribe import start as unified_start
 
 
 def start():
-    """
-    Application entry point
+    """Delegate to the consolidated dual-source application."""
 
-    Following pycore standard: Only ONE statement calling pylauncher.
-    """
-    # Launch dual-source transcription mode
-    launch_speech_only(mode="dual")
+    unified_start()
 
 
 if __name__ == "__main__":

@@ -43,12 +43,12 @@ class CLIController:
             epilog="""
 Examples:
   # Basic download
-  python -m pycore.pyctl.document_offline.controller.cli_controller \\
+  python -m pycore.pyctl.pybrowserauto.controller.cli_controller \\
       --url https://example.com/docs/ \\
       --output ./downloads
 
   # Advanced download with options
-  python -m pycore.pyctl.document_offline.controller.cli_controller \\
+  python -m pycore.pyctl.pybrowserauto.controller.cli_controller \\
       --url https://example.com/docs/ \\
       --output ./downloads \\
       --depth 5 \\
@@ -57,7 +57,7 @@ Examples:
       --scope path
 
   # Quick download (HTTP fetcher, shallow depth)
-  python -m pycore.pyctl.document_offline.controller.cli_controller \\
+  python -m pycore.pyctl.pybrowserauto.controller.cli_controller \\
       --url https://example.com/page.html \\
       --output ./downloads \\
       --depth 1 \\
@@ -202,20 +202,20 @@ Examples:
         from urllib.parse import urlparse
 
         # Import components
-        from pycore.pyctl.document_offline.core import (
+        from pycore.pyctl.pybrowserauto.core import (
             DomainContext,
             URLQueue,
             FileMapper,
             URLRewriter
         )
 
-        from pycore.pyctl.document_offline.processor import (
+        from pycore.pyctl.pybrowserauto.processor import (
             ResourceProcessor,
             HTMLProcessor,
             CSSProcessor
         )
 
-        from pycore.pyctl.document_offline.controller import CrawlController
+        from pycore.pyctl.pybrowserauto.controller import CrawlController
 
         # Parse URL for origin
         parsed = urlparse(url)

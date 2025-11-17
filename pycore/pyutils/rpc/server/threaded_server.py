@@ -425,6 +425,9 @@ class ThreadedRpcServer(threading.Thread):
                             relative_path = url_path[1:]  # Remove leading /
                         else:
                             relative_path = url_path[len(url_prefix):]
+                            # Remove leading / from relative path (if any)
+                            if relative_path.startswith('/'):
+                                relative_path = relative_path[1:]
 
                         file_path = Path(dir_path) / relative_path
 

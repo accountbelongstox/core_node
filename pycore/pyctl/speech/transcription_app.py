@@ -381,14 +381,25 @@ class AudioCaptureThread(threading.Thread):
 
         self.is_running = True
 
-        stream = audio.open(
-            format=FORMAT,
-            channels=device_channels,
-            rate=device_rate,
-            input=True,
-            input_device_index=self.device_index,
-            frames_per_buffer=CHUNK
-        )
+        # Open audio stream in shared mode (non-exclusive)
+        # This prevents blocking other applications from using the audio device
+        # NOTE: pyaudiowpatch automatically detects loopback devices via 'isLoopbackDevice' attribute
+        # We don't need to specify 'as_loopback' parameter - it handles it internally
+        stream_params = {
+            'format': FORMAT,
+            'channels': device_channels,
+            'rate': device_rate,
+            'input': True,
+            'input_device_index': self.device_index,
+            'frames_per_buffer': CHUNK
+        }
+
+        if self.device_type == 'loopback':
+            ColorPrint.blue("[Thread] Opening loopback device (system audio)")
+        else:
+            ColorPrint.blue("[Thread] Opening microphone device")
+
+        stream = audio.open(**stream_params)
 
         ColorPrint.green("[Thread] Audio stream opened")
 
@@ -532,6 +543,12 @@ class TranscriptionSession:
         self.session_start_time = None
         self.current_recognizing_text = ""
 
+        # Error handling state
+        self.has_error = False
+        self.should_stop = False
+        self.error_message = ""
+        self.quota_exceeded = False
+
     def on_recognizing(self, text: str):
         """
         Handle intermediate recognition result
@@ -654,9 +671,46 @@ class TranscriptionSession:
             # Save current session
 
     def on_error(self, error_msg: str):
-        """Handle recognition error"""
+        """Handle recognition error with recovery logic"""
         ColorPrint.red(f"[ERROR] {error_msg}")
         sys.stdout.flush()
+
+        # Set error state
+        self.has_error = True
+        self.error_message = error_msg
+
+        # Check for critical errors that require session termination
+        if "Quota exceeded" in error_msg or "Error code: 1007" in error_msg:
+            self.quota_exceeded = True
+            self.should_stop = True
+
+            # Show critical error message
+            print("\n" + "="*70)
+            ColorPrint.red("CRITICAL ERROR: Azure Speech API Quota Exceeded!")
+            print("="*70)
+            ColorPrint.yellow("Your Azure Speech Service free tier limit has been reached.")
+            ColorPrint.yellow("")
+            ColorPrint.yellow("Options to resolve:")
+            ColorPrint.yellow("  1. Wait for quota reset (resets monthly)")
+            ColorPrint.yellow("  2. Upgrade your Azure subscription")
+            ColorPrint.yellow("  3. Use local STT provider (offline)")
+            ColorPrint.yellow("  4. Use alternative cloud provider")
+            ColorPrint.yellow("")
+            ColorPrint.yellow("Session will be terminated automatically.")
+            print("="*70)
+            sys.stdout.flush()
+
+        elif "Connection was closed" in error_msg:
+            # Network connection lost
+            ColorPrint.yellow("\n[WARNING] Connection to Azure servers lost")
+            ColorPrint.yellow("Check your internet connection and Azure service status")
+            self.should_stop = True
+
+        elif "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
+            # Authentication error
+            ColorPrint.red("\n[CRITICAL] Azure authentication failed")
+            ColorPrint.yellow("Check your API key and subscription status")
+            self.should_stop = True
 
     def get_session_summary(self) -> dict:
         """Get session summary statistics"""
@@ -808,12 +862,24 @@ def select_device_with_cache(device_manager, device_type: str = "default"):
     cached_device_index = speech_config_cache.get_audio_device(device_type)
     if cached_device_index is not None:
         ColorPrint.green(f"\n[Cached {device_type} device: {cached_device_index}]")
-        use_cached = input("Use cached device? (y/n) [default: y]: ").strip().lower()
-        if use_cached != 'n':
+
+        # Check if auto-use cached config is enabled
+        from pycore.pyutils.common import global_config
+        auto_use_cached = global_config.get('speech_auto_use_cached', True)
+
+        if auto_use_cached:
+            ColorPrint.blue("[Auto-using cached device (speech_auto_use_cached=True)]")
             # Find device by index
             for dev in devices:
                 if dev[1] == cached_device_index:
                     return dev
+        else:
+            use_cached = input("Use cached device? (y/n) [default: y]: ").strip().lower()
+            if use_cached != 'n':
+                # Find device by index
+                for dev in devices:
+                    if dev[1] == cached_device_index:
+                        return dev
 
     # Select device
     selected = device_manager.select_device(devices)
@@ -842,12 +908,23 @@ def select_duration_with_cache():
             cached_seconds = speech_config_cache.get_duration_seconds()
             ColorPrint.green(f"[Cached: Limited mode - {cached_seconds}s]")
 
-        use_cached = input("Use cached duration? (y/n) [default: y]: ").strip().lower()
-        if use_cached != 'n':
+        # Check if auto-use cached config is enabled
+        from pycore.pyutils.common import global_config
+        auto_use_cached = global_config.get('speech_auto_use_cached', True)
+
+        if auto_use_cached:
+            ColorPrint.blue("[Auto-using cached duration (speech_auto_use_cached=True)]")
             if cached_mode == "continuous":
                 return None
             else:
                 return speech_config_cache.get_duration_seconds()
+        else:
+            use_cached = input("Use cached duration? (y/n) [default: y]: ").strip().lower()
+            if use_cached != 'n':
+                if cached_mode == "continuous":
+                    return None
+                else:
+                    return speech_config_cache.get_duration_seconds()
 
     # Select duration
     print("\n" + "="*70)
@@ -1104,6 +1181,15 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
         while True:
             time.sleep(0.5)
 
+            # Check if recognition encountered critical error
+            if session.should_stop:
+                if session.quota_exceeded:
+                    ColorPrint.red("\n[TERMINATED] Session stopped: Azure quota exceeded")
+                else:
+                    ColorPrint.red("\n[TERMINATED] Session stopped: Critical error occurred")
+                break
+
+            # Check duration limit
             if duration and (time.time() - start_time) >= duration:
                 ColorPrint.yellow("\n[INFO] Duration limit reached")
                 break

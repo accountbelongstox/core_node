@@ -35,6 +35,7 @@ class ExampleTaskModel(BaseModel):
     __table_key__ = TableKeys.EXAMPLE_TASKS
     __namespace__ = "app_example"
     __table_name__ = "tasks"
+    __full_table_name__ = "app_example_tasks"
     __schema_version__ = 1
 
     @classmethod

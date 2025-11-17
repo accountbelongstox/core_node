@@ -33,6 +33,7 @@ class ExampleUserModel(BaseModel):
     __table_key__ = TableKeys.EXAMPLE_USERS
     __namespace__ = "app_example"
     __table_name__ = "users"
+    __full_table_name__ = "app_example_users"
     __schema_version__ = 1
 
     @classmethod

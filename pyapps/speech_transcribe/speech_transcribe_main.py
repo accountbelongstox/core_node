@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Speech Transcribe Application
+Compatibility wrapper for the unified speech_transcribe entry point.
 
-Real-time speech transcription application.
-Captures audio from microphone or system audio and transcribes to text.
-
-Entry point for speech_transcribe application.
+Historically used for single-source mode, now delegates to the
+dual-source launch implementation in speech_transcribe.py.
 """
 
 import sys
@@ -21,25 +19,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
 os.environ['PYTHONUNBUFFERED'] = '1'
 
-from pycore.pylauncher.launcher import launch_speech_only
+from pyapps.speech_transcribe.speech_transcribe import start as unified_start
 
 
 def start():
-    """
-    Application entry point
+    """Delegate to the consolidated dual-source application."""
 
-    Following project standards:
-    - Only ONE statement calling pylauncher
-    - All logic orchestrated by launcher + pyctl
-    """
-    # Single launcher call - launches speech-only mode
-    # RPC service is explicitly enabled here (not auto-started)
-    launch_speech_only(
-        mode="single",
-        enable_rpc=True,  # Start RPC HTTP service
-        rpc_port=59000,  # Port 59000 (changed from 8080 to avoid conflicts)
-        rpc_host="0.0.0.0"
-    )
+    unified_start()
 
 
 if __name__ == "__main__":

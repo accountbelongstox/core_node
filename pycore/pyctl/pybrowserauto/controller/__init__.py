@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DocumentOffline Controller Components
+PyBrowserAuto Controller Components
 
-Controller layer for document offline downloads:
+Controller layer for offline website downloads:
 - CrawlController: Orchestrates the crawling and processing pipeline
 - CLIController: Command-line interface for document downloads
 
 Usage:
-    from pycore.pyctl.document_offline.controller import (
+    from pycore.pyctl.pybrowserauto.controller import (
         CrawlController, CLIController
     )
 
@@ -30,15 +30,15 @@ Usage:
     )
 
     # Option 2: Use CLIController from command line
-    # python -m pycore.pyctl.document_offline.controller.cli_controller \\
+    # python -m pycore.pyctl.pybrowserauto.controller.cli_controller \\
     #     --url https://example.com/docs/ \\
     #     --output ./downloads \\
     #     --depth 5 \\
     #     --max-pages 500
 """
 
-from pycore.pyctl.document_offline.controller.crawl_controller import CrawlController
-from pycore.pyctl.document_offline.controller.cli_controller import CLIController
+from pycore.pyctl.pybrowserauto.controller.crawl_controller import CrawlController
+from pycore.pyctl.pybrowserauto.controller.cli_controller import CLIController
 
 __all__ = [
     'CrawlController',
