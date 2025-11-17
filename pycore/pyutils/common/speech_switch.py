@@ -109,7 +109,7 @@ class SpeechSwitch:
         # Edge TTS
         if self._provider_status.is_available('tts', 'edge'):
             try:
-                from pycore.pyutils.edge_tts import EdgeTTSClient
+                from pycore.pyutils.edge_tts.edge_tts_client import EdgeTTSClient
                 self._tts_providers['edge'] = EdgeTTSClient()
                 ColorPrint.green("[SpeechSwitch] ✓ Edge TTS provider initialized")
             except Exception as e:
@@ -132,8 +132,13 @@ class SpeechSwitch:
         if self._provider_status.is_available('stt', 'azure'):
             try:
                 from pycore.pyutils.speech_recognition import AzureSpeechRecognitionProvider
-                self._stt_providers['azure'] = AzureSpeechRecognitionProvider()
-                ColorPrint.green("[SpeechSwitch] ✓ Azure STT provider initialized")
+                provider = AzureSpeechRecognitionProvider()
+                # Initialize provider to verify credentials
+                if provider.initialize():
+                    self._stt_providers['azure'] = provider
+                    ColorPrint.green("[SpeechSwitch] ✓ Azure STT provider initialized")
+                else:
+                    raise Exception("Azure STT initialization failed (check credentials)")
             except Exception as e:
                 ColorPrint.red(f"[SpeechSwitch] ✗ Azure STT init failed: {e}")
                 self._provider_status.mark_unavailable('stt', 'azure', str(e))
