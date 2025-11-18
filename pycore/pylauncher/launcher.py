@@ -249,12 +249,21 @@ class NativeUILauncher:
         3. Return result
         """
         # Step 1: Singleton detection
+        def on_singleton_message(msg):
+            """Handle messages received by singleton detector"""
+            msg_type = msg.get('type')
+            if msg_type == 'SHUTDOWN':
+                # Trigger global shutdown via THREAD_BUS
+                from pycore.pyfoundations.thread_bus import THREAD_BUS
+                THREAD_BUS.request_shutdown(reason=f"Shutdown requested by process PID {msg.get('pid')}")
+
         self._detector = SingletonDetector(
             app_id=self.app_id,
             port_start=self.port_start,
             port_range=self.port_range,
             timeout=self.timeout,
-            debug=self.debug
+            debug=self.debug,
+            on_message=on_singleton_message
         )
 
         detection = self._detector.detect_and_bind()
@@ -662,11 +671,21 @@ def launch_services(
         ColorPrint.blue(f"[Launcher]   App ID: {config.app_id}")
         ColorPrint.blue(f"[Launcher]   Port Range: {config.port_start}-{config.port_start + config.port_range - 1}")
 
+        # Define message handler for singleton detector
+        def on_singleton_message(msg):
+            """Handle messages received by singleton detector"""
+            msg_type = msg.get('type')
+            if msg_type == 'SHUTDOWN':
+                # Trigger global shutdown via THREAD_BUS
+                from pycore.pyfoundations.thread_bus import THREAD_BUS
+                THREAD_BUS.request_shutdown(reason=f"Shutdown requested by process PID {msg.get('pid')}")
+
         detector = SingletonDetector(
             app_id=config.app_id,
             port_start=config.port_start,
             port_range=config.port_range,
-            debug=True
+            debug=True,
+            on_message=on_singleton_message
         )
         detection = detector.detect_and_bind()
 
@@ -706,7 +725,8 @@ def launch_services(
                         app_id=config.app_id,
                         port_start=config.port_start,
                         port_range=config.port_range,
-                        debug=True
+                        debug=True,
+                        on_message=on_singleton_message
                     )
                     detection = detector2.detect_and_bind()
                     detector = detector2

@@ -22,6 +22,30 @@ function renderTabs() {
   });
 }
 
+function buildTreeHTML(node, indent = 0) {
+  if (!node || !node.children) return '';
+
+  let html = '';
+  const entries = Object.entries(node.children);
+
+  entries.forEach(([key, child]) => {
+    const isFile = child.type === 'file';
+    const icon = isFile ? '📄' : '📁';
+    const indentStyle = `style="margin-left: ${indent * 20}px"`;
+
+    html += `<div class="tree-item" ${indentStyle}>`;
+    html += `<span class="tree-icon">${icon}</span>`;
+    html += `<span class="tree-name ${isFile ? 'file' : 'folder'}">${child.name}</span>`;
+    html += `</div>`;
+
+    if (!isFile && child.children) {
+      html += buildTreeHTML(child, indent + 1);
+    }
+  });
+
+  return html;
+}
+
 function renderPanel() {
   const panelEl = document.getElementById('panel');
   const app = apps[activeIndex];
@@ -31,21 +55,31 @@ function renderPanel() {
   }
 
   const hasIssues = app.issues.length > 0;
-  const missingList = app.missing
-    .map((item) => `<li><code>${item}</code></li>`)
-    .join('');
-
   const designPath = app.design_path || `${app.app}/design_docs_and_progress`;
+
+  let treeHTML = '';
+  if (hasIssues && app.tree) {
+    treeHTML = `
+      <h3>Missing Structure (Tree View)</h3>
+      <div class="tree-view">
+        <div class="tree-item">
+          <span class="tree-icon">📁</span>
+          <span class="tree-name folder">${app.tree.name}</span>
+        </div>
+        ${buildTreeHTML(app.tree, 1)}
+      </div>
+    `;
+  }
 
   panelEl.innerHTML = `
     <h2>${app.app}</h2>
     <p><strong>Design folder:</strong> <code>${designPath}</code></p>
-    ${hasIssues ? `<p class="hint">Recommended base path for missing items: <code>${designPath}</code></p>` : ''}
     <p class="${hasIssues ? 'status-bad' : 'status-ok'}">
-      ${hasIssues ? 'Issues detected' : 'All required folders/files detected.'}
+      ${hasIssues ? `⚠ Issues detected: ${app.missing.length} items missing` : '✓ All required folders/files detected.'}
     </p>
-    ${hasIssues ? `<h3>Missing items</h3><ul class="issue-list">${missingList}</ul>` : ''}
+    ${treeHTML}
     ${hasIssues ? '<button id="fix-btn" class="primary">Create Missing Items</button>' : ''}
+    ${hasIssues ? '<p class="warning-text">⚠ Note: Existing files will NOT be overwritten</p>' : ''}
   `;
 
   if (hasIssues) {
@@ -61,6 +95,10 @@ function renderPanel() {
           const message = await resp.text();
           alert(`Failed to create items: ${message}`);
         } else {
+          const result = await resp.json();
+          const createdCount = result.created ? result.created.length : 0;
+          alert(`Successfully created ${createdCount} items!`);
+
           await fetchApps();
           const newIndex = apps.findIndex((entry) => entry.app === app.app);
           activeIndex = newIndex === -1 ? 0 : newIndex;

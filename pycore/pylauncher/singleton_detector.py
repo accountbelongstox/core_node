@@ -147,7 +147,8 @@ class SingletonDetector:
         self.port_start = port_start
         self.port_range = port_range
         self.timeout = timeout
-        self.debug = debug
+        # Enable debug via parameter OR environment variable SINGLETON_DEBUG=1
+        self.debug = debug or os.environ.get('SINGLETON_DEBUG', '').lower() in ('1', 'true', 'yes')
         self.on_message = on_message
 
         # Runtime state
@@ -157,7 +158,9 @@ class SingletonDetector:
         self._running = False
         self._listener_thread: Optional[threading.Thread] = None
 
-        self._log(f"Initialized for app_id='{app_id}', port range {port_start}-{port_start + port_range - 1}")
+        if self.debug:
+            self._log(f"[DEBUG] Initialized for app_id='{app_id}', port range {port_start}-{port_start + port_range - 1}")
+            self._log(f"[DEBUG] Protocol: {ProtocolVersion.CURRENT}, Timeout: {timeout}s")
 
     def _log(self, message: str, level: str = "INFO"):
         """Log message if debug enabled"""

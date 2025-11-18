@@ -34,6 +34,7 @@ class FlutterAppSelector:
         self.scanner = scanner or FlutterAppScanner()
         # PrintHelper is now a static class
         self.platforms = ["Web", "Android", "Windows", "All"]
+        self.design_tool_states = ["Launch", "Restart"]
 
         # All keys are now defined in unified_variable_system.py for consistency
 
@@ -123,13 +124,20 @@ class FlutterAppSelector:
 
                 print(f"{color_prefix}{highlight} {app_index}. {display_name}{color_suffix}")
 
+            # Design Tool option at bottom
+            print()
+            print("-" * 50)
+            design_tool_state = unified_vars.get_file_variable("DESIGN_TOOL_STATE", "Launch")
+            design_highlight = " -> " if current_selection == 99 else "    "
+            design_color = "\033[95m" if current_selection == 99 else "\033[97m"  # Magenta if selected
+            print(f"{design_color}{design_highlight} [D] Design Documentation Tool [{design_tool_state}]\033[0m")
+
             print()
             print("\033[96mControls:\033[0m")  # Cyan
             print("\033[90m  Up/Down arrows: Navigate apps\033[0m")  # Gray
-            print("\033[90m  Left arrow: Toggle Debug/Build mode\033[0m")  # Gray
-            print("\033[90m  Right arrow: Toggle platform (Web/Android/Windows/All)\033[0m")  # Gray
-            print("\033[90m  Enter: Select app\033[0m")  # Gray
-            print("\033[90m  D: Launch Design Documentation Tool\033[0m")  # Gray
+            print("\033[90m  Left arrow: Toggle Debug/Build or Design Tool state\033[0m")  # Gray
+            print("\033[90m  Right arrow: Toggle platform\033[0m")  # Gray
+            print("\033[90m  Enter: Select app or launch Design Tool\033[0m")  # Gray
             print()
 
             # Get key input
@@ -137,19 +145,39 @@ class FlutterAppSelector:
 
             if key_info["type"] == "arrow":
                 if key_info["direction"] == "up":
-                    current_selection = max_selection if current_selection == 0 else current_selection - 1
+                    if current_selection == 99:
+                        current_selection = max_selection
+                    elif current_selection == 0:
+                        current_selection = 99
+                    else:
+                        current_selection = current_selection - 1
                 elif key_info["direction"] == "down":
-                    current_selection = 0 if current_selection == max_selection else current_selection + 1
+                    if current_selection == 99:
+                        current_selection = 0
+                    elif current_selection == max_selection:
+                        current_selection = 99
+                    else:
+                        current_selection = current_selection + 1
                 elif key_info["direction"] == "left":
-                    self._toggle_action_mode(current_selection, filtered_apps)
+                    if current_selection == 99:
+                        self._toggle_design_tool_state()
+                    else:
+                        self._toggle_action_mode(current_selection, filtered_apps)
                 elif key_info["direction"] == "right":
-                    self._toggle_platform_mode(current_selection, filtered_apps)
+                    if current_selection != 99:
+                        self._toggle_platform_mode(current_selection, filtered_apps)
 
             elif key_info["type"] == "key":
                 if key_info["char"] == "enter" or key_info["char"] == "":
-                    return self._confirm_selection(current_selection, filtered_apps, apps)
+                    if current_selection == 99:
+                        # Launch design tool but don't exit menu
+                        self._launch_design_tool_async(current_selection, filtered_apps)
+                        # Continue menu loop - don't return
+                    else:
+                        return self._confirm_selection(current_selection, filtered_apps, apps)
                 elif key_info["char"] == "D":
-                    return self._launch_design_tool(current_selection, filtered_apps)
+                    # Quick access: jump to design tool option
+                    current_selection = 99
 
     def _toggle_action_mode(self, current_selection: int, filtered_apps: List[Dict[str, Any]]):
         """Toggle Debug/Build mode for current selection"""
@@ -184,6 +212,16 @@ class FlutterAppSelector:
                 current_index = 0
             new_index = 0 if current_index == len(self.platforms) - 1 else current_index + 1
             unified_vars.set_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], self.platforms[new_index])
+
+    def _toggle_design_tool_state(self):
+        """Toggle Design Tool Launch/Restart state"""
+        current_state = unified_vars.get_file_variable("DESIGN_TOOL_STATE", "Launch")
+        try:
+            current_index = self.design_tool_states.index(current_state)
+        except ValueError:
+            current_index = 0
+        new_index = 0 if current_index == len(self.design_tool_states) - 1 else current_index + 1
+        unified_vars.set_file_variable("DESIGN_TOOL_STATE", self.design_tool_states[new_index])
 
     def _confirm_selection(self, current_selection: int, filtered_apps: List[Dict[str, Any]], all_apps: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Confirm and return the current selection"""
@@ -246,6 +284,82 @@ class FlutterAppSelector:
             unified_vars.set_file_variable(unified_vars.KEY_LAST_SELECTED_APP_INDEX, str(current_selection))
 
             return {"success": True, "selection": selection_data}
+
+    def _launch_design_tool_async(self, current_selection: int, filtered_apps: List[Dict[str, Any]]):
+        """Launch design documentation tool asynchronously (non-blocking)"""
+        import subprocess
+        import sys
+        import os
+        import tempfile
+        from pathlib import Path
+
+        # Get design tool state (Launch or Restart)
+        design_tool_state = unified_vars.get_file_variable("DESIGN_TOOL_STATE", "Launch")
+
+        # Find design tool path
+        project_root = unified_vars._find_flutter_project_root()
+        design_tool_py = project_root / "scripts" / "flutter_dev_tools" / "design_doc_tool.py"
+        design_tool_dir = design_tool_py.parent
+
+        if design_tool_py.exists():
+            # Launch design tool in background
+            print(f"\n[INFO] Launching Design Tool ({design_tool_state})...")
+            print(f"[INFO] Opening browser at http://127.0.0.1:5757")
+
+            try:
+                if sys.platform == "win32":
+                    # Create fixed bat file in temp directory
+                    temp_dir = Path(tempfile.gettempdir()) / "flutter_bloom_launcher"
+                    temp_dir.mkdir(parents=True, exist_ok=True)
+                    bat_file = temp_dir / "design_tool.bat"
+
+                    # Generate bat content
+                    bat_content = f"""@echo off
+title Flutter Design Documentation Tool [{design_tool_state}]
+echo ========================================
+echo Flutter Design Documentation Tool
+echo Action: {design_tool_state}
+echo ========================================
+echo.
+echo Starting web server on http://127.0.0.1:5757
+echo.
+echo Press Ctrl+C to stop the server
+echo ========================================
+echo.
+
+cd /d "{design_tool_dir}"
+python "{design_tool_py}"
+
+pause
+"""
+                    # Write bat file (overwrites previous)
+                    bat_file.write_text(bat_content, encoding="utf-8")
+
+                    # Launch bat file in new window
+                    subprocess.Popen(["start", "cmd", "/c", str(bat_file)], shell=True)
+
+                    # Open browser after a short delay
+                    import time
+                    time.sleep(1.5)
+                    subprocess.Popen(["start", "http://127.0.0.1:5757"], shell=True)
+
+                else:
+                    # Linux/Mac
+                    subprocess.Popen(["python3", str(design_tool_py)], cwd=str(design_tool_dir))
+
+                print("[SUCCESS] Design tool launched in background")
+                print("[INFO] Returning to menu...")
+                import time
+                time.sleep(1)
+
+            except Exception as e:
+                print(f"[ERROR] Failed to launch design tool: {e}")
+                import time
+                time.sleep(2)
+        else:
+            print(f"[ERROR] Design tool not found: {design_tool_py}")
+            import time
+            time.sleep(2)
 
     def _save_selection_to_variables(self, selection_data: Dict[str, Any]):
         """Save selection data to unified variables for PowerShell compatibility"""

@@ -26,6 +26,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent.absolute()
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+# Ensure project root is on sys.path so bundled helpers (e.g., pycore) resolve
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from gitput_unified_modules.config import PROJECT_NAME, REMOTE_CONFIGS, DEFAULT_BRANCH
 from gitput_unified_modules.utils import (
@@ -371,4 +375,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

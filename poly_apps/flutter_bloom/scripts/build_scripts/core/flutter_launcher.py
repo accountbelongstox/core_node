@@ -124,6 +124,18 @@ class FlutterBloomLauncher:
                 unified_vars.set_file_variable(unified_vars.KEY_DEBUG_SCRIPT_PATH, "")
                 print("[INFO] Build mode selected - will be handled by main.py")
 
+            elif action.lower() == "design_tool":
+                routing_result.update({
+                    "success": True,
+                    "script_path": "",  # No script for design tool mode
+                    "mode": "design_tool"
+                })
+
+                # Clear script path for design tool mode
+                unified_vars.set_file_variable(unified_vars.KEY_SCRIPT_PATH, "")
+                unified_vars.set_file_variable(unified_vars.KEY_DEBUG_SCRIPT_PATH, "")
+                print("[INFO] Design tool mode selected - will be handled by PowerShell")
+
             else:
                 routing_result["error"] = f"Unknown action: {action}"
 
@@ -193,6 +205,10 @@ class FlutterBloomLauncher:
                 print("[SUCCESS] Build mode configured")
                 print("[INFO] Python launcher will continue with build system")
                 return {"exit_code": 0, "mode": "build", "selection_data": selection_data}
+            elif routing_result["mode"] == "design_tool":
+                print("[SUCCESS] Design tool mode configured")
+                print("[INFO] Python launcher completed - passing control to PowerShell")
+                return {"exit_code": 0, "mode": "design_tool", "selection_data": selection_data}
 
             return {"exit_code": 0, "mode": routing_result["mode"], "selection_data": selection_data}
 
