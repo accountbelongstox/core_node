@@ -12,15 +12,14 @@ command = "npx"
 args = ["-y", "@upstash/context7-mcp"]
 
 [mcp_servers.context7.env]
-# Add any required environment variables here
-# CONTEXT7_API_KEY = "your_key_here"
+CONTEXT7_API_KEY = "$CONTEXT7_API_KEY$"
 
 # ==================== File Processing ====================
 
 [mcp_servers.file_processor]
 command = "python3"
 args = [
-    "/opt/projects/core_node/ncore/mcp_server/file_processor/main.py"
+    "$PROJECT_ROOT$/ncore/mcp_server/file_processor/main.py"
 ]
 
 [mcp_servers.file_processor.env]

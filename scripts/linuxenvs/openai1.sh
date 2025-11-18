@@ -28,7 +28,7 @@
 #     - Command: openai
 #     - File Number: 1
 #     - File Name: openai1.sh
-#     - Generation Time: 2025-11-10 21:40:09
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #
 # Environment Variables:
 #     Environment variables are loaded from encrypted storage using secret_manager.sh
