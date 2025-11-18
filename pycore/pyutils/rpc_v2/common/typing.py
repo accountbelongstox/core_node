@@ -5,7 +5,7 @@ Typed helpers shared across rpc_v2 modules.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 
 @dataclass
@@ -26,3 +26,23 @@ class RPCRequestContext:
     request: Optional[Any] = None
     websocket: Optional[Any] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class RouteConfig:
+    """
+    Route configuration metadata.
+
+    Attributes:
+        handler: The route handler function (sync or async)
+        sync: If True, response is returned immediately without ACK mechanism
+        is_coroutine: True if handler is async function
+        description: Optional route description
+        timeout: Optional custom timeout for this route
+    """
+
+    handler: Callable
+    sync: bool = False
+    is_coroutine: bool = False
+    description: Optional[str] = None
+    timeout: Optional[float] = None

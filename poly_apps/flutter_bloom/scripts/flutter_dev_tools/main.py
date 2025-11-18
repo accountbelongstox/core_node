@@ -248,6 +248,13 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     if not port_manager.wait_for_port_release(port, timeout=3):
         print(f"\n[WARNING] Port {port} may still be in use. Attempting to start anyway...")
 
+    # Auto-expand design document structure for all apps
+    print("\n[AutoExpand] Ensuring design document structure for all apps...")
+    from utils.design_structure_auto_expand import ensure_all_apps_design_structure
+    expand_results = ensure_all_apps_design_structure()
+    expanded_count = sum(1 for success in expand_results.values() if success)
+    print(f"[AutoExpand] Processed {expanded_count}/{len(expand_results)} apps")
+
     # Auto-initialize all apps on startup
     init_summary = app_checker.auto_initialize_all_apps(apps_dir)
 

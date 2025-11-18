@@ -71,6 +71,7 @@
 ### LocalStorage Persistence
 - Remembers last selected app tab across refreshes
 - Saves file tree expanded/collapsed folder states per app
+- Default: All folders expanded on first visit, then uses cached state
 - Restores last viewed file when switching apps
 - Extensible storage manager for future state additions
 
@@ -86,3 +87,9 @@
 - file_writer.py: Backend file save with JSON validation
 - Enhanced FileViewer: Edit mode, dirty state, save handler
 - TreeView: Persists expanded folders using storageManager
+
+### UI Improvements
+- Design folder path now includes inline "Open in Explorer" button
+- Quick access to design directory from main panel
+- Hover effect with scale animation for better UX
+- Non-blocking subprocess call (works on Windows/Linux/macOS)

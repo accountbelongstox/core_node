@@ -43,6 +43,7 @@ from datetime import datetime
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 MCP_TEMPLATE_DIR = PROJECT_ROOT / "_prompt"
+MCP_UNIFIED_SERVER_NAME = "MCPUnifiedServer"
 
 # Add current directory to path for imports
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -196,6 +197,34 @@ def load_mcp_template() -> Dict[str, Any]:
     if "mcp_servers" in template_data:
         mcp_servers = template_data["mcp_servers"]
 
+    mcp_servers = ensure_default_unified_mcp_server(mcp_servers)
+
+    return mcp_servers
+
+def ensure_default_unified_mcp_server(mcp_servers: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ensure the unified MCP server entry exists using pymain.py with global path access enabled.
+    """
+    if not isinstance(mcp_servers, dict):
+        return mcp_servers
+
+    if MCP_UNIFIED_SERVER_NAME in mcp_servers:
+        return mcp_servers
+
+    interpreter = "python" if sys.platform == "win32" else "python3"
+    mcp_entry_path = PROJECT_ROOT / "pymain.py"
+    mcp_servers[MCP_UNIFIED_SERVER_NAME] = {
+        "command": interpreter,
+        "args": [
+            str(mcp_entry_path),
+            "app=mcp"
+        ],
+        "env": {
+            "MCP_ALLOW_ALL_PATHS": "true"
+        }
+    }
+
+    print(f"[INFO] Injected default MCP server '{MCP_UNIFIED_SERVER_NAME}' with command: {interpreter} {mcp_entry_path} app=mcp")
     return mcp_servers
 
 def extract_mcp_servers_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
