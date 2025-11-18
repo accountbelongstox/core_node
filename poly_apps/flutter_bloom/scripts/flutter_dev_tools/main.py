@@ -226,6 +226,75 @@ class DesignDocRequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.respond_json({"success": False, "error": str(e)})
 
+        # Upload actual/composite image
+        elif self.path.startswith("/api/apps/") and "/pageview/upload-actual" in self.path:
+            try:
+                # Parse app name from path: /api/apps/{app_name}/pageview/upload-actual
+                parts = self.path.split("/")
+                app_name = parts[3]
+
+                # Read multipart form data
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+
+                # Simple multipart parsing (assuming single file upload)
+                # For production, use proper multipart parser
+                import re
+
+                # Extract boundary
+                content_type = self.headers.get('Content-Type', '')
+                boundary_match = re.search(r'boundary=(.+)', content_type)
+                if not boundary_match:
+                    # Try JSON format
+                    data = json.loads(body.decode('utf-8'))
+                    page_key = data.get("page_key", "")
+                    description = data.get("description", "implemented")
+
+                    # Decode base64 image
+                    import base64
+                    image_data = base64.b64decode(data.get("image_data", ""))
+                else:
+                    # Parse multipart
+                    boundary = boundary_match.group(1).encode()
+                    parts = body.split(b'--' + boundary)
+
+                    page_key = ""
+                    description = "implemented"
+                    image_data = b''
+
+                    for part in parts:
+                        if b'name="page_key"' in part:
+                            page_key = part.split(b'\r\n\r\n')[1].strip(b'\r\n').decode('utf-8')
+                        elif b'name="description"' in part:
+                            description = part.split(b'\r\n\r\n')[1].strip(b'\r\n').decode('utf-8')
+                        elif b'name="image"' in part:
+                            image_data = part.split(b'\r\n\r\n')[1].rsplit(b'\r\n', 1)[0]
+
+                if not page_key or not image_data:
+                    self.respond_json({"success": False, "error": "Missing page_key or image data"})
+                    return
+
+                apps_dir = path_utils.get_apps_dir()
+                app_path = apps_dir / app_name
+
+                if not app_path.exists():
+                    self.respond_json({"success": False, "error": "App not found"})
+                    return
+
+                result = pageview_updater_api.upload_actual_image(
+                    app_path,
+                    page_key,
+                    description,
+                    image_data
+                )
+                self.respond_json(result)
+
+            except Exception as e:
+                print(f"[ERROR] Upload actual image failed: {e}")
+                import traceback
+                traceback.print_exc()
+                self.respond_json({"success": False, "error": str(e)})
+
 
         else:
             self.respond_json({"success": False, "error": "Endpoint not found"})
