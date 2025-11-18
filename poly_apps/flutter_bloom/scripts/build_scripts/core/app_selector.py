@@ -129,6 +129,7 @@ class FlutterAppSelector:
             print("\033[90m  Left arrow: Toggle Debug/Build mode\033[0m")  # Gray
             print("\033[90m  Right arrow: Toggle platform (Web/Android/Windows/All)\033[0m")  # Gray
             print("\033[90m  Enter: Select app\033[0m")  # Gray
+            print("\033[90m  D: Launch Design Documentation Tool\033[0m")  # Gray
             print()
 
             # Get key input
@@ -144,8 +145,11 @@ class FlutterAppSelector:
                 elif key_info["direction"] == "right":
                     self._toggle_platform_mode(current_selection, filtered_apps)
 
-            elif key_info["type"] == "key" and (key_info["char"] == "enter" or key_info["char"] == ""):
-                return self._confirm_selection(current_selection, filtered_apps, apps)
+            elif key_info["type"] == "key":
+                if key_info["char"] == "enter" or key_info["char"] == "":
+                    return self._confirm_selection(current_selection, filtered_apps, apps)
+                elif key_info["char"] == "D":
+                    return self._launch_design_tool(current_selection, filtered_apps)
 
     def _toggle_action_mode(self, current_selection: int, filtered_apps: List[Dict[str, Any]]):
         """Toggle Debug/Build mode for current selection"""
