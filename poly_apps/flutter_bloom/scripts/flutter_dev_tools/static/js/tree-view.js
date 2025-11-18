@@ -9,9 +9,12 @@ class TreeView {
     this.treeData = null;
     this.expandedFolders = new Set();
     this.selectedItem = null;
+    this.selectedFolder = null;
     this.currentAppName = null;
+    this.baseDir = null;
     this.onFileClick = null;
     this.onFolderClick = null;
+    this.onFolderSelect = null;
   }
 
   /**
@@ -116,10 +119,16 @@ class TreeView {
       name.textContent = node.name;
       itemDiv.appendChild(name);
 
+      // Highlight if selected
+      if (this.selectedFolder === node.path) {
+        itemDiv.classList.add('selected');
+      }
+
       // Click handler for folder
       itemDiv.addEventListener('click', (e) => {
         e.stopPropagation();
         this.toggleFolder(node.path);
+        this.selectFolder(node);
         if (this.onFolderClick) {
           this.onFolderClick(node);
         }
@@ -205,6 +214,45 @@ class TreeView {
     if (this.onFileClick) {
       this.onFileClick(node);
     }
+  }
+
+  /**
+   * Select a folder and show its path
+   */
+  selectFolder(node) {
+    this.selectedFolder = node.path;
+    this.render();
+
+    if (this.onFolderSelect) {
+      // Get absolute path
+      const absolutePath = this.getAbsolutePath(node.path);
+      this.onFolderSelect(node, absolutePath);
+    }
+  }
+
+  /**
+   * Get absolute path for a relative path
+   * Convert relative path to absolute path using baseDir
+   */
+  getAbsolutePath(relativePath) {
+    if (!this.baseDir) {
+      return relativePath;
+    }
+
+    // Remove leading slash if exists
+    const cleanPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+
+    // Combine baseDir with relative path
+    // Handle both Windows and Linux path separators
+    const separator = this.baseDir.includes('\\') ? '\\' : '/';
+    return this.baseDir + separator + cleanPath.replace(/\//g, separator);
+  }
+
+  /**
+   * Set base directory for path resolution
+   */
+  setBaseDir(baseDir) {
+    this.baseDir = baseDir;
   }
 
   /**

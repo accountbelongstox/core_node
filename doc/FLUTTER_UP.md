@@ -93,3 +93,11 @@
 - Quick access to design directory from main panel
 - Hover effect with scale animation for better UX
 - Non-blocking subprocess call (works on Windows/Linux/macOS)
+
+### File Tree Folder Selection
+- Click folders in tree view to show current path in sidebar
+- "Current:" path display appears below Design Files header
+- Quick open button for currently selected folder
+- Auto-calculates absolute path from relative tree path
+- Distinguishes Windows/Linux path separators automatically
+- Folder selection persists with visual highlight

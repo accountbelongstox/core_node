@@ -28,9 +28,11 @@ Request = fastapi.Request
 WebSocket = fastapi.WebSocket
 WebSocketDisconnect = fastapi.WebSocketDisconnect
 status = fastapi.status
-CORSMiddleware = fastapi.middleware.cors.CORSMiddleware
 StaticFiles = fastapi.staticfiles.StaticFiles
 JSONResponse = fastapi.responses.JSONResponse
+
+# Import CORS middleware properly
+from fastapi.middleware.cors import CORSMiddleware
 
 uvicorn = get_third_package_uvicorn()
 

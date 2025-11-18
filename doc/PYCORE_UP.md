@@ -1,5 +1,36 @@
 # PyCore Updates
 
+## 2025-11-19: MCP Backend 迁移至 RPC v2 ✅ 完成
+
+**完成**: MCP Backend 从 RPC v1 (UnifiedRpcServer) 完全迁移至 RPC v2 (FastAPIRPCServer)。
+
+**问题根因**:
+- Backend 使用 RPC v1 → 强制 `requires_ack: true` → 3秒延迟
+- Cursor/Claude 期望 < 1秒响应 → 第二个工具超时失败
+- RPC v2 同步模式已实现但未被使用
+
+**迁移实施**:
+- 完全重写 `mcp_backend.py` (260行)
+- 直接使用 FastAPIRPCServer + SingletonDetector
+- 移除 launcher.py RPC 集成依赖
+- 在 daemon thread 中运行 uvicorn
+
+**路由配置**:
+- `backend_info`: `sync=True` → 立即返回 (< 100ms)
+- `get_file_info`: `sync=False` → ACK机制 (为未来真实实现预留)
+
+**代理端适配**:
+- `mcp_main.py` 检测 `sync_response` 标记
+- 同步响应立即返回，异步响应走重试逻辑
+
+**性能对比**:
+- 迁移前: 两个工具都超时（RPC v1 强制 3秒延迟）
+- 迁移后: `backend_info` < 100ms，两个工具均可用
+
+**文件**: `pycore/pyctl/mcpctl/mcp_backend.py`, `pyapps/mcp/mcp_main.py`
+
+---
+
 ## 2025-11-19: RPC v2 同步调用支持 ✅ 实施完成
 
 **完成**: 全面扩展 RPC v2 架构，实施路由级别同步调用支持。
