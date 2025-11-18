@@ -544,6 +544,72 @@ class ThreadBus:
                 f"threads={stats['threads_count']}, "
                 f"queues={stats['queues_count']})")
 
+    # ============ Global Shutdown Operations ============
+
+    def request_shutdown(self, reason: str = "User requested shutdown") -> None:
+        """
+        Request global application shutdown
+
+        Sends a shutdown signal that can be monitored by all threads.
+        This is a graceful shutdown request that threads should honor.
+
+        Args:
+            reason: Reason for shutdown
+
+        Example:
+            # Request shutdown
+            THREAD_BUS.request_shutdown("Replacing with new instance")
+
+            # In thread main loop
+            while True:
+                if THREAD_BUS.is_shutdown_requested():
+                    cleanup_and_exit()
+                    break
+                do_work()
+        """
+        self.signal('global.shutdown.requested', {
+            'reason': reason,
+            'requester_thread_id': threading.get_ident()
+        })
+
+    def is_shutdown_requested(self) -> bool:
+        """
+        Check if global shutdown has been requested
+
+        Returns:
+            True if shutdown signal exists
+
+        Example:
+            if THREAD_BUS.is_shutdown_requested():
+                print("Shutdown requested, cleaning up...")
+                break
+        """
+        return self.has_signal('global.shutdown.requested')
+
+    def get_shutdown_reason(self) -> Optional[str]:
+        """
+        Get reason for shutdown request
+
+        Returns:
+            Shutdown reason string or None if no shutdown requested
+        """
+        data = self.get_signal('global.shutdown.requested')
+        if data and isinstance(data, dict) and 'data' in data:
+            return data['data'].get('reason')
+        return None
+
+    def clear_shutdown(self) -> None:
+        """
+        Clear shutdown request signal
+
+        Use this after handling shutdown to reset state.
+        """
+        with self._lock:
+            if 'global.shutdown.requested' in self._signals:
+                del self._signals['global.shutdown.requested']
+            if 'global.shutdown.requested' in self._events:
+                self._events['global.shutdown.requested'].clear()
+
 
 # Global instance
 THREAD_BUS = ThreadBus()

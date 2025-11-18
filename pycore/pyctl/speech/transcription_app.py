@@ -23,10 +23,9 @@ np = get_third_package_numpy()
 pyaudio_standard = get_third_package_pyaudio()
 pyaudiowpatch = get_third_package_pyaudiowpatch()
 from pycore.pyutils.audio_utils import SilenceDetector
-from pycore.pyutils.clipboard import clipboard_manager
+from pycore.pyutils.clipboard import clipboard_manager, add_recognition_to_clipboard
 from pycore.pyutils.hotkey import HotkeyListener
-from pycore.pyutils.config_cache import speech_config_cache
-from pycore.pyutils.tts_cache import tts_cache_manager
+from pycore.pyutils.common import speech_config
 
 # Platform detection
 CURRENT_PLATFORM = platform.system()  # 'Windows', 'Linux', 'Darwin' (macOS)
@@ -381,14 +380,25 @@ class AudioCaptureThread(threading.Thread):
 
         self.is_running = True
 
-        stream = audio.open(
-            format=FORMAT,
-            channels=device_channels,
-            rate=device_rate,
-            input=True,
-            input_device_index=self.device_index,
-            frames_per_buffer=CHUNK
-        )
+        # Open audio stream in shared mode (non-exclusive)
+        # This prevents blocking other applications from using the audio device
+        # NOTE: pyaudiowpatch automatically detects loopback devices via 'isLoopbackDevice' attribute
+        # We don't need to specify 'as_loopback' parameter - it handles it internally
+        stream_params = {
+            'format': FORMAT,
+            'channels': device_channels,
+            'rate': device_rate,
+            'input': True,
+            'input_device_index': self.device_index,
+            'frames_per_buffer': CHUNK
+        }
+
+        if self.device_type == 'loopback':
+            ColorPrint.blue("[Thread] Opening loopback device (system audio)")
+        else:
+            ColorPrint.blue("[Thread] Opening microphone device")
+
+        stream = audio.open(**stream_params)
 
         ColorPrint.green("[Thread] Audio stream opened")
 
@@ -433,16 +443,18 @@ class RecognitionChannel:
     Manages recognition results from one audio source (microphone or system audio).
     """
 
-    def __init__(self, channel_name: str, language: str):
+    def __init__(self, channel_name: str, language: str, speech_manager=None):
         """
         Initialize recognition channel
 
         Args:
             channel_name: Name of this channel (e.g., 'Microphone', 'System Audio')
             language: Language code for this channel (e.g., 'zh-CN', 'en-US')
+            speech_manager: SpeechManager instance (to show provider info)
         """
         self.channel_name = channel_name
         self.language = language
+        self.speech_manager = speech_manager
         self.recognized_texts: List[Dict[str, Any]] = []
         self.current_recognizing_text = ""
         self.last_recognized_text = ""
@@ -459,7 +471,14 @@ class RecognitionChannel:
         if not text or text.strip() == "":
             return
 
-        ColorPrint.green(f"[{self.channel_name}] [RECOGNIZED] {text}")
+        # Get STT provider name
+        stt_provider = "Unknown"
+        if self.speech_manager:
+            current_provider = self.speech_manager.get_current_stt_provider()
+            if current_provider:
+                stt_provider = current_provider.__class__.__name__.replace("Provider", "").replace("SpeechRecognition", "")
+
+        ColorPrint.green(f"[{self.channel_name}] [RECOGNIZED via {stt_provider}] {text}")
         ColorPrint.yellow(f"[{self.channel_name}] [CONFIDENCE] {confidence:.2%}")
         sys.stdout.flush()
 
@@ -479,14 +498,23 @@ class RecognitionChannel:
         # Reset current recognizing text
         self.current_recognizing_text = ""
 
+        # Add to clipboard database for real-time sync
+        add_recognition_to_clipboard(
+            text=text,
+            language=self.language,
+            source=self.channel_name.lower().replace(' ', '_'),
+            client_id="speech_recognition",
+            confidence=confidence
+        )
+
         # Print cycle complete
         print("-" * 70)
         ColorPrint.blue(f"[{self.channel_name}] [CYCLE COMPLETE] Text: {text}")
         ColorPrint.blue(f"[{self.channel_name}] [CYCLE COMPLETE] Length: {len(text)} chars, Words: {len(text.split())}")
         print("-" * 70)
 
-        # Print cache info
-        print_recognition_cache_info(text, self.language)
+        # Print cache info (with speech_manager to show default TTS provider)
+        print_recognition_cache_info(text, self.language, self.speech_manager)
 
     def get_last_text(self) -> Optional[str]:
         """Get the last recognized text"""
@@ -500,17 +528,25 @@ class TranscriptionSession:
     Handles transcription lifecycle and processing of recognized text.
     """
 
-    def __init__(self, language: str = "zh-CN"):
+    def __init__(self, language: str = "zh-CN", speech_manager=None):
         """
         Initialize transcription session
 
         Args:
             language: Language code (e.g., 'zh-CN', 'en-US')
+            speech_manager: SpeechManager instance (to show provider info)
         """
         self.language = language
+        self.speech_manager = speech_manager
         self.recognized_texts = []
         self.session_start_time = None
         self.current_recognizing_text = ""
+
+        # Error handling state
+        self.has_error = False
+        self.should_stop = False
+        self.error_message = ""
+        self.quota_exceeded = False
 
     def on_recognizing(self, text: str):
         """
@@ -534,7 +570,14 @@ class TranscriptionSession:
             text: Final recognized text
             confidence: Recognition confidence (0.0 to 1.0)
         """
-        ColorPrint.green(f"[RECOGNIZED] {text}")
+        # Get STT provider name
+        stt_provider = "Unknown"
+        if self.speech_manager:
+            current_provider = self.speech_manager.get_current_stt_provider()
+            if current_provider:
+                stt_provider = current_provider.__class__.__name__.replace("Provider", "").replace("SpeechRecognition", "")
+
+        ColorPrint.green(f"[RECOGNIZED via {stt_provider}] {text}")
         ColorPrint.yellow(f"[CONFIDENCE] {confidence:.2%}")
         sys.stdout.flush()
 
@@ -544,6 +587,15 @@ class TranscriptionSession:
             'confidence': confidence,
             'timestamp': time.time()
         })
+
+        # Add to clipboard database for real-time sync
+        add_recognition_to_clipboard(
+            text=text,
+            language=self.language,
+            source="transcription",
+            client_id="speech_recognition",
+            confidence=confidence
+        )
 
         # Process the completed recognition cycle
         self._process_recognition_cycle(text, confidence)
@@ -573,8 +625,8 @@ class TranscriptionSession:
         ColorPrint.blue(f"[CYCLE COMPLETE] Length: {len(text)} chars, Words: {len(text.split())}")
         print("-" * 70)
 
-        # Print cache info
-        print_recognition_cache_info(text, self.language)
+        # Print cache info (with speech_manager to show default TTS provider)
+        print_recognition_cache_info(text, self.language, self.speech_manager)
 
         # Example: Save to file
         # self._save_to_file(text)
@@ -618,9 +670,65 @@ class TranscriptionSession:
             # Save current session
 
     def on_error(self, error_msg: str):
-        """Handle recognition error"""
+        """Handle recognition error with recovery logic"""
         ColorPrint.red(f"[ERROR] {error_msg}")
         sys.stdout.flush()
+
+        # Set error state
+        self.has_error = True
+        self.error_message = error_msg
+
+        # Report provider failure to ProviderStatus
+        try:
+            from pycore.pyutils.common import get_provider_status
+            provider_status = get_provider_status()
+        except:
+            provider_status = None
+
+        # Check for critical errors that require session termination
+        if "Quota exceeded" in error_msg or "Error code: 1007" in error_msg:
+            self.quota_exceeded = True
+            self.should_stop = True
+
+            # Report Azure STT as unavailable due to quota
+            if provider_status:
+                provider_status.mark_unavailable('stt', 'azure', 'Quota exceeded (Error 1007)')
+
+            # Show critical error message
+            print("\n" + "="*70)
+            ColorPrint.red("CRITICAL ERROR: Azure Speech API Quota Exceeded!")
+            print("="*70)
+            ColorPrint.yellow("Your Azure Speech Service free tier limit has been reached.")
+            ColorPrint.yellow("")
+            ColorPrint.yellow("Options to resolve:")
+            ColorPrint.yellow("  1. Wait for quota reset (resets monthly)")
+            ColorPrint.yellow("  2. Upgrade your Azure subscription")
+            ColorPrint.yellow("  3. Use local STT provider (offline)")
+            ColorPrint.yellow("  4. Use alternative cloud provider")
+            ColorPrint.yellow("")
+            ColorPrint.yellow("Session will be terminated automatically.")
+            print("="*70)
+            sys.stdout.flush()
+
+        elif "Connection was closed" in error_msg:
+            # Network connection lost
+            ColorPrint.yellow("\n[WARNING] Connection to Azure servers lost")
+            ColorPrint.yellow("Check your internet connection and Azure service status")
+            self.should_stop = True
+
+            # Report Azure STT as unavailable due to connection
+            if provider_status:
+                provider_status.mark_unavailable('stt', 'azure', 'Connection lost')
+
+        elif "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
+            # Authentication error
+            ColorPrint.red("\n[CRITICAL] Azure authentication failed")
+            ColorPrint.yellow("Check your API key and subscription status")
+            self.should_stop = True
+
+            # Report Azure STT as unavailable due to auth
+            if provider_status:
+                provider_status.mark_unavailable('stt', 'azure', 'Authentication failed')
 
     def get_session_summary(self) -> dict:
         """Get session summary statistics"""
@@ -674,9 +782,18 @@ def select_language_with_cache(source: str = "default", allow_multi_select: bool
         List of selected language codes
     """
     # Check cache first
-    cached_languages = speech_config_cache.get_languages(source)
+    cached_languages = speech_config.get(f"ui_languages_{source}")
     if cached_languages:
         ColorPrint.green(f"\n[Cached {source} languages: {cached_languages}]")
+
+        # Check if auto-use cached config is enabled
+        auto_use_cached = speech_config.get('auto_use_cached', True)
+
+        if auto_use_cached:
+            ColorPrint.blue("[Auto-using cached languages (speech_auto_use_cached=True)]")
+            return cached_languages
+
+        # Manual prompt (if auto-use is disabled)
         use_cached = input("Use cached languages? (y/n) [default: y]: ").strip().lower()
         if use_cached != 'n':
             return cached_languages
@@ -728,14 +845,14 @@ def select_language_with_cache(source: str = "default", allow_multi_select: bool
 
             if valid and selected_languages:
                 # Cache selection
-                speech_config_cache.set_languages(selected_languages, source)
+                speech_config.set(f"ui_languages_{source}", selected_languages)
                 return selected_languages
         else:
             # Single select
             if choice in language_map:
                 language = language_map[choice]
                 # Cache selection
-                speech_config_cache.set_languages([language], source)
+                speech_config.set(f"ui_languages_{source}", [language])
                 return [language]
 
         ColorPrint.yellow("Invalid choice, please try again")
@@ -752,29 +869,63 @@ def select_device_with_cache(device_manager, device_type: str = "default"):
     Returns:
         Selected device tuple or None
     """
-    devices = device_manager.list_devices()
+    all_devices = device_manager.list_devices()
 
-    if not devices:
+    if not all_devices:
         ColorPrint.red("\nNo audio devices found")
         return None
 
+    # Filter devices based on device_type
+    if device_type == "microphone":
+        # Only show microphones (non-loopback)
+        devices = [d for d in all_devices if d[0] != 'loopback']
+        selection_title = "Select Microphone Device"
+    elif device_type == "system":
+        # Only show loopback devices (system audio)
+        devices = [d for d in all_devices if d[0] == 'loopback']
+        selection_title = "Select System Audio Device (Loopback)"
+    else:
+        # Show all devices
+        devices = all_devices
+        selection_title = "Select Audio Device"
+
+    if not devices:
+        ColorPrint.red(f"\nNo {device_type} devices found")
+        return None
+
     # Check cache
-    cached_device_index = speech_config_cache.get_audio_device(device_type)
+    cached_device_index = speech_config.get(f"ui_audio_device_{device_type}")
     if cached_device_index is not None:
         ColorPrint.green(f"\n[Cached {device_type} device: {cached_device_index}]")
-        use_cached = input("Use cached device? (y/n) [default: y]: ").strip().lower()
-        if use_cached != 'n':
-            # Find device by index
-            for dev in devices:
-                if dev[1] == cached_device_index:
-                    return dev
+
+        # Check if auto-use cached config is enabled
+        auto_use_cached = speech_config.get('auto_use_cached', True)
+
+        # Find device by index in filtered list
+        cached_device = None
+        for dev in devices:
+            if dev[1] == cached_device_index:
+                cached_device = dev
+                break
+
+        if cached_device:
+            if auto_use_cached:
+                ColorPrint.blue("[Auto-using cached device (auto_use_cached=True)]")
+                return cached_device
+            else:
+                use_cached = input("Use cached device? (y/n) [default: y]: ").strip().lower()
+                if use_cached != 'n':
+                    return cached_device
+        else:
+            ColorPrint.yellow(f"[Warning] Cached device (index {cached_device_index}) not found in current {device_type} device list")
+            ColorPrint.yellow("[Action] Please select a new device")
 
     # Select device
     selected = device_manager.select_device(devices)
     if selected:
         _, device_index, _ = selected
         # Cache selection
-        speech_config_cache.set_audio_device(device_index, device_type)
+        speech_config.set(f"ui_audio_device_{device_type}", device_index)
 
     return selected
 
@@ -787,21 +938,31 @@ def select_duration_with_cache():
         Duration in seconds (None for continuous)
     """
     # Check cache
-    cached_mode = speech_config_cache.get_duration_mode()
+    cached_mode = speech_config.get("ui_duration_mode")
     if cached_mode:
         ColorPrint.green(f"\n[Cached duration mode: {cached_mode}]")
         if cached_mode == "continuous":
             ColorPrint.green("[Cached: Continuous mode]")
         else:
-            cached_seconds = speech_config_cache.get_duration_seconds()
+            cached_seconds = speech_config.get("ui_duration_seconds")
             ColorPrint.green(f"[Cached: Limited mode - {cached_seconds}s]")
 
-        use_cached = input("Use cached duration? (y/n) [default: y]: ").strip().lower()
-        if use_cached != 'n':
+        # Check if auto-use cached config is enabled
+        auto_use_cached = speech_config.get('auto_use_cached', True)
+
+        if auto_use_cached:
+            ColorPrint.blue("[Auto-using cached duration (speech_auto_use_cached=True)]")
             if cached_mode == "continuous":
                 return None
             else:
-                return speech_config_cache.get_duration_seconds()
+                return speech_config.get("ui_duration_seconds")
+        else:
+            use_cached = input("Use cached duration? (y/n) [default: y]: ").strip().lower()
+            if use_cached != 'n':
+                if cached_mode == "continuous":
+                    return None
+                else:
+                    return speech_config.get("ui_duration_seconds")
 
     # Select duration
     print("\n" + "="*70)
@@ -816,7 +977,7 @@ def select_duration_with_cache():
             mode = "1"
 
         if mode == "1":
-            speech_config_cache.set_duration_mode("continuous")
+            speech_config.set("ui_duration_mode", "continuous")
             return None
         elif mode == "2":
             while True:
@@ -831,28 +992,28 @@ def select_duration_with_cache():
 
                 ColorPrint.yellow("Please enter a valid positive number")
 
-            speech_config_cache.set_duration_mode("limited")
-            speech_config_cache.set_duration_seconds(duration)
+            speech_config.set("ui_duration_mode", "limited")
+            speech_config.set("ui_duration_seconds", duration)
             return duration
         else:
             ColorPrint.yellow("Invalid choice, please try again")
 
 
-def print_recognition_cache_info(text: str, language: str):
+def print_recognition_cache_info(text: str, language: str, speech_manager=None):
     """
     Print cache information for recognized text
 
     Args:
         text: Recognized text
         language: Language code
+        speech_manager: SpeechManager instance (optional, to show default TTS provider)
     """
     import hashlib
+    from pycore.database import database_manager, DATABASE_AVAILABLE
+    from pycore.database.models import SpeechTTSCacheModel, TableKeys
 
     # Calculate MD5 for text
     md5_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-
-    # Check TTS cache for this text
-    tts_stats = tts_cache_manager.get_statistics()
 
     print("\n" + "-" * 70)
     ColorPrint.blue("[Cache Info]")
@@ -860,35 +1021,72 @@ def print_recognition_cache_info(text: str, language: str):
     print(f"MD5: {md5_hash}")
     print(f"Language: {language}")
 
-    # Check if TTS cache exists for this text
-    has_edge_cache = tts_cache_manager.has_cache("edge", text, language)
-    has_azure_cache = tts_cache_manager.has_cache("azure", text, language)
+    if not DATABASE_AVAILABLE:
+        ColorPrint.yellow("Database not available for cache lookup")
+        print("-" * 70)
+        return
 
-    if has_edge_cache:
-        cache_path = tts_cache_manager.get_cache_path("edge", text, language)
-        ColorPrint.green(f"Edge TTS Cache: EXISTS - {cache_path.name}")
-    else:
-        ColorPrint.yellow(f"Edge TTS Cache: NOT FOUND")
+    try:
+        # Initialize database if needed
+        if "speech" not in database_manager.connection_strings:
+            database_manager.register_database("speech")
+            database_manager.load_tables(
+                database_name="speech",
+                table_keys=[TableKeys.SPEECH_TTS_CACHE],
+                models=[SpeechTTSCacheModel]
+            )
 
-    if has_azure_cache:
-        cache_path = tts_cache_manager.get_cache_path("azure", text, language)
-        ColorPrint.green(f"Azure TTS Cache: EXISTS - {cache_path.name}")
-    else:
-        ColorPrint.yellow(f"Azure TTS Cache: NOT FOUND")
+        # Get default TTS provider if speech_manager is available
+        default_provider = None
+        if speech_manager and hasattr(speech_manager, '_default_tts_provider'):
+            default_provider = speech_manager._default_tts_provider
+            ColorPrint.blue(f"Default TTS Provider: {default_provider}")
 
-    # Print overall cache stats
-    print(f"\nTotal TTS Cache Files: {tts_stats['total_cached_files']}")
-    print(f"Total Cache Size: {tts_stats['total_cache_size_mb']:.2f} MB")
-    print(f"Cache Hit Rate: {tts_stats['hit_rate']:.2f}%")
+        # Check cache using database
+        with database_manager.get_connection("speech") as conn:
+            # Check cache for default provider first (if available)
+            if default_provider:
+                record = SpeechTTSCacheModel.query_cache(conn, md5_hash, language, default_provider, verify_file=True)
+                if record:
+                    ColorPrint.green(f"[{default_provider.upper()}] TTS Cache: EXISTS - {Path(record['file_path']).name}")
+                else:
+                    ColorPrint.yellow(f"[{default_provider.upper()}] TTS Cache: NOT FOUND")
+            else:
+                # No default provider, check both
+                edge_record = SpeechTTSCacheModel.query_cache(conn, md5_hash, language, "edge", verify_file=True)
+                azure_record = SpeechTTSCacheModel.query_cache(conn, md5_hash, language, "azure", verify_file=True)
+
+                if edge_record:
+                    ColorPrint.green(f"Edge TTS Cache: EXISTS - {Path(edge_record['file_path']).name}")
+                else:
+                    ColorPrint.yellow(f"Edge TTS Cache: NOT FOUND")
+
+                if azure_record:
+                    ColorPrint.green(f"Azure TTS Cache: EXISTS - {Path(azure_record['file_path']).name}")
+                else:
+                    ColorPrint.yellow(f"Azure TTS Cache: NOT FOUND")
+
+            # Print overall cache stats
+            tts_stats = SpeechTTSCacheModel.get_cache_statistics(conn)
+            print(f"\nTotal TTS Cache Entries: {tts_stats['total_entries']}")
+            print(f"Total Cache Size: {tts_stats['total_cache_size_mb']:.2f} MB")
+
+    except Exception as e:
+        ColorPrint.yellow(f"Cache lookup failed: {e}")
+
     print("-" * 70)
 
 
-def run_app(speech_manager):
+def run_app(speech_manager, interactive: bool = True, language: str = None, device_index: int = None, duration: int = None):
     """
     Run interactive transcription application
 
     Args:
         speech_manager: SpeechManager instance from pyctl
+        interactive: If True, prompt user for selections. If False, use cached/provided values.
+        language: Language code (used in non-interactive mode)
+        device_index: Audio device index (used in non-interactive mode)
+        duration: Duration in seconds, None for continuous (used in non-interactive mode)
     """
     ColorPrint.blue("\n" + "="*70)
     ColorPrint.blue("Real-time Speech Transcription with Cycle Processing")
@@ -899,30 +1097,90 @@ def run_app(speech_manager):
     if not speech_manager.is_stt_available():
         ColorPrint.red("\nSpeech recognition not available!")
         ColorPrint.yellow("Please ensure Azure Speech SDK is installed and configured")
-        sys.exit(1)
+        if interactive:
+            sys.exit(1)
+        else:
+            return False
 
     # Initialize
     if not speech_manager.initialize():
         ColorPrint.red("\nFailed to initialize speech manager")
-        sys.exit(1)
+        if interactive:
+            sys.exit(1)
+        else:
+            return False
 
-    # Select language with cache
-    selected_languages = select_language_with_cache(source="default", allow_multi_select=False)
-    language = selected_languages[0]  # Use first language for single-source mode
+    # Select language with cache or use provided
+    if interactive:
+        selected_languages = select_language_with_cache(source="default", allow_multi_select=False)
+        language = selected_languages[0]  # Use first language for single-source mode
+    else:
+        # Non-interactive: use provided language or try cached
+        if not language:
+            cached_languages = speech_config.get("ui_languages_default")
+            if cached_languages:
+                language = cached_languages[0]
+            else:
+                language = "zh-CN"  # Default
+        ColorPrint.blue(f"[Non-Interactive] Using language: {language}")
 
-    # Select device with cache
+    # Select device with cache or use provided
     device_manager = AudioDeviceManager()
-    selected_device = select_device_with_cache(device_manager, device_type="default")
 
-    if not selected_device:
-        ColorPrint.red("\nNo device selected")
-        device_manager.cleanup()
-        sys.exit(1)
+    if interactive:
+        selected_device = select_device_with_cache(device_manager, device_type="default")
 
-    device_type, device_index, device_info = selected_device
+        if not selected_device:
+            ColorPrint.red("\nNo device selected")
+            device_manager.cleanup()
+            sys.exit(1)
 
-    # Select duration with cache
-    duration = select_duration_with_cache()
+        device_type, device_index, device_info = selected_device
+    else:
+        # Non-interactive: use provided device_index or try cached or auto-select
+        devices = device_manager.list_devices()
+        if not devices:
+            ColorPrint.red("\nNo audio devices found")
+            device_manager.cleanup()
+            return False
+
+        selected_device = None
+        if device_index is not None:
+            # Find device by index
+            for dev in devices:
+                if dev[1] == device_index:
+                    selected_device = dev
+                    break
+
+        if not selected_device:
+            # Try cached device
+            cached_device_index = speech_config.get("ui_audio_device_default")
+            if cached_device_index is not None:
+                for dev in devices:
+                    if dev[1] == cached_device_index:
+                        selected_device = dev
+                        break
+
+        if not selected_device:
+            # Auto-select first microphone
+            selected_device = devices[0]
+            ColorPrint.yellow(f"[Non-Interactive] Auto-selected device: {selected_device[2]['name']}")
+        else:
+            ColorPrint.blue(f"[Non-Interactive] Using device: {selected_device[2]['name']}")
+
+        device_type, device_index, device_info = selected_device
+
+    # Select duration with cache or use provided
+    if interactive:
+        duration = select_duration_with_cache()
+    else:
+        # Non-interactive: use provided duration or continuous
+        if duration is None:
+            cached_mode = speech_config.get("ui_duration_mode")
+            if cached_mode == "limited":
+                duration = speech_config.get("ui_duration_seconds")
+            # else keep as None (continuous)
+        ColorPrint.blue(f"[Non-Interactive] Duration: {'Continuous' if duration is None else f'{duration}s'}")
 
     # Setup audio streaming
     ColorPrint.yellow("\n[INFO] Preparing to start recognition...")
@@ -945,7 +1203,7 @@ def run_app(speech_manager):
     time.sleep(1)  # Let thread start
 
     # Create transcription session
-    session = TranscriptionSession(language=language)
+    session = TranscriptionSession(language=language, speech_manager=speech_manager)
     session.session_start_time = time.time()
 
     # Start continuous recognition with session callbacks
@@ -978,6 +1236,15 @@ def run_app(speech_manager):
         while True:
             time.sleep(0.5)
 
+            # Check if recognition encountered critical error
+            if session.should_stop:
+                if session.quota_exceeded:
+                    ColorPrint.red("\n[TERMINATED] Session stopped: Azure quota exceeded")
+                else:
+                    ColorPrint.red("\n[TERMINATED] Session stopped: Critical error occurred")
+                break
+
+            # Check duration limit
             if duration and (time.time() - start_time) >= duration:
                 ColorPrint.yellow("\n[INFO] Duration limit reached")
                 break
@@ -1058,6 +1325,7 @@ def run_app_dual_source(speech_manager):
     system_languages = select_language_with_cache(source="system", allow_multi_select=True)
     system_language = system_languages[0]  # Primary language
     system_language_2 = system_languages[1] if len(system_languages) > 1 else None  # Secondary language (optional)
+    enable_dual = system_language_2 is not None  # Enable dual language if secondary language is selected
 
     # Select devices with cache
     device_manager = AudioDeviceManager()
@@ -1086,9 +1354,9 @@ def run_app_dual_source(speech_manager):
     sys_type, sys_index, sys_info = system_device
 
     # Create recognition channels
-    mic_channel = RecognitionChannel("Microphone", mic_language)
-    sys_channel = RecognitionChannel("System Audio", system_language)
-    sys_channel_2 = RecognitionChannel("System Audio (Secondary)", system_language_2) if enable_dual else None
+    mic_channel = RecognitionChannel("Microphone", mic_language, speech_manager=speech_manager)
+    sys_channel = RecognitionChannel("System Audio", system_language, speech_manager=speech_manager)
+    sys_channel_2 = RecognitionChannel("System Audio (Secondary)", system_language_2, speech_manager=speech_manager) if enable_dual else None
 
     # Setup hotkey listener
     hotkey_listener = HotkeyListener()

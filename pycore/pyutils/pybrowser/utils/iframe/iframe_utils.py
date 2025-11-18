@@ -24,19 +24,15 @@ class IFrameUtils:
         Returns:
             List of iframe elements
         """
-        try:
-            script = """
-            return Array.from(document.querySelectorAll('iframe')).map((iframe, index) => ({
-                index: index,
-                src: iframe.src,
-                name: iframe.name,
-                id: iframe.id
-            }));
-            """
-            return await page.evaluate(script)
-        except Exception as error:
-            ColorPrint.red(f'Failed to get iframes: {error}')
-            raise
+        script = """
+        return Array.from(document.querySelectorAll('iframe')).map((iframe, index) => ({
+            index: index,
+            src: iframe.src,
+            name: iframe.name,
+            id: iframe.id
+        }));
+        """
+        return await page.evaluate(script)
 
     @staticmethod
     async def switch_to_iframe(page: Any, iframe_index: int):
@@ -47,14 +43,10 @@ class IFrameUtils:
             page: Page instance
             iframe_index: IFrame index
         """
-        try:
-            iframes = page.driver.find_elements('tag name', 'iframe')
-            if iframe_index < len(iframes):
-                page.driver.switch_to.frame(iframes[iframe_index])
-                ColorPrint.debug(f"Switched to iframe {iframe_index}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to switch to iframe: {error}')
-            raise
+        iframes = page.driver.find_elements('tag name', 'iframe')
+        if iframe_index < len(iframes):
+            page.driver.switch_to.frame(iframes[iframe_index])
+            ColorPrint.debug(f"Switched to iframe {iframe_index}")
 
     @staticmethod
     async def switch_to_default(page: Any):
@@ -64,9 +56,5 @@ class IFrameUtils:
         Args:
             page: Page instance
         """
-        try:
-            page.driver.switch_to.default_content()
-            ColorPrint.debug('Switched to default content')
-        except Exception as error:
-            ColorPrint.red(f'Failed to switch to default: {error}')
-            raise
+        page.driver.switch_to.default_content()
+        ColorPrint.debug('Switched to default content')

@@ -11,13 +11,19 @@ import shutil
 import time
 from typing import Dict, Any, Optional
 
-from selenium import webdriver
-from selenium.webdriver.edge.service import Service
-from selenium.webdriver.edge.options import Options
-from selenium.webdriver.common.by import By
-
 from pycore import ColorPrint
+from pycore.pyfoundations.third_party import (
+    get_third_package_selenium_webdriver,
+    get_third_package_selenium_by,
+    get_third_package_webdriver_manager_edge
+)
 from pycore.pyutils.pybrowser.core.threaded_browser import ThreadedBrowser
+
+webdriver = get_third_package_selenium_webdriver()
+By = get_third_package_selenium_by()
+EdgeDriverManager = get_third_package_webdriver_manager_edge()
+Service = webdriver.edge.service.Service
+Options = webdriver.edge.options.Options
 
 
 class EdgeBrowser(ThreadedBrowser):
@@ -46,11 +52,13 @@ class EdgeBrowser(ThreadedBrowser):
             config: Browser configuration
                 - headless: bool (default: False)
                 - args: list of Edge arguments
-                - user_data_dir: Edge profile directory
+                - profile_dir: Browser profile directory (unified parameter, recommended)
+                - user_data_dir: Alias for profile_dir (Edge-specific, deprecated)
                 - download_dir: Download directory
                 - window_size: tuple (width, height)
                 - driver_mode: str (auto, local, system_path, auto_download)
                 - driver_path: str (path to msedgedriver)
+                - cookie_config: Cookie persistence configuration (see ThreadedBrowser)
             thread_name: Custom thread name (default: auto-generated)
         """
         super().__init__(config, thread_name or 'EdgeBrowser', daemon=True)
@@ -92,10 +100,8 @@ class EdgeBrowser(ThreadedBrowser):
             ColorPrint.yellow(f"{self.name}: Driver not found locally, attempting download...")
             ColorPrint.yellow(f"{self.name}: Note: This requires internet connection")
 
-            from webdriver_manager.microsoft import EdgeChromiumDriverManager
-
             # Let download errors propagate naturally
-            downloaded_path = EdgeChromiumDriverManager().install()
+            downloaded_path = EdgeDriverManager().install()
             ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
             return Service(downloaded_path)
 
@@ -120,8 +126,7 @@ class EdgeBrowser(ThreadedBrowser):
         # Mode 3: Auto-download (requires internet)
         if driver_mode == 'auto_download':
             ColorPrint.blue(f"{self.name}: Attempting to download EdgeDriver...")
-            from webdriver_manager.microsoft import EdgeChromiumDriverManager
-            downloaded_path = EdgeChromiumDriverManager().install()
+            downloaded_path = EdgeDriverManager().install()
             ColorPrint.green(f"{self.name}: Downloaded driver: {downloaded_path}")
             return Service(downloaded_path)
 

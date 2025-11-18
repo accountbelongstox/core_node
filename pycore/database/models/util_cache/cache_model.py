@@ -32,6 +32,7 @@ class UtilCacheModel(BaseModel):
     __table_key__ = TableKeys.CACHE_ITEMS
     __namespace__ = "util_cache"
     __table_name__ = "items"
+    __full_table_name__ = "util_cache_items"
     __schema_version__ = 1
 
     @classmethod

@@ -253,14 +253,51 @@ verify_local_ssh_files() {
     return 0
 }
 
+# Function to read password with asterisk display
+read_password_with_asterisks() {
+    local prompt="$1"
+    local password=""
+    local char=""
+
+    printf "%s" "$prompt"
+
+    # Disable echo and enable raw mode
+    stty -echo
+
+    while IFS= read -r -n 1 char; do
+        # Handle Enter key
+        if [[ -z "$char" ]]; then
+            break
+        fi
+
+        # Handle Backspace (both Delete and Backspace keys)
+        if [[ "$char" == $'\x7f' ]] || [[ "$char" == $'\x08' ]]; then
+            if [ ${#password} -gt 0 ]; then
+                password="${password%?}"
+                printf "\b \b"
+            fi
+        else
+            password+="$char"
+            printf "*"
+        fi
+    done
+
+    # Restore terminal settings
+    stty echo
+    echo
+
+    # Return password via echo (to be captured by caller)
+    echo "$password"
+}
+
 # Function to decrypt SSH keys with timeout
 decrypt_ssh_keys() {
     local ask_msg="[Step $STEP_NUMBER] Do you have a password for the SSH key files? (y/n, default n, ${TIMEOUT_SECONDS}s timeout): "
     print_step_from_common_functions "$ask_msg"
-    
+
     local has_password=false
     local user_input=""
-    
+
     # Use read with timeout
     if read -t "$TIMEOUT_SECONDS" -n 1 user_input; then
         echo  # Add newline after input
@@ -271,17 +308,15 @@ decrypt_ssh_keys() {
         echo  # Add newline after timeout
         print_step_from_common_functions "Timeout reached, defaulting to 'n'"
     fi
-    
+
     if [[ "$has_password" == false ]]; then
         print_step_from_common_functions "Skipping password input and decryption."
         return 0
     fi
-    
+
     print_step_from_common_functions "Please enter the password for the SSH key files:"
-    read -s -p "Password: " password
-    echo
-    read -s -p "Confirm Password: " confirm_password
-    echo
+    local password=$(read_password_with_asterisks "Password: ")
+    local confirm_password=$(read_password_with_asterisks "Confirm Password: ")
     
     if [[ "$password" != "$confirm_password" ]]; then
         print_error_from_common_functions "Passwords do not match. Please try again."

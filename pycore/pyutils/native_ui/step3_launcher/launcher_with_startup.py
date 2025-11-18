@@ -74,13 +74,13 @@ def launch_app_with_startup(
     """
     start_time = time.time()
 
-    ColorPrint.blue("=" * 70)
-    ColorPrint.blue(f" {app_name.upper()} - INITIALIZATION")
-    ColorPrint.blue("=" * 70)
-    ColorPrint.white("")
+    ColorPrint.print_info("=" * 70)
+    ColorPrint.print_info(f" {app_name.upper()} - INITIALIZATION")
+    ColorPrint.print_info("=" * 70)
+    ColorPrint.print_info("")
 
     # ========== Step 1: Start TkinterStartupThread ==========
-    ColorPrint.blue("Starting startup window thread...")
+    ColorPrint.print_info("Starting startup window thread...")
 
     # Add "- Debug Log" suffix to clearly identify the window as a debug log viewer
     debug_log_title = f"{app_name} - Debug Log"
@@ -105,12 +105,12 @@ def launch_app_with_startup(
     ColorPrint.yellow("Waiting for startup window to be ready...")
 
     if not THREAD_BUS.wait_signal('TkinterStartup_ready', timeout=5.0):
-        ColorPrint.red("ERROR: Startup window failed to start!")
+        ColorPrint.print_error("ERROR: Startup window failed to start!")
         # Unregister callback on error
         ColorPrint.unregister_callback(startup_thread._colorprint_callback)
         return
 
-    ColorPrint.green("✓ Startup window is ready")
+    ColorPrint.print_success("✓ Startup window is ready")
     startup_thread.log(f"Starting {app_name}...", "info")
     startup_thread.set_status("Initializing...")
 
@@ -129,7 +129,7 @@ def launch_app_with_startup(
         time.sleep(remaining)
 
     # ========== Step 6: Close startup window ==========
-    ColorPrint.blue("\nLaunching main application...")
+    ColorPrint.print_info("\nLaunching main application...")
     startup_thread.log("Launching main application...", "info")
     startup_thread.set_status("Closing debug window...")
     time.sleep(0.5)
@@ -143,16 +143,16 @@ def launch_app_with_startup(
     # Wait for window to actually close
     ColorPrint.yellow("Waiting for debug window to close...")
     if THREAD_BUS.wait_signal('TkinterStartup_closed', timeout=5.0):
-        ColorPrint.green("✓ Debug window closed")
+        ColorPrint.print_success("✓ Debug window closed")
     else:
         ColorPrint.yellow("WARNING: Debug window close timeout (continuing anyway)")
 
     # ========== Step 7: Launch main application ==========
-    ColorPrint.white("")
-    ColorPrint.green("=" * 70)
-    ColorPrint.green(f" {app_name.upper()} - STARTING MAIN APPLICATION")
-    ColorPrint.green("=" * 70)
-    ColorPrint.white("")
+    ColorPrint.print_info("")
+    ColorPrint.print_success("=" * 70)
+    ColorPrint.print_success(f" {app_name.upper()} - STARTING MAIN APPLICATION")
+    ColorPrint.print_success("=" * 70)
+    ColorPrint.print_info("")
 
     try:
         # Call main entry point (PySide6 application)
@@ -161,24 +161,24 @@ def launch_app_with_startup(
     except KeyboardInterrupt:
         ColorPrint.yellow("\nKeyboard interrupt received")
     except Exception as e:
-        ColorPrint.red(f"\nERROR: Main application failed: {e}")
+        ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
         import traceback
         traceback.print_exc()
         raise
     finally:
         # Cleanup: Unregister ColorPrint callback and close log window
-        ColorPrint.blue("\nCleaning up...")
+        ColorPrint.print_info("\nCleaning up...")
         ColorPrint.unregister_callback(startup_thread._colorprint_callback)
         startup_thread.request_close()
 
         # Wait for startup thread to fully stop
         if THREAD_BUS.wait_signal('TkinterStartup_stopped', timeout=3.0):
-            ColorPrint.blue("✓ Log window closed")
+            ColorPrint.print_info("✓ Log window closed")
 
-        ColorPrint.white("")
-        ColorPrint.blue("=" * 70)
-        ColorPrint.blue(f" {app_name.upper()} - SHUTDOWN COMPLETE")
-        ColorPrint.blue("=" * 70)
+        ColorPrint.print_info("")
+        ColorPrint.print_info("=" * 70)
+        ColorPrint.print_info(f" {app_name.upper()} - SHUTDOWN COMPLETE")
+        ColorPrint.print_info("=" * 70)
 
 
 # Test
@@ -186,11 +186,11 @@ if __name__ == "__main__":
     def test_main_entry():
         """Test main entry"""
         from pycore import ColorPrint
-        ColorPrint.green("\n" + "=" * 70)
-        ColorPrint.green(" TEST MAIN APPLICATION STARTED")
-        ColorPrint.green("=" * 70)
-        ColorPrint.white("\nThis is where your PySide6 application would run...")
-        ColorPrint.white("\nPress Enter to exit...")
+        ColorPrint.print_success("\n" + "=" * 70)
+        ColorPrint.print_success(" TEST MAIN APPLICATION STARTED")
+        ColorPrint.print_success("=" * 70)
+        ColorPrint.print_info("\nThis is where your PySide6 application would run...")
+        ColorPrint.print_info("\nPress Enter to exit...")
         input()
 
     launch_app_with_startup(

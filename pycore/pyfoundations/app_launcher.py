@@ -347,10 +347,13 @@ class AppLauncher:
         if not self.resolve_app():
             return False
 
-        print(f'\n=== Starting Python App: {self.app_name} ===')
-        print(f'App Directory: {self.app_dir}')
-        print(f'App Entry: {self.app_entry}')
-        print()
+        # Suppress startup banner in MCP mode to avoid interfering with STDIO protocol
+        is_mcp_mode = os.environ.get('PYCORE_MCP_MODE', '').lower() in ('1', 'true', 'yes')
+        if not is_mcp_mode:
+            print(f'\n=== Starting Python App: {self.app_name} ===')
+            print(f'App Directory: {self.app_dir}')
+            print(f'App Entry: {self.app_entry}')
+            print()
 
         # Load the app module dynamically
         module_name = f"pyapps.{self.app_name}.{self.app_name}_main"

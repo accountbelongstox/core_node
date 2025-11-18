@@ -21,6 +21,31 @@ import platform
 
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon import Commander
+
+# Check if running in MCP mode - suppress output if true
+_IS_MCP_MODE = ColorPrint.is_mcp_mode()
+
+# Save original ColorPrint reference before wrapping
+_OriginalColorPrint = ColorPrint
+
+# Conditional ColorPrint wrapper - only outputs if not in MCP mode
+class _ColorPrintWrapper:
+    @staticmethod
+    def blue(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.blue(msg)
+    @staticmethod
+    def red(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.red(msg)
+    @staticmethod
+    def green(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.green(msg)
+    @staticmethod
+    def yellow(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.yellow(msg)
+
+# Replace ColorPrint with wrapper for this module
+ColorPrint = _ColorPrintWrapper
 
 # Dependency Map
 # Maps the required import name to the official PyPI package name.
@@ -83,14 +108,21 @@ DEPENDENCY_MAP = {
     "cnocr": "cnocr[ort-cpu]",
 
     # For document processing
-    "PyPDF2": "PyPDF2",
+    "pypdf": "pypdf",
     "pdfplumber": "pdfplumber",
     "docx": "python-docx",
     "openpyxl": "openpyxl",
     "pptx": "python-pptx",
 
+    # For HTML parsing
+    "bs4": "beautifulsoup4",
+
     # For machine learning and color analysis
     "sklearn": "scikit-learn",
+
+    # For browser automation (pybrowser)
+    "selenium": "selenium",
+    "webdriver_manager": "webdriver-manager",
 
     # For database operations
     "sqlalchemy": "sqlalchemy",
@@ -104,12 +136,18 @@ DEPENDENCY_MAP = {
     #       Install with: pip install azure-cognitiveservices-speech
     "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
 
+    # For offline STT (local provider)
+    "vosk": "vosk",
+
     # For audio input/output (cross-platform)
     # Standard PyAudio for Linux/macOS
     "pyaudio": "pyaudio",
 
     # For global hotkey listening (keyboard and mouse)
     "pynput": "pynput",
+
+    # For clipboard operations (cross-platform)
+    "pyperclip": "pyperclip",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -275,23 +313,78 @@ def install_system_packages():
 def build_pip_install_command(package_name: str) -> list:
     """
     Build pip install command with platform-specific flags.
-    
+
     Args:
         package_name: The package name to install
-    
+
     Returns:
         List of command arguments for subprocess.run()
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]
-    
+
     # On Linux/Mac, use --break-system-packages --ignore-installed for reliable installation
     # On Windows, use normal pip install
     if current_platform != 'Windows':
         pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
-    
+    else:
+        # On Windows, use --no-user to avoid installing to user directory
+        # This ensures packages are installed to the Python interpreter's site-packages
+        pip_cmd.append("--no-user")
+
     pip_cmd.append(package_name)
     return pip_cmd
+
+
+def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> bool:
+    """
+    Run pip install command with real-time output.
+    
+    Args:
+        pip_cmd: List of command arguments
+        package_name: Name of package being installed (for display)
+    
+    Returns:
+        True if installation succeeded, False otherwise
+    
+    Note: Uses Commander.exec_realtime() which collects output.
+    Recommended to check output string instead of return code.
+    """
+    result = Commander.exec_realtime(pip_cmd, info=True, show_output=True)
+    
+    # Check output for success indicators (recommended approach)
+    output = result.get_output().lower()
+    if "successfully installed" in output or "already satisfied" in output or result.success:
+        return True
+    else:
+        ColorPrint.red(f"[ERROR] Installation failed. Output: {result.get_output()}")
+        return False
+
+
+def run_command_with_realtime_output(cmd: list, description: str = "") -> bool:
+    """
+    Run command with real-time output.
+    
+    Args:
+        cmd: List of command arguments
+        description: Description of what is being executed (for display)
+    
+    Returns:
+        True if command succeeded, False otherwise
+    
+    Note: Uses Commander.exec_realtime() which collects output.
+    Recommended to check output string instead of return code.
+    """
+    result = Commander.exec_realtime(cmd, info=bool(description), show_output=True)
+    
+    # Check output for success (recommended approach)
+    if result.success and result.has_output():
+        return True
+    elif not result.success:
+        ColorPrint.red(f"[ERROR] Command failed. Output: {result.get_output()}")
+        return False
+    else:
+        return result.success
 
 
 def install_and_reimport_azure():
@@ -314,32 +407,18 @@ def install_and_reimport_azure():
     ColorPrint.blue("[INFO] Installing Azure Speech SDK package...")
     pip_cmd = build_pip_install_command("azure-cognitiveservices-speech")
     
+    # Run installation with real-time output
+    run_pip_install_with_realtime_output(pip_cmd, "azure-cognitiveservices-speech")
+    
+    # Verify installation by trying to import (not by return code)
+    importlib.invalidate_caches()
     try:
-        result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
-        ColorPrint.green("[SUCCESS] Successfully installed Azure Speech SDK")
-        
-        # Invalidate import caches
-        importlib.invalidate_caches()
-        
-        # Try hard import again
-        try:
-            import azure.cognitiveservices.speech
-            ColorPrint.green("[SUCCESS] Successfully imported Azure Speech SDK")
-            return azure.cognitiveservices.speech
-        except ImportError as e:
-            ColorPrint.yellow("[WARNING] Package installed but import still failed")
-            ColorPrint.yellow("[WARNING] This may require a Python restart")
-            return None
-            
-    except subprocess.CalledProcessError as e:
-        ColorPrint.red("[ERROR] Failed to install Azure Speech SDK")
-        if e.stdout:
-            ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")
-        if e.stderr:
-            ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")
-        return None
-    except Exception as e:
-        ColorPrint.red("[ERROR] Unexpected error installing Azure Speech SDK")
+        import azure.cognitiveservices.speech
+        ColorPrint.green("[SUCCESS] Successfully installed and imported Azure Speech SDK")
+        return azure.cognitiveservices.speech
+    except ImportError as e:
+        ColorPrint.yellow("[WARNING] Package installation completed but import still failed")
+        ColorPrint.yellow("[WARNING] This may require a Python restart")
         return None
 
 
@@ -363,32 +442,18 @@ def install_and_reimport_edge_tts():
     ColorPrint.blue("[INFO] Installing Edge TTS package...")
     pip_cmd = build_pip_install_command("edge-tts")
     
+    # Run installation with real-time output
+    run_pip_install_with_realtime_output(pip_cmd, "edge-tts")
+    
+    # Verify installation by trying to import (not by return code)
+    importlib.invalidate_caches()
     try:
-        result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
-        ColorPrint.green("[SUCCESS] Successfully installed Edge TTS")
-        
-        # Invalidate import caches
-        importlib.invalidate_caches()
-        
-        # Try hard import again
-        try:
-            import edge_tts
-            ColorPrint.green("[SUCCESS] Successfully imported Edge TTS")
-            return edge_tts
-        except ImportError as e:
-            ColorPrint.yellow("[WARNING] Package installed but import still failed")
-            ColorPrint.yellow("[WARNING] This may require a Python restart")
-            return None
-            
-    except subprocess.CalledProcessError as e:
-        ColorPrint.red("[ERROR] Failed to install Edge TTS")
-        if e.stdout:
-            ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")
-        if e.stderr:
-            ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")
-        return None
-    except Exception as e:
-        ColorPrint.red("[ERROR] Unexpected error installing Edge TTS")
+        import edge_tts
+        ColorPrint.green("[SUCCESS] Successfully installed and imported Edge TTS")
+        return edge_tts
+    except ImportError as e:
+        ColorPrint.yellow("[WARNING] Package installation completed but import still failed")
+        ColorPrint.yellow("[WARNING] This may require a Python restart")
         return None
 
 
@@ -403,11 +468,6 @@ def check_and_install_dependencies():
     Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
     """
     ColorPrint.blue("[INFO] Checking for required Python packages...")
-    # Allow callers to skip dependency checks via environment variable
-    if os.environ.get('PYCORE_SKIP_DEP_CHECK') == '1':
-        ENCYCLOPEDIA['pycore_dependencies_checked'] = True
-        return
-
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
@@ -458,14 +518,17 @@ def check_and_install_dependencies():
     # Upgrade pip first if any packages need installation
     if needs_installation:
         ColorPrint.blue("[INFO] Upgrading pip to latest version...")
-        try:
-            pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
-            if current_platform != 'Windows':
-                pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
-            subprocess.run(pip_upgrade_cmd, check=True, capture_output=True, text=True)
+        # Note: Don't use --target for pip itself, it's a special case
+        pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
+        if current_platform != 'Windows':
+            pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
+        else:
+            # On Windows, use --no-user to avoid user directory issues
+            pip_upgrade_cmd.append("--no-user")
+        if run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip"):
             ColorPrint.green("[SUCCESS] pip upgraded successfully")
-        except subprocess.CalledProcessError as e:
-            ColorPrint.yellow(f"[WARNING] Failed to upgrade pip: {e}")
+        else:
+            ColorPrint.yellow("[WARNING] Failed to upgrade pip")
             ColorPrint.yellow("[WARNING] Continuing with package installation anyway...")
 
     failed_packages = []
@@ -497,34 +560,23 @@ def check_and_install_dependencies():
             # Build pip install command using reusable helper
             pip_cmd = build_pip_install_command(package_name)
 
+            # Run installation with real-time output
+            run_pip_install_with_realtime_output(pip_cmd, package_name)
+            
+            # Verify installation by checking if module can be imported (not by return code)
+            importlib.invalidate_caches()
             try:
-                result = subprocess.run(pip_cmd, check=True, capture_output=True, text=True)
-                ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
-                
-                # Verify installation by checking if module can be imported
-                importlib.invalidate_caches()
-                try:
-                    module_spec = importlib.util.find_spec(import_name_to_check)
-                    if module_spec is None:
-                        ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
-                        ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
-                        failed_packages.append((package_name, import_name_to_check))
-                    else:
-                        installed_packages.add(package_name)
-                        installed_packages_list.append(package_name)
-                except Exception as e:
-                    ColorPrint.yellow(f"[WARNING] Error verifying '{import_name_to_check}' after installation: {e}")
+                module_spec = importlib.util.find_spec(import_name_to_check)
+                if module_spec is None:
+                    ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
+                    ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
                     failed_packages.append((package_name, import_name_to_check))
-            except subprocess.CalledProcessError as e:
-                ColorPrint.red(f"[ERROR] Failed to install {package_name}: {e}")
-                if e.stdout:
-                    ColorPrint.yellow(f"[INFO] Install output: {e.stdout[-500:]}")  # Last 500 chars
-                if e.stderr:
-                    ColorPrint.yellow(f"[INFO] Install error: {e.stderr[-500:]}")  # Last 500 chars
-                if current_platform != 'Windows':
-                    ColorPrint.yellow(f"[WARNING] Please install manually: pip install --break-system-packages --ignore-installed {package_name}")
                 else:
-                    ColorPrint.yellow(f"[WARNING] Please install manually: pip install {package_name}")
+                    ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
+                    installed_packages.add(package_name)
+                    installed_packages_list.append(package_name)
+            except Exception as e:
+                ColorPrint.yellow(f"[WARNING] Error verifying '{import_name_to_check}' after installation: {e}")
                 failed_packages.append((package_name, import_name_to_check))
         else:
             installed_packages.add(package_name)
@@ -598,6 +650,14 @@ def get_third_package_aiohttp():
     return _lazy_import('aiohttp', 'import aiohttp')
 
 
+def get_third_package_aiohttp_web():
+    """Get aiohttp.web (lazy load)"""
+    if 'aiohttp_web' not in _PACKAGE_CACHE:
+        from aiohttp import web as aiohttp_web
+        _PACKAGE_CACHE['aiohttp_web'] = aiohttp_web
+    return _PACKAGE_CACHE['aiohttp_web']
+
+
 def get_third_package_netifaces():
     """Get netifaces package (lazy load)"""
     return _lazy_import('netifaces', 'import netifaces')
@@ -652,6 +712,14 @@ def get_third_package_PIL_ImageFont():
     return _PACKAGE_CACHE['PIL_ImageFont']
 
 
+def get_third_package_PIL_ImageTk():
+    """Get PIL.ImageTk (lazy load)"""
+    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
+        from PIL import ImageTk as PIL_ImageTk
+        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
+    return _PACKAGE_CACHE['PIL_ImageTk']
+
+
 def get_third_package_cv2():
     """Get cv2 package (lazy load)"""
     return _lazy_import('cv2', 'import cv2')
@@ -685,6 +753,72 @@ def get_third_package_ultralytics():
 def get_third_package_numpy():
     """Get numpy package (lazy load)"""
     return _lazy_import('numpy', 'import numpy')
+
+
+def get_third_package_selenium():
+    """Get selenium package (lazy load)"""
+    return _lazy_import('selenium', 'import selenium')
+
+
+def get_third_package_selenium_webdriver():
+    """Get selenium.webdriver module (lazy load)"""
+    if 'selenium_webdriver' not in _PACKAGE_CACHE:
+        from selenium import webdriver as selenium_webdriver
+        _PACKAGE_CACHE['selenium_webdriver'] = selenium_webdriver
+    return _PACKAGE_CACHE['selenium_webdriver']
+
+
+def get_third_package_selenium_by():
+    """Get selenium.webdriver.common.by.By (lazy load)"""
+    if 'selenium_by' not in _PACKAGE_CACHE:
+        from selenium.webdriver.common.by import By as selenium_by
+        _PACKAGE_CACHE['selenium_by'] = selenium_by
+    return _PACKAGE_CACHE['selenium_by']
+
+
+def get_third_package_selenium_support_ui():
+    """Get selenium.webdriver.support.ui module (lazy load)"""
+    if 'selenium_support_ui' not in _PACKAGE_CACHE:
+        from selenium.webdriver.support import ui as selenium_support_ui
+        _PACKAGE_CACHE['selenium_support_ui'] = selenium_support_ui
+    return _PACKAGE_CACHE['selenium_support_ui']
+
+
+def get_third_package_selenium_support_expected_conditions():
+    """Get selenium.webdriver.support.expected_conditions module (lazy load)"""
+    if 'selenium_support_expected_conditions' not in _PACKAGE_CACHE:
+        from selenium.webdriver.support import expected_conditions as selenium_expected_conditions
+        _PACKAGE_CACHE['selenium_support_expected_conditions'] = selenium_expected_conditions
+    return _PACKAGE_CACHE['selenium_support_expected_conditions']
+
+
+def get_third_package_webdriver_manager():
+    """Get webdriver_manager package (lazy load)"""
+    return _lazy_import('webdriver_manager', 'import webdriver_manager')
+
+
+def get_third_package_webdriver_manager_chrome():
+    """Get webdriver_manager.chrome.ChromeDriverManager (lazy load)"""
+    if 'webdriver_manager_chrome' not in _PACKAGE_CACHE:
+        from webdriver_manager.chrome import ChromeDriverManager as _ChromeDriverManager
+        _PACKAGE_CACHE['webdriver_manager_chrome'] = _ChromeDriverManager
+    return _PACKAGE_CACHE['webdriver_manager_chrome']
+
+
+def get_third_package_webdriver_manager_edge():
+    """Get webdriver_manager.microsoft.EdgeChromiumDriverManager (lazy load)"""
+    if 'webdriver_manager_edge' not in _PACKAGE_CACHE:
+        from webdriver_manager.microsoft import EdgeChromiumDriverManager as _EdgeChromiumDriverManager
+        _PACKAGE_CACHE['webdriver_manager_edge'] = _EdgeChromiumDriverManager
+    return _PACKAGE_CACHE['webdriver_manager_edge']
+
+
+def get_third_package_webdriver_manager_firefox():
+    """Get webdriver_manager.firefox.GeckoDriverManager (lazy load)"""
+    if 'webdriver_manager_firefox' not in _PACKAGE_CACHE:
+        from webdriver_manager.firefox import GeckoDriverManager as _GeckoDriverManager
+        _PACKAGE_CACHE['webdriver_manager_firefox'] = _GeckoDriverManager
+    return _PACKAGE_CACHE['webdriver_manager_firefox']
 
 
 def get_third_package_adb_shell():
@@ -737,10 +871,15 @@ def get_third_package_pynput():
     return _lazy_import('pynput', 'import pynput')
 
 
+def get_third_package_pyperclip():
+    """Get pyperclip package (lazy load)"""
+    return _lazy_import('pyperclip', 'import pyperclip')
+
+
 # Document processing packages
-def get_third_package_PyPDF2():
-    """Get PyPDF2 package (lazy load)"""
-    return _lazy_import('PyPDF2', 'import PyPDF2')
+def get_third_package_pypdf():
+    """Get pypdf package (lazy load)"""
+    return _lazy_import('pypdf', 'import pypdf')
 
 
 def get_third_package_pdfplumber():
@@ -771,6 +910,20 @@ def get_third_package_pptx():
 def get_third_package_python_pptx():
     """Get python-pptx package (alias for pptx, lazy load)"""
     return get_third_package_pptx()
+
+
+# HTML parsing
+def get_third_package_bs4():
+    """Get bs4 (BeautifulSoup4) package (lazy load)"""
+    return _lazy_import('bs4', 'import bs4')
+
+
+def get_third_package_BeautifulSoup():
+    """Get BeautifulSoup class from bs4 (lazy load)"""
+    if 'BeautifulSoup' not in _PACKAGE_CACHE:
+        from bs4 import BeautifulSoup
+        _PACKAGE_CACHE['BeautifulSoup'] = BeautifulSoup
+    return _PACKAGE_CACHE['BeautifulSoup']
 
 
 # Machine learning
@@ -810,8 +963,17 @@ def get_third_package_Context():
 # Optional packages
 def get_third_package_speechsdk():
     """Get Azure Speech SDK (lazy load, optional)"""
+    skip_install = os.environ.get('PYCORE_SKIP_SPEECHSDK') == '1'
     if 'speechsdk' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
+        if skip_install:
+            try:
+                import azure.cognitiveservices.speech as speechsdk
+                _PACKAGE_CACHE['speechsdk'] = speechsdk
+            except ImportError:
+                ColorPrint.yellow("[WARNING] Azure Speech SDK not available (install skipped)")
+                _PACKAGE_CACHE['speechsdk'] = None
+        else:
+            _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
     return _PACKAGE_CACHE['speechsdk']
 
 
@@ -820,6 +982,18 @@ def get_third_package_edge_tts():
     if 'edge_tts' not in _PACKAGE_CACHE:
         _PACKAGE_CACHE['edge_tts'] = install_and_reimport_edge_tts()
     return _PACKAGE_CACHE['edge_tts']
+
+
+def get_third_package_vosk():
+    """Get Vosk package (lazy load, optional)"""
+    if 'vosk' not in _PACKAGE_CACHE:
+        try:
+            import vosk
+            _PACKAGE_CACHE['vosk'] = vosk
+        except ImportError:
+            ColorPrint.yellow("[WARNING] Vosk not available")
+            _PACKAGE_CACHE['vosk'] = None
+    return _PACKAGE_CACHE['vosk']
 
 
 # Audio packages
@@ -943,6 +1117,7 @@ __all__ = [
 
     # Lazy loading getter functions (use these instead of direct imports)
     'get_third_package_aiohttp',
+    'get_third_package_aiohttp_web',
     'get_third_package_netifaces',
     'get_third_package_websockets',
     'get_third_package_requests',
@@ -952,6 +1127,7 @@ __all__ = [
     'get_third_package_PIL_Image',
     'get_third_package_PIL_ImageDraw',
     'get_third_package_PIL_ImageFont',
+    'get_third_package_PIL_ImageTk',
     'get_third_package_cv2',
     'get_third_package_pyautogui',
     'get_third_package_psutil',
@@ -969,8 +1145,9 @@ __all__ = [
     'get_third_package_pystray',
     'get_third_package_cnocr',
     'get_third_package_pynput',
+    'get_third_package_pyperclip',
     # Document processing packages
-    'get_third_package_PyPDF2',
+    'get_third_package_pypdf',
     'get_third_package_pdfplumber',
     'get_third_package_docx',
     'get_third_package_python_docx',

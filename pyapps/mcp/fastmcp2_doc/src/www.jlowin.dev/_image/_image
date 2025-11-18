@@ -1,0 +1,100 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="description" content="Fueled by lemons."><meta name="author" content="Jeremiah Lowin"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" type="image/x-icon" href="/favicon.ico"><meta name="generator" content="Astro v5.7.5"><link rel="sitemap" href="/sitemap-index.xml"><link rel="canonical" href="https://jlowin.dev/404"><link rel="alternate" type="application/rss+xml" title="404: Not Found" href="https://jlowin.dev/rss.xml"><title>404: Not Found</title><!-- OpenGraph / Facebook --><meta property="og:type" content="article"><meta property="og:url" content="https://jlowin.dev/404"><meta property="og:title" content="404: Not Found"><meta property="og:description" content="Fueled by lemons."><meta property="og:image" content="https://jlowin.dev/default-og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><!-- Twitter --><meta property="twitter:card" content="summary_large_image"><meta property="twitter:url" content="https://jlowin.dev/404"><meta property="twitter:title" content="404: Not Found"><meta property="twitter:description" content="Fueled by lemons."><meta property="twitter:image" content="https://jlowin.dev/default-og-image.png"><meta name="twitter:creator" content="@jlowin"><meta name="twitter:site" content="@jlowin"><!-- Structured Data --><script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Person",
+            "@id": "https://jlowin.dev/#author",
+            "name": "Jeremiah Lowin",
+            "url": "https://jlowin.dev",
+            "image": "https://jlowin.dev/images/profile.png",
+            "description": "Founder & CEO of Prefect. Builder of workflow orchestration and AI infrastructure tools. Strategic advisor and former founding PMC member of Apache Airflow.",
+            "knowsAbout": [
+              "Artificial Intelligence",
+              "Workflow Orchestration",
+              "Data Engineering",
+              "Data Science",
+              "Machine Learning",
+              "Software Engineering",
+              "Model Context Protocol",
+              "Risk Management",
+              "Computational Statistics"
+            ],
+            "sameAs": [
+              "https://x.com/jlowin",
+              "https://github.com/jlowin",
+              "https://linkedin.com/in/jlowin",
+              "https://bsky.app/profile/jlowin.dev"
+            ],
+            "jobTitle": "Founder & CEO",
+            "worksFor": {
+              "@type": "Organization",
+              "name": "Prefect"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://jlowin.dev/#website",
+            "url": "https://jlowin.dev",
+            "name": "Mostly Harmless",
+            "description": "Jeremiah Lowin's blog on AI, software, and data. Fueled by lemons.",
+            "publisher": {
+              "@id": "https://jlowin.dev/#author"
+            },
+            "author": {
+              "@id": "https://jlowin.dev/#author"
+            }
+          }
+        ]
+      }
+    </script><link rel="stylesheet" href="/_astro/about.Cto0FDb0.css">
+<link rel="stylesheet" href="/_astro/_slug_.Cepmj_RY.css"><script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+		var script = document.createElement('script');
+		script.defer = true;
+		script.src = '/_vercel/insights/script.js';
+		var head = document.querySelector('head');
+		head.appendChild(script);
+	</script>
+<script>!(function(w,p,f,c){if(!window.crossOriginIsolated && !navigator.serviceWorker) return;c=w[p]=Object.assign(w[p]||{},{"lib":"/~partytown/","debug":false});c[f]=(c[f]||[]).concat(["dataLayer.push"])})(window,'partytown','forward');/* Partytown 0.11.0 - MIT QwikDev */
+const t={preserveBehavior:!1},e=e=>{if("string"==typeof e)return[e,t];const[n,r=t]=e;return[n,{...t,...r}]},n=Object.freeze((t=>{const e=new Set;let n=[];do{Object.getOwnPropertyNames(n).forEach((t=>{"function"==typeof n[t]&&e.add(t)}))}while((n=Object.getPrototypeOf(n))!==Object.prototype);return Array.from(e)})());!function(t,r,o,i,a,s,c,l,d,p,u=t,f){function h(){f||(f=1,"/"==(c=(s.lib||"/~partytown/")+(s.debug?"debug/":""))[0]&&(d=r.querySelectorAll('script[type="text/partytown"]'),i!=t?i.dispatchEvent(new CustomEvent("pt1",{detail:t})):(l=setTimeout(v,(null==s?void 0:s.fallbackTimeout)||1e4),r.addEventListener("pt0",w),a?y(1):o.serviceWorker?o.serviceWorker.register(c+(s.swPath||"partytown-sw.js"),{scope:c}).then((function(t){t.active?y():t.installing&&t.installing.addEventListener("statechange",(function(t){"activated"==t.target.state&&y()}))}),console.error):v())))}function y(e){p=r.createElement(e?"script":"iframe"),t._pttab=Date.now(),e||(p.style.display="block",p.style.width="0",p.style.height="0",p.style.border="0",p.style.visibility="hidden",p.setAttribute("aria-hidden",!0)),p.src=c+"partytown-"+(e?"atomics.js?v=0.11.0":"sandbox-sw.html?"+t._pttab),r.querySelector(s.sandboxParent||"body").appendChild(p)}function v(n,o){for(w(),i==t&&(s.forward||[]).map((function(n){const[r]=e(n);delete t[r.split(".")[0]]})),n=0;n<d.length;n++)(o=r.createElement("script")).innerHTML=d[n].innerHTML,o.nonce=s.nonce,r.head.appendChild(o);p&&p.parentNode.removeChild(p)}function w(){clearTimeout(l)}s=t.partytown||{},i==t&&(s.forward||[]).map((function(r){const[o,{preserveBehavior:i}]=e(r);u=t,o.split(".").map((function(e,r,o){var a;u=u[o[r]]=r+1<o.length?u[o[r]]||(a=o[r+1],n.includes(a)?[]:{}):(()=>{let e=null;if(i){const{methodOrProperty:n,thisObject:r}=((t,e)=>{let n=t;for(let t=0;t<e.length-1;t+=1)n=n[e[t]];return{thisObject:n,methodOrProperty:e.length>0?n[e[e.length-1]]:void 0}})(t,o);"function"==typeof n&&(e=(...t)=>n.apply(r,...t))}return function(){let n;return e&&(n=e(arguments)),(t._ptf=t._ptf||[]).push(o,arguments),n}})()}))})),"complete"==r.readyState?h():(t.addEventListener("DOMContentLoaded",h),t.addEventListener("load",h))}(window,document,navigator,top,window.crossOriginIsolated);;(e=>{e.addEventListener("astro:before-swap",e=>{let r=document.body.querySelector("iframe[src*='/~partytown/']");if(r)e.newDocument.body.append(r)})})(document);</script></head> <body> <div class="flex flex-col w-full min-h-screen"> <nav class="w-full flex justify-center" data-astro-cid-dmqpwcec> <div class="max-w-6xl w-full flex justify-between items-center py-4 px-8" data-astro-cid-dmqpwcec> <div class="flex flex-col" data-astro-cid-dmqpwcec> <a href="/" class="nav-link text-lg font-bold text-slate-800 " data-astro-cid-dmqpwcec>
+Mostly Harmless
+</a> </div> <div class="flex space-x-1 sm:space-x-2 text-xs sm:text-sm items-center" data-astro-cid-dmqpwcec>  <a href="/" class="nav-link px-1 sm:px-2 py-1
+                
+                
+                " data-astro-cid-dmqpwcec> Home </a> <span class="nav-divider" data-astro-cid-dmqpwcec>/</span> <a href="/about" class="nav-link px-1 sm:px-2 py-1
+                
+                
+                " data-astro-cid-dmqpwcec> About </a> <span class="nav-divider" data-astro-cid-dmqpwcec>/</span> <a href="/subscribe" class="nav-link px-1 sm:px-2 py-1
+                text-sky-500 ring-1 ring-sky-200 rounded-sm bg-sky-50
+                
+                " data-astro-cid-dmqpwcec> Subscribe </a>   </div> </div> </nav>  <div class="mb-auto">  <main class="max-w-2xl mx-auto px-8 pt-24 pb-16 space-y-24"> <div class="flex flex-col"> <h1 class="text-4xl font-bold text-gray-700">Don't Panic.</h1> </div> <div class="flex justify-center"> <video class="w-full h-auto rounded-lg shadow-2xl" autoplay muted loop playsinline> <source src="/videos/404/404.mp4" type="video/mp4">
+Your browser does not support the video tag.
+</video> <!-- Previous random image logic - commented out for potential future use
+      {
+        images.map((image, index) => (
+          <Image
+            src={image.default}
+            alt={`404 image ${index + 1}`}
+            class="random-404-image w-full h-auto hidden rounded-lg shadow-sky-900 shadow-xl"
+            data-index={index}
+          />
+        ))
+      }
+      --> </div> <p class="text-center text-gray-500">
+We couldn't find the page you were looking for.
+</p> </main>  </div> <footer class="w-full bg-white flex flex-col items-center justify-end mt-12 sticky"> <ul class="flex justify-center px-8 pt-4 pb-2 space-x-8 text-slate-400/70 border-t"> <li class="hover:text-slate-600"> <a href="https://linkedin.com/in/jlowin" target="_blank"> <svg width="0.88em" height="1em" viewBox="0 0 448 512" data-icon="fa7-brands:linkedin">  <symbol id="ai:fa7-brands:linkedin"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77a38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7c-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5c67.2 0 79.7 44.3 79.7 101.9z"/></symbol><use  xlink:href="#ai:fa7-brands:linkedin"></use>  </svg> </a> </li> <li class="hover:text-slate-600"> <a href="https://x.com/jlowin" target="_blank"> <svg width="0.88em" height="1em" viewBox="0 0 448 512" data-icon="fa7-brands:x-twitter">  <symbol id="ai:fa7-brands:x-twitter"><path fill="currentColor" d="M357.2 48h70.6L273.6 224.2L455 464H313L201.7 318.6L74.5 464H3.8l164.9-188.5L-5.2 48h145.6l100.5 132.9zm-24.8 373.8h39.1L119.1 88h-42z"/></symbol><use  xlink:href="#ai:fa7-brands:x-twitter"></use>  </svg> </a> </li> <li class="hover:text-slate-600"> <a href="https://github.com/jlowin" target="_blank"> <svg width="1em" height="1em" viewBox="0 0 512 512" data-icon="fa7-brands:github">  <symbol id="ai:fa7-brands:github"><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6c-3.3.3-5.6-1.3-5.6-3.6c0-2 2.3-3.6 5.2-3.6c3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9c2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9c.3 2 2.9 3.3 5.9 2.6c2.9-.7 4.9-2.6 4.6-4.6c-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2c12.8 2.3 17.3-5.6 17.3-12.1c0-6.2-.3-40.4-.3-61.4c0 0-70 15-84.7-29.8c0 0-11.4-29.1-27.8-36.6c0 0-22.9-15.7 1.6-15.4c0 0 24.9 2 38.6 25.8c21.9 38.6 58.6 27.5 72.9 20.9c2.3-16 8.8-27.1 16-33.7c-55.9-6.2-112.3-14.3-112.3-110.5c0-27.5 7.6-41.3 23.6-58.9c-2.6-6.5-11.1-33.3 2.6-67.9c20.9-6.5 69 27 69 27c20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27c13.7 34.7 5.2 61.4 2.6 67.9c16 17.7 25.8 31.5 25.8 58.9c0 96.5-58.9 104.2-114.8 110.5c9.2 7.9 17 22.9 17 46.4c0 33.7-.3 75.4-.3 83.6c0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252C504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2c1.6 1.6 3.9 2.3 5.2 1c1.3-1 1-3.3-.7-5.2c-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9c1.6 1 3.6.7 4.3-.7c.7-1.3-.3-2.9-2.3-3.9c-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2c2.3 2.3 5.2 2.6 6.5 1c1.3-1.3.7-4.3-1.3-6.2c-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2c-1.4-2.3-4-3.3-5.6-2"/></symbol><use  xlink:href="#ai:fa7-brands:github"></use>  </svg> </a> </li> <li class="hover:text-slate-600"> <a href="https://bsky.app/profile/jlowin.dev" target="_blank"> <svg width="1.13em" height="1em" viewBox="0 0 576 512" data-icon="fa7-brands:bluesky">  <symbol id="ai:fa7-brands:bluesky"><path fill="currentColor" d="M407.8 294.7c-3.3-.4-6.7-.8-10-1.3c3.4.4 6.7.9 10 1.3M288 227.1c-26.1-50.7-97.1-145.2-163.1-191.8C61.6-9.4 37.5-1.7 21.6 5.5C3.3 13.8 0 41.9 0 58.4S9.1 194 15 213.9c19.5 65.7 89.1 87.9 153.2 80.7c3.3-.5 6.6-.9 10-1.4c-3.3.5-6.6 1-10 1.4c-93.9 14-177.3 48.2-67.9 169.9C220.6 589.1 265.1 437.8 288 361.1c22.9 76.7 49.2 222.5 185.6 103.4c102.4-103.4 28.1-156-65.8-169.9c-3.3-.4-6.7-.8-10-1.3c3.4.4 6.7.9 10 1.3c64.1 7.1 133.6-15.1 153.2-80.7C566.9 194 576 75 576 58.4s-3.3-44.7-21.6-52.9c-15.8-7.1-40-14.9-103.2 29.8C385.1 81.9 314.1 176.4 288 227.1"/></symbol><use  xlink:href="#ai:fa7-brands:bluesky"></use>  </svg> </a> </li> <li class="hover:text-slate-600"> <a href="https://prefect.io" target="_blank"> <svg width="1em" height="1em" viewBox="0 0 512 512" data-icon="fa7-solid:briefcase">  <symbol id="ai:fa7-solid:briefcase"><path fill="currentColor" d="M200 48h112c4.4 0 8 3.6 8 8v40H192V56c0-4.4 3.6-8 8-8m-56 8v40H64c-35.3 0-64 28.7-64 64v96h512v-96c0-35.3-28.7-64-64-64h-80V56c0-30.9-25.1-56-56-56H200c-30.9 0-56 25.1-56 56m368 248H320v16c0 17.7-14.3 32-32 32h-64c-17.7 0-32-14.3-32-32v-16H0v112c0 35.3 28.7 64 64 64h384c35.3 0 64-28.7 64-64z"/></symbol><use  xlink:href="#ai:fa7-solid:briefcase"></use>  </svg> </a> </li> <li class="hover:text-slate-600"> <a href="https://gofastmcp.com" target="_blank"> <svg width="1.25em" height="1em" viewBox="0 0 640 512" data-icon="fa7-solid:laptop">  <symbol id="ai:fa7-solid:laptop"><path fill="currentColor" d="M128 32c-35.3 0-64 28.7-64 64v240h64V96h384v240h64V96c0-35.3-28.7-64-64-64zM19.2 384C8.6 384 0 392.6 0 403.2C0 445.6 34.4 480 76.8 480h486.4c42.4 0 76.8-34.4 76.8-76.8c0-10.6-8.6-19.2-19.2-19.2z"/></symbol><use  xlink:href="#ai:fa7-solid:laptop"></use>  </svg> </a> </li> </ul> <p class="text-xs text-slate-400 py-4 uppercase">
+© 2025 <a href="/about" class="hover:text-slate-600 transition-colors">Jeremiah Lowin</a> </p> </footer> </div>    <script type="text/partytown" src="https://www.googletagmanager.com/gtag/js?id=G-HCQ73FQ3PK"></script> <script type="text/partytown">
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-HCQ73FQ3PK");
+    </script>  <!-- Twitter widgets --> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script></body></html> <!-- Previous random image script - commented out for potential future use
+<script define:vars={{ imageCount: images.length }}>
+  const randomIndex = Math.floor(Math.random() * imageCount);
+  const imageElements = document.querySelectorAll(".random-404-image");
+  imageElements[randomIndex].classList.remove("hidden");
+</script>
+-->

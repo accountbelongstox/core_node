@@ -51,7 +51,7 @@
 ● Bash(cd "D:\programing\core_node\scripts\pyvoice" && python realtime_speech_to_text.py --help 2>&1 | head -20)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +26 lines (ctrl+o to expand)
 
 ● 我发现程序有一个小问题，soundcard 不是必需的，因为 Azure Speech SDK 自己就能处理麦克风输入。让我修改程序：
@@ -1121,7 +1121,7 @@ DeprecationWarning: websockets.client.WebSocketClientProtocol is deprecated
 
 [INFO] Checking for required Python packages...
 [INFO] Optional packages are not auto-installed
-[INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[ort-cpu],
+[INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[ort-cpu],
 fastapi, fastmcp, loguru, mss, netifaces, numpy, opencv-python, openpyxl, pdfplumber, psutil, pyautogui, pygetwindow,
 pystray, python-docx, python-pptx, pywebview, pywin32, pywinauto, pyyaml, requests, scikit-learn, sqlalchemy, tkhtmlview,
 tkinterweb, torch, uiautomation, ultralytics, uvicorn[standard], websockets
@@ -3825,7 +3825,7 @@ D:\programing\core_node\pycore\pyctl 在建 立一个目录 ，组织逻辑，�
 ● Bash(cd "D:\programing\core_node\pyapps\speech_transcribe" && python test_import.py)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +61 lines (ctrl+o to expand)
 
 ● Perfect! All tests passed successfully. The implementation is working correctly with:
@@ -4130,7 +4130,7 @@ D:\programing\core_node\development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO
 ● Bash(cd "D:\programing\core_node\pyapps\speech_transcribe" && python test_import.py)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +62 lines (ctrl+o to expand)
 
 ● Excellent! All tests pass. Let me verify the import is working correctly in the transcription app by checking if it
@@ -4140,7 +4140,7 @@ D:\programing\core_node\development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO
       imported successfully')")
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +20 lines (ctrl+o to expand)
 
 ● Let me check if there are any other direct third-party imports in the speech module files:
@@ -4298,7 +4298,7 @@ up2: 扩展出断句功能，跳过空白区区域 ，但不能一有空白马�
        592 +  import pynput
        593
        594    # Document processing packages
-       595    import PyPDF2
+       595    import pypdf
 
 ● Update(pycore\pyfoundations\third_party.py)
   ⎿  Updated pycore\pyfoundations\third_party.py with 1 addition
@@ -4307,7 +4307,7 @@ up2: 扩展出断句功能，跳过空白区区域 ，但不能一有空白马�
        689        'cnocr',
        690 +      'pynput',
        691        # Document processing packages
-       692        'PyPDF2',
+       692        'pypdf',
        693        'pdfplumber',
 
 ● Write(pycore\pyutils\hotkey\__init__.py)
@@ -4835,14 +4835,14 @@ up2: 扩展出断句功能，跳过空白区区域 ，但不能一有空白马�
       pycore.pyutils.clipboard import clipboard_manager; from…)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +20 lines (ctrl+o to expand)
 
 ● Bash(cd "D:\programing\core_node" && python -c "from pycore.pyctl.speech import speech_manager; print('[OK] speech_manager
       imported'); print('[OK] Has run_transcript…)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +21 lines (ctrl+o to expand)
 
 ● 现在创建文档说明新功能：
@@ -4914,7 +4914,7 @@ up2: 扩展出断句功能，跳过空白区区域 ，但不能一有空白马�
 ● Bash(cd "D:\programing\core_node\pyapps\speech_transcribe" && python test_dual_source.py)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +80 lines (ctrl+o to expand)
 
 ● ✅ Implementation Complete!
@@ -6334,7 +6334,7 @@ D:\programing\core_node\pyapps\speech_transcribe 中引用统一启动库，根�
 ● Bash(cd /d/programing/core_node && python pyapps/speech_transcribe/test_speech_threading.py)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +117 lines (ctrl+o to expand)
 
 ● Perfect! All tests are now passing. The threaded speech system has been successfully implemented and tested. Here's a
@@ -7062,7 +7062,7 @@ D:\programing\core_node\pyapps\speech_transcribe\speech_transcribe_dual_main.py 
 ● Bash(cd /d/programing/core_node && python pyapps/speech_transcribe/test_cache_integration.py)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +118 lines (ctrl+o to expand)
 
 ● Write(pyapps\speech_transcribe\CACHE_INTEGRATION_GUIDE.md)
@@ -7748,7 +7748,7 @@ D:\programing\core_node\development-guides\DATABASE_FINAL_SPECIFICATION.md 参�
 ● Bash(cd /d/programing/core_node && python pyapps/speech_transcribe/test_database_cache.py)
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +156 lines (ctrl+o to expand)
 
 ● Write(pyapps\speech_transcribe\DATABASE_CACHE_GUIDE.md)
@@ -8019,7 +8019,7 @@ D:\programing\core_node\development-guides\DATABASE_FINAL_SPECIFICATION.md 参�
 ● Bash(cd "D:\programing\core_node" && python pyapps/speech_transcribe/test_database_cache.py) timeout: 30s
   ⎿  [INFO] Checking for required Python packages...
      [INFO] Optional packages are not auto-installed
-     [INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
+     [INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, cnocr[o
      … +174 lines (ctrl+o to expand)
 
 ● Perfect! All 6 tests passed successfully! Let me mark the final task as completed:

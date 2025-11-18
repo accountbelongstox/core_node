@@ -15,7 +15,7 @@ Provides a single function launch_native_app() that handles everything:
 
 from typing import Optional
 from pathlib import Path
-from pycore.pyfoundations import ColorPrint
+from pycore import ColorPrint
 from pycore.pyutils.native_ui.step1_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url import get_port_range, process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
@@ -46,12 +46,12 @@ def launch_native_app(config: NativeUIConfig) -> None:
         launch_native_app(config)
     """
     if config.debug:
-        ColorPrint.blue("[NativeLauncher] Starting native UI application...")
+        ColorPrint.print_info("[NativeLauncher] Starting native UI application...")
 
     # ========== Phase 1: Auto Port Allocation ==========
     port_start, port_range = get_port_range(config.app_id, debug=config.debug)
     if config.debug:
-        ColorPrint.blue(
+        ColorPrint.print_info(
             f"[NativeLauncher] Phase 1: Port range allocated: {port_start}-{port_start+port_range-1}"
         )
 
@@ -60,7 +60,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
         config.url, config.url_type, project_root=config.project_root, debug=config.debug
     )
     if config.debug:
-        ColorPrint.blue(f"[NativeLauncher] Phase 3: URL processed: {final_url} (type: {detected_url_type})")
+        ColorPrint.print_info(f"[NativeLauncher] Phase 3: URL processed: {final_url} (type: {detected_url_type})")
 
     # ========== Phase 4: Initialize Callback Manager ==========
     callback_manager = CallbackManager(debug=config.debug)
@@ -76,14 +76,14 @@ def launch_native_app(config: NativeUIConfig) -> None:
         callback_manager.set_restart_callback(config.on_restart_callback)
 
     if config.debug:
-        ColorPrint.blue(f"[NativeLauncher] Phase 4: Callback manager initialized")
+        ColorPrint.print_info(f"[NativeLauncher] Phase 4: Callback manager initialized")
 
     # ========== Phase 4.5: Auto-start Timer Manager ==========
     if config.enable_timer:
         _initialize_timer_manager(config)
 
     # ========== Phase 5: Singleton Detection ==========
-    from pycore.pyutils.singleton_detector import SingletonDetector
+    from pycore.pylauncher.singleton_detector import SingletonDetector
 
     detector = SingletonDetector(
         app_id=config.app_id,
@@ -98,16 +98,16 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # Check existing instance
     if detection.existing_instance:
         if not config.force:
-            ColorPrint.yellow(f"[NativeLauncher] Instance already running at port {detection.existing_port}")
+            ColorPrint.print_warn(f"[NativeLauncher] Instance already running at port {detection.existing_port}")
             return
 
     # Check if became primary
     if not detection.is_primary:
-        ColorPrint.red("[NativeLauncher] No available ports in range")
+        ColorPrint.print_error("[NativeLauncher] No available ports in range")
         return
 
     if config.debug:
-        ColorPrint.blue(f"[NativeLauncher] Phase 5: Became primary instance on port {detection.port}")
+        ColorPrint.print_info(f"[NativeLauncher] Phase 5: Became primary instance on port {detection.port}")
 
     # ========== Phase 6: Launch with startup window ==========
     from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
@@ -155,13 +155,13 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
         if not timer_mgr.is_running():
             timer_mgr.start()
             if config.debug:
-                ColorPrint.blue("[NativeLauncher] Phase 4.5: Timer manager started (singleton)")
+                ColorPrint.print_info("[NativeLauncher] Phase 4.5: Timer manager started (singleton)")
         else:
             if config.debug:
-                ColorPrint.yellow("[NativeLauncher] Phase 4.5: Timer manager already running")
+                ColorPrint.print_warn("[NativeLauncher] Phase 4.5: Timer manager already running")
 
     except Exception as e:
-        ColorPrint.red(f"[NativeLauncher] Phase 4.5: Failed to start timer manager: {e}")
+        ColorPrint.print_error(f"[NativeLauncher] Phase 4.5: Failed to start timer manager: {e}")
 
 
 def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: CallbackManager) -> None:
@@ -178,7 +178,7 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         )
 
         if config.debug:
-            ColorPrint.blue("[NativeLauncher] Phase 7: Creating PySide6 UI...")
+            ColorPrint.print_info("[NativeLauncher] Phase 7: Creating PySide6 UI...")
 
         # Convert tray menu items
         pyside6_tray_items = []
@@ -217,14 +217,14 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         framework = PySide6Framework(ui_config)
 
         if config.debug:
-            ColorPrint.green("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")
+            ColorPrint.print_success("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")
 
         framework.start()  # Blocks until window closes
 
     except ImportError:
-        ColorPrint.yellow("[NativeLauncher] PySide6 not available, skipping UI creation")
+        ColorPrint.print_warn("[NativeLauncher] PySide6 not available, skipping UI creation")
     except Exception as e:
-        ColorPrint.red(f"[NativeLauncher] Failed to create PySide6 UI: {e}")
+        ColorPrint.print_error(f"[NativeLauncher] Failed to create PySide6 UI: {e}")
         import traceback
         traceback.print_exc()
 

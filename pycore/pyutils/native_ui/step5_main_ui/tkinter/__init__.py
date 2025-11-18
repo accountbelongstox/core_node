@@ -33,8 +33,8 @@ Usage:
     )
 """
 
-from pycore.pyutils.native_ui.tkinter.theme_system import ThemeSystem
-from pycore.pyutils.native_ui.tkinter.styled_widgets import StyledWidgets
+from pycore.pyutils.native_ui.step5_main_ui.tkinter.theme_system import ThemeSystem
+from pycore.pyutils.native_ui.step5_main_ui.tkinter.styled_widgets import StyledWidgets
 
 __all__ = [
     'ThemeSystem',

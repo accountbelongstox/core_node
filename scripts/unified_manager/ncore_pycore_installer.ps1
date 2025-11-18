@@ -52,8 +52,6 @@ if ($AppType -eq "pycoreApp") {
 
 Write-Host "Checking for build_config.ini..." -ForegroundColor Gray
 try {
-    # Skip pycore dependency check to avoid polluting output
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
     $configExistsOutput = python -m pycore.pyutils.build_config_parser "$appDir" "exists" 2>$null
     $configExists = ($configExistsOutput -eq "true")
 
@@ -410,7 +408,6 @@ powershell.exe -ExecutionPolicy Bypass -File "$PSCommandPath" -AppName "$AppName
         Write-Host "[DEBUG] Command: python $($pythonArgs -join ' ')" -ForegroundColor DarkGray
 
         # Execute Python shortcut manager from root directory
-        $env:PYCORE_SKIP_DEP_CHECK = '1'
         Push-Location $RootDir
         $result = & python $pythonArgs 2>&1 | Out-String
         Pop-Location

@@ -61,8 +61,8 @@ from pycore.pyutils.pybrowser.main import (
     get_session,
     close_session,
     shutdown,
-    __version__,
-    __name__
+    __version__
+    # __name__ removed - conflicts with Python builtin
 )
 
 __all__ = [

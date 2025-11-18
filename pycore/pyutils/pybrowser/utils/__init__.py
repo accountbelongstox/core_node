@@ -6,9 +6,12 @@ Utils Package
 Exports all utility classes
 """
 
-from pycore.pyutils.pybrowser.utils.page_utils import PageUtils
+from pycore.pyutils.pybrowser.utils.page_utils import PageUtils, PageWrapper
 from pycore.pyutils.pybrowser.utils.browser_utils import BrowserUtils
 from pycore.pyutils.pybrowser.utils.cache_manager import CacheManager
+from pycore.pyutils.pybrowser.utils.image_utils import ImageUtils
+from pycore.pyutils.pybrowser.utils.tab_utils import TabUtils, BLANK_TAB_URLS
+from pycore.pyutils.pybrowser.utils.file_utils import FileUtils
 from pycore.pyutils.pybrowser.utils.base.base_utils import BaseUtils
 from pycore.pyutils.pybrowser.utils.extraction.data_extraction_utils import DataExtractionUtils
 from pycore.pyutils.pybrowser.utils.finder.element_finder_utils import ElementFinderUtils
@@ -28,8 +31,13 @@ from pycore.pyutils.pybrowser.utils.logger import Logger, Validator, RetryHandle
 
 __all__ = [
     'PageUtils',
+    'PageWrapper',
     'BrowserUtils',
     'CacheManager',
+    'ImageUtils',
+    'TabUtils',
+    'BLANK_TAB_URLS',
+    'FileUtils',
     'BaseUtils',
     'DataExtractionUtils',
     'ElementFinderUtils',

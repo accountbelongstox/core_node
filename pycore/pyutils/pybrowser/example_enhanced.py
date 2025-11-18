@@ -17,7 +17,13 @@ from pycore.pyutils.pybrowser import (
     Logger,
     Validator,
     RetryHandler,
-    PerformanceMonitor
+    PerformanceMonitor,
+    IframeRecursiveCrawler,
+    BrowserControlUtils,
+    PageOperationUtils,
+    ResourceInterceptor,
+    DomResourceMapper,
+    EnhancedResourceCollector
 )
 
 
@@ -82,8 +88,6 @@ async def example_iframe_recursive_crawler():
     page = await session.new_page()
     await page.goto('https://example.com')
 
-    from pycore.pyutils.pybrowser import IframeRecursiveCrawler
-
     crawler = IframeRecursiveCrawler(page, {
         'maxDepth': 2,
         'delay': 1000,
@@ -123,8 +127,6 @@ async def example_validator():
     """Example: Using Validator utility"""
     print('\n=== Example 5: Validator ===')
 
-    from pycore.pyutils.pybrowser import Validator
-
     print(f"Is string: {Validator.is_string('hello')}")
     print(f"Is number: {Validator.is_number(42)}")
     print(f"Is URL: {Validator.is_url('https://example.com')}")
@@ -150,8 +152,6 @@ async def example_retry_handler():
     """Example: Using RetryHandler utility"""
     print('\n=== Example 6: RetryHandler ===')
 
-    from pycore.pyutils.pybrowser import RetryHandler
-
     retry_handler = RetryHandler({
         'maxAttempts': 3,
         'delay': 1000,
@@ -170,11 +170,8 @@ async def example_retry_handler():
             raise Exception('Timeout error')
         return 'Success!'
 
-    try:
-        result = await retry_handler.execute(flaky_operation)
-        print(f"Operation result: {result}")
-    except Exception as error:
-        print(f"Operation failed after retries: {error}")
+    result = await retry_handler.execute(flaky_operation)
+    print(f"Operation result: {result}")
 
 
 async def example_performance_monitor():
@@ -216,8 +213,6 @@ async def example_browser_control_utils():
     page = await session.new_page()
     await page.goto('https://example.com')
 
-    from pycore.pyutils.pybrowser import BrowserControlUtils
-
     control_utils = BrowserControlUtils()
 
     await control_utils.set_viewport(page, {'width': 1920, 'height': 1080})
@@ -246,15 +241,10 @@ async def example_page_operation_utils():
     page = await session.new_page()
     await page.goto('https://example.com')
 
-    from pycore.pyutils.pybrowser import PageOperationUtils
-
     ops = PageOperationUtils()
 
-    try:
-        await ops.safe_click(page, 'a', {'timeout': 5000})
-        print('Clicked link safely')
-    except Exception as error:
-        print(f'Click failed: {error}')
+    await ops.safe_click(page, 'a', {'timeout': 5000})
+    print('Clicked link safely')
 
     await session.close()
 
@@ -270,12 +260,6 @@ async def example_resource_collection():
     })
 
     page = await session.new_page()
-
-    from pycore.pyutils.pybrowser import (
-        ResourceInterceptor,
-        DomResourceMapper,
-        EnhancedResourceCollector
-    )
 
     interceptor = ResourceInterceptor(page, {
         'resourceTypes': ['image', 'stylesheet', 'font'],
@@ -313,19 +297,13 @@ async def main():
     print('PyBrowser Enhanced Features Examples')
     print('=' * 60)
 
-    try:
-        await example_logger()
-        await example_validator()
-        await example_retry_handler()
-        await example_performance_monitor()
+    await example_logger()
+    await example_validator()
+    await example_retry_handler()
+    await example_performance_monitor()
 
-    except Exception as error:
-        print(f'Error running examples: {error}')
-        import traceback
-        traceback.print_exc()
-    finally:
-        await shutdown()
-        print('\n=== Examples completed ===')
+    await shutdown()
+    print('\n=== Examples completed ===')
 
 
 if __name__ == '__main__':

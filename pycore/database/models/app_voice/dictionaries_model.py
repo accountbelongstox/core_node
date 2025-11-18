@@ -48,6 +48,7 @@ class VoiceDictionariesModel(BaseModel):
     __table_key__ = TableKeys.VOICE_DICTIONARIES
     __namespace__ = "app_voice"
     __table_name__ = "dictionaries"
+    __full_table_name__ = "app_voice_dictionaries"
     __schema_version__ = 1
 
     @classmethod

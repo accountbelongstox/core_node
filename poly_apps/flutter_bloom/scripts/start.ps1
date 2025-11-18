@@ -22,6 +22,9 @@ $FLUTTER_BLOOM_ROOT = Split-Path -Parent $SCRIPT_DIR
 $BUILD_SCRIPTS_DIR = Join-Path $SCRIPT_DIR "build_scripts"
 $WIN_COMMON_DIR = Join-Path $SCRIPT_DIR "win_common"
 $MAIN_PY = Join-Path $BUILD_SCRIPTS_DIR "main.py"
+$DESIGN_TOOL_DIR = Join-Path $SCRIPT_DIR "flutter_dev_tools"
+$DESIGN_TOOL_PY = Join-Path $DESIGN_TOOL_DIR "design_doc_tool.py"
+$TEMP_BAT_DIR = Join-Path $env:TEMP "flutter_bloom_launcher"
 
 # Save current directory and switch to Flutter Bloom root
 $ORIGINAL_DIR = Get-Location
@@ -46,6 +49,69 @@ if (-not (Test-Path $bcommonPath)) { Write-Host "[ERROR] Missing: $bcommonPath" 
 . $commonUtilPath
 . $logManagerPath
 . $bcommonPath  # For other common functions
+
+# Function: Launch Design Documentation Tool
+function Invoke-DesignTool {
+    Write-Host ""
+    Write-Host "[INFO] Launching Design Documentation Tool..." -ForegroundColor Green
+
+    # Get design tool state
+    $designToolState = Get-FileVariable -Name "DESIGN_TOOL_STATE_ACTION" -DefaultValue "Launch"
+    Write-Host "[INFO] Action: $designToolState" -ForegroundColor Cyan
+
+    # Validate design tool exists
+    if (-not (Test-Path $DESIGN_TOOL_PY)) {
+        Write-Host "[ERROR] Design tool not found: $DESIGN_TOOL_PY" -ForegroundColor Red
+        return
+    }
+
+    # Ensure temp directory exists
+    if (-not (Test-Path $TEMP_BAT_DIR)) {
+        New-Item -Path $TEMP_BAT_DIR -ItemType Directory -Force | Out-Null
+    }
+
+    # Use fixed bat file name (overwrites previous)
+    $batFile = Join-Path $TEMP_BAT_DIR "design_tool.bat"
+
+    # Create bat file content
+    $batContent = @"
+@echo off
+title Flutter Design Documentation Tool [$designToolState]
+echo ========================================
+echo Flutter Design Documentation Tool
+echo Action: $designToolState
+echo ========================================
+echo.
+echo Starting web server on http://127.0.0.1:5757
+echo.
+echo Press Ctrl+C to stop the server
+echo ========================================
+echo.
+
+cd /d "$DESIGN_TOOL_DIR"
+python "$DESIGN_TOOL_PY"
+
+pause
+"@
+
+    # Write bat file
+    $batContent | Out-File -FilePath $batFile -Encoding ASCII -Force
+
+    Write-Host "[INFO] Generated launcher: $batFile" -ForegroundColor Yellow
+    Write-Host "[INFO] Opening design tool..." -ForegroundColor Yellow
+
+    # Launch bat file in new window
+    Start-Process -FilePath $batFile
+
+    # Wait a moment then open browser
+    Start-Sleep -Seconds 2
+    Start-Process "http://127.0.0.1:5757"
+
+    Write-Host "[SUCCESS] Design tool launched successfully" -ForegroundColor Green
+    Write-Host "[INFO] Server URL: http://127.0.0.1:5757" -ForegroundColor Cyan
+    Write-Host "[INFO] The design tool is running in a separate window" -ForegroundColor Cyan
+    Write-Host ""
+}
 
 try {
     Write-Host "Flutter Bloom Launcher" -ForegroundColor Cyan
@@ -103,6 +169,10 @@ try {
         elseif ($selectedAction.ToLower() -eq "build" -or $selectedAction.ToLower() -eq "release") {
             Write-Host "[DEBUG] Calling Invoke-BuildMode" -ForegroundColor Magenta
             Invoke-BuildMode
+        }
+        elseif ($selectedAction.ToLower() -eq "design_tool") {
+            Write-Host "[DEBUG] Calling Invoke-DesignTool" -ForegroundColor Magenta
+            Invoke-DesignTool
         }
         else {
             Write-ErrorMsg "[ERROR] Unknown action: $selectedAction"

@@ -9,6 +9,7 @@ Basic utility functions
 import hashlib
 import uuid
 from typing import Any
+from urllib.parse import urlparse
 
 
 class BaseUtils:
@@ -48,9 +49,5 @@ class BaseUtils:
         Returns:
             True if valid
         """
-        from urllib.parse import urlparse
-        try:
-            result = urlparse(url)
-            return all([result.scheme, result.netloc])
-        except Exception:
-            return False
+        result = urlparse(url)
+        return bool(result.scheme and result.netloc)

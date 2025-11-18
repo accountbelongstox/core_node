@@ -14,9 +14,9 @@ Features:
 
 from pycore.pyutils.rpc.config.constants import RPC_CONSTANTS
 from pycore.pyutils.rpc.config.rpc_config import RPCConfig, get_rpc_config
-from pycore.pyutils.rpc.common.event_cache import EventCache, default_event_cache
-from pycore.pyutils.rpc.common.request_manager import RequestManager, default_request_manager
-from pycore.pyutils.rpc.server.unified_server import UnifiedRpcServer
+
+# Server implementation (Unified RPC with WebSocket and CORS support)
+from pycore.pyutils.rpc.server.unified_server import UnifiedRpcServer, UnifiedRpcServerRunner
 
 # Discovery components
 from pycore.pyutils.rpc.discovery.network_scanner import NetworkScanner, NetworkHost
@@ -34,22 +34,22 @@ from pycore.pyutils.rpc.protocol.rpc_protocol import (
 # Address provider
 from pycore.pyutils.rpc.address.address_provider import RPCAddressProvider, RPCAddress
 
-__version__ = '2.0.0'
+__version__ = '3.2.0'  # Removed ThreadedRpcServer, WebSocket-only
 __all__ = [
     'RPC_CONSTANTS',
     'RPCConfig',
     'get_rpc_config',
-    'EventCache',
-    'default_event_cache',
-    'RequestManager',
-    'default_request_manager',
+    # Server implementation (Unified with WebSocket + CORS)
     'UnifiedRpcServer',
+    'UnifiedRpcServerRunner',
+    # Discovery
     'NetworkScanner',
     'NetworkHost',
     'RPCDiscovery',
     'DiscoveredRPCService',
     'get_local_lan_ip',
     'confirm_local_lan_ip',
+    # Protocol
     'RPCProtocolServer',
     'RPCProtocolClient',
     'RPCServiceInfo',

@@ -9,6 +9,9 @@ Each browser instance is a self-contained thread that manages its own WebDriver.
 from typing import Dict, Any, Optional
 from pycore import ColorPrint
 from pycore.pyutils.pybrowser.core.threaded_browser import ThreadedBrowser
+from pycore.pyutils.pybrowser.implementations.browsers.chrome_browser import ChromeBrowser
+from pycore.pyutils.pybrowser.implementations.browsers.edge_browser import EdgeBrowser
+from pycore.pyutils.pybrowser.implementations.browsers.firefox_browser import FirefoxBrowser
 
 
 class BrowserFactory:
@@ -90,15 +93,12 @@ class BrowserFactory:
         browser = None
 
         if browser_type_lower == 'chrome':
-            from pycore.pyutils.pybrowser.implementations.browsers.chrome_browser import ChromeBrowser
             browser = ChromeBrowser(config=config, thread_name=thread_name)
 
         elif browser_type_lower == 'edge':
-            from pycore.pyutils.pybrowser.implementations.browsers.edge_browser import EdgeBrowser
             browser = EdgeBrowser(config=config, thread_name=thread_name)
 
         elif browser_type_lower == 'firefox':
-            from pycore.pyutils.pybrowser.implementations.browsers.firefox_browser import FirefoxBrowser
             browser = FirefoxBrowser(config=config, thread_name=thread_name)
 
         else:

@@ -1,0 +1,5 @@
+ D:\programing\core_node\pycore\pyutils\common\provider_status.py 其中不要使用线程锁，一个procider是否可用，从第
+  三包中引入成功即可，之后  由 D:\programing\core_node\pycore\pyutils\azure_speech 和D:
+  \programing\core_node\pycore\pyutils\edge_tts 提供空闲状态，如果正在处理一个任务 ，就是非空闲。  注意  D:
+  \programing\core_node\pycore\pyutils\azure_speech 和D:\programing\core_node\pycore\pyutils\speech_recognition
+  是同一个，合面扫描 合并为同一个，并删 掉多余的， D:\programing\core_node\pycore

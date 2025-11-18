@@ -18,7 +18,7 @@ class IPlugin:
         self.is_initialized = False
         self.session = None
 
-    async def initialize(self, session: Any):
+    def initialize(self, session: Any):
         """
         Initialize plugin with session
 
@@ -27,7 +27,7 @@ class IPlugin:
         """
         raise NotImplementedError('IPlugin.initialize() must be implemented by subclass')
 
-    async def cleanup(self):
+    def cleanup(self):
         """Cleanup plugin resources"""
         raise NotImplementedError('IPlugin.cleanup() must be implemented by subclass')
 

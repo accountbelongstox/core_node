@@ -22,13 +22,9 @@ class NavigationUtils:
         Args:
             page: Page instance
         """
-        try:
-            page.driver.back()
-            await asyncio.sleep(0.5)
-            ColorPrint.debug('Navigated back')
-        except Exception as error:
-            ColorPrint.red(f'Failed to navigate back: {error}')
-            raise
+        page.driver.back()
+        await asyncio.sleep(0.5)
+        ColorPrint.debug('Navigated back')
 
     @staticmethod
     async def go_forward(page: Any):
@@ -38,13 +34,9 @@ class NavigationUtils:
         Args:
             page: Page instance
         """
-        try:
-            page.driver.forward()
-            await asyncio.sleep(0.5)
-            ColorPrint.debug('Navigated forward')
-        except Exception as error:
-            ColorPrint.red(f'Failed to navigate forward: {error}')
-            raise
+        page.driver.forward()
+        await asyncio.sleep(0.5)
+        ColorPrint.debug('Navigated forward')
 
     @staticmethod
     async def refresh(page: Any):
@@ -54,10 +46,6 @@ class NavigationUtils:
         Args:
             page: Page instance
         """
-        try:
-            page.driver.refresh()
-            await asyncio.sleep(0.5)
-            ColorPrint.debug('Page refreshed')
-        except Exception as error:
-            ColorPrint.red(f'Failed to refresh page: {error}')
-            raise
+        page.driver.refresh()
+        await asyncio.sleep(0.5)
+        ColorPrint.debug('Page refreshed')

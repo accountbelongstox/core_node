@@ -12,14 +12,13 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PyPDF2, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
+from pycore.pyfoundations.third_party import get_third_package_pypdf, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
 
-PyPDF2 = get_third_package_PyPDF2()
+pypdf = get_third_package_pypdf()
 pdfplumber = get_third_package_pdfplumber()
 python_docx = get_third_package_python_docx()
 openpyxl = get_third_package_openpyxl()
 python_pptx = get_third_package_python_pptx()
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PYTOOLS_TMP_DIR
 
 logger = logging.getLogger(__name__)
@@ -69,11 +68,11 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
                 document_path, extract_images
             )
         else:
-            ColorPrint.red(f"[ERROR] Unsupported document type: {file_ext}")
+            logger.error("[ERROR] Unsupported document type: %s", file_ext)
             return {
                 "file_type": "unknown",
                 "file_path": document_path,
-                "error": f"Unsupported document type: {file_ext}"
+                "error": "Unsupported document type: %s" % file_ext
             }
 
         # Add processing stats
@@ -146,7 +145,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
                     if page_tables:
                         processing_methods.append("table_extraction")
 
-        # Extract metadata using PyPDF2
+        # Extract metadata using pypdf
         metadata = await self._extract_pdf_metadata(pdf_path)
 
         # Extract images if requested
@@ -186,7 +185,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
             "processing_methods_applied": processing_methods,
             "processing_engine_versions": {
                 "pdf_parser": "pdfplumber",
-                "pdf_metadata": "PyPDF2"
+                "pdf_metadata": "pypdf"
             },
             "errors_and_warnings": []
         }
@@ -413,7 +412,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         }
 
     async def _extract_pdf_metadata(self, pdf_path: str) -> Dict[str, Any]:
-        """Extract PDF metadata using PyPDF2"""
+        """Extract PDF metadata using pypdf"""
         metadata = {
             "title": "",
             "author": "",
@@ -427,7 +426,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         }
 
         with open(pdf_path, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
+            pdf_reader = pypdf.PdfReader(file)
             if pdf_reader.metadata:
                 metadata["title"] = pdf_reader.metadata.get('/Title', '') or ''
                 metadata["author"] = pdf_reader.metadata.get('/Author', '') or ''
@@ -447,7 +446,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         images = []
         # Image extraction from PDF requires additional libraries like pdf2image
         # For now, return empty list
-        ColorPrint.yellow("[WARNING] PDF image extraction not fully implemented")
+        logger.warning("[WARNING] PDF image extraction not fully implemented")
         return images
 
     async def _extract_pdf_hyperlinks(self, pdf_path: str) -> List[Dict[str, Any]]:
@@ -455,7 +454,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         hyperlinks = []
         # Hyperlink extraction requires deeper PDF parsing
         # For now, return empty list
-        ColorPrint.yellow("[WARNING] PDF hyperlink extraction not fully implemented")
+        logger.warning("[WARNING] PDF hyperlink extraction not fully implemented")
         return hyperlinks
 
     async def _extract_docx_metadata(self, doc) -> Dict[str, Any]:
@@ -481,7 +480,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         images = []
         # Image extraction from DOCX requires parsing relationships
         # For now, return empty list
-        ColorPrint.yellow("[WARNING] DOCX image extraction not fully implemented")
+        logger.warning("[WARNING] DOCX image extraction not fully implemented")
         return images
 
     async def _calculate_file_hash_sha256(self, file_path: str) -> str:

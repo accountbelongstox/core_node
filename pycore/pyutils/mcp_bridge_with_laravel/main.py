@@ -36,9 +36,10 @@ import mimetypes
 import threading
 
 # FastMCP framework
-from pycore.pyfoundations.third_party import get_third_package_FastMCP
+from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_pypdf
 
 FastMCP = get_third_package_FastMCP()
+pypdf_lib = get_third_package_pypdf()
 
 # Import OCR engines and queue system
 try:
@@ -81,7 +82,7 @@ class PackageManager:
     """Smart package installation manager with non-blocking initialization"""
 
     PACKAGE_MAPPING = {
-        'pdf': ['PyPDF2', 'pdfplumber', 'pytesseract'],
+        'pdf': ['pypdf', 'pdfplumber', 'pytesseract'],
         'xmind': ['xmindparser'],
         'office': ['python-docx', 'openpyxl', 'python-pptx'],
         'ocr': ['pytesseract', 'Pillow', 'requests'],
@@ -538,7 +539,8 @@ class DocumentParser:
             if not PackageManager.ensure_packages('pdf'):
                 raise ImportError("PDF parsing packages not available")
 
-            import PyPDF2
+            if pypdf_lib is None:
+                raise ImportError("pypdf not available")
             import pdfplumber
 
             result = {
@@ -553,9 +555,9 @@ class DocumentParser:
                 }
             }
 
-            # Extract text with PyPDF2
+            # Extract text with pypdf
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = pypdf_lib.PdfReader(file)
                 result["metadata"] = {
                     "num_pages": len(pdf_reader.pages),
                     "title": pdf_reader.metadata.get('/Title', '') if pdf_reader.metadata else '',
