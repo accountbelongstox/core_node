@@ -113,7 +113,7 @@ fi
 #     - Command: {bash_command}
 #     - File Number: {file_number}
 #     - File Name: {file_name}
-#     - Generation Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
