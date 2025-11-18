@@ -1,24 +1,31 @@
 # PyCore Updates
 
-## 2025-11-19: RPC v2 同步调用支持方案 📋 设计完成
+## 2025-11-19: RPC v2 同步调用支持 ✅ 实施完成
 
-**完成**: 全面分析 RPC v2 架构，设计路由级别同步调用支持方案。
+**完成**: 全面扩展 RPC v2 架构，实施路由级别同步调用支持。
 
 **问题诊断**:
 - 所有 RPC 响应强制添加 `requires_ack: true`
 - 客户端等待 1.5秒 + 重试3次（每次0.5秒）= 总耗时~3秒
 - MCP 工具期望 < 1秒响应，导致超时
 
-**解决方案** (路由标记模式):
-- 注册时标记同步路由: `server.route('backend_info', handler, sync=True)`
-- 同步路由立即返回结果（无 `requires_ack`），响应 < 100ms
-- 异步路由保持 ACK 机制（耗时操作如文件处理）
+**核心实现** (方案 A - 路由标记):
+- 新增 `RouteConfig` 类型存储路由元数据（sync, is_coroutine, description）
+- RoutesManager 支持 `register_route(name, handler, sync=True)`
+- FastAPIRPCServer 检测 `is_sync_route()` 并 await 处理立即返回
+- 响应标记 `sync_response: true`（无 `requires_ack`）
 
-**核心组件扫描**:
-- RequestEventTable: 事件状态机 (PENDING → PROCESSING → COMPLETED → ACK_PENDING)
-- ClientRegistry: WebSocket 客户端连接管理 + 待发消息队列
-- FastAPIAckManager: WebSocket 重试机制（3次 × 3秒间隔）+ Inventory 存储
-- RequestProcessor: 支持同步/异步 handler
+**代码修改**:
+- `common/typing.py`: 添加 `RouteConfig` dataclass
+- `server/routes_manager.py`: 路由配置存储 + `is_sync_route()` 方法
+- `server/fastapi_server.py`: HTTP 处理逻辑分支（sync vs async）
+- `scripts/test_rpc_v2_sync_mode.py`: 测试脚本验证性能
+
+**性能提升**:
+- 同步路由: < 100ms ✅ (立即返回)
+- 异步路由: ~3秒（保持 ACK 机制）
+
+**向后兼容**: 默认 `sync=False`，现有路由保持异步行为。
 
 **文档**: `pycore/pyutils/rpc_v2/SYNC_MODE_IMPLEMENTATION.md`
 
