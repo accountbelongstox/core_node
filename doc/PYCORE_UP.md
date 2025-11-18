@@ -1,20 +1,44 @@
 # PyCore Updates
 
-## 2025-11-19: 通用线程管理架构设计
+## 2025-11-19: Flutter 设计文档三层体系 ✅ 完成
 
-**目标**: 设计可扩展的线程管理系统，让launcher.py可灵活添加新服务（rpc_v2等）。
+**完成**: 建立三层设计文档结构（概念图→粗页面图→细页面图），实现自动扩展。
 
-**核心设计**:
-- 线程注册表（THREAD_REGISTRY）：声明式配置所有可启动服务
-- 关闭优先级：RPC/网络(50) → 处理服务(60) → 心跳(100)
-- 默认启动：pyheartbeat默认启动，其他需配置
-- 通用ThreadManager：统一管理线程生命周期
+**核心内容**:
+- 第一层：概念图（1_concept_designs/）- 架构、流程、数据模型
+- 第二层：粗页面图（2_page_designs_cn/）- 中文页面设计
+- 第三层：细页面图（3_page_designs_en/）- 英文页面名 + pageview_map.json
 
-**实现计划**:
-1. 创建ThreadManager类和THREAD_REGISTRY
-2. 在ServiceConfig添加enable_rpc_v2等扩展字段
-3. 更新launcher.py使用通用机制
-4. THREAD_BUS添加优先级关闭
+**自动扩展**: 启动 design_doc_tool 时自动创建缺失结构，跳过已存在文件。
+
+**文档**: `doc/DESIGN_DOCS_STRUCTURE.md` + `utils/design_structure_auto_expand.py`
+
+---
+
+## 2025-11-19: MCP Backend RPC化 ✅ 完成
+
+**完成**: MCP后端从FastAPI迁移到UnifiedRpcServer，集成launcher.py线程管理。
+
+**核心改进**:
+- mcp_backend.py 使用 UnifiedRpcServer (HTTP + WebSocket)
+- 通过 launcher.py 启动，集成单例检测和线程池管理
+- RPC路由: `/rpc/get_file_info`, `/rpc/backend_info`
+- 关闭优先级: RPC(50) 与其他RPC服务同级
+
+**架构统一**: 所有后端服务使用统一RPC架构，无需独立HTTP服务器。
+
+---
+
+## 2025-11-19: 通用线程管理架构 ✅ 实现完成
+
+**完成**: 扩展 GlobalThreadPool 实现优先级关闭，launcher.py 集成线程池管理。
+
+**核心改进**:
+- thread_pool.py 添加 THREAD_REGISTRY + shutdown_by_priority()
+- launcher.py 所有服务注册到线程池，按优先级关闭
+- 关闭顺序：RPC(50) → Speech(60) → Heartbeat(100)
+
+**扩展性**: 添加新服务只需在 THREAD_REGISTRY 声明 + 注册到线程池。
 
 **文档**: `pycore/pylauncher/THREAD_MANAGEMENT_DESIGN.md`
 
