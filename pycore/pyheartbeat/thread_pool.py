@@ -19,6 +19,44 @@ THREAD_POOL_THREADS_KEY = 'heartbeat.thread_pool.threads'
 THREAD_POOL_TASK_HANDLERS_KEY = 'heartbeat.thread_pool.task_type_handlers'
 
 
+# ============================================================
+# Service Registry - Declarative Thread Configuration
+# ============================================================
+
+THREAD_REGISTRY = {
+    "heartbeat": {
+        "description": "Heartbeat system for task scheduling",
+        "default_enabled": True,
+        "shutdown_priority": 100,  # Shutdown last
+    },
+    "rpc": {
+        "description": "HTTP/WebSocket RPC server (legacy)",
+        "default_enabled": False,
+        "shutdown_priority": 50,  # Shutdown first
+    },
+    "rpc_v2": {
+        "description": "Unified RPC server v2",
+        "default_enabled": False,
+        "shutdown_priority": 50,
+    },
+    "speech": {
+        "description": "Speech transcription service",
+        "default_enabled": False,
+        "shutdown_priority": 60,
+    },
+    "tts_switch": {
+        "description": "TTS provider switching service",
+        "default_enabled": False,
+        "shutdown_priority": 60,
+    },
+    "stt_switch": {
+        "description": "STT provider switching service",
+        "default_enabled": False,
+        "shutdown_priority": 60,
+    },
+}
+
+
 class ThreadStatus(Enum):
     """Thread status states"""
     STARTING = "starting"
@@ -38,6 +76,7 @@ class ThreadInfo:
     started_at: float = field(default_factory=time.time)
     last_heartbeat: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    shutdown_priority: int = 50  # Lower priority shuts down first
 
     def update_heartbeat(self):
         """Update last heartbeat timestamp"""
@@ -77,7 +116,8 @@ class ThreadInfo:
             'uptime': self.get_uptime(),
             'heartbeat_age': self.get_heartbeat_age(),
             'alive': self.is_alive(),
-            'metadata': self.metadata
+            'metadata': self.metadata,
+            'shutdown_priority': self.shutdown_priority
         }
 
 
@@ -126,7 +166,8 @@ class GlobalThreadPool:
         name: str,
         instance: threading.Thread,
         task_handlers: Dict[str, Callable[[Task], bool]],
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        shutdown_priority: Optional[int] = None
     ) -> bool:
         """
         Register thread with task type handlers
@@ -137,6 +178,8 @@ class GlobalThreadPool:
             task_handlers: Dict mapping task_type to accept_task function
                           Example: {'tts': accept_tts_task, 'audio': accept_audio_task}
             metadata: Additional metadata
+            shutdown_priority: Shutdown priority (lower = shutdown first)
+                              If None, tries to get from THREAD_REGISTRY
 
         Returns:
             True if registered successfully
@@ -155,7 +198,8 @@ class GlobalThreadPool:
                     'tts': accept_tts_task,
                     'audio': accept_audio_task
                 },
-                metadata={'max_queue_size': 10}
+                metadata={'max_queue_size': 10},
+                shutdown_priority=60
             )
         """
         with self._threads_lock:
@@ -167,12 +211,18 @@ class GlobalThreadPool:
                 ColorPrint.red(f"[ThreadPool] Thread '{name}' has no task handlers")
                 return False
 
+            # Get shutdown priority from registry or parameter
+            if shutdown_priority is None:
+                registry_entry = THREAD_REGISTRY.get(name, {})
+                shutdown_priority = registry_entry.get('shutdown_priority', 50)
+
             thread_info = ThreadInfo(
                 name=name,
                 instance=instance,
                 task_handlers=task_handlers,
                 thread_id=instance.ident,
-                metadata=metadata or {}
+                metadata=metadata or {},
+                shutdown_priority=shutdown_priority
             )
 
             self._threads[name] = thread_info
@@ -361,6 +411,81 @@ class GlobalThreadPool:
                 }
             }
 
+    def get_shutdown_order(self) -> List[tuple]:
+        """
+        Get threads in shutdown order (by priority, lower first)
+
+        Returns:
+            List of (thread_name, thread_info, priority) tuples sorted by priority
+        """
+        with self._threads_lock:
+            threads_with_priority = [
+                (name, info, info.shutdown_priority)
+                for name, info in self._threads.items()
+            ]
+            # Sort by priority (lower priority shuts down first)
+            threads_with_priority.sort(key=lambda x: x[2])
+            return threads_with_priority
+
+    def shutdown_by_priority(
+        self,
+        shutdown_callback: Optional[Callable[[str, Any], None]] = None,
+        timeout_per_thread: float = 5.0
+    ) -> Dict[str, bool]:
+        """
+        Shutdown all threads in priority order
+
+        Args:
+            shutdown_callback: Optional callback(thread_name, thread_instance) to shutdown thread
+                              If None, will call thread.stop() if available
+            timeout_per_thread: Max wait time per thread (seconds)
+
+        Returns:
+            Dictionary mapping thread_name to success status
+        """
+        shutdown_order = self.get_shutdown_order()
+        results = {}
+
+        ColorPrint.blue("[ThreadPool] Starting prioritized shutdown...")
+        ColorPrint.blue(f"[ThreadPool] Shutdown order: {[name for name, _, _ in shutdown_order]}")
+
+        for thread_name, thread_info, priority in shutdown_order:
+            ColorPrint.yellow(f"[ThreadPool] Shutting down '{thread_name}' (priority: {priority})...")
+
+            try:
+                # Call custom shutdown callback if provided
+                if shutdown_callback:
+                    shutdown_callback(thread_name, thread_info.instance)
+                # Otherwise try to call stop() method if available
+                elif hasattr(thread_info.instance, 'stop'):
+                    thread_info.instance.stop()
+                else:
+                    ColorPrint.yellow(f"[ThreadPool] No shutdown method for '{thread_name}'")
+
+                # Wait for thread to finish with timeout
+                if thread_info.instance.is_alive():
+                    thread_info.instance.join(timeout=timeout_per_thread)
+
+                    if thread_info.instance.is_alive():
+                        ColorPrint.red(f"[ThreadPool] Thread '{thread_name}' did not stop within timeout")
+                        results[thread_name] = False
+                    else:
+                        ColorPrint.green(f"[ThreadPool] Thread '{thread_name}' stopped successfully")
+                        results[thread_name] = True
+                else:
+                    ColorPrint.green(f"[ThreadPool] Thread '{thread_name}' already stopped")
+                    results[thread_name] = True
+
+                # Unregister thread
+                self.unregister_thread(thread_name)
+
+            except Exception as e:
+                ColorPrint.red(f"[ThreadPool] Error shutting down '{thread_name}': {e}")
+                results[thread_name] = False
+
+        ColorPrint.green("[ThreadPool] Prioritized shutdown complete")
+        return results
+
 
 _global_thread_pool: Optional[GlobalThreadPool] = None
 _pool_lock = threading.Lock()
@@ -409,5 +534,6 @@ __all__ = [
     'get_global_thread_pool',
     'get_thread_pool_from_encyclopedia',
     'THREAD_POOL_THREADS_KEY',
-    'THREAD_POOL_TASK_HANDLERS_KEY'
+    'THREAD_POOL_TASK_HANDLERS_KEY',
+    'THREAD_REGISTRY'
 ]
