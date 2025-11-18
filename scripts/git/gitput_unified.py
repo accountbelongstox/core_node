@@ -37,7 +37,6 @@ from gitput_unified_modules.utils import (
     get_core_node_dir,
     get_default_remote,
     ensure_ssh_permissions,
-    ensure_git_identity,
 )
 from gitput_unified_modules.git_operations import (
     run_git_command,
@@ -116,6 +115,8 @@ def invoke_safe_git_pull(target_url: str) -> bool:
     
     write_color_text("Starting SAFE GIT PULL operations for: " + target_url, "Cyan")
     write_color_text(f"Project: {PROJECT_NAME}", "Green")
+    from datetime import datetime
+    write_color_text(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "Green")
     
     core_node_dir = get_core_node_dir()
     original_working_dir = Path.cwd()
@@ -142,6 +143,7 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         
         # Step 1: Ensure local changes are committed
         write_color_text("Step 1: Checking for uncommitted changes...", "Cyan")
+        run_git_command("git status --porcelain", capture_output=False)
         if has_uncommitted_changes():
             write_color_text("Found uncommitted changes. Saving local work...", "Yellow")
             stage_all_changes()
@@ -157,18 +159,24 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         
         # Step 3: Check if branch exists on remote
         write_color_text("Step 3: Checking if branch exists on remote...", "Cyan")
+        write_color_text(f"Executing: git branch -r | Select-String -Pattern 'origin/{current_branch}'", "DarkGray")
         if not branch_exists_remote(current_branch):
             write_color_text(f"Branch '{current_branch}' does not exist. Creating '{current_branch}' branch...", "Red")
             if not branch_exists_locally(current_branch):
+                write_color_text(f"Executing: git checkout -b {current_branch}", "DarkGray")
                 create_branch(current_branch)
             else:
+                write_color_text(f"Executing: git checkout {current_branch}", "DarkGray")
                 checkout_branch(current_branch)
+            write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
             push_branch(current_branch, set_upstream=True)
+            write_color_text(f"Executing: git branch --set-upstream-to=origin/{current_branch} {current_branch}", "DarkGray")
             run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
             return True
         
         # Step 4: Safe pull with merge
         write_color_text("Step 4: Performing safe pull...", "Cyan")
+        write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH} --no-edit", "DarkGray")
         success, output = pull_branch(DEFAULT_BRANCH, no_edit=True)
         
         if success:
@@ -203,6 +211,8 @@ def invoke_git_operations(target_url: str) -> bool:
     write_color_text("----------------------------------------------------------------", "DarkYellow")
     write_color_text("Starting git operations for: " + target_url, "Cyan")
     write_color_text(f"Project: {PROJECT_NAME}", "Green")
+    from datetime import datetime
+    write_color_text(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "Green")
     write_color_text("--------------------------------", "Green")
     
     core_node_dir = get_core_node_dir()
@@ -211,12 +221,6 @@ def invoke_git_operations(target_url: str) -> bool:
     try:
         os.chdir(core_node_dir)
         write_color_text(f"Changed to: {core_node_dir}", "DarkCyan")
-        
-        # Ensure SSH permissions are correct (Linux/macOS only)
-        ensure_ssh_permissions()
-        
-        # Ensure git identity is configured
-        ensure_git_identity()
         
         # Store original branch and remote for restoration
         original_branch = get_current_branch()
@@ -256,8 +260,11 @@ def invoke_git_operations(target_url: str) -> bool:
                 create_branch(current_branch)
             else:
                 checkout_branch(current_branch)
+            write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
             push_branch(current_branch, set_upstream=True)
+            write_color_text(f"Executing: git branch --set-upstream-to=origin/{current_branch} {current_branch}", "DarkGray")
             run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
+            write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH}", "DarkGray")
             run_git_command(f"git pull origin {DEFAULT_BRANCH}")
             return True
         
@@ -275,11 +282,13 @@ def invoke_git_operations(target_url: str) -> bool:
         # Commit changes BEFORE pulling
         commit_message = get_commit_message()
         write_color_text(f"Committing changes with message: {commit_message}", "Cyan")
+        write_color_text(f'Executing: git commit -m "{commit_message}"', "DarkGray")
         commit_changes(commit_message)
         
         # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
         if not pull_completed:
             write_color_text("Pulling and merging remote changes after commit...", "Cyan")
+            write_color_text(f"Executing: git pull origin {current_branch} --no-edit", "DarkGray")
             success, output = pull_branch(current_branch, no_edit=True)
             if not success:
                 show_conflict_resolution_options()
@@ -294,6 +303,7 @@ def invoke_git_operations(target_url: str) -> bool:
         
         # Push changes to remote
         write_color_text("Pushing changes to remote...", "Cyan")
+        write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
         push_branch(current_branch, set_upstream=True)
         write_color_text("----------------------------------------------------------------", "DarkBlue")
         
@@ -330,6 +340,7 @@ def main():
     
     default_remote = get_default_remote(PROJECT_NAME)
     write_color_text(f"Default remote: {default_remote}", "DarkCyan")
+    write_color_text(f"Current branch: {get_current_branch()}", "DarkGray")
     
     try:
         # Create backup if enabled

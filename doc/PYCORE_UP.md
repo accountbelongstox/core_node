@@ -1,22 +1,27 @@
 # PyCore Updates
 
-## 2025-11-19: Flutter 设计文档三层体系 + 智能占位图 ✅ 完成
+## 2025-11-19: Flutter Design Docs System (3-Layer + Smart Examples) ✅ COMPLETED
 
-**完成**: 建立三层设计文档结构 + 智能图片占位图管理。
+**Completed**: Three-layer design docs structure + smart example image management + English codebase.
 
-**三层结构**:
-- 第一层：概念图（1_concept_designs/）- 架构、流程、数据模型
-- 第二层：粗页面图（2_page_designs_cn/）- 中文页面设计
-- 第三层：细页面图（3_page_designs_en/）- 英文页面名 + pageview_map.json
+**Three-Layer Structure** (by precision, not language):
+- Layer 1: Concept Designs (`1_concept_designs/`) - High-level architecture, flows, data models
+- Layer 2: Rough Page Designs (`2_page_designs_rough/`) - Page wireframes and layouts
+- Layer 3: Detailed Page Designs (`3_page_designs_detailed/`) - Detailed specs + pageview_map.json
 
-**智能占位图**:
-- 目录为空时自动生成 `_placeholder.png` 提醒放置设计图
-- 有实际图片时自动删除占位图（保留注释说明）
-- 实际图片删除后重新生成占位图
+**Smart Example Images** (context-aware naming):
+- Empty dir → Generate example image (e.g., `example_architecture.png`, `example_home_wireframe.png`)
+- Has actual images → Auto-remove all example images
+- Images removed → Regenerate example image
 
-**自动扩展**: 启动 design_doc_tool 时自动创建缺失结构和占位图。
+**Deprecated File Cleanup**:
+- Auto-remove old directories: `2_page_designs_cn`, `3_page_designs_en`
+- Auto-remove old fixed placeholder: `_placeholder.png`
+- Auto-remove Chinese example files: `示例_*.md`
 
-**文档**: `doc/DESIGN_DOCS_STRUCTURE.md` + `doc/DESIGN_IMAGES_PLACEMENT.md`
+**Auto-Expansion**: Runs on design_doc_tool startup, creates missing structure + examples.
+
+**Docs**: `doc/DESIGN_DOCS_STRUCTURE.md` + `doc/DESIGN_IMAGES_PLACEMENT.md`
 
 ---
 

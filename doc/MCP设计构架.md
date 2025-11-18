@@ -71,3 +71,5 @@ New MCP Server 虽然目前显示，但 实际上AI调用不了 测试当前可�
 No MCP resources available
 当前未检测到可用的 MCP 服务或资源。可能原因:
 1.未配置 MCP 服务器，查看旧的代码，以及代理层是否遵守了fastmcp2的规范，文档 pyapps\mcp\fastmcp2_doc
+
+ backend_id。 这个不需要 传递，是后端返回给前端的，。用于判断后端是否是单例，明白吗？重新设计，全面分析。

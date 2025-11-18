@@ -19,6 +19,7 @@ import sys
 import logging
 import asyncio
 import time
+import platform
 from pathlib import Path
 from typing import Optional, Dict, Any
 import requests
@@ -174,6 +175,33 @@ def start_mcp_proxy():
     # Create FastMCP server
     mcp = FastMCP("MCP Proxy", version="1.0.0")
 
+    # Register local test tool (no backend needed - for comparison)
+    @mcp.tool()
+    async def mcp_proxy_ping_tool(message: str = "hello") -> dict:
+        """
+        Test tool that runs locally in the proxy (no backend needed).
+
+        Use this to verify MCP server is working correctly.
+
+        Args:
+            message: Test message to echo back (default: "hello")
+
+        Returns:
+            Echo response with proxy info
+        """
+        return {
+            "success": True,
+            "mode": "local",
+            "backend_required": False,
+            "message": f"Proxy echo: {message}",
+            "proxy_info": {
+                "backend_id": backend_id,
+                "backend_url": BACKEND_URL,
+                "platform": platform.system(),
+                "python_version": platform.python_version()
+            }
+        }
+
     # Register tools (transparent to AI)
     @mcp.tool()
     async def get_file_info_with_ocr_and_document_parsing_tool(
@@ -216,7 +244,9 @@ def start_mcp_proxy():
             extract_hyperlinks=extract_hyperlinks
         )
 
-    logger.info("[Proxy] MCP tools registered (1 tool)")
+    logger.info("[Proxy] MCP tools registered (2 tools)")
+    logger.info("[Proxy]   - mcp_proxy_ping_tool (local, no backend)")
+    logger.info("[Proxy]   - get_file_info_with_ocr_and_document_parsing_tool (via RPC)")
     logger.info("[Proxy] Running proxy server...")
 
     # Run proxy

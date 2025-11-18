@@ -12,10 +12,20 @@ Placeholder Image Generator - 占位图生成器
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-# 占位图文件名
-PLACEHOLDER_FILENAME = "_placeholder.png"
+# Example image names by layer (not fixed "_placeholder.png")
+EXAMPLE_IMAGE_NAMES = {
+    "1_concept_designs": "example_architecture.png",
+    "2_page_designs_rough": "example_home_wireframe.png",
+    "3_page_designs_detailed": "example_mockup.png",
+    "home_page": "example_home_mockup.png",
+    "profile_page": "example_profile_mockup.png",
+    "settings_page": "example_settings_mockup.png",
+}
 
-# 支持的图片格式
+# Default example image name
+DEFAULT_EXAMPLE_NAME = "example_design.png"
+
+# Supported image formats
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.svg', '.gif', '.webp'}
 
 
@@ -127,15 +137,38 @@ def generate_placeholder(
         return False
 
 
-def get_actual_images(images_dir: Path) -> List[Path]:
+def get_example_image_name(directory_label: str) -> str:
     """
-    获取目录中的实际图片（排除占位图）
+    Get example image name based on directory context
 
     Args:
-        images_dir: 图片目录
+        directory_label: Directory label (e.g., "1_concept_designs/images")
 
     Returns:
-        实际图片文件列表
+        Example image filename
+    """
+    # Extract layer or page name from label
+    for key in EXAMPLE_IMAGE_NAMES:
+        if key in directory_label:
+            return EXAMPLE_IMAGE_NAMES[key]
+
+    return DEFAULT_EXAMPLE_NAME
+
+
+def is_example_image(filename: str) -> bool:
+    """Check if filename is an example/placeholder image"""
+    return filename.startswith("example_") and filename.endswith((".png", ".jpg", ".jpeg"))
+
+
+def get_actual_images(images_dir: Path) -> List[Path]:
+    """
+    Get actual images in directory (excluding example placeholders)
+
+    Args:
+        images_dir: Images directory
+
+    Returns:
+        List of actual image files
     """
     if not images_dir.exists():
         return []
@@ -144,74 +177,83 @@ def get_actual_images(images_dir: Path) -> List[Path]:
     for file_path in images_dir.iterdir():
         if (file_path.is_file()
             and file_path.suffix.lower() in IMAGE_EXTENSIONS
-            and file_path.name != PLACEHOLDER_FILENAME):
+            and not is_example_image(file_path.name)):
             actual_images.append(file_path)
 
     return actual_images
 
 
-def has_placeholder(images_dir: Path) -> bool:
-    """检查是否存在占位图"""
-    placeholder = images_dir / PLACEHOLDER_FILENAME
-    return placeholder.exists()
+def get_example_images(images_dir: Path) -> List[Path]:
+    """Get all example placeholder images in directory"""
+    if not images_dir.exists():
+        return []
+
+    return [
+        f for f in images_dir.iterdir()
+        if f.is_file() and is_example_image(f.name)
+    ]
 
 
-def remove_placeholder(images_dir: Path) -> bool:
+def remove_example_images(images_dir: Path) -> int:
     """
-    删除占位图
+    Remove all example placeholder images
 
     Args:
-        images_dir: 图片目录
+        images_dir: Images directory
 
     Returns:
-        True if removed
+        Number of images removed
     """
-    placeholder = images_dir / PLACEHOLDER_FILENAME
-    if placeholder.exists():
+    example_images = get_example_images(images_dir)
+    removed_count = 0
+
+    for img_path in example_images:
         try:
-            placeholder.unlink()
-            print(f"[PlaceholderCleanup] Removed: {placeholder}")
-            return True
+            img_path.unlink()
+            print(f"[PlaceholderCleanup] Removed: {img_path}")
+            removed_count += 1
         except Exception as e:
-            print(f"[PlaceholderCleanup] Error removing placeholder: {e}")
-            return False
-    return False
+            print(f"[PlaceholderCleanup] Error removing {img_path}: {e}")
+
+    return removed_count
 
 
 def manage_placeholder(images_dir: Path, directory_label: str = "") -> bool:
     """
-    管理占位图：生成或清理
+    Manage placeholder images: generate or cleanup
 
-    逻辑：
-    - 如果目录为空或只有占位图 -> 生成占位图
-    - 如果有实际图片 -> 删除占位图
+    Logic:
+    - If directory is empty or only has examples -> Generate example image
+    - If has actual images -> Remove example images
 
     Args:
-        images_dir: 图片目录
-        directory_label: 目录标签（用于占位图显示）
+        images_dir: Images directory
+        directory_label: Directory label (for placeholder display)
 
     Returns:
         True if action was taken
     """
-    # 确保目录存在
+    # Ensure directory exists
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    # 获取实际图片
+    # Get actual images
     actual_images = get_actual_images(images_dir)
-    placeholder = images_dir / PLACEHOLDER_FILENAME
+
+    # Get example image name based on directory context
+    example_name = get_example_image_name(directory_label)
+    example_path = images_dir / example_name
 
     if len(actual_images) == 0:
-        # 无实际图片，确保占位图存在
-        if not placeholder.exists():
+        # No actual images, ensure example exists
+        if not example_path.exists():
             label = directory_label or images_dir.name
-            return generate_placeholder(placeholder, label)
-        return False  # 占位图已存在，无需操作
+            return generate_placeholder(example_path, label)
+        return False  # Example already exists
 
     else:
-        # 有实际图片，删除占位图
-        if placeholder.exists():
-            return remove_placeholder(images_dir)
-        return False  # 占位图不存在，无需操作
+        # Has actual images, remove all example images
+        removed = remove_example_images(images_dir)
+        return removed > 0
 
 
 def ensure_images_readme(images_dir: Path, layer_name: str = "") -> bool:
@@ -235,11 +277,11 @@ def ensure_images_readme(images_dir: Path, layer_name: str = "") -> bool:
 
 本目录用于存放设计图片。
 
-## 占位图机制
+## Example Image Mechanism
 
-- **文件名**: `{PLACEHOLDER_FILENAME}`
-- **说明**: 当目录为空时自动生成，提醒开发者放置实际设计图
-- **清理**: 当有实际图片时会自动删除
+- **Filename**: Example images (e.g., `example_architecture.png`, `example_mockup.png`)
+- **Purpose**: Auto-generated when directory is empty to remind developers to add actual designs
+- **Cleanup**: Auto-removed when actual images are added
 
 ## 建议放置的图片
 
@@ -299,30 +341,31 @@ def ensure_images_readme(images_dir: Path, layer_name: str = "") -> bool:
 
 def get_markdown_placeholder_comment(layer_name: str = "") -> str:
     """
-    获取 Markdown 中的占位图注释模板
+    Get Markdown placeholder comment template
 
     Args:
-        layer_name: 层级名称
+        layer_name: Layer name
 
     Returns:
-        注释文本
+        Comment text
     """
     if "concept" in layer_name.lower():
-        suggested_images = """     - architecture.png: 架构图
-     - user_flow.png: 用户流程图
-     - data_model.png: 数据模型图"""
-    elif "page_designs_cn" in layer_name.lower():
-        suggested_images = """     - 页面名_v1.png: 页面设计图
-     - 页面名_v2.png: 迭代版本"""
+        suggested_images = """     - architecture.png: Architecture diagram
+     - user_flow.png: User flow diagram
+     - data_model.png: Data model diagram"""
+    elif "rough" in layer_name.lower():
+        suggested_images = """     - page_name_v1.png: Page design v1
+     - page_name_v2.png: Page design v2 (iteration)"""
     else:
-        suggested_images = """     - wireframe.png: 线框图
-     - mockup.png: 高保真效果图
-     - components.png: 组件标注图"""
+        suggested_images = """     - wireframe.png: Wireframe
+     - mockup.png: High-fidelity mockup
+     - components.png: Component annotations"""
 
-    return f"""<!-- 设计图片目录：images/
-     占位图：{PLACEHOLDER_FILENAME}（当目录为空时自动生成，有实际图片时自动清理）
+    return f"""<!-- Design images directory: images/
+     Example images: Auto-generated when empty (e.g., example_architecture.png)
+     Auto-removed when actual images are added
 
-     建议放置的图片：
+     Suggested images:
 {suggested_images}
 -->"""
 

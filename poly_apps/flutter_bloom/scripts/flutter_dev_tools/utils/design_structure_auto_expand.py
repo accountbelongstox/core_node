@@ -5,8 +5,8 @@ Design Structure Auto Expand - 设计文档结构自动扩展
 
 自动创建和维护三层设计文档体系：
 1. 概念图层 (1_concept_designs/)
-2. 粗页面图层 (2_page_designs_cn/)
-3. 细页面图层 (3_page_designs_en/)
+2. 粗页面图层 (2_page_designs_rough/)
+3. 细页面图层 (3_page_designs_detailed/)
 
 功能：
 - 启动时检查并创建缺失的文件夹和文件
@@ -294,7 +294,7 @@ def get_file_template(filename: str, app_name: str) -> str:
 - {timestamp}: Initialized architecture design
 """,
 
-        "user_flows.md": f"""# 用户流程概念 - {app_name}
+        "user_flows.md": f"""# User flow concepts - {app_name}
 
 **创建时间**: {timestamp}
 
@@ -323,7 +323,7 @@ def get_file_template(filename: str, app_name: str) -> str:
 - {timestamp}: 初始化用户流程设计
 """,
 
-        "data_model.md": f"""# 数据模型概念 - {app_name}
+        "data_model.md": f"""# Data model concepts - {app_name}
 
 **创建时间**: {timestamp}
 
@@ -352,7 +352,7 @@ class User {{
 - {timestamp}: 初始化数据模型设计
 """,
 
-        "示例_首页设计.md": f"""# 首页设计
+        "example_home_page_rough.md": f"""# 首页设计
 
 **对应英文页面**: home_page
 **创建时间**: {timestamp}
@@ -383,7 +383,7 @@ class User {{
 **注意**: 这是示例文件，实际开发时可删除
 """,
 
-        "示例_个人中心设计.md": f"""# 个人中心设计
+        "example_profile_page_rough.md": f"""# 个人中心设计
 
 **对应英文页面**: profile_page
 **创建时间**: {timestamp}
@@ -452,7 +452,7 @@ def get_pageview_map_template(page_name: str, page_name_cn: str = "") -> Dict:
         "image_file": f"{page_name}_wireframe.png",
         "page_key": page_name,
         "descriptions": {
-            "purpose": f"{page_name} UI元素映射",
+            "purpose": f"{page_name} UI element mapping",
             "page_name_cn": page_name_cn or "待填写中文名称",
             "page_name_en": page_name,
             "specifications": {
@@ -569,6 +569,56 @@ def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict,
                 ensure_images_readme(images_dir, layer_name)
 
 
+def cleanup_deprecated_files(base_dir: Path) -> List[str]:
+    """
+    Remove deprecated files and directories
+
+    Args:
+        base_dir: Design docs base directory
+
+    Returns:
+        List of removed items
+    """
+    removed_items = []
+
+    # Deprecated directory names (old naming scheme)
+    deprecated_dirs = [
+        "2_page_designs_cn",  # Renamed to 2_page_designs_rough
+        "3_page_designs_en",  # Renamed to 3_page_designs_detailed
+    ]
+
+    # Deprecated file patterns
+    deprecated_file_patterns = [
+        "**/示例_*.md",  # Old Chinese example files
+        "**/_placeholder.png",  # Old fixed placeholder name
+    ]
+
+    # Remove deprecated directories
+    for dir_name in deprecated_dirs:
+        dir_path = base_dir / dir_name
+        if dir_path.exists() and dir_path.is_dir():
+            try:
+                import shutil
+                shutil.rmtree(dir_path)
+                removed_items.append(str(dir_path))
+                print(f"[Cleanup] Removed deprecated directory: {dir_path}")
+            except Exception as e:
+                print(f"[Cleanup] Error removing {dir_path}: {e}")
+
+    # Remove deprecated files
+    for pattern in deprecated_file_patterns:
+        for file_path in base_dir.glob(pattern):
+            if file_path.is_file():
+                try:
+                    file_path.unlink()
+                    removed_items.append(str(file_path))
+                    print(f"[Cleanup] Removed deprecated file: {file_path}")
+                except Exception as e:
+                    print(f"[Cleanup] Error removing {file_path}: {e}")
+
+    return removed_items
+
+
 def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> bool:
     """
     确保设计文档结构完整
@@ -589,8 +639,11 @@ def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> b
     if not base_dir.exists():
         print(f"[AutoExpand] Creating design_docs_and_progress for {app_name}...")
         base_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        # Cleanup deprecated files if directory exists
+        cleanup_deprecated_files(base_dir)
 
-    # 创建根目录 README
+    # Create root README
     root_readme = get_readme_template("root", app_name)
     ensure_file(base_dir / "README.md", root_readme)
 
