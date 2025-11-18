@@ -632,6 +632,7 @@ class ServiceInstances:
     speech_thread: Optional[Any] = None
     ui_launcher: Optional[NativeUILauncher] = None
     singleton_detector: Optional[SingletonDetector] = None
+    thread_pool: Optional[Any] = None  # GlobalThreadPool instance
 
 
 def launch_services(
@@ -659,6 +660,13 @@ def launch_services(
     instances = ServiceInstances()
 
     ColorPrint.green(f"=== Launching Services for {config.app_name} ===")
+
+    # ============================================================
+    # Step 0: Initialize Global Thread Pool
+    # ============================================================
+    from pycore.pyheartbeat.thread_pool import get_global_thread_pool
+    instances.thread_pool = get_global_thread_pool()
+    ColorPrint.blue("[Launcher] Global Thread Pool initialized")
 
     # ============================================================
     # Step 1: Singleton Detection (Main Thread Responsibility)
@@ -761,6 +769,16 @@ def launch_services(
         from pycore.pyheartbeat import initialize_heartbeat_system
         instances.heartbeat_system = initialize_heartbeat_system()
         instances.heartbeat_system.start()
+
+        # Register with thread pool (if heartbeat_system has a thread)
+        if hasattr(instances.heartbeat_system, 'thread') and instances.heartbeat_system.thread:
+            instances.thread_pool.register_thread(
+                name="heartbeat",
+                instance=instances.heartbeat_system.thread,
+                task_handlers={'heartbeat': lambda task: True},  # Placeholder handler
+                metadata={'service': 'heartbeat_system'}
+            )
+
         ColorPrint.green("[Launcher] Heartbeat System started")
 
     # Step 3: Start Unified Speech Switch (replaces TTS Switch + STT Switch)
@@ -802,6 +820,16 @@ def launch_services(
             debug=config.rpc_debug if hasattr(config, 'rpc_debug') else True
         )
         instances.rpc_server.start()
+
+        # Register with thread pool (if rpc_server has a thread)
+        if hasattr(instances.rpc_server, 'thread') and instances.rpc_server.thread:
+            instances.thread_pool.register_thread(
+                name="rpc",
+                instance=instances.rpc_server.thread,
+                task_handlers={'rpc': lambda task: True},  # Placeholder handler
+                metadata={'service': 'rpc_server', 'port': config.rpc_port}
+            )
+
         ColorPrint.green(f"[Launcher] RPC Server started on {config.rpc_host}:{config.rpc_port}")
         ColorPrint.blue(f"[Launcher] HTTP RPC: http://{config.rpc_host}:{config.rpc_port}/rpc/<route>")
         ColorPrint.blue(f"[Launcher] WebSocket RPC: ws://{config.rpc_host}:{config.rpc_port}/rpc/ws")
@@ -822,6 +850,16 @@ def launch_services(
             system_language=config.system_language,
             daemon=True
         )
+
+        # Register with thread pool
+        if instances.speech_thread:
+            instances.thread_pool.register_thread(
+                name="speech",
+                instance=instances.speech_thread,
+                task_handlers={'speech': lambda task: True},  # Placeholder handler
+                metadata={'service': 'speech', 'mode': config.speech_mode}
+            )
+
         ColorPrint.green(f"[Launcher] Speech Service started (mode: {config.speech_mode})")
 
     # Step 6: Start UI (if enabled)
@@ -870,31 +908,64 @@ def launch_services(
 
 def stop_services(instances: ServiceInstances):
     """
-    Stop all running services
+    Stop all running services using prioritized shutdown
 
     Args:
         instances: ServiceInstances to stop
     """
     ColorPrint.yellow("[Launcher] Stopping services...")
 
-    if instances.speech_thread and hasattr(instances.speech_thread, 'stop'):
-        instances.speech_thread.stop()
+    # Use thread pool's prioritized shutdown if available
+    if instances.thread_pool:
+        ColorPrint.blue("[Launcher] Using prioritized shutdown...")
 
-    if instances.rpc_server and hasattr(instances.rpc_server, 'stop'):
-        ColorPrint.blue("[Launcher] Stopping RPC Server...")
-        instances.rpc_server.stop()
+        # Define custom shutdown callback for services
+        def shutdown_service(thread_name: str, thread_instance: Any):
+            """Custom shutdown logic for each service"""
+            if thread_name == "rpc" and instances.rpc_server:
+                ColorPrint.blue("[Launcher] Stopping RPC Server...")
+                if hasattr(instances.rpc_server, 'stop'):
+                    instances.rpc_server.stop()
+            elif thread_name == "speech" and instances.speech_thread:
+                if hasattr(instances.speech_thread, 'stop'):
+                    instances.speech_thread.stop()
+            elif thread_name == "heartbeat" and instances.heartbeat_system:
+                if hasattr(instances.heartbeat_system, 'stop'):
+                    instances.heartbeat_system.stop()
+            else:
+                # Default: try to call stop() if available
+                if hasattr(thread_instance, 'stop'):
+                    thread_instance.stop()
 
-    if instances.stt_switch:
-        ColorPrint.blue("[Launcher] Stopping STT Switch...")
-        instances.stt_switch.stop()
+        # Shutdown all registered threads by priority
+        instances.thread_pool.shutdown_by_priority(
+            shutdown_callback=shutdown_service,
+            timeout_per_thread=5.0
+        )
 
-    if instances.tts_switch:
-        ColorPrint.blue("[Launcher] Stopping TTS Switch...")
-        instances.tts_switch.stop()
+    # Fallback: Manual shutdown for services not in thread pool
+    else:
+        ColorPrint.blue("[Launcher] Using manual shutdown...")
 
-    if instances.heartbeat_system:
-        instances.heartbeat_system.stop()
+        if instances.speech_thread and hasattr(instances.speech_thread, 'stop'):
+            instances.speech_thread.stop()
 
+        if instances.rpc_server and hasattr(instances.rpc_server, 'stop'):
+            ColorPrint.blue("[Launcher] Stopping RPC Server...")
+            instances.rpc_server.stop()
+
+        if instances.stt_switch:
+            ColorPrint.blue("[Launcher] Stopping STT Switch...")
+            instances.stt_switch.stop()
+
+        if instances.tts_switch:
+            ColorPrint.blue("[Launcher] Stopping TTS Switch...")
+            instances.tts_switch.stop()
+
+        if instances.heartbeat_system:
+            instances.heartbeat_system.stop()
+
+    # Always stop UI launcher and singleton detector separately
     if instances.ui_launcher:
         instances.ui_launcher.stop()
 

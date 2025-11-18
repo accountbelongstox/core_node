@@ -71,6 +71,7 @@
 ### LocalStorage Persistence
 - Remembers last selected app tab across refreshes
 - Saves file tree expanded/collapsed folder states per app
+- Default: All folders expanded on first visit, then uses cached state
 - Restores last viewed file when switching apps
 - Extensible storage manager for future state additions
 

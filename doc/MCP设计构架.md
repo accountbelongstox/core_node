@@ -55,3 +55,6 @@ ython pyapps/mcp/现在切换到 python pyapps/mcp/主入口方法上，启动�
   pycore\pyutils\rpc_v2 可以在 launcher.py 配置启动，但当如果使用参数 启动 rpc v2时，将在
   thread_bus.py的退出，重启动除中加入先关闭rpc ，先全面分析。同时做出一个通用性的扩展，这样可以一直扩展更多线程类，同时默认pyheartbeat是默认启动的，其他都需要配置，你可以要全面调整一下launcher.py和其他类的组合。这就是新的启动方式。
   同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+  现在使用这个方案，开始修改
+  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 

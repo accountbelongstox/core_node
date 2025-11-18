@@ -31,12 +31,41 @@ class TreeView {
       this.currentAppName = appName;
 
       // Restore expanded folders from localStorage
-      this.expandedFolders = storageManager.getExpandedFolders(appName);
+      const savedExpanded = storageManager.getExpandedFolders(appName);
+
+      if (savedExpanded.size === 0) {
+        // First time loading this app - expand all folders by default
+        this.expandedFolders = this.getAllFolderPaths(data);
+        // Save initial state
+        storageManager.setExpandedFolders(appName, this.expandedFolders);
+      } else {
+        // Use cached state
+        this.expandedFolders = savedExpanded;
+      }
 
       this.render();
     } catch (error) {
       this.showError(`Failed to load tree: ${error.message}`);
     }
+  }
+
+  /**
+   * Get all folder paths in tree (for default expand all)
+   */
+  getAllFolderPaths(node, paths = new Set()) {
+    if (!node) return paths;
+
+    if (node.type === 'folder' && node.path) {
+      paths.add(node.path);
+    }
+
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        this.getAllFolderPaths(child, paths);
+      }
+    }
+
+    return paths;
   }
 
   /**
