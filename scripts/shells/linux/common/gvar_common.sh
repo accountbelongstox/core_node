@@ -1062,7 +1062,7 @@ map_web_path() {
         "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"compile_dir")
             # Only auto-create if no sub_path is provided (these are the target installation paths)
             if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
-                echo "Creating directory: $mapped_path"
+                echo "Creating directory: $mapped_path" >&2
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
@@ -1076,7 +1076,7 @@ map_web_path() {
             # Callers should use ensure_web_directory() for sub-paths like "mysql", "code-server", etc.
             # Only create the base www directory itself if no sub_path
             if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
-                echo "Creating directory: $mapped_path"
+                echo "Creating directory: $mapped_path" >&2
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
@@ -1102,7 +1102,7 @@ ensure_web_directory() {
 
     # Create directory if it doesn't exist
     if [ ! -d "$actual_path" ]; then
-        echo "Creating directory: $actual_path (mapped from key: $path_key)"
+        echo "Creating directory: $actual_path (mapped from key: $path_key)" >&2
         $USE_SUDO mkdir -p "$actual_path"
     fi
 

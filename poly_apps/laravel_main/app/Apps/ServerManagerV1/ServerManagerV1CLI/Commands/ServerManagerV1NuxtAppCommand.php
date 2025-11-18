@@ -7,19 +7,24 @@ use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NuxtServiceMana
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
 use App\Providers\PathMapper;
+use App\Utils\SystemUtil;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
 class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 {
     protected $signature = 'servermanager:nuxt
-                            {action : Action to perform (add|remove|rebuild|restart|status|list)}
+                            {action : Action to perform (add|remove|rebuild|restart|status|list|fix|watch)}
                             {appname? : Nuxt app namespace (e.g., ittools, pymatrix)}
                             {--domain= : Domain name for nginx proxy}
                             {--port= : Port number (default: auto-assign)}
-                            {--ssl= : SSL mode (auto|true|false, default: auto)}';
+                            {--ssl= : SSL mode (auto|true|false, default: auto)}
+                            {--debug : Enable debug mode (runs from source instead of factory build)}
+                            {--follow : Follow logs in real-time (for watch action)}';
 
     protected $description = 'Manage Nuxt poly apps with build, service, and nginx integration';
+
+    private $debugMode = false;
 
     private $nuxtMainPath;
     private $factoryBasePath;
@@ -30,10 +35,8 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
     {
         parent::__construct();
 
-        // PathMapper::getCoreNodeDir() returns /www/programing (parent of core_node)
-        // We need to add /core_node to get to the actual core_node directory
-        $programmingPath = PathMapper::getCoreNodeDir();
-        $coreNodePath = "$programmingPath/core_node";
+        // PathMapper::getCoreNodeDir() returns /www/programing/core_node
+        $coreNodePath = PathMapper::getCoreNodeDir();
         $this->nuxtMainPath = "$coreNodePath/poly_apps/nuxt_main";
         $this->switchScript = "$this->nuxtMainPath/scripts/switch-app-entry-plus.js";
         $this->startScriptPs1 = "$this->nuxtMainPath/scripts/start.ps1";
@@ -46,6 +49,17 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
     {
         $this->initializeCommand();
 
+        // Enable debug mode if requested or auto-detect for WSL/desktop
+        $this->debugMode = $this->option('debug') || SystemUtil::isWslDesktopEnvironment();
+
+        if ($this->debugMode) {
+            $this->info("🔍 Debug mode enabled");
+            $this->debugInfo("Environment: " . (SystemUtil::isWslDesktopEnvironment() ? "WSL/Desktop" : "Production"));
+            $this->debugInfo("Working directory: " . getcwd());
+            $this->debugInfo("Nuxt main path: {$this->nuxtMainPath}");
+            $this->debugInfo("Factory base path: {$this->factoryBasePath}");
+        }
+
         $action = $this->argument('action');
         $appname = $this->argument('appname');
 
@@ -56,14 +70,43 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             'restart' => $this->restartPolyApp($appname),
             'status' => $this->showPolyAppStatus($appname),
             'list' => $this->listPolyApps(),
+            'fix' => $this->fixPolyApp($appname),
+            'watch' => $this->watchPolyApp($appname),
             default => $this->showHelp()
         };
+    }
+
+
+    /**
+     * Output debug information
+     */
+    private function debugInfo(string $message): void
+    {
+        if ($this->debugMode) {
+            $this->line("<fg=cyan>[DEBUG]</> $message");
+        }
     }
 
     private function addPolyApp(?string $appname): int
     {
         if (!$appname) {
+            $availableApps = $this->getAvailableApps();
+
             $this->error("App name is required for add action");
+            $this->line("");
+
+            if (!empty($availableApps)) {
+                $this->info("Available apps:");
+                foreach ($availableApps as $app) {
+                    $this->line("  - $app");
+                }
+                $this->line("");
+            }
+
+            $this->info("Usage examples:");
+            $this->line("  php artisan servermanager:nuxt add ittools");
+            $this->line("  php artisan servermanager:nuxt add pymatrix --domain=pymatrix.local");
+            $this->line("  php artisan servermanager:nuxt add ittools --port=10001 --domain=ittools.local");
             return 1;
         }
 
@@ -71,7 +114,15 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         $port = $this->option('port') ?: ServerManagerV1NuxtServiceManager::findAvailablePort();
         $sslMode = $this->option('ssl') ?: 'auto';
 
-        $this->info("Adding Nuxt PolyApp: $appname");
+        // Detect user for running Nuxt service
+        // In WSL/Desktop: uses non-root user for proper file permissions
+        // In production servers: uses root by default
+        $user = SystemUtil::detectUser($this->debugMode);
+        $this->debugInfo("Detected user: $user");
+        $this->debugInfo("Is WSL/Desktop: " . (SystemUtil::isWslDesktopEnvironment() ? 'Yes' : 'No'));
+
+        $mode = $this->debugMode ? 'Debug' : 'Production';
+        $this->info("Adding Nuxt PolyApp: $appname ($mode Mode)");
         $this->info("Domain: $domain, Port: $port");
 
         if ($this->checkIfPolyAppExists($appname)) {
@@ -80,15 +131,30 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             return 0;
         }
 
-        $steps = [
-            'Validating app namespace',
-            'Installing node_modules',
-            'Copying to factory directory',
-            'Building application',
-            'Creating systemd service',
-            'Configuring nginx proxy',
-            'Starting service'
-        ];
+        // Define steps based on mode
+        if ($this->debugMode) {
+            $steps = [
+                'Validating app namespace',
+                'Installing node_modules (source)',
+                'Preparing factory directory',
+                'Copying to factory directory',
+                'Ensuring permissions',
+                'Installing factory dependencies',
+                'Creating systemd service (debug mode)',
+                'Configuring nginx proxy',
+                'Starting service'
+            ];
+        } else {
+            $steps = [
+                'Validating app namespace',
+                'Installing node_modules',
+                'Copying to factory directory',
+                'Building application',
+                'Creating systemd service (production mode)',
+                'Configuring nginx proxy',
+                'Starting service'
+            ];
+        }
 
         $this->info("Starting deployment with " . count($steps) . " steps...");
 
@@ -96,16 +162,31 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             $stepNum = $index + 1;
             $this->info("[$stepNum/" . count($steps) . "] $step");
 
-            $result = match($stepNum) {
-                1 => $this->validateAppNamespace($appname),
-                2 => $this->installNodeModules(),
-                3 => $this->copyToFactory($appname),
-                4 => $this->buildApp($appname),
-                5 => $this->createService($appname, $port),
-                6 => $this->configureNginx($appname, $domain, $port, $sslMode),
-                7 => $this->startService($appname),
-                default => true
-            };
+            if ($this->debugMode) {
+                $result = match($stepNum) {
+                    1 => $this->validateAppNamespace($appname),
+                    2 => $this->installNodeModules(),
+                    3 => $this->prepareFactoryDirectory($appname),
+                    4 => $this->copyToFactory($appname),
+                    5 => $this->ensureFactoryPermissions($appname, $user),
+                    6 => $this->ensureFactoryDependencies($appname, $user),
+                    7 => $this->createService($appname, $port),
+                    8 => $this->configureNginx($appname, $domain, $port, $sslMode),
+                    9 => $this->startService($appname),
+                    default => true
+                };
+            } else{
+                $result = match($stepNum) {
+                    1 => $this->validateAppNamespace($appname),
+                    2 => $this->installNodeModules(),
+                    3 => $this->copyToFactory($appname),
+                    4 => $this->buildApp($appname),
+                    5 => $this->createService($appname, $port),
+                    6 => $this->configureNginx($appname, $domain, $port, $sslMode),
+                    7 => $this->startService($appname),
+                    default => true
+                };
+            }
 
             if (!$result) {
                 $this->error("Step failed: $step");
@@ -113,8 +194,12 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             }
         }
 
-        $this->info("Successfully deployed Nuxt PolyApp: $appname");
+        $this->info("Successfully deployed Nuxt PolyApp: $appname ($mode Mode)");
         $this->info("Access at: http" . ($sslMode !== 'false' ? 's' : '') . "://$domain");
+
+        if ($this->debugMode) {
+            $this->warn("⚠ Debug mode: Running directly from source. Changes will reload automatically.");
+        }
 
         return 0;
     }
@@ -173,6 +258,32 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         return true;
     }
 
+    private function getAvailableApps(): array
+    {
+        $appsDir = "$this->nuxtMainPath/apps";
+
+        if (!is_dir($appsDir)) {
+            return [];
+        }
+
+        $apps = [];
+        $dirs = scandir($appsDir);
+
+        foreach ($dirs as $dir) {
+            if ($dir === '.' || $dir === '..') {
+                continue;
+            }
+
+            $fullPath = "$appsDir/$dir";
+            if (is_dir($fullPath)) {
+                $appName = str_replace('app_', '', $dir);
+                $apps[] = $appName;
+            }
+        }
+
+        return $apps;
+    }
+
     private function detectPackageManager(): string
     {
         $checkPnpm = Process::run('which pnpm');
@@ -188,6 +299,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         return 'npm';
     }
 
+
     private function copyToFactory(string $appname): bool
     {
         $factoryPath = "$this->factoryBasePath/_app_$appname";
@@ -201,16 +313,32 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
         $this->comment("Copying workspace to factory: $factoryPath");
 
-        $nodeCmd = "node";
-        $switchCmd = "$nodeCmd $this->switchScript $appname --factory-root=$this->factoryBasePath --mode=build --no-watch --no-build";
+        $excludes = ['node_modules', '.nuxt', '.output', '.git', '.app-backups', 'dist'];
+        $excludeArgs = implode(' ', array_map(fn($e) => "--exclude='$e'", $excludes));
 
-        $result = Process::path($this->nuxtMainPath)
-            ->timeout(120)
-            ->run($switchCmd);
+        $rsyncCmd = "rsync -a $excludeArgs $this->nuxtMainPath/ $factoryPath/";
+
+        $result = Process::timeout(300)->run($rsyncCmd);
 
         if ($result->failed()) {
             $this->error("Failed to copy to factory");
             $this->error($result->errorOutput());
+            return false;
+        }
+
+        $switchScript = "$factoryPath/scripts/switch-app-entry.js";
+        if (!file_exists($switchScript)) {
+            $this->error("Switch script not found after copy: $switchScript");
+            return false;
+        }
+
+        $switchResult = Process::path($factoryPath)
+            ->timeout(30)
+            ->run("node scripts/switch-app-entry.js $appname");
+
+        if ($switchResult->failed()) {
+            $this->error("Failed to switch app entry");
+            $this->error($switchResult->errorOutput());
             return false;
         }
 
@@ -223,31 +351,186 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         return true;
     }
 
+    private function prepareFactoryDirectory(string $appname): bool
+    {
+        $factoryPath = "$this->factoryBasePath/_app_$appname";
+
+        // Create factory directory if it doesn't exist
+        if (!is_dir($factoryPath)) {
+            if (!mkdir($factoryPath, 0755, true)) {
+                $this->error("Failed to create factory directory");
+                return false;
+            }
+            $this->comment("✓ Factory directory created");
+        } else {
+            $this->comment("✓ Factory directory exists");
+        }
+
+        return true;
+    }
+
+    private function ensureFactoryPermissions(string $appname, string $user): bool
+    {
+        $factoryPath = "$this->factoryBasePath/_app_$appname";
+
+        $this->comment("Ensuring proper permissions for factory directory...");
+
+        // Fix ownership of factory directory
+        $chownResult = Process::run("chown -R $user:$user $factoryPath");
+        if ($chownResult->failed()) {
+            $this->warn("Failed to set ownership, may cause permission issues");
+            $this->debugInfo("chown error: " . $chownResult->errorOutput());
+        }
+
+        // Fix ownership of source node-compile-cache if it exists
+        $cacheDir = "$this->nuxtMainPath/node-compile-cache";
+        if (is_dir($cacheDir)) {
+            $cacheFix = Process::run("chown -R $user:$user $cacheDir");
+            if ($cacheFix->failed()) {
+                $this->warn("Failed to fix node-compile-cache permissions");
+            }
+        }
+
+        $this->comment("✓ Permissions configured");
+        return true;
+    }
+
+    private function ensureFactoryDependencies(string $appname, string $user): bool
+    {
+        $factoryPath = "$this->factoryBasePath/_app_$appname";
+        $nodeModulesPath = "$factoryPath/node_modules";
+
+        // Check if node_modules exists and is populated
+        if (is_dir($nodeModulesPath) && count(scandir($nodeModulesPath)) > 10) {
+            $this->comment("✓ Factory dependencies already installed");
+            return true;
+        }
+
+        $this->comment("Installing dependencies in factory (as $user)...");
+
+        $packageManager = $this->detectPackageManager();
+        $pmPath = match($packageManager) {
+            'pnpm' => '/usr/local/bin/pnpm',
+            'yarn' => 'yarn',
+            default => 'npm'
+        };
+
+        $installCmd = "cd $factoryPath && echo 'y' | sudo -u $user $pmPath install";
+
+        $this->debugInfo("Install command: $installCmd");
+        $installResult = Process::timeout(600)->run($installCmd);
+
+        if ($installResult->failed()) {
+            $this->error("Failed to install factory dependencies");
+            $this->error($installResult->errorOutput());
+            return false;
+        }
+
+        $this->comment("✓ Factory dependencies installed");
+        return true;
+    }
+
     private function buildApp(string $appname): bool
     {
         $factoryPath = "$this->factoryBasePath/_app_$appname";
+        $this->debugInfo("Factory path: $factoryPath");
+
+        $nodeModulesPath = "$factoryPath/node_modules";
+        if (!is_dir($nodeModulesPath) || count(scandir($nodeModulesPath)) <= 2) {
+            $this->comment("Installing dependencies in factory directory...");
+
+            $packageManager = $this->detectPackageManager();
+            $this->debugInfo("Package manager: $packageManager");
+
+            $installCmd = match($packageManager) {
+                'pnpm' => "cd $factoryPath && pnpm install",
+                'yarn' => "cd $factoryPath && yarn install",
+                default => "cd $factoryPath && npm install --legacy-peer-deps"
+            };
+
+            $this->debugInfo("Install command: $installCmd");
+            $installResult = Process::timeout(600)->run($installCmd);
+
+            if ($installResult->failed()) {
+                $this->error("Failed to install dependencies in factory");
+                $this->error($installResult->errorOutput());
+                if ($this->debugMode) {
+                    $this->debugInfo("Install output: " . $installResult->output());
+                }
+                return false;
+            }
+
+            $this->comment("✓ Dependencies installed in factory");
+        } else {
+            $this->comment("✓ node_modules already exist in factory");
+            $this->debugInfo("node_modules path: $nodeModulesPath");
+        }
 
         $this->comment("Building Nuxt app in factory...");
 
         $packageManager = $this->detectPackageManager();
+        $nodeOptions = "NODE_OPTIONS='--max-old-space-size=4096'";
         $buildCmd = match($packageManager) {
-            'pnpm' => "cd $factoryPath && pnpm build:$appname",
-            'yarn' => "cd $factoryPath && yarn build:$appname",
-            default => "cd $factoryPath && npm run build:$appname"
+            'pnpm' => "cd $factoryPath && $nodeOptions pnpm build:$appname",
+            'yarn' => "cd $factoryPath && $nodeOptions yarn build:$appname",
+            default => "cd $factoryPath && $nodeOptions npm run build:$appname"
         };
 
+        $this->debugInfo("Build command: $buildCmd");
         $result = Process::timeout(600)->run($buildCmd);
 
         if ($result->failed()) {
             $this->error("Build failed");
             $this->error($result->errorOutput());
+            if ($this->debugMode) {
+                $this->debugInfo("Build output: " . $result->output());
+            }
             return false;
+        }
+
+        if ($this->debugMode && $result->output()) {
+            $this->debugInfo("Build output preview: " . substr($result->output(), -500));
         }
 
         $outputPath = "$factoryPath/.output";
         if (!is_dir($outputPath)) {
             $this->error("Build output not found: $outputPath");
             return false;
+        }
+
+        $this->debugInfo("Output path: $outputPath");
+        $this->debugInfo("Output directory contents: " . implode(', ', scandir($outputPath)));
+
+        // Fix Nuxt static assets: Create symlink from server/chunks/public to public
+        $chunksDir = "$outputPath/server/chunks";
+        $publicSymlink = "$chunksDir/public";
+
+        $this->debugInfo("Checking public symlink: $publicSymlink");
+
+        if (!file_exists($publicSymlink)) {
+            $this->comment("Creating public assets symlink...");
+
+            // Ensure chunks directory exists
+            if (!is_dir($chunksDir)) {
+                $this->debugInfo("Creating chunks directory: $chunksDir");
+                mkdir($chunksDir, 0755, true);
+            }
+
+            // Create symlink: public -> ../../public
+            $symlinkCmd = "cd $chunksDir && ln -sf ../../public public";
+            $this->debugInfo("Symlink command: $symlinkCmd");
+
+            $symlinkResult = Process::run($symlinkCmd);
+
+            if ($symlinkResult->failed()) {
+                $this->warn("Failed to create public symlink (assets may not load correctly)");
+                $this->warn($symlinkResult->errorOutput());
+            } else {
+                $this->comment("✓ Public assets symlink created");
+                $this->debugInfo("Symlink created successfully");
+            }
+        } else {
+            $this->debugInfo("Public symlink already exists");
         }
 
         $this->comment("✓ App built successfully");
@@ -258,22 +541,37 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
     {
         $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
 
-        if (ServerManagerV1NuxtServiceManager::serviceExists($serviceName)) {
-            $this->comment("Service $serviceName already exists, recreating...");
-            ServerManagerV1NuxtServiceManager::removeService($serviceName);
-        }
+        // Use smart service creation with auto-resolution of duplicates and mode refresh
+        $result = ServerManagerV1NuxtServiceManager::createOrRefreshService(
+            $appname,
+            $port,
+            null,
+            $this->debugMode,
+            true // auto-resolve duplicates
+        );
 
-        if (!ServerManagerV1NuxtServiceManager::createServiceFile($appname, $port)) {
-            $this->error("Failed to create service file");
+        if (!$result['success']) {
+            $this->error("Failed to create/refresh service");
             return false;
         }
 
-        if (!ServerManagerV1NuxtServiceManager::enableService($serviceName)) {
-            $this->error("Failed to enable service");
-            return false;
+        // Report what happened
+        if (!empty($result['duplicates_removed'])) {
+            $this->warn("Removed duplicate services: " . implode(', ', $result['duplicates_removed']));
         }
 
-        $this->comment("✓ Service created: $serviceName");
+        if ($result['mode_changed']) {
+            $this->info("Service mode changed from " . ($this->debugMode ? 'production' : 'debug') . " to {$result['mode']}");
+        }
+
+        $actionText = match($result['action']) {
+            'created' => 'created',
+            'refreshed' => 'refreshed',
+            'refreshed_mode_change' => 'refreshed (mode changed)',
+            default => 'updated'
+        };
+
+        $this->comment("✓ Service {$actionText}: $serviceName ({$result['mode']} mode)");
         return true;
     }
 
@@ -395,7 +693,8 @@ NGINX;
     {
         $this->info("Fixing and resetting PolyApp: $appname");
 
-        $this->removeService("nuxt-$appname");
+        $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
+        ServerManagerV1NuxtServiceManager::removeService($serviceName);
 
         $factoryPath = "$this->factoryBasePath/_app_$appname";
         if (is_dir($factoryPath)) {
@@ -581,6 +880,130 @@ NGINX;
         }
     }
 
+        /**
+     * Fix service - detect and repair issues
+     */
+    private function fixPolyApp(string $appname): int
+    {
+        if (!$appname) {
+            $this->error("App name is required for fix action");
+            return 1;
+        }
+
+        $this->info("Fixing Nuxt PolyApp: $appname");
+
+        $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
+
+        // Step 1: Check if service exists
+        if (!ServerManagerV1NuxtServiceManager::serviceExists($serviceName)) {
+            $this->warn("Service $serviceName does not exist");
+            return 1;
+        }
+
+        // Step 2: Get current status
+        $status = ServerManagerV1NuxtServiceManager::getServiceStatus($serviceName);
+        $this->info("Current status: " . $status['status']);
+
+        // Step 3: Detect mode
+        $currentMode = ServerManagerV1NuxtServiceManager::detectServiceMode($serviceName);
+        $this->info("Current mode: " . ($currentMode ?? 'unknown'));
+
+        // Step 4: Get port
+        $port = ServerManagerV1NuxtServiceManager::findPortForApp($appname);
+        if (!$port) {
+            $this->warn("Port not found, using default 3000");
+            $port = 3000;
+        }
+
+        // Step 5: Refresh service with current mode
+        $this->info("Refreshing service configuration...");
+        $useDebugMode = ($currentMode === 'debug') || $this->debugMode;
+
+        if (ServerManagerV1NuxtServiceManager::refreshService($appname, $port, null, $useDebugMode)) {
+            $this->info("✓ Service configuration refreshed");
+
+            // Step 6: Check logs for errors
+            $this->info("Recent logs:");
+            $logs = ServerManagerV1NuxtServiceManager::getServiceLogs($serviceName, 20);
+            $this->line($logs);
+
+            return 0;
+        } else {
+            $this->error("Failed to refresh service");
+            return 1;
+        }
+    }
+
+    /**
+     * Watch service - monitor status and logs
+     */
+    private function watchPolyApp(string $appname): int
+    {
+        if (!$appname) {
+            $this->error("App name is required for watch action");
+            return 1;
+        }
+
+        $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
+
+        if (!ServerManagerV1NuxtServiceManager::serviceExists($serviceName)) {
+            $this->error("Service $serviceName does not exist");
+            return 1;
+        }
+
+        $this->info("Watching Nuxt PolyApp: $appname");
+        $this->info("Press Ctrl+C to exit");
+        $this->line("");
+
+        $follow = $this->option('follow');
+
+        if ($follow) {
+            // Follow logs in real-time
+            $this->info("Following logs...");
+            $cmd = "journalctl -u $serviceName -f --no-pager";
+            passthru($cmd);
+        } else {
+            // Show status loop
+            while (true) {
+                // Clear screen
+                $this->line("\033[2J\033[H");
+
+                $this->info("=== Nuxt PolyApp Status: $appname ===");
+                $this->line("Time: " . date('Y-m-d H:i:s'));
+                $this->line("");
+
+                // Service status
+                $status = ServerManagerV1NuxtServiceManager::getServiceStatus($serviceName);
+                $mode = ServerManagerV1NuxtServiceManager::detectServiceMode($serviceName);
+                $port = ServerManagerV1NuxtServiceManager::findPortForApp($appname);
+
+                $this->line("Service: $serviceName");
+                $this->line("Status: " . ($status['active'] ? '<fg=green>Active</>' : '<fg=red>Inactive</>'));
+                $this->line("Mode: " . ($mode ?? 'unknown'));
+                $this->line("Port: " . ($port ?? 'unknown'));
+                $this->line("");
+
+                // Test HTTP
+                if ($port) {
+                    $testResult = Process::run("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$port/ 2>/dev/null");
+                    $httpCode = trim($testResult->output());
+                    $httpStatus = $httpCode === '200' ? '<fg=green>OK</>' : '<fg=red>Error</>';
+                    $this->line("HTTP Test: $httpStatus (Code: $httpCode)");
+                    $this->line("");
+                }
+
+                // Recent logs
+                $this->info("Recent Logs:");
+                $logs = ServerManagerV1NuxtServiceManager::getServiceLogs($serviceName, 10);
+                $this->line($logs);
+
+                sleep(3);
+            }
+        }
+
+        return 0;
+    }
+
     private function showHelp(): int
     {
         $this->info("Nuxt PolyApp Management");
@@ -592,10 +1015,15 @@ NGINX;
         $this->line("  servermanager:nuxt restart <appname>");
         $this->line("  servermanager:nuxt status <appname>");
         $this->line("  servermanager:nuxt list");
+        $this->line("  servermanager:nuxt fix <appname>        - Detect and repair service issues");
+        $this->line("  servermanager:nuxt watch <appname>      - Monitor service status and logs");
+        $this->line("  servermanager:nuxt watch <appname> --follow - Follow logs in real-time");
         $this->line("");
         $this->line("Examples:");
         $this->line("  php artisan servermanager:nuxt add ittools --domain=tools.local");
         $this->line("  php artisan servermanager:nuxt rebuild pymatrix");
+        $this->line("  php artisan servermanager:nuxt fix ittools");
+        $this->line("  php artisan servermanager:nuxt watch ittools --follow");
         $this->line("  php artisan servermanager:nuxt list");
 
         return 0;
