@@ -89,6 +89,17 @@ function renderPanel() {
   if (fileViewer) {
     fileViewer.clear();
   }
+
+  // Update prompts panel with current app
+  if (promptsPanel) {
+    promptsPanel.updatePrompts(app.app);
+  }
+
+  // Update pageview updater with current app and render buttons
+  if (pageViewUpdater) {
+    pageViewUpdater.setCurrentApp(app.app);
+    pageViewUpdater.renderUpdateButtons(panelEl);
+  }
 }
 
 /**

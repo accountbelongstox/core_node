@@ -1,4 +1,21 @@
- 代码全英文，现在你根据文档，\poly_apps\flutter_bloom\scripts> .\start.ps1
+Design Files 目录树选中任何文件和目录时， 中间区都要实时显示当前选中路径 ，同样有打开explore basedir的功能。同时
+扩展一个外部目录 WINDOWS  pycore\pyfoundations\system_paths.py map_web_path "programing" _build_dir join "flutter_main/${appname}/对比图"，代码全英文。
+之后如果是图片，都会显示出来 而不是 ···⚠️ Binary file not supported for viewing···，同时在图片的右边，有一个上传图片对比，在下面，有一个list，其中显示历史对比图。
+当选中一张历史对比图，或上传一张图后，会在对比区生成一个合成的图。左边为设计图，右边为上传图（自动按比例让上传图和设计图高度一致，宽等比例，白色填充），之后合成图的上面留出空白，自动生成文字提示那边是预期图，那边是实测图。
+之后在提示词级中加入预置提示词，自动根据选中的合成图（有url下载地址），智能更新提示词的变量，表示让AI根据预期图和实测图调整，并指明图的那边是预期 图那边是合成图，以及图的下载地址等。
+合成图将使用${appname}_${pagename}_${说明}_时间戳生成。历史记录不清除。
+
+再次重构， pageview_map.json 只有一个，会映射所有 的页，而不是一个文件一个，这样不利于查找，其中有
+  一个color的比例 ，能让AI根据 这个分析出整个页的色调，当然这是由本工具在能够查找到
+  对应的图片时，扫描全图得到所有像素
+  颜色，然后计算出比例。显示为一个二维数组。注意，只保留比例最高的前10个颜色。防止数组过大。
+  同时，本工具会引用， pycore\pyutils\ocr 参考  development-guides\PYTHON_PYCORE.md
+  得到图上的ocr信息，要显示文字 和所在位置的信息。并放在 合适
+  的字段中，这些信息是本工具反复运行时，发现有图就立即更新，并更新字段。同时，在web端，也可以对每个
+  2_page_designs_rough 3_page_designs_detai.. 一键更新，同时对pageview_map.json
+  中无意义的字段去掉。同更更新文档 development-guides\FLUTTER_GUIDE.md 
+
+代码全英文，现在你根据文档，\poly_apps\flutter_bloom\scripts> .\start.ps1
   其中加入一个菜单，给每个app添加一个toggle  [Debug/Android/启动设计工具] 之后生成一个tmp
   bat其中调用python，并使用explore调用。
 

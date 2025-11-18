@@ -1,5 +1,115 @@
 # Flutter Development Updates
 
+## 2025-11-19 - PageView Map v2.0 with Auto Image Analysis
+
+### Major Refactoring: Single pageview_map.json
+- **Before**: One pageview_map.json per page directory (`3_page_designs_detailed/{page_name}/pageview_map.json`)
+- **After**: Single file at root (`design_docs_and_progress/pageview_map.json`) mapping ALL pages
+
+### Auto Image Analysis System
+- **Color Palette Extraction**: Top 10 colors with ratios `[["#FFFFFF", 0.35], ...]`
+- **OCR Text Recognition**: Automatic text extraction with positions `{"text": "Welcome", "position": [x,y,w,h], "confidence": 0.95}`
+- **Incremental Updates**: Only analyzes new/changed images, skips already-analyzed
+- **Orphan Cleanup**: Auto-removes entries for deleted images
+
+### Backend Implementation
+- **Image Analyzer**: `utils/image_analyzer.py` (PIL color analysis + pycore OCR integration)
+- **PageView Updater**: `utils/pageview_updater.py` (scan layers, update JSON, cleanup)
+- **API Endpoints**:
+  - `POST /api/apps/{app}/pageview/update` - Update with analysis (params: layer, force)
+  - `GET /api/apps/{app}/pageview/stats` - Get current statistics
+
+### Frontend UI Buttons
+- **Update All Layers**: Analyze all images in rough + detailed layers
+- **Update Rough Layer**: Only analyze 2_page_designs_rough images
+- **Update Detailed Layer**: Only analyze 3_page_designs_detailed images
+- **Force Re-analyze**: Re-process all images even if already analyzed
+- **Live Stats Display**: Shows pages/images count and analysis completion %
+
+### Template Files Now Empty
+- All auto-generated files (architecture.md, user_flows.md, etc.) created empty
+- No example content, developers fill with actual design info
+
+### Deprecated File Cleanup
+- Auto-removes old page-level `pageview_map.json` files from 3_page_designs_detailed subdirectories
+- Keeps only single root-level pageview_map.json
+
+**Files Created**:
+- `utils/image_analyzer.py` - Color + OCR analysis utility
+- `utils/pageview_updater.py` - PageView map update logic
+- `api/pageview_updater_api.py` - API endpoints
+- `static/js/pageview-updater.js` - Frontend component
+
+**Files Modified**:
+- `utils/design_structure_auto_expand.py` - Empty templates, root pageview_map.json
+- `main.py` - Added pageview update endpoints
+- `static/index.html` - Added pageview-updater.js
+- `static/js/app.js` - Initialize PageViewUpdater
+- `static/js/app-panel.js` - Render update buttons
+- `development-guides/FLUTTER_GUIDE.md` - Updated pageview_map.json v2.0 schema
+
+---
+
+## 2025-11-19 - Dynamic AI Prompts Panel
+
+### New Three-Column Layout
+- **Left**: File tree (design files browser)
+- **Middle**: File viewer (reserved for future use)
+- **Right**: Dynamic prompts panel (context-aware AI commands)
+
+### Dynamic Prompts System
+- Context-aware prompt generation based on currently selected app
+- Dynamic path replacement (paths update when switching apps)
+- One-click copy to clipboard with visual feedback
+- Expandable details sections for complex prompts
+- Extensible architecture (add new prompts by uncommenting or adding templates)
+
+### First Prompt: Pageview Migration
+- Scans `{app}/doc/pageviews/` directory for design images
+- Generates instructions to copy images to `3_page_designs_detailed/`
+- Updates `pageview_map.json` following FLUTTER_GUIDE.md specifications
+- All paths dynamically updated based on selected app tab
+
+### Technical Implementation
+- **Frontend**: `static/js/prompts-panel.js` (PromptsPanel class)
+- **Styles**: `static/css/prompts.css` (gradient headers, card design)
+- **Layout**: Updated `layout.css` for three-column responsive layout
+- **Integration**: `app.js` and `app-panel.js` updated to sync prompts on tab switch
+
+### Extensibility Features
+- 3+ commented prompt templates ready to uncomment
+- Template structure documented in code comments
+- Easy to add custom prompts following existing pattern
+- Prompt categories: Migration, Validation, Reporting, Structure
+
+**Files Modified**:
+- `static/index.html` - Added prompts panel HTML
+- `static/css/layout.css` - Three-column layout
+- `static/css/base.css` - Added CSS variables
+- `static/css/prompts.css` - New prompts styling
+- `static/js/prompts-panel.js` - New prompts logic
+- `static/js/app.js` - Integration
+- `static/js/app-panel.js` - Update prompts on tab switch
+
+---
+
+## 2025-11-19 - FLUTTER_GUIDE.md Documentation Sync
+
+### Design & Development Documentation Section Updated
+- Updated to reflect **three-layer design system** (not old concept_notes/wireframes structure)
+- Layer 1: `1_concept_designs/` - Architecture, flows, data models
+- Layer 2: `2_page_designs_rough/` - Page wireframes (rough designs)
+- Layer 3: `3_page_designs_detailed/` - Detailed specs with pageview_map.json
+- Added auto-expansion mechanism description
+- Added smart example images feature (context-aware placeholders)
+- Removed outdated references to old directory names and progress_logs structure
+- Added workflow: Layer 1 → Layer 2 → Layer 3 → Development
+- References: `doc/DESIGN_DOCS_STRUCTURE.md`, `doc/DESIGN_IMAGES_PLACEMENT.md`
+
+**File**: `development-guides/FLUTTER_GUIDE.md`
+
+---
+
 ## 2025-11-19 - Design Tool Enhancement
 
 ### Design Documentation Tool Tree View
@@ -101,3 +211,23 @@
 - Auto-calculates absolute path from relative tree path
 - Distinguishes Windows/Linux path separators automatically
 - Folder selection persists with visual highlight
+
+### Modular Architecture Refactor
+**CSS Modules** (7 files):
+- base.css: Variables, resets, typography
+- layout.css: Main container, tabs, content area
+- buttons.css: All button variations
+- sidebar.css: File tree panel styles
+- panel.css: Main panel styles
+- tree.css: Tree view component
+- file-viewer.css: File editor and viewer
+
+**JS Modules** (6 files):
+- storage-manager.js: LocalStorage persistence
+- tree-view.js: File tree component
+- file-viewer.js: File display/editing
+- folder-manager.js: Folder operations
+- app-panel.js: UI rendering (tabs, panels)
+- app.js: Core initialization
+
+Benefits: Better maintainability, easier to extend, clearer separation of concerns

@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/static/css/panel.css" />
     <link rel="stylesheet" href="/static/css/tree.css" />
     <link rel="stylesheet" href="/static/css/file-viewer.css" />
+    <link rel="stylesheet" href="/static/css/prompts.css" />
   </head>
   <body>
     <header>
@@ -23,7 +24,7 @@
       <!-- Top: App tabs -->
       <div id="tabs" class="tab-bar"></div>
 
-      <!-- Middle: Content area with split view -->
+      <!-- Middle: Content area with three-column layout -->
       <div class="content-area">
         <!-- Left panel: File tree -->
         <aside class="sidebar" id="sidebar">
@@ -47,10 +48,21 @@
           </div>
         </aside>
 
-        <!-- Right panel: Details and file viewer -->
+        <!-- Middle panel: Details and file viewer (reserved for future use) -->
         <section id="panel" class="panel">
           <p>Loading...</p>
         </section>
+
+        <!-- Right panel: Dynamic prompts -->
+        <aside class="prompts-panel" id="prompts-panel">
+          <div class="prompts-header">
+            <h3>AI Prompts</h3>
+            <span class="prompts-subtitle">Context-aware commands</span>
+          </div>
+          <div id="prompts-list" class="prompts-list">
+            <!-- Prompts will be dynamically generated here -->
+          </div>
+        </aside>
       </div>
     </main>
 
@@ -59,6 +71,8 @@
     <script src="/static/js/tree-view.js"></script>
     <script src="/static/js/file-viewer.js"></script>
     <script src="/static/js/folder-manager.js"></script>
+    <script src="/static/js/prompts-panel.js"></script>
+    <script src="/static/js/pageview-updater.js"></script>
     <script src="/static/js/app-panel.js"></script>
     <script src="/static/js/app.js"></script>
   </body>
