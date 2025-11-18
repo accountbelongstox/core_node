@@ -340,6 +340,17 @@ download_gitea() {
     $USE_SUDO mkdir -p "$GITEA_CACHE_DIR"
     $USE_SUDO chmod 750 "$GITEA_CACHE_DIR" 2>/dev/null || true
 
+    # Find user's Downloads directory using helper function from pycore
+    local real_user=$(python3 -c "from pycore.pyfoundations.system_info import get_real_user; print(get_real_user())" 2>/dev/null || echo "ubuntu")
+    local downloads_dir=$(python3 -c "from pycore.pyfoundations.system_info import get_real_user_downloads; print(get_real_user_downloads())" 2>/dev/null || echo "/home/ubuntu/Downloads")
+    local downloads_binary="$downloads_dir/$cached_binary_filename"
+
+    # Ensure Downloads directory exists
+    if [[ ! -d "$downloads_dir" ]]; then
+        $USE_SUDO mkdir -p "$downloads_dir"
+        $USE_SUDO chown ${real_user}:${real_user} "$downloads_dir" 2>/dev/null || true
+    fi
+
     # Check if binary already exists and matches target version
     if [[ -f "$GITEA_BINARY" ]]; then
         local current_version=$($GITEA_BINARY --version 2>/dev/null | grep -oP 'version \K[0-9.]+' | head -n1 || echo "")
@@ -358,6 +369,16 @@ download_gitea() {
         print_info_from_common_functions "DEBUG: Binary not found at $GITEA_BINARY, will download..."
     fi
 
+    # Check if binary exists in user's Downloads directory
+    if verify_cached_binary "$downloads_binary" "$GITEA_VERSION"; then
+        print_success_from_common_functions "Found Gitea binary in Downloads: $downloads_binary"
+        $USE_SUDO cp "$downloads_binary" "$cached_binary"
+        $USE_SUDO chmod 755 "$cached_binary"
+        install_cached_binary "$cached_binary"
+        return $?
+    fi
+
+    # Check cached binary
     if verify_cached_binary "$cached_binary" "$GITEA_VERSION"; then
         print_success_from_common_functions "Using cached Gitea binary at $cached_binary"
         install_cached_binary "$cached_binary"
@@ -370,45 +391,43 @@ download_gitea() {
     # Download binary
     print_step_from_common_functions "Downloading Gitea ${GITEA_VERSION}..."
     print_info_from_common_functions "DEBUG: Download URL: $GITEA_BINARY_URL"
+    print_info_from_common_functions "DEBUG: Will save to Downloads: $downloads_binary"
 
-    # Create temp download directory
-    local temp_dir=$(mktemp -d)
-    local temp_binary="$temp_dir/gitea"
-    print_info_from_common_functions "DEBUG: Temp directory: $temp_dir"
+    # Download to user's Downloads directory
+    if $USE_SUDO wget -O "$downloads_binary" "$GITEA_BINARY_URL"; then
+        print_success_from_common_functions "Gitea binary downloaded to Downloads"
 
-    if wget -O "$temp_binary" "$GITEA_BINARY_URL"; then
-        print_success_from_common_functions "Gitea binary downloaded"
-
-        if [[ ! -s "$temp_binary" ]]; then
+        if [[ ! -s "$downloads_binary" ]]; then
             print_error_from_common_functions "Downloaded binary is empty"
-            rm -rf "$temp_dir"
+            $USE_SUDO rm -f "$downloads_binary"
             return 1
         fi
 
-        $USE_SUDO chmod +x "$temp_binary"
+        $USE_SUDO chmod +x "$downloads_binary"
+        $USE_SUDO chown ${real_user}:${real_user} "$downloads_binary" 2>/dev/null || true
 
-        if ! verify_cached_binary "$temp_binary" "$GITEA_VERSION"; then
+        if ! verify_cached_binary "$downloads_binary" "$GITEA_VERSION"; then
             print_error_from_common_functions "Downloaded binary verification failed"
-            rm -rf "$temp_dir"
+            $USE_SUDO rm -f "$downloads_binary"
             return 1
         fi
 
-        local binary_size=$(stat -c%s "$temp_binary" 2>/dev/null || stat -f%z "$temp_binary" 2>/dev/null)
+        local binary_size=$(stat -c%s "$downloads_binary" 2>/dev/null || stat -f%z "$downloads_binary" 2>/dev/null)
         print_info_from_common_functions "DEBUG: Downloaded binary size: $binary_size bytes"
+        print_info_from_common_functions "DEBUG: Binary saved to: $downloads_binary"
 
-        print_info_from_common_functions "DEBUG: Saving binary to cache at $cached_binary"
-        $USE_SUDO mv "$temp_binary" "$cached_binary"
+        print_info_from_common_functions "DEBUG: Copying to cache at $cached_binary"
+        $USE_SUDO cp "$downloads_binary" "$cached_binary"
         $USE_SUDO chmod 755 "$cached_binary"
 
-        rm -rf "$temp_dir"
-        print_info_from_common_functions "DEBUG: Cleaned up temp directory"
+        print_success_from_common_functions "Binary saved to Downloads for future use"
 
         install_cached_binary "$cached_binary"
         return $?
     else
         print_error_from_common_functions "Failed to download Gitea binary"
         print_error_from_common_functions "DEBUG: wget failed for URL: $GITEA_BINARY_URL"
-        rm -rf "$temp_dir"
+        $USE_SUDO rm -f "$downloads_binary"
         return 1
     fi
 }
