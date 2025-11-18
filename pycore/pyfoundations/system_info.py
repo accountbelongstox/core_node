@@ -322,6 +322,94 @@ def get_disk_info() -> List[DiskInfo]:
         return []
 
 
+def get_real_user() -> str:
+    """
+    Get the real (non-root) user on Linux systems.
+
+    This function is designed to detect the actual user when running with sudo/root.
+    It's particularly useful for scripts that need to access user directories or
+    set proper file ownership.
+
+    Detection Strategy:
+    1. If not running as root (EUID != 0), return current user
+    2. Check SUDO_USER environment variable (set when using sudo)
+    3. Scan /home directory for regular users:
+       - Prefer 'ubuntu' user if exists
+       - Otherwise return first regular user found
+    4. Fallback to 'ubuntu' as default
+
+    Returns:
+        Username string (e.g., 'ubuntu', 'john', etc.)
+
+    Examples:
+        >>> get_real_user()
+        'ubuntu'
+
+        # From bash script:
+        # real_user=$(python3 -c "from pycore.pyfoundations.system_info import get_real_user; print(get_real_user())")
+    """
+    # If not running as root, return current user
+    if os.geteuid() != 0:
+        import pwd
+        return pwd.getpwuid(os.getuid()).pw_name
+
+    # Check SUDO_USER environment variable first
+    sudo_user = os.environ.get('SUDO_USER')
+    if sudo_user and sudo_user != 'root':
+        return sudo_user
+
+    # Scan /home directory for regular users
+    home_dir = '/home'
+    if os.path.exists(home_dir):
+        try:
+            users = [
+                d for d in os.listdir(home_dir)
+                if os.path.isdir(os.path.join(home_dir, d))
+            ]
+
+            # Prefer 'ubuntu' user if exists
+            if 'ubuntu' in users:
+                return 'ubuntu'
+
+            # Return first user found
+            if users:
+                return users[0]
+        except (OSError, PermissionError):
+            pass
+
+    # Fallback to 'ubuntu' as default
+    return 'ubuntu'
+
+
+def get_real_user_home() -> str:
+    """
+    Get the home directory path for the real user.
+
+    Returns:
+        Full path to user's home directory (e.g., '/home/ubuntu')
+
+    Examples:
+        >>> get_real_user_home()
+        '/home/ubuntu'
+    """
+    real_user = get_real_user()
+    return os.path.join('/home', real_user)
+
+
+def get_real_user_downloads() -> str:
+    """
+    Get the Downloads directory path for the real user.
+
+    Returns:
+        Full path to user's Downloads directory (e.g., '/home/ubuntu/Downloads')
+
+    Examples:
+        >>> get_real_user_downloads()
+        '/home/ubuntu/Downloads'
+    """
+    return os.path.join(get_real_user_home(), 'Downloads')
+
+
 def get_system_summary() -> Dict:
     """
     Get comprehensive system information summary.
@@ -398,6 +486,9 @@ __all__ = [
     'get_windows_disk_info',
     'get_linux_disk_info',
     'get_disk_info',
+    'get_real_user',
+    'get_real_user_home',
+    'get_real_user_downloads',
     'get_system_summary',
     'SCREEN_RESOLUTION',
     'MEMORY_INFO',

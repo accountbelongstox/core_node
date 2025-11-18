@@ -815,16 +815,18 @@ invoke_git_operations() {
                     # Get password once for all files
                     write_color_text "Enter encryption password for all sensitive files:" "Yellow"
                     local global_password=""
-                    
+
                     while true; do
-                        password1=$(read_masked_password "Enter encryption password: ")
+                        write_color_text "Enter encryption password: " "Yellow"
+                        read -r password1
 
                         if [ -z "$password1" ]; then
                             write_color_text "ERROR: Password cannot be empty. Please try again." "Red"
                             continue
                         fi
 
-                        password2=$(read_masked_password "Confirm encryption password: ")
+                        write_color_text "Confirm encryption password: " "Yellow"
+                        read -r password2
 
                         if [ "$password1" = "$password2" ]; then
                             global_password="$password1"
