@@ -83,7 +83,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
         _initialize_timer_manager(config)
 
     # ========== Phase 5: Singleton Detection ==========
-    from pycore.pyutils.singleton_detector import SingletonDetector
+    from pycore.pylauncher.singleton_detector import SingletonDetector
 
     detector = SingletonDetector(
         app_id=config.app_id,

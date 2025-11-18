@@ -38,13 +38,15 @@ class FastAPIAckManager:
         request_event_table: RequestEventTable,
         inventory_table: InventoryTable,
         client_registry: ClientRegistry,
-        debug: bool = False,
+        debug: bool = True,
     ):
         self.request_event_table = request_event_table
         self.inventory_table = inventory_table
         self.client_registry = client_registry
         self.debug = debug
         self.ack_timeout = 5.0
+        if self.debug:
+            ColorPrint.green(f"[FastAPIAckManager] Initialized (ack_timeout={self.ack_timeout}s)")
 
     def notify_websocket_with_retry(
         self,
@@ -119,11 +121,13 @@ class FastAPIAckManager:
 
         payload = {
             "type": MSG_TYPES["RESPONSE"],
+            "route": event.route if event else None,
             "id": request_id,
             "result": result,
             "error": error,
             "success": error is None,
             "requires_ack": True,
+            "queue": None,
         }
 
         success = await self.client_registry.safe_send(client_id, payload)

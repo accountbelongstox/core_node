@@ -53,11 +53,11 @@ class WebSocketHandler:
         request_processor: RequestProcessor,
         client_manager: Any,
         routes_manager: Optional[RoutesManager] = None,
-        debug: bool = False
+        debug: bool = True
     ):
         """
         Initialize WebSocket Handler
-        
+
         Args:
             request_event_table: Request event table
             inventory_table: Inventory table
@@ -75,6 +75,9 @@ class WebSocketHandler:
         self.client_manager = client_manager
         self.routes_manager = routes_manager
         self.debug = debug
+
+        if self.debug:
+            ColorPrint.green("[WebSocketHandler] Initialized (WebSocket RPC connection handler)")
     
     async def handle_websocket(self, request: web.Request) -> WebSocketResponse:
         """

@@ -1,0 +1,3 @@
+ 代码全英文，现在你根据文档，\poly_apps\flutter_bloom\scripts> .\start.ps1
+  其中加入一个菜单，给每个app添加一个toggle  [Debug/Android/启动设计工具] 之后生成一个tmp
+  bat其中调用python，并使用explore调用。

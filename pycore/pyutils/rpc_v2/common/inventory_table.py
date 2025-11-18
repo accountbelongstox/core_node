@@ -28,11 +28,14 @@ class InventoryItem:
 class InventoryTable:
     """Stores results when delivery attempts fail."""
 
-    def __init__(self, max_size: int = 10_000_000, default_ttl: float = 3600.0):
+    def __init__(self, max_size: int = 10_000_000, default_ttl: float = 3600.0, debug: bool = True):
         self.max_size = max_size
         self.default_ttl = default_ttl
+        self.debug = debug
         self.items: Dict[str, InventoryItem] = {}
         self._lock = threading.RLock()
+        if self.debug:
+            ColorPrint.green(f"[InventoryTable] Initialized (max_size={max_size}, ttl={default_ttl}s)")
 
     def store(
         self,
@@ -54,7 +57,8 @@ class InventoryTable:
                 client_id=client_id,
                 client_type=client_type,
             )
-            ColorPrint.blue(f"[InventoryTable] Stored result for request {request_id}")
+            if self.debug:
+                ColorPrint.blue(f"[InventoryTable] Stored result for request {request_id[:8]} route={route}")
             return True
 
     def get(self, request_id: str, remove: bool = False) -> Optional[InventoryItem]:

@@ -5,6 +5,7 @@ Simplified and streamlined from McpAlchemy
 """
 
 import hashlib
+import logging
 import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
@@ -12,7 +13,8 @@ from typing import Dict, List, Optional, Any, Tuple
 from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
-from pycore.pyfoundations.color_print import ColorPrint
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseOperationsManager:
@@ -25,7 +27,7 @@ class DatabaseOperationsManager:
         self.engines: Dict[str, Any] = {}  # connection_string -> engine
         self.query_history: List[Dict[str, Any]] = []
         self.max_history_size = 1000
-        ColorPrint.blue("[DatabaseOperationsManager] Initialized")
+        logger.debug("[DatabaseOperationsManager] Initialized")
 
     def get_or_create_engine(self, connection_string: str) -> Any:
         """
@@ -50,9 +52,9 @@ class DatabaseOperationsManager:
                     pool_recycle=3600    # Recycle connections after 1 hour
                 )
                 self.engines[conn_hash] = engine
-                ColorPrint.green(f"[DatabaseOperationsManager] Created engine: {conn_hash}")
+                logger.debug("[DatabaseOperationsManager] Created engine: %s", conn_hash)
             except Exception as e:
-                ColorPrint.red(f"[DatabaseOperationsManager] Failed to create engine: {e}")
+                logger.error("[DatabaseOperationsManager] Failed to create engine: %s", e)
                 raise
 
         return self.engines[conn_hash]
@@ -147,7 +149,7 @@ class DatabaseOperationsManager:
             execution_time = time.time() - start_time
             error_msg = str(e)
 
-            ColorPrint.red(f"[DatabaseOperationsManager] Query failed: {error_msg}")
+            logger.error("[DatabaseOperationsManager] Query failed: %s", error_msg)
 
             # Add to query history
             self._add_to_history(query, query_hash, execution_time, False, error_msg)
@@ -237,7 +239,7 @@ class DatabaseOperationsManager:
             execution_time = time.time() - start_time
             error_msg = str(e)
 
-            ColorPrint.red(f"[DatabaseOperationsManager] Batch operation failed: {error_msg}")
+            logger.error("[DatabaseOperationsManager] Batch operation failed: %s", error_msg)
 
             return {
                 'success': False,
@@ -306,7 +308,7 @@ class DatabaseOperationsManager:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseOperationsManager] Schema inspection failed: {e}")
+            logger.error("[DatabaseOperationsManager] Schema inspection failed: %s", e)
             return {
                 'success': False,
                 'error': str(e),
@@ -356,7 +358,7 @@ class DatabaseOperationsManager:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseOperationsManager] Statistics failed: {e}")
+            logger.error("[DatabaseOperationsManager] Statistics failed: %s", e)
             return {
                 'success': False,
                 'error': str(e),

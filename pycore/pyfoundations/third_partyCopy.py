@@ -433,10 +433,6 @@ def check_and_install_dependencies():
     Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
     """
     ColorPrint.blue("[INFO] Checking for required Python packages...")
-    # Allow callers to skip dependency checks via environment variable
-    if os.environ.get('PYCORE_SKIP_DEP_CHECK') == '1':
-        ENCYCLOPEDIA['pycore_dependencies_checked'] = True
-        return
 
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
@@ -782,11 +778,6 @@ def get_third_package_pypdf():
     return _lazy_import('pypdf', 'import pypdf')
 
 
-def get_third_package_PyPDF2():
-    """Deprecated compatibility alias for pypdf"""
-    return get_third_package_pypdf()
-
-
 def get_third_package_pdfplumber():
     """Get pdfplumber package (lazy load)"""
     return _lazy_import('pdfplumber', 'import pdfplumber')
@@ -868,8 +859,17 @@ def get_third_package_Context():
 # Optional packages
 def get_third_package_speechsdk():
     """Get Azure Speech SDK (lazy load, optional)"""
+    skip_install = os.environ.get('PYCORE_SKIP_SPEECHSDK') == '1'
     if 'speechsdk' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
+        if skip_install:
+            try:
+                import azure.cognitiveservices.speech as speechsdk
+                _PACKAGE_CACHE['speechsdk'] = speechsdk
+            except ImportError:
+                ColorPrint.yellow("[WARNING] Azure Speech SDK not available (install skipped)")
+                _PACKAGE_CACHE['speechsdk'] = None
+        else:
+            _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
     return _PACKAGE_CACHE['speechsdk']
 
 
@@ -1032,7 +1032,6 @@ __all__ = [
     'get_third_package_pyperclip',
     # Document processing packages
     'get_third_package_pypdf',
-    'get_third_package_PyPDF2',
     'get_third_package_pdfplumber',
     'get_third_package_docx',
     'get_third_package_python_docx',

@@ -138,18 +138,23 @@ class UnifiedRpcServer:
         self.debug = options.get('debug', False)
         self.max_requests = options.get('max_requests', 10000000)
 
+        if self.debug:
+            ColorPrint.blue(f"\n{'='*60}")
+            ColorPrint.blue("[UnifiedRpcServer] Initializing RPC Server Components...")
+            ColorPrint.blue(f"{'='*60}\n")
+
         # Request event table
         self.request_event_table: RequestEventTable = options.get(
             'request_event_table',
-            RequestEventTable(max_size=self.max_requests)
+            RequestEventTable(max_size=self.max_requests, debug=self.debug)
         )
-        
+
         # Inventory table (stores failed notification results)
         self.inventory_table: InventoryTable = options.get(
             'inventory_table',
-            InventoryTable(max_size=self.max_requests)
+            InventoryTable(max_size=self.max_requests, debug=self.debug)
         )
-        
+
         # Initialize managers
         self.client_manager = ClientManager(debug=self.debug)
         self.routes_manager = RoutesManager(debug=self.debug)
@@ -164,7 +169,7 @@ class UnifiedRpcServer:
             routes=self.routes_manager.routes,
             debug=self.debug
         )
-        
+
         # Initialize handlers
         self.http_handler = HttpHandler(
             request_event_table=self.request_event_table,
@@ -175,7 +180,7 @@ class UnifiedRpcServer:
             client_manager=self.client_manager,
             debug=self.debug
         )
-        
+
         self.websocket_handler = WebSocketHandler(
             request_event_table=self.request_event_table,
             inventory_table=self.inventory_table,
@@ -186,6 +191,11 @@ class UnifiedRpcServer:
             routes_manager=self.routes_manager,
             debug=self.debug
         )
+
+        if self.debug:
+            ColorPrint.blue(f"\n{'='*60}")
+            ColorPrint.green("[UnifiedRpcServer] ✅ All RPC Components Initialized Successfully")
+            ColorPrint.blue(f"{'='*60}\n")
         
         # aiohttp app and server
         self.app: Optional[web.Application] = None
@@ -476,26 +486,28 @@ class UnifiedRpcServer:
         self._running = False
 
         # Close all WebSocket connections gracefully
-        for client_id in list(self.client_manager.clients.keys()):
-            client = self.client_manager.get_client(client_id)
+        # ✅ Use public method instead of direct dict access
+        all_clients = self.client_manager.get_all_websocket_clients()
+        for client in all_clients:
             if client and client.ws:
                 try:
                     # Set status to DISCONNECTING before closing
                     await self.client_manager.set_client_status(
-                        client_id,
+                        client.client_id,
                         ClientStatus.DISCONNECTING,
                         validate_transition=False  # Skip validation during shutdown
                     )
 
                     # Close WebSocket gracefully
-                    if not client.ws.closed:
+                    # ✅ Check ws.closed safely (ws might be None after unregister)
+                    if client.ws and not client.ws.closed:
                         await client.ws.close(code=1000, message=b'Server shutting down')
                 except Exception as e:
                     if self.debug:
-                        ColorPrint.yellow(f"[UnifiedRpcServer] Error closing connection {client_id[:8]}...: {e}")
+                        ColorPrint.yellow(f"[UnifiedRpcServer] Error closing connection {client.client_id[:8]}...: {e}")
 
             # Remove client from registry
-            await self.client_manager.remove_client(client_id)
+            await self.client_manager.remove_client(client.client_id)
 
         # Stop server
         if self.site:

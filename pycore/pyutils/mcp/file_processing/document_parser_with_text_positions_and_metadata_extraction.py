@@ -19,7 +19,6 @@ pdfplumber = get_third_package_pdfplumber()
 python_docx = get_third_package_python_docx()
 openpyxl = get_third_package_openpyxl()
 python_pptx = get_third_package_python_pptx()
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PYTOOLS_TMP_DIR
 
 logger = logging.getLogger(__name__)
@@ -69,11 +68,11 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
                 document_path, extract_images
             )
         else:
-            ColorPrint.red(f"[ERROR] Unsupported document type: {file_ext}")
+            logger.error("[ERROR] Unsupported document type: %s", file_ext)
             return {
                 "file_type": "unknown",
                 "file_path": document_path,
-                "error": f"Unsupported document type: {file_ext}"
+                "error": "Unsupported document type: %s" % file_ext
             }
 
         # Add processing stats
@@ -447,7 +446,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         images = []
         # Image extraction from PDF requires additional libraries like pdf2image
         # For now, return empty list
-        ColorPrint.yellow("[WARNING] PDF image extraction not fully implemented")
+        logger.warning("[WARNING] PDF image extraction not fully implemented")
         return images
 
     async def _extract_pdf_hyperlinks(self, pdf_path: str) -> List[Dict[str, Any]]:
@@ -455,7 +454,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         hyperlinks = []
         # Hyperlink extraction requires deeper PDF parsing
         # For now, return empty list
-        ColorPrint.yellow("[WARNING] PDF hyperlink extraction not fully implemented")
+        logger.warning("[WARNING] PDF hyperlink extraction not fully implemented")
         return hyperlinks
 
     async def _extract_docx_metadata(self, doc) -> Dict[str, Any]:
@@ -481,7 +480,7 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         images = []
         # Image extraction from DOCX requires parsing relationships
         # For now, return empty list
-        ColorPrint.yellow("[WARNING] DOCX image extraction not fully implemented")
+        logger.warning("[WARNING] DOCX image extraction not fully implemented")
         return images
 
     async def _calculate_file_hash_sha256(self, file_path: str) -> str:

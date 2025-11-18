@@ -11,6 +11,7 @@ Modules:
   - speech.rpc: Speech API endpoints (TTS, STT, multi-language)
   - speech.ai: AI features (chat, parse, expand, translate)
 - pybrowserauto: Offline web downloader / automation utilities
+- mcp_launcher: MCP proxy service launcher with singleton detection
 
 Usage:
     # Speech - Manual initialization required
@@ -24,9 +25,13 @@ Usage:
     # PyBrowserAuto (offline website downloader)
     from pycore.pyctl.pybrowserauto.controller import CLIController
     cli = CLIController()
+
+    # MCP Proxy Launcher
+    from pycore.pyctl.mcp_launcher import launch_mcp_proxy
+    launch_mcp_proxy()
 """
 
 # DO NOT import instances here - let applications initialize themselves
 # This prevents auto-loading unnecessary modules
 
-__all__ = []
+__all__ = ['mcp_launcher']

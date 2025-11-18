@@ -44,18 +44,23 @@ class InventoryTable:
         item = inventory.get(request_id)
     """
     
-    def __init__(self, max_size: int = 10000000, default_ttl: float = 3600.0):
+    def __init__(self, max_size: int = 10000000, default_ttl: float = 3600.0, debug: bool = True):
         """
         Initialize Inventory Table
-        
+
         Args:
             max_size: Maximum number of items to store
             default_ttl: Default time to live in seconds (1 hour)
+            debug: Enable debug logging
         """
         self.max_size = max_size
         self.default_ttl = default_ttl
+        self.debug = debug
         self.items: Dict[str, InventoryItem] = {}
         self._lock = threading.RLock()
+
+        if self.debug:
+            ColorPrint.green(f"[InventoryTable] Initialized with max_size={max_size}, ttl={default_ttl}s")
     
     def store(
         self,

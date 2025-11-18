@@ -127,7 +127,7 @@ class ClientManager:
         await manager.unregister_websocket_client(client_id)
     """
 
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = True):
         """
         Initialize Client Manager
 
@@ -144,6 +144,9 @@ class ClientManager:
 
         # Async lock for thread-safe operations
         self._lock = asyncio.Lock()
+
+        if self.debug:
+            ColorPrint.green("[ClientManager] Initialized (WebSocket + HTTP session management)")
 
     @property
     def ws_clients(self) -> Dict[str, WebSocketResponse]:
@@ -391,12 +394,13 @@ class ClientManager:
                     return False
 
             # Check 3: WebSocket closed state
-            if client.ws.closed:
-                # WebSocket is closed, update status
+            # ✅ Check ws is not None before accessing .closed
+            if client.ws is None or client.ws.closed:
+                # WebSocket is None or closed, update status
                 client.status = ClientStatus.DISCONNECTED
                 if self.debug:
                     ColorPrint.yellow(
-                        f"[ClientManager] WebSocket closed for {client_id[:8]}..., "
+                        f"[ClientManager] WebSocket {'None' if client.ws is None else 'closed'} for {client_id[:8]}..., "
                         f"updated status to DISCONNECTED"
                     )
                 return False
@@ -530,10 +534,13 @@ class ClientManager:
                 client.status = ClientStatus.RECONNECTING
                 client.disconnect_at = time.time()
 
+                # ✅ CRITICAL FIX: Clear ws reference to prevent using closed WebSocket
+                client.ws = None
+
                 if self.debug:
                     ColorPrint.blue(
                         f"[ClientManager] Client {client_id[:8]}... marked as RECONNECTING "
-                        f"(status: {old_status.value} → RECONNECTING, "
+                        f"(status: {old_status.value} → RECONNECTING, ws=None, "
                         f"pending messages: {len(client.pending_messages)})"
                     )
                     if client.pending_messages:
@@ -545,10 +552,11 @@ class ClientManager:
                 # If already disconnecting/disconnected, mark as disconnected
                 client.status = ClientStatus.DISCONNECTED
                 client.disconnect_at = time.time()
+                client.ws = None  # ✅ Clear ws reference
                 if self.debug:
                     ColorPrint.blue(
                         f"[ClientManager] Client {client_id[:8]}... marked as DISCONNECTED "
-                        f"(was: {old_status.value})"
+                        f"(was: {old_status.value}, ws=None)"
                     )
 
     async def remove_client(self, client_id: str):
@@ -612,7 +620,8 @@ class ClientManager:
         if not client:
             return False
 
-        return client.status == ClientStatus.CONNECTED and not client.ws.closed
+        # ✅ Check ws is not None before accessing .closed
+        return client.status == ClientStatus.CONNECTED and client.ws is not None and not client.ws.closed
 
     def get_client(self, client_id: str) -> Optional[ClientInfo]:
         """

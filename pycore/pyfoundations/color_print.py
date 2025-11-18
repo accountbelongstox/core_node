@@ -17,6 +17,10 @@ from typing import List, Callable, Optional
 
 columns = shutil.get_terminal_size().columns
 
+# Auto-detect MCP mode from environment variable
+# This must be done at module import time, before ColorPrint class is defined
+_AUTO_MCP_MODE = os.environ.get('PYCORE_MCP_MODE', '').lower() in ('1', 'true', 'yes')
+
 
 class ColorPrintCallback:
     """ColorPrint callback handler for multiple registrations"""
@@ -70,6 +74,10 @@ class ColorPrint:
     WHITE = '\033[97m'
     BLUE = '\033[94m'
     RESET = '\033[0m'
+    _output_stream = sys.stderr
+    # Auto-detect MCP mode from environment variable set by pymain.py
+    _disable_colors = _AUTO_MCP_MODE  # Automatically True if PYCORE_MCP_MODE=1
+    _mcp_mode = _AUTO_MCP_MODE  # MCP (Model Context Protocol) mode - disables colors for STDIO transport
 
     _printed_hashes = set()
     _last_print_times = {}
@@ -88,7 +96,51 @@ class ColorPrint:
     def clear_all_callbacks():
         """Clear all registered callbacks"""
         _color_print_callback.clear_all()
-    
+
+    @staticmethod
+    def set_output_stream(stream):
+        """Override default output stream (stdout by default)"""
+        if stream is not None:
+            ColorPrint._output_stream = stream
+
+    @staticmethod
+    def disable_colors(disable=True):
+        """Disable ANSI color codes (useful for log files or non-terminal outputs)"""
+        ColorPrint._disable_colors = disable
+
+    @staticmethod
+    def enable_colors():
+        """Enable ANSI color codes"""
+        ColorPrint._disable_colors = False
+
+    @staticmethod
+    def enable_mcp_mode():
+        """
+        Enable MCP (Model Context Protocol) mode.
+
+        This mode is designed for MCP servers using STDIO transport:
+        - Disables ANSI color codes (prevents escape sequences in MCP client logs)
+        - Sets output stream to stderr (stdout reserved for MCP JSON-RPC protocol)
+        - Optimized for clean, parseable log output
+
+        Usage:
+            ColorPrint.enable_mcp_mode()  # Call at MCP server startup
+        """
+        ColorPrint._mcp_mode = True
+        ColorPrint._disable_colors = True
+        ColorPrint._output_stream = sys.stderr
+
+    @staticmethod
+    def disable_mcp_mode():
+        """Disable MCP mode and restore normal ColorPrint behavior"""
+        ColorPrint._mcp_mode = False
+        ColorPrint._disable_colors = False
+
+    @staticmethod
+    def is_mcp_mode():
+        """Check if MCP mode is currently enabled"""
+        return ColorPrint._mcp_mode
+
     @staticmethod
     def get_callback_count():
         """Get number of registered callbacks"""
@@ -98,47 +150,62 @@ class ColorPrint:
     def _log_to_callback(message, color_type="white", log_level=None):
         """Send message to all registered callbacks"""
         _color_print_callback.notify(message, color_type, log_level)
+
+    @staticmethod
+    def _write(message, color, end='\n'):
+        """Write colored message to configured stream"""
+        # In MCP mode, suppress all output to avoid interfering with STDIO protocol
+        # MCP clients communicate via stdout JSON-RPC, any stderr output can cause "No server info found"
+        if ColorPrint._mcp_mode:
+            return  # Completely suppress output in MCP mode
+
+        if ColorPrint._disable_colors:
+            # Output plain text without ANSI codes
+            print(message, end=end, file=ColorPrint._output_stream)
+        else:
+            # Output with ANSI color codes
+            print(f"{color}{message}{ColorPrint.RESET}", end=end, file=ColorPrint._output_stream)
     
     @staticmethod
     def green(message, end='\n'):
         """Print green text"""
-        print(f"{ColorPrint.GREEN}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.GREEN, end=end)
         ColorPrint._log_to_callback(message, "green", "SUCCESS")
 
     @staticmethod
     def red(message, end='\n'):
         """Print red text"""
-        print(f"{ColorPrint.RED}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.RED, end=end)
         ColorPrint._log_to_callback(message, "red", "ERROR")
 
     @staticmethod
     def yellow(message, end='\n'):
         """Print yellow text"""
-        print(f"{ColorPrint.YELLOW}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.YELLOW, end=end)
         ColorPrint._log_to_callback(message, "yellow", "WARNING")
 
     @staticmethod
     def gray(message, end='\n'):
         """Print gray text"""
-        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.GRAY, end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     @staticmethod
     def white(message, end='\n'):
         """Print white text"""
-        print(f"{ColorPrint.WHITE}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.WHITE, end=end)
         ColorPrint._log_to_callback(message, "white", "INFO")
 
     @staticmethod
     def blue(message, end='\n'):
         """Print blue text"""
-        print(f"{ColorPrint.BLUE}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.BLUE, end=end)
         ColorPrint._log_to_callback(message, "blue", "INFO")
 
     @staticmethod
     def debug(message, end='\n'):
         """Print debug text (gray)"""
-        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}", end=end)
+        ColorPrint._write(message, ColorPrint.GRAY, end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     # ========================================
@@ -205,7 +272,7 @@ class ColorPrint:
         """Print a separator line"""
         if length is None:
             length = min(columns, 80)
-        print(char * length)
+        print(char * length, file=ColorPrint._output_stream)
 
     @staticmethod
     def print_header(title, char='=', length=None):
@@ -239,7 +306,7 @@ class ColorPrint:
         else:
             color = ColorPrint.BLUE
 
-        print(f"{color}[{status.upper()}]{ColorPrint.RESET} {message}")
+        print(f"{color}[{status.upper()}]{ColorPrint.RESET} {message}", file=ColorPrint._output_stream)
 
     @staticmethod
     def print_progress(current, total, message="", bar_length=30):
@@ -253,10 +320,10 @@ class ColorPrint:
         bar = '█' * filled_length + '-' * (bar_length - filled_length)
 
         progress_text = f"\r{ColorPrint.BLUE}[{bar}]{ColorPrint.RESET} {percentage:.1f}% {message}"
-        print(progress_text, end='', flush=True)
+        print(progress_text, end='', flush=True, file=ColorPrint._output_stream)
 
         if current >= total:
-            print()  # New line when complete
+            print(file=ColorPrint._output_stream)  # New line when complete
 
     @staticmethod
     def print_table_row(columns_data, widths=None, separator='|'):
@@ -269,7 +336,7 @@ class ColorPrint:
             width = widths[i] if i < len(widths) else 15
             row += f" {str(data):<{width}} {separator}"
 
-        print(row)
+        print(row, file=ColorPrint._output_stream)
 
     @staticmethod
     def print_table_header(headers, widths=None, separator='|'):
@@ -283,7 +350,7 @@ class ColorPrint:
         separator_line = separator
         for width in widths:
             separator_line += '-' * (width + 2) + separator
-        print(separator_line)
+        print(separator_line, file=ColorPrint._output_stream)
 
     @staticmethod
     def _hash_message(message):
