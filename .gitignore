@@ -43,6 +43,9 @@ app.*.symbols
 **/*.tmp
 **/*.temp
 **/*.pyc
+**/node-compile-cache/
+**/node-compile-cache
+**/.user.ini.bak*
 
 #  Editor and IDE
 **/.vscode/
