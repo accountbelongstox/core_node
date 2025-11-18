@@ -116,9 +116,17 @@ class FastAPIRPCServer:
         self.protocol_server = RPCProtocolServer(self)
 
     # ------------------------------------------------------------------ Public API
-    def route(self, name: str, handler: Callable):
-        """Register RPC route."""
-        self.routes_manager.register_route(name, handler)
+    def route(self, name: str, handler: Callable, sync: bool = False, description: Optional[str] = None):
+        """
+        Register RPC route.
+
+        Args:
+            name: Route name
+            handler: Route handler function (can be sync or async)
+            sync: If True, response is returned immediately without ACK mechanism (default: False)
+            description: Optional route description
+        """
+        self.routes_manager.register_route(name, handler, sync=sync, description=description)
 
     def add_static_dir(self, url_prefix: str, directory: str):
         """Expose static files (e.g., JS client bundle)."""
@@ -304,6 +312,9 @@ class FastAPIRPCServer:
             if self.debug:
                 ColorPrint.blue(f"[HTTP RPC] Reusing existing event {request_id} in status {existing_event.status}")
 
+        # ✅ Check if route is synchronous (immediate response)
+        is_sync = self.routes_manager.is_sync_route(route)
+
         event = self.request_event_table.create_event(
             request_id=request_id,
             route=route,
@@ -312,11 +323,13 @@ class FastAPIRPCServer:
             client_type="http",
         )
 
-        if self.debug:
-            ColorPrint.blue(f"[HTTP RPC] Created event {request_id} for route {route}, awaiting processing")
+        if is_sync:
+            # ✅ Synchronous route: await processing and return immediately
+            if self.debug:
+                ColorPrint.blue(f"[HTTP RPC] Sync route {route}, processing immediately...")
 
-        asyncio.create_task(
-            self.request_processor.process_request_async(
+            # Await processing completion
+            await self.request_processor.process_request_async(
                 request_id=request_id,
                 route=route,
                 params=params,
@@ -327,22 +340,75 @@ class FastAPIRPCServer:
                     client_id=session_id,
                     request=request,
                 ).__dict__,
+                notify_callback=None  # No callback for sync routes
             )
-        )
 
-        return self.ack_manager.prepare_http_response_with_ack(
-            request_id=request_id,
-            data={
-                "type": MSG_TYPES["RESPONSE"],
-                "route": route,
-                "id": request_id,
-                "status": "accepted",
-                "message": "Request accepted, please query result after 1 second",
-                "queue": None,
-            },
-            status_code=status.HTTP_200_OK,
-            event=event,
-        )
+            # Get completed event
+            event = self.request_event_table.get_event(request_id)
+            if event and event.status == RequestStatus.COMPLETED:
+                if self.debug:
+                    ColorPrint.green(f"[HTTP RPC] Sync route {route} completed, returning result")
+
+                # ✅ Return result immediately (no requires_ack)
+                return JSONResponse(
+                    {
+                        "type": MSG_TYPES["RESPONSE"],
+                        "route": route,
+                        "id": request_id,
+                        "result": event.result,
+                        "error": event.error,
+                        "success": event.error is None,
+                        "sync_response": True,  # ✅ Mark as sync response
+                        "queue": None,
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    status_code=status.HTTP_200_OK,
+                )
+            else:
+                # Processing failed
+                return JSONResponse(
+                    {
+                        "type": MSG_TYPES["ERROR"],
+                        "route": route,
+                        "id": request_id,
+                        "error": event.error if event else "Processing failed",
+                        "success": False,
+                    },
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+        else:
+            # ✅ Asynchronous route: use ACK mechanism (original behavior)
+            if self.debug:
+                ColorPrint.blue(f"[HTTP RPC] Async route {route}, using ACK mechanism...")
+
+            asyncio.create_task(
+                self.request_processor.process_request_async(
+                    request_id=request_id,
+                    route=route,
+                    params=params,
+                    client_id=session_id,
+                    client_type="http",
+                    context=RPCRequestContext(
+                        transport="http",
+                        client_id=session_id,
+                        request=request,
+                    ).__dict__,
+                )
+            )
+
+            return self.ack_manager.prepare_http_response_with_ack(
+                request_id=request_id,
+                data={
+                    "type": MSG_TYPES["RESPONSE"],
+                    "route": route,
+                    "id": request_id,
+                    "status": "accepted",
+                    "message": "Request accepted, please query result after 1 second",
+                    "queue": None,
+                },
+                status_code=status.HTTP_200_OK,
+                event=event,
+            )
 
     async def _handle_query_result(self, request_id: str) -> JSONResponse:
         """HTTP polling endpoint."""

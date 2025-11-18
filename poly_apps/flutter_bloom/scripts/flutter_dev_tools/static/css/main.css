@@ -264,6 +264,24 @@ button.primary:disabled {
   border-color: #1e40af;
 }
 
+.btn-icon {
+  padding: 0.25rem 0.5rem;
+  margin-left: 0.5rem;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  vertical-align: middle;
+}
+
+.btn-icon:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: scale(1.1);
+}
+
 .file-viewer-content {
   padding: 1rem;
   background: #fff;

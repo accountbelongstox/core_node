@@ -20,7 +20,7 @@ import logging
 import asyncio
 import time
 import platform
-import subprocess
+import threading
 from pathlib import Path
 from typing import Optional, Dict, Any
 import requests
@@ -48,40 +48,184 @@ BACKEND_HOST = os.environ.get("MCP_BACKEND_HOST", "localhost")
 BACKEND_PORT = int(os.environ.get("MCP_BACKEND_PORT", "58100"))
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
 
-# Backend info (retrieved on startup)
+# Backend thread handle (auto-started backend using launcher.py)
+backend_thread: Optional[threading.Thread] = None
 backend_info: Optional[Dict[str, Any]] = None
 
 
-def get_backend_info() -> Dict[str, Any]:
+def start_backend_thread() -> bool:
     """
-    Get backend information via RPC
+    Start backend in background thread using launcher.py singleton mechanism
+
+    Uses pycore.pyctl.mcpctl.mcp_backend.start_mcp_backend()
+    Backend uses launcher.py for singleton detection (port 58000-58099).
+
+    Returns:
+        True if backend thread started successfully
+    """
+    global backend_thread
+
+    logger.info("[Proxy] Starting MCP backend thread (singleton mode via launcher.py)...")
+
+    try:
+        # Import backend starter (uses launcher.py)
+        from pycore.pyctl.mcpctl.mcp_backend import start_mcp_backend
+
+        # Start backend in daemon thread
+        backend_thread = threading.Thread(
+            target=start_mcp_backend,
+            name="MCPBackendThread",
+            daemon=True  # Daemon thread will exit when main thread exits
+        )
+        backend_thread.start()
+
+        logger.info(f"[Proxy] Backend thread started (Thread: {backend_thread.name})")
+        return True
+
+    except Exception as e:
+        logger.error(f"[Proxy] Failed to start backend thread: {e}")
+        return False
+
+
+def wait_for_backend_ready(max_wait: int = 10) -> bool:
+    """
+    Wait for backend to be ready (singleton detection + RPC startup)
+
+    Args:
+        max_wait: Maximum wait time in seconds
+
+    Returns:
+        True if backend is ready
+    """
+    logger.info("[Proxy] Waiting for backend to be ready...")
+
+    for i in range(max_wait):
+        try:
+            response = requests.post(
+                f"{BACKEND_URL}/rpc/backend_info",
+                json={},
+                timeout=1
+            )
+
+            if response.status_code == 200:
+                logger.info(f"[Proxy] Backend ready after {i+1}s")
+                return True
+
+        except Exception:
+            pass
+
+        time.sleep(1)
+
+    logger.error(f"[Proxy] Backend not ready after {max_wait}s")
+    return False
+
+
+def ensure_backend_running() -> Dict[str, Any]:
+    """
+    Ensure backend is running (auto-start if needed)
+
+    Flow:
+    1. Check if backend is already running
+    2. If not, start backend process (singleton mode)
+    3. Wait for backend to be ready
+    4. Get backend info and return
 
     Returns:
         Backend info dict with backend_id
     """
     global backend_info
 
-    if backend_info is None:
-        try:
-            # RPC path: /rpc/backend_info
+    # Try to connect to existing backend
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/rpc/backend_info",
+            json={},
+            timeout=2
+        )
+
+        if response.status_code == 200:
+            # Backend is running, get info
+            result = response.json()
+
+            # Handle RPC async response
+            if result.get("requires_ack"):
+                request_id = result.get("id")
+                time.sleep(1.5)
+
+                response = requests.post(
+                    f"{BACKEND_URL}/rpc/backend_info",
+                    json={"id": request_id},
+                    timeout=2
+                )
+                result = response.json()
+
+            # Extract backend info
+            backend_data = result.get("result", {})
+            backend_id = backend_data.get("backend_id", "unknown")
+
+            logger.info(f"[Proxy] Connected to existing backend ID: {backend_id}")
+            backend_info = backend_data
+            return backend_info
+
+    except Exception as e:
+        logger.debug(f"[Proxy] No existing backend: {e}")
+
+    # Backend not running, auto-start it
+    logger.info("[Proxy] Backend not found, auto-starting...")
+
+    if not start_backend_thread():
+        logger.error("[Proxy] Failed to start backend thread")
+        return {
+            "backend_id": "error",
+            "status": "failed_to_start",
+            "error": "Failed to start backend thread"
+        }
+
+    # Wait for backend to be ready
+    if not wait_for_backend_ready():
+        logger.error("[Proxy] Backend startup timeout")
+        return {
+            "backend_id": "error",
+            "status": "startup_timeout",
+            "error": "Backend startup timeout"
+        }
+
+    # Get backend info after startup
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/rpc/backend_info",
+            json={},
+            timeout=2
+        )
+        result = response.json()
+
+        # Handle RPC async response
+        if result.get("requires_ack"):
+            request_id = result.get("id")
+            time.sleep(1.5)
+
             response = requests.post(
                 f"{BACKEND_URL}/rpc/backend_info",
-                json={},
+                json={"id": request_id},
                 timeout=2
             )
-            response.raise_for_status()
-            backend_info = response.json()
+            result = response.json()
 
-            # Display backend ID
-            backend_id = backend_info.get("backend_id", "unknown")
-            logger.info(f"[Proxy] Connected to backend ID: {backend_id}")
-            debug_print(f"Backend info: {backend_info}", "Proxy")
+        # Extract backend info
+        backend_data = result.get("result", {})
+        backend_id = backend_data.get("backend_id", "unknown")
 
-        except Exception as e:
-            logger.error(f"[Proxy] Failed to connect to backend at {BACKEND_URL}: {e}")
-            backend_info = {"backend_id": "error", "status": "disconnected"}
+        logger.info(f"[Proxy] Backend started successfully, ID: {backend_id}")
+        backend_info = backend_data
+        return backend_info
 
-    return backend_info
+    except Exception as e:
+        logger.error(f"[Proxy] Failed to get backend info: {e}")
+        return {
+            "backend_id": "error",
+            "status": "info_failed",
+            "error": str(e)
+        }
 
 
 async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
@@ -167,9 +311,14 @@ def start_mcp_proxy():
     from pycore.pyfoundations.third_party import get_third_package_FastMCP
     FastMCP = get_third_package_FastMCP()
 
-    # Get backend info and display ID
-    info = get_backend_info()
+    # Ensure backend is running (auto-start if needed)
+    info = ensure_backend_running()
     backend_id = info.get("backend_id", "unknown")
+
+    if backend_id == "error":
+        logger.error("[Proxy] Failed to start/connect to backend")
+        logger.error(f"[Proxy] Error: {info.get('error', 'Unknown error')}")
+        raise RuntimeError("Backend not available")
 
     logger.info(f"[Proxy] Starting MCP Proxy (Backend ID: {backend_id})")
 
@@ -254,9 +403,34 @@ def start_mcp_proxy():
     mcp.run(show_banner=False, log_level="INFO")
 
 
+def cleanup_backend():
+    """Cleanup backend thread on exit"""
+    global backend_thread
+
+    if backend_thread is not None and backend_thread.is_alive():
+        logger.info(f"[Proxy] Backend thread cleanup (Thread: {backend_thread.name})")
+        # Daemon thread will automatically exit when main thread exits
+        # Just wait a bit for graceful shutdown
+        backend_thread.join(timeout=2)
+        logger.info("[Proxy] Backend thread cleanup complete")
+
+
 def main():
     """Main entry point"""
-    start_mcp_proxy()
+    import atexit
+
+    # Register cleanup handler
+    atexit.register(cleanup_backend)
+
+    try:
+        start_mcp_proxy()
+    except KeyboardInterrupt:
+        logger.info("\n[Proxy] Shutting down (Ctrl+C)...")
+        cleanup_backend()
+    except Exception as e:
+        logger.error(f"[Proxy] Fatal error: {e}")
+        cleanup_backend()
+        raise
 
 
 if __name__ == "__main__":
