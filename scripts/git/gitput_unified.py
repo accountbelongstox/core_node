@@ -40,6 +40,7 @@ from gitput_unified_modules.utils import (
     ensure_git_identity,
 )
 from gitput_unified_modules.git_operations import (
+    run_git_command,
     get_current_remote,
     set_remote_url,
     get_current_branch,
@@ -48,7 +49,10 @@ from gitput_unified_modules.git_operations import (
     commit_changes,
     pull_branch,
     push_branch,
-    get_remote_branches,
+    branch_exists_remote,
+    branch_exists_locally,
+    checkout_branch,
+    create_branch,
 )
 from gitput_unified_modules.branch_manager import ensure_target_branch, restore_original_branch
 from gitput_unified_modules.backup import create_working_backup
@@ -133,7 +137,6 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         # Show remote configuration
         write_color_text("--------------------------------", "Green")
         write_color_text("Executing: git remote -v", "DarkGray")
-        from gitput_unified_modules.git_operations import run_git_command
         run_git_command("git remote -v")
         write_color_text("--------------------------------", "Green")
         
@@ -150,9 +153,22 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         # Step 2: Ensure we're on the target branch
         write_color_text("Step 2: Ensuring we're on the target branch...", "Cyan")
         ensure_target_branch(DEFAULT_BRANCH)
+        current_branch = get_current_branch()
         
-        # Step 3: Safe pull with merge
-        write_color_text("Step 3: Performing safe pull...", "Cyan")
+        # Step 3: Check if branch exists on remote
+        write_color_text("Step 3: Checking if branch exists on remote...", "Cyan")
+        if not branch_exists_remote(current_branch):
+            write_color_text(f"Branch '{current_branch}' does not exist. Creating '{current_branch}' branch...", "Red")
+            if not branch_exists_locally(current_branch):
+                create_branch(current_branch)
+            else:
+                checkout_branch(current_branch)
+            push_branch(current_branch, set_upstream=True)
+            run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
+            return True
+        
+        # Step 4: Safe pull with merge
+        write_color_text("Step 4: Performing safe pull...", "Cyan")
         success, output = pull_branch(DEFAULT_BRANCH, no_edit=True)
         
         if success:
@@ -231,17 +247,18 @@ def invoke_git_operations(target_url: str) -> bool:
         
         # Ensure we're on the target branch
         ensure_target_branch(DEFAULT_BRANCH)
-        
         current_branch = get_current_branch()
-        remote_branches = get_remote_branches()
         
-        if f"origin/{current_branch}" not in remote_branches and current_branch not in remote_branches:
-            # Branch doesn't exist on remote, create it
+        # Ensure branch exists on remote (and set upstream) before normal flow
+        if not branch_exists_remote(current_branch):
             write_color_text(f"Branch '{current_branch}' does not exist. Creating '{current_branch}' branch...", "Red")
-            stage_all_changes()
-            commit_message = get_commit_message()
-            commit_changes(commit_message)
+            if not branch_exists_locally(current_branch):
+                create_branch(current_branch)
+            else:
+                checkout_branch(current_branch)
             push_branch(current_branch, set_upstream=True)
+            run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
+            run_git_command(f"git pull origin {DEFAULT_BRANCH}")
             return True
         
         # Stage all changes FIRST (before pull)
@@ -307,70 +324,80 @@ def main():
     else:
         write_color_text("=== Unified Git PUSH Script ===", "Magenta")
     
+    core_node_dir = get_core_node_dir()
+    os.chdir(core_node_dir)
+    write_color_text(f"Changed to: {core_node_dir}", "DarkCyan")
+    
     default_remote = get_default_remote(PROJECT_NAME)
     write_color_text(f"Default remote: {default_remote}", "DarkCyan")
     
-    # Create backup if enabled
-    if args.backup:
-        create_working_backup(backup_enabled=True)
-    
-    # Determine target remote
-    if not args.target:
-        write_color_text("No target specified, using all remotes", "Yellow")
-        targets = ["gitee", "github", "local"]
-    else:
-        targets = [args.target]
-    
-    # Reorder targets to execute DEFAULT_REMOTE first
-    targets = get_execution_order(targets)
-    
-    all_success = True
-    
-    for target in targets:
-        if target in REMOTE_CONFIGS:
-            target_url = REMOTE_CONFIGS[target]
-            
-            if args.pull:
-                write_color_text(f"\n=== Pulling from {target} ({target_url}) ===", "Magenta")
-                success = invoke_safe_git_pull(target_url)
-                if success:
-                    write_color_text(f"Successfully pulled from {target}", "Green")
-                else:
-                    all_success = False
-                    write_color_text(f"Failed to pull from {target}", "Red")
-                # For pull operations, only process the first (default) remote
-                break
-            else:
-                write_color_text(f"\n=== Pushing to {target} ({target_url}) ===", "Magenta")
-                success = invoke_git_operations(target_url)
-                if success:
-                    write_color_text(f"Successfully pushed to {target}", "Green")
-                else:
-                    all_success = False
-                    write_color_text(f"Failed to push to {target}", "Red")
-        else:
-            write_color_text(f"Unknown remote target: {target}", "Red")
-            all_success = False
+    try:
+        # Create backup if enabled
+        if args.backup:
+            create_working_backup(backup_enabled=True)
         
-        # Always restore original branch and remote after each operation
-        restore_original_branch(original_branch)
-        restore_original_remote()
-    
-    write_color_text("\n=== Summary ===", "Magenta")
-    if args.pull:
-        if all_success:
-            write_color_text("Git pull operation completed successfully!", "Green")
+        # Ensure we're on the correct branch before processing remotes
+        if not ensure_target_branch(DEFAULT_BRANCH):
+            write_color_text("Branch management failed. Please resolve manually.", "Red")
+            return
+        
+        # Determine target remote
+        if not args.target:
+            write_color_text("No target specified, using all remotes", "Yellow")
+            targets = ["gitee", "github", "local"]
         else:
-            write_color_text("Git pull operation failed!", "Red")
-    else:
-        if all_success:
-            write_color_text("All git push operations completed successfully!", "Green")
+            targets = [args.target]
+        
+        # Reorder targets to execute DEFAULT_REMOTE first
+        targets = get_execution_order(targets)
+        
+        all_success = True
+        
+        for target in targets:
+            if target in REMOTE_CONFIGS:
+                target_url = REMOTE_CONFIGS[target]
+                
+                if args.pull:
+                    write_color_text(f"\n=== Pulling from {target} ({target_url}) ===", "Magenta")
+                    success = invoke_safe_git_pull(target_url)
+                    if success:
+                        write_color_text(f"Successfully pulled from {target}", "Green")
+                    else:
+                        all_success = False
+                        write_color_text(f"Failed to pull from {target}", "Red")
+                    # For pull operations, only process the first (default) remote
+                    break
+                else:
+                    write_color_text(f"\n=== Pushing to {target} ({target_url}) ===", "Magenta")
+                    success = invoke_git_operations(target_url)
+                    if success:
+                        write_color_text(f"Successfully pushed to {target}", "Green")
+                    else:
+                        all_success = False
+                        write_color_text(f"Failed to push to {target}", "Red")
+            else:
+                write_color_text(f"Unknown remote target: {target}", "Red")
+                all_success = False
+            
+            # Always restore original branch and remote after each operation
+            restore_original_branch(original_branch)
+            restore_original_remote()
+        
+        write_color_text("\n=== Summary ===", "Magenta")
+        if args.pull:
+            if all_success:
+                write_color_text("Git pull operation completed successfully!", "Green")
+            else:
+                write_color_text("Git pull operation failed!", "Red")
         else:
-            write_color_text("Some git push operations failed!", "Red")
-    
-    # Restore original working directory
-    os.chdir(original_working_dir)
-    write_color_text(f"Restored working directory: {original_working_dir}", "DarkCyan")
+            if all_success:
+                write_color_text("All git push operations completed successfully!", "Green")
+            else:
+                write_color_text("Some git push operations failed!", "Red")
+    finally:
+        # Restore original working directory
+        os.chdir(original_working_dir)
+        write_color_text(f"Restored working directory: {original_working_dir}", "DarkCyan")
 
 
 if __name__ == "__main__":
