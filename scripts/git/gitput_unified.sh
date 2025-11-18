@@ -16,7 +16,7 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
-USE_SUDO=""
+    USE_SUDO=""
 fi
 # Parameter validation
 TARGET_REMOTE=""

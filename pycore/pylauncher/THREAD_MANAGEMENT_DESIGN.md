@@ -1,5 +1,12 @@
 # Thread Management Architecture
 
+## Status: ✅ IMPLEMENTED
+
+**Implementation Date**: 2025-11-19
+**Files Modified**:
+- `pycore/pyheartbeat/thread_pool.py` - Extended with THREAD_REGISTRY and priority shutdown
+- `pycore/pylauncher/launcher.py` - Updated to use GlobalThreadPool with prioritized shutdown
+
 ## Overview
 
 设计通用的线程管理机制，让 launcher.py 可以灵活扩展各种线程类，并在 shutdown 时按优先级顺序关闭。
@@ -111,52 +118,133 @@ class ThreadManager:
 
 ## Implementation Plan
 
-### Phase 1: Create Thread Manager
+### Phase 1: Extend GlobalThreadPool ✅ COMPLETED
 - [x] Design architecture
-- [ ] Implement ThreadManager class
-- [ ] Create THREAD_REGISTRY
-- [ ] Add shutdown priority system
+- [x] Create THREAD_REGISTRY in thread_pool.py
+- [x] Add shutdown_priority field to ThreadInfo
+- [x] Implement get_shutdown_order() method
+- [x] Implement shutdown_by_priority() method
+- [x] Export THREAD_REGISTRY in __all__
 
-### Phase 2: Update ServiceConfig
-- [ ] Add enable_rpc_v2 field
-- [ ] Add generic thread config fields
-- [ ] Keep backward compatibility
+### Phase 2: Update launcher.py ✅ COMPLETED
+- [x] Add thread_pool field to ServiceInstances
+- [x] Initialize GlobalThreadPool in launch_services()
+- [x] Register heartbeat service with thread pool
+- [x] Register RPC service with thread pool
+- [x] Register speech service with thread pool
+- [x] Update stop_services() to use shutdown_by_priority()
+- [x] Add custom shutdown callback for each service type
+- [x] Keep backward compatibility with manual shutdown fallback
 
-### Phase 3: Update launcher.py
-- [ ] Replace hard-coded services with ThreadManager
-- [ ] Implement shutdown sequence
-- [ ] Update ServiceInstances
+### Phase 3: Future Enhancements (Optional)
+- [ ] Add enable_rpc_v2 field to ServiceConfig
+- [ ] Register more services (tts_switch, stt_switch) with thread pool
+- [ ] Integrate with THREAD_BUS shutdown events
+- [ ] Add shutdown sequence logging to ENCYCLOPEDIA
+- [ ] Add unit tests for shutdown order
 
-### Phase 4: Update THREAD_BUS
-- [ ] Add priority-based shutdown
-- [ ] Add shutdown sequence logging
-- [ ] Test shutdown order
+## Implementation Summary
+
+### What Was Done
+
+1. **Extended GlobalThreadPool** (`pycore/pyheartbeat/thread_pool.py`):
+   - Added `THREAD_REGISTRY` with service definitions and shutdown priorities
+   - Added `shutdown_priority` field to `ThreadInfo` dataclass
+   - Extended `register_thread()` to accept `shutdown_priority` parameter
+   - Implemented `get_shutdown_order()` to sort threads by priority
+   - Implemented `shutdown_by_priority()` to gracefully shutdown threads in order
+   - Updated `to_dict()` to include shutdown_priority in output
+
+2. **Updated launcher.py** (`pycore/pylauncher/launcher.py`):
+   - Added `thread_pool` field to `ServiceInstances` dataclass
+   - Initialize GlobalThreadPool at start of `launch_services()`
+   - Register heartbeat, RPC, and speech services with thread pool on startup
+   - Rewrote `stop_services()` to use `shutdown_by_priority()` with custom callbacks
+   - Added fallback to manual shutdown for backward compatibility
+
+### Shutdown Priority Order
+
+```
+Priority 50: RPC Server (shuts down first)
+Priority 60: Speech Service
+Priority 100: Heartbeat System (shuts down last)
+```
 
 ## Benefits
 
 1. **Extensible**: 添加新服务只需在 THREAD_REGISTRY 中声明
-2. **Clear shutdown order**: 明确的关闭优先级
+2. **Clear shutdown order**: 明确的关闭优先级（RPC先关，Heartbeat最后关）
 3. **Default services**: pyheartbeat 默认启动
-4. **Backward compatible**: 保持现有 API 不变
+4. **Backward compatible**: 保持现有 API 不变，有 fallback 机制
 5. **Centralized management**: 统一的线程生命周期管理
+6. **Reusable**: 利用现有的 GlobalThreadPool，无重复实现
 
 ## Usage Example
 
 ```python
-# Old way (still works)
-config = ServiceConfig(enable_rpc=True, enable_speech=True)
-
-# New way (extensible)
+# Launch services (same as before)
 config = ServiceConfig(
-    enable_heartbeat=True,  # Default
-    enable_rpc_v2=True,     # New service
-    rpc_v2_config={...}
+    enable_heartbeat=True,
+    enable_rpc=True,
+    enable_speech=True
 )
 
 instances = launch_services(config)
 
-# Shutdown automatically follows priority order
-# 1. RPC v2 shuts down (priority 50)
-# 2. Speech shuts down (priority 60)
-# 3. Heartbeat shuts down last (priority 100)
+# Services are automatically registered with thread pool
+# instances.thread_pool contains GlobalThreadPool
+
+# Shutdown now automatically follows priority order
+stop_services(instances)
+
+# Output:
+# [ThreadPool] Starting prioritized shutdown...
+# [ThreadPool] Shutdown order: ['rpc', 'speech', 'heartbeat']
+# [ThreadPool] Shutting down 'rpc' (priority: 50)...
+# [Launcher] Stopping RPC Server...
+# [ThreadPool] Thread 'rpc' stopped successfully
+# [ThreadPool] Shutting down 'speech' (priority: 60)...
+# [ThreadPool] Thread 'speech' stopped successfully
+# [ThreadPool] Shutting down 'heartbeat' (priority: 100)...
+# [ThreadPool] Thread 'heartbeat' stopped successfully
+# [ThreadPool] Prioritized shutdown complete
 ```
+
+## How to Add New Services
+
+To add a new service to the thread management system:
+
+1. **Add to THREAD_REGISTRY** in `thread_pool.py`:
+```python
+THREAD_REGISTRY = {
+    "my_new_service": {
+        "description": "My new service description",
+        "default_enabled": False,
+        "shutdown_priority": 55,  # Between RPC (50) and Speech (60)
+    },
+}
+```
+
+2. **Register in launcher.py** when starting the service:
+```python
+if config.enable_my_service:
+    instances.my_service = start_my_service()
+
+    if instances.my_service:
+        instances.thread_pool.register_thread(
+            name="my_new_service",
+            instance=instances.my_service,
+            task_handlers={'my_task': lambda task: True},
+            metadata={'service': 'my_service'}
+        )
+```
+
+3. **Add shutdown callback** in `stop_services()`:
+```python
+def shutdown_service(thread_name: str, thread_instance: Any):
+    if thread_name == "my_new_service" and instances.my_service:
+        if hasattr(instances.my_service, 'stop'):
+            instances.my_service.stop()
+```
+
+That's it! The service will now shutdown in the correct priority order.

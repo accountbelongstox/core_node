@@ -1,109 +1,358 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-MCP Unified Server - Main Entry Point
-Consolidates all MCP services: File Processing + Database + Codebase Analysis
+MCP Proxy (Multi-Instance Mode)
 
-Unified from:
-- MCPFileProcessingV2 (file analysis, OCR, document parsing)
-- McpAlchemy (database operations with namespace management)
-- CodebaseScanner + CodebaseContentHub (codebase analysis)
+Lightweight proxy that forwards MCP requests to singleton backend via RPC.
+- Displays backend ID on startup (verify singleton)
+- Forwards tool calls via RPC (HTTP/WebSocket)
+- Transparent to AI (AI sees normal MCP tools)
 
-Singleton Pattern:
-    All controllers use singleton pattern for efficient resource management
-
-Usage:
-    python3 ./pymain.py app=mcp
-
-Environment Variables:
-    MCP_ALLOW_ALL_PATHS=true  - Enable global filesystem access
-    MCP_PROJECT_ROOT=/path    - Set project root directory
+Backend Architecture:
+    Proxy (Multi-Instance) → RPC → Backend (Singleton)
+    - Backend: python -m pycore.pyctl.mcpctl.mcp_backend
+    - Proxy: python pymain.py app=mcp
 """
 
-import logging
 import os
 import sys
+import logging
+import asyncio
+import time
+import platform
+import threading
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
+import requests
 
-# Add project root to path
+# Add project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.stdio_utils import ensure_stdio_has_buffer_attributes
+from pycore.pyctl.mcpctl.debug_config import debug_print, is_proxy_debug
 
-# Expose project root to downstream MCP components
-os.environ.setdefault("MCP_PROJECT_ROOT", str(PROJECT_ROOT))
-
-# Note: ColorPrint MCP mode is automatically enabled by pymain.py when app=mcp is detected
-# No need to call ColorPrint.enable_mcp_mode() here
-
-from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_Context
-
-# Ensure fastmcp can wrap sys.stdout/sys.stderr even when the host replaces the
-# streams with raw BufferedWriter objects (common in sandboxed CLIs).
+# Ensure STDIO compatibility
 ensure_stdio_has_buffer_attributes()
 
-# Configure logging for MCP STDIO mode
-# INFO level is useful for debugging, just ensure clean formatting
+# Configure logging (MCP mode)
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)-8s %(message)s",  # Simple format: INFO     message
+    format="%(levelname)-8s %(message)s",
     handlers=[logging.StreamHandler(sys.stderr)]
 )
-logger = logging.getLogger("pyapps.mcp")
+logger = logging.getLogger("mcp_proxy")
 
-FastMCP = get_third_package_FastMCP()
-Context = get_third_package_Context()
+# Backend configuration
+BACKEND_HOST = os.environ.get("MCP_BACKEND_HOST", "localhost")
+BACKEND_PORT = int(os.environ.get("MCP_BACKEND_PORT", "58100"))
+BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
 
-# Import controllers
-from pyapps.mcp.controller import (
-    get_file_info_controller_singleton,
-    get_database_controller_singleton,
-    get_codebase_controller_singleton
-)
-
-
-# Singleton instances
-_mcp_server_instance: Optional[FastMCP] = None
+# Backend thread handle (auto-started backend using launcher.py)
+backend_thread: Optional[threading.Thread] = None
+backend_info: Optional[Dict[str, Any]] = None
 
 
-def get_mcp_server_singleton() -> FastMCP:
-    """Get singleton instance of unified MCP server"""
-    global _mcp_server_instance
-    if _mcp_server_instance is None:
-        _mcp_server_instance = _initialize_unified_mcp_server()
-    return _mcp_server_instance
+def start_backend_thread() -> bool:
+    """
+    Start backend in background thread using launcher.py singleton mechanism
+
+    Uses pycore.pyctl.mcpctl.mcp_backend.start_mcp_backend()
+    Backend uses launcher.py for singleton detection (port 58000-58099).
+
+    Returns:
+        True if backend thread started successfully
+    """
+    global backend_thread
+
+    logger.info("[Proxy] Starting MCP backend thread (singleton mode via launcher.py)...")
+
+    try:
+        # Import backend starter (uses launcher.py)
+        from pycore.pyctl.mcpctl.mcp_backend import start_mcp_backend
+
+        # Start backend in daemon thread
+        backend_thread = threading.Thread(
+            target=start_mcp_backend,
+            name="MCPBackendThread",
+            daemon=True  # Daemon thread will exit when main thread exits
+        )
+        backend_thread.start()
+
+        logger.info(f"[Proxy] Backend thread started (Thread: {backend_thread.name})")
+        return True
+
+    except Exception as e:
+        logger.error(f"[Proxy] Failed to start backend thread: {e}")
+        return False
 
 
-def _initialize_unified_mcp_server() -> FastMCP:
-    """Initialize unified MCP server with all tools from all subsystems"""
-    # Note: log_level parameter is deprecated in FastMCP 2.13+
-    # It should be passed to run() instead
-    mcp = FastMCP(
-        "MCP Unified Server",
-        version="2.0.0"
-    )
+def wait_for_backend_ready(max_wait: int = 10) -> bool:
+    """
+    Wait for backend to be ready (singleton detection + RPC startup)
 
-    # Get all controller singletons
-    file_controller = get_file_info_controller_singleton()
-    db_controller = get_database_controller_singleton()
-    codebase_controller = get_codebase_controller_singleton()
+    Args:
+        max_wait: Maximum wait time in seconds
 
-    # Register all tools
-    _register_file_processing_tools(mcp, file_controller)
-    _register_database_tools(mcp, db_controller)
-    _register_codebase_tools(mcp, codebase_controller)
+    Returns:
+        True if backend is ready
+    """
+    logger.info("[Proxy] Waiting for backend to be ready...")
 
-    # Reduced log level to avoid STDIO output clutter
-    logger.debug("MCP Unified Server initialized with 19 tools across 3 subsystems")
+    for i in range(max_wait):
+        try:
+            response = requests.post(
+                f"{BACKEND_URL}/rpc/backend_info",
+                json={},
+                timeout=1
+            )
 
-    return mcp
+            if response.status_code == 200:
+                logger.info(f"[Proxy] Backend ready after {i+1}s")
+                return True
+
+        except Exception:
+            pass
+
+        time.sleep(1)
+
+    logger.error(f"[Proxy] Backend not ready after {max_wait}s")
+    return False
 
 
-def _register_file_processing_tools(mcp: FastMCP, controller) -> None:
-    """Register file processing tools (4 tools)"""
+def ensure_backend_running() -> Dict[str, Any]:
+    """
+    Ensure backend is running (auto-start if needed)
 
+    Flow:
+    1. Check if backend is already running
+    2. If not, start backend process (singleton mode)
+    3. Wait for backend to be ready
+    4. Get backend info and return
+
+    Returns:
+        Backend info dict with backend_id
+    """
+    global backend_info
+
+    # Try to connect to existing backend
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/rpc/backend_info",
+            json={},
+            timeout=2
+        )
+
+        if response.status_code == 200:
+            # Backend is running, get info
+            result = response.json()
+
+            # Handle RPC async response
+            if result.get("requires_ack"):
+                request_id = result.get("id")
+                time.sleep(1.5)
+
+                response = requests.post(
+                    f"{BACKEND_URL}/rpc/backend_info",
+                    json={"id": request_id},
+                    timeout=2
+                )
+                result = response.json()
+
+            # Extract backend info
+            backend_data = result.get("result", {})
+            backend_id = backend_data.get("backend_id", "unknown")
+
+            logger.info(f"[Proxy] Connected to existing backend ID: {backend_id}")
+            backend_info = backend_data
+            return backend_info
+
+    except Exception as e:
+        logger.debug(f"[Proxy] No existing backend: {e}")
+
+    # Backend not running, auto-start it
+    logger.info("[Proxy] Backend not found, auto-starting...")
+
+    if not start_backend_thread():
+        logger.error("[Proxy] Failed to start backend thread")
+        return {
+            "backend_id": "error",
+            "status": "failed_to_start",
+            "error": "Failed to start backend thread"
+        }
+
+    # Wait for backend to be ready
+    if not wait_for_backend_ready():
+        logger.error("[Proxy] Backend startup timeout")
+        return {
+            "backend_id": "error",
+            "status": "startup_timeout",
+            "error": "Backend startup timeout"
+        }
+
+    # Get backend info after startup
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/rpc/backend_info",
+            json={},
+            timeout=2
+        )
+        result = response.json()
+
+        # Handle RPC async response
+        if result.get("requires_ack"):
+            request_id = result.get("id")
+            time.sleep(1.5)
+
+            response = requests.post(
+                f"{BACKEND_URL}/rpc/backend_info",
+                json={"id": request_id},
+                timeout=2
+            )
+            result = response.json()
+
+        # Extract backend info
+        backend_data = result.get("result", {})
+        backend_id = backend_data.get("backend_id", "unknown")
+
+        logger.info(f"[Proxy] Backend started successfully, ID: {backend_id}")
+        backend_info = backend_data
+        return backend_info
+
+    except Exception as e:
+        logger.error(f"[Proxy] Failed to get backend info: {e}")
+        return {
+            "backend_id": "error",
+            "status": "info_failed",
+            "error": str(e)
+        }
+
+
+async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
+    """
+    Forward tool call to backend via RPC with async result handling
+
+    RPC Flow:
+    1. Send request → Get {"status": "accepted", "id": "...", "requires_ack": true}
+    2. Wait for processing
+    3. Send request again with same id → Get actual result
+
+    Args:
+        tool_name: Tool name (e.g., 'get_file_info')
+        **kwargs: Tool parameters
+
+    Returns:
+        Tool result from backend
+    """
+    debug_print(f"Forwarding {tool_name} to backend: {kwargs}", "Proxy")
+
+    try:
+        # Step 1: Send initial request
+        response = requests.post(
+            f"{BACKEND_URL}/rpc/{tool_name}",
+            json=kwargs,
+            timeout=30
+        )
+        response.raise_for_status()
+        initial_result = response.json()
+
+        debug_print(f"Backend initial response: {initial_result}", "Proxy")
+
+        # Check if requires ACK (async processing)
+        if initial_result.get("requires_ack"):
+            request_id = initial_result.get("id")
+            logger.info(f"[Proxy] Request accepted, waiting for result (id: {request_id})")
+
+            # Step 2: Wait for backend processing
+            await asyncio.sleep(1.5)  # Wait for processing
+
+            # Step 3: Query result with same request_id
+            max_retries = 3
+            for attempt in range(max_retries):
+                result_response = requests.post(
+                    f"{BACKEND_URL}/rpc/{tool_name}",
+                    json={"id": request_id, **kwargs},  # Use same id
+                    timeout=30
+                )
+                result_response.raise_for_status()
+                result = result_response.json()
+
+                debug_print(f"Backend result (attempt {attempt+1}): {result}", "Proxy")
+
+                # If still requires_ack, wait and retry
+                if result.get("requires_ack"):
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(0.5)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Backend processing timeout",
+                            "request_id": request_id
+                        }
+                else:
+                    # Got actual result
+                    return result
+
+        # Direct result (no ACK required)
+        return initial_result
+
+    except Exception as e:
+        logger.error(f"[Proxy] Backend call failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "backend_url": BACKEND_URL
+        }
+
+
+def start_mcp_proxy():
+    """Start MCP proxy server"""
+    from pycore.pyfoundations.third_party import get_third_package_FastMCP
+    FastMCP = get_third_package_FastMCP()
+
+    # Ensure backend is running (auto-start if needed)
+    info = ensure_backend_running()
+    backend_id = info.get("backend_id", "unknown")
+
+    if backend_id == "error":
+        logger.error("[Proxy] Failed to start/connect to backend")
+        logger.error(f"[Proxy] Error: {info.get('error', 'Unknown error')}")
+        raise RuntimeError("Backend not available")
+
+    logger.info(f"[Proxy] Starting MCP Proxy (Backend ID: {backend_id})")
+
+    # Create FastMCP server
+    mcp = FastMCP("MCP Proxy", version="1.0.0")
+
+    # Register local test tool (no backend needed - for comparison)
+    @mcp.tool()
+    async def mcp_proxy_ping_tool(message: str = "hello") -> dict:
+        """
+        Test tool that runs locally in the proxy (no backend needed).
+
+        Use this to verify MCP server is working correctly.
+
+        Args:
+            message: Test message to echo back (default: "hello")
+
+        Returns:
+            Echo response with proxy info
+        """
+        return {
+            "success": True,
+            "mode": "local",
+            "backend_required": False,
+            "message": f"Proxy echo: {message}",
+            "proxy_info": {
+                "backend_id": backend_id,
+                "backend_url": BACKEND_URL,
+                "platform": platform.system(),
+                "python_version": platform.python_version()
+            }
+        }
+
+    # Register tools (transparent to AI)
     @mcp.tool()
     async def get_file_info_with_ocr_and_document_parsing_tool(
         file_path: str,
@@ -132,477 +381,56 @@ def _register_file_processing_tools(mcp: FastMCP, controller) -> None:
             extract_tables: Extract tables from documents (default: True)
             extract_hyperlinks: Extract hyperlinks from PDFs (default: True)
         """
-        return await controller.get_file_info_with_comprehensive_analysis(
+        # Forward to backend RPC (AI doesn't know about this)
+        return await call_backend_tool(
+            "get_file_info",
             file_path=file_path,
-            options={
-                "use_cache": use_cache,
-                "include_pixel_matrix": include_pixel_matrix,
-                "ocr_model_type": ocr_model_type,
-                "num_colors": num_colors,
-                "extract_images": extract_images,
-                "extract_tables": extract_tables,
-                "extract_hyperlinks": extract_hyperlinks
-            }
+            use_cache=use_cache,
+            include_pixel_matrix=include_pixel_matrix,
+            ocr_model_type=ocr_model_type,
+            num_colors=num_colors,
+            extract_images=extract_images,
+            extract_tables=extract_tables,
+            extract_hyperlinks=extract_hyperlinks
         )
 
-    @mcp.tool()
-    async def generate_placeholder_image_with_ocr_tool(
-        original_image_path: str,
-        output_path: str,
-        placeholder_text: str = None,
-        background_color: str = "#CCCCCC",
-        text_color: str = "#333333",
-        font_size: int = 20
-    ) -> dict:
-        """
-        Generate placeholder image using OCR text from original image.
+    logger.info("[Proxy] MCP tools registered (2 tools)")
+    logger.info("[Proxy]   - mcp_proxy_ping_tool (local, no backend)")
+    logger.info("[Proxy]   - get_file_info_with_ocr_and_document_parsing_tool (via RPC)")
+    logger.info("[Proxy] Running proxy server...")
 
-        Args:
-            original_image_path: Path to original image
-            output_path: Path to save placeholder image
-            placeholder_text: Override text (if None, use OCR from original)
-            background_color: Background color (default: "#CCCCCC")
-            text_color: Text color (default: "#333333")
-            font_size: Font size (default: 20)
-        """
-        return await controller.generate_placeholder_image(
-            original_image_path=original_image_path,
-            output_path=output_path,
-            placeholder_text=placeholder_text,
-            style_options={
-                "background_color": background_color,
-                "text_color": text_color,
-                "font_size": font_size
-            }
-        )
-
-    @mcp.tool()
-    async def query_file_processing_history_tool(
-        file_type: str = None,
-        date_from: str = None,
-        date_to: str = None,
-        limit: int = 100,
-        offset: int = 0
-    ) -> dict:
-        """
-        Query file processing history from database cache.
-
-        Args:
-            file_type: Filter by file type (image, pdf, docx, xlsx, pptx)
-            date_from: Start date filter (ISO format)
-            date_to: End date filter (ISO format)
-            limit: Maximum results (default: 100)
-            offset: Offset for pagination (default: 0)
-        """
-        return await controller.query_processing_history(
-            file_type=file_type,
-            date_from=date_from,
-            date_to=date_to,
-            limit=limit,
-            offset=offset
-        )
-
-    @mcp.tool()
-    async def clear_file_cache_tool(file_path: str = None) -> dict:
-        """
-        Clear cached file information from database.
-
-        Args:
-            file_path: Specific file path to clear (if None, prompts for confirmation)
-        """
-        return await controller.clear_cache(file_path=file_path)
+    # Run proxy
+    mcp.run(show_banner=False, log_level="INFO")
 
 
-def _register_database_tools(mcp: FastMCP, controller) -> None:
-    """Register database management tools (7 tools)"""
+def cleanup_backend():
+    """Cleanup backend thread on exit"""
+    global backend_thread
 
-    @mcp.tool()
-    async def database_namespace_negotiation_tool(
-        client_identifier: str = "default_client",
-        custom_namespace: str = None
-    ) -> dict:
-        """
-        Create or negotiate a database namespace for the client.
-
-        Args:
-            client_identifier: Client ID (e.g., "claude_desktop", "cursor", "vscode")
-            custom_namespace: Optional custom namespace name
-
-        Returns:
-            Session info with namespace, session_key, and metadata
-        """
-        return await controller.create_and_negotiate_namespace(
-            client_identifier=client_identifier,
-            custom_namespace=custom_namespace
-        )
-
-    @mcp.tool()
-    async def database_register_and_connect_tool(
-        namespace: str,
-        database_name: str,
-        connection_string: str
-    ) -> dict:
-        """
-        Register a database connection to a namespace.
-
-        Args:
-            namespace: Namespace identifier
-            database_name: Friendly database name
-            connection_string: SQLAlchemy connection string
-                Examples:
-                - SQLite: "sqlite:///path/to/db.db"
-                - MySQL: "mysql://user:pass@localhost/dbname"
-                - PostgreSQL: "postgresql://user:pass@localhost/dbname"
-
-        Returns:
-            Registration result with database identifier
-        """
-        return await controller.register_database_connection(
-            namespace=namespace,
-            database_name=database_name,
-            connection_string=connection_string
-        )
-
-    @mcp.tool()
-    async def database_execute_query_with_safety_tool(
-        namespace: str,
-        database_name: str,
-        query: str,
-        params: Dict[str, Any] = None,
-        max_rows: int = 1000,
-        timeout_seconds: int = 30
-    ) -> dict:
-        """
-        Execute SQL query with comprehensive safety checks.
-
-        Args:
-            namespace: Namespace identifier
-            database_name: Database name
-            query: SQL query to execute
-            params: Query parameters for parameterized queries
-            max_rows: Maximum rows to return (default: 1000)
-            timeout_seconds: Query timeout in seconds (default: 30)
-
-        Returns:
-            Query results with metadata and execution stats
-        """
-        return await controller.execute_safe_query(
-            namespace=namespace,
-            database_name=database_name,
-            query=query,
-            params=params,
-            max_rows=max_rows,
-            timeout_seconds=timeout_seconds
-        )
-
-    @mcp.tool()
-    async def database_batch_operations_tool(
-        namespace: str,
-        database_name: str,
-        operation_type: str,
-        table_name: str,
-        data: List[Dict[str, Any]],
-        batch_size: int = 100
-    ) -> dict:
-        """
-        Execute batch database operations efficiently.
-
-        Args:
-            namespace: Namespace identifier
-            database_name: Database name
-            operation_type: Type - 'insert', 'update', 'delete', 'upsert'
-            table_name: Target table name
-            data: List of data dictionaries
-            batch_size: Operations per batch (default: 100)
-
-        Returns:
-            Batch operation results with total processed count
-        """
-        return await controller.execute_batch_operations(
-            namespace=namespace,
-            database_name=database_name,
-            operation_type=operation_type,
-            table_name=table_name,
-            data=data,
-            batch_size=batch_size
-        )
-
-    @mcp.tool()
-    async def database_schema_inspection_tool(
-        namespace: str,
-        database_name: str,
-        table_pattern: str = None
-    ) -> dict:
-        """
-        Get database schema information with table and column details.
-
-        Args:
-            namespace: Namespace identifier
-            database_name: Database name
-            table_pattern: Optional SQL LIKE pattern to filter tables
-
-        Returns:
-            Schema information including tables, columns, types, constraints
-        """
-        return await controller.get_database_schema(
-            namespace=namespace,
-            database_name=database_name,
-            table_pattern=table_pattern
-        )
-
-    @mcp.tool()
-    async def database_get_statistics_tool(
-        namespace: str,
-        database_name: str
-    ) -> dict:
-        """
-        Get database statistics including row counts and sizes.
-
-        Args:
-            namespace: Namespace identifier
-            database_name: Database name
-
-        Returns:
-            Statistics for all tables with row counts and column counts
-        """
-        return await controller.get_database_statistics(
-            namespace=namespace,
-            database_name=database_name
-        )
-
-    @mcp.tool()
-    async def database_health_check_tool() -> dict:
-        """
-        Perform health check on database subsystem.
-
-        Returns:
-            Health status, active namespaces, connections, recent queries
-        """
-        return await controller.health_check()
+    if backend_thread is not None and backend_thread.is_alive():
+        logger.info(f"[Proxy] Backend thread cleanup (Thread: {backend_thread.name})")
+        # Daemon thread will automatically exit when main thread exits
+        # Just wait a bit for graceful shutdown
+        backend_thread.join(timeout=2)
+        logger.info("[Proxy] Backend thread cleanup complete")
 
 
-def _register_codebase_tools(mcp: FastMCP, controller) -> None:
-    """Register codebase analysis tools (8 tools)"""
+def main():
+    """Main entry point"""
+    import atexit
 
-    @mcp.tool()
-    async def codebase_get_directory_tree_tool(
-        target_path: str = None,
-        max_depth: int = 5,
-        include_files: bool = True,
-        include_hidden: bool = False,
-        output_format: str = "both"
-    ) -> dict:
-        """
-        Generate directory tree structure in multiple formats.
+    # Register cleanup handler
+    atexit.register(cleanup_backend)
 
-        Args:
-            target_path: Path to scan (defaults to project root)
-            max_depth: Maximum recursion depth (default: 5)
-            include_files: Include files in tree (default: True)
-            include_hidden: Include hidden files/directories (default: False)
-            output_format: Format - "json", "text", "markdown", "both" (default: "both")
-
-        Returns:
-            Directory tree in requested format(s) with metadata
-        """
-        return await controller.get_directory_tree_with_multiple_formats(
-            target_path=target_path,
-            max_depth=max_depth,
-            include_files=include_files,
-            include_hidden=include_hidden,
-            output_format=output_format
-        )
-
-    @mcp.tool()
-    async def codebase_find_files_by_pattern_tool(
-        filename_pattern: str,
-        search_path: str = None,
-        exact_match: bool = False,
-        case_sensitive: bool = False,
-        max_results: int = 100
-    ) -> dict:
-        """
-        Find files by filename or regex pattern.
-
-        Args:
-            filename_pattern: Filename or regex pattern to search for
-            search_path: Path to search in (defaults to project root)
-            exact_match: Only exact matches (default: False)
-            case_sensitive: Case-sensitive search (default: False)
-            max_results: Maximum results (default: 100)
-
-        Returns:
-            Search results with file paths, sizes, and metadata
-        """
-        return await controller.find_files_by_pattern(
-            filename_pattern=filename_pattern,
-            search_path=search_path,
-            exact_match=exact_match,
-            case_sensitive=case_sensitive,
-            max_results=max_results
-        )
-
-    @mcp.tool()
-    async def codebase_search_content_tool(
-        search_text: str,
-        search_path: str = None,
-        file_pattern: str = None,
-        case_sensitive: bool = False,
-        context_lines: int = 0,
-        max_results: int = 100
-    ) -> dict:
-        """
-        Search for text content within files.
-
-        Args:
-            search_text: Text or regex to search for
-            search_path: Path to search in (defaults to project root)
-            file_pattern: Regex pattern to filter files (e.g., ".*\\.py$")
-            case_sensitive: Case-sensitive search (default: False)
-            context_lines: Number of context lines before/after matches (default: 0)
-            max_results: Maximum files to return (default: 100)
-
-        Returns:
-            Search results with file paths, line numbers, and content matches
-        """
-        return await controller.search_content_in_files(
-            search_text=search_text,
-            search_path=search_path,
-            file_pattern=file_pattern,
-            case_sensitive=case_sensitive,
-            context_lines=context_lines,
-            max_results=max_results
-        )
-
-    @mcp.tool()
-    async def codebase_get_file_content_tool(
-        file_path: str,
-        max_chars: int = 16000,
-        include_ocr: bool = True,
-        include_color_analysis: bool = True,
-        include_document_metadata: bool = True
-    ) -> dict:
-        """
-        Get file content with comprehensive analysis (integrates with file processing).
-
-        For images: OCR, color analysis, metadata
-        For documents: Text extraction, metadata, page info
-        For code/text: Content with syntax detection
-
-        Args:
-            file_path: Path to file
-            max_chars: Maximum characters to return (default: 16000)
-            include_ocr: Include OCR for images (default: True)
-            include_color_analysis: Include color analysis for images (default: True)
-            include_document_metadata: Include document metadata (default: True)
-
-        Returns:
-            Comprehensive file analysis based on file type
-        """
-        return await controller.get_file_content_with_comprehensive_analysis(
-            file_path=file_path,
-            max_chars=max_chars,
-            include_ocr=include_ocr,
-            include_color_analysis=include_color_analysis,
-            include_document_metadata=include_document_metadata
-        )
-
-    @mcp.tool()
-    async def codebase_analyze_statistics_tool(
-        target_path: str = None
-    ) -> dict:
-        """
-        Get comprehensive codebase statistics.
-
-        Args:
-            target_path: Path to analyze (defaults to project root)
-
-        Returns:
-            Statistics including file counts, sizes, type distribution, language analysis
-        """
-        return await controller.analyze_codebase_statistics(
-            target_path=target_path
-        )
-
-    @mcp.tool()
-    async def codebase_describe_directory_tool(
-        directory_path: str,
-        include_file_count: bool = True,
-        include_size_stats: bool = True,
-        include_type_distribution: bool = True
-    ) -> dict:
-        """
-        Describe directory with file overview and statistics.
-
-        Args:
-            directory_path: Path to directory
-            include_file_count: Include file counts (default: True)
-            include_size_stats: Include size statistics (default: True)
-            include_type_distribution: Include file type distribution (default: True)
-
-        Returns:
-            Directory description with comprehensive statistics
-        """
-        return await controller.describe_directory_with_summary(
-            directory_path=directory_path,
-            include_file_count=include_file_count,
-            include_size_stats=include_size_stats,
-            include_type_distribution=include_type_distribution
-        )
-
-    @mcp.tool()
-    async def codebase_scan_framework_apps_tool(
-        scan_path: str = None
-    ) -> dict:
-        """
-        Scan for common framework applications (Flutter, Vue, React, Laravel, etc.).
-
-        Args:
-            scan_path: Path to scan (defaults to project root)
-
-        Returns:
-            Detected frameworks and application structures
-        """
-        return await controller.scan_for_framework_applications(
-            scan_path=scan_path
-        )
-
-    @mcp.tool()
-    async def codebase_health_check_tool() -> dict:
-        """
-        Perform health check on codebase subsystem.
-
-        Returns:
-            Health status, project root, global access setting, utilities status
-        """
-        return await controller.health_check()
-
-
-# Module-level singleton access
-mcp_server = get_mcp_server_singleton()
-
-
-def start() -> bool:
-    """
-    Launch MCP Proxy
-
-    NEW: Launch lightweight proxy that connects to backend.
-    Backend ID will be displayed on startup (verify singleton).
-    """
-    logger.info("[MCP] Starting MCP Proxy...")
-
-    # Launch proxy (connects to backend, displays backend ID)
-    from pyapps.mcp.mcp_proxy import start_mcp_proxy
-
-    start_mcp_proxy()
-    return True
-
-
-def main() -> None:
-    """Compatibility wrapper for direct execution"""
-    success = start()
-    if not success:
-        raise SystemExit(1)
+    try:
+        start_mcp_proxy()
+    except KeyboardInterrupt:
+        logger.info("\n[Proxy] Shutting down (Ctrl+C)...")
+        cleanup_backend()
+    except Exception as e:
+        logger.error(f"[Proxy] Fatal error: {e}")
+        cleanup_backend()
+        raise
 
 
 if __name__ == "__main__":

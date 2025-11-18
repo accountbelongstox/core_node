@@ -55,3 +55,25 @@ ython pyapps/mcp/现在切换到 python pyapps/mcp/主入口方法上，启动�
   pycore\pyutils\rpc_v2 可以在 launcher.py 配置启动，但当如果使用参数 启动 rpc v2时，将在
   thread_bus.py的退出，重启动除中加入先关闭rpc ，先全面分析。同时做出一个通用性的扩展，这样可以一直扩展更多线程类，同时默认pyheartbeat是默认启动的，其他都需要配置，你可以要全面调整一下launcher.py和其他类的组合。这就是新的启动方式。
   同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+  现在使用这个方案，开始修改
+  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+  MCPUnifiedserver
+python D:/programing/core_node/pymain.py app=mcp
+get file info with ocr and document parsing tool
+Show less
+上
+New MCP Server 虽然目前显示，但 实际上AI调用不了 测试当前可用的MCP服务
+测试你目前可以调用的MCP服务。
+检查可用的 MCP 服务和资源。
+º No resources found
+No MCP resources available
+当前未检测到可用的 MCP 服务或资源。可能原因:
+1.未配置 MCP 服务器，查看旧的代码，以及代理层是否遵守了fastmcp2的规范，文档 pyapps\mcp\fastmcp2_doc
+
+ backend_id。 这个不需要 传递，是后端返回给前端的，。用于判断后端是否是单例，明白吗？重新设计，全面分析。
+
+ 全面扩展一下  RPCv2版本，pycore\pyutils\rpc_v2pycore\pyutils\rpc_v2 pycore\pyutils\rpc_v2  整个文件全面扫描
+  ，给出同时支持 同步的方案，注意其中的客户端注册机制和事件库系统。
+    同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 

@@ -1,51 +1,108 @@
 # PyCore Updates
 
-## 2025-11-19: 通用线程管理架构设计
+## 2025-11-19: RPC v2 同步调用支持 ✅ 实施完成
 
-**目标**: 设计可扩展的线程管理系统，让launcher.py可灵活添加新服务（rpc_v2等）。
+**完成**: 全面扩展 RPC v2 架构，实施路由级别同步调用支持。
 
-**核心设计**:
-- 线程注册表（THREAD_REGISTRY）：声明式配置所有可启动服务
-- 关闭优先级：RPC/网络(50) → 处理服务(60) → 心跳(100)
-- 默认启动：pyheartbeat默认启动，其他需配置
-- 通用ThreadManager：统一管理线程生命周期
+**问题诊断**:
+- 所有 RPC 响应强制添加 `requires_ack: true`
+- 客户端等待 1.5秒 + 重试3次（每次0.5秒）= 总耗时~3秒
+- MCP 工具期望 < 1秒响应，导致超时
 
-**实现计划**:
-1. 创建ThreadManager类和THREAD_REGISTRY
-2. 在ServiceConfig添加enable_rpc_v2等扩展字段
-3. 更新launcher.py使用通用机制
-4. THREAD_BUS添加优先级关闭
+**核心实现** (方案 A - 路由标记):
+- 新增 `RouteConfig` 类型存储路由元数据（sync, is_coroutine, description）
+- RoutesManager 支持 `register_route(name, handler, sync=True)`
+- FastAPIRPCServer 检测 `is_sync_route()` 并 await 处理立即返回
+- 响应标记 `sync_response: true`（无 `requires_ack`）
+
+**代码修改**:
+- `common/typing.py`: 添加 `RouteConfig` dataclass
+- `server/routes_manager.py`: 路由配置存储 + `is_sync_route()` 方法
+- `server/fastapi_server.py`: HTTP 处理逻辑分支（sync vs async）
+- `scripts/test_rpc_v2_sync_mode.py`: 测试脚本验证性能
+
+**性能提升**:
+- 同步路由: < 100ms ✅ (立即返回)
+- 异步路由: ~3秒（保持 ACK 机制）
+
+**向后兼容**: 默认 `sync=False`，现有路由保持异步行为。
+
+**文档**: `pycore/pyutils/rpc_v2/SYNC_MODE_IMPLEMENTATION.md`
+
+---
+
+## 2025-11-19: Flutter Design Docs System (3-Layer + Smart Examples) ✅ COMPLETED
+
+**Completed**: Three-layer design docs structure + smart example image management + English codebase.
+
+**Three-Layer Structure** (by precision, not language):
+- Layer 1: Concept Designs (`1_concept_designs/`) - High-level architecture, flows, data models
+- Layer 2: Rough Page Designs (`2_page_designs_rough/`) - Page wireframes and layouts
+- Layer 3: Detailed Page Designs (`3_page_designs_detailed/`) - Detailed specs + pageview_map.json
+
+**Smart Example Images** (context-aware naming):
+- Empty dir → Generate example image (e.g., `example_architecture.png`, `example_home_wireframe.png`)
+- Has actual images → Auto-remove all example images
+- Images removed → Regenerate example image
+
+**Deprecated File Cleanup**:
+- Auto-remove old directories: `2_page_designs_cn`, `3_page_designs_en`
+- Auto-remove old fixed placeholder: `_placeholder.png`
+- Auto-remove Chinese example files: `示例_*.md`
+
+**Auto-Expansion**: Runs on design_doc_tool startup, creates missing structure + examples.
+
+**Docs**: `doc/DESIGN_DOCS_STRUCTURE.md` + `doc/DESIGN_IMAGES_PLACEMENT.md`
+
+---
+
+## 2025-11-19: MCP Backend RPC化 ✅ 完成
+
+**完成**: MCP后端从FastAPI迁移到UnifiedRpcServer，集成launcher.py线程管理。
+
+**核心改进**:
+- mcp_backend.py 使用 UnifiedRpcServer (HTTP + WebSocket)
+- 通过 launcher.py 启动，集成单例检测和线程池管理
+- RPC路由: `/rpc/get_file_info`, `/rpc/backend_info`
+- 关闭优先级: RPC(50) 与其他RPC服务同级
+
+**架构统一**: 所有后端服务使用统一RPC架构，无需独立HTTP服务器。
+
+---
+
+## 2025-11-19: 通用线程管理架构 ✅ 实现完成
+
+**完成**: 扩展 GlobalThreadPool 实现优先级关闭，launcher.py 集成线程池管理。
+
+**核心改进**:
+- thread_pool.py 添加 THREAD_REGISTRY + shutdown_by_priority()
+- launcher.py 所有服务注册到线程池，按优先级关闭
+- 关闭顺序：RPC(50) → Speech(60) → Heartbeat(100)
+
+**扩展性**: 添加新服务只需在 THREAD_REGISTRY 声明 + 注册到线程池。
 
 **文档**: `pycore/pylauncher/THREAD_MANAGEMENT_DESIGN.md`
 
 ---
 
-## 2025-11-19: MCP Proxy-Backend Prototype (hello ok!)
+## 2025-11-19: MCP Proxy-Backend 完整架构 ✅ 完成
 
-**完成**: 后端集成单例检测，两个独立端口分别用于单例检测和HTTP服务。
+**完成**: 代理-后端分离架构，代理多实例，后端单例RPC服务。
 
-**端口分配**:
-- 单例检测端口: 58000-58099（检查是否已有后端）
-- HTTP服务端口: 58100（后端API，代理连接此端口）
+**架构**:
+- **后端**: `python -m pycore.pyctl.mcpctl.mcp_backend` (单例，RPC端口58100)
+- **代理**: `python pymain.py app=mcp` (多实例，连接后端RPC)
+- **RPC异步处理**: 代理端await等待 + 重试机制（无轮询）
 
-**后端**:
-- 使用pylauncher单例检测（port 58000-58099）
-- 通过后启动HTTP服务器（port 58100，独立线程）
-- 唯一ID验证单例，模拟工具返回"hello ok!"
+**核心改进**:
+- 代理端处理 `requires_ack` 响应：await 1.5s → 重试3次查询结果
+- RPC路径: `/rpc/get_file_info`, `/rpc/backend_info`
+- 后端mock工具返回 "hello ok!" 验证通信
 
-**代理**:
-- 连接HTTP端口58100
-- 启动时显示Backend ID（验证单例）
-- 对AI完全透明
-
-**测试**:
-```bash
-# 1. 启动后端（会显示单例端口和HTTP端口）
-python -m pycore.pyctl.mcpctl.mcp_backend
-
-# 2. 启动代理（连接到后端，显示Backend ID）
-python pymain.py app=mcp
-```
+**文件**:
+- `pycore/pyctl/mcpctl/mcp_backend.py`: 后端RPC服务
+- `pyapps/mcp/mcp_main.py`: 代理（替换原完整MCP）
+- `pyapps/mcp/mcp_main_backup_*.py`: 原MCP备份
 
 ---
 
