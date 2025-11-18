@@ -57,7 +57,11 @@ function renderPanel() {
 
   let content = `
     <h2>${app.app}</h2>
-    <p><strong>Design folder:</strong> <code>${designPath}</code></p>
+    <p>
+      <strong>Design folder:</strong>
+      <code>${designPath}</code>
+      <button id="open-design-folder-btn" class="btn-icon" title="Open in Explorer">📁</button>
+    </p>
     <p class="${hasIssues ? 'status-bad' : 'status-ok'}">
       ${hasIssues ? `⚠ Issues detected: ${app.missing.length} items missing` : '✓ All required folders/files detected.'}
     </p>
@@ -87,6 +91,12 @@ function renderPanel() {
     if (fixBtn) {
       fixBtn.addEventListener('click', () => handleFixButton(app));
     }
+  }
+
+  // Attach open design folder button handler
+  const openDesignFolderBtn = document.getElementById('open-design-folder-btn');
+  if (openDesignFolderBtn) {
+    openDesignFolderBtn.addEventListener('click', () => handleOpenDesignFolder(app));
   }
 
   // Clear file viewer when switching apps
@@ -193,7 +203,7 @@ async function loadTreeForCurrentApp() {
 }
 
 /**
- * Handle "Open in Explorer" button click
+ * Handle "Open in Explorer" button click (sidebar)
  */
 async function handleOpenFolder() {
   if (!currentApp || !currentApp.design_path) {
@@ -212,6 +222,32 @@ async function handleOpenFolder() {
     if (!result.success) {
       alert(`Failed to open folder: ${result.error}`);
     }
+  } catch (error) {
+    alert(`Failed to open folder: ${error.message}`);
+  }
+}
+
+/**
+ * Handle "Open Design Folder" button click (main panel)
+ */
+async function handleOpenDesignFolder(app) {
+  if (!app || !app.design_path) {
+    alert('No design folder to open');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/folder/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: app.design_path })
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      alert(`Failed to open folder: ${result.error}`);
+    }
+    // Success - folder opened, no need to show alert
   } catch (error) {
     alert(`Failed to open folder: ${error.message}`);
   }

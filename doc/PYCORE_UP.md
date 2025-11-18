@@ -1,5 +1,29 @@
 # PyCore Updates
 
+## 2025-11-19: RPC v2 同步调用支持方案 📋 设计完成
+
+**完成**: 全面分析 RPC v2 架构，设计路由级别同步调用支持方案。
+
+**问题诊断**:
+- 所有 RPC 响应强制添加 `requires_ack: true`
+- 客户端等待 1.5秒 + 重试3次（每次0.5秒）= 总耗时~3秒
+- MCP 工具期望 < 1秒响应，导致超时
+
+**解决方案** (路由标记模式):
+- 注册时标记同步路由: `server.route('backend_info', handler, sync=True)`
+- 同步路由立即返回结果（无 `requires_ack`），响应 < 100ms
+- 异步路由保持 ACK 机制（耗时操作如文件处理）
+
+**核心组件扫描**:
+- RequestEventTable: 事件状态机 (PENDING → PROCESSING → COMPLETED → ACK_PENDING)
+- ClientRegistry: WebSocket 客户端连接管理 + 待发消息队列
+- FastAPIAckManager: WebSocket 重试机制（3次 × 3秒间隔）+ Inventory 存储
+- RequestProcessor: 支持同步/异步 handler
+
+**文档**: `pycore/pyutils/rpc_v2/SYNC_MODE_IMPLEMENTATION.md`
+
+---
+
 ## 2025-11-19: Flutter Design Docs System (3-Layer + Smart Examples) ✅ COMPLETED
 
 **Completed**: Three-layer design docs structure + smart example image management + English codebase.

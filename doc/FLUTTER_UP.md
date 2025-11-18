@@ -87,3 +87,9 @@
 - file_writer.py: Backend file save with JSON validation
 - Enhanced FileViewer: Edit mode, dirty state, save handler
 - TreeView: Persists expanded folders using storageManager
+
+### UI Improvements
+- Design folder path now includes inline "Open in Explorer" button
+- Quick access to design directory from main panel
+- Hover effect with scale animation for better UX
+- Non-blocking subprocess call (works on Windows/Linux/macOS)
