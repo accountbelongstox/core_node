@@ -4,8 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flutter Design Docs Inspector</title>
-    <link rel="stylesheet" href="/static/css/main.css" />
+    <!-- CSS Modules - Order matters! -->
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/layout.css" />
+    <link rel="stylesheet" href="/static/css/buttons.css" />
+    <link rel="stylesheet" href="/static/css/sidebar.css" />
+    <link rel="stylesheet" href="/static/css/panel.css" />
     <link rel="stylesheet" href="/static/css/tree.css" />
+    <link rel="stylesheet" href="/static/css/file-viewer.css" />
   </head>
   <body>
     <header>
@@ -26,6 +32,14 @@
             <button id="open-folder-btn" class="icon-btn" title="Open in Explorer">
               📁
             </button>
+          </div>
+          <!-- Current folder path display -->
+          <div id="current-folder-path" class="current-folder-path" style="display: none;">
+            <div class="path-display">
+              <span class="path-label">Current:</span>
+              <code id="current-folder-text" class="path-text"></code>
+              <button id="open-current-folder-btn" class="btn-icon-small" title="Open in Explorer">📁</button>
+            </div>
           </div>
           <div id="file-tree" class="file-tree"></div>
           <div id="tree-placeholder" class="tree-placeholder">

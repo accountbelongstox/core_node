@@ -1,0 +1,97 @@
+/* Button styles - All button variations */
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+  padding: 0.25rem;
+}
+
+.icon-btn:hover {
+  transform: scale(1.15);
+}
+
+.btn-icon {
+  padding: 0.25rem 0.5rem;
+  margin-left: 0.5rem;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  vertical-align: middle;
+}
+
+.btn-icon:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: scale(1.1);
+}
+
+.btn-icon-small {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 3px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-icon-small:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: scale(1.1);
+}
+
+button.primary {
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button.primary:hover {
+  background: #1e40af;
+}
+
+button.primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.btn-action {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  color: #334155;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-action:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.btn-action.primary {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
+.btn-action.primary:hover {
+  background: #1e40af;
+  border-color: #1e40af;
+}

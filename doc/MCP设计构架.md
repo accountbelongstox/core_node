@@ -77,3 +77,6 @@ No MCP resources available
  全面扩展一下  RPCv2版本，pycore\pyutils\rpc_v2pycore\pyutils\rpc_v2 pycore\pyutils\rpc_v2  整个文件全面扫描
   ，给出同时支持 同步的方案，注意其中的客户端注册机制和事件库系统。
     同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+确认两个工具是不是都是使用rpc
+  v2调用，使用代理层调用。同时后是不是单例模式。全面再确认一遍。

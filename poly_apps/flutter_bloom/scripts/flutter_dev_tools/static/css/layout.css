@@ -1,0 +1,43 @@
+/* Layout styles - Main container and content area */
+
+.main-container {
+  padding: 1rem 2rem 2rem;
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom 1rem;
+}
+
+.tab {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.tab:hover {
+  background: #f8fafc;
+  border-color: var(--primary-color);
+}
+
+.tab.active {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
+/* Content area - split view */
+.content-area {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  min-height: 500px;
+}
