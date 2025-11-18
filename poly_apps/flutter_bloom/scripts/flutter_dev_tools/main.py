@@ -15,7 +15,7 @@ from typing import Dict, List
 from urllib.parse import urlparse, parse_qs
 
 # Import API modules
-from api import app_checker, file_tree, file_reader, folder_opener, file_writer
+from api import app_checker, file_tree, file_reader, folder_opener, file_writer, pageview_updater_api
 from utils import path_utils, port_manager
 
 DEFAULT_HOST = "127.0.0.1"
@@ -89,6 +89,19 @@ class DesignDocRequestHandler(BaseHTTPRequestHandler):
                 return
 
             result = file_reader.read_file_content(file_path)
+            self.respond_json(result)
+
+        # API: Get pageview_map.json stats
+        elif path.startswith("/api/apps/") and "/pageview/stats" in path:
+            app_name = path.split("/")[3]
+            apps_dir = path_utils.get_apps_dir()
+            app_path = apps_dir / app_name
+
+            if not app_path.exists():
+                self.send_error(HTTPStatus.NOT_FOUND, "App not found")
+                return
+
+            result = pageview_updater_api.get_pageview_map_stats(app_path)
             self.respond_json(result)
 
         # Static files
@@ -182,6 +195,37 @@ class DesignDocRequestHandler(BaseHTTPRequestHandler):
                 self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
             except Exception as e:
                 self.respond_json({"success": False, "error": str(e)})
+
+        # Update pageview_map.json with image analysis
+        elif self.path.startswith("/api/apps/") and "/pageview/update" in self.path:
+            try:
+                # Parse app name from path: /api/apps/{app_name}/pageview/update
+                parts = self.path.split("/")
+                app_name = parts[3]
+
+                # Read request body
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length) if content_length > 0 else b'{}'
+                data = json.loads(body.decode('utf-8'))
+
+                layer = data.get("layer", "all")  # "rough", "detailed", or "all"
+                force = data.get("force", False)  # Force re-analysis
+
+                apps_dir = path_utils.get_apps_dir()
+                app_path = apps_dir / app_name
+
+                if not app_path.exists():
+                    self.respond_json({"success": False, "error": "App not found"})
+                    return
+
+                result = pageview_updater_api.update_app_pageview_map(app_path, layer, force)
+                self.respond_json(result)
+
+            except json.JSONDecodeError as e:
+                self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)})
+
 
         else:
             self.respond_json({"success": False, "error": "Endpoint not found"})

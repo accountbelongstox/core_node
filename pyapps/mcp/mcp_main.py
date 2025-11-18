@@ -360,7 +360,7 @@ def start_mcp_proxy():
 
     # Register tools (transparent to AI)
     @mcp.tool()
-    async def get_file_info_with_ocr_and_document_parsing_tool(
+    async def img_ocr_doc_allfile_parser_info_tool(
         file_path: str,
         use_cache: bool = True,
         include_pixel_matrix: bool = False,
@@ -371,11 +371,13 @@ def start_mcp_proxy():
         extract_hyperlinks: bool = True
     ) -> dict:
         """
-        Get comprehensive file information with OCR, document parsing, and color analysis.
+        Parse and extract info from all file types: images (OCR), documents (PDF, Office), with color analysis.
 
-        For images: OCR text, positions, color palette, dimensions, pixel matrix (optional)
-        For PDFs: Text extraction, positions, metadata, tables, images, hyperlinks
-        For Office docs: Text content, paragraphs, metadata, tables, formulas, sheets
+        Supports: PNG, JPG, BMP (OCR) | PDF (text, tables, images) | DOCX, XLSX, PPTX (content extraction)
+
+        Images: OCR text with positions, color palette, dimensions, pixel matrix (optional)
+        PDFs: Text extraction with positions, metadata, tables, embedded images, hyperlinks
+        Office: Text content, paragraphs, metadata, tables, formulas, Excel sheets
 
         Args:
             file_path: Path to file to analyze
@@ -402,7 +404,7 @@ def start_mcp_proxy():
 
     logger.info("[Proxy] MCP tools registered (2 tools)")
     logger.info("[Proxy]   - mcp_proxy_ping_tool (local, no backend)")
-    logger.info("[Proxy]   - get_file_info_with_ocr_and_document_parsing_tool (via RPC)")
+    logger.info("[Proxy]   - img_ocr_doc_allfile_parser_info_tool (via RPC)")
     logger.info("[Proxy] Running proxy server...")
 
     # Run proxy

@@ -7,9 +7,18 @@
 
   /* Color variables */
   --primary-color: #1d4ed8;
+  --primary-hover: #1e40af;
   --success-color: #15803d;
   --error-color: #b91c1c;
   --border-color: #e2e8f0;
+
+  /* Text colors */
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+
+  /* Background colors */
+  --panel-bg: #ffffff;
 
   /* Layout variables */
   --sidebar-width: 300px;

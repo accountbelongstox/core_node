@@ -46,45 +46,48 @@ Spec: Dual-entry pattern
 6. Follow the **Design & Development Documentation** workflow before any feature work.
 
 ### Design & Development Documentation
-- Every app stores its design artefacts inside `poly_apps/flutter_bloom/lib/apps/app_{name}/design_docs_and_progress/`:
-  - `design_docs_and_progress/concept_notes/` – conceptual documents describing the prototype intent.
-  - `design_docs_and_progress/wireframes/` – low-fidelity sketches/wireframes.
-  - `design_docs_and_progress/flows/` – UX flowcharts (mermaid/draw.io/PNG, etc.).
-  - `design_docs_and_progress/final_designs/` – final UI screenshots plus `screenshots_catalog.md`, `OCR_RECOGNITION_REPORT.md`, composites, etc.
-- Maintain progress logs inside `design_docs_and_progress/progress_logs/` (Markdown files):
-  - `concept_progress.md`
-  - `wireframe_progress.md`
-  - `flow_progress.md`
-  - `design_progress.md`
-  - `ui_dev_progress.md`
-- Feature/backend milestones are tracked via dedicated folders:
-  - `design_docs_and_progress/feature_progress/` – contains per-module folders (e.g., `profile/`, `payments/`) with notes/progress.md.
-  - `design_docs_and_progress/backend_bridge/` – subsystem folders (`auth_bridge/`, `map_bridge/`, etc.) each holding integration docs and progress.md files.
-- **Screenshot → OCR Map**: Store OCR output in `design_docs_and_progress/final_designs/pageview_map.json` using the schema shown below so QA/dev/AI agents can compare the live UI against the spec:
+- Every app uses a **three-layer design system** inside `poly_apps/flutter_bloom/lib/apps/app_{name}/design_docs_and_progress/`:
+  - **Layer 1**: `1_concept_designs/` – High-level architecture, user flows, data models (no page specifics)
+  - **Layer 2**: `2_page_designs_rough/` – Page wireframes and layouts (rough designs)
+  - **Layer 3**: `3_page_designs_detailed/` – Detailed specs with `pageview_map.json` for code mapping
+- **Auto-Expansion**: Run `python scripts/flutter_dev_tools/design_doc_tool.py` to auto-create missing structure without overwriting existing files
+- **Smart Example Images**: Auto-generated context-aware placeholders (e.g., `example_architecture.png`, `example_home_wireframe.png`) in empty `images/` directories, auto-removed when actual images added
+- **pageview_map.json** (v2.0): Single file at `design_docs_and_progress/pageview_map.json` mapping ALL pages with auto-analyzed color palettes and OCR text:
   ```json
   {
-    "image_file": "01_profile_page.png",
-    "page_key": "profile_page",
-    "elements": [
-      {
-        "type": "text",
-        "text": "User Name",
-        "bbox": [32, 96, 420, 148],
-        "color": "#1A1A1A",
-        "notes": "Title font, bold"
-      },
-      {
-        "type": "button",
-        "text": "Edit",
-        "bbox": [520, 640, 680, 712],
-        "color": "#3B82F6",
-        "notes": "Primary action"
+    "version": "2.0",
+    "app_name": "app_xxx",
+    "last_updated": "2025-11-19T12:00:00",
+    "pages": {
+      "home_page": {
+        "page_key": "home_page",
+        "layer": "rough",
+        "images": [
+          {
+            "file_name": "home_v1.png",
+            "file_path": "2_page_designs_rough/images/home_v1.png",
+            "color_palette": [
+              ["#FFFFFF", 0.35],
+              ["#000000", 0.25]
+            ],
+            "ocr_text": [
+              {
+                "text": "Welcome",
+                "position": [x, y, w, h],
+                "confidence": 0.95
+              }
+            ],
+            "last_analyzed": "2025-11-19T12:00:00"
+          }
+        ]
       }
-    ]
+    }
   }
   ```
-- AI reviewers and developers must chase these folders whenever specifications mention original artwork or progress checkpoints. Update the screenshots, JSON map, and progress logs whenever the design or implementation changes.
-- Use `python scripts/pytools/flutter_dev_tools/design_doc_tool.py` to launch the HTTP inspector (default `http://127.0.0.1:5757`). Each app appears as a tab showing the design folder path, missing items, and a “Create Missing Items” button that scaffolds the required directories/files without overwriting existing content.
+- **Auto-Update**: Use design_doc_tool web UI buttons to analyze images and update pageview_map.json with color palettes (top 10 colors) and OCR text positions
+- **Workflow**: Design flows from Layer 1 (concept) → Layer 2 (rough pages) → Layer 3 (detailed specs) → Development (based on pageview_map.json)
+- AI reviewers must reference these layers when specifications mention design or progress. Update images, JSON maps, and specs when design/implementation changes.
+- Full docs: `doc/DESIGN_DOCS_STRUCTURE.md`, `doc/DESIGN_IMAGES_PLACEMENT.md`
 
 ### APP File Design and Structure Standardization
 ```

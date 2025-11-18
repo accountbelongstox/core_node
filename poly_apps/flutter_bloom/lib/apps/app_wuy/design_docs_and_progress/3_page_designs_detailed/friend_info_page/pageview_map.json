@@ -1,0 +1,40 @@
+{
+  "image_file": "05_friend_info_page.png",
+  "page_key": "friend_info_page",
+  "descriptions": {
+    "purpose": "friend_info_page UI element mapping",
+    "page_name_cn": "好友信息页",
+    "page_name_en": "friend_info_page",
+    "specifications": {
+      "architecture": "Follow MVVM pattern: separate UI layer and Data layer",
+      "naming_conventions": {
+        "widgets": "UpperCamelCase for widget classes",
+        "variables": "lowerCamelCase for variables and functions",
+        "files": "snake_case for files and folders",
+        "constants": "UPPER_SNAKE_CASE for constants"
+      },
+      "ui_guidelines": {
+        "responsive": "Ensure adaptive design for multiple screen sizes",
+        "accessibility": "Support screen readers and semantic labels",
+        "performance": "Use const constructors, avoid rebuilds"
+      }
+    },
+    "version": "2025",
+    "reference": "https://docs.flutter.dev/app-architecture"
+  },
+  "elements": [
+    {
+      "type": "text",
+      "text": "Page elements will be added here",
+      "bbox": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "color": "#000000",
+      "widget_mapping": "",
+      "notes": "Add UI elements here based on image analysis"
+    }
+  ]
+}

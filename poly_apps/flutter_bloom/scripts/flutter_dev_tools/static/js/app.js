@@ -13,6 +13,8 @@ let apps = [];
 let activeIndex = 0;
 let treeView = null;
 let fileViewer = null;
+let promptsPanel = null;
+let pageViewUpdater = null;
 let currentApp = null;
 
 /**
@@ -65,6 +67,8 @@ async function init() {
   // Initialize components
   treeView = new TreeView(document.getElementById('file-tree'));
   fileViewer = new FileViewer(document.getElementById('panel'));
+  promptsPanel = new PromptsPanel('#prompts-list');
+  pageViewUpdater = new PageViewUpdater();
 
   // Set up tree view event handlers
   treeView.onFileClick = (node) => {
@@ -108,6 +112,11 @@ async function init() {
   renderTabs();
   renderPanel();
   loadTreeForCurrentApp();
+
+  // Initialize prompts panel with current app
+  if (apps[activeIndex]) {
+    promptsPanel.updatePrompts(apps[activeIndex].app);
+  }
 }
 
 // Start application when DOM is ready

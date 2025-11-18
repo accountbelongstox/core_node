@@ -34,10 +34,26 @@
   border-color: var(--primary-color);
 }
 
-/* Content area - split view */
+/* Content area - three-column layout */
 .content-area {
   display: flex;
   gap: 1.5rem;
   align-items: flex-start;
   min-height: 500px;
+}
+
+/* Left sidebar: fixed width */
+.content-area .sidebar {
+  flex: 0 0 300px;
+}
+
+/* Middle panel: flexible width (reserved for future use) */
+.content-area .panel {
+  flex: 1;
+  min-width: 0; /* Allow shrinking */
+}
+
+/* Right prompts panel: fixed width */
+.content-area .prompts-panel {
+  flex: 0 0 380px;
 }

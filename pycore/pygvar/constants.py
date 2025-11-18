@@ -62,6 +62,25 @@ SYSTEM_MEMORY_INFO = MEMORY_INFO
 SYSTEM_DISK_INFO = DISK_INFO
 SYSTEM_INFO_SUMMARY = SYSTEM_SUMMARY
 
+# ============================================================
+# Port Range Configuration (Singleton Detection)
+# ============================================================
+# MCP Backend: 58000-58099 (Singleton detection)
+MCP_BACKEND_SINGLETON_PORT_START = 58000
+MCP_BACKEND_SINGLETON_PORT_RANGE = 100
+
+# MCP Backend: 58100-58199 (HTTP/RPC service)
+MCP_BACKEND_RPC_PORT_START = 58100
+MCP_BACKEND_RPC_PORT_RANGE = 100
+
+# MCP Proxy: 58200-58299 (Singleton detection)
+MCP_PROXY_SINGLETON_PORT_START = 58200
+MCP_PROXY_SINGLETON_PORT_RANGE = 100
+
+# General Application: 54000-54099 (UI/General singleton)
+GENERAL_SINGLETON_PORT_START = 54000
+GENERAL_SINGLETON_PORT_RANGE = 100
+
 SUPPORTED_ARCHIVE_FORMATS = ['.7z', '.zip', '.tar', '.gz', '.bz2', '.xz']
 DEFAULT_ARCHIVE_FORMAT = '.7z'
 DEFAULT_COMPRESSION_LEVEL = 5
