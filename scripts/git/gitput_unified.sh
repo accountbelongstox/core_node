@@ -16,22 +16,7 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
-USE_SUDO=""
-fi
-PYTHON_CMD=""
-PYTHON_SCRIPT="$SCRIPT_DIR/gitput_unified.py"
-
-# Prefer Python implementation when available (python3 on Linux)
-if [ -x "$PYTHON_SCRIPT" ]; then
-    if command -v python3 >/dev/null 2>&1; then
-        PYTHON_CMD="python3"
-    elif command -v python >/dev/null 2>&1; then
-        PYTHON_CMD="python"
-    fi
-fi
-
-if [ -n "$PYTHON_CMD" ]; then
-    exec "$PYTHON_CMD" "$PYTHON_SCRIPT" "$@"
+    USE_SUDO=""
 fi
 # Parameter validation
 TARGET_REMOTE=""

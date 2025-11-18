@@ -17,6 +17,8 @@ Backend Architecture:
 import os
 import sys
 import logging
+import asyncio
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 import requests
@@ -82,7 +84,12 @@ def get_backend_info() -> Dict[str, Any]:
 
 async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """
-    Forward tool call to backend via RPC
+    Forward tool call to backend via RPC with async result handling
+
+    RPC Flow:
+    1. Send request → Get {"status": "accepted", "id": "...", "requires_ack": true}
+    2. Wait for processing
+    3. Send request again with same id → Get actual result
 
     Args:
         tool_name: Tool name (e.g., 'get_file_info')
@@ -94,17 +101,55 @@ async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     debug_print(f"Forwarding {tool_name} to backend: {kwargs}", "Proxy")
 
     try:
-        # RPC path: /rpc/{tool_name}
+        # Step 1: Send initial request
         response = requests.post(
             f"{BACKEND_URL}/rpc/{tool_name}",
             json=kwargs,
             timeout=30
         )
         response.raise_for_status()
-        result = response.json()
+        initial_result = response.json()
 
-        debug_print(f"Backend response: {result}", "Proxy")
-        return result
+        debug_print(f"Backend initial response: {initial_result}", "Proxy")
+
+        # Check if requires ACK (async processing)
+        if initial_result.get("requires_ack"):
+            request_id = initial_result.get("id")
+            logger.info(f"[Proxy] Request accepted, waiting for result (id: {request_id})")
+
+            # Step 2: Wait for backend processing
+            await asyncio.sleep(1.5)  # Wait for processing
+
+            # Step 3: Query result with same request_id
+            max_retries = 3
+            for attempt in range(max_retries):
+                result_response = requests.post(
+                    f"{BACKEND_URL}/rpc/{tool_name}",
+                    json={"id": request_id, **kwargs},  # Use same id
+                    timeout=30
+                )
+                result_response.raise_for_status()
+                result = result_response.json()
+
+                debug_print(f"Backend result (attempt {attempt+1}): {result}", "Proxy")
+
+                # If still requires_ack, wait and retry
+                if result.get("requires_ack"):
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(0.5)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Backend processing timeout",
+                            "request_id": request_id
+                        }
+                else:
+                    # Got actual result
+                    return result
+
+        # Direct result (no ACK required)
+        return initial_result
 
     except Exception as e:
         logger.error(f"[Proxy] Backend call failed: {e}")

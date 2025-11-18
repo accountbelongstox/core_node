@@ -38,41 +38,6 @@ $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
-$pythonCommandPath = $null
-$pythonScriptPath = Join-Path $scriptPath "gitput_unified.py"
-$pythonArgs = @()
-
-# Prefer Python implementation when available (python3 on Linux)
-try {
-    if ($IsLinux) {
-        $commandInfo = Get-Command python3 -ErrorAction SilentlyContinue
-        if (-not $commandInfo) {
-            $commandInfo = Get-Command python -ErrorAction SilentlyContinue
-        }
-    } else {
-        $commandInfo = Get-Command python -ErrorAction SilentlyContinue
-        if (-not $commandInfo) {
-            $commandInfo = Get-Command python3 -ErrorAction SilentlyContinue
-        }
-    }
-    
-    if ($commandInfo -and (Test-Path $pythonScriptPath)) {
-        $pythonCommandPath = $commandInfo.Source
-        if ($TargetRemote) {
-            $pythonArgs = $pythonArgs + @($TargetRemote)
-        }
-        if ($Pull) {
-            $pythonArgs = $pythonArgs + @("--pull")
-        }
-        if ($Backup) {
-            $pythonArgs = $pythonArgs + @("--backup")
-        }
-        & $pythonCommandPath $pythonScriptPath @pythonArgs
-        exit $LASTEXITCODE
-    }
-} catch {
-    # Fallback to PowerShell implementation when Python execution fails
-}
 
 # File validation function for win_common directory
 function Test-WinCommonFiles {

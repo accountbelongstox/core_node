@@ -1,17 +1,22 @@
 # PyCore Updates
 
-## 2025-11-19: Flutter 设计文档三层体系 ✅ 完成
+## 2025-11-19: Flutter 设计文档三层体系 + 智能占位图 ✅ 完成
 
-**完成**: 建立三层设计文档结构（概念图→粗页面图→细页面图），实现自动扩展。
+**完成**: 建立三层设计文档结构 + 智能图片占位图管理。
 
-**核心内容**:
+**三层结构**:
 - 第一层：概念图（1_concept_designs/）- 架构、流程、数据模型
 - 第二层：粗页面图（2_page_designs_cn/）- 中文页面设计
 - 第三层：细页面图（3_page_designs_en/）- 英文页面名 + pageview_map.json
 
-**自动扩展**: 启动 design_doc_tool 时自动创建缺失结构，跳过已存在文件。
+**智能占位图**:
+- 目录为空时自动生成 `_placeholder.png` 提醒放置设计图
+- 有实际图片时自动删除占位图（保留注释说明）
+- 实际图片删除后重新生成占位图
 
-**文档**: `doc/DESIGN_DOCS_STRUCTURE.md` + `utils/design_structure_auto_expand.py`
+**自动扩展**: 启动 design_doc_tool 时自动创建缺失结构和占位图。
+
+**文档**: `doc/DESIGN_DOCS_STRUCTURE.md` + `doc/DESIGN_IMAGES_PLACEMENT.md`
 
 ---
 
@@ -44,32 +49,24 @@
 
 ---
 
-## 2025-11-19: MCP Proxy-Backend Prototype (hello ok!)
+## 2025-11-19: MCP Proxy-Backend 完整架构 ✅ 完成
 
-**完成**: 后端集成单例检测，两个独立端口分别用于单例检测和HTTP服务。
+**完成**: 代理-后端分离架构，代理多实例，后端单例RPC服务。
 
-**端口分配**:
-- 单例检测端口: 58000-58099（检查是否已有后端）
-- HTTP服务端口: 58100（后端API，代理连接此端口）
+**架构**:
+- **后端**: `python -m pycore.pyctl.mcpctl.mcp_backend` (单例，RPC端口58100)
+- **代理**: `python pymain.py app=mcp` (多实例，连接后端RPC)
+- **RPC异步处理**: 代理端await等待 + 重试机制（无轮询）
 
-**后端**:
-- 使用pylauncher单例检测（port 58000-58099）
-- 通过后启动HTTP服务器（port 58100，独立线程）
-- 唯一ID验证单例，模拟工具返回"hello ok!"
+**核心改进**:
+- 代理端处理 `requires_ack` 响应：await 1.5s → 重试3次查询结果
+- RPC路径: `/rpc/get_file_info`, `/rpc/backend_info`
+- 后端mock工具返回 "hello ok!" 验证通信
 
-**代理**:
-- 连接HTTP端口58100
-- 启动时显示Backend ID（验证单例）
-- 对AI完全透明
-
-**测试**:
-```bash
-# 1. 启动后端（会显示单例端口和HTTP端口）
-python -m pycore.pyctl.mcpctl.mcp_backend
-
-# 2. 启动代理（连接到后端，显示Backend ID）
-python pymain.py app=mcp
-```
+**文件**:
+- `pycore/pyctl/mcpctl/mcp_backend.py`: 后端RPC服务
+- `pyapps/mcp/mcp_main.py`: 代理（替换原完整MCP）
+- `pyapps/mcp/mcp_main_backup_*.py`: 原MCP备份
 
 ---
 

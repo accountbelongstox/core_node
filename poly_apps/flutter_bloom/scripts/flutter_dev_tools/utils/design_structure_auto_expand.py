@@ -21,6 +21,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# Import placeholder generator
+try:
+    from .placeholder_generator import (
+        manage_placeholder,
+        ensure_images_readme,
+        get_markdown_placeholder_comment
+    )
+    PLACEHOLDER_AVAILABLE = True
+except ImportError:
+    PLACEHOLDER_AVAILABLE = False
+    print("[Warning] placeholder_generator not available")
+
 
 # ============================================================
 # 设计文档结构定义
@@ -28,36 +40,40 @@ from typing import Dict, List, Optional
 
 DESIGN_STRUCTURE = {
     "1_concept_designs": {
-        "description": "第一层：概念图（粗设计图）- 宏观架构和流程设计",
+        "description": "Layer 1: Concept Designs - High-level architecture and flows",
+        "has_images": True,
         "files": {
-            "README.md": "概念设计层说明文档",
-            "architecture.md": "架构概念图",
-            "user_flows.md": "用户流程概念",
-            "data_model.md": "数据模型概念"
+            "README.md": "Concept design layer documentation",
+            "architecture.md": "Architecture concept",
+            "user_flows.md": "User flow concepts",
+            "data_model.md": "Data model concepts"
         }
     },
-    "2_page_designs_cn": {
-        "description": "第二层：粗页面图（中文页面名）- 页面级别设计",
+    "2_page_designs_rough": {
+        "description": "Layer 2: Rough Page Designs - Page-level layouts and wireframes",
+        "has_images": True,
         "files": {
-            "README.md": "页面设计层说明文档",
-            "示例_首页设计.md": "首页设计示例（可删除）",
-            "示例_个人中心设计.md": "个人中心设计示例（可删除）"
+            "README.md": "Rough page design layer documentation",
+            "example_home_page_rough.md": "Example: Home page rough design (can be deleted)",
+            "example_profile_page_rough.md": "Example: Profile page rough design (can be deleted)"
         }
     },
-    "3_page_designs_en": {
-        "description": "第三层：细页面图（英文页面名）- 详细设计与代码映射",
+    "3_page_designs_detailed": {
+        "description": "Layer 3: Detailed Page Designs - Detailed specs with code mapping",
+        "has_images": False,
         "subdirs": {
             "example_home_page": {
-                "description": "示例：首页详细设计（可删除）",
+                "description": "Example: Home page detailed design (can be deleted)",
+                "has_images": True,
                 "files": {
-                    "README.md": "页面说明",
-                    "pageview_map.json": "UI元素映射",
-                    "design_specs.md": "详细设计规格"
+                    "README.md": "Page documentation",
+                    "pageview_map.json": "UI element mapping",
+                    "design_specs.md": "Detailed design specifications"
                 }
             }
         },
         "files": {
-            "README.md": "细节设计层说明文档"
+            "README.md": "Detailed design layer documentation"
         }
     }
 }
@@ -68,165 +84,164 @@ DESIGN_STRUCTURE = {
 # ============================================================
 
 def get_readme_template(layer: str, app_name: str) -> str:
-    """获取 README 模板内容"""
+    """Get README template content"""
     timestamp = datetime.now().strftime("%Y-%m-%d")
 
     templates = {
         "root": f"""# Design Docs & Progress - {app_name}
 
-**应用名称**: {app_name}
-**创建时间**: {timestamp}
-**最后更新**: {timestamp}
+**Application**: {app_name}
+**Created**: {timestamp}
+**Last Updated**: {timestamp}
 
-## 目录结构
+## Directory Structure
 
 ```
 design_docs_and_progress/
-├── README.md                   # 本文件
-├── 1_concept_designs/          # 第一层：概念图（粗设计图）
-├── 2_page_designs_cn/          # 第二层：粗页面图（中文页面名）
-├── 3_page_designs_en/          # 第三层：细页面图（英文页面名）
-├── backend_bridge/             # 后端对接文档
-├── feature_progress/           # 功能进度跟踪
-├── flows/                      # 流程图
-├── progress_logs/              # 进度日志
-└── wireframes/                 # 线框图
+├── README.md                      # This file
+├── 1_concept_designs/             # Layer 1: Concept designs (high-level)
+├── 2_page_designs_rough/          # Layer 2: Rough page designs (wireframes)
+├── 3_page_designs_detailed/       # Layer 3: Detailed designs (specs + code mapping)
+├── backend_bridge/                # Backend integration docs
+├── feature_progress/              # Feature progress tracking
+├── flows/                         # Flow diagrams
+├── progress_logs/                 # Progress logs
+└── wireframes/                    # Wireframes
 ```
 
-## 三层设计文档体系
+## Three-Layer Design System
 
-### 第一层：概念图 (1_concept_designs/)
-- **用途**: 宏观概念设计，整体架构
-- **内容**: 架构图、用户流程、数据模型
+### Layer 1: Concept Designs (1_concept_designs/)
+- **Purpose**: High-level architecture and concepts
+- **Content**: Architecture diagrams, user flows, data models
 
-### 第二层：粗页面图 (2_page_designs_cn/)
-- **用途**: 页面级别设计（中文命名）
-- **内容**: 页面功能、布局草图、交互说明
+### Layer 2: Rough Page Designs (2_page_designs_rough/)
+- **Purpose**: Page-level layouts and wireframes
+- **Content**: Page functions, layout sketches, interaction notes
 
-### 第三层：细页面图 (3_page_designs_en/)
-- **用途**: 详细设计（英文命名，与代码对应）
-- **内容**: pageview_map.json、详细规格
+### Layer 3: Detailed Page Designs (3_page_designs_detailed/)
+- **Purpose**: Detailed specs with code mapping
+- **Content**: pageview_map.json, detailed specifications
 
-## 使用流程
+## Workflow
 
-1. **概念阶段**: 在 `1_concept_designs/` 编写架构设计
-2. **页面设计**: 在 `2_page_designs_cn/` 设计页面（中文）
-3. **细化实现**: 在 `3_page_designs_en/` 创建详细设计
-4. **代码开发**: 根据 pageview_map.json 实现组件
+1. **Concept Phase**: Create architecture designs in `1_concept_designs/`
+2. **Page Design**: Design page layouts in `2_page_designs_rough/`
+3. **Detailed Design**: Create detailed specs in `3_page_designs_detailed/`
+4. **Development**: Implement components based on pageview_map.json
 
-## 参考文档
+## Reference
 
-完整说明请参考: `doc/DESIGN_DOCS_STRUCTURE.md`
+Full documentation: `doc/DESIGN_DOCS_STRUCTURE.md`
 """,
 
-        "1_concept_designs": f"""# 概念设计层 - {app_name}
+        "1_concept_designs": f"""# Concept Designs - {app_name}
 
-**层级**: 第一层 - 概念图（粗设计图）
-**用途**: 宏观概念设计，不涉及具体页面细节
+**Layer**: Layer 1 - Concept Designs
+**Purpose**: High-level architecture and concepts, no page-specific details
 
-## 文件说明
+## Files
 
-- `architecture.md`: 整体架构设计（MVVM、数据流等）
-- `user_flows.md`: 用户使用流程图
-- `data_model.md`: 数据模型设计
+- `architecture.md`: Overall architecture design (MVVM, data flow, etc.)
+- `user_flows.md`: User flow diagrams
+- `data_model.md`: Data model design
 
-## 设计原则
+## Design Principles
 
-1. **架构清晰**: 分层明确，职责单一
-2. **可扩展性**: 预留扩展空间
-3. **性能优先**: 考虑性能优化方案
+1. **Clear Architecture**: Well-defined layers and responsibilities
+2. **Extensibility**: Design for future growth
+3. **Performance**: Consider optimization strategies
 
-## 更新记录
+## Updates
 
-- {timestamp}: 初始化概念设计层
+- {timestamp}: Initialized concept design layer
 """,
 
-        "2_page_designs_cn": f"""# 页面设计层（中文）- {app_name}
+        "2_page_designs_rough": f"""# Rough Page Designs - {app_name}
 
-**层级**: 第二层 - 粗页面图（中文页面名）
-**用途**: 页面级别设计，使用中文方便理解
+**Layer**: Layer 2 - Rough Page Designs
+**Purpose**: Page-level layouts and wireframes
 
-## 页面列表
+## Page List
 
-（在此添加页面设计文件）
+(Add page design files here)
 
-示例:
-- `首页设计.md` - 应用首页
-- `个人中心设计.md` - 用户个人中心
-- `设置页面设计.md` - 应用设置页面
+Examples:
+- `example_home_page_rough.md` - App home page
+- `example_profile_page_rough.md` - User profile
+- `example_settings_page_rough.md` - App settings
 
-## 设计模板
+## Design Template
 
-每个页面设计文件应包含:
-1. 页面功能描述
-2. 布局结构
-3. 主要交互
-4. 对应英文页面名（用于第三层）
+Each page design file should include:
+1. Page function description
+2. Layout structure
+3. Main interactions
+4. Corresponding detailed page name (for Layer 3)
 
-## 更新记录
+## Updates
 
-- {timestamp}: 初始化页面设计层
+- {timestamp}: Initialized rough page design layer
 """,
 
-        "3_page_designs_en": f"""# 细节设计层（英文）- {app_name}
+        "3_page_designs_detailed": f"""# Detailed Page Designs - {app_name}
 
-**层级**: 第三层 - 细页面图（英文页面名）
-**用途**: 详细设计，英文命名与代码一致
+**Layer**: Layer 3 - Detailed Page Designs
+**Purpose**: Detailed specifications with code mapping
 
-## 页面目录
+## Page Directories
 
-（在此添加页面详细设计目录）
+(Add detailed page design directories here)
 
-示例:
-- `home_page/` - 首页
-- `profile_page/` - 个人中心
-- `settings_page/` - 设置页面
+Examples:
+- `home_page/` - Home page
+- `profile_page/` - User profile
+- `settings_page/` - Settings page
 
-## 目录结构
+## Directory Structure
 
-每个页面目录包含:
+Each page directory contains:
 ```
 page_name/
-├── README.md              # 页面说明
-├── pageview_map.json      # UI元素映射（连接代码）
-└── design_specs.md        # 详细设计规格
+├── README.md              # Page documentation
+├── pageview_map.json      # UI element mapping (connects to code)
+└── design_specs.md        # Detailed design specifications
 ```
 
-## pageview_map.json 说明
+## pageview_map.json
 
-用于将设计图元素映射到 Flutter Widget，格式参考 `example_home_page/pageview_map.json`
+Maps design elements to Flutter Widgets. See `example_home_page/pageview_map.json` for format.
 
-## 更新记录
+## Updates
 
-- {timestamp}: 初始化细节设计层
+- {timestamp}: Initialized detailed design layer
 """,
 
-        "page_subdir": f"""# {{page_name}} - 页面设计
+        "page_subdir": f"""# {{page_name}} - Page Design
 
-**英文名称**: {{page_name}}
-**中文名称**: {{page_name_cn}}
-**创建时间**: {timestamp}
+**Page Name**: {{page_name}}
+**Created**: {timestamp}
 
-## 页面概述
+## Overview
 
-（填写页面功能描述）
+(Fill in page function description)
 
-## 文件说明
+## Files
 
-- `README.md`: 本文件
-- `pageview_map.json`: UI元素映射（连接Flutter代码）
-- `design_specs.md`: 详细设计规格（颜色、字体、间距等）
+- `README.md`: This file
+- `pageview_map.json`: UI element mapping (connects to Flutter code)
+- `design_specs.md`: Detailed design specs (colors, fonts, spacing, etc.)
 
-## 开发状态
+## Development Status
 
-- [ ] 设计完成
-- [ ] UI实现
-- [ ] 功能实现
-- [ ] 测试完成
+- [ ] Design complete
+- [ ] UI implementation
+- [ ] Feature implementation
+- [ ] Testing complete
 
-## 更新记录
+## Updates
 
-- {timestamp}: 初始化页面设计
+- {timestamp}: Initialized page design
 """
     }
 
@@ -234,15 +249,15 @@ page_name/
 
 
 def get_file_template(filename: str, app_name: str) -> str:
-    """获取文件模板内容"""
+    """Get file template content"""
     timestamp = datetime.now().strftime("%Y-%m-%d")
 
     templates = {
-        "architecture.md": f"""# 架构概念图 - {app_name}
+        "architecture.md": f"""# Architecture Concept - {app_name}
 
-**创建时间**: {timestamp}
+**Created**: {timestamp}
 
-## 整体架构
+## Overall Architecture
 
 ```
 ┌─────────────────────────────────┐
@@ -261,22 +276,22 @@ def get_file_template(filename: str, app_name: str) -> str:
 └─────────────────────────────────┘
 ```
 
-## 设计模式
+## Design Patterns
 
-- **MVVM**: Model-View-ViewModel 分离关注点
-- **Provider**: 状态管理方案
-- **Repository Pattern**: 数据访问抽象层
+- **MVVM**: Model-View-ViewModel separation of concerns
+- **Provider**: State management solution
+- **Repository Pattern**: Data access abstraction
 
-## 技术栈
+## Tech Stack
 
 - Flutter SDK
-- Provider (状态管理)
-- Dio (网络请求)
-- Shared Preferences (本地存储)
+- Provider (state management)
+- Dio (network requests)
+- Shared Preferences (local storage)
 
-## 更新记录
+## Updates
 
-- {timestamp}: 初始化架构设计
+- {timestamp}: Initialized architecture design
 """,
 
         "user_flows.md": f"""# 用户流程概念 - {app_name}
@@ -512,6 +527,12 @@ def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict,
                 if template_content:
                     ensure_file(file_path, template_content)
 
+    # 管理 images/ 目录和占位图
+    if layer_config.get("has_images", False) and PLACEHOLDER_AVAILABLE:
+        images_dir = layer_path / "images"
+        manage_placeholder(images_dir, f"{layer_name}/images")
+        ensure_images_readme(images_dir, layer_name)
+
     # 创建子目录（用于第三层）
     if "subdirs" in layer_config:
         for subdir_name, subdir_config in layer_config["subdirs"].items():
@@ -540,6 +561,12 @@ def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict,
                         content = get_file_template("design_specs.md", app_name)
                         content = content.replace("{{page_name}}", subdir_name)
                         ensure_file(file_path, content)
+
+            # 管理子目录的 images/ 和占位图
+            if subdir_config.get("has_images", False) and PLACEHOLDER_AVAILABLE:
+                images_dir = subdir_path / "images"
+                manage_placeholder(images_dir, f"{layer_name}/{subdir_name}/images")
+                ensure_images_readme(images_dir, layer_name)
 
 
 def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> bool:

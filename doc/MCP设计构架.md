@@ -58,3 +58,16 @@ ython pyapps/mcp/现在切换到 python pyapps/mcp/主入口方法上，启动�
 
   现在使用这个方案，开始修改
   同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+  MCPUnifiedserver
+python D:/programing/core_node/pymain.py app=mcp
+get file info with ocr and document parsing tool
+Show less
+上
+New MCP Server 虽然目前显示，但 实际上AI调用不了 测试当前可用的MCP服务
+测试你目前可以调用的MCP服务。
+检查可用的 MCP 服务和资源。
+º No resources found
+No MCP resources available
+当前未检测到可用的 MCP 服务或资源。可能原因:
+1.未配置 MCP 服务器，查看旧的代码，以及代理层是否遵守了fastmcp2的规范，文档 pyapps\mcp\fastmcp2_doc
