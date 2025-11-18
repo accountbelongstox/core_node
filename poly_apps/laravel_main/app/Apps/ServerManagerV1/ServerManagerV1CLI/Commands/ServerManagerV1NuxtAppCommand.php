@@ -313,7 +313,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
         $this->comment("Copying workspace to factory: $factoryPath");
 
-        $excludes = ['node_modules', '.nuxt', '.output', '.git', '.app-backups', 'dist'];
+        $excludes = ['node_modules', '.nuxt', '.output', '.git', '.app-backups', 'dist', 'node-compile-cache'];
         $excludeArgs = implode(' ', array_map(fn($e) => "--exclude='$e'", $excludes));
 
         $rsyncCmd = "rsync -a $excludeArgs $this->nuxtMainPath/ $factoryPath/";
@@ -380,15 +380,6 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         if ($chownResult->failed()) {
             $this->warn("Failed to set ownership, may cause permission issues");
             $this->debugInfo("chown error: " . $chownResult->errorOutput());
-        }
-
-        // Fix ownership of source node-compile-cache if it exists
-        $cacheDir = "$this->nuxtMainPath/node-compile-cache";
-        if (is_dir($cacheDir)) {
-            $cacheFix = Process::run("chown -R $user:$user $cacheDir");
-            if ($cacheFix->failed()) {
-                $this->warn("Failed to fix node-compile-cache permissions");
-            }
         }
 
         $this->comment("✓ Permissions configured");
@@ -531,6 +522,18 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             }
         } else {
             $this->debugInfo("Public symlink already exists");
+        }
+
+        // Clean up node-compile-cache after build (this is a build artifact, not needed)
+        $compileCache = "$factoryPath/node-compile-cache";
+        if (is_dir($compileCache)) {
+            $this->debugInfo("Cleaning up node-compile-cache: $compileCache");
+            $cleanResult = Process::run("rm -rf $compileCache");
+            if ($cleanResult->successful()) {
+                $this->debugInfo("✓ node-compile-cache cleaned up");
+            } else {
+                $this->warn("Failed to clean node-compile-cache: " . $cleanResult->errorOutput());
+            }
         }
 
         $this->comment("✓ App built successfully");
