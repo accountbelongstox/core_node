@@ -43,7 +43,7 @@ def create_spider_engine(config: Dict[str, Any] = None) -> SpiderEngine:
     return SpiderEngine(config or {})
 
 
-async def get_default_engine(config: Dict[str, Any] = None) -> SpiderEngine:
+def get_default_engine(config: Dict[str, Any] = None) -> SpiderEngine:
     """
     Get or create default spider engine
 
@@ -57,12 +57,12 @@ async def get_default_engine(config: Dict[str, Any] = None) -> SpiderEngine:
 
     if not default_engine:
         default_engine = SpiderEngine(config or {})
-        await default_engine.initialize()
+        default_engine.initialize()
 
     return default_engine
 
 
-async def create_session(options: Dict[str, Any] = None) -> Session:
+def create_session(options: Dict[str, Any] = None) -> Session:
     """
     Create browser session (convenience function)
 
@@ -72,8 +72,8 @@ async def create_session(options: Dict[str, Any] = None) -> Session:
     Returns:
         Session instance
     """
-    engine = await get_default_engine()
-    return await engine.create_session(options or {})
+    engine = get_default_engine()
+    return engine.create_session(options or {})
 
 
 def get_session(session_id: str) -> Optional[Session]:
@@ -92,7 +92,7 @@ def get_session(session_id: str) -> Optional[Session]:
     return default_engine.get_session(session_id)
 
 
-async def close_session(session_id: str) -> Optional[Session]:
+def close_session(session_id: str) -> Optional[Session]:
     """
     Close session by ID
 
@@ -105,15 +105,15 @@ async def close_session(session_id: str) -> Optional[Session]:
     if not default_engine:
         raise RuntimeError('No default engine available.')
 
-    return await default_engine.close_session(session_id)
+    return default_engine.close_session(session_id)
 
 
-async def shutdown():
+def shutdown():
     """Shutdown default engine"""
     global default_engine
 
     if default_engine:
-        await default_engine.shutdown()
+        default_engine.shutdown()
         default_engine = None
 
 
@@ -175,4 +175,4 @@ __all__ = [
 ]
 
 __version__ = '1.0.0'
-__name__ = 'pybrowser'
+__package_name__ = 'pybrowser'  # Fixed: renamed from __name__ to avoid conflict with Python builtin

@@ -479,9 +479,6 @@ Examples:
         parser.print_help()
         return 1
 
-    # Skip dependency checks for faster execution
-    os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
-
     manager = DesktopShortcutManager()
 
     if args.command == 'create':

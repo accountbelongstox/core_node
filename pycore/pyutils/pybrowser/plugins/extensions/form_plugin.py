@@ -21,21 +21,14 @@ class FormPlugin(IPlugin):
 
     async def initialize(self, session: Any):
         """Initialize plugin with session"""
-        try:
-            self.session = session
-            self.is_initialized = True
-            ColorPrint.info(f"FormPlugin initialized for session: {session.id}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to initialize FormPlugin: {error}')
-            raise
+        self.session = session
+        self.is_initialized = True
+        ColorPrint.info(f"FormPlugin initialized for session: {session.id}")
 
     async def cleanup(self):
         """Cleanup plugin resources"""
-        try:
-            self.is_initialized = False
-            ColorPrint.info('FormPlugin cleaned up')
-        except Exception as error:
-            ColorPrint.red(f'Failed to cleanup FormPlugin: {error}')
+        self.is_initialized = False
+        ColorPrint.info('FormPlugin cleaned up')
 
     async def submit_form(self, page: Any, form_selector: str, data: Dict[str, str], submit_selector: str = None):
         """
@@ -47,20 +40,16 @@ class FormPlugin(IPlugin):
             data: Form field data
             submit_selector: Submit button selector
         """
-        try:
-            for field_selector, value in data.items():
-                await page.type(field_selector, value, {'clear': True})
+        for field_selector, value in data.items():
+            await page.type(field_selector, value, {'clear': True})
 
-            if submit_selector:
-                await page.click(submit_selector)
-            else:
-                script = f"document.querySelector('{form_selector}').submit();"
-                await page.evaluate(script)
+        if submit_selector:
+            await page.click(submit_selector)
+        else:
+            script = f"document.querySelector('{form_selector}').submit();"
+            await page.evaluate(script)
 
-            ColorPrint.debug(f"Form submitted: {form_selector}")
-        except Exception as error:
-            ColorPrint.red(f'Failed to submit form: {error}')
-            raise
+        ColorPrint.debug(f"Form submitted: {form_selector}")
 
     async def get_form_data(self, page: Any, form_selector: str) -> Dict[str, str]:
         """
@@ -73,17 +62,13 @@ class FormPlugin(IPlugin):
         Returns:
             Dictionary of field values
         """
-        try:
-            script = f"""
-            const form = document.querySelector('{form_selector}');
-            const formData = new FormData(form);
-            const result = {{}};
-            for (let [key, value] of formData.entries()) {{
-                result[key] = value;
-            }}
-            return result;
-            """
-            return await page.evaluate(script)
-        except Exception as error:
-            ColorPrint.red(f'Failed to get form data: {error}')
-            raise
+        script = f"""
+        const form = document.querySelector('{form_selector}');
+        const formData = new FormData(form);
+        const result = {};
+        for (let [key, value] of formData.entries()) {{
+            result[key] = value;
+        }}
+        return result;
+        """
+        return await page.evaluate(script)

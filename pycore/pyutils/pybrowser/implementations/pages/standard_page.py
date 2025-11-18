@@ -9,6 +9,16 @@ Selenium-based page wrapper
 from typing import Dict, Any, Callable, Optional
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.pybrowser.interfaces.ipage import IPage
+from pycore.pyfoundations.third_party import (
+    get_third_package_selenium_by,
+    get_third_package_selenium_support_ui,
+    get_third_package_selenium_support_expected_conditions
+)
+
+By = get_third_package_selenium_by()
+selenium_support_ui = get_third_package_selenium_support_ui()
+WebDriverWait = selenium_support_ui.WebDriverWait
+EC = get_third_package_selenium_support_expected_conditions()
 
 
 class StandardPage(IPage):
@@ -30,21 +40,17 @@ class StandardPage(IPage):
             'navigations': 0
         }
 
-    async def initialize(self):
+    def initialize(self):
         """Initialize page"""
-        try:
-            if self.options.get('user_agent'):
-                self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-                    'userAgent': self.options['user_agent']
-                })
+        if self.options.get('user_agent'):
+            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                'userAgent': self.options['user_agent']
+            })
 
-            self.is_initialized = True
-            ColorPrint.debug('StandardPage initialized')
-        except Exception as error:
-            ColorPrint.red(f'Failed to initialize StandardPage: {error}')
-            raise
+        self.is_initialized = True
+        ColorPrint.debug('StandardPage initialized')
 
-    async def goto(self, url: str, options: Dict[str, Any] = None) -> Any:
+    def goto(self, url: str, options: Dict[str, Any] = None) -> Any:
         """
         Navigate to URL
 
@@ -55,22 +61,17 @@ class StandardPage(IPage):
         Returns:
             None (Selenium doesn't return response object)
         """
-        try:
-            timeout = options.get('timeout', 30) if options else 30
-            self.driver.set_page_load_timeout(timeout)
+        timeout = options.get('timeout', 30) if options else 30
+        self.driver.set_page_load_timeout(timeout)
 
-            self.driver.get(url)
-            self.url = url
-            self.metrics['navigations'] += 1
+        self.driver.get(url)
+        self.url = url
+        self.metrics['navigations'] += 1
 
-            ColorPrint.debug(f"Navigated to: {url}")
-            return None
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f"Failed to navigate to {url}: {error}")
-            raise
+        ColorPrint.debug(f"Navigated to: {url}")
+        return None
 
-    async def click(self, selector: str, options: Dict[str, Any] = None):
+    def click(self, selector: str, options: Dict[str, Any] = None):
         """
         Click an element
 
@@ -78,26 +79,17 @@ class StandardPage(IPage):
             selector: CSS selector
             options: Click options
         """
-        try:
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
+        timeout = options.get('timeout', 30) if options else 30
+        element = WebDriverWait(self.driver, timeout).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+        )
 
-            timeout = options.get('timeout', 30) if options else 30
-            element = WebDriverWait(self.driver, timeout).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-            )
+        element.click()
+        self.metrics['clicks'] += 1
 
-            element.click()
-            self.metrics['clicks'] += 1
+        ColorPrint.debug(f"Clicked element: {selector}")
 
-            ColorPrint.debug(f"Clicked element: {selector}")
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f"Failed to click element {selector}: {error}")
-            raise
-
-    async def type(self, selector: str, text: str, options: Dict[str, Any] = None):
+    def type(self, selector: str, text: str, options: Dict[str, Any] = None):
         """
         Type text into an element
 
@@ -106,29 +98,20 @@ class StandardPage(IPage):
             text: Text to type
             options: Type options
         """
-        try:
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
+        timeout = options.get('timeout', 30) if options else 30
+        element = WebDriverWait(self.driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+        )
 
-            timeout = options.get('timeout', 30) if options else 30
-            element = WebDriverWait(self.driver, timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-            )
+        if options and options.get('clear', True):
+            element.clear()
 
-            if options and options.get('clear', True):
-                element.clear()
+        element.send_keys(text)
+        self.metrics['types'] += 1
 
-            element.send_keys(text)
-            self.metrics['types'] += 1
+        ColorPrint.debug(f"Typed into element: {selector}")
 
-            ColorPrint.debug(f"Typed into element: {selector}")
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f"Failed to type into element {selector}: {error}")
-            raise
-
-    async def screenshot(self, options: Dict[str, Any] = None) -> bytes:
+    def screenshot(self, options: Dict[str, Any] = None) -> bytes:
         """
         Take screenshot
 
@@ -138,19 +121,13 @@ class StandardPage(IPage):
         Returns:
             Screenshot bytes
         """
-        try:
-            if options and options.get('path'):
-                self.driver.save_screenshot(options['path'])
-                with open(options['path'], 'rb') as f:
-                    return f.read()
-            else:
-                return self.driver.get_screenshot_as_png()
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f'Failed to take screenshot: {error}')
-            raise
+        if options and options.get('path'):
+            self.driver.save_screenshot(options['path'])
+            with open(options['path'], 'rb') as f:
+                return f.read()
+        return self.driver.get_screenshot_as_png()
 
-    async def evaluate(self, script: str, *args) -> Any:
+    def evaluate(self, script: str, *args) -> Any:
         """
         Execute JavaScript
 
@@ -161,14 +138,9 @@ class StandardPage(IPage):
         Returns:
             Script result
         """
-        try:
-            return self.driver.execute_script(script, *args)
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f'Failed to evaluate script: {error}')
-            raise
+        return self.driver.execute_script(script, *args)
 
-    async def wait_for_selector(self, selector: str, options: Dict[str, Any] = None):
+    def wait_for_selector(self, selector: str, options: Dict[str, Any] = None):
         """
         Wait for element to appear
 
@@ -176,23 +148,14 @@ class StandardPage(IPage):
             selector: CSS selector
             options: Wait options
         """
-        try:
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
+        timeout = options.get('timeout', 30) if options else 30
+        WebDriverWait(self.driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+        )
 
-            timeout = options.get('timeout', 30) if options else 30
-            WebDriverWait(self.driver, timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-            )
+        ColorPrint.debug(f"Element appeared: {selector}")
 
-            ColorPrint.debug(f"Element appeared: {selector}")
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f"Timeout waiting for element {selector}: {error}")
-            raise
-
-    async def wait_for_function(self, func: Callable, options: Dict[str, Any] = None):
+    def wait_for_function(self, func: Callable, options: Dict[str, Any] = None):
         """
         Wait for function to return truthy value
 
@@ -200,79 +163,73 @@ class StandardPage(IPage):
             func: JavaScript function as string
             options: Wait options
         """
-        try:
-            from selenium.webdriver.support.ui import WebDriverWait
+        timeout = options.get('timeout', 30) if options else 30
 
-            timeout = options.get('timeout', 30) if options else 30
+        def condition(driver):
+            return self.driver.execute_script(f"return ({func})()")
 
-            def condition(driver):
-                return self.driver.execute_script(f"return ({func})()")
+        WebDriverWait(self.driver, timeout).until(condition)
 
-            WebDriverWait(self.driver, timeout).until(condition)
+        ColorPrint.debug("Function condition met")
 
-            ColorPrint.debug("Function condition met")
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f'Timeout waiting for function: {error}')
-            raise
-
-    async def get_content(self) -> str:
+    def get_content(self) -> str:
         """
         Get page HTML content
 
         Returns:
             HTML string
         """
-        try:
-            return self.driver.page_source
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f'Failed to get page content: {error}')
-            raise
+        return self.driver.page_source
 
-    async def get_title(self) -> str:
+    def get_title(self) -> str:
         """
         Get page title
 
         Returns:
             Title string
         """
-        try:
-            self.title = self.driver.title
-            return self.title
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f'Failed to get page title: {error}')
-            raise
+        self.title = self.driver.title
+        return self.title
 
-    async def get_url(self) -> str:
+    def get_url(self) -> str:
         """
         Get current URL
 
         Returns:
             URL string
         """
-        try:
-            self.url = self.driver.current_url
-            return self.url
-        except Exception as error:
-            self.metrics['errors'] += 1
-            ColorPrint.red(f'Failed to get page URL: {error}')
-            raise
+        self.url = self.driver.current_url
+        return self.url
 
-    async def close(self):
+    def close(self):
         """Close the page"""
-        try:
-            self.driver.close()
-            ColorPrint.debug('Page closed')
-        except Exception as error:
-            ColorPrint.red(f'Failed to close page: {error}')
-            raise
+        self.driver.close()
+        ColorPrint.debug('Page closed')
 
     def main_frame(self):
         """Get main frame (for compatibility)"""
         return self
 
-    async def url(self) -> str:
+    def url(self) -> str:
         """Get URL (for compatibility)"""
-        return await self.get_url()
+        return self.get_url()
+
+    def get_info(self) -> Dict[str, Any]:
+        """
+        Get page information
+
+        Returns:
+            Dictionary with page details including URL, title, metrics, etc.
+
+        Example:
+            info = page.get_info()
+            print(f"Current URL: {info['url']}")
+            print(f"Total clicks: {info['metrics']['clicks']}")
+        """
+        return {
+            'url': self.driver.current_url if self.driver else None,
+            'title': self.driver.title if self.driver else None,
+            'is_initialized': self.is_initialized,
+            'metrics': self.metrics.copy(),
+            'options': self.options
+        }

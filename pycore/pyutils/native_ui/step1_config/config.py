@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Native UI Framework - Configuration Module
-UI Framework Configuration Module
+Native UI Framework - Configuration Module (DEPRECATED)
+
+⚠️ DEPRECATED: This module is deprecated and will be removed in future versions.
+Use NativeUIConfig from step1_config/app_config.py instead.
+
+Migration guide:
+    # Old (deprecated)
+    from pycore.pyutils.native_ui import UIConfig
+    config = UIConfig(app_name="My App")
+
+    # New (recommended)
+    from pycore.pyutils.native_ui import NativeUIConfig
+    config = NativeUIConfig(app_id="my_app", app_name="My App")
 """
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Dict, Any
 from enum import Enum
@@ -23,7 +35,14 @@ class UIConfig:
     """
     UI Configuration Class
 
-    Usage example:
+    ⚠️ DEPRECATED: Use NativeUIConfig instead.
+
+    This class will be removed in future versions.
+    Please migrate to NativeUIConfig from step1_config/app_config.py.
+
+    See: pycore/pyutils/native_ui/step1_config/app_config.py:NativeUIConfig
+
+    Usage example (deprecated):
         config = UIConfig(
             app_name="My Application",
             window_size=(1280, 800),
@@ -57,3 +76,12 @@ class UIConfig:
 
     # Debug configuration
     debug: bool = False
+
+    def __post_init__(self):
+        """Emit deprecation warning when UIConfig is instantiated"""
+        warnings.warn(
+            "UIConfig is deprecated. Use NativeUIConfig instead. "
+            "See: pycore/pyutils/native_ui/step1_config/app_config.py",
+            DeprecationWarning,
+            stacklevel=2
+        )

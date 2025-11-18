@@ -4,14 +4,16 @@ File content analysis with multi-format support
 Integrates with MCP file processing for comprehensive file analysis
 """
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.mcp.file_processing import (
     get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CodebaseContentAnalyzer:
@@ -24,7 +26,7 @@ class CodebaseContentAnalyzer:
         self.project_root = project_root if project_root else Path.cwd()
         self.enable_global_access = enable_global_access
 
-        ColorPrint.blue("[CodebaseContentAnalyzer] Initialized")
+        logger.debug("[CodebaseContentAnalyzer] Initialized")
 
     def normalize_path(self, path_str: str) -> Path:
         """Normalize and validate path"""
@@ -134,7 +136,7 @@ class CodebaseContentAnalyzer:
                 }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseContentAnalyzer] File analysis failed: {e}")
+            logger.error("[CodebaseContentAnalyzer] File analysis failed: %s", e)
             return {'error': f"File analysis failed: {str(e)}"}
 
     def describe_directory_with_file_overview(
@@ -198,7 +200,7 @@ class CodebaseContentAnalyzer:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseContentAnalyzer] Directory description failed: {e}")
+            logger.error("[CodebaseContentAnalyzer] Directory description failed: %s", e)
             return {'error': f"Directory description failed: {str(e)}"}
 
     def _read_text_file(self, file_path: Path, max_chars: int) -> Dict[str, Any]:

@@ -62,8 +62,26 @@ class LinuxCommandContentGenerator:
                                 mcp_section: str = "", file_name: str = "") -> str:
         """Generate complete bash command content"""
         # Add --dangerously-skip-permissions for claude commands
+        # Skip this flag if running as root (root doesn't need permission skipping)
+        root_check_section = ""
         if bash_command == "claude":
-            bash_command = "claude --dangerously-skip-permissions"
+            root_check_section = """
+# Check if running as root - skip --dangerously-skip-permissions flag for root
+if [ "$EUID" -eq 0 ]; then
+    echo ""
+    echo "============================================================"
+    echo "WARNING: Running as root user"
+    echo "============================================================"
+    echo "Root user already has all permissions."
+    echo "--dangerously-skip-permissions flag is NOT added."
+    echo "============================================================"
+    echo ""
+    claude_command="claude"
+else
+    claude_command="claude --dangerously-skip-permissions"
+fi
+"""
+            bash_command = "$claude_command"
         
         header = f"""#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
@@ -103,7 +121,7 @@ class LinuxCommandContentGenerator:
 # =============================================================================
 
 set -e
-"""
+{root_check_section}"""
 
         file_name_display = ""
         if file_name:

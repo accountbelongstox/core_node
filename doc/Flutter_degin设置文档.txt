@@ -1,0 +1,60 @@
+ 代码全英文，现在你根据文档，\poly_apps\flutter_bloom\scripts> .\start.ps1
+  其中加入一个菜单，给每个app添加一个toggle  [Debug/Android/启动设计工具] 之后生成一个tmp
+  bat其中调用python，并使用explore调用。
+
+  FLUTTER BLOOM APP SELECTION (BY PYTHON)
+================================================================================
+
+Available Flutter Apps:
+--------------------------------------------------
+     0. app_main (Main Entry Point) [Build/Windows]
+     1. app_achat [Debug/Android]
+     2. app_bank [Build/Windows]
+ ->  3. app_codemart [Debug/Web]
+     4. app_example [Debug/Web]
+     5. app_qy [Debug/Web]
+     6. app_travel [Build/Android]
+     7. app_vipclub [Debug/Web]
+     8. app_wuy [Debug/Web]
+现在你只需要在原来的菜单上，无论组织成什么。都附加上一项，启动设置工具web就可以了。注意这个菜单是动态的。你添
+加的也有toggle 【启动|重启】
+
+Missing items
+  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_codemart\design_docs_and_progress
+  Create Missing Items 参考 flutter文档 ，对于mission的文件文件，显示为一个树，并可以一键创建，如果存在了一些那
+  也可以创建不存在的文件，注意不能覆盖存在的文件，在代码中特别注明。
+  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点  doc\FLUTTER_UP.md
+
+
+  app_qy
+Design folder: D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\design_docs_and_progress
+
+✓ All required folders/files detected. 目录存在时，在下面的左菜单显示目录树，点击文件夹为展开，点击文件会显示内容，同是可以用打开当前文件，后端使用explorer直接打开basedir，liunx使用对应的处理，注意从现在开始你要使用多文件框架。同时html/css/js要分开写成多文件py也是。
+
+当输出pageview_map.json 这个文件时，在里边输出descriptions字段，其中有规范文字 ，规范文字 在flutter文档 中查看，你进行硬编码，同时当每次更新 pageview_map.json 这个文件的规范文字 。现在只要启动程序就给所有app自动创建所有 必要的目录和文件，跳过存在的，同时分为step更新文件，比中更新 pageview_map.json 可能还会扩展更多。
+
+  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点  doc\FLUTTER_UP.md
+
+为什么依然扫描出了不正确的app .prompts,需要app_开头，同时 ···Design Files
+📁
+Select an app with existing design directory··· 没有正确的显示文件树，以及操作。Failed to open folder: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+
+
+Design Files 默认是展开的。
+同时你可以设计一个exit方法 ，收到信号就退出。
+当有新的启动时，发送这个信息（如果旧的端口存在）然后wait旧的退出。
+打印相关信息。同时引入 
+
+  Command: ...
+  [PORT-CHECK] ✗ NOT our server process - will not kill
+  [PORT-CHECK] Please stop the process manually or use a different port
+
+  [ERROR] Port 5757 is in use and could not be freed.
+  [ERROR] Please manually stop the process or use a different port.
+  Press any key to continue . . . 是通知旧的退出，而不是新启动的退出
+  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点  doc\FLUTTER_UP.md
+
+使用localstore记录最后一次选择的app状态，以及Design Files 的展开状态，使用一个可扩展的表记录。
+  刷新时载入。同文件是可以编辑后保存的，但如果是json类型保存前需要 验证json的正确性，更新HTML等相关文件。
+
+

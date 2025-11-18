@@ -13,53 +13,9 @@
             "type": "streamable-http",
             "url": "https://mcp.context7.com/mcp",
             "headers": {
-                "CONTEXT7_API_KEY": "YOUR_API_KEY",
+                "CONTEXT7_API_KEY": "",
                 "Accept": "application/json, text/event-stream"
             }
-        },
-        "FeedbackEnhanced": {
-            "command": "cmd",
-            "args": [
-                "/c",
-                "uvx",
-                "mcp-feedback-enhanced@latest"
-            ],
-            "env": {
-                "MCP_DEBUG": "false",
-                "MCP_WEB_HOST": "127.0.0.1",
-                "MCP_WEB_PORT": "8765",
-                "MCP_LANGUAGE": "en"
-            },
-            "disabled": false,
-            "autoApprove": []
-        },
-        "AICollaboration": {
-            "command": "cmd",
-            "args": [
-                "/c",
-                "python",
-                "D:/programing/core_node/ncore/mcp_server/ai_collaboration/main.py"
-            ],
-            "env": {
-                "MCP_ALLOW_ALL_PATHS": "true"
-            },
-            "disabled": false,
-            "autoApprove": [
-                "register_role",
-                "get_role_list",
-                "write_log",
-                "read_logs",
-                "ask_question",
-                "answer_question",
-                "get_pending_questions",
-                "health_check",
-                "restart_service",
-                "get_storage_stats",
-                "get_log_summary",
-                "get_qa_statistics",
-                "get_question_history",
-                "search_logs"
-            ]
         },
         "MCPUnifiedServer": {
             "command": "python",

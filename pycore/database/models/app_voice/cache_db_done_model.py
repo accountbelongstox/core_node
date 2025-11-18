@@ -30,6 +30,7 @@ class VoiceCacheDbDoneModel(BaseModel):
     __table_key__ = TableKeys.VOICE_CACHE_DB_DONE
     __namespace__ = "app_voice"
     __table_name__ = "cache_db_done"
+    __full_table_name__ = "app_voice_cache_db_done"
     __schema_version__ = 1
 
     @classmethod

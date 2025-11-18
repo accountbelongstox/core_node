@@ -4,13 +4,14 @@ Directory tree generation and codebase structure analysis
 Unified from CodebaseScanner and CodebaseContentHub
 """
 
+import logging
 import os
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 
-from pycore.pyfoundations.color_print import ColorPrint
+logger = logging.getLogger(__name__)
 
 
 # Common ignore patterns for directory scanning
@@ -48,7 +49,7 @@ class DirectoryTreeGenerator:
     def __init__(self, project_root: Optional[Path] = None, enable_global_access: bool = True):
         self.project_root = project_root if project_root else Path.cwd()
         self.enable_global_access = enable_global_access
-        ColorPrint.blue("[DirectoryTreeGenerator] Initialized")
+        logger.debug("[DirectoryTreeGenerator] Initialized")
 
     def should_ignore_directory(self, dir_name: str) -> bool:
         """Check if directory should be ignored"""
@@ -171,7 +172,7 @@ class DirectoryTreeGenerator:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[DirectoryTreeGenerator] Failed to generate tree: {e}")
+            logger.error("[DirectoryTreeGenerator] Failed to generate tree: %s", e)
             return {'error': f"Failed to generate tree: {str(e)}"}
 
     def _build_tree_json(

@@ -100,60 +100,44 @@ class TampermonkeyHandler(BaseHTTPRequestHandler):
         """Handle page data upload"""
         self.send_cors_headers()
 
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
-            page_data = json.loads(body)
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
+        page_data = json.loads(body)
 
-            self.server.process_page_payload(page_data)
+        self.server.process_page_payload(page_data)
 
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_cors_headers()
-            self.end_headers()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_cors_headers()
+        self.end_headers()
 
-            response = {
-                'success': True,
-                'message': 'Page received',
-                'totalPages': self.server.statistics['totalPages']
-            }
-            self.wfile.write(json.dumps(response).encode())
-        except Exception as error:
-            logger.error(f'[TAMPERMONKEY-SERVER] Failed to process page: {error}')
-            self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.send_cors_headers()
-            self.end_headers()
-            self.wfile.write(json.dumps({'success': False, 'error': str(error)}).encode())
+        response = {
+            'success': True,
+            'message': 'Page received',
+            'totalPages': self.server.statistics['totalPages']
+        }
+        self.wfile.write(json.dumps(response).encode())
 
     def handle_complete(self):
         """Handle crawl completion"""
         self.send_cors_headers()
 
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
-            complete_data = json.loads(body)
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
+        complete_data = json.loads(body)
 
-            self.server.process_completion_payload(complete_data)
+        self.server.process_completion_payload(complete_data)
 
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_cors_headers()
-            self.end_headers()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_cors_headers()
+        self.end_headers()
 
-            response = {
-                'success': True,
-                'message': 'Completion acknowledged'
-            }
-            self.wfile.write(json.dumps(response).encode())
-        except Exception as error:
-            logger.error(f'[TAMPERMONKEY-SERVER] Failed to process completion: {error}')
-            self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.send_cors_headers()
-            self.end_headers()
-            self.wfile.write(json.dumps({'success': False, 'error': str(error)}).encode())
+        response = {
+            'success': True,
+            'message': 'Completion acknowledged'
+        }
+        self.wfile.write(json.dumps(response).encode())
 
 
 class TampermonkeyServer:
@@ -209,10 +193,7 @@ class TampermonkeyServer:
         if not _shared_instance:
             _shared_instance = TampermonkeyServer(options or {})
             if _shared_instance.auto_start:
-                try:
-                    _shared_instance.start()
-                except Exception as error:
-                    logger.error(f'[TAMPERMONKEY-SERVER] Auto-start failed: {error}')
+                _shared_instance.start()
         elif options and (options.get('port') or options.get('host')):
             logger.warn('[TAMPERMONKEY-SERVER] Singleton already initialized, ignoring configuration override')
 
@@ -241,53 +222,45 @@ class TampermonkeyServer:
                 'url': f'http://{self.host}:{self.port}'
             }
 
-        try:
-            self.server = HTTPServer((self.host, self.port), TampermonkeyHandler)
-            self.server.statistics = self.statistics
-            self.server.received_pages = self.received_pages
-            self.server.is_running = True
-            self.server.process_page_payload = self.process_page_payload
-            self.server.process_completion_payload = self.process_completion_payload
+        self.server = HTTPServer((self.host, self.port), TampermonkeyHandler)
+        self.server.statistics = self.statistics
+        self.server.received_pages = self.received_pages
+        self.server.is_running = True
+        self.server.process_page_payload = self.process_page_payload
+        self.server.process_completion_payload = self.process_completion_payload
 
-            self.port = self.server.server_address[1]
-            self.is_running = True
-            self.statistics['startTime'] = time.time()
+        self.port = self.server.server_address[1]
+        self.is_running = True
+        self.statistics['startTime'] = time.time()
 
-            self.server_thread = Thread(target=self.server.serve_forever, daemon=True)
-            self.server_thread.start()
+        self.server_thread = Thread(target=self.server.serve_forever, daemon=True)
+        self.server_thread.start()
 
-            logger.info(f'[TAMPERMONKEY-SERVER] Listening on http://{self.host}:{self.port}')
+        logger.info(f'[TAMPERMONKEY-SERVER] Listening on http://{self.host}:{self.port}')
 
-            return {
-                'host': self.host,
-                'port': self.port,
-                'url': f'http://{self.host}:{self.port}'
-            }
-        except Exception as error:
-            logger.error(f'[TAMPERMONKEY-SERVER] Failed to start server: {error}')
-            self.emit('error', error)
-            raise
+        return {
+            'host': self.host,
+            'port': self.port,
+            'url': f'http://{self.host}:{self.port}'
+        }
 
     def stop(self):
         """Stop server"""
         if not self.is_running:
             return
 
-        try:
-            if self.server:
-                self.server.shutdown()
-                self.server.server_close()
-                self.server = None
+        if self.server:
+            self.server.shutdown()
+            self.server.server_close()
+            self.server = None
 
-            if self.server_thread:
-                self.server_thread.join(timeout=5)
-                self.server_thread = None
+        if self.server_thread:
+            self.server_thread.join(timeout=5)
+            self.server_thread = None
 
-            self.is_running = False
-            self.statistics['endTime'] = time.time()
-            logger.info('[TAMPERMONKEY-SERVER] Server stopped')
-        except Exception as error:
-            logger.error(f'[TAMPERMONKEY-SERVER] Error stopping server: {error}')
+        self.is_running = False
+        self.statistics['endTime'] = time.time()
+        logger.info('[TAMPERMONKEY-SERVER] Server stopped')
 
     def process_page_payload(self, page_data: Dict[str, Any]):
         """Process page data from userscript"""
@@ -326,10 +299,7 @@ class TampermonkeyServer:
         """Emit event to registered callbacks"""
         if event_type in self.callbacks:
             for callback in self.callbacks[event_type]:
-                try:
-                    callback(data)
-                except Exception as error:
-                    logger.error(f'[TAMPERMONKEY-SERVER] Callback error: {error}')
+                callback(data)
 
     def on(self, event_type: str, callback: Callable):
         """Register event callback"""

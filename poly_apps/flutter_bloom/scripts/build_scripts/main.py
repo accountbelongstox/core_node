@@ -28,6 +28,11 @@ def main():
     if exit_code != 0:
         sys.exit(exit_code)
 
+    # If mode is design_tool, exit and let PowerShell handle it
+    if mode == "design_tool":
+        print("[INFO] Design tool mode - passing control to PowerShell")
+        sys.exit(0)
+
     # If mode is build, execute build system
     # Build system will prepare everything and generate PowerShell scripts
     # PowerShell will execute the actual Flutter compilation commands

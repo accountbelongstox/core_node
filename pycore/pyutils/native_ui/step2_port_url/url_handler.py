@@ -12,7 +12,7 @@ Handles different types of URLs for native UI applications:
 
 from typing import Literal, Tuple, Optional, Dict
 from pathlib import Path
-from pycore.pyfoundations import ColorPrint
+from pycore import ColorPrint
 
 
 URLType = Literal["remote", "static", "nuxt_app", "vue_dist", "auto"]
@@ -136,49 +136,142 @@ class URLHandler:
         """
         Process Nuxt application
 
-        TODO: Implement Nuxt dev server auto-start
-        - Detect nuxt_main directory
-        - Start dev server with app name
-        - Wait for server ready
-        - Return dev server URL
+        Auto-starts Nuxt dev server if not already running.
+
+        Args:
+            url: App name (e.g., "app_pymatrix")
+
+        Returns:
+            Tuple of (final_url, type, metadata)
         """
+        from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
+
+        app_name = url
+        server_mgr = get_server_manager()
+
         if self.debug:
-            ColorPrint.yellow(f"[URLHandler] Nuxt app processing not implemented: {url}")
-            ColorPrint.yellow("[URLHandler] TODO: Auto-start Nuxt dev server")
+            ColorPrint.blue(f"[URLHandler] Processing Nuxt app: {app_name}")
 
-        # For now, return a placeholder URL
-        final_url = "http://localhost:3000"
-        metadata = {
-            "app_name": url,
-            "dev_server": True,
-            "auto_started": False,  # TODO: Change to True when implemented
-        }
+        # Try to start Nuxt dev server
+        try:
+            server_process = server_mgr.start_nuxt_dev_server(
+                app_name=app_name,
+                project_root=self.project_root,
+                port=None  # Auto-allocate port
+            )
 
-        return final_url, "nuxt_app", metadata
+            if server_process:
+                # Server started or already running
+                final_url = server_process.url
+                metadata = {
+                    "app_name": app_name,
+                    "dev_server": True,
+                    "auto_started": server_process.process is not None,
+                    "port": server_process.port,
+                    "working_dir": str(server_process.working_dir)
+                }
+
+                if self.debug:
+                    ColorPrint.blue(f"[URLHandler] Nuxt app ready: {final_url}")
+
+                return final_url, "nuxt_app", metadata
+            else:
+                # Failed to start server, fallback to default
+                ColorPrint.print_warn(
+                    f"[URLHandler] Failed to start Nuxt dev server for {app_name}, "
+                    "assuming it's running at http://localhost:3000"
+                )
+                return "http://localhost:3000", "nuxt_app", {
+                    "app_name": app_name,
+                    "dev_server": True,
+                    "auto_started": False,
+                    "fallback": True
+                }
+
+        except Exception as e:
+            ColorPrint.print_error(f"[URLHandler] Error processing Nuxt app: {e}")
+            # Fallback to default URL
+            return "http://localhost:3000", "nuxt_app", {
+                "app_name": app_name,
+                "dev_server": True,
+                "auto_started": False,
+                "error": str(e)
+            }
 
     def _process_vue_dist(self, url: str) -> Tuple[str, URLType, Optional[Dict]]:
         """
         Process Vue distribution build
 
-        TODO: Implement static file server
-        - Start local HTTP server for dist directory
-        - Return server URL
+        Auto-starts static file server for Vue dist directory.
+
+        Args:
+            url: Path to Vue dist directory
+
+        Returns:
+            Tuple of (final_url, type, metadata)
         """
-        if self.debug:
-            ColorPrint.yellow(f"[URLHandler] Vue dist processing not implemented: {url}")
-            ColorPrint.yellow("[URLHandler] TODO: Start file server for dist")
+        from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
 
-        # For now, convert to file:// URL
         dist_path = Path(url).resolve()
-        index_path = dist_path / "index.html"
-        final_url = f"file:///{index_path.as_posix()}"
+        server_mgr = get_server_manager()
 
-        metadata = {
-            "dist_path": str(dist_path),
-            "file_server": False,  # TODO: Change to True when implemented
-        }
+        if self.debug:
+            ColorPrint.blue(f"[URLHandler] Processing Vue dist: {dist_path}")
 
-        return final_url, "vue_dist", metadata
+        # Verify dist directory exists
+        if not dist_path.exists() or not dist_path.is_dir():
+            ColorPrint.print_error(f"[URLHandler] Dist directory not found: {dist_path}")
+            # Fallback to file:// URL
+            index_path = dist_path / "index.html"
+            return f"file:///{index_path.as_posix()}", "vue_dist", {
+                "dist_path": str(dist_path),
+                "file_server": False,
+                "error": "Directory not found"
+            }
+
+        # Try to start static file server
+        try:
+            server_process = server_mgr.start_vue_static_server(
+                dist_path=dist_path,
+                port=None  # Auto-allocate port
+            )
+
+            if server_process:
+                # Server started successfully
+                final_url = server_process.url
+                metadata = {
+                    "dist_path": str(dist_path),
+                    "file_server": True,
+                    "auto_started": True,
+                    "port": server_process.port
+                }
+
+                if self.debug:
+                    ColorPrint.blue(f"[URLHandler] Vue dist server ready: {final_url}")
+
+                return final_url, "vue_dist", metadata
+            else:
+                # Failed to start server, fallback to file:// URL
+                ColorPrint.print_warn(
+                    f"[URLHandler] Failed to start static server for {dist_path}, "
+                    "falling back to file:// URL"
+                )
+                index_path = dist_path / "index.html"
+                return f"file:///{index_path.as_posix()}", "vue_dist", {
+                    "dist_path": str(dist_path),
+                    "file_server": False,
+                    "fallback": True
+                }
+
+        except Exception as e:
+            ColorPrint.print_error(f"[URLHandler] Error processing Vue dist: {e}")
+            # Fallback to file:// URL
+            index_path = dist_path / "index.html"
+            return f"file:///{index_path.as_posix()}", "vue_dist", {
+                "dist_path": str(dist_path),
+                "file_server": False,
+                "error": str(e)
+            }
 
 
 # Convenience function

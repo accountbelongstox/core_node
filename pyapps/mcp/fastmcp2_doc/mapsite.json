@@ -1,0 +1,292 @@
+{
+  "timestamp": "2025-11-18T18:14:40.964Z",
+  "domain": "https://gofastmcp.com",
+  "totalUrls": 55,
+  "resourceStats": {
+    "css": 0,
+    "js": 0,
+    "images": 0,
+    "fonts": 0,
+    "media": 0,
+    "backgroundImages": 0,
+    "httpsImages": 0
+  },
+  "screenshotEnabled": false,
+  "urls": [
+    {
+      "url": "https://gofastmcp.com/",
+      "localPath": "index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/getting-started/welcome",
+      "localPath": "getting-started\\welcome\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/getting-started/installation",
+      "localPath": "getting-started\\installation\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/getting-started/quickstart",
+      "localPath": "getting-started\\quickstart\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/updates",
+      "localPath": "updates\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/server",
+      "localPath": "servers\\server\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/patterns/tool-transformation",
+      "localPath": "patterns\\tool-transformation\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/patterns/decorating-methods",
+      "localPath": "patterns\\decorating-methods\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/patterns/cli",
+      "localPath": "patterns\\cli\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/patterns/contrib",
+      "localPath": "patterns\\contrib\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/patterns/testing",
+      "localPath": "patterns\\testing\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/development/contributing",
+      "localPath": "development\\contributing\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/development/tests",
+      "localPath": "development\\tests\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/development/releases",
+      "localPath": "development\\releases\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/development/upgrade-guide",
+      "localPath": "development\\upgrade-guide\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/changelog",
+      "localPath": "changelog\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/llms.txt",
+      "localPath": "llms.txt",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/llms-full.txt",
+      "localPath": "llms-full.txt",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/deployment/fastmcp-cloud",
+      "localPath": "deployment\\fastmcp-cloud\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/google",
+      "localPath": "integrations\\google\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/azure",
+      "localPath": "integrations\\azure\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/aws-cognito",
+      "localPath": "integrations\\aws-cognito\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/auth0",
+      "localPath": "integrations\\auth0\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/descope",
+      "localPath": "integrations\\descope\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/scalekit",
+      "localPath": "integrations\\scalekit\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth/token-verification",
+      "localPath": "servers\\auth\\token-verification\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/icons",
+      "localPath": "servers\\icons\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth/authentication",
+      "localPath": "servers\\auth\\authentication\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/tools",
+      "localPath": "servers\\tools\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/resources",
+      "localPath": "servers\\resources\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/prompts",
+      "localPath": "servers\\prompts\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/deployment/running-server",
+      "localPath": "deployment\\running-server\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/deployment/http",
+      "localPath": "deployment\\http\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/composition",
+      "localPath": "servers\\composition\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/proxy",
+      "localPath": "servers\\proxy\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/fastapi",
+      "localPath": "integrations\\fastapi\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/openapi",
+      "localPath": "integrations\\openapi\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/clients/transports",
+      "localPath": "clients\\transports\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth/oauth-proxy",
+      "localPath": "servers\\auth\\oauth-proxy\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth/oidc-proxy",
+      "localPath": "servers\\auth\\oidc-proxy\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/clients/auth/bearer",
+      "localPath": "clients\\auth\\bearer\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth/remote-oauth",
+      "localPath": "servers\\auth\\remote-oauth\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth/full-oauth-server",
+      "localPath": "servers\\auth\\full-oauth-server\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/context",
+      "localPath": "servers\\context\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/elicitation",
+      "localPath": "servers\\elicitation\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/logging",
+      "localPath": "servers\\logging\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/middleware",
+      "localPath": "servers\\middleware\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/progress",
+      "localPath": "servers\\progress\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/sampling",
+      "localPath": "servers\\sampling\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/storage-backends",
+      "localPath": "servers\\storage-backends\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/clients/messages",
+      "localPath": "clients\\messages\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/servers/auth",
+      "localPath": "servers\\auth\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/openai",
+      "localPath": "integrations\\openai\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/clients/client",
+      "localPath": "clients\\client\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    },
+    {
+      "url": "https://gofastmcp.com/clients/tools",
+      "localPath": "clients\\tools\\index.html",
+      "fetchedAt": "2025-11-18T18:14:40.964Z"
+    }
+  ]
+}

@@ -4,16 +4,18 @@ File search and content search utilities
 Unified from CodebaseScanner functionality
 """
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.mcp.codebase.tree_generator import (
     IGNORE_DIRS,
     IGNORE_FILE_EXTENSIONS
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CodebaseFileSearcher:
@@ -25,7 +27,7 @@ class CodebaseFileSearcher:
     def __init__(self, project_root: Optional[Path] = None, enable_global_access: bool = True):
         self.project_root = project_root if project_root else Path.cwd()
         self.enable_global_access = enable_global_access
-        ColorPrint.blue("[CodebaseFileSearcher] Initialized")
+        logger.debug("[CodebaseFileSearcher] Initialized")
 
     def normalize_path(self, path_str: str) -> Path:
         """Normalize and validate path"""
@@ -120,7 +122,7 @@ class CodebaseFileSearcher:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseFileSearcher] File search failed: {e}")
+            logger.error("[CodebaseFileSearcher] File search failed: %s", e)
             return {'error': f"File search failed: {str(e)}"}
 
     def search_content_in_files(
@@ -219,7 +221,7 @@ class CodebaseFileSearcher:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseFileSearcher] Content search failed: {e}")
+            logger.error("[CodebaseFileSearcher] Content search failed: %s", e)
             return {'error': f"Content search failed: {str(e)}"}
 
     def get_codebase_statistics(
@@ -326,7 +328,7 @@ class CodebaseFileSearcher:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseFileSearcher] Statistics failed: {e}")
+            logger.error("[CodebaseFileSearcher] Statistics failed: %s", e)
             return {'error': f"Statistics failed: {str(e)}"}
 
     def _walk_directory(self, root_path: Path):

@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-11-18T18:14:40.965Z",
+  "totalFailed": 4,
+  "fetcherMode": "puppeteer",
+  "failedUrls": [
+    {
+      "url": "https://gofastmcp.com/integrations/workos",
+      "linkText": "",
+      "error": "Navigation timeout of 30000 ms exceeded",
+      "timestamp": "2025-11-18T18:02:50.730Z",
+      "mode": "puppeteer"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/authkit",
+      "linkText": "",
+      "error": "Navigation timeout of 30000 ms exceeded",
+      "timestamp": "2025-11-18T18:04:23.767Z",
+      "mode": "puppeteer"
+    },
+    {
+      "url": "https://gofastmcp.com/integrations/github",
+      "linkText": "",
+      "error": "Navigation timeout of 30000 ms exceeded",
+      "timestamp": "2025-11-18T18:05:56.796Z",
+      "mode": "puppeteer"
+    },
+    {
+      "url": "https://gofastmcp.com/deployment/server-configuration",
+      "linkText": "",
+      "error": "Navigation timeout of 30000 ms exceeded",
+      "timestamp": "2025-11-18T18:12:11.020Z",
+      "mode": "puppeteer"
+    }
+  ]
+}

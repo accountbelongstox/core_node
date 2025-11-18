@@ -71,7 +71,6 @@
                 "MCP_SERVER_URL": "http://127.0.0.1:9003/mcp/mcpv1",
                 "MCP_APP_URL": "http://127.0.0.1:9003",
                 "MCP_OUTPUT_DIR": "/www/test",
-                "PYCORE_SKIP_DEP_CHECK": "0",
                 "PYTHONIOENCODING": "utf-8",
                 "LANG": "en_US.UTF-8",
                 "LC_ALL": "en_US.UTF-8"

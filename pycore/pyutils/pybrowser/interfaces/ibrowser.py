@@ -18,7 +18,7 @@ class IBrowser:
         self.version = None
         self.browser_type = None
 
-    async def launch(self, options: Dict[str, Any] = None) -> Any:
+    def launch(self, options: Dict[str, Any] = None) -> Any:
         """
         Launch the browser
 
@@ -30,11 +30,11 @@ class IBrowser:
         """
         raise NotImplementedError('IBrowser.launch() must be implemented by subclass')
 
-    async def close(self):
+    def close(self):
         """Close the browser"""
         raise NotImplementedError('IBrowser.close() must be implemented by subclass')
 
-    async def new_page(self, options: Dict[str, Any] = None) -> 'IPage':
+    def new_page(self, options: Dict[str, Any] = None) -> 'IPage':
         """
         Create a new page/tab
 
@@ -46,7 +46,7 @@ class IBrowser:
         """
         raise NotImplementedError('IBrowser.new_page() must be implemented by subclass')
 
-    async def get_version(self) -> Optional[str]:
+    def get_version(self) -> Optional[str]:
         """
         Get browser version
 
@@ -55,7 +55,7 @@ class IBrowser:
         """
         raise NotImplementedError('IBrowser.get_version() must be implemented by subclass')
 
-    async def get_pages(self) -> List['IPage']:
+    def get_pages(self) -> List['IPage']:
         """
         Get all open pages
 
@@ -64,7 +64,7 @@ class IBrowser:
         """
         raise NotImplementedError('IBrowser.get_pages() must be implemented by subclass')
 
-    async def is_connected(self) -> bool:
+    def is_connected(self) -> bool:
         """
         Check if browser is connected
 
@@ -85,3 +85,37 @@ class IBrowser:
             'version': self.version,
             'browser_type': self.browser_type
         }
+
+    def wait_until_ready(self, timeout: float = 10.0) -> bool:
+        """
+        Wait until browser is ready
+
+        Args:
+            timeout: Maximum wait time in seconds
+
+        Returns:
+            True if ready, False if timeout
+        """
+        raise NotImplementedError('IBrowser.wait_until_ready() must be implemented by subclass')
+
+    def navigate(self, url: str, wait_result: bool = False) -> Optional[Dict[str, Any]]:
+        """
+        Navigate to URL (thread-safe for threaded browsers)
+
+        Args:
+            url: URL to navigate to
+            wait_result: Wait for result (default: False)
+
+        Returns:
+            Result dict if wait_result=True, else None
+        """
+        raise NotImplementedError('IBrowser.navigate() must be implemented by subclass')
+
+    def is_running(self) -> bool:
+        """
+        Check if browser is running
+
+        Returns:
+            True if running
+        """
+        raise NotImplementedError('IBrowser.is_running() must be implemented by subclass')

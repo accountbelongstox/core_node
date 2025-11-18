@@ -7,6 +7,8 @@ Provides simplified API for common browser automation tasks
 """
 
 from typing import Dict, Any, Optional
+from pycore.pyutils.pybrowser.core import SpiderEngine
+from pycore.pyutils.pybrowser.utils.iframe import IFrameUtils
 from pycore.pyutils.pybrowser.utils.logger import Logger
 
 logger = Logger({'prefix': 'Fetcher'})
@@ -41,32 +43,26 @@ class Fetcher:
         global _default_engine
         options = options or {}
 
-        try:
-            logger.info(f'Initializing Fetcher with browser type: {browser_type}')
+        logger.info(f'Initializing Fetcher with browser type: {browser_type}')
 
-            from pycore.pyutils.pybrowser.core import SpiderEngine
+        if not _default_engine:
+            _default_engine = SpiderEngine()
+            await _default_engine.initialize()
 
-            if not _default_engine:
-                _default_engine = SpiderEngine()
-                await _default_engine.initialize()
+        self.engine = _default_engine
 
-            self.engine = _default_engine
+        self.session = await self.engine.create_session({
+            'preset': 'desktop',
+            'browser': browser_type,
+            'headless': options.get('headless', False),
+            'viewport': options.get('viewport', {'width': 1920, 'height': 1080})
+        })
 
-            self.session = await self.engine.create_session({
-                'preset': 'desktop',
-                'browser': browser_type,
-                'headless': options.get('headless', False),
-                'viewport': options.get('viewport', {'width': 1920, 'height': 1080})
-            })
+        self.current_page = await self.session.new_page()
+        self.is_initialized = True
 
-            self.current_page = await self.session.new_page()
-            self.is_initialized = True
-
-            logger.info('Fetcher initialized successfully')
-            return self
-        except Exception as error:
-            logger.error(f'Failed to initialize Fetcher: {error}')
-            raise
+        logger.info('Fetcher initialized successfully')
+        return self
 
     async def fetch(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -83,31 +79,26 @@ class Fetcher:
             raise RuntimeError('Fetcher not initialized. Call initialize() first.')
 
         options = options or {}
+        logger.info(f'Fetching URL: {url}')
 
-        try:
-            logger.info(f'Fetching URL: {url}')
+        await self.current_page.goto(url, {
+            'waitUntil': options.get('waitUntil', 'networkidle2'),
+            'timeout': options.get('timeout', 30000)
+        })
 
-            await self.current_page.goto(url, {
-                'waitUntil': options.get('waitUntil', 'networkidle2'),
-                'timeout': options.get('timeout', 30000)
-            })
+        content = await self.current_page.content()
+        final_url = await self.current_page.evaluate('window.location.href')
 
-            content = await self.current_page.content()
-            final_url = await self.current_page.evaluate('window.location.href')
+        logger.info(f'Page fetched successfully: {final_url}')
 
-            logger.info(f'Page fetched successfully: {final_url}')
-
-            return {
-                'content': content,
-                'contentType': 'text/html',
-                'isText': True,
-                'isBinary': False,
-                'url': final_url,
-                'status': 200
-            }
-        except Exception as error:
-            logger.error(f'Failed to fetch URL: {error}')
-            raise
+        return {
+            'content': content,
+            'contentType': 'text/html',
+            'isText': True,
+            'isBinary': False,
+            'url': final_url,
+            'status': 200
+        }
 
     async def take_screenshot(self, options: Dict[str, Any] = None) -> bytes:
         """
@@ -123,21 +114,16 @@ class Fetcher:
             raise RuntimeError('Fetcher not initialized. Call initialize() first.')
 
         options = options or {}
+        logger.info('Taking screenshot')
 
-        try:
-            logger.info('Taking screenshot')
+        screenshot = await self.current_page.screenshot({
+            'path': options.get('path'),
+            'fullPage': options.get('fullPage', True),
+            'type': options.get('type', 'png')
+        })
 
-            screenshot = await self.current_page.screenshot({
-                'path': options.get('path'),
-                'fullPage': options.get('fullPage', True),
-                'type': options.get('type', 'png')
-            })
-
-            logger.info('Screenshot taken successfully')
-            return screenshot
-        except Exception as error:
-            logger.error(f'Failed to take screenshot: {error}')
-            raise
+        logger.info('Screenshot taken successfully')
+        return screenshot
 
     async def get_page(self):
         """Get current page instance"""
@@ -153,20 +139,16 @@ class Fetcher:
 
     async def close(self):
         """Close fetcher and cleanup resources"""
-        try:
-            if self.current_page:
-                await self.current_page.close()
-                self.current_page = None
+        if self.current_page:
+            await self.current_page.close()
+            self.current_page = None
 
-            if self.session:
-                await self.session.close()
-                self.session = None
+        if self.session:
+            await self.session.close()
+            self.session = None
 
-            self.is_initialized = False
-            logger.info('Fetcher closed successfully')
-        except Exception as error:
-            logger.error(f'Failed to close Fetcher: {error}')
-            raise
+        self.is_initialized = False
+        logger.info('Fetcher closed successfully')
 
     async def fetch_iframe_content(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -183,35 +165,28 @@ class Fetcher:
             raise RuntimeError('Fetcher not initialized. Call initialize() first.')
 
         options = options or {}
+        logger.info(f'Fetching iframe content from URL: {url}')
 
-        try:
-            logger.info(f'Fetching iframe content from URL: {url}')
+        await self.current_page.goto(url, {
+            'waitUntil': options.get('waitUntil', 'networkidle2'),
+            'timeout': options.get('timeout', 30000)
+        })
 
-            await self.current_page.goto(url, {
-                'waitUntil': options.get('waitUntil', 'networkidle2'),
-                'timeout': options.get('timeout', 30000)
-            })
+        iframe_utils = IFrameUtils(self.current_page)
+        results = await iframe_utils.get_all_iframes_with_content({
+            'delay': options.get('delay', 1000),
+            'maxLinksPerIframe': options.get('maxLinksPerIframe', float('inf')),
+            'onPageCallback': options.get('onPageCallback')
+        })
 
-            from pycore.pyutils.pybrowser.utils.iframe import IFrameUtils
+        logger.info(f"Fetched content from {len(results)} iframes")
 
-            iframe_utils = IFrameUtils(self.current_page)
-            results = await iframe_utils.get_all_iframes_with_content({
-                'delay': options.get('delay', 1000),
-                'maxLinksPerIframe': options.get('maxLinksPerIframe', float('inf')),
-                'onPageCallback': options.get('onPageCallback')
-            })
-
-            logger.info(f"Fetched content from {len(results)} iframes")
-
-            return {
-                'url': url,
-                'iframes': results,
-                'totalIframes': len(results),
-                'successfulIframes': sum(1 for r in results if r.get('success') is not False)
-            }
-        except Exception as error:
-            logger.error(f'Failed to fetch iframe content: {error}')
-            raise
+        return {
+            'url': url,
+            'iframes': results,
+            'totalIframes': len(results),
+            'successfulIframes': sum(1 for r in results if r.get('success') is not False)
+        }
 
     async def fetch_iframe_content_recursive(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -228,39 +203,32 @@ class Fetcher:
             raise RuntimeError('Fetcher not initialized. Call initialize() first.')
 
         options = options or {}
+        logger.info(f'[RECURSIVE] Fetching iframe content from URL: {url}')
 
-        try:
-            logger.info(f'[RECURSIVE] Fetching iframe content from URL: {url}')
+        await self.current_page.goto(url, {
+            'waitUntil': options.get('waitUntil', 'networkidle2'),
+            'timeout': options.get('timeout', 30000)
+        })
 
-            await self.current_page.goto(url, {
-                'waitUntil': options.get('waitUntil', 'networkidle2'),
-                'timeout': options.get('timeout', 30000)
-            })
+        iframe_utils = IFrameUtils(self.current_page)
+        results = await iframe_utils.recursive_crawl_all_iframes({
+            'maxDepth': options.get('maxDepth', 10),
+            'delay': options.get('delay', 1000),
+            'maxLinksPerPage': options.get('maxLinksPerPage', float('inf')),
+            'sameOriginOnly': options.get('sameOriginOnly', True),
+            'skipHashLinks': options.get('skipHashLinks', True),
+            'onPageCallback': options.get('onPageCallback'),
+            'onFailedCallback': options.get('onFailedCallback')
+        })
 
-            from pycore.pyutils.pybrowser.utils.iframe import IFrameUtils
+        logger.info(f'[RECURSIVE] Recursively crawled {len(results)} iframes')
 
-            iframe_utils = IFrameUtils(self.current_page)
-            results = await iframe_utils.recursive_crawl_all_iframes({
-                'maxDepth': options.get('maxDepth', 10),
-                'delay': options.get('delay', 1000),
-                'maxLinksPerPage': options.get('maxLinksPerPage', float('inf')),
-                'sameOriginOnly': options.get('sameOriginOnly', True),
-                'skipHashLinks': options.get('skipHashLinks', True),
-                'onPageCallback': options.get('onPageCallback'),
-                'onFailedCallback': options.get('onFailedCallback')
-            })
-
-            logger.info(f'[RECURSIVE] Recursively crawled {len(results)} iframes')
-
-            return {
-                'url': url,
-                'iframes': results,
-                'totalIframes': len(results),
-                'successfulIframes': sum(1 for r in results if r.get('success') is not False)
-            }
-        except Exception as error:
-            logger.error(f'[RECURSIVE] Failed to fetch iframe content: {error}')
-            raise
+        return {
+            'url': url,
+            'iframes': results,
+            'totalIframes': len(results),
+            'successfulIframes': sum(1 for r in results if r.get('success') is not False)
+        }
 
     async def fetch_single_iframe_content(self, url: str, iframe_index: int = 0, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -278,32 +246,25 @@ class Fetcher:
             raise RuntimeError('Fetcher not initialized. Call initialize() first.')
 
         options = options or {}
+        logger.info(f'Fetching iframe {iframe_index} content from URL: {url}')
 
-        try:
-            logger.info(f'Fetching iframe {iframe_index} content from URL: {url}')
+        await self.current_page.goto(url, {
+            'waitUntil': options.get('waitUntil', 'networkidle2'),
+            'timeout': options.get('timeout', 30000)
+        })
 
-            await self.current_page.goto(url, {
-                'waitUntil': options.get('waitUntil', 'networkidle2'),
-                'timeout': options.get('timeout', 30000)
-            })
+        iframe_utils = IFrameUtils(self.current_page)
+        result = await iframe_utils.extract_iframe_content_by_index(iframe_index, {
+            'delay': options.get('delay', 1000),
+            'maxLinks': options.get('maxLinks', float('inf'))
+        })
 
-            from pycore.pyutils.pybrowser.utils.iframe import IFrameUtils
+        logger.info(f'Fetched content from iframe {iframe_index}')
 
-            iframe_utils = IFrameUtils(self.current_page)
-            result = await iframe_utils.extract_iframe_content_by_index(iframe_index, {
-                'delay': options.get('delay', 1000),
-                'maxLinks': options.get('maxLinks', float('inf'))
-            })
-
-            logger.info(f'Fetched content from iframe {iframe_index}')
-
-            return {
-                'url': url,
-                'iframeData': result
-            }
-        except Exception as error:
-            logger.error(f'Failed to fetch iframe {iframe_index} content: {error}')
-            raise
+        return {
+            'url': url,
+            'iframeData': result
+        }
 
     async def collect_resources(self, options: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
         """

@@ -16,7 +16,6 @@ PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.ocr import ocr_manager
 from pycore.pyutils.mcp.file_processing.color_palette_extractor_with_dominant_colors_and_histogram import (
     get_color_extractor_singleton
@@ -247,7 +246,7 @@ class ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
                 "x1": int(x1), "y1": int(y1),
                 "x2": int(x2), "y2": int(y2)
             }
-            ColorPrint.yellow(f"[WARNING] Image too large ({width}x{height}), returning sample pixel data only")
+            logger.warning("[WARNING] Image too large (%sx%s), returning sample pixel data only", width, height)
 
         return result
 

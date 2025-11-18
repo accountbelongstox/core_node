@@ -13,6 +13,9 @@
 const encyclopedia = require('./gcommon/encyclopedia.js')
 const RPC_CONSTANTS = require('./gconfig/rpc_constants.js')
 
+const PUPPETEER_NAVIGATION_TIMEOUT_MS = 600000;
+const PUPPETEER_NAVIGATION_TIMEOUT_MINUTES = PUPPETEER_NAVIGATION_TIMEOUT_MS / 60000;
+
 
 const path = require('path');
 // const fs = require('fs');
@@ -130,6 +133,8 @@ module.exports = {
     getSettingsCenter,
     getThemeCenter,
     getDataCenter,
-    DEFAULT_THEME_DEFINITIONS
+    DEFAULT_THEME_DEFINITIONS,
+    PUPPETEER_NAVIGATION_TIMEOUT_MS,
+    PUPPETEER_NAVIGATION_TIMEOUT_MINUTES
 
 };

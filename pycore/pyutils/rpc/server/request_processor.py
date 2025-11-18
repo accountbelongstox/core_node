@@ -12,7 +12,7 @@ from typing import Dict, Optional, Any, Callable
 
 from pycore import ColorPrint
 
-from pycore.pyutils.rpc.common.request_event_table import RequestEventTable, RequestStatus
+from pycore.pyutils.rpc.common.task_table import RequestEventTable, RequestStatus
 
 
 class RequestProcessor:
@@ -30,11 +30,11 @@ class RequestProcessor:
         self,
         request_event_table: RequestEventTable,
         routes: Dict[str, Callable],
-        debug: bool = False
+        debug: bool = True
     ):
         """
         Initialize Request Processor
-        
+
         Args:
             request_event_table: Request event table
             routes: Routes dictionary
@@ -43,6 +43,9 @@ class RequestProcessor:
         self.request_event_table = request_event_table
         self.routes = routes
         self.debug = debug
+
+        if self.debug:
+            ColorPrint.green(f"[RequestProcessor] Initialized with {len(routes)} routes")
     
     async def process_request_async(
         self,
@@ -103,23 +106,31 @@ class RequestProcessor:
             
             # Store result in event table (using request_id)
             self.request_event_table.set_result(request_id, result, error=None)
-            
+
             # Retrieve callback from event table by request_id
-            # Call notify_callback if provided
+            # Call notify_callback if provided (supports both sync and async callbacks)
             if notify_callback:
-                await notify_callback(client_id, request_id, result, None)
+                if asyncio.iscoroutinefunction(notify_callback):
+                    await notify_callback(client_id, request_id, result, None)
+                else:
+                    # ✅ Non-blocking callback (e.g., notify_websocket_with_retry)
+                    notify_callback(client_id, request_id, result, None)
             # HTTP: result stored in event table, client will poll via query endpoint
-            
+
         except Exception as e:
             error_msg = str(e)
             ColorPrint.red(f"[RequestProcessor] Processing error for {request_id}: {e}")
-            
+
             # Store error in event table (using request_id)
             self.request_event_table.set_result(request_id, None, error=error_msg)
-            
+
             # Retrieve callback from event table by request_id and notify client
             if notify_callback:
-                await notify_callback(client_id, request_id, None, error_msg)
+                if asyncio.iscoroutinefunction(notify_callback):
+                    await notify_callback(client_id, request_id, None, error_msg)
+                else:
+                    # ✅ Non-blocking callback
+                    notify_callback(client_id, request_id, None, error_msg)
 
 __all__ = ['RequestProcessor']
 

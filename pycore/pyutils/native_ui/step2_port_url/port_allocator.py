@@ -48,7 +48,7 @@ def get_port_range(app_id: str, debug: bool = False) -> Tuple[int, int]:
     if app_id in BUILTIN_PORT_RANGES:
         port_start, port_range = BUILTIN_PORT_RANGES[app_id]
         if debug:
-            from pycore.pyfoundations import ColorPrint
+            from pycore import ColorPrint
             ColorPrint.blue(
                 f"[PortAllocator] {app_id} -> {port_start}-{port_start+port_range-1} (built-in)"
             )
@@ -60,7 +60,7 @@ def get_port_range(app_id: str, debug: bool = False) -> Tuple[int, int]:
     _NEXT_CUSTOM_PORT_START += port_range
 
     if debug:
-        from pycore.pyfoundations import ColorPrint
+        from pycore import ColorPrint
         ColorPrint.blue(
             f"[PortAllocator] {app_id} -> {port_start}-{port_start+port_range-1} (auto-allocated)"
         )

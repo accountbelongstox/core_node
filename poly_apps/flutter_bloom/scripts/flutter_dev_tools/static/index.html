@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flutter Design Docs Inspector</title>
+    <link rel="stylesheet" href="/static/css/main.css" />
+    <link rel="stylesheet" href="/static/css/tree.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Flutter Design Documentation Inspector</h1>
+      <p>Scanning apps inside poly_apps/flutter_bloom/lib/apps</p>
+    </header>
+
+    <main class="main-container">
+      <!-- Top: App tabs -->
+      <div id="tabs" class="tab-bar"></div>
+
+      <!-- Middle: Content area with split view -->
+      <div class="content-area">
+        <!-- Left panel: File tree -->
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-header">
+            <h3>Design Files</h3>
+            <button id="open-folder-btn" class="icon-btn" title="Open in Explorer">
+              📁
+            </button>
+          </div>
+          <div id="file-tree" class="file-tree"></div>
+          <div id="tree-placeholder" class="tree-placeholder">
+            Select an app with existing design directory
+          </div>
+        </aside>
+
+        <!-- Right panel: Details and file viewer -->
+        <section id="panel" class="panel">
+          <p>Loading...</p>
+        </section>
+      </div>
+    </main>
+
+    <!-- Load JavaScript modules -->
+    <script src="/static/js/storage-manager.js"></script>
+    <script src="/static/js/tree-view.js"></script>
+    <script src="/static/js/file-viewer.js"></script>
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>

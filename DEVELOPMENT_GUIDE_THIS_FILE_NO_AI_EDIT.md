@@ -14,42 +14,49 @@
 
 ### 1.1. Node Core Service Framework
 Located in `./ncore`, the framework runs on the latest Node.js version and exposes multiple entry points via the subdirectories inside `./apps`. Each entry can boot a dedicated app flow while reusing the capabilities provided by `ncore`.
-Development standards for `ncore` and `./apps` live in `development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+Development standards for `ncore` and `apps` live in `development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
 
 ### 1.2. Application Modules (`apps`)
 - **Core apps (`apps`)**: Everything under `apps/` is a business entry powered by `ncore`. Launch from the repo root using `node ./main.js app=appName`; the runtime automatically invokes `apps/appName/main.js` and calls its `start` method.
 
-### 1.2. Aggregated Apps (`poly_apps`)
+### 1.3. Aggregated Apps (`poly_apps`)
 - **Aggregated apps (`poly_apps`)**: Third-party stacks (Laravel, Vue, Flutter, etc.) that interact with `ncore` or run independently. Each lives under `poly_apps/`.
 
-#### 1.2.1. Laravel backend (`./poly_apps/laravel_main`)
-`poly_apps/laravel_main` is the Laravel-based backend that exposes multi-entry APIs for the rest of the system. Development details: `./poly_apps/laravel_main/development-guides/LARAVEL_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+#### 1.3.1. Laravel backend (`./poly_apps/laravel_main`)
+`poly_apps/laravel_main` is the Laravel-based backend that exposes multi-entry APIs for the rest of the system. Development details: `development-guides/LARAVEL_GUIDE.md`.
 
-#### 1.2.2. Flutter aggregate app (`./poly_apps/flutter_bloom`)
-`poly_apps/flutter_bloom` is the Flutter mobile/web aggregate client. It integrates with other subsystems through multi-entry flows. Guide: `./poly_apps/flutter_bloom/development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+#### 1.3.2. Flutter aggregate app (`./poly_apps/flutter_bloom`)
+`poly_apps/flutter_bloom` is the Flutter mobile/web aggregate client. It integrates with other subsystems through multi-entry flows. Guide: `development-guides/FLUTTER_GUIDE.md`.
 
-#### 1.2.3. Nuxt aggregate app (`./poly_apps/nuxt_main`)
-`poly_apps/nuxt_main` is the Nuxt-powered web entry point. Guide: `./poly_apps/nuxt_main/development-guides/NUXT_POLYAPP_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+#### 1.3.3. Nuxt aggregate app (`./poly_apps/nuxt_main`)
+`poly_apps/nuxt_main` is the Nuxt-powered web entry point. Guide: `development-guides/NCORE_NUXT_INTEGRATION_GUIDE.md`.
 - **Project path:** `D:/programing/core_node/poly_apps/nuxt_main`
-- **Nuxt multi-app architecture doc:** `D:/programing/core_node/development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md`
+- **Nuxt multi-app architecture doc:** `development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md`
 
-### MCP (AI-MCP service)
+### 1.4. System bootstrap & installers
+- **Windows:** Root-level `dd.cmd` installs Node/Java/PHP/Docker and other essentials in one step. Details: `development-guides/DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+- **Linux (Debian):** Root-level `dd.sh` performs the same setup (more advanced than Windows). Details: `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+
+### 1.5. Global auxiliary scripts `./scripts/`
+- Helper scripts used during development.
+- Read `development-guides/AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md` before running anything.
+
+### 1.6. MCP (AI-MCP service)
 Development standards: `development-guides/MCPSERVER_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
 
-### 1.3. System bootstrap & installers
-- **Windows:** Root-level `dd.cmd` installs Node/Java/PHP/Docker and other essentials in one step. Details: `./development-guides/DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
-- **Linux (Debian):** Root-level `dd.sh` performs the same setup (more advanced than Windows). Details: `./development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+### 1.7. Python Core (`pycore`)
+Python core framework and utilities. Development guide: `development-guides/PYTHON_PYCORE.md`.
 
-### 1.4. Global auxiliary scripts `./scripts/`
-- Helper scripts used during development.
-- Read `./scripts/AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md` before running anything.
+### 1.8. Common Specifications
+- **Timer design:** `development-guides/COMMON_TIMER_DESIGN_SPECIFICATION.md`
+- **Theme and style:** `development-guides/THEME_AND_STYLE_GUIDE.md`
+- **Debug output:** `development-guides/DEBUG_OUTPUT_SOLUTION.md`
 
 ## 2. Development Process
 - Every section (`app`, `poly_apps`, `./ncore`, `./scripts`, etc.) ships its own `development-guides` entry. Report if something is missing.
 - When building an app on top of `ncore`, consult its matching guide first.
 - When working in `poly_apps`, open the relevant guide for that stack.
 - For cross-app efforts, review all affected guides before coding.
-- Gemini AI dedicated feedback doc: `development-guides\GEMINI_AI_FEEDBACK.md`.
 
 ## Strict Requirements
 - Do **not** run test commands during development.

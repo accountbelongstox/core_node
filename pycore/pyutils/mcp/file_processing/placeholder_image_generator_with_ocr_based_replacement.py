@@ -16,7 +16,6 @@ PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PYTOOLS_TMP_DIR
 from pycore.pyutils.ocr import ocr_manager
 
@@ -66,7 +65,7 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
 
         # Get text from OCR if not provided
         if placeholder_text is None:
-            ColorPrint.blue(f"[INFO] Performing OCR on original image: {original_image_path}")
+            logger.info("Performing OCR on original image: %s", original_image_path)
             ocr_result = ocr_manager.recognize_image(original_image_path, model_type="general")
             placeholder_text = ocr_result.get("text", "")
 
@@ -78,7 +77,7 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
             if not placeholder_text.strip():
                 placeholder_text = f"Placeholder {width}x{height}"
 
-        ColorPrint.blue(f"[INFO] Placeholder text: {placeholder_text[:50]}...")
+        logger.info("Placeholder text: %s", placeholder_text[:50])
 
         # Create placeholder image
         placeholder_img = PIL_Image.new('RGB', (width, height), color=background_color)
@@ -103,7 +102,7 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
 
         processing_duration = (datetime.utcnow() - start_time).total_seconds()
 
-        ColorPrint.green(f"[SUCCESS] Placeholder image generated: {output_path}")
+        logger.debug("Placeholder image generated: %s", output_path)
 
         return {
             "success": True,
@@ -156,7 +155,7 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
                 document_path, output_path, style_options
             )
         else:
-            ColorPrint.red(f"[ERROR] Unsupported document type for image replacement: {file_ext}")
+            logger.error("Unsupported document type for image replacement: %s", file_ext)
             return {
                 "success": False,
                 "error": f"Unsupported document type: {file_ext}"
@@ -174,7 +173,7 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
         style_options: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Replace images in PDF with placeholders"""
-        ColorPrint.yellow("[WARNING] PDF image replacement not fully implemented")
+        logger.warning("PDF image replacement not fully implemented")
         return {
             "success": False,
             "error": "PDF image replacement not implemented",
@@ -191,7 +190,7 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
         style_options: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Replace images in DOCX with placeholders"""
-        ColorPrint.yellow("[WARNING] DOCX image replacement not fully implemented")
+        logger.warning("DOCX image replacement not fully implemented")
         return {
             "success": False,
             "error": "DOCX image replacement not implemented",
