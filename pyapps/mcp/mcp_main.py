@@ -20,6 +20,7 @@ import logging
 import asyncio
 import time
 import platform
+import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Any
 import requests
