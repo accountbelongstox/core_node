@@ -65,7 +65,7 @@
             this.storageKey = options.storageKey || 'fastapi_rpc_client_id';
             const clientId = this._resolveClientId(options.clientId);
             this.options = {
-                clientId,
+                ...options,
                 wsPath: options.wsPath || '/rpc/ws',
                 reconnect: options.reconnect !== false,
                 reconnectInterval: options.reconnectInterval || 3000,
@@ -73,6 +73,7 @@
                 debug: !!options.debug,
                 heartbeatFast: options.heartbeatFast || 1000,
                 heartbeatInterval: options.heartbeatInterval || 5000,
+                clientId,
             };
             this.ws = null;
             this.connected = false;
@@ -134,6 +135,7 @@
                     if (this.options.debug) {
                         console.info('[FastAPIRpcClient] WebSocket connected');
                     }
+                    this._persistLog(`connected:${this.options.clientId}`);
                     this._startHeartbeat(true);
                     resolve();
                 };
@@ -202,7 +204,7 @@
                     if (message.requires_ack) {
                         this._sendAck(message.id);
                     }
-                } else {
+                } else if (this.pendingMetadata.has(message.id)) {
                     this._handleRestoredMessage(message);
                 }
             } else if (message.type === 'welcome') {
@@ -232,6 +234,7 @@
                 entry.reject(new Error('Connection lost'));
             }
             this.pending.clear();
+            this._persistLog(`disconnect:${this.options.clientId}`);
             if (this.options.reconnect) {
                 this._attemptReconnect();
             }

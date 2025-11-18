@@ -5,9 +5,9 @@ File Info Controller - Organizational Logic Only
 Thin wrapper around pycore utilities for MCP protocol
 """
 
+import logging
 from typing import Dict, Any, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.mcp.file_processing import (
     get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
 )
@@ -17,6 +17,8 @@ from pycore.pyutils.mcp.file_processing.placeholder_image_generator_with_ocr_bas
 from pycore.pyutils.mcp.file_processing.database_manager_for_file_info_caching_and_history import (
     get_database_manager_singleton
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FileInfoController:
@@ -29,7 +31,7 @@ class FileInfoController:
         """Initialize controller"""
         self.placeholder_generator = get_placeholder_generator_singleton()
         self.db_manager = get_database_manager_singleton()
-        ColorPrint.green("[INFO] FileInfoController initialized")
+        logger.debug("[FileInfoController] Initialized")
 
     async def get_file_info_with_comprehensive_analysis(
         self,
@@ -46,7 +48,7 @@ class FileInfoController:
         Returns:
             Comprehensive file information dictionary
         """
-        ColorPrint.blue(f"[CONTROLLER] Processing file: {file_path}")
+        logger.debug("[FileInfoController] Processing file: %s", file_path)
 
         # Call pycore utility
         result = await get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats(
@@ -54,7 +56,7 @@ class FileInfoController:
             options=options
         )
 
-        ColorPrint.green(f"[CONTROLLER] File processing complete: {file_path}")
+        logger.debug("[FileInfoController] File processing complete: %s", file_path)
         return result
 
     async def generate_placeholder_image(
@@ -76,7 +78,7 @@ class FileInfoController:
         Returns:
             Generation results
         """
-        ColorPrint.blue(f"[CONTROLLER] Generating placeholder: {original_image_path} -> {output_path}")
+        logger.debug("[FileInfoController] Generating placeholder: %s -> %s", original_image_path, output_path)
 
         result = await self.placeholder_generator.generate_placeholder_image_with_ocr_text_replacement_and_custom_styling(
             original_image_path=original_image_path,
@@ -86,9 +88,9 @@ class FileInfoController:
         )
 
         if result.get("success"):
-            ColorPrint.green(f"[CONTROLLER] Placeholder generated successfully")
+            logger.debug("[FileInfoController] Placeholder generated successfully")
         else:
-            ColorPrint.red(f"[CONTROLLER] Placeholder generation failed: {result.get('error')}")
+            logger.error("[FileInfoController] Placeholder generation failed: %s", result.get("error"))
 
         return result
 
@@ -113,7 +115,7 @@ class FileInfoController:
         Returns:
             Query results with pagination
         """
-        ColorPrint.blue(f"[CONTROLLER] Querying processing history (type={file_type}, limit={limit})")
+        logger.debug("[FileInfoController] Querying processing history (type=%s, limit=%s)", file_type, limit)
 
         result = await self.db_manager.query_file_processing_history_with_filters_and_pagination(
             file_type=file_type,
@@ -123,7 +125,7 @@ class FileInfoController:
             offset=offset
         )
 
-        ColorPrint.green(f"[CONTROLLER] Query complete: {len(result.get('results', []))} results")
+        logger.debug("[FileInfoController] Query complete: %s results", len(result.get("results", [])))
         return result
 
     async def clear_cache(self, file_path: Optional[str] = None) -> Dict[str, Any]:
@@ -137,9 +139,9 @@ class FileInfoController:
             Operation results
         """
         if file_path:
-            ColorPrint.yellow(f"[CONTROLLER] Clearing cache for: {file_path}")
+            logger.warning("[FileInfoController] Clearing cache for: %s", file_path)
         else:
-            ColorPrint.yellow(f"[CONTROLLER] WARNING: Clearing ALL cache entries")
+            logger.warning("[FileInfoController] Clearing ALL cache entries (not fully implemented)")
 
         # For now, return a simple response
         # Full implementation would call db_manager methods

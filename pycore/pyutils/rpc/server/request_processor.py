@@ -30,11 +30,11 @@ class RequestProcessor:
         self,
         request_event_table: RequestEventTable,
         routes: Dict[str, Callable],
-        debug: bool = False
+        debug: bool = True
     ):
         """
         Initialize Request Processor
-        
+
         Args:
             request_event_table: Request event table
             routes: Routes dictionary
@@ -43,6 +43,9 @@ class RequestProcessor:
         self.request_event_table = request_event_table
         self.routes = routes
         self.debug = debug
+
+        if self.debug:
+            ColorPrint.green(f"[RequestProcessor] Initialized with {len(routes)} routes")
     
     async def process_request_async(
         self,

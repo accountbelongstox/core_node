@@ -23,6 +23,30 @@ from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon import Commander
 
+# Check if running in MCP mode - suppress output if true
+_IS_MCP_MODE = ColorPrint.is_mcp_mode()
+
+# Save original ColorPrint reference before wrapping
+_OriginalColorPrint = ColorPrint
+
+# Conditional ColorPrint wrapper - only outputs if not in MCP mode
+class _ColorPrintWrapper:
+    @staticmethod
+    def blue(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.blue(msg)
+    @staticmethod
+    def red(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.red(msg)
+    @staticmethod
+    def green(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.green(msg)
+    @staticmethod
+    def yellow(msg):
+        if not _IS_MCP_MODE: _OriginalColorPrint.yellow(msg)
+
+# Replace ColorPrint with wrapper for this module
+ColorPrint = _ColorPrintWrapper
+
 # Dependency Map
 # Maps the required import name to the official PyPI package name.
 # All new third-party dependencies for any tool must be added here.
@@ -444,11 +468,6 @@ def check_and_install_dependencies():
     Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
     """
     ColorPrint.blue("[INFO] Checking for required Python packages...")
-    # Allow callers to skip dependency checks via environment variable
-    if os.environ.get('PYCORE_SKIP_DEP_CHECK') == '1':
-        ENCYCLOPEDIA['pycore_dependencies_checked'] = True
-        return
-
     # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
@@ -863,11 +882,6 @@ def get_third_package_pypdf():
     return _lazy_import('pypdf', 'import pypdf')
 
 
-def get_third_package_PyPDF2():
-    """Deprecated compatibility alias for pypdf"""
-    return get_third_package_pypdf()
-
-
 def get_third_package_pdfplumber():
     """Get pdfplumber package (lazy load)"""
     return _lazy_import('pdfplumber', 'import pdfplumber')
@@ -949,8 +963,17 @@ def get_third_package_Context():
 # Optional packages
 def get_third_package_speechsdk():
     """Get Azure Speech SDK (lazy load, optional)"""
+    skip_install = os.environ.get('PYCORE_SKIP_SPEECHSDK') == '1'
     if 'speechsdk' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
+        if skip_install:
+            try:
+                import azure.cognitiveservices.speech as speechsdk
+                _PACKAGE_CACHE['speechsdk'] = speechsdk
+            except ImportError:
+                ColorPrint.yellow("[WARNING] Azure Speech SDK not available (install skipped)")
+                _PACKAGE_CACHE['speechsdk'] = None
+        else:
+            _PACKAGE_CACHE['speechsdk'] = install_and_reimport_azure()
     return _PACKAGE_CACHE['speechsdk']
 
 
@@ -1125,7 +1148,6 @@ __all__ = [
     'get_third_package_pyperclip',
     # Document processing packages
     'get_third_package_pypdf',
-    'get_third_package_PyPDF2',
     'get_third_package_pdfplumber',
     'get_third_package_docx',
     'get_third_package_python_docx',

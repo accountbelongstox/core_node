@@ -4,16 +4,18 @@ Codebase controller for MCP unified server
 Provides simplified interface to codebase analysis operations
 """
 
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.mcp.codebase import (
     get_directory_tree_generator_singleton,
     get_codebase_file_searcher_singleton,
     get_codebase_content_analyzer_singleton
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CodebaseController:
@@ -48,7 +50,7 @@ class CodebaseController:
             enable_global_access=self.enable_global_access
         )
 
-        ColorPrint.green(f"[CodebaseController] Initialized with project root: {self.project_root}")
+        logger.debug("[CodebaseController] Initialized with project root: %s", self.project_root)
 
     async def get_directory_tree_with_multiple_formats(
         self,
@@ -83,7 +85,7 @@ class CodebaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] Tree generation failed: {e}")
+            logger.error("[CodebaseController] Tree generation failed: %s", e)
             return {'error': str(e)}
 
     async def find_files_by_pattern(
@@ -119,7 +121,7 @@ class CodebaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] File search failed: {e}")
+            logger.error("[CodebaseController] File search failed: %s", e)
             return {'error': str(e)}
 
     async def search_content_in_files(
@@ -158,7 +160,7 @@ class CodebaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] Content search failed: {e}")
+            logger.error("[CodebaseController] Content search failed: %s", e)
             return {'error': str(e)}
 
     async def get_file_content_with_comprehensive_analysis(
@@ -198,7 +200,7 @@ class CodebaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] File content analysis failed: {e}")
+            logger.error("[CodebaseController] File content analysis failed: %s", e)
             return {'error': str(e)}
 
     async def analyze_codebase_statistics(
@@ -222,7 +224,7 @@ class CodebaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] Statistics failed: {e}")
+            logger.error("[CodebaseController] Statistics failed: %s", e)
             return {'error': str(e)}
 
     async def describe_directory_with_summary(
@@ -255,7 +257,7 @@ class CodebaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] Directory description failed: {e}")
+            logger.error("[CodebaseController] Directory description failed: %s", e)
             return {'error': str(e)}
 
     async def scan_for_framework_applications(
@@ -323,7 +325,7 @@ class CodebaseController:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] Framework scan failed: {e}")
+            logger.error("[CodebaseController] Framework scan failed: %s", e)
             return {'error': str(e)}
 
     async def health_check(self) -> Dict[str, Any]:
@@ -347,7 +349,7 @@ class CodebaseController:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[CodebaseController] Health check failed: {e}")
+            logger.error("[CodebaseController] Health check failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)

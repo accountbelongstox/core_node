@@ -75,11 +75,11 @@ class FastAPIRPCServer:
         )
         self.request_event_table: RequestEventTable = options.get(
             "request_event_table",
-            RequestEventTable(max_size=options.get("max_requests", 10_000_000)),
+            RequestEventTable(max_size=options.get("max_requests", 10_000_000), debug=self.debug),
         )
         self.inventory_table: InventoryTable = options.get(
             "inventory_table",
-            InventoryTable(max_size=options.get("max_requests", 10_000_000)),
+            InventoryTable(max_size=options.get("max_requests", 10_000_000), debug=self.debug),
         )
 
         self.routes_manager = RoutesManager(debug=self.debug)
@@ -178,7 +178,14 @@ class FastAPIRPCServer:
                 data = dict(request.query_params)
         except Exception as exc:
             return JSONResponse(
-                {"error": ERROR_CODES["INVALID_MESSAGE"], "message": str(exc)},
+                {
+                    "type": MSG_TYPES["ERROR"],
+                    "id": None,
+                    "route": None,
+                    "success": False,
+                    "error": ERROR_CODES["INVALID_MESSAGE"],
+                    "message": str(exc),
+                },
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -226,9 +233,16 @@ class FastAPIRPCServer:
             or f"http-{uuid.uuid4()}"
         )
 
+        if self.debug:
+            ColorPrint.blue(
+                f"[HTTP RPC] route={route} request_id={request_id} session={session_id} params_keys={list(params.keys())}"
+            )
+
         # Inventory check
         inventory_item = self.inventory_table.get(request_id, remove=False)
         if inventory_item:
+            if self.debug:
+                ColorPrint.green(f"[HTTP RPC] Found inventory hit for request {request_id}")
             event = self.request_event_table.get_event(request_id) or self.request_event_table.create_event(
                 request_id=request_id,
                 route=inventory_item.route,
@@ -287,6 +301,9 @@ class FastAPIRPCServer:
                     status_code=status.HTTP_202_ACCEPTED,
                 )
 
+            if self.debug:
+                ColorPrint.blue(f"[HTTP RPC] Reusing existing event {request_id} in status {existing_event.status}")
+
         event = self.request_event_table.create_event(
             request_id=request_id,
             route=route,
@@ -294,6 +311,9 @@ class FastAPIRPCServer:
             client_id=session_id,
             client_type="http",
         )
+
+        if self.debug:
+            ColorPrint.blue(f"[HTTP RPC] Created event {request_id} for route {route}, awaiting processing")
 
         asyncio.create_task(
             self.request_processor.process_request_async(
@@ -328,6 +348,8 @@ class FastAPIRPCServer:
         """HTTP polling endpoint."""
         inventory_item = self.inventory_table.get(request_id, remove=False)
         if inventory_item:
+            if self.debug:
+                ColorPrint.green(f"[HTTP Query] Inventory replay for {request_id}")
             event = self.request_event_table.get_event(request_id) or self.request_event_table.create_event(
                 request_id=request_id,
                 route=inventory_item.route,
@@ -358,6 +380,8 @@ class FastAPIRPCServer:
 
         event = self.request_event_table.get_event(request_id)
         if not event:
+            if self.debug:
+                ColorPrint.yellow(f"[HTTP Query] Request {request_id} not found")
             return JSONResponse(
                 {
                     "type": MSG_TYPES["RESPONSE"],
@@ -387,6 +411,8 @@ class FastAPIRPCServer:
             )
 
         if event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
+            if self.debug:
+                ColorPrint.blue(f"[HTTP Query] Request {request_id} still {event.status.value}")
             return JSONResponse(
                 {
                     "type": MSG_TYPES["RESPONSE"],
@@ -438,6 +464,9 @@ class FastAPIRPCServer:
         )
         await self.client_registry.set_client_status(client_id, ClientStatus.CONNECTED)
 
+        if self.debug:
+            ColorPrint.green(f"[WS] Client connected id={client_id[:8]} addr={remote_addr}")
+
         await websocket.send_json(
             {
                 "type": MSG_TYPES["WELCOME"],
@@ -462,12 +491,14 @@ class FastAPIRPCServer:
             await websocket.send_json(
                 {
                     "type": MSG_TYPES["RESPONSE"],
+                    "route": item.route,
                     "id": item.request_id,
                     "result": item.result,
                     "error": item.error,
                     "success": item.error is None,
                     "from_inventory": True,
                     "requires_ack": True,
+                    "queue": None,
                 }
             )
             self.inventory_table.delete(item.request_id)
@@ -480,6 +511,8 @@ class FastAPIRPCServer:
             pass
         finally:
             await self.client_registry.unregister_websocket_client(client_id)
+            if self.debug:
+                ColorPrint.yellow(f"[WS] Client disconnected id={client_id[:8]}")
 
     async def _handle_websocket_message(
         self,
@@ -499,6 +532,7 @@ class FastAPIRPCServer:
                 await websocket.send_json(
                     {
                         "type": MSG_TYPES["ERROR"],
+                        "route": None,
                         "id": request_id,
                         "error": ERROR_CODES["ROUTE_NOT_FOUND"],
                         "message": "Route not specified",
@@ -509,6 +543,7 @@ class FastAPIRPCServer:
                 await websocket.send_json(
                     {
                         "type": MSG_TYPES["ERROR"],
+                        "route": route,
                         "id": request_id,
                         "error": ERROR_CODES["ROUTE_NOT_FOUND"],
                         "message": f"Route {route} not found",
@@ -523,12 +558,14 @@ class FastAPIRPCServer:
                 await websocket.send_json(
                     {
                         "type": MSG_TYPES["RESPONSE"],
+                        "route": inventory_item.route,
                         "id": request_id,
                         "result": inventory_item.result,
                         "error": inventory_item.error,
                         "success": inventory_item.error is None,
                         "from_inventory": True,
                         "requires_ack": True,
+                        "queue": None,
                     }
                 )
                 return

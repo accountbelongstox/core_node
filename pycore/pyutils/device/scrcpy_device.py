@@ -15,14 +15,16 @@ import time
 from typing import Optional, Callable
 from pathlib import Path
 
-# UTF-8 encoding for Windows
-if sys.platform == 'win32':
-    import codecs
-    # Check if stdout is already wrapped to avoid double-wrapping
-    if hasattr(sys.stdout, 'buffer'):
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-    # If already wrapped, stdout/stderr are already UTF-8 capable
+# UTF-8 encoding for Windows - DISABLED
+# Reason: Modifying sys.stdout breaks MCP STDIO protocol and other use cases
+# Solution: Use ensure_stdio_has_buffer_attributes() in entry points instead
+# if sys.platform == 'win32':
+#     import codecs
+#     # Check if stdout is already wrapped to avoid double-wrapping
+#     if hasattr(sys.stdout, 'buffer'):
+#         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+#         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+#     # If already wrapped, stdout/stderr are already UTF-8 capable
 
 from pycore.pyutils.device.android_device import AndroidDevice
 from pycore.pyutils.device.device_info import DeviceInfo, Resolution

@@ -11,7 +11,23 @@ Exports:
 - DATABASE_AVAILABLE: Flag indicating if database module is available
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint as _OriginalColorPrint
+
+# Suppress ColorPrint output in MCP mode
+class ColorPrint:
+    _is_mcp = _OriginalColorPrint.is_mcp_mode()
+    @staticmethod
+    def blue(msg):
+        if not ColorPrint._is_mcp: _OriginalColorPrint.blue(msg)
+    @staticmethod
+    def red(msg):
+        if not ColorPrint._is_mcp: _OriginalColorPrint.red(msg)
+    @staticmethod
+    def green(msg):
+        if not ColorPrint._is_mcp: _OriginalColorPrint.green(msg)
+    @staticmethod
+    def yellow(msg):
+        if not ColorPrint._is_mcp: _OriginalColorPrint.yellow(msg)
 
 # Check if database dependencies are available
 DATABASE_AVAILABLE = False

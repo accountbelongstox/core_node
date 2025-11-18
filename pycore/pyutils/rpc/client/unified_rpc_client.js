@@ -103,8 +103,8 @@
                 localStorage.setItem(storageKey, clientId);
             }
 
+            // ✅ Merge options but ensure clientId is not overwritten
             this.options = {
-                clientId: clientId,
                 timeout: options.timeout || 30000,
                 reconnect: options.reconnect !== false,
                 reconnectInterval: options.reconnectInterval || 3000,
@@ -115,7 +115,9 @@
                 httpPath: options.httpPath || '/rpc',
                 debug: options.debug || false,
                 storageKey: storageKey,
-                ...options
+                ...options,
+                // ✅ Ensure clientId is set last (will not be overwritten)
+                clientId: clientId
             };
 
             this.mode = null;
@@ -125,6 +127,18 @@
             this.pendingRequests = new Map();
             this.eventHandlers = new Map();
             this.reconnectTimer = null;
+
+            // ✅ NEW: Event/Callback Registry (MCP Table)
+            // All event callbacks must register here
+            this.callbackRegistry = new Map();  // callbackId → callbackFunction
+
+            // ✅ NEW: Pending requests storage key for localStorage persistence
+            this.pendingRequestsStorageKey = `rpc_pending_requests_${clientId}`;
+            this.callbackRegistryStorageKey = `rpc_callback_registry_${clientId}`;
+
+            // ✅ NEW: Load pending requests and callback registry from localStorage
+            this._loadPendingRequests();
+            this._loadCallbackRegistry();
         }
 
         async connect() {
@@ -256,11 +270,18 @@
                     const pending = this.pendingRequests.get(message.id);
                     if (pending) {
                         this.pendingRequests.delete(message.id);
+                        this._savePendingRequests();  // ✅ Update localStorage
 
+                        // ✅ NEW: Execute callback from registry if exists
+                        if (pending.callbackId) {
+                            this._executeCallback(pending.callbackId, message);
+                        }
+
+                        // Execute Promise handlers (for backward compatibility)
                         if (message.success) {
-                            pending.resolve(message.result);
+                            pending.resolve && pending.resolve(message.result);
                         } else {
-                            pending.reject(new Error(message.error || message.message || 'Request failed'));
+                            pending.reject && pending.reject(new Error(message.error || message.message || 'Request failed'));
                         }
                     }
 
@@ -272,7 +293,14 @@
                     const pending = this.pendingRequests.get(message.id);
                     if (pending) {
                         this.pendingRequests.delete(message.id);
-                        pending.reject(new Error(message.error || message.message || 'Unknown error'));
+                        this._savePendingRequests();  // ✅ Update localStorage
+
+                        // ✅ NEW: Execute callback from registry if exists
+                        if (pending.callbackId) {
+                            this._executeCallback(pending.callbackId, message);
+                        }
+
+                        pending.reject && pending.reject(new Error(message.error || message.message || 'Unknown error'));
                     }
 
                     // ✅ Send ACK for error responses too
@@ -302,29 +330,59 @@
              *
              * Architecture:
              * - WebSocket mode: Send request → Register callback → Wait indefinitely for server push → Execute callback
-             * - HTTP mode: Send request → Detect 'accepted' → Auto-poll indefinitely (1s interval) → Execute callback
+             * - HTTP mode: ONLY when WebSocket unavailable
              * - Event ID system: Both client and server store eventId for correlation
-             * - Callback storage: pendingRequests Map stores eventId → {resolve, reject}
+             * - Callback storage: pendingRequests Map stores eventId → {resolve, reject, callbackId}
              * - NO TIMEOUT: Suitable for long-running tasks (hours)
              * - WebSocket: Wait for push indefinitely
              * - HTTP: Poll every 1 second indefinitely until 'completed' or 'failed'
+             *
+             * ✅ NEW: WebSocket-first strategy
+             * - If WebSocket is available, ALWAYS use WebSocket (no HTTP fallback)
+             * - HTTP is ONLY used when WebSocket is completely unavailable
+             * - Pending requests are persisted to localStorage for page refresh recovery
+             *
+             * ✅ NEW: Event/Callback Registry (MCP Table)
+             * - options.callbackId: Optional callback ID to execute when response arrives
+             * - Callbacks registered via registerCallback(callbackId, callbackFunction)
+             * - Data passed immediately to callback (NOT stored in localStorage)
+             * - Only requestId + callbackId stored in localStorage
              */
             const requestId = generateUUID();
             const timeout = options.timeout || this.options.timeout; // Kept for backward compatibility but not used
+            const callbackId = options.callbackId || null; // ✅ NEW: Optional callback ID
 
             return new Promise((resolve, reject) => {
-                if (this.mode === 'ws' && this.connected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    this._callWebSocket(requestId, route, params, timeout, resolve, reject);
+                // ✅ Strict WebSocket-first: Use WebSocket if available
+                const hasWebSocket = this.mode === 'ws' && this.connected && this.ws && this.ws.readyState === WebSocket.OPEN;
+
+                // ✅ NEW: Reject HTTP if WebSocket is available (strict mode)
+                if (hasWebSocket) {
+                    this._callWebSocket(requestId, route, params, timeout, resolve, reject, callbackId);
+                } else if (this.options.forceWebSocket) {
+                    // ✅ NEW: If forceWebSocket=true, reject when WebSocket is unavailable
+                    reject(new Error('WebSocket required but not connected. Please wait for connection or disable forceWebSocket option.'));
                 } else {
+                    // Fall back to HTTP only when WebSocket is unavailable
                     this._callHttp(requestId, route, params, timeout, resolve, reject);
                 }
             });
         }
 
-        _callWebSocket(requestId, route, params, timeout, resolve, reject) {
+        _callWebSocket(requestId, route, params, timeout, resolve, reject, callbackId = null) {
             // ✅ No timeout - wait indefinitely for server push
             // For long-running tasks (hours), rely on event-driven architecture
-            this.pendingRequests.set(requestId, { resolve, reject });
+
+            // ✅ NEW: Store only callbackId (NOT route/params - data passed immediately to callbacks)
+            this.pendingRequests.set(requestId, {
+                resolve,
+                reject,
+                callbackId: callbackId,  // ✅ Only store callback ID
+                timestamp: Date.now()    // ✅ Track when request was made
+            });
+
+            // ✅ NEW: Save to localStorage (only requestId + callbackId)
+            this._savePendingRequests();
 
             const message = {
                 type: MSG_TYPES.REQUEST,
@@ -335,8 +393,10 @@
 
             try {
                 this.ws.send(JSON.stringify(message));
+                this._log(`Request sent: ${route} (id: ${requestId.substring(0, 8)}...)`);
             } catch (error) {
                 this.pendingRequests.delete(requestId);
+                this._savePendingRequests();  // ✅ Update storage
                 reject(error);
             }
         }
@@ -631,6 +691,206 @@
 
         getClientId() {
             return this.options.clientId;
+        }
+
+        /**
+         * ✅ NEW: Save pending requests to localStorage
+         * Stores ONLY requestId + callbackId (NOT route, params, or return values)
+         * Data is passed immediately to callbacks (not stored)
+         */
+        _savePendingRequests() {
+            if (!isBrowser) return;
+
+            try {
+                const pendingData = [];
+                this.pendingRequests.forEach((value, requestId) => {
+                    // ✅ Store ONLY requestId + callbackId
+                    // NO route, NO params, NO return values
+                    pendingData.push({
+                        id: requestId,
+                        callbackId: value.callbackId || null,
+                        timestamp: value.timestamp || Date.now()
+                    });
+                });
+
+                localStorage.setItem(this.pendingRequestsStorageKey, JSON.stringify(pendingData));
+                this._log(`Saved ${pendingData.length} pending requests to localStorage`);
+            } catch (error) {
+                this._log('Error saving pending requests:', error);
+            }
+        }
+
+        /**
+         * ✅ NEW: Load pending requests from localStorage
+         * Restores ONLY requestId + callbackId (NOT route/params)
+         */
+        _loadPendingRequests() {
+            if (!isBrowser) return;
+
+            try {
+                const stored = localStorage.getItem(this.pendingRequestsStorageKey);
+                if (!stored) return;
+
+                const pendingData = JSON.parse(stored);
+                this._log(`Loaded ${pendingData.length} pending requests from localStorage`);
+
+                // Note: Callbacks are NOT restored - user must re-register callbacks
+                // This data is for tracking pending request IDs only
+                this.storedPendingRequests = pendingData;
+            } catch (error) {
+                this._log('Error loading pending requests:', error);
+                this.storedPendingRequests = [];
+            }
+        }
+
+        /**
+         * ✅ NEW: Clear pending requests from localStorage
+         */
+        _clearPendingRequests() {
+            if (!isBrowser) return;
+
+            try {
+                localStorage.removeItem(this.pendingRequestsStorageKey);
+                this._log('Cleared pending requests from localStorage');
+            } catch (error) {
+                this._log('Error clearing pending requests:', error);
+            }
+        }
+
+        /**
+         * ✅ NEW: Register callback in Event/Callback Registry (MCP Table)
+         * All event callbacks must register here before use
+         *
+         * @param {string} callbackId - Unique callback identifier
+         * @param {Function} callbackFunction - Callback function(message) to execute
+         *
+         * Example:
+         *   client.registerCallback('ui_update', (message) => {
+         *       console.log('Updating UI with:', message.result);
+         *       updateUI(message.result);
+         *   });
+         */
+        registerCallback(callbackId, callbackFunction) {
+            if (!callbackId || typeof callbackId !== 'string') {
+                throw new Error('callbackId must be a non-empty string');
+            }
+            if (typeof callbackFunction !== 'function') {
+                throw new Error('callbackFunction must be a function');
+            }
+
+            this.callbackRegistry.set(callbackId, callbackFunction);
+            this._saveCallbackRegistry();
+            this._log(`Registered callback: ${callbackId}`);
+        }
+
+        /**
+         * ✅ NEW: Unregister callback from Event/Callback Registry
+         *
+         * @param {string} callbackId - Callback identifier to remove
+         */
+        unregisterCallback(callbackId) {
+            const removed = this.callbackRegistry.delete(callbackId);
+            if (removed) {
+                this._saveCallbackRegistry();
+                this._log(`Unregistered callback: ${callbackId}`);
+            }
+            return removed;
+        }
+
+        /**
+         * ✅ NEW: Execute callback from registry or use default handler
+         * Called when WebSocket message arrives with a callbackId
+         *
+         * @param {string} callbackId - Callback identifier
+         * @param {Object} message - WebSocket message containing result/error
+         */
+        _executeCallback(callbackId, message) {
+            if (!callbackId) return;
+
+            const callback = this.callbackRegistry.get(callbackId);
+            if (callback) {
+                try {
+                    // ✅ Execute registered callback with message data
+                    // Data is passed immediately (NOT stored in localStorage)
+                    callback(message);
+                } catch (error) {
+                    console.error(`[UnifiedRpcClient] Error executing callback ${callbackId}:`, error);
+                }
+            } else {
+                // ✅ Use default callback handler when no custom handler registered
+                this._defaultCallback(callbackId, message);
+            }
+        }
+
+        /**
+         * ✅ NEW: Default callback handler
+         * Called when no custom callback is registered for a callbackId
+         *
+         * Prints received data and shows how to register custom handlers
+         */
+        _defaultCallback(callbackId, message) {
+            console.log('\n═══════════════════════════════════════════════════');
+            console.log('[UnifiedRpcClient] Default Callback Handler');
+            console.log('═══════════════════════════════════════════════════');
+            console.log(`Callback ID: ${callbackId}`);
+            console.log('Status:', message.success ? 'SUCCESS' : 'FAILED');
+            console.log('\nReceived Data:');
+            console.log(JSON.stringify(message, null, 2));
+            console.log('\n⚠️  No custom handler registered for this callback ID');
+            console.log('\n📝 To register a custom handler, use:');
+            console.log(`\n   client.registerCallback('${callbackId}', (message) => {`);
+            console.log('       // Your custom handler code here');
+            console.log('       console.log("Processing result:", message.result);');
+            console.log('       // Example: Update UI, save to database, etc.');
+            console.log('   });');
+            console.log('\n═══════════════════════════════════════════════════\n');
+        }
+
+        /**
+         * ✅ NEW: Save callback registry to localStorage
+         * Stores ONLY callback IDs (NOT functions - those must be re-registered)
+         */
+        _saveCallbackRegistry() {
+            if (!isBrowser) return;
+
+            try {
+                const callbackIds = Array.from(this.callbackRegistry.keys());
+                localStorage.setItem(this.callbackRegistryStorageKey, JSON.stringify(callbackIds));
+                this._log(`Saved ${callbackIds.length} callback IDs to localStorage`);
+            } catch (error) {
+                this._log('Error saving callback registry:', error);
+            }
+        }
+
+        /**
+         * ✅ NEW: Load callback registry from localStorage
+         * Restores ONLY callback IDs (functions must be re-registered)
+         */
+        _loadCallbackRegistry() {
+            if (!isBrowser) return;
+
+            try {
+                const stored = localStorage.getItem(this.callbackRegistryStorageKey);
+                if (!stored) return;
+
+                const callbackIds = JSON.parse(stored);
+                this._log(`Loaded ${callbackIds.length} callback IDs from localStorage`);
+
+                // Note: Callback functions are NOT restored - user must re-register
+                // This data is for informational purposes only
+                this.storedCallbackIds = callbackIds;
+
+                if (callbackIds.length > 0) {
+                    console.warn(
+                        `[UnifiedRpcClient] Found ${callbackIds.length} callback IDs from previous session.\n` +
+                        'Callback functions need to be re-registered:\n' +
+                        callbackIds.map(id => `  - ${id}`).join('\n')
+                    );
+                }
+            } catch (error) {
+                this._log('Error loading callback registry:', error);
+                this.storedCallbackIds = [];
+            }
         }
 
         _log(...args) {

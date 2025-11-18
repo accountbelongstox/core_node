@@ -49,7 +49,7 @@ Traceback (most recent call last):
 ImportError: cannot import name 'get_database_manager' from 'pycore.database' (D:\programing\core_node\pycore\database\__init__.py)
 [INFO] Checking for required Python packages...
 [INFO] Optional packages are not auto-installed
-[INFO] Found installed packages: Pillow, PyPDF2, adb-shell, aiohttp, av, azure-cognitiveservices-speech, beautifulsoup4, cnocr[ort-cpu], fastapi, fastmcp, loguru, mss, netifaces, numpy, opencv-python, openpyxl, pdfplumber, psutil, pyaudio, pyaudiowpatch, pyautogui, pygetwindow, pynput, pyperclip, pystray, python-docx, python-pptx, pywebview, pywin32, pywinauto, pyyaml, requests, scikit-learn, sqlalchemy, tkhtmlview, tkinterweb, torch, uiautomation, ultralytics, uvicorn[standard], websockets
+[INFO] Found installed packages: Pillow, pypdf, adb-shell, aiohttp, av, azure-cognitiveservices-speech, beautifulsoup4, cnocr[ort-cpu], fastapi, fastmcp, loguru, mss, netifaces, numpy, opencv-python, openpyxl, pdfplumber, psutil, pyaudio, pyaudiowpatch, pyautogui, pygetwindow, pynput, pyperclip, pystray, python-docx, python-pptx, pywebview, pywin32, pywinauto, pyyaml, requests, scikit-learn, sqlalchemy, tkhtmlview, tkinterweb, torch, uiautomation, ultralytics, uvicorn[standard], websockets
 [INFO] All required packages are available.
 [TableRegistry] Initialized
 [DatabaseManager] Initialized

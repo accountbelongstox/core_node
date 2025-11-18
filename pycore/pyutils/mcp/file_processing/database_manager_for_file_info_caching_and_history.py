@@ -16,10 +16,8 @@ from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 
 from pycore.pygvar import PYTOOLS_TMP_DIR
-from pycore.pyfoundations.color_print import ColorPrint
 
 logger = logging.getLogger(__name__)
-color_print = ColorPrint()
 
 
 class DatabaseManagerForFileInfoCachingAndHistory:
@@ -161,7 +159,7 @@ class DatabaseManagerForFileInfoCachingAndHistory:
 
             self._add_to_processing_history(cursor, file_path, file_hash, file_info)
             conn.commit()
-            logger.info(f"Saved file info to database: {file_path}")
+            logger.info("Saved file info to database: %s", file_path)
             return True
 
     def _add_to_processing_history(
@@ -232,7 +230,7 @@ class DatabaseManagerForFileInfoCachingAndHistory:
                 conn.commit()
 
                 file_info = json.loads(row['file_info_json'])
-                logger.info(f"Retrieved cached file info for hash: {file_hash}")
+                logger.info("Retrieved cached file info for hash: %s", file_hash)
                 return file_info
 
             return None

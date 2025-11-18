@@ -44,7 +44,7 @@ class AckManager:
         request_event_table: RequestEventTable,
         inventory_table: InventoryTable,
         client_manager: Any,  # ✅ Pass ClientManager instead of static dict
-        debug: bool = False
+        debug: bool = True
     ):
         """
         Initialize ACK Manager
@@ -61,11 +61,9 @@ class AckManager:
         self.debug = debug
         self.ack_timeout = 5.0  # 5 seconds timeout for ACK
 
-    @property
-    def ws_clients(self) -> Dict[str, Any]:
-        """Get ws_clients dynamically from ClientManager"""
-        return self.client_manager.ws_clients
-    
+        if self.debug:
+            ColorPrint.green(f"[AckManager] Initialized with ack_timeout={self.ack_timeout}s")
+
     def notify_websocket_with_retry(
         self,
         client_id: str,
@@ -150,14 +148,32 @@ class AckManager:
         Uses callback for scheduling next retry instead of await sleep
         """
         try:
-            ws = self.ws_clients.get(client_id)
-            if not ws or ws.closed:
-                # Only log first and last attempts to reduce noise
-                if self.debug and (attempt == 0 or attempt == max_retries - 1):
-                    ColorPrint.yellow(f"[AckManager] WebSocket client {client_id[:8]}... not connected, attempt {attempt + 1}/{max_retries}")
+            # ✅ Use ClientManager public method instead of direct dict access
+            message = {
+                'type': MSG_TYPES['RESPONSE'],
+                'id': request_id,
+                'success': error is None,
+                'status': 'completed' if error is None else 'failed',
+                'result': result,
+                'error': error,
+                'requires_ack': True,  # Request ACK confirmation
+                'timestamp': int(time.time() * 1000),
+                'queue': None
+            }
 
+            # ✅ Use ClientManager.safe_send() - handles all connection checks
+            success = await self.client_manager.safe_send(
+                client_id=client_id,
+                message=message,
+                queue_if_disconnected=(attempt < max_retries - 1)  # Queue on retry
+            )
+
+            if not success:
+                # Send failed, check if should retry or store
                 if attempt < max_retries - 1:
                     # Schedule next retry (non-blocking)
+                    if self.debug:
+                        ColorPrint.yellow(f"[AckManager] Send failed for client {client_id[:8]}..., will retry (attempt {attempt + 1}/{max_retries})")
                     schedule_next()
                 else:
                     # Last attempt failed, store in inventory
@@ -175,21 +191,6 @@ class AckManager:
                         if self.debug:
                             ColorPrint.blue(f"[AckManager] Stored result in inventory for request {request_id[:12]}... (route: {event.route})")
                 return
-
-            # Send response with requires_ack flag
-            # ✅ Unified message format: type, id, success, status, result, error, requires_ack, timestamp, queue
-            import time
-            await ws.send_json({
-                'type': MSG_TYPES['RESPONSE'],
-                'id': request_id,
-                'success': error is None,
-                'status': 'completed' if error is None else 'failed',  # ✅ Added: task status
-                'result': result,
-                'error': error,
-                'requires_ack': True,  # Request ACK confirmation
-                'timestamp': int(time.time() * 1000),  # ✅ Added: timestamp in milliseconds
-                'queue': None  # ✅ Added: queue info (null for completed tasks)
-            })
 
             # Update status to ACK_PENDING (waiting for client ACK)
             self.request_event_table.update_status(request_id, RequestStatus.ACK_PENDING)

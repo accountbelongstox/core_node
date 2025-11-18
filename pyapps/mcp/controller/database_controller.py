@@ -4,13 +4,15 @@ Database controller for MCP unified server
 Provides simplified interface to database operations
 """
 
+import logging
 from typing import Dict, List, Optional, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.mcp.database import (
     get_database_namespace_manager_singleton,
     get_database_operations_manager_singleton
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseController:
@@ -22,7 +24,7 @@ class DatabaseController:
     def __init__(self):
         self.namespace_manager = get_database_namespace_manager_singleton()
         self.operations_manager = get_database_operations_manager_singleton()
-        ColorPrint.green("[DatabaseController] Initialized")
+        logger.debug("[DatabaseController] Initialized")
 
     async def create_and_negotiate_namespace(
         self,
@@ -53,7 +55,7 @@ class DatabaseController:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Namespace creation failed: {e}")
+            logger.error("[DatabaseController] Namespace creation failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -89,7 +91,7 @@ class DatabaseController:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Database registration failed: {e}")
+            logger.error("[DatabaseController] Database registration failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -143,7 +145,7 @@ class DatabaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Query execution failed: {e}")
+            logger.error("[DatabaseController] Query execution failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -195,7 +197,7 @@ class DatabaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Batch operation failed: {e}")
+            logger.error("[DatabaseController] Batch operation failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -238,7 +240,7 @@ class DatabaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Schema inspection failed: {e}")
+            logger.error("[DatabaseController] Schema inspection failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -278,7 +280,7 @@ class DatabaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Statistics failed: {e}")
+            logger.error("[DatabaseController] Statistics failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -302,7 +304,7 @@ class DatabaseController:
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Database listing failed: {e}")
+            logger.error("[DatabaseController] Database listing failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)
@@ -328,7 +330,7 @@ class DatabaseController:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[DatabaseController] Health check failed: {e}")
+            logger.error("[DatabaseController] Health check failed: %s", e)
             return {
                 'success': False,
                 'error': str(e)

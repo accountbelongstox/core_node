@@ -6,13 +6,15 @@ Simplified and streamlined from McpAlchemy
 
 import hashlib
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any
 
 from pycore.pygvar import PYTOOLS_TMP_DIR
-from pycore.pyfoundations.color_print import ColorPrint
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseNamespaceManager:
@@ -40,7 +42,7 @@ class DatabaseNamespaceManager:
         self.sessions: Dict[str, Dict[str, Any]] = self._load_sessions()
         self._initialized = True
 
-        ColorPrint.blue("[DatabaseNamespaceManager] Initialized")
+        logger.debug("[DatabaseNamespaceManager] Initialized")
 
     def _load_sessions(self) -> Dict[str, Dict[str, Any]]:
         """Load active sessions from persistent storage"""
@@ -50,7 +52,7 @@ class DatabaseNamespaceManager:
                     return json.load(f)
             return {}
         except Exception as e:
-            ColorPrint.yellow(f"[DatabaseNamespaceManager] Failed to load sessions: {e}")
+            logger.warning("[DatabaseNamespaceManager] Failed to load sessions: %s", e)
             return {}
 
     def _save_sessions(self) -> None:
@@ -59,7 +61,7 @@ class DatabaseNamespaceManager:
             with open(self.sessions_file, 'w', encoding='utf-8') as f:
                 json.dump(self.sessions, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            ColorPrint.red(f"[DatabaseNamespaceManager] Failed to save sessions: {e}")
+            logger.error("[DatabaseNamespaceManager] Failed to save sessions: %s", e)
 
     def create_namespace_for_client(
         self,
@@ -106,7 +108,7 @@ class DatabaseNamespaceManager:
         self.sessions[session_key] = session_info
         self._save_sessions()
 
-        ColorPrint.green(f"[DatabaseNamespaceManager] Created namespace: {namespace}")
+        logger.info("[DatabaseNamespaceManager] Created namespace: %s", namespace)
         return session_info
 
     def get_session_by_namespace(self, namespace: str) -> Optional[Dict[str, Any]]:
@@ -165,7 +167,7 @@ class DatabaseNamespaceManager:
 
         self._save_sessions()
 
-        ColorPrint.green(f"[DatabaseNamespaceManager] Registered database '{database_name}' to namespace '{namespace}'")
+        logger.info("[DatabaseNamespaceManager] Registered database '%s' to namespace '%s'", database_name, namespace)
 
         return {
             'database_name': database_name,
@@ -233,14 +235,14 @@ class DatabaseNamespaceManager:
                     import shutil
                     shutil.rmtree(workspace, ignore_errors=True)
             except Exception as e:
-                ColorPrint.yellow(f"[DatabaseNamespaceManager] Failed to cleanup workspace: {e}")
+                logger.warning("[DatabaseNamespaceManager] Failed to cleanup workspace: %s", e)
 
             del self.sessions[session_key]
             removed_count += 1
 
         if to_remove:
             self._save_sessions()
-            ColorPrint.green(f"[DatabaseNamespaceManager] Cleaned up {removed_count} old sessions")
+            logger.info("[DatabaseNamespaceManager] Cleaned up %s old sessions", removed_count)
 
         return {
             'cleaned_sessions': removed_count,

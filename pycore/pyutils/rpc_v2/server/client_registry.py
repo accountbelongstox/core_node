@@ -64,11 +64,13 @@ class ClientRegistry:
     message replay, and graceful shutdown.
     """
 
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = True):
         self.debug = debug
         self._clients: Dict[str, ClientSession] = {}
         self._http_sessions: Dict[str, Dict[str, Any]] = {}
         self._lock = asyncio.Lock()
+        if self.debug:
+            ColorPrint.green("[ClientRegistry] Initialized")
 
     @property
     def ws_clients(self) -> Dict[str, Any]:

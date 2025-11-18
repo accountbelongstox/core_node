@@ -96,17 +96,22 @@ class TaskTable:
         table.set_result(task_id, result)
     """
 
-    def __init__(self, max_size: int = 10000000):
+    def __init__(self, max_size: int = 10000000, debug: bool = True):
         """
         Initialize Task Table
 
         Args:
             max_size: Maximum number of tasks to store
+            debug: Enable debug logging
         """
         self.max_size = max_size
+        self.debug = debug
         self.tasks: Dict[str, Task] = {}
         self._lock = threading.RLock()
         self._cleanup_running = False
+
+        if self.debug:
+            ColorPrint.green(f"[TaskTable] Initialized with max_size={max_size}")
 
     def create_task(
         self,
@@ -144,6 +149,9 @@ class TaskTable:
             )
 
             self.tasks[task_id] = task
+
+            if self.debug:
+                ColorPrint.blue(f"[TaskTable] Created task {task_id[:12]}... route={route} protocol={protocol}")
 
             return task
 

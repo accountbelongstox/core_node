@@ -1,16 +1,51 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PyLauncher - Modular Service Launcher
+PyLauncher - Modular Service Launcher (Main Thread Entry Point)
 
-Purpose: Launch application services selectively (UI, RPC, Speech, Heartbeat)
-Supports selective service startup via parameters.
+Purpose: Launch application services selectively (UI, RPC, Speech, Heartbeat, MCP)
+Supports selective service startup via parameters with singleton detection.
+
+============================================================
+IMPORTANT: Singleton Detection Architecture
+============================================================
+
+**launcher.py IS THE MAIN THREAD**
+- All singleton detection happens at the launcher layer
+- Individual utils/services DO NOT perform singleton checks themselves
+- Launcher decides whether to:
+  1. Exit if existing instance found
+  2. Notify previous instance to exit
+  3. Become PRIMARY instance
+
+**How It Works**:
+1. Application calls launch_services(config) as main entry point
+2. Launcher performs singleton detection using port-based protocol verification
+3. If singleton_check=True in config:
+   - Scans port range for existing instances
+   - Verifies protocol to ensure it's our application
+   - Returns if existing instance found (unless force_launch=True)
+4. Services start only if launcher becomes PRIMARY instance
+
+**Port Ranges** (defined in pycore.pygvar):
+- UI/General: 54000-54099 (legacy, configurable via ServiceConfig)
+- MCP Proxy: 58000-58099 (MCP_SINGLETON_PORT_START)
+- MCP HTTP: 58100-58199 (MCP_HTTP_SERVER_PORT_START)
+
+**For Service Implementors**:
+- DO NOT add singleton detection to individual services
+- Trust launcher to handle instance management
+- Use singleton_check=True in ServiceConfig to enable
+- Access singleton port via ServiceInstances.singleton_detector.get_port()
+
+============================================================
 
 Services:
 - UI: Native UI with tray support
 - RPC: HTTP/WebSocket RPC server
 - Speech: TTS/STT processing
 - Heartbeat: Task scheduling system
+- MCP: Model Context Protocol proxy (via pyctl)
 
 Usage:
     from pycore.pylauncher import launch_services, ServiceConfig
@@ -23,6 +58,15 @@ Usage:
 
     # Launch all services
     launch_services(ServiceConfig.all_services())
+
+    # Launch with MCP singleton detection
+    from pycore.pygvar import MCP_SINGLETON_PORT_START, MCP_SINGLETON_PORT_RANGE
+    launch_services(ServiceConfig(
+        app_id="pycore_mcp_proxy",
+        port_start=MCP_SINGLETON_PORT_START,
+        port_range=MCP_SINGLETON_PORT_RANGE,
+        singleton_check=True
+    ))
 """
 
 import time
@@ -31,7 +75,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 
 from pycore import ColorPrint, THREAD_BUS
-from pycore.pyutils.singleton_detector import SingletonDetector
+from pycore.pylauncher.singleton_detector import SingletonDetector
 from pycore.pyutils.native_ui import get_bus_manager
 
 
@@ -64,8 +108,8 @@ class ServiceConfig:
     mic_language: str = "zh-CN"
     system_language: str = "en-US"
 
-    # Heartbeat Service
-    enable_heartbeat: bool = False
+    # Heartbeat Service (DEFAULT: True for all services)
+    enable_heartbeat: bool = True  # Default enabled - heartbeat runs for all services
     heartbeat_tick_interval: float = 1.0
 
     # TTS Switch
@@ -583,24 +627,41 @@ class ServiceInstances:
 
 def launch_services(
     config: ServiceConfig,
-    main_entry: Optional[Callable] = None
+    main_entry: Optional[Callable] = None,
+    shutdown_existing: bool = False
 ) -> ServiceInstances:
     """
     Launch application services based on configuration
 
+    IMPORTANT: This is the MAIN THREAD entry point
+    - Performs singleton detection at launcher layer
+    - Individual services DO NOT check for singleton
+    - All instance management happens here
+
     Args:
         config: ServiceConfig specifying which services to start
         main_entry: Main entry function for UI (required if enable_ui=True)
+        shutdown_existing: If True, send SHUTDOWN to existing instance before launching
 
     Returns:
         ServiceInstances containing all started service instances
+        (Empty instances if existing instance found and not force_launch)
     """
     instances = ServiceInstances()
 
     ColorPrint.green(f"=== Launching Services for {config.app_name} ===")
 
-    # Step 1: Singleton check (if enabled)
+    # ============================================================
+    # Step 1: Singleton Detection (Main Thread Responsibility)
+    # ============================================================
+    # NOTE: Individual utils/services should NOT perform singleton checks
+    # All singleton logic is centralized here in the launcher
+
     if config.singleton_check:
+        ColorPrint.blue("[Launcher] Performing singleton detection...")
+        ColorPrint.blue(f"[Launcher]   App ID: {config.app_id}")
+        ColorPrint.blue(f"[Launcher]   Port Range: {config.port_start}-{config.port_start + config.port_range - 1}")
+
         detector = SingletonDetector(
             app_id=config.app_id,
             port_start=config.port_start,
@@ -609,13 +670,70 @@ def launch_services(
         )
         detection = detector.detect_and_bind()
 
-        if detection.existing_instance and not config.force_launch:
-            ColorPrint.yellow(f"[Launcher] Existing instance at port {detection.existing_port}")
-            return instances
+        # Handle existing instance
+        if detection.existing_instance:
+            ColorPrint.yellow(f"[Launcher] Found existing instance at port {detection.existing_port}")
 
+            if shutdown_existing:
+                # Send SHUTDOWN message to existing instance
+                ColorPrint.yellow("[Launcher] Sending SHUTDOWN to existing instance...")
+                import socket
+                import json
+                try:
+                    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    client.settimeout(2.0)
+                    client.connect(('localhost', detection.existing_port))
+
+                    shutdown_msg = {
+                        "protocol": "PYCORE_SINGLETON_V1",
+                        "type": "SHUTDOWN",
+                        "app_id": config.app_id,
+                        "pid": __import__('os').getpid(),
+                        "timestamp": time.time()
+                    }
+                    client.sendall(json.dumps(shutdown_msg).encode('utf-8') + b'\n')
+
+                    # Wait for ACK
+                    response = client.recv(4096).decode('utf-8')
+                    client.close()
+
+                    ColorPrint.green("[Launcher] Existing instance acknowledged shutdown")
+                    ColorPrint.blue("[Launcher] Waiting for port to become available...")
+                    time.sleep(1.5)  # Give it time to shutdown
+
+                    # Retry detection
+                    detector2 = SingletonDetector(
+                        app_id=config.app_id,
+                        port_start=config.port_start,
+                        port_range=config.port_range,
+                        debug=True
+                    )
+                    detection = detector2.detect_and_bind()
+                    detector = detector2
+
+                except Exception as e:
+                    ColorPrint.red(f"[Launcher] Failed to shutdown existing instance: {e}")
+                    if not config.force_launch:
+                        return instances
+
+            elif not config.force_launch:
+                ColorPrint.yellow("[Launcher] Exiting (existing instance running)")
+                ColorPrint.yellow("[Launcher] Tip: Use shutdown_existing=True to replace instance")
+                return instances
+            else:
+                ColorPrint.yellow("[Launcher] force_launch=True, continuing anyway...")
+
+        # Verify we became PRIMARY
         if detection.is_primary:
             instances.singleton_detector = detector
-            ColorPrint.green(f"[Launcher] Primary instance on port {detection.port}")
+            ColorPrint.green(f"[Launcher] [SUCCESS] Became PRIMARY instance on port {detection.port}")
+            THREAD_BUS.signal("launcher.singleton.primary", {
+                'port': detection.port,
+                'app_id': config.app_id
+            })
+        else:
+            ColorPrint.red("[Launcher] Failed to become PRIMARY (no available ports)")
+            return instances
 
     # Step 2: Start Heartbeat System
     if config.enable_heartbeat:

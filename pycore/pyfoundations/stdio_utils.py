@@ -22,8 +22,19 @@ class _StreamBufferProxy:
 
     def __init__(self, stream, *, encoding: str = "utf-8") -> None:
         self._stream = stream
-        # ``fastmcp`` only needs this attribute to find the binary writer.
-        self.buffer = stream
+        # Find the underlying binary stream
+        # Try multiple paths to get the real binary writer:
+        # 1. stream.buffer (TextIOWrapper)
+        # 2. stream.stream (StreamWriter from encodings.utf_8)
+        # 3. stream itself as fallback
+        if hasattr(stream, "buffer"):
+            self.buffer = stream.buffer
+        elif hasattr(stream, "stream"):
+            # encodings.utf_8.StreamWriter has 'stream' attribute pointing to BufferedWriter
+            self.buffer = stream.stream
+        else:
+            # Last resort: assume stream is already binary
+            self.buffer = stream
         # Preserve encoding when available so other code can read it.
         self.encoding = getattr(stream, "encoding", encoding)
 

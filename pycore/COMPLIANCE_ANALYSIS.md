@@ -103,7 +103,7 @@ This document lists all violations of the PYTHON_PYCORE_BASE_GUIDE specification
 ### 3. Imports Inside Functions
 
 **pyutils/mcp_bridge_with_laravel/pdf_processor.py**
-- Lines 64, 187: `import PyPDF2` inside try-except blocks
+- Lines 64, 187: `import pypdf` inside try-except blocks
 - Line 276: `from pdf2image import convert_from_path` inside function
 
 **pyutils/mcp_bridge_with_laravel/ocr_engines.py**
@@ -165,7 +165,7 @@ This document lists all violations of the PYTHON_PYCORE_BASE_GUIDE specification
 ### ✅ All Issues Fixed
 
 **Previously Remaining Issues (Now Fixed):**
-- ✅ mcp_bridge_with_laravel/pdf_processor.py - PyPDF2, pdf2image imports moved to module level with importlib.util.find_spec()
+- ✅ mcp_bridge_with_laravel/pdf_processor.py - pypdf, pdf2image imports moved to module level with importlib.util.find_spec()
 - ✅ mcp_bridge_with_laravel/ocr_engines.py - paddleocr imports moved to module level with importlib.util.find_spec()
 - ✅ mcp_bridge_with_laravel/paddle_ocr_engine.py - paddle imports moved to module level with importlib.util.find_spec()
 - ✅ callmodule/global_config.py - time import moved to top of file
@@ -177,7 +177,7 @@ This document lists all violations of the PYTHON_PYCORE_BASE_GUIDE specification
 
 ## Notes
 
-- Some packages like `PyPDF2`, `paddleocr`, `pdf2image` may not be in DEPENDENCY_MAP and may need to be added
+- Some packages like `pypdf`, `paddleocr`, `pdf2image` may not be in DEPENDENCY_MAP and may need to be added
 - FastAPI submodules (like `fastapi.middleware.cors`) need special handling
 - PIL submodules (like `PIL.Image`, `PIL.ImageDraw`) need special handling
 

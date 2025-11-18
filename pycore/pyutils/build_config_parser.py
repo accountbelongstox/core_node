@@ -16,7 +16,6 @@ Usage:
 """
 
 import configparser
-import os
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -350,10 +349,6 @@ __all__ = [
 if __name__ == '__main__':
     import sys
     import json
-    import os
-
-    # Skip pycore dependency checks to avoid INFO logs
-    os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
 
     if len(sys.argv) < 2:
         print("Usage: python -m pycore.pyutils.build_config_parser <app_dir> [field]", file=sys.stderr)

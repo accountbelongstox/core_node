@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from pycore import ColorPrint
+
 
 class RequestStatus(Enum):
     PENDING = "pending"
@@ -43,10 +45,13 @@ class RequestEvent:
 
 
 class RequestEventTable:
-    def __init__(self, max_size: int = 10_000_000):
+    def __init__(self, max_size: int = 10_000_000, debug: bool = True):
         self.max_size = max_size
+        self.debug = debug
         self.events: Dict[str, RequestEvent] = {}
         self._lock = threading.RLock()
+        if self.debug:
+            ColorPrint.green(f"[RequestEventTable] Initialized (max_size={max_size})")
 
     def create_event(
         self, request_id: str, route: str, params: Dict[str, Any], client_id: Optional[str] = None, client_type: str = "unknown"
@@ -62,6 +67,10 @@ class RequestEventTable:
                 client_type=client_type,
             )
             self.events[request_id] = event
+            if self.debug:
+                ColorPrint.blue(
+                    f"[RequestEventTable] Created event id={request_id[:8]} route={route} client={client_type}"
+                )
             return event
 
     def get_event(self, request_id: str) -> Optional[RequestEvent]:

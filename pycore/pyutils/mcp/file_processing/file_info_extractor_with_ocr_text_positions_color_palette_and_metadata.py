@@ -11,7 +11,6 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.mcp.file_processing.image_analyzer_with_ocr_color_extraction_and_pixel_matrix import (
     get_image_analyzer_singleton
 )
@@ -80,7 +79,7 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
         # Validate file exists
         file_path_obj = Path(file_path)
         if not file_path_obj.exists():
-            ColorPrint.red(f"[ERROR] File not found: {file_path}")
+            logger.error("[ERROR] File not found: %s", file_path)
             return {
                 "success": False,
                 "error": f"File not found: {file_path}",
@@ -94,7 +93,7 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
                 file_path=file_path
             )
             if cached_result:
-                ColorPrint.green(f"[CACHE HIT] Using cached result for: {file_path}")
+                logger.info("[CACHE HIT] Using cached result for: %s", file_path)
                 cached_result["processing_comprehensive_stats"]["cache_status"] = {
                     "was_cached": True,
                     "cache_key": cached_result.get("file_hash_sha256", ""),
@@ -104,7 +103,7 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
 
         # Detect file type
         file_type = await self._detect_file_type_from_extension_and_mime(file_path)
-        ColorPrint.blue(f"[INFO] Processing file type: {file_type} - {file_path}")
+        logger.debug("[INFO] Processing file type: %s - %s", file_type, file_path)
 
         # Route to appropriate processor
         result = {}
@@ -118,7 +117,7 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
                 file_path, file_type, extract_images, extract_tables, extract_hyperlinks
             )
         else:
-            ColorPrint.yellow(f"[WARNING] Unsupported file type: {file_type}")
+            logger.warning("[WARNING] Unsupported file type: %s", file_type)
             result = await self._process_generic_file_with_basic_info(file_path)
 
         # Add cache status
@@ -142,7 +141,7 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
         total_duration = (datetime.utcnow() - start_time).total_seconds()
         result["processing_comprehensive_stats"]["total_processing_duration_seconds"] = round(total_duration, 3)
 
-        ColorPrint.green(f"[SUCCESS] File processing complete: {file_path} ({total_duration:.3f}s)")
+        logger.info("[SUCCESS] File processing complete: %s (%.3fs)", file_path, total_duration)
 
         return result
 

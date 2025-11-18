@@ -59,7 +59,6 @@ PACKAGE_MAPPING = {
     'pystray': 'get_third_package_pystray',
     'cnocr': 'get_third_package_cnocr',
     'pynput': 'get_third_package_pynput',
-    'PyPDF2': 'get_third_package_pypdf',
     'pypdf': 'get_third_package_pypdf',
     'pdfplumber': 'get_third_package_pdfplumber',
     'docx': 'get_third_package_docx',
