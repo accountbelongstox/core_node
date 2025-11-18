@@ -122,7 +122,7 @@ function New-CommandContent {
     - PowerShell Command: $PsCommand
     - File Number: $FileNumber
     - File Name: $FileName
-    - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+    - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #>
 
 Set-StrictMode -Version Latest
@@ -941,7 +941,7 @@ function New-SSHCommandContent {
     - SSH Connection: $sshConnection
     - File Number: $FileNumber
     - File Name: $FileName
-    - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+    - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #>
 
 Set-StrictMode -Version Latest
@@ -1137,7 +1137,7 @@ function New-LinuxCommandContent {
 #     - Command: $PsCommand
 #     - File Number: $FileNumber
 #     - File Name: $FileName
-#     - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
@@ -1266,7 +1266,7 @@ function New-LinuxSSHCommandContent {
 #     - SSH Connection: $sshConnection
 #     - File Number: $FileNumber
 #     - File Name: $FileName
-#     - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 # =============================================================================
 
 set -e

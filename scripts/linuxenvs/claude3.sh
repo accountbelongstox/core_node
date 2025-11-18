@@ -28,7 +28,7 @@
 #     - Command: $claude_command
 #     - File Number: 3
 #     - File Name: claude3.sh
-#     - Generation Time: 2025-11-17 03:01:40
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
