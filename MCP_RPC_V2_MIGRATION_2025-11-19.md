@@ -8,6 +8,9 @@
 
 https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fconsole.anthropic.com%2Foauth%2Fcode%2Fcallback&scope=user%3Ainference&code_challenge=0uTfxYYBVo_s-Rkr-i8Ob86w6XE5wN_3WmayeFRBH0c&code_challenge_method=S256&state=FAtUGXJFoVmRBj-CHujoZDrtSqGID3sZJH7ZRI8mUzQ
 
+
+unNcWiBF6nkVmxzioP0fRkjvNEnm50FSKFDpIIKoaW6tkQy7#FAtUGXJFoVmRBj-CHujoZDrtSqGID3sZJH7ZRI8mUzQ
+
 ## 当前问题
 
 ### 问题1: 架构混乱
