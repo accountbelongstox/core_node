@@ -1,0 +1,6 @@
+{
+  "displayName": "pyMatrix",
+  "port": 3007,
+  "devCommand": "dev:pymatrix",
+  "buildCommand": "build:pymatrix"
+}

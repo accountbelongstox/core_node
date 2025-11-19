@@ -10,7 +10,7 @@ Lightweight proxy that forwards MCP requests to singleton backend via RPC.
 
 Backend Architecture:
     Proxy (Multi-Instance) → RPC → Backend (Singleton)
-    - Backend: python -m pycore.pyctl.mcpctl.mcp_backend
+    - Backend: python -m pycore.pyctl.mcpctl.mcp_backend_main
     - Proxy: python pymain.py app=mcp
 """
 
@@ -57,7 +57,7 @@ def start_backend_thread() -> bool:
     """
     Start backend in background thread using launcher.py singleton mechanism
 
-    Uses pycore.pyctl.mcpctl.mcp_backend.start_mcp_backend()
+    Uses pycore.pyctl.mcpctl.mcp_backend_main.start_mcp_backend()
     Backend uses launcher.py for singleton detection (port 58000-58099).
 
     Returns:
@@ -69,7 +69,7 @@ def start_backend_thread() -> bool:
 
     try:
         # Import backend starter (uses launcher.py)
-        from pycore.pyctl.mcpctl.mcp_backend import start_mcp_backend
+        from pycore.pyctl.mcpctl.mcp_backend_main import start_mcp_backend
 
         # Start backend in daemon thread
         backend_thread = threading.Thread(

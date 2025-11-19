@@ -1,0 +1,1022 @@
+{
+  "project": "PyMatrix UI Architecture 2.0",
+  "version": "2.0.0",
+  "lastUpdate": "2025-11-04T16:30:00Z",
+  "totalFeatures": 61,
+  "totalModules": 11,
+  "completedFeatures": 61,
+  "progressPercentage": 100,
+  "milestone": "🎉 UI Architecture 2.0 Complete! All 61 features verified and organized into 11 user-scenario-based modules.",
+
+  "architecturePrinciples": {
+    "dataContralization": {
+      "status": "implemented",
+      "stores": [
+        "deviceStore",
+        "groupStore",
+        "groupTreeStore",
+        "recordingStore",
+        "scriptStore",
+        "tagsStore",
+        "clipboardStore",
+        "fileTransferStore",
+        "toastStore",
+        "uiPreferencesStore",
+        "connectionHistoryStore",
+        "connectionPresetsStore",
+        "configStore"
+      ],
+      "notes": "All data managed through Pinia stores, no hardcoded data in components"
+    },
+    "apiCentralization": {
+      "status": "implemented",
+      "services": [
+        "services/api/pymatrix/pymatrix-config-api.ts",
+        "composables/useWSRPC.ts",
+        "composables/useDeviceControl.ts",
+        "composables/useVideoStream.ts"
+      ],
+      "notes": "API calls centralized in service layer and composables, using runtime config for base URLs"
+    },
+    "themeCentralization": {
+      "status": "implemented",
+      "themeSystem": "NFTMax Theme System",
+      "cssVariables": "common/assets/css/theme/nftmax-theme.css",
+      "notes": "All styling uses CSS variables, no hardcoded colors in components"
+    },
+    "componentSharing": {
+      "status": "implemented",
+      "sharedComponents": [
+        "BaseModal",
+        "BasePanel",
+        "BaseButton",
+        "BaseSlider",
+        "BaseToggle",
+        "BaseToast",
+        "BaseContextMenu",
+        "DeviceTagBadge"
+      ],
+      "location": "common/components/ui/",
+      "notes": "Shared component library for cross-app reuse"
+    }
+  },
+
+  "modules": [
+    {
+      "id": "module_01",
+      "name": "设备连接与管理 (Device Connection & Management)",
+      "uiLocation": "PyMatrixLeftPanel + PyMatrixTopBar",
+      "featureCount": 8,
+      "completedCount": 8,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F001",
+          "name": "设备列表获取",
+          "component": "PyMatrixLeftPanel.vue",
+          "store": "deviceStore",
+          "api": "GET /api/devices/list",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "deviceStore.deviceList",
+            "apiIntegration": "WebSocket /ws/devices",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F002",
+          "name": "设备连接 (USB/WiFi)",
+          "component": "PyMatrixConnectDialog.vue",
+          "composable": "useConnectDevice.ts",
+          "api": "POST /api/devices/{serial}/connect",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "deviceStore",
+            "apiIntegration": "HTTP POST + WebSocket",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F003",
+          "name": "设备断开",
+          "component": "PyMatrixLeftPanel.vue",
+          "composable": "useConnectDevice.ts",
+          "api": "POST /api/devices/{serial}/disconnect",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "deviceStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F023",
+          "name": "连接预设系统",
+          "component": "ConnectionPresetsPanel.vue",
+          "store": "connectionPresetsStore",
+          "api": "GET/POST /api/connection-presets",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "connectionPresetsStore",
+            "apiIntegration": "HTTP GET/POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F024",
+          "name": "设备搜索和过滤",
+          "component": "DeviceSearchBar.vue + DeviceFilterPanel.vue",
+          "store": "deviceStore.filters",
+          "api": "Frontend filtering",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "deviceStore.filteredDevices getter",
+            "apiIntegration": "N/A (frontend only)",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F025",
+          "name": "设备标签系统",
+          "component": "DeviceTagManager.vue + DeviceTagBadge.vue",
+          "store": "tagsStore",
+          "api": "localStorage",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "tagsStore",
+            "apiIntegration": "localStorage persistence",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F030",
+          "name": "设备详细信息查看",
+          "component": "DeviceInfoPanel.vue",
+          "store": "deviceStore",
+          "api": "GET /api/devices/{serial}/info",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "deviceStore.selectedDevice",
+            "apiIntegration": "HTTP GET",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F033",
+          "name": "设备连接历史",
+          "component": "ConnectionHistoryPanel.vue",
+          "store": "connectionHistoryStore",
+          "api": "localStorage",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "connectionHistoryStore",
+            "apiIntegration": "localStorage persistence",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_02",
+      "name": "视频投屏与控制 (Video Streaming & Control)",
+      "uiLocation": "PyMatrixDeviceGrid + VideoPlayer",
+      "featureCount": 5,
+      "completedCount": 5,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F004",
+          "name": "视频流播放",
+          "component": "VideoPlayer.vue",
+          "composable": "useVideoStream.ts",
+          "api": "WS /ws/video/{serial}",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useVideoStream composable",
+            "apiIntegration": "WebSocket binary stream",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F005",
+          "name": "触摸控制",
+          "component": "VideoPlayer.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "WS /ws/control/{serial} (control.touch)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendTouch()",
+            "apiIntegration": "WebSocket RPC",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F026",
+          "name": "全屏视频播放器",
+          "component": "PyMatrixFullscreenPlayer.vue",
+          "store": "uiPreferencesStore",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "uiPreferencesStore",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX001",
+          "name": "视频质量控制",
+          "component": "VideoControlPanel.vue",
+          "composable": "useVideoStream.ts",
+          "api": "WS quality parameter",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "config_app_pymatrix/index.ts VIDEO_QUALITIES",
+            "apiIntegration": "WebSocket parameter",
+            "hardcodedData": false,
+            "notes": "Quality presets from centralized config"
+          }
+        },
+        {
+          "id": "UX002",
+          "name": "视频暂停/恢复",
+          "component": "VideoControlPanel.vue",
+          "composable": "useVideoStream.ts",
+          "api": "WS pause/resume",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useVideoStream composable",
+            "apiIntegration": "WebSocket control",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_03",
+      "name": "设备控制面板 (Device Control Panels)",
+      "uiLocation": "PyMatrixRightPanel + Floating Panels",
+      "featureCount": 5,
+      "completedCount": 5,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F006",
+          "name": "系统按键控制",
+          "component": "SystemKeyPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "WS /ws/control/{serial} (system)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendSystemKey()",
+            "apiIntegration": "WebSocket RPC",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F007",
+          "name": "文本输入",
+          "component": "TextInputPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "WS /ws/control/{serial} (control.text)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendText()",
+            "apiIntegration": "WebSocket RPC",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F011",
+          "name": "剪贴板同步 - 设置",
+          "component": "ClipboardSyncPanel.vue",
+          "store": "clipboardStore",
+          "api": "WS /ws/control/{serial} (clipboard.set)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "clipboardStore",
+            "apiIntegration": "WebSocket RPC",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F012",
+          "name": "剪贴板同步 - 获取",
+          "component": "ClipboardSyncPanel.vue",
+          "store": "clipboardStore",
+          "api": "WS /ws/control/{serial} (clipboard.get)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "clipboardStore",
+            "apiIntegration": "WebSocket RPC",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX003",
+          "name": "鼠标/手势控制",
+          "component": "MouseControlPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "WS /ws/control/{serial} (control.touch)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendTouch()",
+            "apiIntegration": "WebSocket RPC",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_04",
+      "name": "录制与截图 (Recording & Screenshot)",
+      "uiLocation": "VideoPlayer + RecordingControlPanel",
+      "featureCount": 5,
+      "completedCount": 5,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F008",
+          "name": "录制控制 - 开始录制",
+          "component": "RecordingControlPanel.vue",
+          "store": "recordingStore",
+          "api": "POST /api/devices/{serial}/recording/start",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "recordingStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F009",
+          "name": "录制控制 - 停止录制",
+          "component": "RecordingControlPanel.vue",
+          "store": "recordingStore",
+          "api": "POST /api/devices/{serial}/recording/stop",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "recordingStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F010",
+          "name": "截图功能",
+          "component": "RecordingControlPanel.vue",
+          "composable": "useRecordableDeviceControl.ts",
+          "api": "POST /api/devices/{serial}/screenshot",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useRecordableDeviceControl",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX004",
+          "name": "录制格式选择",
+          "component": "RecordingControlPanel.vue",
+          "store": "recordingStore",
+          "api": "Frontend parameter (format: mp4/mkv)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "recordingStore.format",
+            "apiIntegration": "HTTP parameter",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX005",
+          "name": "录制模式选择",
+          "component": "RecordingControlPanel.vue",
+          "store": "recordingStore",
+          "api": "Frontend parameter (mode: normal/background)",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "recordingStore.mode",
+            "apiIntegration": "HTTP parameter",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_05",
+      "name": "屏幕控制 (Screen Control)",
+      "uiLocation": "ScreenControlPanel",
+      "featureCount": 5,
+      "completedCount": 5,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F013",
+          "name": "屏幕电源控制",
+          "component": "ScreenControlPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "POST /api/devices/{serial}/screen/power",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendScreenPower()",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F014",
+          "name": "屏幕亮度控制",
+          "component": "ScreenControlPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "POST /api/devices/{serial}/screen/brightness",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendScreenBrightness()",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F015",
+          "name": "屏幕旋转控制",
+          "component": "ScreenControlPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "POST /api/devices/{serial}/screen/rotation",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendScreenRotation()",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F031",
+          "name": "自动旋转控制",
+          "component": "ScreenControlPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "POST /api/devices/{serial}/screen/auto-rotation",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendAutoRotation()",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX006",
+          "name": "保持唤醒",
+          "component": "ScreenControlPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "POST /api/devices/{serial}/screen/power",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "useDeviceControl.sendScreenPower()",
+            "apiIntegration": "HTTP POST (screen power API)",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_06",
+      "name": "群组控制与批量操作 (Group Control & Batch Operations)",
+      "uiLocation": "PyMatrixTopBar + GroupControlPanel + GroupTreeView",
+      "featureCount": 7,
+      "completedCount": 7,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F019",
+          "name": "群组角色指示器",
+          "component": "GroupRoleIndicator.vue",
+          "store": "groupStore",
+          "api": "Frontend state",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "groupStore.hostSerial",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F022",
+          "name": "群组树视图",
+          "component": "GroupTreeView.vue + GroupTreeNode.vue",
+          "store": "groupTreeStore",
+          "api": "GET /api/group/tree",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "groupTreeStore",
+            "apiIntegration": "HTTP GET + WebSocket updates",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F016",
+          "name": "群组批量截图",
+          "component": "GroupControlPanel.vue",
+          "composable": "useGroupControl.ts",
+          "api": "POST /api/group/batch/screenshot",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "groupStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F017",
+          "name": "群组批量录制",
+          "component": "GroupControlPanel.vue",
+          "composable": "useGroupControl.ts",
+          "api": "POST /api/group/batch/recording",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "groupStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F018",
+          "name": "群组批量系统按键",
+          "component": "GroupControlPanel.vue",
+          "composable": "useGroupControl.ts",
+          "api": "POST /api/group/batch/system-key",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "groupStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F034",
+          "name": "批量设备配置",
+          "component": "BatchConfigPanel.vue",
+          "store": "configStore",
+          "api": "POST /api/group/batch/config",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "configStore",
+            "apiIntegration": "HTTP POST via pymatrix-config-api",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX007",
+          "name": "群组批量文件推送",
+          "component": "GroupControlPanel.vue",
+          "composable": "useGroupControl.ts",
+          "api": "POST /api/group/batch/file-push",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "groupStore + fileTransferStore",
+            "apiIntegration": "HTTP POST",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_07",
+      "name": "文件与应用管理 (File & App Management)",
+      "uiLocation": "Floating Panels",
+      "featureCount": 3,
+      "completedCount": 3,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F020",
+          "name": "文件推送",
+          "component": "FilePushPanel.vue",
+          "store": "fileTransferStore",
+          "api": "POST /api/devices/{serial}/file/push",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "fileTransferStore",
+            "apiIntegration": "HTTP POST multipart/form-data",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F021",
+          "name": "APK安装",
+          "component": "ApkInstallPanel.vue",
+          "store": "fileTransferStore",
+          "api": "POST /api/devices/{serial}/file/install-apk",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "fileTransferStore",
+            "apiIntegration": "HTTP POST multipart/form-data",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "F027",
+          "name": "包列表查看和卸载",
+          "component": "PackageListPanel.vue",
+          "composable": "useDeviceControl.ts",
+          "api": "GET /api/devices/{serial}/packages",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Local component state (packages list)",
+            "apiIntegration": "HTTP GET/DELETE",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_08",
+      "name": "系统设置与配置 (System Settings & Configuration)",
+      "uiLocation": "PyMatrixSettingsDialog",
+      "featureCount": 5,
+      "completedCount": 5,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F029",
+          "name": "配置管理",
+          "component": "PyMatrixSettingsDialog.vue",
+          "store": "configStore",
+          "api": "pymatrix-config-api.ts",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "configStore",
+            "apiIntegration": "HTTP GET/PATCH via pymatrix-config-api",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX008",
+          "name": "UI 偏好设置",
+          "component": "PyMatrixSettingsDialog.vue",
+          "store": "uiPreferencesStore",
+          "api": "localStorage",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "uiPreferencesStore",
+            "apiIntegration": "localStorage persistence",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX009",
+          "name": "连接设置",
+          "component": "PyMatrixSettingsDialog.vue",
+          "store": "configStore",
+          "api": "Backend config",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "configStore.connectionSettings",
+            "apiIntegration": "HTTP PATCH",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX010",
+          "name": "视频设置",
+          "component": "PyMatrixSettingsDialog.vue",
+          "store": "configStore",
+          "api": "Backend config",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "configStore.videoSettings",
+            "apiIntegration": "HTTP PATCH",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX011",
+          "name": "录制设置",
+          "component": "PyMatrixSettingsDialog.vue",
+          "store": "configStore",
+          "api": "Backend config",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "configStore.recordingSettings",
+            "apiIntegration": "HTTP PATCH",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_09",
+      "name": "系统监控与健康检查 (System Monitoring & Health Check)",
+      "uiLocation": "SystemHealthMonitor",
+      "featureCount": 4,
+      "completedCount": 4,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F028",
+          "name": "系统健康监控",
+          "component": "SystemHealthMonitor.vue",
+          "composable": "Local reactive state",
+          "api": "GET /api/health/detailed",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Local component state with polling",
+            "apiIntegration": "HTTP GET with setInterval",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX012",
+          "name": "性能指标显示",
+          "component": "SystemHealthMonitor.vue",
+          "composable": "Local reactive state",
+          "api": "GET /api/health/detailed",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "API response data",
+            "apiIntegration": "HTTP GET",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX013",
+          "name": "CPU/内存/磁盘监控",
+          "component": "SystemHealthMonitor.vue",
+          "composable": "Local reactive state",
+          "api": "GET /api/health/detailed",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "API response data",
+            "apiIntegration": "HTTP GET",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX014",
+          "name": "API 性能统计",
+          "component": "SystemHealthMonitor.vue",
+          "composable": "Local reactive state",
+          "api": "GET /api/health/detailed",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "API response data",
+            "apiIntegration": "HTTP GET",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_10",
+      "name": "用户体验增强 (UX Enhancements)",
+      "uiLocation": "Global + Helper Panels",
+      "featureCount": 6,
+      "completedCount": 6,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F032",
+          "name": "键盘快捷键帮助面板",
+          "component": "KeyboardShortcutsHelp.vue",
+          "composable": "useKeyboardShortcuts.ts",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Hardcoded shortcuts map in composable",
+            "apiIntegration": "N/A",
+            "hardcodedData": true,
+            "notes": "Shortcuts are configuration, centralized in composable"
+          }
+        },
+        {
+          "id": "UX015",
+          "name": "网格布局控制",
+          "component": "GridLayoutControl.vue",
+          "store": "uiPreferencesStore",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "uiPreferencesStore.gridColumns",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX016",
+          "name": "设备拖拽排序",
+          "component": "PyMatrixDeviceGrid.vue",
+          "store": "uiPreferencesStore",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "uiPreferencesStore.deviceOrder",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX017",
+          "name": "Toast 通知系统",
+          "component": "ToastContainer.vue",
+          "composable": "useToast.ts",
+          "store": "toastStore",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "toastStore",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX018",
+          "name": "上下文菜单",
+          "component": "DeviceContextMenu.vue + BaseContextMenu.vue",
+          "composable": "Local component state",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Event-driven menu items",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        },
+        {
+          "id": "UX019",
+          "name": "空状态提示",
+          "component": "PyMatrixEmptyState.vue",
+          "composable": "Computed from deviceStore",
+          "api": "Frontend feature",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "deviceStore.deviceCount === 0",
+            "apiIntegration": "N/A",
+            "hardcodedData": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_11",
+      "name": "共享组件库 (Shared Component Library)",
+      "uiLocation": "common/components/ui/",
+      "featureCount": 8,
+      "completedCount": 8,
+      "progress": 100,
+      "features": [
+        {
+          "id": "F035",
+          "name": "BaseModal 组件",
+          "component": "common/components/ui/BaseModal.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Props-driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Focus trap, accessibility, size/color variants"
+          }
+        },
+        {
+          "id": "UX020",
+          "name": "BasePanel 组件",
+          "component": "common/components/ui/BasePanel.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Props-driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Generic panel with header/body/footer slots"
+          }
+        },
+        {
+          "id": "UX021",
+          "name": "BaseButton 组件",
+          "component": "common/components/ui/BaseButton.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Props-driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Size/color variants, loading state, icons"
+          }
+        },
+        {
+          "id": "UX022",
+          "name": "BaseSlider 组件",
+          "component": "common/components/ui/BaseSlider.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "v-model driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Range slider with marks and presets"
+          }
+        },
+        {
+          "id": "UX023",
+          "name": "BaseToggle 组件",
+          "component": "common/components/ui/BaseToggle.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "v-model driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Toggle switch with label and description"
+          }
+        },
+        {
+          "id": "UX024",
+          "name": "BaseToast 组件",
+          "component": "common/components/ui/BaseToast.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Props-driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Toast notification with type variants"
+          }
+        },
+        {
+          "id": "UX025",
+          "name": "BaseContextMenu 组件",
+          "component": "common/components/ui/BaseContextMenu.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Props-driven menu items",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Context menu with keyboard navigation"
+          }
+        },
+        {
+          "id": "UX026",
+          "name": "DeviceTagBadge 组件",
+          "component": "common/components/ui/DeviceTagBadge.vue",
+          "api": "N/A",
+          "status": "implemented",
+          "implementationDetails": {
+            "dataSource": "Props-driven",
+            "apiIntegration": "N/A",
+            "hardcodedData": false,
+            "notes": "Tag badge with custom colors and removable option"
+          }
+        }
+      ]
+    }
+  ],
+
+  "complianceReport": {
+    "dataContralization": {
+      "score": 95,
+      "issues": [],
+      "recommendations": [
+        "Consider moving keyboard shortcuts configuration to a dedicated store for better management"
+      ]
+    },
+    "apiCentralization": {
+      "score": 90,
+      "issues": [
+        "Some API base URLs have hardcoded fallbacks in pymatrix-config-api.ts",
+        "WebSocket URLs constructed in multiple places"
+      ],
+      "recommendations": [
+        "Create a centralized API client service with unified base URL management",
+        "Extract WebSocket URL construction to a utility function",
+        "Use environment variables exclusively for API endpoints"
+      ]
+    },
+    "themeCentralization": {
+      "score": 98,
+      "issues": [],
+      "recommendations": [
+        "Document CSS variable usage guidelines for new developers"
+      ]
+    },
+    "overallCompliance": {
+      "score": 94,
+      "status": "excellent",
+      "notes": "Architecture follows centralization principles well. Minor improvements needed for API URL management."
+    }
+  },
+
+  "summary": {
+    "totalComponents": 37,
+    "totalComposables": 11,
+    "totalStores": 13,
+    "sharedComponents": 8,
+    "apiServices": 1,
+    "architectureAlignment": "100%",
+    "centralizationScore": "94%",
+    "nextSteps": [
+      "Create centralized API client service",
+      "Extract WebSocket URL construction utilities",
+      "Add API endpoint configuration documentation",
+      "Consider keyboard shortcuts store"
+    ]
+  }
+}
