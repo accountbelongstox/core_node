@@ -1,369 +1,298 @@
-# Unified Launcher (pylauncher)
+# PyLauncher - Service Launcher
 
-Unified Launcher - Framework for starting and managing multiple services
+Configuration-driven service launcher with singleton detection.
 
 ## Overview
 
-Unified Launcher is a unified service startup and management framework that supports multi-threaded startup and lifecycle management of the following services:
+PyLauncher provides a simple, configuration-driven way to launch and manage multiple PyCore services:
 
-1. **Web Service (WS/HTTPS)** - FastAPI + WebSocket service
-2. **MCP Service** - Model Context Protocol server
-3. **UI Service** - Native UI Framework (Tkinter)
-4. **Selenium Service** - Browser Automation (PyBrowser)
+1. **Heartbeat System** - Task scheduling and distribution
+2. **RPC v2 Service** - FastAPI-based RPC server
+3. **Speech Service** - Speech transcription
+4. **UI Service** - Native UI
 
 ## Architecture
 
 ```
-UnifiedLauncher
-├── Web Service Thread
-│   ├── HTTP Server (FastAPI)
-│   └── WebSocket Server
-├── MCP Service Thread
-│   ├── Singleton Detection
-│   └── RPC Communication
-├── UI Service Thread
-│   ├── Tkinter Main Loop
-│   ├── Custom Title Bar
-│   └── WebView Integration (Optional)
-└── Selenium Service Thread
-    ├── Spider Engine
-    ├── Session Manager
-    └── Browser Pool
+ServiceLauncher (Thin Wrapper)
+├── Singleton Detection (Optional)
+│   └── Port-based instance detection
+├── Thread Scheduling
+│   ├── Heartbeat (Always enabled)
+│   ├── RPC v2 (Optional)
+│   ├── Speech (Optional)
+│   └── UI (Optional)
+└── Service Access
+    └── get_service() for thread-specific API
 ```
 
-Each service runs in an independent thread with unified configuration and lifecycle management.
+Each service runs in an independent thread managed by `pythreadpool`.
 
 ## Quick Start
 
 ### Basic Usage
 
 ```python
-from pycore.pylauncher import UnifiedLauncher, LauncherConfig
+from pycore.pylauncher import LauncherConfig, ServiceLauncher
 
-# Create default configuration
-config = LauncherConfig()
+# Create configuration
+config = LauncherConfig(
+    services={
+        'rpc_v2': {'port': 58100, 'host': '0.0.0.0', 'debug': True}
+    }
+)
 
-# Create launcher
-launcher = UnifiedLauncher(config)
+# Launch services
+launcher = ServiceLauncher(config)
+launcher.start()
 
-# Start all services
-launcher.start_all()
-
-# Wait for services to run
-launcher.wait()
+# Access service instance
+rpc = launcher.get_service('rpc_v2')
 ```
 
-### Custom Configuration
+### With Singleton Detection
 
 ```python
-from pycore.pylauncher import (
-    UnifiedLauncher,
-    LauncherConfig,
-    WebServiceConfig,
-    MCPServiceConfig,
-    UIServiceConfig,
-    SeleniumServiceConfig
-)
-
-# Create custom configuration
 config = LauncherConfig(
-    web_service=WebServiceConfig(
-        host="0.0.0.0",
-        http_port=8000,
-        ws_port=8001,
-        enabled=True
-    ),
-    mcp_service=MCPServiceConfig(
-        singleton_port=19997,
-        rpc_port=8767,
-        enabled=True
-    ),
-    ui_service=UIServiceConfig(
-        app_name="My Application",
-        window_size=(1280, 800),
-        frameless=True,
-        enabled=True
-    ),
-    selenium_service=SeleniumServiceConfig(
-        browser_type="chrome",
-        headless=False,
-        enabled=True
-    )
+    app_id="my_app",
+    singleton=True,              # Enable singleton detection
+    shutdown_existing=True,      # Auto-shutdown old instance
+    services={
+        'rpc_v2': {'port': 58100}
+    }
 )
 
-launcher = UnifiedLauncher(config)
-launcher.start_all()
-launcher.wait()
+launcher = ServiceLauncher(config)
+if launcher.start():
+    print("Successfully became PRIMARY instance")
 ```
 
-## Configuration Parameters
+## Configuration
 
 ### LauncherConfig
 
-Main configuration class containing all service configurations.
+Main configuration class with unified API.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `web_service` | WebServiceConfig | - | Web service configuration |
-| `mcp_service` | MCPServiceConfig | - | MCP service configuration |
-| `ui_service` | UIServiceConfig | - | UI service configuration |
-| `selenium_service` | SeleniumServiceConfig | - | Selenium service configuration |
-| `auto_start_all` | bool | True | Auto-start all services |
-| `startup_delay` | float | 0.5 | Service startup interval (seconds) |
-| `graceful_shutdown_timeout` | int | 10 | Graceful shutdown timeout (seconds) |
+| `services` | Dict[str, Dict] | {} | Services to launch with their configs |
+| `app_id` | str | "default_app" | Application ID for singleton detection |
+| `app_name` | str | "Application" | Application display name |
+| `singleton` | bool | False | Enable singleton detection |
+| `singleton_port_start` | int | 54000 | Starting port for singleton detection |
+| `singleton_port_range` | int | 100 | Port range for detection |
+| `force_launch` | bool | False | Launch even if instance exists |
+| `shutdown_existing` | bool | False | Shutdown existing instance before launch |
 
-### WebServiceConfig
+### Service Configurations
 
-Web/WebSocket service configuration.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `host` | str | "localhost" | Server address |
-| `http_port` | int | 8000 | HTTP port |
-| `ws_port` | int | 8001 | WebSocket port |
-| `enable_https` | bool | False | Enable HTTPS |
-| `ssl_cert_path` | str | None | SSL certificate path |
-| `ssl_key_path` | str | None | SSL key path |
-| `workers` | int | 1 | Worker processes |
-| `reload` | bool | False | Auto-reload |
-| `enable_cors` | bool | True | Enable CORS |
-| `enabled` | bool | True | Enable this service |
-
-### MCPServiceConfig
-
-MCP (Model Context Protocol) service configuration.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `singleton_port` | int | 19997 | Singleton detection port |
-| `rpc_port` | int | 8767 | RPC communication port |
-| `host` | str | "localhost" | Server address |
-| `debug` | bool | True | Debug mode |
-| `auto_load_services` | bool | True | Auto-load services |
-| `enabled` | bool | True | Enable this service |
-
-### UIServiceConfig
-
-Native UI service configuration.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `app_name` | str | "Unified Application" | Application name |
-| `window_size` | tuple | (1280, 800) | Window size |
-| `min_window_size` | tuple | (800, 600) | Minimum window size |
-| `frameless` | bool | True | Frameless window |
-| `show_on_start` | bool | True | Show on start |
-| `resizable` | bool | True | Resizable |
-| `ui_source` | str | None | UI content source (URL or HTML file) |
-| `theme` | str | "default" | Theme |
-| `debug` | bool | False | Debug mode |
-| `enabled` | bool | True | Enable this service |
-
-### SeleniumServiceConfig
-
-Selenium browser automation service configuration.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `browser_type` | str | "chrome" | Browser type (chrome/edge/firefox) |
-| `headless` | bool | False | Headless mode |
-| `disable_gpu` | bool | True | Disable GPU |
-| `no_sandbox` | bool | True | Disable sandbox |
-| `driver_path` | str | None | WebDriver path |
-| `binary_path` | str | None | Browser binary path |
-| `max_sessions` | int | 5 | Maximum sessions |
-| `session_timeout` | int | 3600 | Session timeout (seconds) |
-| `pool_size` | int | 3 | Resource pool size |
-| `debug` | bool | False | Debug mode |
-| `enabled` | bool | True | Enable this service |
-
-## Usage Examples
-
-### Example 1: Start Only Web and MCP Services
+#### RPC v2 Service
 
 ```python
-config = LauncherConfig(
-    web_service=WebServiceConfig(enabled=True),
-    mcp_service=MCPServiceConfig(enabled=True),
-    ui_service=UIServiceConfig(enabled=False),
-    selenium_service=SeleniumServiceConfig(enabled=False)
-)
-
-launcher = UnifiedLauncher(config)
-launcher.start_all()
-launcher.wait()
-```
-
-### Example 2: Manual Service Control
-
-```python
-config = LauncherConfig(auto_start_all=False)
-launcher = UnifiedLauncher(config)
-
-# Manually start individual service
-launcher.start_service('web_service')
-time.sleep(2)
-launcher.start_service('mcp_service')
-
-# Get status
-status = launcher.get_status()
-print(status)
-
-# Restart service
-launcher.restart_service('web_service')
-
-# Stop service
-launcher.stop_service('mcp_service')
-```
-
-### Example 3: UI + WebView Integration
-
-```python
-config = LauncherConfig(
-    web_service=WebServiceConfig(
-        http_port=8000,
-        enabled=True
-    ),
-    ui_service=UIServiceConfig(
-        app_name="Web Application",
-        ui_source="http://localhost:8000",  # Point to Web service
-        enabled=True
-    )
-)
-
-launcher = UnifiedLauncher(config)
-launcher.start_all()
-launcher.wait()
-```
-
-### Example 4: Custom Ports and Configuration
-
-```python
-config = LauncherConfig(
-    web_service=WebServiceConfig(
-        host="0.0.0.0",  # Listen on all interfaces
-        http_port=9000,
-        ws_port=9001,
-        enable_cors=True,
-        cors_origins=["http://localhost:3000"],
-        enabled=True
-    ),
-    mcp_service=MCPServiceConfig(
-        singleton_port=20000,
-        rpc_port=9767,
-        debug=True,
-        enabled=True
-    ),
-    ui_service=UIServiceConfig(
-        app_name="Custom App",
-        window_size=(1920, 1080),
-        frameless=False,  # Use system window frame
-        enabled=True
-    ),
-    selenium_service=SeleniumServiceConfig(
-        browser_type="edge",
-        headless=True,
-        max_sessions=10,
-        enabled=True
-    )
-)
-```
-
-## Running Examples
-
-```bash
-# Run example program
-cd D:\programing\core_node
-python -m pycore.pylauncher.example
-
-# Or run directly
-python pycore/pylauncher/example.py
-```
-
-## API Reference
-
-### UnifiedLauncher
-
-#### Methods
-
-**`start_all()`**
-Start all enabled services.
-
-**`stop_all()`**
-Stop all running services.
-
-**`start_service(service_name: str)`**
-Start specified service.
-- `service_name`: 'web_service', 'mcp_service', 'ui_service', 'selenium_service'
-
-**`stop_service(service_name: str)`**
-Stop specified service.
-
-**`restart_service(service_name: str)`**
-Restart specified service.
-
-**`wait()`**
-Wait for all services to run (blocking call).
-
-**`get_status() -> Dict[str, Any]`**
-Get status of all services.
-
-Return format:
-```python
-{
-    'running': True,
-    'services': {
-        'web_service': {
-            'name': 'web_service',
-            'started': True,
-            'running': True,
-            'alive': True,
-            'error': None
-        },
-        # ... other services
+services={
+    'rpc_v2': {
+        'port': 58100,
+        'host': '0.0.0.0',
+        'debug': True
     }
 }
 ```
 
-## Lifecycle Management
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `port` | int | 58100 | RPC server port |
+| `host` | str | "0.0.0.0" | Server host |
+| `debug` | bool | True | Debug mode |
 
-### Graceful Shutdown
+#### Speech Service
 
 ```python
-launcher = UnifiedLauncher(config)
-launcher.start_all()
-
-try:
-    launcher.wait()
-except KeyboardInterrupt:
-    print("Shutting down...")
-    launcher.stop_all()
+services={
+    'speech': {
+        'mode': 'single',
+        'mic_language': 'zh-CN',
+        'system_language': 'en-US'
+    }
+}
 ```
 
-### Signal Handling
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mode` | str | "single" | Speech mode |
+| `mic_language` | str | - | Microphone language |
+| `system_language` | str | - | System language |
 
-The launcher automatically handles SIGINT and SIGTERM signals for graceful shutdown.
+#### UI Service
+
+```python
+services={
+    'ui': {}
+}
+```
+
+UI service uses default configuration from UI thread implementation.
+
+## Usage Examples
+
+### Example 1: RPC v2 Only
+
+```python
+from pycore.pylauncher import LauncherConfig, ServiceLauncher
+
+config = LauncherConfig.rpc_v2_only(port=58100, singleton=True)
+launcher = ServiceLauncher(config)
+launcher.start()
+```
+
+### Example 2: RPC v2 Route Extension
+
+```python
+# Start launcher
+config = LauncherConfig(services={'rpc_v2': {'port': 58100}})
+launcher = ServiceLauncher(config)
+launcher.start()
+
+# Get RPC instance
+rpc = launcher.get_service('rpc_v2')
+
+# Register custom route (see FastAPIRPCServer docs)
+def handle_task(params):
+    return {'status': 'completed', 'result': params}
+
+rpc.server.route('process_task', handle_task, sync=True)
+
+# Call: POST http://localhost:58100/rpc/process_task
+```
+
+### Example 3: Multiple Services
+
+```python
+config = LauncherConfig(
+    app_id="multi_service_app",
+    singleton=True,
+    services={
+        'rpc_v2': {'port': 58100},
+        'speech': {'mode': 'single'}
+    }
+)
+
+launcher = ServiceLauncher(config)
+launcher.start()
+
+# Access multiple services
+rpc = launcher.get_service('rpc_v2')
+speech = launcher.get_service('speech')
+```
+
+### Example 4: Legacy API (Backward Compatible)
+
+```python
+# Old code style still works
+config = LauncherConfig(
+    enable_rpc_v2=True,
+    rpc_v2_port=58100,
+    enable_speech=True,
+    speech_mode='single',
+    singleton_check=True
+)
+
+launcher = ServiceLauncher(config)
+launcher.start()
+```
+
+## API Reference
+
+### ServiceLauncher
+
+#### Methods
+
+**`start() -> bool`**
+
+Start all configured services.
+
+Returns True if services started successfully.
+
+**`stop() -> bool`**
+
+Stop all services via THREAD_BUS shutdown stack.
+
+**`get_service(name: str)`**
+
+Get service instance by name.
+
+- `name`: Service name ('rpc_v2', 'heartbeat', 'speech', 'ui')
+
+Returns the actual thread instance or None.
+
+**`is_running() -> bool`**
+
+Check if launcher is running.
+
+### LauncherConfig Quick Configs
+
+**`LauncherConfig.rpc_v2_only(port, singleton)`**
+
+Quick config for RPC v2 only.
+
+**`LauncherConfig.speech_only(mode, singleton)`**
+
+Quick config for Speech only.
+
+## Service-Specific Documentation
+
+For service-specific functionality (route registration, task submission, etc.), see:
+
+- **RPC v2**: `pycore/pyutils/rpc_v2/` - FastAPIRPCServer
+- **Heartbeat**: `pycore/pyheartbeat/` - HeartbeatSystem
+- **Speech**: `pycore/pyctl/speech/` - SpeechTranscriptionThread
+- **Thread Pool**: `pycore/pythreadpool/` - Service starters and registry
+
+## Responsibility Boundaries
+
+**Launcher is ONLY responsible for:**
+
+1. Singleton Detection - Detecting and managing single instance
+2. Thread Scheduling - Starting services in correct order
+
+**Launcher is NOT responsible for:**
+
+- Thread-specific functionality (route registration, task submission, etc.)
+- Service configuration details
+- Service implementation
+
+Use `get_service()` to access service instances for specific operations.
+
+## Shutdown Behavior
+
+Services shutdown in priority order (via THREAD_BUS shutdown stack):
+
+1. RPC v2 (priority 50) - Shutdown first
+2. Speech (priority 75)
+3. UI (priority 90)
+4. Heartbeat (priority 100) - Shutdown last
+
+```python
+launcher.stop()  # Triggers orderly shutdown
+```
 
 ## Notes
 
-1. **Port Conflicts**: Ensure configured ports are not in use
-2. **Startup Order**: Recommend starting Web and MCP services first, then UI service
-3. **UI Service**: UI service runs in Tkinter mainloop on main thread
-4. **Selenium**: Need to install WebDriver for corresponding browser
-5. **Logging**: All service logs output to console via ColorPrint
+1. **Heartbeat Always Enabled**: Heartbeat system is always started
+2. **Singleton Detection**: Uses port-based protocol for instance detection
+3. **Service Access**: Use `get_service()` to access thread-specific APIs
+4. **Thread Safety**: All services managed by GlobalThreadPool
 
 ## Dependencies
 
-- pycore.pyfoundations.color_print
-- pycore.pyutils.web
-- pycore.pyutils.wsrpc
-- pycore.pyutils.native_ui
-- pycore.pyutils.pybrowser
-- pyapps.mcpserver
+- pycore.pyfoundations
+- pycore.pythreadpool
+- pycore.pyheartbeat
+- pycore.pyutils.rpc_v2
+- pycore.pyctl.speech
 
 ## Version
 
-Current version: 1.0.0
+Current version: 2.0.0
 
 ## License
 

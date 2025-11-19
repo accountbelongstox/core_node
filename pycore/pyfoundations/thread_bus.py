@@ -60,6 +60,12 @@ class ThreadBus:
         # Handlers are called in priority order (lower number = higher priority)
         self._event_handlers: Dict[str, List[tuple]] = {}
 
+        # Shutdown handlers: [(priority, name, handler_func), ...]
+        # Stack-based shutdown: lower priority executes first (子进程先关)
+        # Example: RPC(priority=50) -> Heartbeat(priority=100)
+        self._shutdown_handlers: List[tuple] = []
+        self._shutdown_executed: bool = False
+
     # ============ Signal Operations ============
 
     def signal(self, name: str, data: Any = None) -> None:
@@ -544,33 +550,141 @@ class ThreadBus:
                 f"threads={stats['threads_count']}, "
                 f"queues={stats['queues_count']})")
 
-    # ============ Global Shutdown Operations ============
+    # ============ Global Shutdown Operations (Queue/Stack System) ============
 
-    def request_shutdown(self, reason: str = "User requested shutdown") -> None:
+    def register_shutdown_handler(
+        self,
+        handler: Callable,
+        priority: int = 100,
+        name: Optional[str] = None
+    ) -> str:
         """
-        Request global application shutdown
+        Register shutdown handler in the shutdown stack
 
-        Sends a shutdown signal that can be monitored by all threads.
-        This is a graceful shutdown request that threads should honor.
+        Shutdown handlers are executed in priority order (lower priority first).
+        This creates a stack effect: child processes (lower priority) shut down
+        before main process (higher priority).
+
+        Args:
+            handler: Shutdown handler function
+            priority: Execution priority (lower = earlier shutdown)
+                     Examples: RPC=50, Speech=60, Heartbeat=100
+            name: Handler name (auto-generated if None)
+
+        Returns:
+            Handler name (for unregistration)
+
+        Example:
+            def cleanup_rpc():
+                print("Closing RPC server...")
+                rpc_server.stop()
+
+            THREAD_BUS.register_shutdown_handler(
+                cleanup_rpc,
+                priority=50,
+                name="rpc_cleanup"
+            )
+        """
+        with self._lock:
+            if name is None:
+                name = f"handler_{len(self._shutdown_handlers)}"
+
+            # Check if already registered
+            existing = [h for h in self._shutdown_handlers if h[1] == name]
+            if existing:
+                # Replace existing handler
+                self._shutdown_handlers = [h for h in self._shutdown_handlers if h[1] != name]
+
+            # Add handler
+            self._shutdown_handlers.append((priority, name, handler))
+
+            # Sort by priority (lower priority executes first)
+            self._shutdown_handlers.sort(key=lambda x: x[0])
+
+            return name
+
+    def unregister_shutdown_handler(self, name: str) -> bool:
+        """
+        Unregister shutdown handler
+
+        Args:
+            name: Handler name
+
+        Returns:
+            True if handler was removed
+        """
+        with self._lock:
+            original_len = len(self._shutdown_handlers)
+            self._shutdown_handlers = [
+                h for h in self._shutdown_handlers if h[1] != name
+            ]
+            return len(self._shutdown_handlers) < original_len
+
+    def execute_shutdown(self, reason: str = "User requested shutdown") -> None:
+        """
+        Execute all registered shutdown handlers in priority order
+
+        This is the core of the shutdown stack system.
+        Handlers are executed in order: lower priority first (子进程先关).
 
         Args:
             reason: Reason for shutdown
 
         Example:
-            # Request shutdown
+            THREAD_BUS.execute_shutdown("Application closing")
+            # Executes: RPC(50) -> Speech(60) -> Heartbeat(100)
+        """
+        with self._lock:
+            if self._shutdown_executed:
+                return
+
+            handlers = list(self._shutdown_handlers)
+            self._shutdown_executed = True
+
+        if not handlers:
+            return
+
+        print(f"[ThreadBus] Executing shutdown stack: {reason}")
+        print(f"[ThreadBus] Shutdown order: {[h[1] for h in handlers]}")
+
+        for priority, name, handler in handlers:
+            try:
+                print(f"[ThreadBus] Executing shutdown handler: {name} (priority: {priority})")
+                handler()
+            except Exception as e:
+                print(f"[ThreadBus] Error in shutdown handler '{name}': {e}")
+
+        print(f"[ThreadBus] Shutdown stack execution completed")
+
+    def request_shutdown(
+        self,
+        reason: str = "User requested shutdown",
+        execute_handlers: bool = True
+    ) -> None:
+        """
+        Request global application shutdown
+
+        Sends a shutdown signal that can be monitored by all threads.
+        Optionally executes all registered shutdown handlers.
+
+        Args:
+            reason: Reason for shutdown
+            execute_handlers: If True, execute shutdown handlers immediately
+
+        Example:
+            # Request shutdown and execute handlers
             THREAD_BUS.request_shutdown("Replacing with new instance")
 
-            # In thread main loop
-            while True:
-                if THREAD_BUS.is_shutdown_requested():
-                    cleanup_and_exit()
-                    break
-                do_work()
+            # Or just signal (let threads handle it themselves)
+            THREAD_BUS.request_shutdown("User exit", execute_handlers=False)
         """
         self.signal('global.shutdown.requested', {
             'reason': reason,
             'requester_thread_id': threading.get_ident()
         })
+
+        if execute_handlers:
+            self.execute_shutdown(reason)
 
     def is_shutdown_requested(self) -> bool:
         """
@@ -594,13 +708,13 @@ class ThreadBus:
             Shutdown reason string or None if no shutdown requested
         """
         data = self.get_signal('global.shutdown.requested')
-        if data and isinstance(data, dict) and 'data' in data:
-            return data['data'].get('reason')
+        if data and isinstance(data, dict):
+            return data.get('reason')
         return None
 
     def clear_shutdown(self) -> None:
         """
-        Clear shutdown request signal
+        Clear shutdown request signal and reset execution flag
 
         Use this after handling shutdown to reset state.
         """
@@ -609,6 +723,17 @@ class ThreadBus:
                 del self._signals['global.shutdown.requested']
             if 'global.shutdown.requested' in self._events:
                 self._events['global.shutdown.requested'].clear()
+            self._shutdown_executed = False
+
+    def get_shutdown_handlers(self) -> List[tuple]:
+        """
+        Get list of registered shutdown handlers
+
+        Returns:
+            List of (priority, name, handler) tuples sorted by priority
+        """
+        with self._lock:
+            return list(self._shutdown_handlers)
 
 
 # Global instance

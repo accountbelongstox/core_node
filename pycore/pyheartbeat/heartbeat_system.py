@@ -9,7 +9,7 @@ Central coordinator for the PyHeartbeat system.
 import threading
 from typing import Optional
 from pycore.pyfoundations import ColorPrint, get_global_task_queue
-from pycore.pyheartbeat.thread_pool import GlobalThreadPool, get_global_thread_pool
+from pycore.pythreadpool import GlobalThreadPool, get_global_thread_pool
 from pycore.pyheartbeat.heartbeat_pusher import HeartbeatPusher
 from pycore.pyheartbeat.unified_api import UnifiedTaskAPI, get_unified_api
 

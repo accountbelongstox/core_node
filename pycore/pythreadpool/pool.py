@@ -19,44 +19,6 @@ THREAD_POOL_THREADS_KEY = 'heartbeat.thread_pool.threads'
 THREAD_POOL_TASK_HANDLERS_KEY = 'heartbeat.thread_pool.task_type_handlers'
 
 
-# ============================================================
-# Service Registry - Declarative Thread Configuration
-# ============================================================
-
-THREAD_REGISTRY = {
-    "heartbeat": {
-        "description": "Heartbeat system for task scheduling",
-        "default_enabled": True,
-        "shutdown_priority": 100,  # Shutdown last
-    },
-    "rpc": {
-        "description": "HTTP/WebSocket RPC server (legacy)",
-        "default_enabled": False,
-        "shutdown_priority": 50,  # Shutdown first
-    },
-    "rpc_v2": {
-        "description": "Unified RPC server v2",
-        "default_enabled": False,
-        "shutdown_priority": 50,
-    },
-    "speech": {
-        "description": "Speech transcription service",
-        "default_enabled": False,
-        "shutdown_priority": 60,
-    },
-    "tts_switch": {
-        "description": "TTS provider switching service",
-        "default_enabled": False,
-        "shutdown_priority": 60,
-    },
-    "stt_switch": {
-        "description": "STT provider switching service",
-        "default_enabled": False,
-        "shutdown_priority": 60,
-    },
-}
-
-
 class ThreadStatus(Enum):
     """Thread status states"""
     STARTING = "starting"
@@ -213,6 +175,7 @@ class GlobalThreadPool:
 
             # Get shutdown priority from registry or parameter
             if shutdown_priority is None:
+                from .registry import THREAD_REGISTRY
                 registry_entry = THREAD_REGISTRY.get(name, {})
                 shutdown_priority = registry_entry.get('shutdown_priority', 50)
 
@@ -535,5 +498,4 @@ __all__ = [
     'get_thread_pool_from_encyclopedia',
     'THREAD_POOL_THREADS_KEY',
     'THREAD_POOL_TASK_HANDLERS_KEY',
-    'THREAD_REGISTRY'
 ]
