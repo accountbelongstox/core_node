@@ -47,12 +47,14 @@ class RPCClient {
 
             const data = await response.json();
 
-            // RPC v2 response format: { success: bool, data: any, error: string }
+            // Handle RPC v2 response format: { success: bool, result: any, error: string }
+            // OR simple format: { success: bool, data: any, error: string }
             if (data.success === false) {
                 throw new Error(data.error || 'RPC call failed');
             }
 
-            return data.data || data;
+            // RPC v2 uses 'result' field, fallback to 'data' or whole object
+            return data.result || data.data || data;
 
         } catch (error) {
             if (error.name === 'AbortError') {

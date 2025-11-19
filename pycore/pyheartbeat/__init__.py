@@ -63,7 +63,7 @@ from pycore.pyheartbeat.unified_api import (
     get_unified_api
 )
 
-from pycore.pyheartbeat.thread_pool import (
+from pycore.pythreadpool import (
     ThreadStatus,
     ThreadInfo,
     GlobalThreadPool,

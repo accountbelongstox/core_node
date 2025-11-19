@@ -1,5 +1,113 @@
 # PyCore Updates
 
+## 2025-11-19: pythreadpool统一 + launcher职责明确 ✅ 完成
+
+**完成**: 创建统一线程池模块，彻底移除thread_pool.py，全面使用pythreadpool。
+
+**重大变更**:
+- ❌ **删除**: `pycore/pyheartbeat/thread_pool.py` (不再需要)
+- ✅ **新增**: `pycore/pythreadpool/` 统一线程池模块
+- ✅ **更新**: 所有import全部指向pythreadpool
+
+**架构重组**:
+```
+pycore/
+├── pythreadpool/          # 新增：统一线程池
+│   ├── __init__.py        # 导出所有接口
+│   ├── registry.py        # THREAD_REGISTRY + SERVICE_STARTERS
+│   ├── starters.py        # start_heartbeat, start_rpc_v2等
+│   └── pool.py            # GlobalThreadPool
+├── pyheartbeat/
+│   ├── heartbeat_pusher.py   # 更新：import from pythreadpool
+│   ├── heartbeat_system.py   # 更新：import from pythreadpool
+│   └── __init__.py           # 更新：import from pythreadpool
+└── pylauncher/
+    └── launcher.py           # 调用层 + ServiceConfig(legacy)
+```
+
+**Import变更**:
+```python
+# ❌ 旧方式（已删除）
+from pycore.pyheartbeat.thread_pool import get_global_thread_pool
+
+# ✅ 新方式（统一）
+from pycore.pythreadpool import get_global_thread_pool
+
+# ✅ 或通过pyheartbeat re-export（向后兼容）
+from pycore.pyheartbeat import get_global_thread_pool
+```
+
+**ServiceConfig保留**:
+```python
+# Legacy配置依然可用，自动转换为LauncherConfig
+config = ServiceConfig(
+    enable_rpc_v2=True,
+    rpc_v2_port=58100,
+    singleton_check=True
+)
+launcher = ServiceLauncher(config.to_launcher_config())
+```
+
+**清理文件**: 删除 `thread_pool.py`，3个文件import已更新。
+
+**Launcher职责明确**:
+```python
+# ⚠️ launcher.py 仅负责：
+# 1. 单例拦截 (Singleton Detection)
+# 2. 线程调度 (Thread Scheduling)
+
+# 🚫 launcher 不负责具体线程功能扩展
+
+# ✅ 正确做法：通过 get_service() 获取实例
+launcher = ServiceLauncher(config)
+launcher.start()
+
+# 获取 RPC v2 实例并注册路由
+rpc = launcher.get_service('rpc_v2')
+rpc.server.route('my_route', handler, sync=True)
+
+# 获取 Heartbeat 实例并使用其 API
+heartbeat = launcher.get_service('heartbeat')
+heartbeat.pause()
+```
+
+**文档位置**:
+- RPC v2: `pycore/pyutils/rpc_v2/`
+- Heartbeat: `pycore/pyheartbeat/`
+- 线程定义: `pycore/pythreadpool/starters.py`
+
+---
+
+## 2025-11-19: Fixed Connection Leak in FastAPI/Uvicorn ✅ Completed
+
+**Completed**: Fixed critical connection leak issue causing Web UI to hang after first load.
+
+**Root Cause Analysis**:
+- **Symptom**: Web UI loaded successfully once, then hung on subsequent page loads
+- **Network Analysis**: 150+ connections stuck in CLOSE_WAIT state on server side
+- **Diagnosis**: Uvicorn not properly closing idle connections, causing file descriptor exhaustion
+
+**Fix Applied** (`mcp_backend_main.py:169-180`):
+```python
+uvicorn.run(
+    app, host="0.0.0.0", port=MCP_BACKEND_RPC_PORT,
+    timeout_keep_alive=5,      # Close idle connections after 5 seconds
+    limit_max_requests=1000,   # Max requests per connection before closing
+    limit_concurrency=200,     # Max concurrent connections
+    backlog=100                # Connection queue size
+)
+```
+
+**Technical Details**:
+- **CLOSE_WAIT State**: Occurs when client closes connection (sends FIN) but server doesn't close its side
+- **File Descriptor Leak**: Each leaked connection holds a file descriptor, eventually exhausting system limits
+- **Connection Lifecycle**: Proper keep-alive timeout ensures connections are recycled
+- **Request Limits**: Prevents single connection from accumulating too many requests
+
+**Test Required**: After system cleanup, test with `python .\pymain.py app=mcp` and verify no CLOSE_WAIT accumulation
+
+---
+
 ## 2025-11-19: Port Configuration Clarification ✅ Completed
 
 **Completed**: Fixed port configuration to match design requirements - dynamic ports for singleton detection, fixed port for Web/RPC service.

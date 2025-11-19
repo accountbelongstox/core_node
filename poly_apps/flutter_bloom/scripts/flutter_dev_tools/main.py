@@ -39,8 +39,7 @@ shutdown_event = threading.Event()
 # Global router instance (initialized in run_server)
 router = None
 
-# Global color print instance
-color_print = ColorPrint()
+# Use ColorPrint static methods directly (no instance needed)
 
 
 class DesignDocRequestHandler(BaseHTTPRequestHandler):
@@ -74,26 +73,26 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     apps_dir = path_utils.get_apps_dir()
 
     # Initialize router
-    color_print.print_blue("[Router] Initializing routing system...")
+    ColorPrint.blue("[Router] Initializing routing system...")
     router = Router(STATIC_DIR, shutdown_event)
-    color_print.print_green("[Router] Routing system initialized successfully")
+    ColorPrint.green("[Router] Routing system initialized successfully")
 
     # Clean up old server instances on the same port
     if not port_manager.cleanup_old_server(port, auto_kill=True):
-        color_print.print_red(f"[ERROR] Port {port} is in use and could not be freed.")
-        color_print.print_red("[ERROR] Please manually stop the process or use a different port.")
+        ColorPrint.red(f"[ERROR] Port {port} is in use and could not be freed.")
+        ColorPrint.red("[ERROR] Please manually stop the process or use a different port.")
         return
 
     # Wait a moment for port to be fully released
     if not port_manager.wait_for_port_release(port, timeout=3):
-        color_print.print_yellow(f"[WARNING] Port {port} may still be in use. Attempting to start anyway...")
+        ColorPrint.yellow(f"[WARNING] Port {port} may still be in use. Attempting to start anyway...")
 
     # Auto-expand design document structure for all apps
-    color_print.print_blue("[AutoExpand] Ensuring design document structure for all apps...")
+    ColorPrint.blue("[AutoExpand] Ensuring design document structure for all apps...")
     from utils.design_structure_auto_expand import ensure_all_apps_design_structure
     expand_results = ensure_all_apps_design_structure()
     expanded_count = sum(1 for success in expand_results.values() if success)
-    color_print.print_green(f"[AutoExpand] Processed {expanded_count}/{len(expand_results)} apps")
+    ColorPrint.green(f"[AutoExpand] Processed {expanded_count}/{len(expand_results)} apps")
 
     # Auto-initialize all apps on startup
     init_summary = app_checker.auto_initialize_all_apps(apps_dir)

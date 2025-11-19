@@ -10,7 +10,7 @@ import threading
 import time
 from typing import Optional, Dict
 from pycore.pyfoundations import ColorPrint, get_global_task_queue, TaskState
-from pycore.pyheartbeat.thread_pool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
+from pycore.pythreadpool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
 
 
 class HeartbeatPusher(threading.Thread):
