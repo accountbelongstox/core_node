@@ -54,7 +54,26 @@ class PromptsPanel {
     const detailedDesignsPath = `${designDocsPath}\\3_page_designs_detailed`;
 
     return [
-      // Prompt 1: Scan pageviews and copy to detailed designs
+      // Prompt 1: Image Comparison Analysis
+      {
+        id: 'comparison-analysis',
+        title: 'Analyze Design vs Implementation',
+        icon: '🔍',
+        description: 'Compare expected design with actual implementation and suggest adjustments',
+        text: this.getComparisonAnalysisPrompt(designDocsPath),
+        expandable: true,
+        details: `This prompt analyzes side-by-side comparison images to identify:
+- Layout differences
+- Color variations
+- Text content mismatches
+- Spacing and alignment issues
+
+Uses data from pageview_map.json including:
+- color_palette: Top 10 colors with ratios
+- ocr_text: Extracted text with positions`
+      },
+
+      // Prompt 2: Scan pageviews and copy to detailed designs
       {
         id: 'scan-pageviews',
         title: 'Migrate Pageviews to Design Structure',
@@ -285,6 +304,43 @@ Output format: Markdown file saved to "${designDocsPath}\\PROGRESS_REPORT.md"`,
       Uncomment existing prompts or add new ones following the template structure.
     `;
     this.container.appendChild(hint);
+  }
+
+  /**
+   * Get comparison analysis prompt with dynamic comparison URL
+   * @param {string} designDocsPath - Path to design docs directory
+   * @returns {string} Comparison analysis prompt text
+   */
+  getComparisonAnalysisPrompt(designDocsPath) {
+    // Check if there's a latest comparison image selected
+    const comparisonUrl = window.latestComparisonUrl || '[Select a comparison image or upload one]';
+    const pageviewMapPath = `${designDocsPath}\\pageview_map.json`;
+
+    return `Analyze the side-by-side comparison image available at:
+${comparisonUrl}
+
+The image shows:
+- **Left side**: Expected design (from rough or detailed design layers)
+- **Right side**: Actual implementation (screenshot)
+
+Reference the pageview_map.json file at "${pageviewMapPath}" for additional context:
+- color_palette: Top 10 colors with ratios
+- ocr_text: Extracted text with bounding boxes and confidence scores
+
+**Analysis Tasks:**
+1. **Layout Differences**: Identify spacing, alignment, and positioning discrepancies
+2. **Color Variations**: Compare color schemes using palette data
+3. **Text Content**: Verify text matches using OCR data
+4. **Widget Sizing**: Check if elements maintain proper proportions
+
+**Output Required:**
+Provide specific Flutter code adjustments to match the expected design. Include:
+- Widget tree modifications
+- Style/theme updates
+- Layout constraint adjustments
+- Color/typography corrections
+
+**Note**: If no comparison image is selected, this prompt will update automatically when you click on a comparison image in the history list or upload a new comparison.`;
   }
 }
 

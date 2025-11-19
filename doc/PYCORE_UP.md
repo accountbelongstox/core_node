@@ -1,5 +1,62 @@
 # PyCore Updates
 
+## 2025-11-19: 智能单例系统 + 全局状态管理 ✅ 完成
+
+**完成**: MCP Backend 实现智能单例替换系统，支持基于状态的实例替换决策。
+
+**智能替换逻辑**:
+- **空闲状态 (IDLE)**: 新实例启动 → 旧实例通过 THREAD_BUS 优雅退出 → 新实例成为 PRIMARY
+- **忙碌状态 (BUSY)**: 新实例启动 → 旧实例拒绝退出 → 新实例变为 SECONDARY（可连接现有后端）
+
+**核心实现**:
+1. **全局状态管理器** (`pycore/pyctl/mcpctl/global_state.py`):
+   - `MCPGlobalState`: 线程安全状态追踪器
+   - `ProcessingState`: IDLE / BUSY 状态枚举
+   - `begin_task()` / `end_task()`: 状态切换 API
+   - `can_shutdown()`: 判断是否允许关闭
+
+2. **SingletonDetector 扩展** (`pycore/pylauncher/singleton_detector.py`):
+   - 新增 `state_checker` 回调参数
+   - STATUS 消息: 查询应用状态
+   - SHUTDOWN 消息: 智能关闭（检查状态）
+     - `accepted=True` → 允许关闭
+     - `accepted=False` → 拒绝关闭（附带原因）
+
+3. **ServiceConfig 支持** (`pycore/pylauncher/launcher.py`):
+   - 新增 `state_checker: Callable[[], Dict]` 参数
+   - 传递给 SingletonDetector 进行状态检查
+
+4. **端口范围配置** (`pycore/pygvar/constants.py`):
+   - `MCP_BACKEND_SINGLETON_PORT_START = 58000`
+   - `MCP_BACKEND_SINGLETON_PORT_RANGE = 100`
+   - `MCP_BACKEND_RPC_PORT_START = 58100`
+   - `MCP_PROXY_SINGLETON_PORT_START = 58200`
+
+**测试验证**:
+```bash
+# Test 1: 启动为 PRIMARY
+python -m pycore.pyctl.mcpctl.mcp_backend_main
+
+# Test 2: 检测现有实例（IDLE）→ 替换
+python -m pycore.pyctl.mcpctl.mcp_backend_main
+# → 旧实例关闭，新实例成为 PRIMARY ✅
+
+# Test 3: 检测现有实例（BUSY）→ 拒绝
+# 旧实例在处理任务时，新实例检测到 BUSY 状态
+# → 新实例不替换，连接现有后端 ✅
+```
+
+**文件清单**:
+- 新增: `pycore/pyctl/mcpctl/global_state.py` (全局状态管理器)
+- 新增: `scripts/test_smart_singleton.py` (测试脚本)
+- 修改: `pycore/pylauncher/singleton_detector.py` (状态检查支持)
+- 修改: `pycore/pylauncher/launcher.py` (ServiceConfig.state_checker)
+- 修改: `pycore/pygvar/constants.py` (端口范围常量)
+- 修改: `pycore/pyctl/mcpctl/mcp_backend_main.py` (集成状态管理)
+- 修改: `pycore/pyctl/mcpctl/backend/config.py` (移除端口常量)
+
+---
+
 ## 2025-11-19: MCP Backend 模块化重构 (单一入口+路由系统) ✅ 完成
 
 **完成**: Backend 重构为模块化架构，单一入口文件 + 清晰的模块分离。

@@ -48,6 +48,17 @@ function renderPanel() {
       <code>${designPath}</code>
       <button id="open-design-folder-btn" class="btn-icon" title="Open in Explorer">📁</button>
     </p>
+
+    <!-- Current Selected Path Section -->
+    <div id="current-path-section" class="current-path-section" style="display: none;">
+      <h3>Current Selection</h3>
+      <p>
+        <strong>Path:</strong>
+        <code id="current-path-display"></code>
+        <button id="open-current-path-btn" class="btn-icon" title="Open in Explorer">📁</button>
+      </p>
+    </div>
+
     <p class="${hasIssues ? 'status-bad' : 'status-ok'}">
       ${hasIssues ? `⚠ Issues detected: ${app.missing.length} items missing` : '✓ All required folders/files detected.'}
     </p>
@@ -83,6 +94,12 @@ function renderPanel() {
   const openDesignFolderBtn = document.getElementById('open-design-folder-btn');
   if (openDesignFolderBtn) {
     openDesignFolderBtn.addEventListener('click', () => handleOpenDesignFolder(app));
+  }
+
+  // Attach open current path button handler
+  const openCurrentPathBtn = document.getElementById('open-current-path-btn');
+  if (openCurrentPathBtn) {
+    openCurrentPathBtn.addEventListener('click', () => handleOpenCurrentPath());
   }
 
   // Clear file viewer when switching apps
@@ -177,3 +194,73 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+/**
+ * Update current path display
+ * @param {string} path - Path to display
+ * @param {boolean} isFolder - Whether the path is a folder
+ */
+function updateCurrentPathDisplay(path, isFolder = false) {
+  const section = document.getElementById('current-path-section');
+  const display = document.getElementById('current-path-display');
+  const button = document.getElementById('open-current-path-btn');
+
+  if (!section || !display) return;
+
+  // Store current path in global variable
+  window.currentSelectedPath = path;
+  window.currentSelectedIsFolder = isFolder;
+
+  // Update display
+  display.textContent = path;
+  section.style.display = 'block';
+
+  // Update button handler (re-attach to ensure it has latest path)
+  if (button) {
+    const newButton = button.cloneNode(true);
+    button.parentNode.replaceChild(newButton, button);
+    newButton.addEventListener('click', () => handleOpenCurrentPath());
+  }
+}
+
+/**
+ * Handle opening current selected path in explorer
+ */
+async function handleOpenCurrentPath() {
+  const path = window.currentSelectedPath;
+  const isFolder = window.currentSelectedIsFolder;
+
+  if (!path) {
+    console.warn('[Panel] No current path selected');
+    return;
+  }
+
+  // If it's a file, open the parent folder
+  let folderPath = path;
+  if (!isFolder) {
+    // Extract parent directory
+    const pathParts = path.split(/[\\\/]/);
+    pathParts.pop(); // Remove filename
+    folderPath = pathParts.join('\\');
+  }
+
+  console.log('[Panel] Opening current path:', folderPath);
+
+  try {
+    const response = await fetch('/api/folder/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: folderPath })
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      alert(`Failed to open folder: ${result.error}`);
+    }
+  } catch (error) {
+    alert(`Failed to open folder: ${error.message}`);
+  }
+}
+
+// Make updateCurrentPathDisplay available globally
+window.updateCurrentPathDisplay = updateCurrentPathDisplay;

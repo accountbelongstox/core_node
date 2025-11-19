@@ -130,7 +130,8 @@ class SingletonDetector:
         port_range: int = 100,
         timeout: float = 1.0,
         debug: bool = False,
-        on_message: Optional[Callable[[Dict], None]] = None
+        on_message: Optional[Callable[[Dict], None]] = None,
+        state_checker: Optional[Callable[[], Dict]] = None
     ):
         """
         Initialize Singleton Detector
@@ -142,6 +143,7 @@ class SingletonDetector:
             timeout: Connection timeout in seconds (default: 1.0)
             debug: Enable debug output
             on_message: Optional callback for received messages
+            state_checker: Optional callback to get application state (returns dict with can_shutdown, etc.)
         """
         self.app_id = app_id
         self.port_start = port_start
@@ -150,6 +152,7 @@ class SingletonDetector:
         # Enable debug via parameter OR environment variable SINGLETON_DEBUG=1
         self.debug = debug or os.environ.get('SINGLETON_DEBUG', '').lower() in ('1', 'true', 'yes')
         self.on_message = on_message
+        self.state_checker = state_checker
 
         # Runtime state
         self._is_primary = False
@@ -409,14 +412,70 @@ class SingletonDetector:
                 response_data = json.dumps(response).encode('utf-8')
                 client_socket.sendall(response_data + b'\n')
 
-            elif msg_type == MessageType.SHUTDOWN.value:
-                self._log("Received shutdown request", "WARNING")
-                # Send ACK
-                response = self._create_message(MessageType.SHUTDOWN_ACK)
+            elif msg_type == MessageType.STATUS.value:
+                # Query application state
+                app_state = {}
+                if self.state_checker:
+                    try:
+                        app_state = self.state_checker()
+                    except Exception as e:
+                        self._log(f"State checker failed: {e}", "ERROR")
+                        app_state = {"can_shutdown": True, "error": str(e)}
+                else:
+                    # No state checker - always allow shutdown
+                    app_state = {"can_shutdown": True}
+
+                # Send STATUS_RESPONSE
+                response = self._create_message(
+                    MessageType.STATUS_RESPONSE,
+                    is_primary=self._is_primary,
+                    port=self._bound_port,
+                    **app_state
+                )
                 response_data = json.dumps(response).encode('utf-8')
                 client_socket.sendall(response_data + b'\n')
-                # Stop listener
-                self.stop()
+
+            elif msg_type == MessageType.SHUTDOWN.value:
+                self._log("Received shutdown request", "WARNING")
+
+                # Check if shutdown is allowed
+                can_shutdown = True
+                shutdown_reason = "Normal shutdown"
+
+                if self.state_checker:
+                    try:
+                        app_state = self.state_checker()
+                        can_shutdown = app_state.get("can_shutdown", True)
+                        if not can_shutdown:
+                            shutdown_reason = f"Shutdown denied: {app_state.get('message', 'Application is busy')}"
+                            self._log(shutdown_reason, "WARNING")
+                    except Exception as e:
+                        self._log(f"State checker failed during shutdown: {e}", "ERROR")
+                        # On error, allow shutdown (fail-safe)
+                        can_shutdown = True
+
+                if can_shutdown:
+                    # Send SHUTDOWN_ACK and stop
+                    response = self._create_message(
+                        MessageType.SHUTDOWN_ACK,
+                        accepted=True,
+                        reason="Shutdown accepted"
+                    )
+                    response_data = json.dumps(response).encode('utf-8')
+                    client_socket.sendall(response_data + b'\n')
+                    self._log("Shutdown accepted, stopping...", "WARNING")
+                    # Stop listener
+                    self.stop()
+                else:
+                    # Send SHUTDOWN_ACK with rejection
+                    response = self._create_message(
+                        MessageType.SHUTDOWN_ACK,
+                        accepted=False,
+                        reason=shutdown_reason
+                    )
+                    response_data = json.dumps(response).encode('utf-8')
+                    client_socket.sendall(response_data + b'\n')
+                    self._log(f"Shutdown rejected: {shutdown_reason}", "WARNING")
 
             elif msg_type == MessageType.PING.value:
                 # Send PONG

@@ -1,3 +1,9 @@
+提供一个一个api接口，规范出可扩展系统，之后先完成第一个api，获取最后一个对比图，然后显示出图的下载地图app信息及所有必要的信息。访问直接显示。也可以传appname(只要关键字即可)
+
+现在全面重构，建立统一的配置文件，路由文件，以及其他功能文件。
+同时给web页添加完整的可扩展的菜单系统，以及设置系统，可以直接修改配置。同时建立配置缓存。调用D:\programing\core_node\pycore\pyfoundations 中合适 的全局变昌。
+同时按规范 development-guides\PYTHON_PYCORE.md 引入包。
+
 Design Files 目录树选中任何文件和目录时， 中间区都要实时显示当前选中路径 ，同样有打开explore basedir的功能。同时
 扩展一个外部目录 WINDOWS  pycore\pyfoundations\system_paths.py map_web_path "programing" _build_dir join "flutter_main/${appname}/对比图"，代码全英文。
 之后如果是图片，都会显示出来 而不是 ···⚠️ Binary file not supported for viewing···，同时在图片的右边，有一个上传图片对比，在下面，有一个list，其中显示历史对比图。

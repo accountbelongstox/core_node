@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Backend Monitor</title>
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/themes.css">
+</head>
+<body>
+    <!-- Top Menu -->
+    <header class="top-menu">
+        <div class="logo">MCP Backend</div>
+        <nav class="top-nav" id="top-nav">
+            <a href="#" class="nav-item active" data-view="dashboard">Dashboard</a>
+            <a href="#" class="nav-item" data-view="tools">Tools</a>
+            <a href="#" class="nav-item" data-view="logs">Logs</a>
+            <a href="#" class="nav-item" data-view="settings">Settings</a>
+        </nav>
+        <div class="top-actions">
+            <span class="status-badge" id="connection-status">Connecting...</span>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-layout">
+        <!-- Left Sidebar -->
+        <aside class="left-sidebar" id="left-sidebar">
+            <div class="sidebar-section">
+                <h3>Quick Actions</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="#" data-action="refresh">Refresh Status</a></li>
+                    <li><a href="#" data-action="clear-cache">Clear Cache</a></li>
+                    <li><a href="#" data-action="health-check">Health Check</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3>Navigation</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="#" data-section="overview">Overview</a></li>
+                    <li><a href="#" data-section="performance">Performance</a></li>
+                    <li><a href="#" data-section="database">Database</a></li>
+                    <li><a href="#" data-section="codebase">Codebase</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Center Content Area -->
+        <main class="content-area">
+            <!-- Tab System -->
+            <div class="tab-container">
+                <div class="tab-header" id="tab-header">
+                    <div class="tab active" data-tab="dashboard">Dashboard</div>
+                    <div class="tab" data-tab="metrics">Metrics</div>
+                    <div class="tab" data-tab="events">Events</div>
+                </div>
+                <div class="tab-content-container">
+                    <!-- Dashboard Tab -->
+                    <div class="tab-content active" id="tab-dashboard">
+                        <section class="card">
+                            <h2>Backend Information</h2>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="label">Backend ID:</span>
+                                    <span class="value" id="backend-id">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Status:</span>
+                                    <span class="value status" id="status">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Singleton Port:</span>
+                                    <span class="value" id="singleton-port">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">RPC Port:</span>
+                                    <span class="value" id="rpc-port">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Started:</span>
+                                    <span class="value" id="start-time">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Uptime:</span>
+                                    <span class="value" id="uptime">-</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="card">
+                            <h2>Processing State</h2>
+                            <div class="state-display">
+                                <div class="state-indicator" id="state-indicator">IDLE</div>
+                                <div class="info-item">
+                                    <span class="label">Active Tasks:</span>
+                                    <span class="value" id="active-tasks">0</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Can Shutdown:</span>
+                                    <span class="value" id="can-shutdown">Yes</span>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Metrics Tab -->
+                    <div class="tab-content" id="tab-metrics">
+                        <section class="card">
+                            <h2>Available Tools (<span id="tool-count">0</span>)</h2>
+                            <div class="tools-grid" id="tools-list">
+                                <div class="loading">Loading tools...</div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Events Tab -->
+                    <div class="tab-content" id="tab-events">
+                        <section class="card">
+                            <h2>Event Log</h2>
+                            <div class="event-log" id="event-log">
+                                <div class="event-item">
+                                    <span class="time">--:--:--</span>
+                                    <span class="message">Waiting for connection...</span>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar" id="right-sidebar">
+            <div class="sidebar-section">
+                <h3>System Info</h3>
+                <div class="info-list">
+                    <div class="info-row">
+                        <span class="key">Version:</span>
+                        <span class="val" id="version">2.0</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="key">Protocol:</span>
+                        <span class="val" id="protocol">RPC v2</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="key">Controllers:</span>
+                        <span class="val" id="controllers">3</span>
+                    </div>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Quick Stats</h3>
+                <div class="stat-card">
+                    <div class="stat-label">File Processing</div>
+                    <div class="stat-value" id="stat-file">4 tools</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Database</div>
+                    <div class="stat-value" id="stat-db">7 tools</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Codebase</div>
+                    <div class="stat-value" id="stat-codebase">8 tools</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <footer class="bottom-menu">
+        <div class="status-section">
+            <span class="status-item">Last Update: <span id="last-update">-</span></span>
+            <span class="status-item">Requests: <span id="request-count">0</span></span>
+        </div>
+        <div class="footer-info">
+            MCP Backend Monitor v2.0 | RPC v2 Protocol
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/js/rpc_client.js"></script>
+    <script src="/static/js/ui_manager.js"></script>
+    <script src="/static/js/monitor.js"></script>
+</body>
+</html>

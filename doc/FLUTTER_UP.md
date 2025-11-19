@@ -1,10 +1,174 @@
 # Flutter Development Updates
 
-## 2025-11-19 - PageView Map v2.0 with Auto Image Analysis
+## 2025-11-19 - Full System Refactor: Unified Config, Routes, and Menu System
+
+### Architecture Refactoring
+- **Unified Configuration System**: Centralized configuration management with caching
+  - `config/app_config.py` - Main configuration manager using Encyclopedia cache
+  - `config/routes_config.py` - Route definitions and management
+  - Configuration stored in `~/.core_node/flutter_dev_tools/config.json`
+  - Real-time config updates with automatic save
+
+### Routes System
+- **Modular Route Handlers**: Separated route logic by functionality
+  - `routes/base_handler.py` - Common base class for all handlers
+  - `routes/config_routes.py` - Configuration management endpoints
+  - `routes/system_routes.py` - System operations (shutdown, info)
+  - `routes/static_routes.py` - Static file serving
+  - Placeholder handlers: app, file, folder, pageview, comparison routes
+
+### pycore Integration
+- **Following PYTHON_PYCORE.md Standards**:
+  - All imports at file top (stdlib → third-party → pycore)
+  - Using `from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA`
+  - Using `from pycore.pygvar import IS_WINDOWS, PROJECT_ROOT, CACHE_DIR, CPU_COUNT`
+  - Encyclopedia as configuration cache
+  - System info from pygvar constants
+
+### Web Menu System
+- **Extensible Menu Bar**:
+  - `static/js/menu-system.js` - Dynamic menu with dropdown support
+  - Menus: File, View, Tools, Help
+  - Actions: Reload, Settings, Shutdown, Toggle panels, System info, etc.
+  - Easy to extend with new menu items
+
+### Settings Management
+- **Configuration UI**:
+  - `static/js/settings-manager.js` - Settings dialog with live config editing
+  - `static/css/menu.css` - Menu and settings styles
+  - Sections: Server, Paths, Features, Image Analysis, Comparison, UI
+  - Direct config modification through web interface
+  - Reset to defaults functionality
+
+### Configuration Structure
+```json
+{
+  "server": { "host", "port", "auto_kill_old_instances" },
+  "paths": { "flutter_root", "apps_base_dir", "design_docs_dirname" },
+  "features": { "auto_expand_structure", "image_analysis_enabled" },
+  "image_analysis": { "color_palette_top_n", "ocr_model_type" },
+  "comparison": { "external_storage_enabled", "label_colors" },
+  "ui": { "theme", "show_file_tree", "default_expand_all" }
+}
+```
+
+**Files Created**:
+- `config/__init__.py`, `config/app_config.py`, `config/routes_config.py`
+- `routes/__init__.py`, `routes/base_handler.py`
+- `routes/config_routes.py`, `routes/system_routes.py`, `routes/static_routes.py`
+- `routes/app_routes.py`, `routes/file_routes.py`, `routes/folder_routes.py` (placeholders)
+- `routes/pageview_routes.py`, `routes/comparison_routes.py` (placeholders)
+- `static/js/menu-system.js`, `static/js/settings-manager.js`
+- `static/css/menu.css`
+
+**Files Modified**:
+- `static/index.html` - Added menu bar and new scripts
+- `static/js/app.js` - Initialize menu and settings systems
+
+---
+
+## 2025-11-19 - Image Comparison System with AI Analysis
+
+### Complete Image Preview & Comparison Workflow
+- **Image Preview**: Display images in middle panel instead of "Binary file not supported"
+- **Upload Comparison**: Upload actual implementation screenshots for side-by-side comparison
+- **History Tracking**: List all historical comparisons (newest first, never auto-deleted)
+- **Composite Generation**: Auto-create side-by-side images with labels and proper scaling
+
+### External Comparison Storage
+- **Directory**: `D:\programing\_build_dir\flutter_main\{appname}\comparison_images\{page_name}\`
+- **Naming**: `{appname}_{pagename}_{description}_{timestamp}_comparison.png`
+- **Example**: `app_wuy_home_page_implemented_20251119143520_comparison.png`
+- **Accessed via**: `pycore.pyfoundations.system_paths.map_web_path("programing")`
+
+### Composite Image Features
+- **Layout**: Expected design (left) vs Actual implementation (right)
+- **Auto-resize**: Match heights, scale widths proportionally
+- **White Padding**: Fill width differences with white background
+- **Top Labels**: Blue "Expected Design" vs Red "Actual Implementation"
+- **Vertical Separator**: Gray line between images
+- **Top Margin**: 80px for label space
+
+### API Endpoints
+**Create Comparison**:
+```
+POST /api/apps/{app}/comparison/create
+Body: {
+  "page_key": "home_page",
+  "expected_image_path": "/path/to/design.png",
+  "image_data": "base64_encoded_image",
+  "description": "implemented"
+}
+Response: { "success": true, "filename": "...", "download_url": "..." }
+```
+
+**List Comparisons**:
+```
+GET /api/apps/{app}/comparison/list/{page_key}
+Response: { "success": true, "comparisons": [...] }
+```
+
+**Download Comparison**:
+```
+GET /api/comparison/download/{app}/{page_key}/{filename}
+Response: PNG image binary
+```
+
+**Serve Image**:
+```
+GET /api/file/image?path={absolute_path}
+Response: Image binary with proper content-type
+```
+
+### Current Path Display
+- **Real-time Path Tracking**: Middle panel shows currently selected file or folder path
+- **Open in Explorer**: Quick access button to open selected path location
+- **Auto-update**: Path display updates when clicking any file or folder in tree
+- **Smart Folder Opening**: Files open parent folder, folders open themselves
+
+### Frontend Components
+- **file-viewer.js**: Added `isImageFile()`, `renderImagePreview()`, image upload handler, current path update
+- **comparison-uploader.js**: Handles upload, base64 encoding, API communication
+- **tree-view.js**: Updated `selectFile()` and `selectFolder()` to update current path display
+- **app-panel.js**: Added `updateCurrentPathDisplay()` and `handleOpenCurrentPath()` functions
+- **file-viewer.css**: Image preview, history list, hover effects
+- **index.html**: Added comparison-uploader.js script
+
+### Backend Implementation
+- **api/comparison_api.py**: Create, list, download comparison operations
+- **utils/comparison_manager.py**: PIL-based composite generation
+- **main.py**: Added 4 new endpoints (create, list, download, serve image)
+
+**Files Created**:
+- `api/comparison_api.py` - Comparison API endpoints
+- `static/js/comparison-uploader.js` - Frontend upload component
+
+**Files Modified**:
+- `static/js/file-viewer.js` - Image preview and comparison upload
+- `static/css/file-viewer.css` - Image viewer styles
+- `static/index.html` - Added comparison-uploader.js script
+- `main.py` - Added comparison and image serving endpoints
+
+---
+
+## 2025-11-19 - PageView Map v2.0 with Expected/Actual Image Comparison
 
 ### Major Refactoring: Single pageview_map.json
 - **Before**: One pageview_map.json per page directory (`3_page_designs_detailed/{page_name}/pageview_map.json`)
 - **After**: Single file at root (`design_docs_and_progress/pageview_map.json`) mapping ALL pages
+
+### Expected vs Actual Image Separation
+- **expected_images**: Design mockups from `2_page_designs_rough/` and `3_page_designs_detailed/`
+- **actual_images**: AI-generated screenshots or actual implementation captures
+- **Comparison Purpose**: AI can compare expected vs actual to suggest UI adjustments
+- **comparison_notes**: Field for AI to record adjustment recommendations
+
+### Composite Image Management
+- **Naming Convention**: `{appname}_{pagename}_{description}_{timestamp}.png`
+  - Example: `app_wuy_home_page_implemented_20251119120000.png`
+- **Storage Location**: `design_docs_and_progress/composites/{page_name}/`
+- **History Preserved**: All uploaded actual_images kept (newest first), never auto-deleted
+- **Download URLs**: Each image has `download_url` field for easy access
 
 ### Auto Image Analysis System
 - **Color Palette Extraction**: Top 10 colors with ratios `[["#FFFFFF", 0.35], ...]`
@@ -16,8 +180,9 @@
 - **Image Analyzer**: `utils/image_analyzer.py` (PIL color analysis + pycore OCR integration)
 - **PageView Updater**: `utils/pageview_updater.py` (scan layers, update JSON, cleanup)
 - **API Endpoints**:
-  - `POST /api/apps/{app}/pageview/update` - Update with analysis (params: layer, force)
-  - `GET /api/apps/{app}/pageview/stats` - Get current statistics
+  - `POST /api/apps/{app}/pageview/update` - Update expected images with analysis (params: layer, force)
+  - `POST /api/apps/{app}/pageview/upload-actual` - Upload actual/composite image (params: page_key, description, image_data)
+  - `GET /api/apps/{app}/pageview/stats` - Get current statistics (expected_images, actual_images counts)
 
 ### Frontend UI Buttons
 - **Update All Layers**: Analyze all images in rough + detailed layers

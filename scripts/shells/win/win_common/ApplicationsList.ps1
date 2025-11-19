@@ -1478,6 +1478,24 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         )
         # TODO: Unknown callback requirements and exact download mechanism for Cursor Agent
     }
+    Antigravity = @{
+        PackageId         = "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/1.11.2-6251250307170304/windows-x64/Antigravity.exe"
+        Exec              = "Antigravity.exe"
+        Name              = "Antigravity"
+        DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description       = "Antigravity desktop client"
+        InstallType       = "web"
+        ForceToInstallDir = $true
+        VerifySuffix      = ""
+        AdditionalKeywords = @("antigravity", "antigravity.exe")
+        DesktopShortcuts  = @(
+            @{
+                CreateDesktopShortcut = $true
+                ShortcutName = "Antigravity"
+            }
+        )
+        EnvVars           = @()
+    }
     LangChainCli = @{
         PackageId         = "langchain-cli"
         Exec              = "langchain"
@@ -2027,5 +2045,3 @@ if ($OutputApplicationsList) {
     # Exit immediately to prevent loading rest of the script
     exit 0
 }
-
-

@@ -33,6 +33,51 @@ def register_routes(app: Any, fastapi_module: Any) -> None:
             "error": None
         })
 
+    # Route: backend_state (processing state)
+    @app.post("/rpc/backend_state")
+    async def rpc_backend_state(request: fastapi_module.Request):
+        from pycore.pyctl.mcpctl.global_state import get_backend_state_dict
+        result = get_backend_state_dict()
+        return JSONResponse({
+            "type": "RESPONSE",
+            "route": "backend_state",
+            "id": str(__import__('uuid').uuid4()),
+            "result": result,
+            "success": True,
+            "sync_response": True,
+            "error": None
+        })
+
+    # Route: tools_list (list all available tools)
+    @app.post("/rpc/tools_list")
+    async def rpc_tools_list(request: fastapi_module.Request):
+        from pycore.pyctl.mcpctl.backend import handlers
+        tools = handlers.file_processing.backend_info.get("tools", [])
+        return JSONResponse({
+            "type": "RESPONSE",
+            "route": "tools_list",
+            "id": str(__import__('uuid').uuid4()),
+            "result": {"tools": tools},
+            "success": True,
+            "sync_response": True,
+            "error": None
+        })
+
+    # Route: clear_file_cache_tool (alias for clear_file_cache)
+    @app.post("/rpc/clear_file_cache_tool")
+    async def rpc_clear_file_cache_tool(request: fastapi_module.Request):
+        params = await request.json()
+        result = await handlers.handle_clear_file_cache_async(params, None, None)
+        return JSONResponse({
+            "type": "RESPONSE",
+            "route": "clear_file_cache_tool",
+            "id": str(__import__('uuid').uuid4()),
+            "result": result,
+            "success": result.get("success", True),
+            "sync_response": True,
+            "error": result.get("error", None)
+        })
+
     # File Processing Routes (4 tools)
     @app.post("/rpc/get_file_info")
     async def rpc_get_file_info(request: fastapi_module.Request):
