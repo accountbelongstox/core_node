@@ -2,20 +2,19 @@
 """
 MCP Backend Configuration
 
-Port configuration and tool list for MCP Backend
-"""
+Tool list and backend info template for MCP Backend
 
-# Port configuration
-SINGLETON_PORT_START = 58000
-SINGLETON_PORT_RANGE = 100
-RPC_SERVICE_PORT = 58100
+Port configuration moved to pycore.pygvar:
+- MCP_BACKEND_SINGLETON_PORT_START / MCP_BACKEND_SINGLETON_PORT_RANGE
+- MCP_BACKEND_RPC_PORT_START / MCP_BACKEND_RPC_PORT_RANGE
+"""
 
 # Backend info template
 BACKEND_INFO_TEMPLATE = {
     "backend_id": None,  # Will be set after launch
     "status": "initializing",
     "singleton_port": None,
-    "rpc_port": RPC_SERVICE_PORT,
+    "rpc_port": None,  # Will be set to MCP_BACKEND_RPC_PORT_START
     "rpc_version": "v2",
     "tools": [
         # File Processing (4 tools)

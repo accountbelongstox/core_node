@@ -13,8 +13,12 @@
     <link rel="stylesheet" href="/static/css/tree.css" />
     <link rel="stylesheet" href="/static/css/file-viewer.css" />
     <link rel="stylesheet" href="/static/css/prompts.css" />
+    <link rel="stylesheet" href="/static/css/menu.css" />
   </head>
   <body>
+    <!-- Menu Bar -->
+    <nav class="menu-bar" id="menu-bar"></nav>
+
     <header>
       <h1>Flutter Design Documentation Inspector</h1>
       <p>Scanning apps inside poly_apps/flutter_bloom/lib/apps</p>
@@ -68,9 +72,12 @@
 
     <!-- Load JavaScript modules - Order matters! -->
     <script src="/static/js/storage-manager.js"></script>
+    <script src="/static/js/menu-system.js"></script>
+    <script src="/static/js/settings-manager.js"></script>
     <script src="/static/js/tree-view.js"></script>
     <script src="/static/js/file-viewer.js"></script>
     <script src="/static/js/folder-manager.js"></script>
+    <script src="/static/js/comparison-uploader.js"></script>
     <script src="/static/js/prompts-panel.js"></script>
     <script src="/static/js/pageview-updater.js"></script>
     <script src="/static/js/app-panel.js"></script>

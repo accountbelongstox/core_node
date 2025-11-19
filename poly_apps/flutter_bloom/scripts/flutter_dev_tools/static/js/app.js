@@ -16,6 +16,8 @@ let fileViewer = null;
 let promptsPanel = null;
 let pageViewUpdater = null;
 let currentApp = null;
+let menuSystem = null;
+let settingsManager = null;
 
 /**
  * Fetch all apps from API
@@ -64,6 +66,14 @@ async function loadTreeForCurrentApp() {
  * Initialize application
  */
 async function init() {
+  // Initialize menu and settings
+  menuSystem = new MenuSystem();
+  settingsManager = new SettingsManager();
+  menuSystem.render();
+
+  // Make settings manager globally accessible
+  window.settingsManager = settingsManager;
+
   // Initialize components
   treeView = new TreeView(document.getElementById('file-tree'));
   fileViewer = new FileViewer(document.getElementById('panel'));

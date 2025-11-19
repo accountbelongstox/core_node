@@ -211,6 +211,12 @@ class TreeView {
     this.selectedItem = node.path;
     this.render();
 
+    // Update current path display
+    if (window.updateCurrentPathDisplay) {
+      const absolutePath = this.getAbsolutePath(node.path);
+      window.updateCurrentPathDisplay(absolutePath, false);
+    }
+
     if (this.onFileClick) {
       this.onFileClick(node);
     }
@@ -222,6 +228,12 @@ class TreeView {
   selectFolder(node) {
     this.selectedFolder = node.path;
     this.render();
+
+    // Update current path display
+    if (window.updateCurrentPathDisplay) {
+      const absolutePath = this.getAbsolutePath(node.path);
+      window.updateCurrentPathDisplay(absolutePath, true);
+    }
 
     if (this.onFolderSelect) {
       // Get absolute path

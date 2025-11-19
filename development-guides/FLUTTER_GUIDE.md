@@ -52,7 +52,7 @@ Spec: Dual-entry pattern
   - **Layer 3**: `3_page_designs_detailed/` – Detailed specs with `pageview_map.json` for code mapping
 - **Auto-Expansion**: Run `python scripts/flutter_dev_tools/design_doc_tool.py` to auto-create missing structure without overwriting existing files
 - **Smart Example Images**: Auto-generated context-aware placeholders (e.g., `example_architecture.png`, `example_home_wireframe.png`) in empty `images/` directories, auto-removed when actual images added
-- **pageview_map.json** (v2.0): Single file at `design_docs_and_progress/pageview_map.json` mapping ALL pages with auto-analyzed color palettes and OCR text:
+- **pageview_map.json** (v2.0): Single file at `design_docs_and_progress/pageview_map.json` mapping ALL pages with separate expected/actual images:
   ```json
   {
     "version": "2.0",
@@ -62,32 +62,66 @@ Spec: Dual-entry pattern
       "home_page": {
         "page_key": "home_page",
         "layer": "rough",
-        "images": [
+        "expected_images": [
           {
             "file_name": "home_v1.png",
             "file_path": "2_page_designs_rough/images/home_v1.png",
-            "color_palette": [
-              ["#FFFFFF", 0.35],
-              ["#000000", 0.25]
-            ],
-            "ocr_text": [
-              {
-                "text": "Welcome",
-                "position": [x, y, w, h],
-                "confidence": 0.95
-              }
-            ],
+            "image_type": "expected",
+            "download_url": "/api/file/download?path=2_page_designs_rough/images/home_v1.png",
+            "color_palette": [["#FFFFFF", 0.35], ["#000000", 0.25]],
+            "ocr_text": [{"text": "Welcome", "position": [x, y, w, h], "confidence": 0.95}],
             "last_analyzed": "2025-11-19T12:00:00"
           }
-        ]
+        ],
+        "actual_images": [
+          {
+            "file_name": "app_xxx_home_page_implemented_20251119120000.png",
+            "file_path": "composites/home_page/app_xxx_home_page_implemented_20251119120000.png",
+            "image_type": "actual",
+            "description": "implemented",
+            "download_url": "/api/file/download?path=composites/home_page/...",
+            "color_palette": [["#F5F5F5", 0.40], ["#333333", 0.20]],
+            "ocr_text": [{"text": "Welcome", "position": [x, y, w, h], "confidence": 0.92}],
+            "uploaded_at": "2025-11-19T12:05:00",
+            "last_analyzed": "2025-11-19T12:05:00"
+          }
+        ],
+        "comparison_notes": "AI can compare expected vs actual to suggest UI adjustments"
       }
     }
   }
   ```
+- **Expected vs Actual**: `expected_images` are design mockups, `actual_images` are AI-generated/screenshots for comparison
+- **Composite Naming**: `{appname}_{pagename}_{description}_{timestamp}.png` (e.g., `app_wuy_home_page_v1_test_20251119120000.png`)
+- **History Preserved**: All uploaded actual_images kept (newest first), never auto-deleted
 - **Auto-Update**: Use design_doc_tool web UI buttons to analyze images and update pageview_map.json with color palettes (top 10 colors) and OCR text positions
+- **Upload Actual**: `POST /api/apps/{app}/pageview/upload-actual` with page_key, description, and image data
 - **Workflow**: Design flows from Layer 1 (concept) → Layer 2 (rough pages) → Layer 3 (detailed specs) → Development (based on pageview_map.json)
 - AI reviewers must reference these layers when specifications mention design or progress. Update images, JSON maps, and specs when design/implementation changes.
 - Full docs: `doc/DESIGN_DOCS_STRUCTURE.md`, `doc/DESIGN_IMAGES_PLACEMENT.md`
+
+### Image Comparison System
+- **Purpose**: Compare expected design mockups with actual implementation screenshots to identify discrepancies and generate AI-driven adjustment recommendations
+- **External Storage**: `D:\programing\_build_dir\flutter_main\{appname}\comparison_images\{page_name}\`
+- **Access Method**: `pycore.pyfoundations.system_paths.map_web_path("programing")` for cross-project consistency
+- **Composite Format**: Side-by-side images with expected (left) vs actual (right), auto-resized to match heights with white padding
+- **Filename Convention**: `{appname}_{pagename}_{description}_{timestamp}_comparison.png`
+- **Visual Labels**: Top margin (80px) with blue "Expected Design" label (left) and red "Actual Implementation" label (right)
+- **API Endpoints**:
+  - `POST /api/apps/{app}/comparison/create` – Generate comparison image from expected + actual
+  - `GET /api/apps/{app}/comparison/list/{page_key}` – List all comparisons for a page (newest first)
+  - `GET /api/comparison/download/{app}/{page_key}/{filename}` – Download comparison image
+- **Web UI Features**:
+  - Image preview in middle panel (replaces "Binary file not supported")
+  - "Upload Comparison" button on image viewer
+  - History list showing all past comparisons (never auto-deleted)
+  - Click history item to view comparison
+- **AI Integration**:
+  - Prompts panel includes "Analyze Design vs Implementation" prompt
+  - Auto-updates with latest comparison URL when image selected/uploaded
+  - References color_palette and ocr_text from pageview_map.json for detailed analysis
+  - Provides specific Flutter code adjustments to match expected design
+- **Implementation**: See `doc/IMAGE_COMPARISON_SYSTEM.md` for full workflow and technical details
 
 ### APP File Design and Structure Standardization
 ```
