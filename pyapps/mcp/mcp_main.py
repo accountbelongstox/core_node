@@ -232,10 +232,10 @@ async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """
     Forward tool call to backend via RPC with async result handling
 
-    RPC Flow:
-    1. Send request → Get {"status": "accepted", "id": "...", "requires_ack": true}
-    2. Wait for processing
-    3. Send request again with same id → Get actual result
+    RPC Flow (v2 with sync support):
+    1. Send request → Get response
+    2. If sync_response=true → Return immediately (< 100ms)
+    3. If requires_ack=true → Wait and retry (async processing)
 
     Args:
         tool_name: Tool name (e.g., 'get_file_info')
@@ -258,10 +258,16 @@ async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
 
         debug_print(f"Backend initial response: {initial_result}", "Proxy")
 
+        # ✅ Check if sync response (RPC v2 sync routes)
+        if initial_result.get("sync_response"):
+            logger.info(f"[Proxy] Sync response received for {tool_name} (immediate return)")
+            # Return result immediately (no waiting)
+            return initial_result
+
         # Check if requires ACK (async processing)
         if initial_result.get("requires_ack"):
             request_id = initial_result.get("id")
-            logger.info(f"[Proxy] Request accepted, waiting for result (id: {request_id})")
+            logger.info(f"[Proxy] Async response, waiting for result (id: {request_id})")
 
             # Step 2: Wait for backend processing
             await asyncio.sleep(1.5)  # Wait for processing
@@ -294,7 +300,7 @@ async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
                     # Got actual result
                     return result
 
-        # Direct result (no ACK required)
+        # Direct result (no ACK required, not marked as sync)
         return initial_result
 
     except Exception as e:
@@ -354,7 +360,7 @@ def start_mcp_proxy():
 
     # Register tools (transparent to AI)
     @mcp.tool()
-    async def get_file_info_with_ocr_and_document_parsing_tool(
+    async def img_ocr_doc_allfile_parser_info_tool(
         file_path: str,
         use_cache: bool = True,
         include_pixel_matrix: bool = False,
@@ -365,11 +371,13 @@ def start_mcp_proxy():
         extract_hyperlinks: bool = True
     ) -> dict:
         """
-        Get comprehensive file information with OCR, document parsing, and color analysis.
+        Parse and extract info from all file types: images (OCR), documents (PDF, Office), with color analysis.
 
-        For images: OCR text, positions, color palette, dimensions, pixel matrix (optional)
-        For PDFs: Text extraction, positions, metadata, tables, images, hyperlinks
-        For Office docs: Text content, paragraphs, metadata, tables, formulas, sheets
+        Supports: PNG, JPG, BMP (OCR) | PDF (text, tables, images) | DOCX, XLSX, PPTX (content extraction)
+
+        Images: OCR text with positions, color palette, dimensions, pixel matrix (optional)
+        PDFs: Text extraction with positions, metadata, tables, embedded images, hyperlinks
+        Office: Text content, paragraphs, metadata, tables, formulas, Excel sheets
 
         Args:
             file_path: Path to file to analyze
@@ -396,7 +404,7 @@ def start_mcp_proxy():
 
     logger.info("[Proxy] MCP tools registered (2 tools)")
     logger.info("[Proxy]   - mcp_proxy_ping_tool (local, no backend)")
-    logger.info("[Proxy]   - get_file_info_with_ocr_and_document_parsing_tool (via RPC)")
+    logger.info("[Proxy]   - img_ocr_doc_allfile_parser_info_tool (via RPC)")
     logger.info("[Proxy] Running proxy server...")
 
     # Run proxy

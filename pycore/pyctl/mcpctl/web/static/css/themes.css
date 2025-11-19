@@ -1,0 +1,83 @@
+/* Themes CSS - Colors, Variables, and Theming */
+
+:root {
+    /* Primary Colors */
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+
+    /* Text Colors */
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+
+    /* Background Colors */
+    --header-bg: #ffffff;
+    --sidebar-bg: #f9fafb;
+    --content-bg: #ffffff;
+    --footer-bg: #f9fafb;
+    --card-bg: #ffffff;
+    --hover-bg: #f3f4f6;
+    --code-bg: #f9fafb;
+
+    /* Border Colors */
+    --border-color: #e5e7eb;
+
+    /* Status Colors */
+    --success-color: #059669;
+    --success-bg: #d1fae5;
+    --success-border: #6ee7b7;
+
+    --warning-color: #d97706;
+    --warning-bg: #fef3c7;
+    --warning-border: #fcd34d;
+
+    --error-color: #dc2626;
+    --error-bg: #fee2e2;
+    --error-border: #fca5a5;
+
+    /* Scrollbar Colors */
+    --scrollbar-track: #f1f1f1;
+    --scrollbar-thumb: #c1c1c1;
+    --scrollbar-thumb-hover: #a1a1a1;
+}
+
+/* Dark Theme (Optional - for future extension) */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text-primary: #f9fafb;
+        --text-secondary: #9ca3af;
+
+        --header-bg: #1f2937;
+        --sidebar-bg: #111827;
+        --content-bg: #1f2937;
+        --footer-bg: #111827;
+        --card-bg: #374151;
+        --hover-bg: #4b5563;
+        --code-bg: #111827;
+
+        --border-color: #374151;
+
+        --scrollbar-track: #1f2937;
+        --scrollbar-thumb: #4b5563;
+        --scrollbar-thumb-hover: #6b7280;
+    }
+}
+
+/* Theme Utilities */
+.theme-light {
+    /* Light theme variables (same as default) */
+}
+
+.theme-dark {
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+
+    --header-bg: #1f2937;
+    --sidebar-bg: #111827;
+    --content-bg: #1f2937;
+    --footer-bg: #111827;
+    --card-bg: #374151;
+    --hover-bg: #4b5563;
+    --code-bg: #111827;
+
+    --border-color: #374151;
+}

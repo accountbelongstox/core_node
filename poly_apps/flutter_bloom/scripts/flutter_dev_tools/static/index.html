@@ -4,10 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flutter Design Docs Inspector</title>
-    <link rel="stylesheet" href="/static/css/main.css" />
+    <!-- CSS Modules - Order matters! -->
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/layout.css" />
+    <link rel="stylesheet" href="/static/css/buttons.css" />
+    <link rel="stylesheet" href="/static/css/sidebar.css" />
+    <link rel="stylesheet" href="/static/css/panel.css" />
     <link rel="stylesheet" href="/static/css/tree.css" />
+    <link rel="stylesheet" href="/static/css/file-viewer.css" />
+    <link rel="stylesheet" href="/static/css/prompts.css" />
+    <link rel="stylesheet" href="/static/css/menu.css" />
   </head>
   <body>
+    <!-- Menu Bar -->
+    <nav class="menu-bar" id="menu-bar"></nav>
+
     <header>
       <h1>Flutter Design Documentation Inspector</h1>
       <p>Scanning apps inside poly_apps/flutter_bloom/lib/apps</p>
@@ -17,7 +28,7 @@
       <!-- Top: App tabs -->
       <div id="tabs" class="tab-bar"></div>
 
-      <!-- Middle: Content area with split view -->
+      <!-- Middle: Content area with three-column layout -->
       <div class="content-area">
         <!-- Left panel: File tree -->
         <aside class="sidebar" id="sidebar">
@@ -27,23 +38,49 @@
               📁
             </button>
           </div>
+          <!-- Current folder path display -->
+          <div id="current-folder-path" class="current-folder-path" style="display: none;">
+            <div class="path-display">
+              <span class="path-label">Current:</span>
+              <code id="current-folder-text" class="path-text"></code>
+              <button id="open-current-folder-btn" class="btn-icon-small" title="Open in Explorer">📁</button>
+            </div>
+          </div>
           <div id="file-tree" class="file-tree"></div>
           <div id="tree-placeholder" class="tree-placeholder">
             Select an app with existing design directory
           </div>
         </aside>
 
-        <!-- Right panel: Details and file viewer -->
+        <!-- Middle panel: Details and file viewer (reserved for future use) -->
         <section id="panel" class="panel">
           <p>Loading...</p>
         </section>
+
+        <!-- Right panel: Dynamic prompts -->
+        <aside class="prompts-panel" id="prompts-panel">
+          <div class="prompts-header">
+            <h3>AI Prompts</h3>
+            <span class="prompts-subtitle">Context-aware commands</span>
+          </div>
+          <div id="prompts-list" class="prompts-list">
+            <!-- Prompts will be dynamically generated here -->
+          </div>
+        </aside>
       </div>
     </main>
 
-    <!-- Load JavaScript modules -->
+    <!-- Load JavaScript modules - Order matters! -->
     <script src="/static/js/storage-manager.js"></script>
+    <script src="/static/js/menu-system.js"></script>
+    <script src="/static/js/settings-manager.js"></script>
     <script src="/static/js/tree-view.js"></script>
     <script src="/static/js/file-viewer.js"></script>
+    <script src="/static/js/folder-manager.js"></script>
+    <script src="/static/js/comparison-uploader.js"></script>
+    <script src="/static/js/prompts-panel.js"></script>
+    <script src="/static/js/pageview-updater.js"></script>
+    <script src="/static/js/app-panel.js"></script>
     <script src="/static/js/app.js"></script>
   </body>
 </html>

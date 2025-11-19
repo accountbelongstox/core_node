@@ -249,239 +249,24 @@ Maps design elements to Flutter Widgets. See `example_home_page/pageview_map.jso
 
 
 def get_file_template(filename: str, app_name: str) -> str:
-    """Get file template content"""
-    timestamp = datetime.now().strftime("%Y-%m-%d")
-
-    templates = {
-        "architecture.md": f"""# Architecture Concept - {app_name}
-
-**Created**: {timestamp}
-
-## Overall Architecture
-
-```
-┌─────────────────────────────────┐
-│         Presentation Layer      │
-│  (UI Components, Widgets)       │
-└─────────────────────────────────┘
-              ↓
-┌─────────────────────────────────┐
-│         Business Layer          │
-│  (ViewModels, Controllers)      │
-└─────────────────────────────────┘
-              ↓
-┌─────────────────────────────────┐
-│           Data Layer            │
-│  (Repositories, Data Sources)   │
-└─────────────────────────────────┘
-```
-
-## Design Patterns
-
-- **MVVM**: Model-View-ViewModel separation of concerns
-- **Provider**: State management solution
-- **Repository Pattern**: Data access abstraction
-
-## Tech Stack
-
-- Flutter SDK
-- Provider (state management)
-- Dio (network requests)
-- Shared Preferences (local storage)
-
-## Updates
-
-- {timestamp}: Initialized architecture design
-""",
-
-        "user_flows.md": f"""# User flow concepts - {app_name}
-
-**创建时间**: {timestamp}
-
-## 主要流程
-
-### 1. 启动流程
-
-```
-应用启动 → 检查登录状态 → 已登录: 进入首页 / 未登录: 显示登录页
-```
-
-### 2. 登录流程
-
-```
-输入账号密码 → 验证 → 成功: 保存token → 进入首页
-                   ↓
-                 失败: 显示错误提示
-```
-
-### 3. 核心业务流程
-
-（在此添加应用核心业务流程）
-
-## 更新记录
-
-- {timestamp}: 初始化用户流程设计
-""",
-
-        "data_model.md": f"""# Data model concepts - {app_name}
-
-**创建时间**: {timestamp}
-
-## 核心数据模型
-
-### User（用户）
-
-```dart
-class User {{
-  final String id;
-  final String username;
-  final String email;
-  final String? avatar;
-  final DateTime createdAt;
-}}
-```
-
-### （添加其他数据模型）
-
-## 数据关系
-
-（描述数据模型之间的关系）
-
-## 更新记录
-
-- {timestamp}: 初始化数据模型设计
-""",
-
-        "example_home_page_rough.md": f"""# 首页设计
-
-**对应英文页面**: home_page
-**创建时间**: {timestamp}
-
-## 页面功能
-
-- 展示推荐内容
-- 快速导航入口
-- 用户状态显示
-
-## 布局结构
-
-- 顶部导航栏
-- 内容列表（滚动）
-- 底部Tab栏
-
-## 主要交互
-
-- 下拉刷新
-- 上拉加载更多
-- 点击卡片进入详情
-
-## 更新记录
-
-- {timestamp}: 初始化页面设计
-
----
-**注意**: 这是示例文件，实际开发时可删除
-""",
-
-        "example_profile_page_rough.md": f"""# 个人中心设计
-
-**对应英文页面**: profile_page
-**创建时间**: {timestamp}
-
-## 页面功能
-
-- 显示用户信息
-- 设置入口
-- 功能菜单
-
-## 布局结构
-
-- 顶部用户卡片
-- 功能菜单列表
-- 退出登录按钮
-
-## 主要交互
-
-- 点击头像编辑资料
-- 点击菜单进入对应功能
-- 退出登录确认
-
-## 更新记录
-
-- {timestamp}: 初始化页面设计
-
----
-**注意**: 这是示例文件，实际开发时可删除
-""",
-
-        "design_specs.md": f"""# 设计规格 - {{page_name}}
-
-**创建时间**: {timestamp}
-
-## 颜色规范
-
-- 主色调: #FFFFFF
-- 强调色: #000000
-- 背景色: #F5F5F5
-- 文字色: #333333
-
-## 字体规范
-
-- 标题: 18sp, Bold
-- 正文: 14sp, Regular
-- 辅助文字: 12sp, Regular
-
-## 间距规范
-
-- 页面边距: 16dp
-- 元素间距: 8dp / 16dp / 24dp
-- 圆角: 4dp / 8dp
-
-## 更新记录
-
-- {timestamp}: 初始化设计规格
-"""
-    }
-
-    return templates.get(filename, "")
-
-
-def get_pageview_map_template(page_name: str, page_name_cn: str = "") -> Dict:
-    """获取 pageview_map.json 模板"""
+    """Get file template content - Leave all files empty"""
+    # All template files should be created empty
+    # Users will fill them with actual content
+    return ""
+
+
+def get_pageview_map_template(app_name: str) -> Dict:
+    """
+    Get pageview_map.json template (v2.0 - single file for entire app)
+
+    NOTE: pageview_map.json is now placed at design_docs_and_progress root,
+    NOT in individual page directories
+    """
     return {
-        "image_file": f"{page_name}_wireframe.png",
-        "page_key": page_name,
-        "descriptions": {
-            "purpose": f"{page_name} UI element mapping",
-            "page_name_cn": page_name_cn or "待填写中文名称",
-            "page_name_en": page_name,
-            "specifications": {
-                "architecture": "Follow MVVM pattern: separate UI layer and Data layer",
-                "naming_conventions": {
-                    "widgets": "UpperCamelCase for widget classes",
-                    "variables": "lowerCamelCase for variables and functions",
-                    "files": "snake_case for files and folders",
-                    "constants": "UPPER_SNAKE_CASE for constants"
-                },
-                "ui_guidelines": {
-                    "responsive": "Ensure adaptive design for multiple screen sizes",
-                    "accessibility": "Support screen readers and semantic labels",
-                    "performance": "Use const constructors, avoid rebuilds"
-                }
-            },
-            "version": datetime.now().strftime("%Y"),
-            "reference": "https://docs.flutter.dev/app-architecture"
-        },
-        "elements": [
-            {
-                "type": "text",
-                "text": "Example Text",
-                "bbox": [0, 0, 0, 0],
-                "color": "#000000",
-                "widget_mapping": "ExampleTextWidget",
-                "notes": "Add UI elements here"
-            }
-        ]
+        "version": "2.0",
+        "app_name": app_name,
+        "last_updated": datetime.now().isoformat(),
+        "pages": {}
     }
 
 
@@ -551,11 +336,9 @@ def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict,
                         ensure_file(file_path, content)
 
                     elif filename == "pageview_map.json":
-                        json_content = get_pageview_map_template(subdir_name, "示例页面")
-                        ensure_file(
-                            file_path,
-                            json.dumps(json_content, indent=2, ensure_ascii=False)
-                        )
+                        # SKIP: pageview_map.json is now created at root level only
+                        # Individual page directories no longer have their own pageview_map.json
+                        pass
 
                     elif filename == "design_specs.md":
                         content = get_file_template("design_specs.md", app_name)
@@ -591,6 +374,7 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
     deprecated_file_patterns = [
         "**/示例_*.md",  # Old Chinese example files
         "**/_placeholder.png",  # Old fixed placeholder name
+        "3_page_designs_detailed/*/pageview_map.json",  # Old page-level pageview_map.json (now use root level)
     ]
 
     # Remove deprecated directories
@@ -650,6 +434,16 @@ def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> b
     # 扩展三层目录
     for layer_name, layer_config in DESIGN_STRUCTURE.items():
         expand_layer_directory(base_dir, layer_name, layer_config, app_name)
+
+    # Create root-level pageview_map.json (v2.0 - single file for all pages)
+    pageview_map_path = base_dir / "pageview_map.json"
+    if not pageview_map_path.exists():
+        pageview_map_content = get_pageview_map_template(app_name)
+        ensure_file(
+            pageview_map_path,
+            json.dumps(pageview_map_content, indent=2, ensure_ascii=False)
+        )
+        print(f"[AutoExpand] Created pageview_map.json at root level")
 
     print(f"[AutoExpand] Design structure ensured for {app_name}")
     return True

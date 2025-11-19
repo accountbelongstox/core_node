@@ -1,3 +1,34 @@
+ 同时给web页扩展出完整的顶部菜单，左菜单，tab菜单，中间功能区，右菜单，底部菜单，全部为可扩展。包括js/基于rpc v2的客户端，以及后端的api全部可扩展。
+ 
+ python .\pymain.py app=mcp 使用该命令完整测试，现在在后端默认使用 rpc
+  v2的路由和html静态规范，起动一个web页，之后web页上将显示后端id启动时间
+  等，以实时查看后端有没有被不同的mcp替换。虽然只启动一个页，但你扩展好后端的统一api接口规范，html
+  /css鑫文件/js鑫文件。引入rpc v2的统一客户端通信。全面设计好，方便后面扩展。
+    同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md
+//--------------------------------------------------------------------------------------------------------------
+ 全面重构。 给 mcpctl 一个全局变量，当处理空闲时，如果有新的启动则旧的程序使用 pylauncher 中的 thread_bus 退出全部线程。如果正在处理归拒绝退出，则当前的启动不启动后台，而继续使用之前的单例后台。
+ 
+ 注意：我发现有多个后台测试进程还在运行。需要清理这些进程吗？
+
+  根据之前的设计规范 ，你启动一个后不应该通知 前面的退出吗，为什么还有别的在后台。
+
+pycore\pyctl\mcpctl\mcp_backend_main.py  pycore\pyctl\mcpctl\mcp_backend.py  pycore\pyctl\mcpctl\mcp_launcher.py 为什么还有多个文件，请改为只有一个入口文件，并建立文件建，写上路由注册系统系统 一系列文件。入口文件中的内容不能过长。多余的文件合并或不要了。
+    同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+
+用户提到需要"先移植一个工具，参考 pyapps/mcp/main_backup_20251119_010805.py"。当前 get_file_info 是 mock
+  实现，需要后续集成实际的 controller
+来处理文件信息提取。继续完全部功能，但要对整个系统一致性做对称处理。之后更新  doc\PYCORE_UP.md
+
+···pycore\pyctl\mcpctl\mcp_backend.py pycore\pyctl\mcpctl\mcp_backend_main.py pycore\pyctl\mcpctl\mcp_launcher.py···
+  现在确认后端文件只有一个入口文件，同时不要直接引入fastapi，而是使用 pycore\pyutils\rpc_v2 编写路由，在 mcpctl 中创建多个路由注册，
+  之后使用 pycore\pylauncher 来引入 pycore\pyutils\rpc_v2 ，确保有心跳线程启动，同时 rpc_v2 正确的注册入线程库。并使用 pycore\pyfoundations\thread_bus.py 通信。
+  1：确保 mcpctl 使用了 pycore\pylauncher 单例，给 mcpctl 一个全局变量，当处理空闲时，如果有新的启动则旧的程序使用 pylauncher 中的 thread_bus 退出全部线程。
+  2：先移置一个工具 ，参考 旧文件。 pyapps\mcp\main_backup_20251119_010805.py，
+  直接工作，一步一步检测，并更新 到
+    同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+
 方案4️⃣：代理架构
 
   客户端运行本地代理 → 代理转发到HTTP服务器：
@@ -77,3 +108,7 @@ No MCP resources available
  全面扩展一下  RPCv2版本，pycore\pyutils\rpc_v2pycore\pyutils\rpc_v2 pycore\pyutils\rpc_v2  整个文件全面扫描
   ，给出同时支持 同步的方案，注意其中的客户端注册机制和事件库系统。
     同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+
+确认两个工具是不是都是使用rpc
+  v2调用，使用代理层调用。同时后是不是单例模式。全面再确认一遍。
+
