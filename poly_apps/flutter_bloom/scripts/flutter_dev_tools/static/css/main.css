@@ -102,6 +102,57 @@ header p {
   color: #334155;
 }
 
+/* Current folder path display */
+.current-folder-path {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.path-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.path-label {
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.path-text {
+  flex: 1;
+  font-size: 0.8rem;
+  color: #334155;
+  background: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-icon-small {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 3px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-icon-small:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: scale(1.1);
+}
+
 .icon-btn {
   background: none;
   border: none;

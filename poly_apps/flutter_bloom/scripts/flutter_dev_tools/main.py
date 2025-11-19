@@ -15,7 +15,7 @@ from typing import Dict, List
 from urllib.parse import urlparse, parse_qs
 
 # Import API modules
-from api import app_checker, file_tree, file_reader, folder_opener, file_writer
+from api import app_checker, file_tree, file_reader, folder_opener, file_writer, pageview_updater_api, comparison_api
 from utils import path_utils, port_manager
 
 DEFAULT_HOST = "127.0.0.1"
@@ -90,6 +90,108 @@ class DesignDocRequestHandler(BaseHTTPRequestHandler):
 
             result = file_reader.read_file_content(file_path)
             self.respond_json(result)
+
+        # API: Serve image file
+        elif path == "/api/file/image":
+            file_path_str = query_params.get("path", [""])[0]
+            if not file_path_str:
+                self.send_error(HTTPStatus.BAD_REQUEST, "Missing path parameter")
+                return
+
+            file_path = Path(file_path_str)
+            apps_dir = path_utils.get_apps_dir()
+
+            # Security check: ensure file is within apps directory
+            if not path_utils.is_safe_path(apps_dir, file_path):
+                self.send_error(HTTPStatus.FORBIDDEN, "Access denied")
+                return
+
+            # Check if file exists and is an image
+            if not file_path.exists() or not file_path.is_file():
+                self.send_error(HTTPStatus.NOT_FOUND, "Image file not found")
+                return
+
+            image_extensions = {
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp'
+            }
+
+            extension = file_path.suffix.lower()
+            content_type = image_extensions.get(extension, 'application/octet-stream')
+
+            try:
+                image_data = file_path.read_bytes()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(image_data)))
+                self.end_headers()
+                self.wfile.write(image_data)
+            except Exception as e:
+                self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to read image: {str(e)}")
+
+        # API: Get pageview_map.json stats
+        elif path.startswith("/api/apps/") and "/pageview/stats" in path:
+            app_name = path.split("/")[3]
+            apps_dir = path_utils.get_apps_dir()
+            app_path = apps_dir / app_name
+
+            if not app_path.exists():
+                self.send_error(HTTPStatus.NOT_FOUND, "App not found")
+                return
+
+            result = pageview_updater_api.get_pageview_map_stats(app_path)
+            self.respond_json(result)
+
+        # API: List comparison images
+        elif path.startswith("/api/apps/") and "/comparison/list/" in path:
+            # Parse: /api/apps/{app_name}/comparison/list/{page_key}
+            parts = path.split("/")
+            if len(parts) >= 7:
+                app_name = parts[3]
+                page_key = parts[6]
+
+                apps_dir = path_utils.get_apps_dir()
+                app_path = apps_dir / app_name
+
+                if not app_path.exists():
+                    self.send_error(HTTPStatus.NOT_FOUND, "App not found")
+                    return
+
+                result = comparison_api.list_comparisons(app_path, page_key)
+                self.respond_json(result)
+            else:
+                self.send_error(HTTPStatus.BAD_REQUEST, "Invalid path format")
+
+        # API: Download comparison image
+        elif path.startswith("/api/comparison/download/"):
+            # Parse: /api/comparison/download/{app_name}/{page_key}/{filename}
+            parts = path.split("/")
+            if len(parts) >= 6:
+                app_name = parts[4]
+                page_key = parts[5]
+                filename = "/".join(parts[6:])  # Handle filenames with slashes
+
+                file_path = comparison_api.get_comparison_file_path(app_name, page_key, filename)
+
+                if not file_path or not file_path.exists():
+                    self.send_error(HTTPStatus.NOT_FOUND, "Comparison image not found")
+                    return
+
+                # Send image file
+                try:
+                    image_data = file_path.read_bytes()
+                    self.send_response(HTTPStatus.OK)
+                    self.send_header("Content-Type", "image/png")
+                    self.send_header("Content-Length", str(len(image_data)))
+                    self.end_headers()
+                    self.wfile.write(image_data)
+                except Exception as e:
+                    self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to read image: {str(e)}")
+            else:
+                self.send_error(HTTPStatus.BAD_REQUEST, "Invalid path format")
 
         # Static files
         elif path.startswith("/static/"):
@@ -181,6 +283,158 @@ class DesignDocRequestHandler(BaseHTTPRequestHandler):
             except json.JSONDecodeError as e:
                 self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
             except Exception as e:
+                self.respond_json({"success": False, "error": str(e)})
+
+        # Update pageview_map.json with image analysis
+        elif self.path.startswith("/api/apps/") and "/pageview/update" in self.path:
+            try:
+                # Parse app name from path: /api/apps/{app_name}/pageview/update
+                parts = self.path.split("/")
+                app_name = parts[3]
+
+                # Read request body
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length) if content_length > 0 else b'{}'
+                data = json.loads(body.decode('utf-8'))
+
+                layer = data.get("layer", "all")  # "rough", "detailed", or "all"
+                force = data.get("force", False)  # Force re-analysis
+
+                apps_dir = path_utils.get_apps_dir()
+                app_path = apps_dir / app_name
+
+                if not app_path.exists():
+                    self.respond_json({"success": False, "error": "App not found"})
+                    return
+
+                result = pageview_updater_api.update_app_pageview_map(app_path, layer, force)
+                self.respond_json(result)
+
+            except json.JSONDecodeError as e:
+                self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)})
+
+        # Upload actual/composite image
+        elif self.path.startswith("/api/apps/") and "/pageview/upload-actual" in self.path:
+            try:
+                # Parse app name from path: /api/apps/{app_name}/pageview/upload-actual
+                parts = self.path.split("/")
+                app_name = parts[3]
+
+                # Read multipart form data
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+
+                # Simple multipart parsing (assuming single file upload)
+                # For production, use proper multipart parser
+                import re
+
+                # Extract boundary
+                content_type = self.headers.get('Content-Type', '')
+                boundary_match = re.search(r'boundary=(.+)', content_type)
+                if not boundary_match:
+                    # Try JSON format
+                    data = json.loads(body.decode('utf-8'))
+                    page_key = data.get("page_key", "")
+                    description = data.get("description", "implemented")
+
+                    # Decode base64 image
+                    import base64
+                    image_data = base64.b64decode(data.get("image_data", ""))
+                else:
+                    # Parse multipart
+                    boundary = boundary_match.group(1).encode()
+                    parts = body.split(b'--' + boundary)
+
+                    page_key = ""
+                    description = "implemented"
+                    image_data = b''
+
+                    for part in parts:
+                        if b'name="page_key"' in part:
+                            page_key = part.split(b'\r\n\r\n')[1].strip(b'\r\n').decode('utf-8')
+                        elif b'name="description"' in part:
+                            description = part.split(b'\r\n\r\n')[1].strip(b'\r\n').decode('utf-8')
+                        elif b'name="image"' in part:
+                            image_data = part.split(b'\r\n\r\n')[1].rsplit(b'\r\n', 1)[0]
+
+                if not page_key or not image_data:
+                    self.respond_json({"success": False, "error": "Missing page_key or image data"})
+                    return
+
+                apps_dir = path_utils.get_apps_dir()
+                app_path = apps_dir / app_name
+
+                if not app_path.exists():
+                    self.respond_json({"success": False, "error": "App not found"})
+                    return
+
+                result = pageview_updater_api.upload_actual_image(
+                    app_path,
+                    page_key,
+                    description,
+                    image_data
+                )
+                self.respond_json(result)
+
+            except Exception as e:
+                print(f"[ERROR] Upload actual image failed: {e}")
+                import traceback
+                traceback.print_exc()
+                self.respond_json({"success": False, "error": str(e)})
+
+        # Create comparison image
+        elif self.path.startswith("/api/apps/") and "/comparison/create" in self.path:
+            try:
+                # Parse app name from path: /api/apps/{app_name}/comparison/create
+                parts = self.path.split("/")
+                app_name = parts[3]
+
+                # Read request body
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body.decode('utf-8'))
+
+                page_key = data.get("page_key", "")
+                expected_image_path = data.get("expected_image_path", "")
+                description = data.get("description", "implemented")
+
+                # Decode base64 image data
+                import base64
+                image_data_b64 = data.get("image_data", "")
+                if not image_data_b64:
+                    self.respond_json({"success": False, "error": "Missing image_data"})
+                    return
+
+                image_data = base64.b64decode(image_data_b64)
+
+                if not page_key or not expected_image_path or not image_data:
+                    self.respond_json({"success": False, "error": "Missing required parameters"})
+                    return
+
+                apps_dir = path_utils.get_apps_dir()
+                app_path = apps_dir / app_name
+
+                if not app_path.exists():
+                    self.respond_json({"success": False, "error": "App not found"})
+                    return
+
+                result = comparison_api.create_comparison(
+                    app_path,
+                    page_key,
+                    expected_image_path,
+                    image_data,
+                    description
+                )
+                self.respond_json(result)
+
+            except json.JSONDecodeError as e:
+                self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
+            except Exception as e:
+                print(f"[ERROR] Create comparison failed: {e}")
+                import traceback
+                traceback.print_exc()
                 self.respond_json({"success": False, "error": str(e)})
 
         else:

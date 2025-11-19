@@ -130,6 +130,9 @@ class ServiceConfig:
     singleton_check: bool = True
     force_launch: bool = False
 
+    # Singleton state management
+    state_checker: Optional[Callable[[], Dict[str, Any]]] = None  # Callback to get application state
+
     @classmethod
     def rpc_only(cls, port: int = 8080, host: str = "0.0.0.0") -> 'ServiceConfig':
         """Configuration for RPC service only"""
@@ -693,7 +696,8 @@ def launch_services(
             port_start=config.port_start,
             port_range=config.port_range,
             debug=True,
-            on_message=on_singleton_message
+            on_message=on_singleton_message,
+            state_checker=config.state_checker
         )
         detection = detector.detect_and_bind()
 
