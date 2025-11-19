@@ -11,6 +11,8 @@ https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-59
 
 unNcWiBF6nkVmxzioP0fRkjvNEnm50FSKFDpIIKoaW6tkQy7#FAtUGXJFoVmRBj-CHujoZDrtSqGID3sZJH7ZRI8mUzQ
 
+https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A18228%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainference&code_challenge=-ps5TVmN-pLkP6IhoDOJlUUT7aN_lw1nVpvY9vguRnQ&code_challenge_method=S256&state=Y2ZL4DjUMsjvkM8UinIbyDkp9PlT-75FDc0KVKj4uZs
+
 ## 当前问题
 
 ### 问题1: 架构混乱
