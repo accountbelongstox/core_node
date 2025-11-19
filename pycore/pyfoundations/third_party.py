@@ -683,6 +683,14 @@ def get_third_package_fastapi():
     return _lazy_import('fastapi', 'import fastapi')
 
 
+def get_third_package_starlette_staticfiles():
+    """Get starlette.staticfiles.StaticFiles (lazy load, installed with fastapi)"""
+    if 'starlette_StaticFiles' not in _PACKAGE_CACHE:
+        from starlette.staticfiles import StaticFiles
+        _PACKAGE_CACHE['starlette_StaticFiles'] = StaticFiles
+    return _PACKAGE_CACHE['starlette_StaticFiles']
+
+
 def get_third_package_PIL():
     """Get PIL package (lazy load)"""
     return _lazy_import('PIL', 'import PIL')

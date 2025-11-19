@@ -1,0 +1,359 @@
+/**
+ * Video Player & Stream Components
+ *
+ * Vibrant video player with gradient controls
+ */
+
+/* ========================================
+   VIDEO CONTAINER
+   ======================================== */
+.pm-video-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--pm-bg-gradient-rainbow);
+  border-radius: var(--pm-border-radius);
+  overflow-y: hidden;
+  overflow-x: visible; /* Allow sidebar to show outside */
+  box-shadow: var(--pm-shadow-lg);
+}
+
+.pm-video-container--fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--pm-z-modal);
+  border-radius: 0;
+}
+
+/* ========================================
+   VIDEO ELEMENT
+   ======================================== */
+.pm-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* ========================================
+   VIDEO OVERLAY
+   ======================================== */
+.pm-video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(255, 8, 68, 0.1) 50%,
+    rgba(0, 150, 255, 0.1) 100%
+  );
+  opacity: 0;
+  transition: opacity var(--pm-transition-base) var(--pm-ease);
+  pointer-events: none;
+}
+
+.pm-video-container:hover .pm-video-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ========================================
+   VIDEO CONTROLS
+   ======================================== */
+.pm-video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--pm-spacing-4);
+  background: linear-gradient(to top,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.6) 50%,
+    transparent 100%
+  );
+  transform: translateY(100%);
+  transition: transform var(--pm-transition-base) var(--pm-ease);
+}
+
+.pm-video-container:hover .pm-video-controls {
+  transform: translateY(0);
+}
+
+.pm-video-controls__top {
+  display: flex;
+  align-items: center;
+  gap: var(--pm-spacing-3);
+  margin-bottom: var(--pm-spacing-3);
+}
+
+.pm-video-controls__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pm-spacing-3);
+}
+
+/* ========================================
+   VIDEO CONTROL BUTTONS
+   ======================================== */
+.pm-video-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pm-gradient-rainbow);
+  background-size: 200% 200%;
+  border: none;
+  border-radius: var(--pm-border-radius-full);
+  color: white;
+  cursor: pointer;
+  transition: all var(--pm-transition-base) var(--pm-ease);
+  animation: pm-gradient-flow 3s ease infinite;
+}
+
+.pm-video-btn:hover {
+  transform: scale(1.1);
+  box-shadow: var(--pm-shadow-rainbow);
+}
+
+.pm-video-btn--play {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: var(--pm-text-2xl);
+  background: var(--pm-gradient-fire);
+}
+
+.pm-video-btn--fullscreen {
+  background: var(--pm-gradient-electric-blue);
+}
+
+.pm-video-btn--settings {
+  background: var(--pm-gradient-violet);
+}
+
+/* ========================================
+   VIDEO INFO OVERLAY
+   ======================================== */
+.pm-video-info {
+  position: absolute;
+  top: var(--pm-spacing-4);
+  left: var(--pm-spacing-4);
+  right: var(--pm-spacing-4);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--pm-spacing-4);
+  opacity: 0;
+  transition: opacity var(--pm-transition-base) var(--pm-ease);
+  pointer-events: none;
+}
+
+.pm-video-container:hover .pm-video-info {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pm-video-info__left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-spacing-2);
+  padding: var(--pm-spacing-3);
+  background: var(--pm-bg-gradient-purple);
+  border-radius: var(--pm-border-radius);
+  box-shadow: var(--pm-shadow-lg);
+}
+
+.pm-video-info__device {
+  font-size: var(--pm-text-lg);
+  font-weight: var(--pm-font-bold);
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.pm-video-info__resolution {
+  font-size: var(--pm-text-sm);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pm-video-info__right {
+  display: flex;
+  gap: var(--pm-spacing-2);
+}
+
+/* ========================================
+   VIDEO STATUS BADGE
+   ======================================== */
+.pm-video-status {
+  padding: var(--pm-spacing-2) var(--pm-spacing-3);
+  background: var(--pm-gradient-forest);
+  background-size: 200% 200%;
+  border-radius: var(--pm-border-radius);
+  font-size: var(--pm-text-xs);
+  font-weight: var(--pm-font-bold);
+  color: white;
+  animation: pm-gradient-flow 3s ease infinite, pm-pulse 2s ease-in-out infinite;
+}
+
+.pm-video-status--recording {
+  background: var(--pm-gradient-fire);
+}
+
+.pm-video-status--paused {
+  background: var(--pm-gradient-golden);
+  animation: none;
+}
+
+/* ========================================
+   VIDEO LOADING STATE
+   ======================================== */
+.pm-video-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pm-spacing-4);
+}
+
+.pm-video-loading__spinner {
+  width: 4rem;
+  height: 4rem;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: pm-spin 0.8s linear infinite;
+}
+
+.pm-video-loading__text {
+  font-size: var(--pm-text-base);
+  font-weight: var(--pm-font-medium);
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ========================================
+   VIDEO ERROR STATE
+   ======================================== */
+.pm-video-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  padding: var(--pm-spacing-8);
+  background: var(--pm-bg-gradient-peach);
+  border-radius: var(--pm-border-radius-lg);
+  box-shadow: var(--pm-shadow-xl);
+}
+
+.pm-video-error__icon {
+  font-size: 4rem;
+  background: var(--pm-gradient-fire);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--pm-spacing-4);
+}
+
+.pm-video-error__title {
+  margin: 0 0 var(--pm-spacing-2);
+  font-size: var(--pm-text-xl);
+  font-weight: var(--pm-font-bold);
+  color: var(--pm-text-primary);
+}
+
+.pm-video-error__message {
+  margin: 0 0 var(--pm-spacing-6);
+  font-size: var(--pm-text-base);
+  color: var(--pm-text-secondary);
+}
+
+/* ========================================
+   VIDEO EMPTY STATE
+   ======================================== */
+.pm-video-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--pm-bg-gradient-sunset);
+  gap: var(--pm-spacing-4);
+}
+
+.pm-video-empty__icon {
+  font-size: 6rem;
+  background: var(--pm-gradient-rainbow);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.pm-video-empty__text {
+  font-size: var(--pm-text-xl);
+  font-weight: var(--pm-font-medium);
+  color: var(--pm-text-secondary);
+}
+
+/* ========================================
+   VIDEO GRID (Multiple Streams)
+   ======================================== */
+.pm-video-grid {
+  display: grid;
+  gap: var(--pm-spacing-2);
+  width: 100%;
+  height: 100%;
+  background: var(--pm-bg-gradient-rainbow);
+  padding: var(--pm-spacing-2);
+}
+
+.pm-video-grid--1 {
+  grid-template-columns: 1fr;
+}
+
+.pm-video-grid--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.pm-video-grid--3,
+.pm-video-grid--4 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.pm-video-grid--6,
+.pm-video-grid--9 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.pm-video-grid__item {
+  position: relative;
+  background: #000;
+  border-radius: var(--pm-border-radius);
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-image: var(--pm-gradient-rainbow) 1;
+  transition: all var(--pm-transition-base) var(--pm-ease);
+}
+
+.pm-video-grid__item:hover {
+  border-image: var(--pm-gradient-aurora) 1;
+  transform: scale(1.02);
+  box-shadow: var(--pm-shadow-rainbow);
+  z-index: 1;
+}
+
+.pm-video-grid__item--selected {
+  border-image: var(--pm-gradient-fire) 1;
+  box-shadow: 0 8px 24px rgba(255, 8, 68, 0.3);
+}
