@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-MCP Backend Server - Single Entry Point
+MCP Backend Server - RPC v2 Architecture (Refactored 2025-11-19)
 
-Modular architecture:
-- config.py: Port configuration and backend info template
-- handlers/: Route handlers (file_processing, database, codebase)
-- routes.py: FastAPI route registration system
+Architecture:
+- Uses pycore.pylauncher (new refactored version with ThreadService)
+- Uses pycore.pyutils.rpc_v2 (FastAPIRPCServer with WebSocket, ACK, Inventory)
+- Does NOT directly implement HTTP server
+- Routes registered via backend/rpc_routes.py
 
 Usage:
     python -m pycore.pyctl.mcpctl.mcp_backend_main
@@ -16,7 +17,6 @@ import os
 import sys
 import time
 import uuid
-import threading
 from pathlib import Path
 
 # Add project root
@@ -24,17 +24,15 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
-from pycore.pylauncher import launch_services, stop_services, ServiceConfig
+from pycore.pylauncher import LauncherConfig, ServiceLauncher
 from pycore.pygvar import (
     MCP_BACKEND_SINGLETON_PORT_START,
     MCP_BACKEND_SINGLETON_PORT_RANGE,
-    MCP_BACKEND_RPC_PORT_START
+    MCP_BACKEND_RPC_PORT
 )
-from pycore.pyctl.mcpctl.backend.config import (
-    BACKEND_INFO_TEMPLATE
-)
+from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
 from pycore.pyctl.mcpctl.backend import handlers
-from pycore.pyctl.mcpctl.backend.routes import register_routes
+from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes
 from pycore.pyctl.mcpctl.global_state import get_backend_state_dict, get_global_state
 from pyapps.mcp.controller import (
     get_file_info_controller_singleton,
@@ -42,66 +40,73 @@ from pyapps.mcp.controller import (
     get_codebase_controller_singleton
 )
 
+# Web UI paths
+WEB_DIR = Path(__file__).parent / "web"
+STATIC_DIR = WEB_DIR / "static"
+
 
 def start_mcp_backend(shutdown_existing: bool = True) -> bool:
-    """Start MCP backend with modular architecture"""
+    """Start MCP backend with RPC v2 architecture"""
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue("MCP Backend Server (Modular Architecture + Smart Singleton)")
+    ColorPrint.blue("MCP Backend Server (RPC v2 Architecture)")
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(f"[Backend] Singleton Detection: port {MCP_BACKEND_SINGLETON_PORT_START}-{MCP_BACKEND_SINGLETON_PORT_START + MCP_BACKEND_SINGLETON_PORT_RANGE - 1}")
-    ColorPrint.blue(f"[Backend] RPC v2 Service: port {MCP_BACKEND_RPC_PORT_START}")
+    ColorPrint.blue(f"[Backend] RPC v2 Service: port {MCP_BACKEND_RPC_PORT} (fixed)")
     ColorPrint.blue("=" * 70)
-
-    # Register shutdown handler
-    def on_shutdown_request(event_data):
-        ColorPrint.yellow(f"\n[Backend] Shutdown requested: {event_data}")
-        handlers.file_processing.backend_info["status"] = "shutting_down"
-
-    THREAD_BUS.register_event_handler('global.shutdown.requested', on_shutdown_request, priority=10)
 
     # Initialize global state manager
     global_state = get_global_state()
     ColorPrint.blue("[Backend] Global state manager initialized")
 
-    # Create service configuration with state checker
-    config = ServiceConfig(
+    # Create service configuration using new LauncherConfig API
+    config = LauncherConfig(
         app_id="mcp_backend",
         app_name="MCP Backend Server",
-        enable_ui=False,
-        enable_rpc=False,  # Disable pylauncher RPC v1
-        enable_speech=False,
-        enable_heartbeat=True,
-        port_start=MCP_BACKEND_SINGLETON_PORT_START,
-        port_range=MCP_BACKEND_SINGLETON_PORT_RANGE,
-        singleton_check=True,
-        force_launch=False,
-        state_checker=get_backend_state_dict  # Provide state checker for smart singleton
+        services={
+            'heartbeat': {},  # Always enabled by default
+            'rpc_v2': {
+                'port': MCP_BACKEND_RPC_PORT,
+                'host': '0.0.0.0',
+                'debug': True
+            }
+        }
     )
 
-    # Launch services via pylauncher
-    ColorPrint.blue("[Backend] Launching services via pylauncher...")
-    instances = launch_services(config=config, shutdown_existing=shutdown_existing)
+    # Launch services via new ServiceLauncher
+    ColorPrint.blue("[Backend] Launching services via PyLauncher (RPC v2)...")
+    launcher = ServiceLauncher(config)
 
-    # Check if we successfully became PRIMARY
-    if not instances.singleton_detector:
-        ColorPrint.red("[FAILED] Could not become PRIMARY instance")
+    if not launcher.start():
+        ColorPrint.red("[FAILED] Could not start services")
         return False
 
-    # Get singleton port and update backend info
-    singleton_port = instances.singleton_detector.get_port()
+    # Get RPC v2 service
+    rpc_service = launcher.get_service('rpc_v2')
+    if not rpc_service:
+        ColorPrint.red("[FAILED] RPC v2 service not started")
+        return False
+
+    # Get RPC v2 server instance
+    rpc_server = rpc_service.get_instance()
+    if not rpc_server:
+        ColorPrint.red("[FAILED] Could not get RPC v2 server instance")
+        return False
+
+    # Generate backend ID
     backend_id = str(uuid.uuid4())[:8]
 
     # Initialize backend_info from template
     backend_info = BACKEND_INFO_TEMPLATE.copy()
     backend_info["backend_id"] = backend_id
-    backend_info["singleton_port"] = singleton_port
-    backend_info["rpc_port"] = MCP_BACKEND_RPC_PORT_START
+    backend_info["singleton_port"] = None  # No singleton detection in new architecture
+    backend_info["rpc_port"] = MCP_BACKEND_RPC_PORT
     backend_info["status"] = "running"
+    backend_info["start_time"] = int(time.time())
 
     ColorPrint.green("=" * 70)
-    ColorPrint.green(f"[SUCCESS] Backend {backend_id} is PRIMARY instance")
-    ColorPrint.green(f"[SUCCESS] Singleton port: {singleton_port}")
-    if instances.heartbeat_system:
+    ColorPrint.green(f"[SUCCESS] Backend {backend_id} started")
+    ColorPrint.green(f"[SUCCESS] RPC v2 server running on port {MCP_BACKEND_RPC_PORT}")
+    if launcher.is_running('heartbeat'):
         ColorPrint.green(f"[SUCCESS] Heartbeat system running")
     ColorPrint.green("=" * 70)
 
@@ -120,68 +125,32 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     handlers.codebase.backend_info = backend_info
     handlers.codebase.codebase_controller = codebase_controller
 
-    # Start minimal FastAPI server
-    ColorPrint.blue("[Backend] Starting minimal FastAPI server...")
+    # Register MCP routes to RPC v2 server
+    ColorPrint.blue("[Backend] Registering MCP routes to RPC v2 server...")
+    register_mcp_routes(rpc_server)
 
-    from pycore.pyfoundations.third_party import get_third_package_fastapi, get_third_package_uvicorn
-
-    fastapi_module = get_third_package_fastapi()
-    uvicorn = get_third_package_uvicorn()
-    FastAPI = fastapi_module.FastAPI
-
-    # Create FastAPI app
-    app = FastAPI(title="MCP Backend RPC", version="2.0")
-
-    # Register all routes via routes.py
-    register_routes(app, fastapi_module)
-
-    # Add static file serving and web UI routes
-    from pathlib import Path
-    WEB_DIR = Path(__file__).parent / "web"
-    STATIC_DIR = WEB_DIR / "static"
-
-    # Mount static files
+    # Mount Web UI static files
     if STATIC_DIR.exists():
-        # Import StaticFiles from starlette (FastAPI dependency)
-        try:
-            from starlette.staticfiles import StaticFiles
-            app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-            ColorPrint.green("[Backend] Static files mounted at /static")
-        except ImportError:
-            ColorPrint.yellow("[Backend] Warning: starlette not available, static files not mounted")
+        rpc_server.add_static_dir("/static", str(STATIC_DIR))
+        ColorPrint.green(f"[Backend] Static files mounted at /static")
 
-    # Root route serves web UI
-    FileResponse = fastapi_module.responses.FileResponse
+    # Mount root route for Web UI
+    if (WEB_DIR / "index.html").exists():
+        # RPC v2 server should handle root route automatically via static files
+        rpc_server.add_static_dir("/", str(WEB_DIR))
+        ColorPrint.green(f"[Backend] Web UI mounted at http://localhost:{MCP_BACKEND_RPC_PORT}/")
 
-    @app.get("/")
-    async def root():
-        index_file = WEB_DIR / "index.html"
-        if index_file.exists():
-            return FileResponse(str(index_file))
-        return {"message": "MCP Backend API", "version": "2.0", "web_ui": "not found"}
-
-    ColorPrint.green("[Backend] Routes registered: 20 total (1 meta + 19 tools)")
-    ColorPrint.green("  - File Processing: 4 tools")
-    ColorPrint.green("  - Database: 7 tools")
-    ColorPrint.green("  - Codebase: 8 tools")
-
-    # Start FastAPI server in background thread
-    def run_server():
-        uvicorn.run(app, host="0.0.0.0", port=MCP_BACKEND_RPC_PORT_START, log_level="info")
-
-    server_thread = threading.Thread(
-        target=run_server,
-        name="FastAPIServerThread",
-        daemon=True
-    )
-    server_thread.start()
-
-    ColorPrint.green(f"[SUCCESS] FastAPI server started (Thread: {server_thread.name})")
-    ColorPrint.green(f"[SUCCESS] RPC service port: {MCP_BACKEND_RPC_PORT_START}")
-    ColorPrint.blue(f"[Backend] RPC HTTP: http://localhost:{MCP_BACKEND_RPC_PORT_START}/rpc/")
-    ColorPrint.green(f"[Backend] Smart singleton enabled: IDLE→Allow replacement, BUSY→Deny replacement")
+    ColorPrint.blue(f"[Backend] RPC HTTP: http://localhost:{MCP_BACKEND_RPC_PORT}/rpc/<route>")
+    ColorPrint.blue(f"[Backend] RPC WebSocket: ws://localhost:{MCP_BACKEND_RPC_PORT}/rpc/ws")
     ColorPrint.yellow("\n[Backend] Server running...")
     ColorPrint.yellow("Press Ctrl+C to stop\n")
+
+    # Register shutdown handler
+    def on_shutdown_request(event_data):
+        ColorPrint.yellow(f"\n[Backend] Shutdown requested: {event_data}")
+        backend_info["status"] = "shutting_down"
+
+    THREAD_BUS.register_event_handler('global.shutdown.requested', on_shutdown_request, priority=10)
 
     # Keep service running and monitor shutdown signal
     try:
@@ -194,9 +163,9 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     except KeyboardInterrupt:
         ColorPrint.blue("\n[Backend] Shutting down (Ctrl+C)...")
 
-    # Cleanup
+    # Cleanup - use launcher's stop method
     ColorPrint.blue("[Backend] Stopping services...")
-    stop_services(instances)
+    launcher.stop()
     backend_info["status"] = "stopped"
     ColorPrint.green("[Backend] Stopped")
 
@@ -207,7 +176,7 @@ def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="MCP Backend Server (Modular Architecture)")
+    parser = argparse.ArgumentParser(description="MCP Backend Server (RPC v2 Architecture)")
     parser.add_argument(
         "--no-shutdown-existing",
         action="store_true",

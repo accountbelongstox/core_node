@@ -1,0 +1,229 @@
+/**
+ * 主主题 - 公共 CSS 变量和基础样式
+ * 所有子 APP 都继承此主题
+ * 禁止在页面组件中重复定义这些变量
+ */
+
+:root {
+  /* ===== 颜色系统 ===== */
+  /* 主色调 */
+  --primary-color: #4361ee;
+  --primary-color-hover: #3651d4;
+  --primary-color-light: #e8ecfe;
+  --secondary-color: #805dca;
+  --secondary-color-hover: #7049b8;
+
+  /* 功能色 */
+  --success-color: #00ab55;
+  --success-color-hover: #009246;
+  --success-color-light: #e5f8f0;
+  --warning-color: #e2a03f;
+  --warning-color-hover: #d08f2e;
+  --warning-color-light: #fff8e1;
+  --error-color: #e7515a;
+  --error-color-hover: #d43f47;
+  --error-color-light: #ffeef0;
+  --info-color: #2196f3;
+  --info-color-hover: #0d8aee;
+  --info-color-light: #e5f3ff;
+
+  /* 中性色 */
+  --text-primary: #3b3f5c;
+  --text-secondary: #515365;
+  --text-tertiary: #888ea8;
+  --text-disabled: #bfc9d4;
+
+  /* 背景色 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f1f2f3;
+  --bg-tertiary: #fafafa;
+  --bg-hover: #f8f9fa;
+
+  /* 边框色 */
+  --border-color: #e0e6ed;
+  --border-color-dark: #d3dce6;
+  --border-color-light: #ebedf2;
+
+  /* 卡片 */
+  --card-bg: #ffffff;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+
+  /* ===== 状态色 ===== */
+  --status-draft-bg: #f5f5f5;
+  --status-draft-color: #666666;
+  --status-active-bg: #e5f3ff;
+  --status-active-color: #2196f3;
+  --status-progress-bg: #fff8e1;
+  --status-progress-color: #e2a03f;
+  --status-completed-bg: #e5f8f0;
+  --status-completed-color: #00ab55;
+  --status-cancelled-bg: #ffeef0;
+  --status-cancelled-color: #e7515a;
+
+  /* ===== 标签色 ===== */
+  --tag-bg: #f1f2f3;
+  --tag-color: #515365;
+  --tag-border: #e0e6ed;
+
+  /* ===== 间距系统 ===== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* ===== 圆角系统 ===== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ===== 字体系统 ===== */
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ===== 阴影系统 ===== */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+  /* ===== 过渡系统 ===== */
+  --transition-fast: 150ms ease-in-out;
+  --transition-base: 300ms ease-in-out;
+  --transition-slow: 500ms ease-in-out;
+
+  /* ===== Z-index 系统 ===== */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}
+
+/* 暗色主题 */
+[data-theme='dark'] {
+  --text-primary: #e0e6ed;
+  --text-secondary: #bfc9d4;
+  --text-tertiary: #888ea8;
+  --text-disabled: #515365;
+
+  --bg-primary: #0e1726;
+  --bg-secondary: #1b2e4b;
+  --bg-tertiary: #253b5e;
+  --bg-hover: #2d4468;
+
+  --border-color: #253b5e;
+  --border-color-dark: #1b2e4b;
+  --border-color-light: #2d4468;
+
+  --card-bg: #1b2e4b;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  --tag-bg: #253b5e;
+  --tag-color: #bfc9d4;
+  --tag-border: #2d4468;
+}
+
+/* ===== 基础样式重置 ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+/* ===== 通用工具类 ===== */
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
+}
+
+@media (min-width: 640px) {
+  .container {
+    max-width: 640px;
+  }
+}
+
+@media (min-width: 768px) {
+  .container {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1024px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container {
+    max-width: 1280px;
+  }
+}
+
+/* 文本工具类 */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+/* 响应式工具 */
+@media (max-width: 767px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}

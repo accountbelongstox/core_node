@@ -63,15 +63,18 @@ SYSTEM_DISK_INFO = DISK_INFO
 SYSTEM_INFO_SUMMARY = SYSTEM_SUMMARY
 
 # ============================================================
-# Port Range Configuration (Singleton Detection)
+# Port Configuration (MCP Backend)
 # ============================================================
-# MCP Backend: 58000-58099 (Singleton detection)
+# Singleton Detection Port Range (58000-58099): Dynamic selection for protocol validation
+# - Prevents false positives from occupied ports that aren't this system
+# - Uses protocol communication to confirm if it's an instance of this project
 MCP_BACKEND_SINGLETON_PORT_START = 58000
 MCP_BACKEND_SINGLETON_PORT_RANGE = 100
 
-# MCP Backend: 58100-58199 (HTTP/RPC service)
-MCP_BACKEND_RPC_PORT_START = 58100
-MCP_BACKEND_RPC_PORT_RANGE = 100
+# Web/RPC Service Port (58100): Fixed port for FastAPI HTTP service
+# - No dynamic range used
+# - Fixed port for easier client connection
+MCP_BACKEND_RPC_PORT = 58100
 
 # MCP Proxy: 58200-58299 (Singleton detection)
 MCP_PROXY_SINGLETON_PORT_START = 58200
@@ -160,8 +163,7 @@ __all__ = [
     # Port Range Configuration
     'MCP_BACKEND_SINGLETON_PORT_START',
     'MCP_BACKEND_SINGLETON_PORT_RANGE',
-    'MCP_BACKEND_RPC_PORT_START',
-    'MCP_BACKEND_RPC_PORT_RANGE',
+    'MCP_BACKEND_RPC_PORT',
     'MCP_PROXY_SINGLETON_PORT_START',
     'MCP_PROXY_SINGLETON_PORT_RANGE',
     'GENERAL_SINGLETON_PORT_START',

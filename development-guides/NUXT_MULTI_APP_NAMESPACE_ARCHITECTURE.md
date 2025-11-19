@@ -1,6 +1,6 @@
 # Nuxt Multi-App Namespace Architecture
 
-**Version:** 6.0 (Updated: 2025-11-10)
+**Version:** 7.0 (Updated: 2025-11-12)
 **Status:** ✅ COMPLETE
 
 ---
@@ -24,8 +24,32 @@ When developing features, **always check and extend `common/` libraries first** 
 - ✅ Keep common code **generic and configurable**
 - ❌ Avoid adding app-specific business logic to common layer
 
-### Entry Point Pattern
-**Rule:** `pages/index.{namespace}.vue` should **ONLY import a single component**, with all logic in the app component.
+### Pages Directory Management Pattern
+**Rule:** The `pages/` directory is **automatically managed** by the multi-app architecture. **DO NOT edit files in `pages/` directly.**
+
+**Critical Rules:**
+1. **Always edit files in `app_{namespace}_pages/` directories** - These are the source of truth
+2. **Never edit files in `pages/` directly** - Changes will be lost when switching apps
+3. **Use `app_main_pages/` as template** - Copy this directory when creating new apps
+4. **Pages directory is recursively cleared and repopulated** when switching apps
+
+**Directory Structure:**
+```
+poly_apps/nuxt_main/
+├── app_main_pages/              # Main app pages template (source of truth)
+│   ├── index.vue                # Main entry page
+│   ├── index.{namespace}.vue    # App-specific entry pages
+│   └── ...                      # Other pages
+├── app_{namespace}_pages/        # App-specific pages (source of truth)
+│   ├── index.vue                # App entry page
+│   └── ...                      # App pages
+└── pages/                       # Active pages (auto-managed, DO NOT EDIT)
+    ├── INDEX.md                 # Indicator file (explains architecture)
+    └── ...                      # Copied from active app_{namespace}_pages/
+```
+
+**Entry Page Pattern:**
+Each `app_{namespace}_pages/index.vue` should **ONLY import a single component**, with all logic in the app component.
 
 **Required Pattern:**
 ```vue
@@ -39,7 +63,7 @@ import {Namespace}App from '@/apps/app_{namespace}/components_app_{namespace}/{n
 </script>
 ```
 
-**Example:** `pages/index.ittools.vue` → `components_app_ittools/ittools_index/ItToolsApp.vue`
+**Example:** `app_ittools_pages/index.vue` → `components_app_ittools/ittools_index/ItToolsApp.vue`
 
 ---
 
@@ -66,6 +90,16 @@ poly_apps/nuxt_main/
 │   │       ├── ja.json
 │   │       └── fa.json
 │   └── config_app_{namespace}/     # App config
+├── app_main_pages/                 # Main app pages template
+│   ├── index.vue                   # Main entry page
+│   ├── index.{namespace}.vue       # App-specific entry pages
+│   └── ...                         # Other pages
+├── app_{namespace}_pages/          # App-specific pages (source of truth)
+│   ├── index.vue                   # App entry page
+│   └── ...                         # App pages
+├── pages/                          # Active pages (auto-managed, DO NOT EDIT)
+│   ├── INDEX.md                    # Indicator file
+│   └── ...                         # Copied from active app_{namespace}_pages/
 ├── common/                         # Shared foundation
 │   ├── components/ui/
 │   ├── composables/
@@ -75,7 +109,8 @@ poly_apps/nuxt_main/
 ├── i18n/locales/                   # Global translations
 ├── configs/{namespace}.config.ts   # App configs
 ├── composables/useRouteNamespace.ts# Namespace detection
-└── pages/index.{namespace}.vue     # App entry pages
+└── scripts/
+    └── switch-pages-directory.js   # Pages directory switcher
 ```
 
 ### Location Example
@@ -128,19 +163,60 @@ export type RegisteredNamespace =
 **App-Specific:** `apps/app_{namespace}/layouts_app_{namespace}/`
 **Usage:** `definePageMeta({ layout: 'pymatrix' })`
 
-### 6. Entry Point & Build System
+### 6. Pages Directory & Build System
+
+#### Pages Directory Management
+The `pages/` directory is **automatically managed** by the architecture system:
+1. **Source of Truth:** Each app has its own `app_{namespace}_pages/` directory
+2. **Active Directory:** The `pages/` directory is recursively cleared and repopulated from the active app's pages directory
+3. **Indicator File:** `pages/INDEX.md` explains the architecture and warns against direct edits
+4. **Template:** `app_main_pages/` serves as the template for creating new apps
 
 #### Entry Pages
-Follow the **Entry Point Pattern** described earlier: each `pages/index.{namespace}.vue` only imports the matching `{Namespace}App` component from `components_app_{namespace}/{namespace}_index/` and contains no additional logic.
+Follow the **Entry Point Pattern** described earlier: each `app_{namespace}_pages/index.vue` only imports the matching `{Namespace}App` component from `components_app_{namespace}/{namespace}_index/` and contains no additional logic.
+
+#### Pages Directory Switcher (switch-pages-directory.js)
+**How It Works:**
+1. **Validates** target app namespace
+2. **Backs up** current `pages/` directory to `.app-backups/pages.backup.{timestamp}/`
+3. **Recursively clears** `pages/` directory (prevents directory lock issues)
+4. **Copies** `app_{namespace}_pages/` → `pages/` (recursive copy)
+5. **Creates** `pages/INDEX.md` indicator file with architecture information
+6. Nuxt dev/build starts → only sees `pages/` (which is copied from `app_{namespace}_pages/`)
+
+**Usage:**
+```bash
+# Switch to specific app
+node scripts/switch-pages-directory.js [appname]
+
+# Switch to main app
+node scripts/switch-pages-directory.js main
+
+# Show current app
+node scripts/switch-pages-directory.js --current
+
+# List backups
+node scripts/switch-pages-directory.js --list
+
+# Restore from backup
+node scripts/switch-pages-directory.js --restore pages.backup.{timestamp}
+```
+
+**Environment Variable:**
+```bash
+APP_ENTRY=ittools node scripts/switch-pages-directory.js
+```
 
 #### Launcher Scripts
 **Development:** `.\scripts\start.ps1 [namespace]` or `node scripts/switch-app-entry-plus.js [namespace]`
 **Build:** `.\scripts\start.ps1 [namespace] build`
 
+**Note:** Launcher scripts should call `switch-pages-directory.js` before starting Nuxt dev/build.
+
 #### Multi-App Factory System (switch-app-entry-plus.js)
 **How It Works:**
 1. **Mirrors** source workspace to factory build directory per app (`factory_root/_app_{namespace}/`)
-2. **Runs** `switch-app-entry.js` in mirrored tree to activate specific app entry
+2. **Runs** `switch-pages-directory.js` in mirrored tree to activate specific app pages
 3. **Watches** source files with 2s debounce, auto-syncs changes to all active factory runtimes
 4. **Launches** `pnpm dev:{namespace}` or `pnpm build:{namespace}` from factory directory
 5. **Supports** concurrent multi-app development (`--apps app1,app2`)
@@ -249,9 +325,11 @@ node scripts/switch-app-entry-plus.js ittools --mode build
 
 | Step | Action | Files/Locations |
 |------|--------|----------------|
-| 1. Create Dirs | App structure | `apps/app_myapp/{components,composables,stores,layouts,i18n_app_myapp/locales}_app_myapp`<br>`services/api/myapp/` |
-| 2. Register | Namespace | `utils/namespace-registry.ts`: `... \| 'myapp'`<br>`composables/useRouteNamespace.ts`: `myapp: { prefix: '/myapp' }` |
-| 3. Create Files | Entry & config | `pages/index.myapp.vue` (imports `MyappApp.vue`)<br>`components_app_myapp/myapp_index/MyappApp.vue`<br>`configs/myapp.config.ts`<br>`layouts/myapp.vue`<br>`services/api/myapp/myapp-main-api.ts` (with `X-App-Namespace` header)<br>`i18n_app_myapp/locales/{en,zh,ja,fa}.json` |
+| 1. Create Pages Dir | Copy template | `cp -r app_main_pages app_myapp_pages`<br>Edit `app_myapp_pages/index.vue` to import `MyappApp.vue` |
+| 2. Create Dirs | App structure | `apps/app_myapp/{components,composables,stores,layouts,i18n_app_myapp/locales}_app_myapp`<br>`services/api/myapp/` |
+| 3. Register | Namespace | `utils/namespace-registry.ts`: `... \| 'myapp'`<br>`composables/useRouteNamespace.ts`: `myapp: { prefix: '/myapp' }` |
+| 4. Create Files | Entry & config | `app_myapp_pages/index.vue` (imports `MyappApp.vue`)<br>`components_app_myapp/myapp_index/MyappApp.vue`<br>`configs/myapp.config.ts`<br>`layouts/myapp.vue`<br>`services/api/myapp/myapp-main-api.ts` (with `X-App-Namespace` header)<br>`i18n_app_myapp/locales/{en,zh,ja,fa}.json` |
+| 5. Switch Pages | Activate app | `node scripts/switch-pages-directory.js myapp` |
 
 ---
 
@@ -267,7 +345,10 @@ node scripts/switch-app-entry-plus.js ittools --mode build
 | Global i18n | `i18n/locales/` |
 | i18n Composable | `composables/useAppI18n.ts` |
 | Launcher | `scripts/start.ps1` |
-| Entry Pages | `pages/index.{namespace}.vue` |
+| Pages Switcher | `scripts/switch-pages-directory.js` |
+| App Pages (Source) | `app_{namespace}_pages/` |
+| Active Pages (Managed) | `pages/` (DO NOT EDIT DIRECTLY) |
+| Pages Template | `app_main_pages/` |
 
 ---
 
@@ -275,6 +356,11 @@ node scripts/switch-app-entry-plus.js ittools --mode build
 
 ### For Each App
 Confirm that every namespace is registered (`utils/namespace-registry.ts`, `useRouteNamespace.ts`), owns its config plus API directory, and exposes the entry stack described earlier (single entry page, `{Namespace}App` component, layout wrapper, optional internal layouts). Each app must ship `i18n_app_{namespace}/locales/` covering the full global language set with unique keys.
+
+**Pages Directory Requirements:**
+- Each app must have `app_{namespace}_pages/` directory (copy from `app_main_pages/` as template)
+- `app_{namespace}_pages/index.vue` must follow the Entry Point Pattern
+- **Never edit `pages/` directly** - always edit `app_{namespace}_pages/` and run the switcher script
 
 Use the component naming conventions in the **App-Specific Layer Standards** section (main file under `{namespace}_index/`, supporting modules grouped by feature).
 
@@ -309,8 +395,11 @@ Re-use the guidance from **Common vs App-Specific Architecture**: keep shared lo
 # Scan for app directories
 ls apps/ | grep "^app_"
 
-# Scan for entry pages
-ls pages/ | grep "^index\." | grep -v "index.vue"
+# Scan for app pages directories
+ls . | grep "^app_.*_pages$"
+
+# Scan for entry pages in app pages directories
+ls app_*_pages/ | grep "^index\."
 
 # Verify namespace registry
 cat utils/namespace-registry.ts | grep "RegisteredNamespace"
@@ -334,5 +423,32 @@ Every discovered namespace must satisfy the validation checklist above (director
 
 ---
 
-**Last Updated:** 2025-11-10
+**Last Updated:** 2025-11-12
 **Maintained By:** Core Node Team
+
+---
+
+## 📝 Important Notes
+
+### Pages Directory Management
+
+**⚠️ CRITICAL:** The `pages/` directory is automatically managed by the architecture system. 
+
+**DO:**
+- ✅ Edit files in `app_{namespace}_pages/` directories
+- ✅ Run `node scripts/switch-pages-directory.js [appname]` to activate changes
+- ✅ Use `app_main_pages/` as template when creating new apps
+- ✅ Check `pages/INDEX.md` for architecture information
+
+**DON'T:**
+- ❌ Edit files in `pages/` directly (changes will be lost)
+- ❌ Manually rename or move `pages/` directory
+- ❌ Commit changes to `pages/` directory (it's auto-generated)
+
+### Migration from Old System
+
+If you're migrating from the old `pages/index.{namespace}.vue` system:
+1. Copy existing `pages/index.{namespace}.vue` files to `app_{namespace}_pages/index.vue`
+2. Copy other app-specific pages to `app_{namespace}_pages/`
+3. Run `node scripts/switch-pages-directory.js [appname]` to activate
+4. Remove old `pages/index.{namespace}.vue` files (they're no longer used)
