@@ -43,7 +43,7 @@ USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 # Cursor installation directories using map_web_path
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
 CURSOR_INSTALL_DIR="$APPLICATIONS_DIR/cursor"
-CURSOR_APPIMAGE_DIR="$CURSOR_INSTALL_DIR/appimage"
+CURSOR_PACKAGE_DIR="$CURSOR_INSTALL_DIR/packages"
 CURSOR_EXTRACTED_DIR="$CURSOR_INSTALL_DIR/extracted"
 CURSOR_BIN_DIR="$CURSOR_INSTALL_DIR/bin"
 CURSOR_INSTALLED_FLAG="$CURSOR_INSTALL_DIR/.installed"
@@ -114,15 +114,24 @@ get_installed_version() {
     fi
 }
 
+# Get installed type
+get_installed_type() {
+    if [[ -f "$CURSOR_INSTALLED_FLAG" ]]; then
+        grep "^TYPE=" "$CURSOR_INSTALLED_FLAG" 2>/dev/null | cut -d= -f2
+    fi
+}
+
 # Save installation info
 save_installation_info() {
     local version="$1"
     local package_file="$2"
+    local install_type="$3"
 
     $USE_SUDO mkdir -p "$(dirname "$CURSOR_INSTALLED_FLAG")"
     cat <<EOF | $USE_SUDO tee "$CURSOR_INSTALLED_FLAG" > /dev/null
 DATE=$(date '+%Y-%m-%d %H:%M:%S')
 VERSION=$version
+TYPE=$install_type
 PACKAGE=$(basename "$package_file")
 PATH=$package_file
 EOF
@@ -136,8 +145,9 @@ is_cursor_installed() {
     return 1  # Not installed
 }
 
-# Find Cursor .deb files in all user Downloads directories
-find_cursor_file() {
+# Find Cursor files in all user Downloads directories
+# Returns: "appimage:<path>" or "deb:<path>" or "both:<appimage_path>:<deb_path>"
+find_cursor_files() {
     local search_dirs=()
 
     # Add global shared download directory first (highest priority)
@@ -164,23 +174,39 @@ find_cursor_file() {
         search_dirs+=("/root/Downloads")
     fi
 
-    # Search for .AppImage files first (preferred, sort by modification time, newest first)
+    # Search for both AppImage and .deb files
+    local appimage_file=""
+    local deb_file=""
+
+    # Search for .AppImage files (sort by modification time, newest first)
     for dir in "${search_dirs[@]}"; do
-        local appimage_file=$(find "$dir" -maxdepth 1 -iname "cursor*.AppImage" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-        if [[ -n "$appimage_file" ]]; then
-            echo "$appimage_file"
-            return 0
+        local found_appimage=$(find "$dir" -maxdepth 1 -iname "cursor*.AppImage" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        if [[ -n "$found_appimage" ]]; then
+            appimage_file="$found_appimage"
+            break
         fi
     done
 
     # Search for .deb files (sort by modification time, newest first)
     for dir in "${search_dirs[@]}"; do
-        local deb_file=$(find "$dir" -maxdepth 1 -iname "cursor*.deb" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-        if [[ -n "$deb_file" ]]; then
-            echo "$deb_file"
-            return 0
+        local found_deb=$(find "$dir" -maxdepth 1 -iname "cursor*.deb" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        if [[ -n "$found_deb" ]]; then
+            deb_file="$found_deb"
+            break
         fi
     done
+
+    # Return results based on what was found
+    if [[ -n "$appimage_file" ]] && [[ -n "$deb_file" ]]; then
+        echo "both:$appimage_file:$deb_file"
+        return 0
+    elif [[ -n "$appimage_file" ]]; then
+        echo "appimage:$appimage_file"
+        return 0
+    elif [[ -n "$deb_file" ]]; then
+        echo "deb:$deb_file"
+        return 0
+    fi
 
     return 1
 }
@@ -445,11 +471,11 @@ install_deb_package() {
     fi
 
     # Create directories for tracking
-    $USE_SUDO mkdir -p "$CURSOR_APPIMAGE_DIR" "$CURSOR_BIN_DIR"
+    $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_BIN_DIR"
 
     # Copy deb file to installation directory for backup
-    print_step_from_common_functions "Backing up .deb file to $CURSOR_APPIMAGE_DIR"
-    $USE_SUDO cp "$deb_file" "$CURSOR_APPIMAGE_DIR/"
+    print_step_from_common_functions "Backing up .deb file to $CURSOR_PACKAGE_DIR"
+    $USE_SUDO cp "$deb_file" "$CURSOR_PACKAGE_DIR/"
 
     # Install the .deb package
     print_step_from_common_functions "Installing Cursor via dpkg..."
@@ -464,7 +490,7 @@ install_deb_package() {
     if ! dpkg -l | grep -q "^ii.*cursor"; then
         print_error_from_common_functions "Cursor package installation failed"
         print_step_from_common_functions "Removing corrupted backup file..."
-        $USE_SUDO rm -f "$CURSOR_APPIMAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
+        $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
         return 1
     fi
 
@@ -479,14 +505,14 @@ extract_appimage() {
     print_step_from_common_functions "Extracting Cursor AppImage..."
 
     # Create directories
-    $USE_SUDO mkdir -p "$CURSOR_APPIMAGE_DIR" "$CURSOR_EXTRACTED_DIR" "$CURSOR_BIN_DIR"
+    $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_EXTRACTED_DIR" "$CURSOR_BIN_DIR"
 
     # Copy AppImage to installation directory
-    print_step_from_common_functions "Copying AppImage to $CURSOR_APPIMAGE_DIR"
-    $USE_SUDO cp "$appimage_file" "$CURSOR_APPIMAGE_DIR/"
+    print_step_from_common_functions "Copying AppImage to $CURSOR_PACKAGE_DIR"
+    $USE_SUDO cp "$appimage_file" "$CURSOR_PACKAGE_DIR/"
 
     local appimage_name=$(basename "$appimage_file")
-    local installed_appimage="$CURSOR_APPIMAGE_DIR/$appimage_name"
+    local installed_appimage="$CURSOR_PACKAGE_DIR/$appimage_name"
 
     # Make AppImage executable
     $USE_SUDO chmod +x "$installed_appimage"
@@ -741,22 +767,10 @@ cleanup_cursor() {
         $USE_SUDO apt-get remove --purge -y cursor 2>/dev/null || true
     fi
 
-    # Remove installation directory (includes old AppImage installations)
+    # Remove entire installation directory (includes packages, extracted files, and bin)
     if [[ -d "$CURSOR_INSTALL_DIR" ]]; then
         print_step_from_common_functions "Removing installation directory: $CURSOR_INSTALL_DIR"
         $USE_SUDO rm -rf "$CURSOR_INSTALL_DIR"
-    fi
-
-    # Remove AppImage extracted directory (legacy cleanup)
-    if [[ -d "$CURSOR_EXTRACTED_DIR" ]]; then
-        print_step_from_common_functions "Removing old AppImage extraction: $CURSOR_EXTRACTED_DIR"
-        $USE_SUDO rm -rf "$CURSOR_EXTRACTED_DIR"
-    fi
-
-    # Remove AppImage directory (legacy cleanup)
-    if [[ -d "$CURSOR_APPIMAGE_DIR" ]]; then
-        print_step_from_common_functions "Removing old AppImage directory: $CURSOR_APPIMAGE_DIR"
-        $USE_SUDO rm -rf "$CURSOR_APPIMAGE_DIR"
     fi
 
     # Remove launcher script (auto-generated by desktop_entry_manager)
@@ -868,10 +882,16 @@ install_cursor() {
         print_warning_from_common_functions "Cursor is already installed"
 
         local installed_version=$(get_installed_version)
+        local installed_type=$(get_installed_type)
+
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
         else
             print_info_from_common_functions "No version metadata found for current installation"
+        fi
+
+        if [[ -n "$installed_type" ]]; then
+            print_info_from_common_functions "Installation type: $installed_type"
         fi
 
         echo -n "Do you want to remove the existing installation and reinstall? (y/N): "
@@ -893,11 +913,66 @@ install_cursor() {
 
     print_step_from_common_functions "Scanning /home/*/Downloads for Cursor installer..."
 
-    local cursor_file=""
-    cursor_file=$(find_cursor_file)
+    # Find available Cursor files
+    local files_result=""
+    files_result=$(find_cursor_files)
+    local find_result=$?
 
-    if [[ -n "$cursor_file" ]] && [[ -f "$cursor_file" ]]; then
-        print_info_from_common_functions "Found Cursor installer: $(basename "$cursor_file")"
+    local cursor_file=""
+    local install_type=""
+    local installed_type=$(get_installed_type)
+
+    if [[ $find_result -eq 0 ]] && [[ -n "$files_result" ]]; then
+        local result_type="${files_result%%:*}"
+
+        if [[ "$result_type" == "both" ]]; then
+            # Both AppImage and .deb found
+            local appimage_path=$(echo "$files_result" | cut -d: -f2)
+            local deb_path=$(echo "$files_result" | cut -d: -f3)
+
+            print_info_from_common_functions "Found both AppImage and .deb installers:"
+            print_info_from_common_functions "  AppImage: $(basename "$appimage_path")"
+            print_info_from_common_functions "  .deb: $(basename "$deb_path")"
+            echo ""
+            echo "Which installer would you like to use?"
+            echo "  1) AppImage (recommended, portable)"
+            echo "  2) .deb (system package)"
+            echo -n "Enter choice [1]: "
+            read -r choice
+
+            case "$choice" in
+                2)
+                    cursor_file="$deb_path"
+                    install_type="deb"
+                    print_info_from_common_functions "Selected .deb installer"
+                    ;;
+                *)
+                    cursor_file="$appimage_path"
+                    install_type="appimage"
+                    print_info_from_common_functions "Selected AppImage installer (default)"
+                    ;;
+            esac
+
+        elif [[ "$result_type" == "appimage" ]]; then
+            cursor_file=$(echo "$files_result" | cut -d: -f2)
+            install_type="appimage"
+            print_info_from_common_functions "Found AppImage installer: $(basename "$cursor_file")"
+
+        elif [[ "$result_type" == "deb" ]]; then
+            cursor_file=$(echo "$files_result" | cut -d: -f2)
+            install_type="deb"
+            print_info_from_common_functions "Found .deb installer: $(basename "$cursor_file")"
+        fi
+
+        # Check for installation type conflict
+        if [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
+            print_warning_from_common_functions "Installation type conflict detected!"
+            print_warning_from_common_functions "  Currently installed: $installed_type"
+            print_warning_from_common_functions "  About to install: $install_type"
+            print_step_from_common_functions "Cleaning up old installation to prevent conflicts..."
+            cleanup_cursor
+        fi
+
     else
         print_warning_from_common_functions "No Cursor installer detected in any Downloads directories"
         print_step_from_common_functions "Opening Cursor download page for manual download..."
@@ -909,11 +984,20 @@ install_cursor() {
             print_error_from_common_functions "Manual download is required before installation can continue"
             return 1
         fi
+
+        # Detect type from manual download
+        local file_ext="${cursor_file##*.}"
+        if [[ "$file_ext" == "AppImage" ]]; then
+            install_type="appimage"
+        elif [[ "$file_ext" == "deb" ]]; then
+            install_type="deb"
+        fi
     fi
 
     print_success_from_common_functions "Using Cursor file: $(basename "$cursor_file")"
+    print_info_from_common_functions "Installation type: $install_type"
 
-    # Detect file type and install accordingly
+    # Install based on type
     local file_extension="${cursor_file##*.}"
 
     if [[ "$file_extension" == "deb" ]]; then
@@ -935,7 +1019,7 @@ install_cursor() {
 
                 if [[ $retry_count -lt $((max_retries - 1)) ]]; then
                     print_step_from_common_functions "Removing corrupted backup file..."
-                    $USE_SUDO rm -f "$CURSOR_APPIMAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
+                    $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
 
                     print_step_from_common_functions "Please download a fresh Cursor installer and save it to your Downloads directory"
                     cursor_file=$(cursor_manual_download)
@@ -981,21 +1065,21 @@ install_cursor() {
         return 1
     fi
 
-    # Save installation info with version
+    # Save installation info with version and type
     print_step_from_common_functions "Saving installation info..."
     local installed_version=$(extract_version_from_filename "$cursor_file")
     if [[ -n "$installed_version" ]]; then
-        save_installation_info "$installed_version" "$cursor_file"
+        save_installation_info "$installed_version" "$cursor_file" "$install_type"
         print_info_from_common_functions "Installed version: $installed_version"
     else
         # Fallback if version extraction fails
-        $USE_SUDO mkdir -p "$(dirname "$CURSOR_INSTALLED_FLAG")"
-        echo "$(date): Cursor installed successfully from $file_extension" | $USE_SUDO tee "$CURSOR_INSTALLED_FLAG" > /dev/null
+        save_installation_info "unknown" "$cursor_file" "$install_type"
     fi
 
     print_success_from_common_functions "Cursor IDE installation completed successfully!"
     print_info_from_common_functions "Installation details:"
-    print_info_from_common_functions "  - Type: $file_extension"
+    print_info_from_common_functions "  - Type: $install_type ($file_extension)"
+    print_info_from_common_functions "  - Version: ${installed_version:-unknown}"
     print_info_from_common_functions "  - Binary: ${CURSOR_BINARY:-unknown}"
     print_info_from_common_functions "  - Icon: ${CURSOR_ICON:-unknown}"
     print_info_from_common_functions "  - User data: ${CURSOR_USERDATA_DIR:-unknown}"
