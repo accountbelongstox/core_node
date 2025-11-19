@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Flutter Design Documentation Tool - Main Server
-Multi-file modular architecture
+Multi-file modular architecture with unified routing system
 """
 
 from __future__ import annotations
 
-import json
+import sys
 import threading
-from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, List
-from urllib.parse import urlparse, parse_qs
 
-# Import API modules
-from api import app_checker, file_tree, file_reader, folder_opener, file_writer, pageview_updater_api, comparison_api
+# Add project root to Python path for pycore imports
+# Script location: poly_apps/flutter_bloom/scripts/flutter_dev_tools/main.py
+# Project root: 4 levels up (flutter_dev_tools -> scripts -> flutter_bloom -> poly_apps -> core_node)
+_script_dir = Path(__file__).resolve().parent
+_project_root = _script_dir.parent.parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+# Import from pycore following standards
+from pycore.pyfoundations import ColorPrint
+
+# Import project modules
+from api import app_checker
 from utils import path_utils, port_manager
+from routes.router import Router
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5757
@@ -26,462 +36,30 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 # Global shutdown event
 shutdown_event = threading.Event()
 
+# Global router instance (initialized in run_server)
+router = None
 
-def read_static_file(relative_path: str) -> bytes:
-    """Read static file from static directory"""
-    path = STATIC_DIR / relative_path
-    if not path.exists():
-        raise FileNotFoundError(relative_path)
-    return path.read_bytes()
+# Use ColorPrint static methods directly (no instance needed)
 
 
 class DesignDocRequestHandler(BaseHTTPRequestHandler):
     """HTTP request handler for design documentation tool"""
 
     def do_GET(self) -> None:  # noqa: N802
-        """Handle GET requests"""
-        parsed_url = urlparse(self.path)
-        path = parsed_url.path
-        query_params = parse_qs(parsed_url.query)
-
-        # Root - serve HTML
-        if path == "/":
-            self.respond_file("index.html", "text/html")
-
-        # API: Get all apps
-        elif path == "/api/apps":
-            apps_dir = path_utils.get_apps_dir()
-            apps = app_checker.list_apps(apps_dir)
-            results = [app_checker.check_app(app) for app in apps]
-            self.respond_json(results)
-
-        # API: Get file tree for an app
-        elif path.startswith("/api/apps/") and path.endswith("/tree"):
-            app_name = path.split("/")[3]
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
-
-            if not app_path.exists():
-                self.send_error(HTTPStatus.NOT_FOUND, "App not found")
-                return
-
-            design_dir = path_utils.get_design_dir(app_path)
-            if not design_dir.exists():
-                self.respond_json({"error": "Design directory not found"})
-                return
-
-            tree = file_tree.build_file_tree(design_dir, design_dir.parent)
-            self.respond_json(tree)
-
-        # API: Read file content
-        elif path == "/api/file/content":
-            file_path_str = query_params.get("path", [""])[0]
-            if not file_path_str:
-                self.send_error(HTTPStatus.BAD_REQUEST, "Missing path parameter")
-                return
-
-            file_path = Path(file_path_str)
-            apps_dir = path_utils.get_apps_dir()
-
-            # Security check: ensure file is within apps directory
-            if not path_utils.is_safe_path(apps_dir, file_path):
-                self.send_error(HTTPStatus.FORBIDDEN, "Access denied")
-                return
-
-            result = file_reader.read_file_content(file_path)
-            self.respond_json(result)
-
-        # API: Serve image file
-        elif path == "/api/file/image":
-            file_path_str = query_params.get("path", [""])[0]
-            if not file_path_str:
-                self.send_error(HTTPStatus.BAD_REQUEST, "Missing path parameter")
-                return
-
-            file_path = Path(file_path_str)
-            apps_dir = path_utils.get_apps_dir()
-
-            # Security check: ensure file is within apps directory
-            if not path_utils.is_safe_path(apps_dir, file_path):
-                self.send_error(HTTPStatus.FORBIDDEN, "Access denied")
-                return
-
-            # Check if file exists and is an image
-            if not file_path.exists() or not file_path.is_file():
-                self.send_error(HTTPStatus.NOT_FOUND, "Image file not found")
-                return
-
-            image_extensions = {
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.gif': 'image/gif',
-                '.webp': 'image/webp'
-            }
-
-            extension = file_path.suffix.lower()
-            content_type = image_extensions.get(extension, 'application/octet-stream')
-
-            try:
-                image_data = file_path.read_bytes()
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", content_type)
-                self.send_header("Content-Length", str(len(image_data)))
-                self.end_headers()
-                self.wfile.write(image_data)
-            except Exception as e:
-                self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to read image: {str(e)}")
-
-        # API: Get pageview_map.json stats
-        elif path.startswith("/api/apps/") and "/pageview/stats" in path:
-            app_name = path.split("/")[3]
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
-
-            if not app_path.exists():
-                self.send_error(HTTPStatus.NOT_FOUND, "App not found")
-                return
-
-            result = pageview_updater_api.get_pageview_map_stats(app_path)
-            self.respond_json(result)
-
-        # API: List comparison images
-        elif path.startswith("/api/apps/") and "/comparison/list/" in path:
-            # Parse: /api/apps/{app_name}/comparison/list/{page_key}
-            parts = path.split("/")
-            if len(parts) >= 7:
-                app_name = parts[3]
-                page_key = parts[6]
-
-                apps_dir = path_utils.get_apps_dir()
-                app_path = apps_dir / app_name
-
-                if not app_path.exists():
-                    self.send_error(HTTPStatus.NOT_FOUND, "App not found")
-                    return
-
-                result = comparison_api.list_comparisons(app_path, page_key)
-                self.respond_json(result)
-            else:
-                self.send_error(HTTPStatus.BAD_REQUEST, "Invalid path format")
-
-        # API: Download comparison image
-        elif path.startswith("/api/comparison/download/"):
-            # Parse: /api/comparison/download/{app_name}/{page_key}/{filename}
-            parts = path.split("/")
-            if len(parts) >= 6:
-                app_name = parts[4]
-                page_key = parts[5]
-                filename = "/".join(parts[6:])  # Handle filenames with slashes
-
-                file_path = comparison_api.get_comparison_file_path(app_name, page_key, filename)
-
-                if not file_path or not file_path.exists():
-                    self.send_error(HTTPStatus.NOT_FOUND, "Comparison image not found")
-                    return
-
-                # Send image file
-                try:
-                    image_data = file_path.read_bytes()
-                    self.send_response(HTTPStatus.OK)
-                    self.send_header("Content-Type", "image/png")
-                    self.send_header("Content-Length", str(len(image_data)))
-                    self.end_headers()
-                    self.wfile.write(image_data)
-                except Exception as e:
-                    self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to read image: {str(e)}")
-            else:
-                self.send_error(HTTPStatus.BAD_REQUEST, "Invalid path format")
-
-        # Static files
-        elif path.startswith("/static/"):
-            self.handle_static_file(path)
-
+        """Handle GET requests via router"""
+        global router
+        if router:
+            router.dispatch(self, 'GET')
         else:
-            self.send_error(HTTPStatus.NOT_FOUND)
+            self.send_error(500, "Router not initialized")
 
     def do_POST(self) -> None:  # noqa: N802
-        """Handle POST requests"""
-        # Shutdown server
-        if self.path == "/api/shutdown":
-            print("\n[SHUTDOWN] Received shutdown request via API")
-            self.respond_json({"success": True, "message": "Server shutting down..."})
-
-            # Set shutdown event in a separate thread to allow response to be sent
-            def delayed_shutdown():
-                import time
-                time.sleep(0.5)  # Give time for response to be sent
-                shutdown_event.set()
-
-            threading.Thread(target=delayed_shutdown, daemon=True).start()
-
-        # Create missing items for an app
-        elif self.path.startswith("/api/apps/") and self.path.endswith("/fix"):
-            app_name = self.path.split("/")[3]
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
-
-            if not app_path.exists():
-                self.respond_json({"success": False, "error": "App not found"})
-                return
-
-            created = app_checker.create_missing_items(app_path)
-            self.respond_json({"success": True, "status": "ok", "created": created})
-
-        # Open folder in explorer
-        elif self.path == "/api/folder/open":
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                body = self.rfile.read(content_length)
-                data = json.loads(body.decode('utf-8'))
-
-                folder_path_str = data.get("path", "")
-                if not folder_path_str:
-                    self.respond_json({"success": False, "error": "Missing path parameter"})
-                    return
-
-                folder_path = Path(folder_path_str)
-                apps_dir = path_utils.get_apps_dir()
-
-                # Security check: ensure folder is within apps directory
-                if not path_utils.is_safe_path(apps_dir, folder_path):
-                    self.respond_json({"success": False, "error": "Access denied"})
-                    return
-
-                result = folder_opener.open_folder(folder_path)
-                self.respond_json(result)
-            except Exception as e:
-                self.respond_json({"success": False, "error": str(e)})
-
-        # Save file content
-        elif self.path == "/api/file/save":
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                body = self.rfile.read(content_length)
-                data = json.loads(body.decode('utf-8'))
-
-                file_path_str = data.get("path", "")
-                content = data.get("content", "")
-                validate_json = data.get("validate_json", False)
-
-                if not file_path_str:
-                    self.respond_json({"success": False, "error": "Missing path parameter"})
-                    return
-
-                file_path = Path(file_path_str)
-                apps_dir = path_utils.get_apps_dir()
-
-                # Security check: ensure file is within apps directory
-                if not path_utils.is_safe_path(apps_dir, file_path):
-                    self.respond_json({"success": False, "error": "Access denied"})
-                    return
-
-                # Save file
-                result = file_writer.save_file_content(file_path, content, validate_json)
-                self.respond_json(result)
-
-            except json.JSONDecodeError as e:
-                self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
-            except Exception as e:
-                self.respond_json({"success": False, "error": str(e)})
-
-        # Update pageview_map.json with image analysis
-        elif self.path.startswith("/api/apps/") and "/pageview/update" in self.path:
-            try:
-                # Parse app name from path: /api/apps/{app_name}/pageview/update
-                parts = self.path.split("/")
-                app_name = parts[3]
-
-                # Read request body
-                content_length = int(self.headers.get('Content-Length', 0))
-                body = self.rfile.read(content_length) if content_length > 0 else b'{}'
-                data = json.loads(body.decode('utf-8'))
-
-                layer = data.get("layer", "all")  # "rough", "detailed", or "all"
-                force = data.get("force", False)  # Force re-analysis
-
-                apps_dir = path_utils.get_apps_dir()
-                app_path = apps_dir / app_name
-
-                if not app_path.exists():
-                    self.respond_json({"success": False, "error": "App not found"})
-                    return
-
-                result = pageview_updater_api.update_app_pageview_map(app_path, layer, force)
-                self.respond_json(result)
-
-            except json.JSONDecodeError as e:
-                self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
-            except Exception as e:
-                self.respond_json({"success": False, "error": str(e)})
-
-        # Upload actual/composite image
-        elif self.path.startswith("/api/apps/") and "/pageview/upload-actual" in self.path:
-            try:
-                # Parse app name from path: /api/apps/{app_name}/pageview/upload-actual
-                parts = self.path.split("/")
-                app_name = parts[3]
-
-                # Read multipart form data
-                content_length = int(self.headers.get('Content-Length', 0))
-                body = self.rfile.read(content_length)
-
-                # Simple multipart parsing (assuming single file upload)
-                # For production, use proper multipart parser
-                import re
-
-                # Extract boundary
-                content_type = self.headers.get('Content-Type', '')
-                boundary_match = re.search(r'boundary=(.+)', content_type)
-                if not boundary_match:
-                    # Try JSON format
-                    data = json.loads(body.decode('utf-8'))
-                    page_key = data.get("page_key", "")
-                    description = data.get("description", "implemented")
-
-                    # Decode base64 image
-                    import base64
-                    image_data = base64.b64decode(data.get("image_data", ""))
-                else:
-                    # Parse multipart
-                    boundary = boundary_match.group(1).encode()
-                    parts = body.split(b'--' + boundary)
-
-                    page_key = ""
-                    description = "implemented"
-                    image_data = b''
-
-                    for part in parts:
-                        if b'name="page_key"' in part:
-                            page_key = part.split(b'\r\n\r\n')[1].strip(b'\r\n').decode('utf-8')
-                        elif b'name="description"' in part:
-                            description = part.split(b'\r\n\r\n')[1].strip(b'\r\n').decode('utf-8')
-                        elif b'name="image"' in part:
-                            image_data = part.split(b'\r\n\r\n')[1].rsplit(b'\r\n', 1)[0]
-
-                if not page_key or not image_data:
-                    self.respond_json({"success": False, "error": "Missing page_key or image data"})
-                    return
-
-                apps_dir = path_utils.get_apps_dir()
-                app_path = apps_dir / app_name
-
-                if not app_path.exists():
-                    self.respond_json({"success": False, "error": "App not found"})
-                    return
-
-                result = pageview_updater_api.upload_actual_image(
-                    app_path,
-                    page_key,
-                    description,
-                    image_data
-                )
-                self.respond_json(result)
-
-            except Exception as e:
-                print(f"[ERROR] Upload actual image failed: {e}")
-                import traceback
-                traceback.print_exc()
-                self.respond_json({"success": False, "error": str(e)})
-
-        # Create comparison image
-        elif self.path.startswith("/api/apps/") and "/comparison/create" in self.path:
-            try:
-                # Parse app name from path: /api/apps/{app_name}/comparison/create
-                parts = self.path.split("/")
-                app_name = parts[3]
-
-                # Read request body
-                content_length = int(self.headers.get('Content-Length', 0))
-                body = self.rfile.read(content_length)
-                data = json.loads(body.decode('utf-8'))
-
-                page_key = data.get("page_key", "")
-                expected_image_path = data.get("expected_image_path", "")
-                description = data.get("description", "implemented")
-
-                # Decode base64 image data
-                import base64
-                image_data_b64 = data.get("image_data", "")
-                if not image_data_b64:
-                    self.respond_json({"success": False, "error": "Missing image_data"})
-                    return
-
-                image_data = base64.b64decode(image_data_b64)
-
-                if not page_key or not expected_image_path or not image_data:
-                    self.respond_json({"success": False, "error": "Missing required parameters"})
-                    return
-
-                apps_dir = path_utils.get_apps_dir()
-                app_path = apps_dir / app_name
-
-                if not app_path.exists():
-                    self.respond_json({"success": False, "error": "App not found"})
-                    return
-
-                result = comparison_api.create_comparison(
-                    app_path,
-                    page_key,
-                    expected_image_path,
-                    image_data,
-                    description
-                )
-                self.respond_json(result)
-
-            except json.JSONDecodeError as e:
-                self.respond_json({"success": False, "error": f"Invalid request JSON: {str(e)}"})
-            except Exception as e:
-                print(f"[ERROR] Create comparison failed: {e}")
-                import traceback
-                traceback.print_exc()
-                self.respond_json({"success": False, "error": str(e)})
-
+        """Handle POST requests via router"""
+        global router
+        if router:
+            router.dispatch(self, 'POST')
         else:
-            self.respond_json({"success": False, "error": "Endpoint not found"})
-
-    def handle_static_file(self, path: str) -> None:
-        """Handle static file requests"""
-        filename = path.replace("/static/", "", 1)
-
-        # Determine content type
-        content_types = {
-            ".html": "text/html",
-            ".css": "text/css",
-            ".js": "application/javascript",
-            ".json": "application/json",
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".svg": "image/svg+xml",
-        }
-
-        extension = Path(filename).suffix.lower()
-        content_type = content_types.get(extension, "application/octet-stream")
-
-        self.respond_file(filename, content_type)
-
-    def respond_file(self, filename: str, content_type: str) -> None:
-        """Respond with file content"""
-        try:
-            payload = read_static_file(filename)
-        except FileNotFoundError:
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def respond_json(self, data: any) -> None:
-        """Respond with JSON data"""
-        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+            self.send_error(500, "Router not initialized")
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
         """Suppress default logging"""
@@ -490,24 +68,31 @@ class DesignDocRequestHandler(BaseHTTPRequestHandler):
 
 def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     """Run the HTTP server"""
+    global router
+
     apps_dir = path_utils.get_apps_dir()
+
+    # Initialize router
+    ColorPrint.blue("[Router] Initializing routing system...")
+    router = Router(STATIC_DIR, shutdown_event)
+    ColorPrint.green("[Router] Routing system initialized successfully")
 
     # Clean up old server instances on the same port
     if not port_manager.cleanup_old_server(port, auto_kill=True):
-        print(f"\n[ERROR] Port {port} is in use and could not be freed.")
-        print(f"[ERROR] Please manually stop the process or use a different port.")
+        ColorPrint.red(f"[ERROR] Port {port} is in use and could not be freed.")
+        ColorPrint.red("[ERROR] Please manually stop the process or use a different port.")
         return
 
     # Wait a moment for port to be fully released
     if not port_manager.wait_for_port_release(port, timeout=3):
-        print(f"\n[WARNING] Port {port} may still be in use. Attempting to start anyway...")
+        ColorPrint.yellow(f"[WARNING] Port {port} may still be in use. Attempting to start anyway...")
 
     # Auto-expand design document structure for all apps
-    print("\n[AutoExpand] Ensuring design document structure for all apps...")
+    ColorPrint.blue("[AutoExpand] Ensuring design document structure for all apps...")
     from utils.design_structure_auto_expand import ensure_all_apps_design_structure
     expand_results = ensure_all_apps_design_structure()
     expanded_count = sum(1 for success in expand_results.values() if success)
-    print(f"[AutoExpand] Processed {expanded_count}/{len(expand_results)} apps")
+    ColorPrint.green(f"[AutoExpand] Processed {expanded_count}/{len(expand_results)} apps")
 
     # Auto-initialize all apps on startup
     init_summary = app_checker.auto_initialize_all_apps(apps_dir)
@@ -517,21 +102,22 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         server = ThreadingHTTPServer((host, port), DesignDocRequestHandler)
     except OSError as e:
         if "Address already in use" in str(e) or "Only one usage" in str(e):
-            print(f"\n[ERROR] Port {port} is still in use after cleanup attempt.")
-            print(f"[ERROR] Please wait a few seconds and try again.")
+            color_print.print_red(f"[ERROR] Port {port} is still in use after cleanup attempt.")
+            color_print.print_red("[ERROR] Please wait a few seconds and try again.")
             return
         else:
             raise
 
     apps = app_checker.list_apps(apps_dir)
 
-    print("Flutter Design Documentation Tool")
-    print("=" * 50)
+    color_print.print_cyan("\n" + "=" * 60)
+    color_print.print_cyan("Flutter Design Documentation Tool - Refactored Architecture")
+    color_print.print_cyan("=" * 60)
     print(f"Found {len(apps)} apps in {apps_dir}")
     print(f"\nBrowse: http://{host}:{port}")
     print(f"Shutdown: POST to http://{host}:{port}/api/shutdown")
     print("Press Ctrl+C to stop the server")
-    print("=" * 50)
+    color_print.print_cyan("=" * 60 + "\n")
 
     # Run server in a separate thread so we can monitor shutdown event
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -542,12 +128,12 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         while not shutdown_event.is_set():
             shutdown_event.wait(timeout=1.0)
     except KeyboardInterrupt:
-        print("\n\n[SHUTDOWN] Keyboard interrupt received")
+        color_print.print_yellow("\n\n[SHUTDOWN] Keyboard interrupt received")
     finally:
-        print("[SHUTDOWN] Shutting down server...")
+        color_print.print_blue("[SHUTDOWN] Shutting down server...")
         server.shutdown()
         server.server_close()
-        print("[SHUTDOWN] Server stopped successfully")
+        color_print.print_green("[SHUTDOWN] Server stopped successfully")
 
 
 if __name__ == "__main__":

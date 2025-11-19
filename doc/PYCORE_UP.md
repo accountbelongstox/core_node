@@ -1,5 +1,176 @@
 # PyCore Updates
 
+## 2025-11-19: pythreadpool统一 + launcher职责明确 ✅ 完成
+
+**完成**: 创建统一线程池模块，彻底移除thread_pool.py，全面使用pythreadpool。
+
+**重大变更**:
+- ❌ **删除**: `pycore/pyheartbeat/thread_pool.py` (不再需要)
+- ✅ **新增**: `pycore/pythreadpool/` 统一线程池模块
+- ✅ **更新**: 所有import全部指向pythreadpool
+
+**架构重组**:
+```
+pycore/
+├── pythreadpool/          # 新增：统一线程池
+│   ├── __init__.py        # 导出所有接口
+│   ├── registry.py        # THREAD_REGISTRY + SERVICE_STARTERS
+│   ├── starters.py        # start_heartbeat, start_rpc_v2等
+│   └── pool.py            # GlobalThreadPool
+├── pyheartbeat/
+│   ├── heartbeat_pusher.py   # 更新：import from pythreadpool
+│   ├── heartbeat_system.py   # 更新：import from pythreadpool
+│   └── __init__.py           # 更新：import from pythreadpool
+└── pylauncher/
+    └── launcher.py           # 调用层 + ServiceConfig(legacy)
+```
+
+**Import变更**:
+```python
+# ❌ 旧方式（已删除）
+from pycore.pyheartbeat.thread_pool import get_global_thread_pool
+
+# ✅ 新方式（统一）
+from pycore.pythreadpool import get_global_thread_pool
+
+# ✅ 或通过pyheartbeat re-export（向后兼容）
+from pycore.pyheartbeat import get_global_thread_pool
+```
+
+**ServiceConfig保留**:
+```python
+# Legacy配置依然可用，自动转换为LauncherConfig
+config = ServiceConfig(
+    enable_rpc_v2=True,
+    rpc_v2_port=58100,
+    singleton_check=True
+)
+launcher = ServiceLauncher(config.to_launcher_config())
+```
+
+**清理文件**: 删除 `thread_pool.py`，3个文件import已更新。
+
+**Launcher职责明确**:
+```python
+# ⚠️ launcher.py 仅负责：
+# 1. 单例拦截 (Singleton Detection)
+# 2. 线程调度 (Thread Scheduling)
+
+# 🚫 launcher 不负责具体线程功能扩展
+
+# ✅ 正确做法：通过 get_service() 获取实例
+launcher = ServiceLauncher(config)
+launcher.start()
+
+# 获取 RPC v2 实例并注册路由
+rpc = launcher.get_service('rpc_v2')
+rpc.server.route('my_route', handler, sync=True)
+
+# 获取 Heartbeat 实例并使用其 API
+heartbeat = launcher.get_service('heartbeat')
+heartbeat.pause()
+```
+
+**文档位置**:
+- RPC v2: `pycore/pyutils/rpc_v2/`
+- Heartbeat: `pycore/pyheartbeat/`
+- 线程定义: `pycore/pythreadpool/starters.py`
+
+---
+
+## 2025-11-19: Fixed Connection Leak in FastAPI/Uvicorn ✅ Completed
+
+**Completed**: Fixed critical connection leak issue causing Web UI to hang after first load.
+
+**Root Cause Analysis**:
+- **Symptom**: Web UI loaded successfully once, then hung on subsequent page loads
+- **Network Analysis**: 150+ connections stuck in CLOSE_WAIT state on server side
+- **Diagnosis**: Uvicorn not properly closing idle connections, causing file descriptor exhaustion
+
+**Fix Applied** (`mcp_backend_main.py:169-180`):
+```python
+uvicorn.run(
+    app, host="0.0.0.0", port=MCP_BACKEND_RPC_PORT,
+    timeout_keep_alive=5,      # Close idle connections after 5 seconds
+    limit_max_requests=1000,   # Max requests per connection before closing
+    limit_concurrency=200,     # Max concurrent connections
+    backlog=100                # Connection queue size
+)
+```
+
+**Technical Details**:
+- **CLOSE_WAIT State**: Occurs when client closes connection (sends FIN) but server doesn't close its side
+- **File Descriptor Leak**: Each leaked connection holds a file descriptor, eventually exhausting system limits
+- **Connection Lifecycle**: Proper keep-alive timeout ensures connections are recycled
+- **Request Limits**: Prevents single connection from accumulating too many requests
+
+**Test Required**: After system cleanup, test with `python .\pymain.py app=mcp` and verify no CLOSE_WAIT accumulation
+
+---
+
+## 2025-11-19: Port Configuration Clarification ✅ Completed
+
+**Completed**: Fixed port configuration to match design requirements - dynamic ports for singleton detection, fixed port for Web/RPC service.
+
+**Key Changes**:
+- **Port Purpose Clarification**: Removed misleading `MCP_BACKEND_RPC_PORT_RANGE`, replaced with `MCP_BACKEND_RPC_PORT`
+- **Dynamic Port (58000-58099)**: For singleton detection only - uses protocol validation to prevent false positives
+- **Fixed Port (58100)**: For Web/RPC FastAPI service - easier for clients to connect
+- **English Code**: All code comments and variable names now in English
+
+**Architecture Verified**: System running successfully, Web UI accessible at http://localhost:58100/
+
+---
+
+## 2025-11-19: System Integration Test + Architecture Cleanup ✅ Completed
+
+**Completed**: Fixed proxy import errors, removed redundant files, completed full system test.
+
+**Key Fixes**:
+- **Import Path Fix**: `pyapps/mcp/mcp_main.py` updated to import `mcp_backend_main`
+- **Architecture Simplification**: Removed redundant `mcp_launcher.py`, ensured single entry point
+- **System Verification**: `python pymain.py app=mcp` test successful - backend singleton started, proxy connected
+
+**Test Result**: Backend PRIMARY on port 58000, RPC service port 58100, 2 MCP tools registered
+
+---
+
+## 2025-11-19: Web UI 监控系统 + 可扩展架构 ✅ 完成
+
+**完成**: MCP Backend 添加完整的Web监控页面，可实时查看后端状态和替换检测。
+
+**核心功能**:
+- **完整布局**: 顶部菜单、左侧栏、Tab系统、中间内容区、右侧栏、底部状态栏
+- **RPC v2客户端库**: `rpc_client.js` 统一HTTP POST调用
+- **实时监控**: 每2秒更新后端状态，检测实例替换
+- **可扩展架构**: 模块化CSS/JS，方便后续扩展
+
+**文件结构**:
+```
+pycore/pyctl/mcpctl/web/
+├── index.html              # 完整布局页面
+└── static/
+    ├── css/
+    │   ├── layout.css      # 网格布局
+    │   ├── components.css  # UI组件
+    │   └── themes.css      # 主题变量
+    └── js/
+        ├── rpc_client.js   # RPC v2客户端
+        ├── ui_manager.js   # UI交互管理
+        └── monitor.js      # 监控主逻辑
+```
+
+**新增API端点** (`routes.py`):
+- `POST /rpc/backend_state` - 获取处理状态
+- `POST /rpc/tools_list` - 获取工具列表
+- `GET /` - Web UI页面
+
+**第三方包管理**: 新增 `get_third_package_starlette_staticfiles()` 用于静态文件服务
+
+**访问方式**: 启动backend后访问 `http://localhost:58100/`
+
+---
+
 ## 2025-11-19: 智能单例系统 + 全局状态管理 ✅ 完成
 
 **完成**: MCP Backend 实现智能单例替换系统，支持基于状态的实例替换决策。

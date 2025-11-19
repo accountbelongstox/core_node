@@ -210,6 +210,50 @@ class SingletonDetector:
 
         return True
 
+    def _send_message_and_wait_response(self, port: int, message: Dict, validate: bool = True) -> Optional[Dict]:
+        """
+        Send message to port and wait for response
+
+        Args:
+            port: Target port
+            message: Message dict to send
+            validate: Whether to validate response protocol (default: True)
+
+        Returns:
+            Response dict if successful, None otherwise
+        """
+        try:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.settimeout(self.timeout)
+            client_socket.connect(('localhost', port))
+
+            # Send message
+            message_data = json.dumps(message).encode('utf-8')
+            client_socket.sendall(message_data + b'\n')
+
+            # Wait for response
+            response_data = client_socket.recv(4096).decode('utf-8')
+            client_socket.close()
+
+            if not response_data:
+                return None
+
+            # Parse response
+            response = json.loads(response_data.strip())
+
+            # Validate if requested
+            if validate and not self._validate_message(response):
+                self._log(f"Port {port}: Invalid protocol", "WARNING")
+                return None
+
+            return response
+
+        except (socket.timeout, ConnectionRefusedError):
+            return None
+        except Exception as e:
+            self._log(f"Port {port}: Error - {e}", "ERROR")
+            return None
+
     def _try_connect_and_verify(self, port: int) -> Optional[Dict]:
         """
         Try to connect to port and verify protocol
@@ -220,44 +264,16 @@ class SingletonDetector:
         Returns:
             Response message if valid instance found, None otherwise
         """
-        try:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.settimeout(self.timeout)
+        self._log(f"Trying to connect to port {port}...")
+        check_msg = self._create_message(MessageType.CHECK)
+        response = self._send_message_and_wait_response(port, check_msg, validate=True)
 
-            self._log(f"Trying to connect to port {port}...")
-            client_socket.connect(('localhost', port))
+        if response:
+            self._log(f"Port {port}: Found valid instance (PID {response.get('pid')})")
+        else:
+            self._log(f"Port {port}: Not in use or no valid response")
 
-            # Send CHECK message
-            check_msg = self._create_message(MessageType.CHECK)
-            message_data = json.dumps(check_msg).encode('utf-8')
-            client_socket.sendall(message_data + b'\n')
-
-            # Wait for response
-            response_data = client_socket.recv(4096).decode('utf-8')
-            client_socket.close()
-
-            if not response_data:
-                self._log(f"Port {port}: No response", "WARNING")
-                return None
-
-            # Parse response
-            response = json.loads(response_data.strip())
-
-            # Validate protocol
-            if self._validate_message(response):
-                self._log(f"Port {port}: Found valid instance (PID {response.get('pid')})")
-                return response
-            else:
-                self._log(f"Port {port}: Invalid protocol (other program)", "WARNING")
-                return None
-
-        except (socket.timeout, ConnectionRefusedError):
-            # Port not in use - this is good, we can bind it
-            self._log(f"Port {port}: Not in use (available)")
-            return None
-        except Exception as e:
-            self._log(f"Port {port}: Error - {e}", "ERROR")
-            return None
+        return response
 
     def _try_bind_port(self, port: int) -> bool:
         """
@@ -487,6 +503,34 @@ class SingletonDetector:
             self._log(f"Error handling client: {e}", "ERROR")
         finally:
             client_socket.close()
+
+    def send_shutdown_to_existing(self, existing_port: int, wait_time: float = 1.5) -> bool:
+        """
+        Send shutdown request to existing instance
+
+        Args:
+            existing_port: Port of existing instance
+            wait_time: Time to wait after sending shutdown (seconds)
+
+        Returns:
+            True if shutdown was successful, False otherwise
+        """
+        self._log(f"Sending SHUTDOWN to existing instance on port {existing_port}")
+
+        shutdown_msg = self._create_message(MessageType.SHUTDOWN)
+        response = self._send_message_and_wait_response(existing_port, shutdown_msg, validate=False)
+
+        if response and response.get('type') == MessageType.SHUTDOWN_ACK.value:
+            if response.get('accepted', False):
+                self._log("Shutdown ACK received, waiting for instance to stop...")
+                time.sleep(wait_time)
+                return True
+            else:
+                self._log(f"Shutdown rejected: {response.get('reason')}", "WARNING")
+                return False
+
+        self._log("No valid shutdown response received", "ERROR")
+        return False
 
     def stop(self):
         """Stop detector and close socket"""
