@@ -28,19 +28,27 @@ Route::prefix('ittools/v1')->group(function () {
         Route::post('/basic-auth', [ItToolsV1UnifiedCtl::class, 'basicAuth']);
     });
     
-    // Advanced Tools Endpoints (Image, Calculator, etc.)
+    // Advanced Tools Endpoints (Image, Calculator, PDF, etc.)
     Route::prefix('advanced')->group(function () {
         Route::post('/image/resize', [ItToolsV1AdvancedCtl::class, 'imageResize']);
         Route::post('/image/rotate', [ItToolsV1AdvancedCtl::class, 'imageRotate']);
         Route::post('/image/flip', [ItToolsV1AdvancedCtl::class, 'imageFlip']);
         Route::post('/image/extract-colors', [ItToolsV1AdvancedCtl::class, 'imageExtractColors']);
         Route::post('/image/convert', [ItToolsV1AdvancedCtl::class, 'imageConvert']);
+        Route::post('/image/compress', [ItToolsV1AdvancedCtl::class, 'imageCompress']);
+        Route::post('/image/crop', [ItToolsV1AdvancedCtl::class, 'imageCrop']);
         
         Route::post('/calculator/age', [ItToolsV1AdvancedCtl::class, 'calculateAge']);
         Route::post('/calculator/bmi', [ItToolsV1AdvancedCtl::class, 'calculateBMI']);
         Route::post('/calculator/loan-emi', [ItToolsV1AdvancedCtl::class, 'calculateLoanEMI']);
         Route::post('/calculator/gst', [ItToolsV1AdvancedCtl::class, 'calculateGST']);
         Route::post('/calculator/number-to-words', [ItToolsV1AdvancedCtl::class, 'numberToWords']);
+        
+        Route::post('/pdf/split', [ItToolsV1AdvancedCtl::class, 'pdfSplit']);
+        Route::post('/pdf/merge', [ItToolsV1AdvancedCtl::class, 'pdfMerge']);
+        Route::post('/pdf/compress', [ItToolsV1AdvancedCtl::class, 'pdfCompress']);
+        Route::post('/pdf/rotate', [ItToolsV1AdvancedCtl::class, 'pdfRotate']);
+        Route::post('/pdf/add-password', [ItToolsV1AdvancedCtl::class, 'pdfAddPassword']);
     });
 
     // Crypto & Security Endpoints

@@ -140,6 +140,61 @@ class ItToolsV1ImageUtil
         ];
     }
     
+    public static function compressImage(string $sourcePath, int $quality = 85, string $format = null): array
+    {
+        $imageInfo = self::getImageInfo($sourcePath);
+        $sourceImage = self::createImageFromFile($sourcePath, $imageInfo['mime']);
+        
+        $targetFormat = $format ?: ($imageInfo['mime'] === 'image/png' ? 'png' : 'jpg');
+        $tempPath = tempnam(sys_get_temp_dir(), 'img_compress_') . '.' . $targetFormat;
+        
+        $result = match(strtolower($targetFormat)) {
+            'jpg', 'jpeg' => imagejpeg($sourceImage, $tempPath, $quality),
+            'png' => imagepng($sourceImage, $tempPath, (int)round(9 - ($quality / 100 * 9))),
+            'webp' => imagewebp($sourceImage, $tempPath, $quality),
+            default => throw new \InvalidArgumentException("Unsupported format for compression: $targetFormat")
+        };
+        
+        imagedestroy($sourceImage);
+        
+        $originalSize = filesize($sourcePath);
+        $compressedSize = filesize($tempPath);
+        
+        return [
+            'path' => $tempPath,
+            'format' => $targetFormat,
+            'quality' => $quality,
+            'original_size' => $originalSize,
+            'compressed_size' => $compressedSize,
+            'compression_ratio' => round((1 - $compressedSize / $originalSize) * 100, 2)
+        ];
+    }
+    
+    public static function cropImage(string $sourcePath, int $x, int $y, int $width, int $height): array
+    {
+        $imageInfo = self::getImageInfo($sourcePath);
+        $sourceImage = self::createImageFromFile($sourcePath, $imageInfo['mime']);
+        
+        $croppedImage = imagecreatetruecolor($width, $height);
+        
+        imagealphablending($croppedImage, false);
+        imagesavealpha($croppedImage, true);
+        
+        imagecopy($croppedImage, $sourceImage, 0, 0, $x, $y, $width, $height);
+        
+        $tempPath = tempnam(sys_get_temp_dir(), 'img_crop_') . '.png';
+        imagepng($croppedImage, $tempPath);
+        
+        imagedestroy($sourceImage);
+        imagedestroy($croppedImage);
+        
+        return [
+            'path' => $tempPath,
+            'crop_area' => ['x' => $x, 'y' => $y, 'width' => $width, 'height' => $height],
+            'file_size' => filesize($tempPath)
+        ];
+    }
+    
     public static function extractColors(string $imagePath, int $numColors = 5): array
     {
         $imageInfo = self::getImageInfo($imagePath);

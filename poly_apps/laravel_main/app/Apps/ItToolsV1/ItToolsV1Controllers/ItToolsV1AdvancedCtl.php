@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1ImageUtil;
 use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1CalculatorUtil;
+use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1PdfUtil;
 
 class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
 {
@@ -128,6 +129,71 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         });
     }
     
+    public function imageCompress(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $file = $request->file('image');
+            $quality = $request->input('quality', 85);
+            $format = $request->input('format');
+            
+            if (!$file) {
+                return $this->error('Image file required', null, 422);
+            }
+            
+            $tempPath = $file->store('temp');
+            $fullPath = storage_path('app/' . $tempPath);
+            
+            $result = ItToolsV1ImageUtil::compressImage($fullPath, (int)$quality, $format);
+            
+            $base64 = base64_encode(file_get_contents($result['path']));
+            
+            unlink($fullPath);
+            unlink($result['path']);
+            
+            return [
+                'image_data' => 'data:image/' . $result['format'] . ';base64,' . $base64,
+                'format' => $result['format'],
+                'quality' => $result['quality'],
+                'original_size' => $result['original_size'],
+                'compressed_size' => $result['compressed_size'],
+                'compression_ratio' => $result['compression_ratio'] . '%',
+                'original_size_readable' => ItToolsV1ImageUtil::formatBytes($result['original_size']),
+                'compressed_size_readable' => ItToolsV1ImageUtil::formatBytes($result['compressed_size'])
+            ];
+        });
+    }
+    
+    public function imageCrop(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $file = $request->file('image');
+            $x = $request->input('x', 0);
+            $y = $request->input('y', 0);
+            $width = $request->input('width');
+            $height = $request->input('height');
+            
+            if (!$file || !$width || !$height) {
+                return $this->error('Image file, width and height required', null, 422);
+            }
+            
+            $tempPath = $file->store('temp');
+            $fullPath = storage_path('app/' . $tempPath);
+            
+            $result = ItToolsV1ImageUtil::cropImage($fullPath, (int)$x, (int)$y, (int)$width, (int)$height);
+            
+            $base64 = base64_encode(file_get_contents($result['path']));
+            
+            unlink($fullPath);
+            unlink($result['path']);
+            
+            return [
+                'image_data' => 'data:image/png;base64,' . $base64,
+                'crop_area' => $result['crop_area'],
+                'file_size' => $result['file_size']
+            ];
+        });
+    }
+    
     public function imageConvert(Request $request): JsonResponse
     {
         return $this->safeExecute(function() use ($request) {
@@ -226,6 +292,180 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             return [
                 'number' => $number,
                 'words' => ItToolsV1CalculatorUtil::numberToWords((int)$number)
+            ];
+        });
+    }
+    
+    public function pdfSplit(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $file = $request->file('pdf');
+            $ranges = $request->input('ranges');
+            
+            if (!$file) {
+                return $this->error('PDF file required', null, 422);
+            }
+            
+            if (!$ranges) {
+                return $this->error('Page ranges required', null, 422);
+            }
+            
+            $tempPath = $file->store('temp');
+            $fullPath = storage_path('app/' . $tempPath);
+            
+            $pageRanges = json_decode($ranges, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $pageRanges = explode(',', $ranges);
+            }
+            
+            $results = ItToolsV1PdfUtil::splitPdf($fullPath, $pageRanges);
+            
+            $outputFiles = [];
+            foreach ($results as $result) {
+                $base64 = base64_encode(file_get_contents($result['path']));
+                $outputFiles[] = [
+                    'data' => 'data:application/pdf;base64,' . $base64,
+                    'pages' => $result['pages'],
+                    'file_size' => $result['file_size'],
+                    'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size']),
+                    'index' => $result['index']
+                ];
+                unlink($result['path']);
+            }
+            
+            unlink($fullPath);
+            
+            return [
+                'files' => $outputFiles,
+                'count' => count($outputFiles)
+            ];
+        });
+    }
+    
+    public function pdfMerge(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $files = $request->file('pdfs');
+            
+            if (!$files || !is_array($files)) {
+                return $this->error('Multiple PDF files required', null, 422);
+            }
+            
+            $tempPaths = [];
+            foreach ($files as $file) {
+                $tempPath = $file->store('temp');
+                $tempPaths[] = storage_path('app/' . $tempPath);
+            }
+            
+            $result = ItToolsV1PdfUtil::mergePdfs($tempPaths);
+            
+            $base64 = base64_encode(file_get_contents($result['path']));
+            
+            foreach ($tempPaths as $path) {
+                unlink($path);
+            }
+            unlink($result['path']);
+            
+            return [
+                'data' => 'data:application/pdf;base64,' . $base64,
+                'file_size' => $result['file_size'],
+                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size']),
+                'page_count' => $result['page_count'],
+                'input_count' => $result['input_count']
+            ];
+        });
+    }
+    
+    public function pdfCompress(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $file = $request->file('pdf');
+            $quality = $request->input('quality', 'screen');
+            
+            if (!$file) {
+                return $this->error('PDF file required', null, 422);
+            }
+            
+            $tempPath = $file->store('temp');
+            $fullPath = storage_path('app/' . $tempPath);
+            
+            $result = ItToolsV1PdfUtil::compressPdf($fullPath, $quality);
+            
+            $base64 = base64_encode(file_get_contents($result['path']));
+            
+            unlink($fullPath);
+            unlink($result['path']);
+            
+            return [
+                'data' => 'data:application/pdf;base64,' . $base64,
+                'original_size' => $result['original_size'],
+                'compressed_size' => $result['compressed_size'],
+                'original_size_readable' => ItToolsV1PdfUtil::formatBytes($result['original_size']),
+                'compressed_size_readable' => ItToolsV1PdfUtil::formatBytes($result['compressed_size']),
+                'compression_ratio' => $result['compression_ratio'] . '%',
+                'quality' => $result['quality']
+            ];
+        });
+    }
+    
+    public function pdfRotate(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $file = $request->file('pdf');
+            $rotation = $request->input('rotation', 90);
+            $pages = $request->input('pages');
+            
+            if (!$file) {
+                return $this->error('PDF file required', null, 422);
+            }
+            
+            $tempPath = $file->store('temp');
+            $fullPath = storage_path('app/' . $tempPath);
+            
+            $pageArray = $pages ? json_decode($pages, true) : null;
+            
+            $result = ItToolsV1PdfUtil::rotatePdf($fullPath, (int)$rotation, $pageArray);
+            
+            $base64 = base64_encode(file_get_contents($result['path']));
+            
+            unlink($fullPath);
+            unlink($result['path']);
+            
+            return [
+                'data' => 'data:application/pdf;base64,' . $base64,
+                'rotation' => $result['rotation'],
+                'pages' => $result['pages'],
+                'file_size' => $result['file_size'],
+                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
+            ];
+        });
+    }
+    
+    public function pdfAddPassword(Request $request): JsonResponse
+    {
+        return $this->safeExecute(function() use ($request) {
+            $file = $request->file('pdf');
+            $password = $request->input('password');
+            
+            if (!$file || !$password) {
+                return $this->error('PDF file and password required', null, 422);
+            }
+            
+            $tempPath = $file->store('temp');
+            $fullPath = storage_path('app/' . $tempPath);
+            
+            $result = ItToolsV1PdfUtil::addPasswordToPdf($fullPath, $password);
+            
+            $base64 = base64_encode(file_get_contents($result['path']));
+            
+            unlink($fullPath);
+            unlink($result['path']);
+            
+            return [
+                'data' => 'data:application/pdf;base64,' . $base64,
+                'protected' => $result['protected'],
+                'file_size' => $result['file_size'],
+                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
             ];
         });
     }

@@ -481,4 +481,97 @@ ITTools.Tools.TimestampConverter = {
     }
 };
 
+// ============================================
+// NAMESPACE: ITTools.Tools.PDFSplitter
+// ============================================
+ITTools.Tools.Registry.register('pdf-splitter', {
+    name: 'PDF Splitter',
+    category: 'pdf',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">PDF Splitter</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Upload PDF:</label>
+                        <input type="file" id="pdf-splitter-file" class="ittools-input" accept=".pdf">
+                    </div>
+                    
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Page Ranges:</label>
+                        <input type="text" id="pdf-splitter-ranges" class="ittools-input" 
+                               placeholder="1-3, 5, 7-10 or JSON: [{'start':1,'end':3},5]">
+                        <small style="color: #666; font-size: 12px;">
+                            Enter comma-separated ranges (e.g., "1-3, 5-7") or individual pages (e.g., "1, 3, 5")
+                        </small>
+                    </div>
+                    
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Tools.PDFSplitter.split()">
+                            ✂️ Split PDF
+                        </button>
+                    </div>
+                    
+                    <div id="pdf-splitter-result" class="ittools-result" style="display: none;"></div>
+                    <div id="pdf-splitter-downloads" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Tools.PDFSplitter = {
+    async split() {
+        const fileInput = document.getElementById('pdf-splitter-file');
+        const ranges = document.getElementById('pdf-splitter-ranges').value;
+        
+        if (!fileInput.files || !fileInput.files[0]) {
+            ITTools.UI.showResult('pdf-splitter-result', 'Please select a PDF file', false);
+            return;
+        }
+        
+        if (!ranges) {
+            ITTools.UI.showResult('pdf-splitter-result', 'Please enter page ranges', false);
+            return;
+        }
+        
+        ITTools.UI.showLoading('pdf-splitter-result', 'Splitting PDF...');
+        
+        const formData = new FormData();
+        formData.append('pdf', fileInput.files[0]);
+        formData.append('ranges', ranges);
+        
+        try {
+            const response = await fetch('/api/ittools/v1/advanced/pdf/split', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const files = result.data.files;
+                ITTools.UI.showResult('pdf-splitter-result', 
+                    `Successfully split into ${files.length} file(s)`, true);
+                
+                const downloadDiv = document.getElementById('pdf-splitter-downloads');
+                downloadDiv.innerHTML = files.map((file, i) => `
+                    <div style="margin: 10px 0; padding: 10px; background: rgba(103, 126, 234, 0.1); border-radius: 6px;">
+                        <strong>File ${i + 1}</strong> - Pages: ${file.pages} (${file.file_size_readable})
+                        <br>
+                        <a href="${file.data}" download="split_${i + 1}.pdf" 
+                           class="ittools-btn ittools-btn-secondary" style="margin-top: 5px; display: inline-block;">
+                            📥 Download
+                        </a>
+                    </div>
+                `).join('');
+            } else {
+                ITTools.UI.showResult('pdf-splitter-result', 'Error: ' + result.message, false);
+            }
+        } catch (error) {
+            ITTools.UI.showResult('pdf-splitter-result', 'Error: ' + error.message, false);
+        }
+    }
+};
+
 console.log('ITTools.Tools loaded successfully');
