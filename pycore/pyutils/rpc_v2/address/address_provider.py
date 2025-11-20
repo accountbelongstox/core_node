@@ -14,7 +14,6 @@ from pycore import ColorPrint
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.discovery.rpc_discovery import RPCDiscovery, DiscoveredRPCService
 from pycore.pyutils.rpc_v2.discovery.local_ip_detector import get_local_lan_ip, confirm_local_lan_ip
-from pycore.pyutils.rpc_v2.protocol.rpc_protocol import RPCProtocolClient, RPCAddressResponse
 
 
 @dataclass

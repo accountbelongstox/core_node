@@ -735,6 +735,54 @@ class ThreadBus:
         with self._lock:
             return list(self._shutdown_handlers)
 
+    # ============ Application Busy State (for Singleton Shutdown Control) ============
+
+    def set_busy(self, busy: bool, reason: str = "") -> None:
+        """
+        Set application busy state
+
+        Any thread can call this to prevent shutdown when processing critical tasks.
+        When busy=True, singleton detector will reject shutdown requests.
+
+        Args:
+            busy: True to mark as busy, False to clear
+            reason: Reason for busy state (optional)
+
+        Example:
+            # Before critical operation
+            THREAD_BUS.set_busy(True, "Processing database transaction")
+
+            # After operation
+            THREAD_BUS.set_busy(False)
+        """
+        self.set_thread_state('app', 'busy' if busy else 'idle', reason=reason)
+
+    def is_busy(self) -> bool:
+        """
+        Check if application is busy
+
+        Returns:
+            True if any thread marked application as busy
+
+        Example:
+            if THREAD_BUS.is_busy():
+                print("Cannot shutdown: Application is busy")
+        """
+        state = self.get_thread_state('app')
+        return state is not None and state.get('state') == 'busy'
+
+    def get_busy_reason(self) -> Optional[str]:
+        """
+        Get reason for busy state
+
+        Returns:
+            Busy reason string or None
+        """
+        state = self.get_thread_state('app')
+        if state and state.get('state') == 'busy':
+            return state.get('reason', '')
+        return None
+
 
 # Global instance
 THREAD_BUS = ThreadBus()

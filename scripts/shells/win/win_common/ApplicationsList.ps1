@@ -328,6 +328,10 @@ $Global:BasePackages = @{
                     @("config", "set", "sass_binary_site", "https://npmmirror.com/mirrors/node-sass"),
                     @("config", "set", "phantomjs_cdnurl", "https://npmmirror.com/mirrors/phantomjs")
                 )
+            },
+            @{
+                Type = "pnpm_config_separator"
+                Description = "Create .pnpmrc to separate pnpm configuration from npm configuration"
             }
         )
     }
@@ -1536,6 +1540,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
     }
     SuperClaude = @{
         UvId              = "SuperClaude"
+        PackageId         = "SuperClaude"
         Exec              = "superclaude.exe"
         Name              = "SuperClaude"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS

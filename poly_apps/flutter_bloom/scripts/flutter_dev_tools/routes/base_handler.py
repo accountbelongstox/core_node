@@ -37,7 +37,6 @@ class BaseHandler:
         """
         self.request = request_handler
         self.config = get_app_config()
-        self.color_print = ColorPrint()
 
     def parse_request_body(self) -> Optional[Dict[str, Any]]:
         """
@@ -55,10 +54,10 @@ class BaseHandler:
             return json.loads(body.decode('utf-8'))
 
         except json.JSONDecodeError as e:
-            self.color_print.print_red(f"[Handler] JSON decode error: {e}")
+            ColorPrint.red(f"[Handler] JSON decode error: {e}")
             return None
         except Exception as e:
-            self.color_print.print_red(f"[Handler] Failed to parse request body: {e}")
+            ColorPrint.red(f"[Handler] Failed to parse request body: {e}")
             return None
 
     def get_query_params(self) -> Dict[str, str]:
@@ -92,7 +91,7 @@ class BaseHandler:
             self.request.wfile.write(payload)
 
         except Exception as e:
-            self.color_print.print_red(f"[Handler] Failed to send JSON response: {e}")
+            ColorPrint.red(f"[Handler] Failed to send JSON response: {e}")
             self.send_error_response("Internal server error", HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def send_file_response(
@@ -121,7 +120,7 @@ class BaseHandler:
             self.request.wfile.write(data)
 
         except Exception as e:
-            self.color_print.print_red(f"[Handler] Failed to send file: {e}")
+            ColorPrint.red(f"[Handler] Failed to send file: {e}")
             self.send_error_response("Failed to read file", HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def send_success_response(self, message: str = "Success", data: Optional[Dict] = None) -> None:
@@ -166,7 +165,7 @@ class BaseHandler:
         Args:
             message: Log message
         """
-        self.color_print.print_blue(f"[Request] {message}")
+        ColorPrint.blue(f"[Request] {message}")
 
     def log_error(self, message: str) -> None:
         """
@@ -175,7 +174,7 @@ class BaseHandler:
         Args:
             message: Error message
         """
-        self.color_print.print_red(f"[Error] {message}")
+        ColorPrint.red(f"[Error] {message}")
 
     def log_success(self, message: str) -> None:
         """
@@ -184,4 +183,4 @@ class BaseHandler:
         Args:
             message: Success message
         """
-        self.color_print.print_green(f"[Success] {message}")
+        ColorPrint.green(f"[Success] {message}")
