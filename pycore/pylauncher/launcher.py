@@ -1,68 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-PyLauncher - Service Launcher (Thin Wrapper)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  IMPORTANT: Launcher职责边界
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-本模块 **仅负责** 以下两件事：
-
-1. 单例拦截 (Singleton Detection)
-   - 检测是否已有同应用实例在运行
-   - 可选：关闭旧实例 (shutdown_existing)
-   - 确保成为 PRIMARY 实例
-
-2. 线程调度 (Thread Scheduling)
-   - 根据配置启动指定服务
-   - 调用 pythreadpool 中的 starter 函数
-   - 协调关闭顺序（via THREAD_BUS shutdown stack）
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚫 本模块 **不负责** 具体线程的功能扩展
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-如需对具体线程进行操作（如 RPC v2 路由注册、Speech 配置等），
-请：
-1. 查看对应线程的文档和源代码
-2. 通过 launcher.get_service(name) 获取线程实例
-3. 调用线程实例的 API
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📖 示例：RPC v2 路由扩展
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-from pycore.pylauncher import LauncherConfig, ServiceLauncher
-
-# 1. 启动 RPC v2 服务
-config = LauncherConfig(services={'rpc_v2': {'port': 58100}})
-launcher = ServiceLauncher(config)
-launcher.start()
-
-# 2. 获取 RPC v2 实例
-rpc_server = launcher.get_service('rpc_v2')  # FastAPIRPCServerRunner
-
-# 3. 注册自定义路由（查看 pycore.pyutils.rpc_v2 文档）
-def my_handler(params):
-    return {'result': 'Hello from my route'}
-
-rpc_server.server.route('my_route', my_handler, sync=True)
-
-# 4. 现在可以调用: POST http://localhost:58100/rpc/my_route
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📚 线程文档位置
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- RPC v2:      pycore/pyutils/rpc_v2/__init__.py + FastAPIRPCServer
-- Heartbeat:   pycore/pyheartbeat/__init__.py + HeartbeatSystem
-- Speech:      pycore/pyctl/speech/speech_thread.py
-- 所有服务:    pycore/pythreadpool/starters.py (启动函数)
-              pycore/pythreadpool/registry.py (元数据)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-"""
 
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
@@ -237,6 +174,18 @@ class ServiceLauncher:
         ColorPrint.green(f"=== Launched {success_count}/{len(self.config.services)} services ===")
         return success_count > 0
 
+    def _create_singleton_detector(self, on_msg, state_checker):
+        """Create and bind singleton detector (extracted to avoid duplication)"""
+        detector = SingletonDetector(
+            app_id=self.config.app_id,
+            port_start=self.config.singleton_port_start,
+            port_range=self.config.singleton_port_range,
+            debug=True,
+            on_message=on_msg,
+            state_checker=state_checker
+        )
+        return detector, detector.detect_and_bind()
+
     def _singleton_detect(self) -> bool:
         """Perform singleton detection"""
         ColorPrint.blue(f"[Singleton] Detecting {self.config.app_id}...")
@@ -248,14 +197,16 @@ class ServiceLauncher:
                     execute_handlers=True
                 )
 
-        self.singleton_detector = SingletonDetector(
-            app_id=self.config.app_id,
-            port_start=self.config.singleton_port_start,
-            port_range=self.config.singleton_port_range,
-            debug=True,
-            on_message=on_msg
-        )
-        detection = self.singleton_detector.detect_and_bind()
+        def state_checker():
+            """Check if application can shutdown (based on busy state)"""
+            is_busy = THREAD_BUS.is_busy()
+            return {
+                'can_shutdown': not is_busy,
+                'message': THREAD_BUS.get_busy_reason() if is_busy else 'Ready to shutdown'
+            }
+
+        # Create detector and detect
+        self.singleton_detector, detection = self._create_singleton_detector(on_msg, state_checker)
 
         # Handle existing instance
         if detection.existing_instance:
@@ -267,15 +218,8 @@ class ServiceLauncher:
 
                 if success:
                     ColorPrint.green("[Singleton] Old instance shutdown, retrying detection")
-                    # Re-create detector and retry
-                    self.singleton_detector = SingletonDetector(
-                        app_id=self.config.app_id,
-                        port_start=self.config.singleton_port_start,
-                        port_range=self.config.singleton_port_range,
-                        debug=True,
-                        on_message=on_msg
-                    )
-                    detection = self.singleton_detector.detect_and_bind()
+                    # Re-create detector and retry (using extracted method)
+                    self.singleton_detector, detection = self._create_singleton_detector(on_msg, state_checker)
                 else:
                     ColorPrint.red("[Singleton] Failed to shutdown existing instance")
                     return False
@@ -336,9 +280,24 @@ class ServiceLauncher:
         """
         return self.services.get(name)
 
-    def is_running(self) -> bool:
-        """Check if launcher is running"""
-        return self._started
+    def is_running(self, service_name: str = None) -> bool:
+        """
+        Check if launcher or specific service is running
+
+        Args:
+            service_name: Optional service name to check. If None, checks if launcher is running
+
+        Returns:
+            True if launcher (or specified service) is running
+
+        Example:
+            launcher.is_running()              # Check if launcher started
+            launcher.is_running('rpc_v2')      # Check if RPC v2 service is running
+            launcher.is_running('heartbeat')   # Check if heartbeat is running
+        """
+        if service_name is None:
+            return self._started
+        return service_name in self.services and self.services[service_name] is not None
 
 
 # ============================================================
@@ -366,141 +325,3 @@ __all__ = [
 ]
 
 
-# ============================================================
-# Usage Examples
-# ============================================================
-
-"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-完整使用示例
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-示例1: 简单启动
-────────────────────────────────────────────────────────────────────────
-
-from pycore.pylauncher import LauncherConfig, ServiceLauncher
-
-config = LauncherConfig(
-    services={
-        'heartbeat': {},
-        'rpc_v2': {'port': 58100, 'host': '0.0.0.0', 'debug': True}
-    }
-)
-
-launcher = ServiceLauncher(config)
-launcher.start()
-
-# ... 应用运行 ...
-
-launcher.stop()
-
-
-示例2: 单例模式启动
-────────────────────────────────────────────────────────────────────────
-
-config = LauncherConfig(
-    app_id="my_app",
-    singleton=True,                # 启用单例检测
-    singleton_port_start=54000,
-    shutdown_existing=True,        # 自动关闭旧实例
-    services={'rpc_v2': {'port': 58100}}
-)
-
-launcher = ServiceLauncher(config)
-if launcher.start():
-    print("成功成为 PRIMARY 实例")
-
-
-示例3: 扩展 RPC v2 路由（查看 rpc_v2 文档）
-────────────────────────────────────────────────────────────────────────
-
-# 启动 launcher
-launcher = ServiceLauncher(config)
-launcher.start()
-
-# 获取 RPC v2 实例
-rpc_server = launcher.get_service('rpc_v2')
-
-# 注册自定义路由（需查看 FastAPIRPCServer 文档）
-def handle_custom_task(params):
-    task_id = params.get('task_id')
-    # ... 处理逻辑 ...
-    return {'status': 'completed', 'task_id': task_id}
-
-rpc_server.server.route(
-    name='process_task',
-    handler=handle_custom_task,
-    sync=True,  # 同步响应
-    description='Process custom task'
-)
-
-# 现在可以调用: POST http://localhost:58100/rpc/process_task
-
-
-示例4: 使用 Legacy API (向后兼容)
-────────────────────────────────────────────────────────────────────────
-
-from pycore.pylauncher import LauncherConfig
-
-# 旧代码风格依然可用 - 自动转换为 services dict
-config = LauncherConfig(
-    enable_rpc_v2=True,
-    rpc_v2_port=58100,
-    singleton_check=True
-)
-
-launcher = ServiceLauncher(config)
-launcher.start()
-
-
-示例5: 获取 Heartbeat 系统（查看 heartbeat 文档）
-────────────────────────────────────────────────────────────────────────
-
-launcher = ServiceLauncher(config)
-launcher.start()
-
-# 获取 heartbeat 实例
-heartbeat = launcher.get_service('heartbeat')
-
-# 使用 HeartbeatSystem API
-heartbeat.pause()
-heartbeat.resume()
-stats = heartbeat.get_stats()
-
-
-示例6: 获取 Speech 服务（查看 speech 文档）
-────────────────────────────────────────────────────────────────────────
-
-config = LauncherConfig(
-    services={
-        'speech': {
-            'mode': 'single',
-            'mic_language': 'zh-CN',
-            'system_language': 'en-US'
-        }
-    }
-)
-
-launcher = ServiceLauncher(config)
-launcher.start()
-
-# 获取 speech 实例
-speech = launcher.get_service('speech')
-
-# 使用 SpeechTranscriptionThread API
-speech.pause()
-speech.resume()
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-重要提醒
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. launcher 只负责启动和关闭
-2. 具体功能扩展需要查看对应线程的文档
-3. 通过 get_service() 获取实例后，调用线程自己的 API
-4. 线程定义在 pycore/pythreadpool/starters.py
-5. 线程元数据在 pycore/pythreadpool/registry.py
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-"""

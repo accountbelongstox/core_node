@@ -29,7 +29,7 @@ class Router:
     Router for HTTP requests
 
     Matches URL paths to handler functions
-    Supports path parameters (e.g., /api/apps/:app/tree)
+        Supports path parameters (e.g., /api/apps/:app_name/tree)
     """
 
     def __init__(self, static_dir: Path, shutdown_event: threading.Event):
@@ -40,7 +40,6 @@ class Router:
             static_dir: Static files directory
             shutdown_event: Event for server shutdown
         """
-        self.color_print = ColorPrint()
         self.static_dir = static_dir
         self.shutdown_event = shutdown_event
 
@@ -57,8 +56,8 @@ class Router:
 
         # App routes
         self.routes.append(("/api/apps", "app.list_apps", "GET"))
-        self.routes.append(("/api/apps/:app/tree", "app.get_file_tree", "GET"))
-        self.routes.append(("/api/apps/:app/fix", "app.fix_missing_items", "POST"))
+        self.routes.append(("/api/apps/:app_name/tree", "app.get_file_tree", "GET"))
+        self.routes.append(("/api/apps/:app_name/fix", "app.fix_missing_items", "POST"))
 
         # File routes
         self.routes.append(("/api/file/content", "file.read_file", "GET"))
@@ -69,14 +68,14 @@ class Router:
         self.routes.append(("/api/folder/open", "folder.open_folder", "POST"))
 
         # PageView routes
-        self.routes.append(("/api/apps/:app/pageview/stats", "pageview.get_stats", "GET"))
-        self.routes.append(("/api/apps/:app/pageview/update", "pageview.update_pageview_map", "POST"))
-        self.routes.append(("/api/apps/:app/pageview/upload-actual", "pageview.upload_actual_image", "POST"))
+        self.routes.append(("/api/apps/:app_name/pageview/stats", "pageview.get_stats", "GET"))
+        self.routes.append(("/api/apps/:app_name/pageview/update", "pageview.update_pageview_map", "POST"))
+        self.routes.append(("/api/apps/:app_name/pageview/upload-actual", "pageview.upload_actual_image", "POST"))
 
         # Comparison routes
-        self.routes.append(("/api/apps/:app/comparison/create", "comparison.create_comparison", "POST"))
-        self.routes.append(("/api/apps/:app/comparison/list/:page", "comparison.list_comparisons", "GET"))
-        self.routes.append(("/api/comparison/download/:app/:page/*", "comparison.download_comparison", "GET"))
+        self.routes.append(("/api/apps/:app_name/comparison/create", "comparison.create_comparison", "POST"))
+        self.routes.append(("/api/apps/:app_name/comparison/list/:page_key", "comparison.list_comparisons", "GET"))
+        self.routes.append(("/api/comparison/download/:app_name/:page_key/*", "comparison.download_comparison", "GET"))
 
         # Config routes
         self.routes.append(("/api/config", "config.get_config", "GET"))
@@ -92,7 +91,7 @@ class Router:
         Convert URL pattern to regex
 
         Args:
-            pattern: URL pattern (e.g., "/api/apps/:app/tree")
+            pattern: URL pattern (e.g., "/api/apps/:app_name/tree")
 
         Returns:
             (compiled regex, list of parameter names)
@@ -141,7 +140,7 @@ class Router:
             if match:
                 params = match.groupdict()
                 # Handle wildcard captures
-                if '.*' in pattern:
+                if '*' in pattern:
                     # Extract remaining path for wildcard
                     if path.startswith('/static/'):
                         params['filename'] = path.replace('/static/', '', 1)
@@ -167,12 +166,12 @@ class Router:
         match_result = self.match_route(path, method)
 
         if not match_result:
-            self.color_print.print_yellow(f"[Router] No route found for {method} {path}")
+            ColorPrint.yellow(f"[Router] No route found for {method} {path}")
             request_handler.send_error(404, "Not Found")
             return
 
         handler_name, params = match_result
-        self.color_print.print_blue(f"[Router] {method} {path} -> {handler_name}")
+        ColorPrint.blue(f"[Router] {method} {path} -> {handler_name}")
 
         # Get handler
         try:
@@ -187,7 +186,7 @@ class Router:
                 getattr(handler_obj, method_name)()
 
         except Exception as e:
-            self.color_print.print_red(f"[Router] Handler error: {e}")
+            ColorPrint.red(f"[Router] Handler error: {e}")
             import traceback
             traceback.print_exc()
             request_handler.send_error(500, "Internal Server Error")

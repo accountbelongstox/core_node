@@ -10,6 +10,11 @@ from collections import OrderedDict
 from typing import Any, Dict, Optional
 
 from pycore import ColorPrint
+from pycore.pyutils.rpc_v2.constants import (
+    EVENT_CACHE_TTL,
+    EVENT_CACHE_MAX_SIZE,
+    DEFAULT_CLEANUP_INTERVAL,
+)
 
 
 class EventCache:
@@ -18,9 +23,9 @@ class EventCache:
     def __init__(
         self,
         namespace: str = "rpc",
-        max_size: int = 10000,
-        default_ttl: float = 1800.0,
-        cleanup_interval: float = 60.0,
+        max_size: int = EVENT_CACHE_MAX_SIZE,
+        default_ttl: float = EVENT_CACHE_TTL,
+        cleanup_interval: float = DEFAULT_CLEANUP_INTERVAL,
     ):
         self.namespace = namespace
         self.max_size = max_size
