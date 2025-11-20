@@ -12,10 +12,10 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 r"""
-Codex MCP Servers Configuration Tool
+Droid MCP Servers Configuration Tool
 
-This script configures MCP servers for Codex using the native command-line interface.
-Uses 'codex mcp add' command instead of modifying JSON configuration files.
+This script configures MCP servers for Droid using the native command-line interface.
+Uses 'droid mcp add' command instead of modifying JSON configuration files.
 
 Uses the common MCP configuration provider (mcp_config_provider.py) for consistency.
 """
@@ -69,25 +69,25 @@ def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) ->
         return False
 
 
-def configure_codex_mcp() -> int:
-    """Configure MCP servers for Codex using native commands"""
+def configure_droid_mcp() -> int:
+    """Configure MCP servers for Droid using native commands"""
     print("=" * 80)
-    print("[CODEX] Configuring MCP servers using 'codex mcp add' commands")
+    print("[DROID] Configuring MCP servers using 'droid mcp add' commands")
     print("=" * 80)
     print()
 
-    # Check if codex command exists
-    check_cmd = ["codex", "--version"]
+    # Check if droid command exists
+    check_cmd = ["droid", "--version"]
     result = subprocess.run(check_cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print("[ERROR] 'codex' command not found. Please install Codex Code first.")
+        print("[ERROR] 'droid' command not found. Please install Droid Code first.")
         return 1
 
-    print(f"[INFO] Codex version: {result.stdout.strip()}")
+    print(f"[INFO] Droid version: {result.stdout.strip()}")
     print()
 
     # Get MCP configurations from common provider
-    configs = get_mcp_configs(target="codex")
+    configs = get_mcp_configs(target="droid")
 
     if not configs:
         print("[WARNING] No MCP servers to configure")
@@ -104,7 +104,7 @@ def configure_codex_mcp() -> int:
 
         if config.transport_type == "http":
             # HTTP transport
-            cmd = ["codex", "mcp", "add", config.name,
+            cmd = ["droid", "mcp", "add", config.name,
                    "--transport", "http",
                    "--url", config.url]
 
@@ -118,8 +118,8 @@ def configure_codex_mcp() -> int:
                 failed_count += 1
 
         else:  # stdio transport
-            # Build codex mcp add command with relative path
-            cmd = ["codex", "mcp", "add", config.name, config.command] + config.args
+            # Build droid mcp add command with relative path
+            cmd = ["droid", "mcp", "add", config.name, config.command] + config.args
 
             # Add environment variables if present
             if config.env:
@@ -135,7 +135,7 @@ def configure_codex_mcp() -> int:
         print()
 
     print("=" * 80)
-    print(f"[SUMMARY] Codex MCP Configuration Complete")
+    print(f"[SUMMARY] Droid MCP Configuration Complete")
     print(f"  Success: {success_count}/{len(configs)}")
     print(f"  Failed:  {failed_count}/{len(configs)}")
     print("=" * 80)
@@ -146,13 +146,13 @@ def configure_codex_mcp() -> int:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Configure MCP servers for Codex AI"
+        description="Configure MCP servers for Droid AI"
     )
     parser.add_argument(
         "--target",
         type=str,
-        default="codex",
-        help="Target tool (always 'codex' for this script)"
+        default="droid",
+        help="Target tool (always 'droid' for this script)"
     )
     parser.add_argument(
         "--working-dir",
@@ -162,16 +162,16 @@ def main():
 
     args = parser.parse_args()
 
-    if args.target != "codex":
-        print(f"[WARNING] This script only supports Codex. Use appropriate script for {args.target}")
+    if args.target != "droid":
+        print(f"[WARNING] This script only supports Droid. Use appropriate script for {args.target}")
 
     print()
     print("=" * 80)
-    print("Codex MCP Configuration Tool")
+    print("Droid MCP Configuration Tool")
     print("=" * 80)
     print()
 
-    return configure_codex_mcp()
+    return configure_droid_mcp()
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from script_sections.mcp_section import MCPSectionGenerator
 from script_sections.user_directory_section import UserDirectorySectionGenerator
 from script_sections.env_loading_section import EnvLoadingSectionGenerator
 from script_sections.ssh_command_generator import SSHCommandGenerator
+from script_sections.backup_restore_section import BackupRestoreSectionGenerator
 
 
 class WindowsCommandContentGenerator:
@@ -30,6 +31,7 @@ class WindowsCommandContentGenerator:
         self.user_dir_generator = UserDirectorySectionGenerator()
         self.env_loading_generator = EnvLoadingSectionGenerator()
         self.ssh_generator = SSHCommandGenerator()
+        self.backup_restore_generator = BackupRestoreSectionGenerator(self.path_config)
 
     def get_mcp_sync_script_path(self, tool_type: str) -> Path:
         """Get MCP sync script path for a specific tool"""
@@ -54,97 +56,10 @@ class WindowsCommandContentGenerator:
             support_upgrade: Whether to include upgrade option
             support_npm_update: Whether to include npm/npx update option
         """
-        update_script_name = self.get_update_script_path(tool_type).name
-        sync_script_name = self.get_mcp_sync_script_path(tool_type).name
-        pre_launch_script_name = self.get_pre_launch_script_path(tool_type).name
-
-        pre_launch_section = f"""# Execute pre-launch script if it exists
-$preLaunchScript = Join-Path $aiToolsDirPath "{pre_launch_script_name}"
-if (Test-Path $preLaunchScript) {{
-    $currentWorkingDir = Get-Location
-    Write-Host "[INFO] Executing pre-launch script: $preLaunchScript" -ForegroundColor Cyan
-    Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
-    Write-Host ""
-    & $preLaunchScript -WorkingDirectory "$currentWorkingDir"
-    Write-Host ""
-}}
-"""
-
-        upgrade_section = ""
-        if support_upgrade:
-            upgrade_section = f"""
-Write-Host "Available tasks:" -ForegroundColor White
-Write-Host "  [1] Upgrade {tool_display_name} to latest version (runs in separate window)" -ForegroundColor White
-Write-Host "  [2] Sync MCP server configurations (runs now)" -ForegroundColor White
-Write-Host ""
-
-$upgradeChoice = Read-Host "Do you want to upgrade {tool_display_name}? (y/N)"
-if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {{
-    $upgradeScript = Join-Path $aiToolsDirPath "{update_script_name}"
-    Write-Host ""
-    Write-Host "[INFO] Launching {tool_display_name} upgrade in separate window..." -ForegroundColor Yellow
-    # Use Start-Process to launch in new window, preventing environment pollution
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
-    Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
-}} else {{
-    Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
-}}
-
-"""
-
-        npm_update_section = ""
-        if support_npm_update:
-            npm_update_section = """
-Write-Host ""
-$npmUpdateChoice = Read-Host "Do you want to update npm global packages? (y/N)"
-if ($npmUpdateChoice -eq "y" -or $npmUpdateChoice -eq "Y") {
-    Write-Host ""
-    Write-Host "[INFO] Updating npm global packages..." -ForegroundColor Yellow
-    Write-Host ""
-
-    # Check if npm is available
-    $npmAvailable = Get-Command npm -ErrorAction SilentlyContinue
-    if ($npmAvailable) {
-        Write-Host "[INFO] Checking for npm updates..." -ForegroundColor Cyan
-        npm update -g
-        Write-Host ""
-        Write-Host "[SUCCESS] npm global packages updated" -ForegroundColor Green
-    } else {
-        Write-Host "[WARNING] npm command not found" -ForegroundColor Yellow
-    }
-    Write-Host ""
-} else {
-    Write-Host "[INFO] Skipping npm update" -ForegroundColor Cyan
-    Write-Host ""
-}
-
-"""
-
-        sync_section = f"""$currentWorkingDir = Get-Location
-$syncScript = Join-Path $aiToolsDirPath "{sync_script_name}"
-Write-Host ""
-Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
-Write-Host ""
-Write-Host "[INFO] Executing: python -u `"$syncScript`" --target {target_name} --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
-Write-Host ""
-
-python -u "$syncScript" --target {target_name} --working-dir "$currentWorkingDir"
-
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start {tool_display_name}..." -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
-$null = Read-Host "Press Enter to continue"
-"""
-
-        return f"""Write-Host "{tool_display_name} - Pre-Launch Tasks" -ForegroundColor Yellow
-Write-Host ""
-
-{pre_launch_section}
-{upgrade_section}{npm_update_section}
-{sync_section}
-"""
+        # Delegate to MCPSectionGenerator for consistency
+        return self.mcp_generator.generate_windows_mcp_section(
+            tool_type, tool_display_name, target_name, support_upgrade, support_npm_update
+        )
 
     def generate_custom_user_directory_section(self) -> str:
         """Generate custom user directory configuration section"""
@@ -422,6 +337,59 @@ Write-Host ""
 
 """
 
+        # Detect tool type and generate backup/restore section
+        backup_restore_section = ""
+        npx_fallback_section = ""
+        tool_type_map = {
+            'claude': ('claude', 'Claude AI', '@anthropic-ai/claude-code'),
+            'codex': ('codex', 'Codex AI', '@openai/codex'),
+            'droid': ('droid', 'Factory AI Droid', '@factory/droid')
+        }
+
+        tool_key = command_prefix.lower() if command_prefix else config_name.lower()
+        for key, (tool_type, tool_display_name, npm_package) in tool_type_map.items():
+            if key in tool_key:
+                # Generate backup/restore section
+                backup_restore_section = self.backup_restore_generator.generate_windows_backup_restore_section(
+                    tool_type, tool_display_name, tool_type
+                )
+
+                # Generate npx fallback section
+                npx_fallback_section = f"""
+# Fallback to npx if command not found after restore attempt
+if (-not (Get-Command {tool_type} -ErrorAction SilentlyContinue)) {{
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "Tool Not Found - Using npx Fallback" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "[WARNING] {tool_display_name} command still not available" -ForegroundColor Yellow
+    Write-Host "[INFO] Falling back to npx execution" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Generate npx fallback command
+    $envVarsPartsNpx = @()
+"""
+                for var in variables:
+                    npx_fallback_section += f"""    if ($env:{var['Name']}) {{
+        $envVarsPartsNpx += "`$env:{var['Name']}='$($env:{var['Name']})'"
+    }}
+"""
+
+                npx_fallback_section += f"""
+    $envVarsCommandNpx = $envVarsPartsNpx -join '; '
+    if ($envVarsCommandNpx) {{
+        $fullCommandDisplay = "$envVarsCommandNpx; npx -y {npm_package}"
+    }} else {{
+        $fullCommandDisplay = "npx -y {npm_package}"
+    }}
+
+    Write-Host "[INFO] Using command: $fullCommandDisplay" -ForegroundColor Cyan
+    Write-Host ""
+}}
+
+"""
+                break
+
         launch_section = f"""
 #region Launch Tool
 Write-Host ""
@@ -447,7 +415,7 @@ pause
         # Generate custom user directory section
         custom_user_dir_section = self.generate_custom_user_directory_section()
 
-        return f"""{header}{file_name_display}{custom_user_dir_section}{env_section}{mcp_section_content}{launch_section}"""
+        return f"""{header}{file_name_display}{custom_user_dir_section}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

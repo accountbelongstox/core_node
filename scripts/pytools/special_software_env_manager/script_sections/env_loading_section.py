@@ -229,10 +229,10 @@ if ! command -v "$python_exec" &> /dev/null; then
 fi
 
 # Use relative path from script location to project root
-secret_manager_script="$project_root_path/pycore/pyfoundations/secret_manager.py"
+secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
 
 echo "[DEBUG] Python executable: $python_exec"
-echo "[DEBUG] Project root: $project_root_path"
+echo "[DEBUG] Project root: $projectRootPath"
 echo "[DEBUG] Secret manager script: $secret_manager_script"
 echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
 
@@ -243,13 +243,12 @@ load_secret_value() {{
     local value=""
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
-    echo "[DEBUG] Working directory: $project_root_path"
-    echo "[DEBUG] Command: cd \"$project_root_path\" && $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
+    echo "[DEBUG] Python command: PYTHONPATH=\"$projectRootPath\" $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
 
     # Capture stderr to temp file for debugging
     local tmp_err=$(mktemp)
-    # Switch to project root before calling Python
-    value=$(cd "$project_root_path" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    # Use PYTHONPATH instead of cd
+    value=$(PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
     local exit_code=$?
 
     # Show stderr if there were errors

@@ -59,15 +59,160 @@ echo "============================================================"
 echo ""
 
 #region Initialize Path Variables
-script_source="${BASH_SOURCE[0]}"
-if [ -L "$script_source" ]; then
-    script_source="$(readlink -f "$script_source" 2>/dev/null || echo "$script_source")"
+# Resolve script real path (handle symlinks)
+# When script is executed via symlink, BASH_SOURCE[0] returns symlink path
+# We need to resolve it to actual file path to get correct directory
+scriptSource="${BASH_SOURCE[0]}"
+# Check if scriptSource is a symlink and resolve it
+if [ -L "$scriptSource" ]; then
+    # Resolve symlink to actual file path
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
 fi
-script_current_path="$(cd "$(dirname "$script_source")" && pwd)"
-scripts_dir_path="$(cd "$script_current_path/.." && pwd)"
-project_root_path="$(cd "$scripts_dir_path/.." && pwd)"
-pytools_dir_path="$scripts_dir_path/pytools"
-ai_tools_dir_path="$pytools_dir_path/ai_tools"
+# Get absolute path of script directory
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
+
+# Calculate project structure paths
+# Expected structure: project_root/scripts/linuxenvs/script.sh
+scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+
+# Additional paths (optional, for compatibility)
+shellsDirPath="$scriptsDirPath/shells"
+linuxDirPath="$shellsDirPath/linux"
+linuxCommonDirPath="$linuxDirPath/linux_common"
+pytoolsDirPath="$scriptsDirPath/pytools"
+aiToolsDirPath="$pytoolsDirPath/ai_tools"
+
+# Path resolution algorithm:
+#   Script (resolve symlink) -> Script Dir (linuxenvs) -> Scripts Dir -> Project Root
+
+echo "[DEBUG] scriptSource:      $scriptSource"
+echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
+echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
+echo "[DEBUG] projectRootPath:   $projectRootPath"
+
+#region Custom User Directory Configuration
+# ============================================================================
+# CUSTOM USER DIRECTORY SETTING
+# ============================================================================
+# Auto-scans /var/_core_node/Users/ for existing MyBest1, MyBest2, etc.
+# Usage: script.sh [number|MyBestX]
+#   - If number is provided: uses /var/_core_node/Users/MyBest[number]
+#   - If full name is provided (e.g., MyBest1): uses /var/_core_node/Users/MyBest1
+#   - If no argument: auto-finds next available MyBest[X] or creates new one
+# ============================================================================
+
+baseTempDir="/var/_core_node/Users"
+userDirPrefix="MyBest"
+
+# Get directory name/number from command line argument (if provided)
+userDirName=""
+if [ $# -gt 0 ]; then
+    argValue="$1"
+    # Check if it's a number
+    if [[ "$argValue" =~ ^[0-9]+$ ]]; then
+        userDirName="${userDirPrefix}${argValue}"
+        echo "[INFO] Using specified number: $argValue -> $userDirName"
+    # Check if it's a full name (MyBestX format)
+    elif [[ "$argValue" =~ ^${userDirPrefix}[0-9]+$ ]]; then
+        userDirName="$argValue"
+        echo "[INFO] Using specified full name: $userDirName"
+    fi
+fi
+
+# If no argument specified, auto-scan for existing MyBest directories
+if [ -z "$userDirName" ]; then
+    echo "[INFO] Auto-scanning for existing MyBest directories..."
+    
+    # Create base directory if it doesn't exist
+    if [ ! -d "$baseTempDir" ]; then
+        echo "[INFO] Creating base directory: $baseTempDir"
+        mkdir -p "$baseTempDir"
+    fi
+    
+    # Find existing MyBest directories
+    existingNumbers=()
+    if [ -d "$baseTempDir" ]; then
+        for dir in "$baseTempDir"/${userDirPrefix}[0-9]*; do
+            if [ -d "$dir" ]; then
+                dirName=$(basename "$dir")
+                if [[ "$dirName" =~ ^${userDirPrefix}([0-9]+)$ ]]; then
+                    num="${BASH_REMATCH[1]}"
+                    existingNumbers+=("$num")
+                fi
+            fi
+        done
+    fi
+    
+    # Find next available number
+    if [ ${#existingNumbers[@]} -gt 0 ]; then
+        # Find max number
+        maxNumber=0
+        for num in "${existingNumbers[@]}"; do
+            if [ "$num" -gt "$maxNumber" ]; then
+                maxNumber="$num"
+            fi
+        done
+        nextNumber=$((maxNumber + 1))
+        userDirName="${userDirPrefix}${nextNumber}"
+        echo "[INFO] Found existing MyBest directories: ${existingNumbers[*]}"
+        echo "[INFO] Using next available number: $nextNumber -> $userDirName"
+    else
+        userDirName="${userDirPrefix}1"
+        echo "[INFO] No existing MyBest directories found, starting with: $userDirName"
+    fi
+fi
+
+# Build directory path
+CustomUserDirectory="$baseTempDir/$userDirName"
+
+# Create the directory if it doesn't exist
+if [ ! -d "$baseTempDir" ]; then
+    echo "[INFO] Creating base directory: $baseTempDir"
+    mkdir -p "$baseTempDir"
+fi
+
+if [ ! -d "$CustomUserDirectory" ]; then
+    echo "[INFO] Creating custom user directory: $CustomUserDirectory"
+    mkdir -p "$CustomUserDirectory"
+fi
+
+# Verify directory was created successfully
+if [ -d "$CustomUserDirectory" ]; then
+    userProfilePath="$CustomUserDirectory"
+    echo "[SUCCESS] Using MyBest directory: $userProfilePath"
+else
+    echo "[WARNING] Failed to create custom directory, falling back to system default"
+    userProfilePath="$HOME"
+    echo "[INFO] Using system default user directory: $userProfilePath"
+fi
+
+userHomePath="$userProfilePath"
+usersDirectoryPath="$(dirname "$userProfilePath")"
+
+# Set environment variables for Node.js, React, Python, and other applications
+# ============================================================================
+# These environment variables will be available to all child processes
+# including Node.js, React, Python, and other applications launched from this script
+#
+# Python usage examples:
+#   import os
+#   user_home = os.expanduser("~")  # Uses HOME
+#   user_home = os.getenv("HOME")
+#   from pathlib import Path
+#   user_home = Path.home()  # Uses HOME
+# ============================================================================
+export HOME="$userProfilePath"
+export USER_HOME="$userProfilePath"
+export USER_DIR="$userProfilePath"
+
+echo "[INFO] Environment variables set for Node.js/React/Python applications:"
+echo "  HOME = $HOME"
+echo "  USER_HOME = $USER_HOME"
+echo "  USER_DIR = $USER_DIR"
+echo ""
+#endregion
+
 #endregion
 
 # =============================================================================
@@ -90,10 +235,10 @@ if ! command -v "$python_exec" &> /dev/null; then
 fi
 
 # Use relative path from script location to project root
-secret_manager_script="$project_root_path/pycore/pyfoundations/secret_manager.py"
+secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
 
 echo "[DEBUG] Python executable: $python_exec"
-echo "[DEBUG] Project root: $project_root_path"
+echo "[DEBUG] Project root: $projectRootPath"
 echo "[DEBUG] Secret manager script: $secret_manager_script"
 echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
 
@@ -104,13 +249,12 @@ load_secret_value() {
     local value=""
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
-    echo "[DEBUG] Working directory: $project_root_path"
-    echo "[DEBUG] Command: cd "$project_root_path" && $python_exec "$secret_manager_script" get_secret_key "$key_name""
+    echo "[DEBUG] Python command: PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name""
 
     # Capture stderr to temp file for debugging
     local tmp_err=$(mktemp)
-    # Switch to project root before calling Python
-    value=$(cd "$project_root_path" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    # Use PYTHONPATH instead of cd
+    value=$(PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
     local exit_code=$?
 
     # Show stderr if there were errors
@@ -197,41 +341,58 @@ if [ -f "$preLaunchScript" ]; then
     echo ""
 fi
 
-echo "Available tasks:"
-echo "  [1] Upgrade Claude AI to latest version (runs in separate terminal)"
-echo "  [2] Sync MCP server configurations (runs now)"
+echo ""
+echo "============================================================"
+echo "WARNING: Upgrade Option"
+echo "============================================================"
+echo "Upgrading Claude AI may cause damage to your installation."
+echo "Only proceed if you are absolutely sure."
+echo "============================================================"
 echo ""
 
 read -p "Do you want to upgrade Claude AI? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
-    echo "[INFO] Launching Claude AI upgrade in separate terminal..."
-    upgrade_script="$ai_tools_dir_path/claude_update.sh"
-    if [ -f "$upgrade_script" ]; then
-        if command -v gnome-terminal &> /dev/null; then
-            gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
-        elif command -v xterm &> /dev/null; then
-            xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
+    echo "============================================================"
+    echo "FINAL CONFIRMATION REQUIRED"
+    echo "============================================================"
+    echo "This upgrade process has been known to cause issues."
+    echo "Are you ABSOLUTELY SURE you want to continue?"
+    echo "============================================================"
+    read -p "Type 'YES' in capital letters to confirm: " final_confirm
+
+    if [ "$final_confirm" = "YES" ]; then
+        echo ""
+        echo "[INFO] Launching Claude AI upgrade in separate terminal..."
+        upgrade_script="$ai_tools_dir_path/claude_update.sh"
+        if [ -f "$upgrade_script" ]; then
+            if command -v gnome-terminal &> /dev/null; then
+                gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
+            elif command -v xterm &> /dev/null; then
+                xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
+            else
+                bash "$upgrade_script" &
+            fi
+            echo "[SUCCESS] Upgrade terminal opened"
         else
-            bash "$upgrade_script" &
+            echo "[WARNING] Upgrade script not found: $upgrade_script"
         fi
-        echo "[SUCCESS] Upgrade terminal opened"
     else
-        echo "[WARNING] Upgrade script not found: $upgrade_script"
+        echo "[INFO] Upgrade cancelled - confirmation not received"
     fi
 else
     echo "[INFO] Skipping upgrade"
 fi
 
 
-current_working_dir="$(pwd)"
 echo ""
-echo "Syncing MCP Server Configurations..."
+echo "============================================================"
+echo "Syncing MCP Server Configurations (Always Required)"
+echo "============================================================"
 echo ""
 sync_script="$ai_tools_dir_path/claude_sync_mcp_servers.py"
 if [ -f "$sync_script" ]; then
-    echo "[INFO] Executing: python -u '$sync_script' --target claude --working-dir '$current_working_dir'"
-    echo "[INFO] Working Directory: $current_working_dir"
+    echo "[INFO] Executing: python -u '$sync_script'"
     echo ""
 
     if command -v python3 &> /dev/null; then
@@ -243,7 +404,16 @@ if [ -f "$sync_script" ]; then
         exit 1
     fi
 
-    $PYTHON_CMD -u "$sync_script" --target claude --working-dir "$current_working_dir"
+    $PYTHON_CMD -u "$sync_script"
+
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "[WARNING] MCP synchronization failed"
+        echo "[INFO] Continuing anyway..."
+    else
+        echo ""
+        echo "[SUCCESS] MCP synchronization completed"
+    fi
 else
     echo "[WARNING] MCP sync script not found: $sync_script"
     echo "[INFO] Skipping MCP synchronization"
@@ -257,6 +427,134 @@ read -p "Press Enter to continue"
 
 
 #endregion
+
+
+#region Backup and Restore Check
+echo ""
+echo "============================================================"
+echo "Backup and Restore System"
+echo "============================================================"
+echo ""
+
+# Check if tool command exists
+tool_exists=false
+if command -v claude &> /dev/null; then
+    tool_exists=true
+    tool_path=$(which claude)
+    echo "[OK] Claude AI command found: $tool_path"
+else
+    echo "[NOT FOUND] Claude AI command not available"
+fi
+
+# Backup script path
+backup_script="$ai_tools_dir_path/ai_tools_backup_restore.py"
+
+if [ ! -f "$backup_script" ]; then
+    echo "[WARNING] Backup script not found, skipping backup/restore"
+else
+    # Determine Python command
+    if command -v python3 &> /dev/null; then
+        PYTHON_CMD="python3"
+    elif command -v python &> /dev/null; then
+        PYTHON_CMD="python"
+    else
+        echo "[ERROR] Python not found, skipping backup/restore"
+        PYTHON_CMD=""
+    fi
+
+    if [ -n "$PYTHON_CMD" ]; then
+        if [ "$tool_exists" = true ]; then
+            # Tool exists - offer backup
+            echo ""
+            echo "[INFO] Claude AI is available"
+            echo "[INFO] You can create a backup before running"
+            echo ""
+
+            read -p "Create backup of Claude AI? (check existing backups first) (y/N): " backup_choice
+            if [ "$backup_choice" = "y" ] || [ "$backup_choice" = "Y" ]; then
+                echo ""
+                echo "[INFO] Starting backup process..."
+                $PYTHON_CMD -u "$backup_script" claude backup
+                echo ""
+            else
+                echo "[INFO] Skipping backup"
+            fi
+        else
+            # Tool not found - offer restore
+            echo ""
+            echo "[ERROR] Claude AI command not found!"
+            echo "[INFO] You can restore from a previous backup"
+            echo ""
+
+            read -p "Restore Claude AI from backup? (Y/n): " restore_choice
+            if [ "$restore_choice" != "n" ] && [ "$restore_choice" != "N" ]; then
+                echo ""
+                echo "[INFO] Listing available backups..."
+                $PYTHON_CMD -u "$backup_script" claude list
+                echo ""
+
+                read -p "Proceed with restore from latest backup? (Y/n): " confirm_restore
+                if [ "$confirm_restore" != "n" ] && [ "$confirm_restore" != "N" ]; then
+                    echo ""
+                    echo "[INFO] Starting restore process..."
+                    $PYTHON_CMD -u "$backup_script" claude restore
+                    echo ""
+
+                    # Re-check if tool exists after restore
+                    if command -v claude &> /dev/null; then
+                        echo "[SUCCESS] Claude AI restored successfully!"
+                    else
+                        echo "[WARNING] Restore completed but command still not found"
+                        echo "[INFO] You may need to restart your terminal or check PATH"
+                    fi
+                else
+                    echo "[INFO] Restore cancelled"
+                fi
+            else
+                echo "[INFO] Skipping restore"
+                echo "[WARNING] Claude AI will not be available"
+            fi
+        fi
+    fi
+fi
+
+echo ""
+echo "============================================================"
+echo ""
+#endregion
+
+# Fallback to npx if command not found after restore attempt
+if ! command -v claude &> /dev/null; then
+    echo ""
+    echo "============================================================"
+    echo "Tool Not Found - Using npx Fallback"
+    echo "============================================================"
+    echo "[WARNING] Claude AI command still not available"
+    echo "[INFO] Falling back to npx execution"
+    echo ""
+
+    # Generate npx fallback command
+    env_vars_parts_npx=()
+    if [ -n "${ANTHROPIC_BASE_URL:-}" ]; then
+        env_vars_parts_npx+=("ANTHROPIC_BASE_URL='${ANTHROPIC_BASE_URL}'")
+    fi
+    if [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
+        env_vars_parts_npx+=("ANTHROPIC_AUTH_TOKEN='${ANTHROPIC_AUTH_TOKEN}'")
+    fi
+    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+        env_vars_parts_npx+=("ANTHROPIC_API_KEY='${ANTHROPIC_API_KEY}'")
+    fi
+
+    if [ ${#env_vars_parts_npx[@]} -gt 0 ]; then
+        env_vars_command_npx=$(IFS=' ' ; echo "${env_vars_parts_npx[*]}")
+        full_command_display="$env_vars_command_npx npx -y @anthropic-ai/claude-code"
+    else
+        full_command_display="npx -y @anthropic-ai/claude-code"
+    fi
+
+    echo "[INFO] Using command: $full_command_display"
+    echo ""
+fi
 
 
 #region Launch Tool
