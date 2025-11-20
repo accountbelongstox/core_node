@@ -18,6 +18,7 @@ import os
 import sys
 import platform
 import subprocess
+import stat
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 

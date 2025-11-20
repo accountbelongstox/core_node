@@ -100,7 +100,7 @@ declare -a SOURCE_FILES=(
     "$DD_HELPER_DIR/secret_functions.sh"
     "$DD_HELPER_DIR/main_execution.sh"
     "$GVAR_COMMON_FILE"
-    "$DD_HELPER_DIR/webpath_permissions.sh"
+    "$DD_HELPER_DIR/smart_permissions.sh"
 )
 
 
@@ -245,6 +245,8 @@ main() {
     cleanup_behavior_cache
     # Clean up orphaned file cache entries
     cleanup_file_cache
+    # Clean up expired directory processing cache
+    cleanup_directory_processing_cache
 
     # Step 3: Process shell files (dos2unix conversion and set +x permissions with cache)
     echo ""
@@ -275,7 +277,17 @@ main() {
             if [ -d "$absolute_dir" ]; then
                 ((processed_dirs++))
                 echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
-                process_sh_files "$absolute_dir"
+                
+                # Check if directory was recently processed
+                if check_directory_processing_cache "$absolute_dir"; then
+                    echo -e "\033[32m[CACHE HIT] Directory '$dir' already processed recently - skipping\033[0m"
+                else
+                    echo -e "\033[33m[CACHE MISS] Processing directory '$dir'...\033[0m"
+                    process_sh_files "$absolute_dir"
+                    # Cache the processing completion
+                    set_directory_processing_cache "$absolute_dir"
+                    echo -e "\033[32m[CACHE SET] Directory '$dir' processing cached\033[0m"
+                fi
                 echo
             else
                 echo -e "\033[31m[WARNING] Directory '$absolute_dir' not found. Skipping.\033[0m"
@@ -301,9 +313,14 @@ main() {
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
 
-    # Step 3.5: Set web path permissions for real user (when running as root)
+    # Step 3.5: Smart Permissions & Environment Setup
     echo ""
-    set_webpath_execute_permissions
+    echo -e "\033[36m[SMART SETUP] Configuring permissions and environment...\033[0m"
+    if smart_permissions_fix "$CORE_NODE_ROOT_DIR"; then
+        echo -e "\033[32m[SMART SETUP] All permissions and environment configured successfully\033[0m"
+    else
+        echo -e "\033[33m[SMART SETUP] Setup completed with warnings\033[0m"
+    fi
 
     # Step 4: Create and initialize global variable directory
     echo ""

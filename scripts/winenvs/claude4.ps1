@@ -440,34 +440,59 @@ if (Test-Path $preLaunchScript) {
 }
 
 
-Write-Host "Available tasks:" -ForegroundColor White
-Write-Host "  [1] Upgrade Claude AI to latest version (runs in separate window)" -ForegroundColor White
-Write-Host "  [2] Sync MCP server configurations (runs now)" -ForegroundColor White
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Red
+Write-Host "WARNING: Upgrade Option" -ForegroundColor Red
+Write-Host "============================================================" -ForegroundColor Red
+Write-Host "Upgrading Claude AI may cause damage to your installation." -ForegroundColor Yellow
+Write-Host "Only proceed if you are absolutely sure." -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Red
 Write-Host ""
 
 $upgradeChoice = Read-Host "Do you want to upgrade Claude AI? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
-    $upgradeScript = Join-Path $aiToolsDirPath "claude_update.bat"
     Write-Host ""
-    Write-Host "[INFO] Launching Claude AI upgrade in separate window..." -ForegroundColor Yellow
-    # Use Start-Process to launch in new window, preventing environment pollution
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
-    Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host "FINAL CONFIRMATION REQUIRED" -ForegroundColor Red
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host "This upgrade process has been known to cause issues." -ForegroundColor Yellow
+    Write-Host "Are you ABSOLUTELY SURE you want to continue?" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Red
+    $finalConfirm = Read-Host "Type 'YES' in capital letters to confirm"
+
+    if ($finalConfirm -eq "YES") {
+        $upgradeScript = Join-Path $aiToolsDirPath "claude_update.bat"
+        Write-Host ""
+        Write-Host "[INFO] Launching Claude AI upgrade in separate window..." -ForegroundColor Yellow
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
+        Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
+    } else {
+        Write-Host "[INFO] Upgrade cancelled - confirmation not received" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
 }
 
 
-$currentWorkingDir = Get-Location
 $syncScript = Join-Path $aiToolsDirPath "claude_sync_mcp_servers.py"
 Write-Host ""
-Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Syncing MCP Server Configurations (Always Required)" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"$syncScript`" --target claude --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python -u `"$syncScript`"" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "$syncScript" --target claude --working-dir "$currentWorkingDir"
+python -u "$syncScript"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "[WARNING] MCP synchronization failed" -ForegroundColor Yellow
+    Write-Host "[INFO] Continuing anyway..." -ForegroundColor Cyan
+} else {
+    Write-Host ""
+    Write-Host "[SUCCESS] MCP synchronization completed" -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -478,6 +503,123 @@ $null = Read-Host "Press Enter to continue"
 
 #endregion
 
+
+
+#region Backup and Restore Check
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Backup and Restore System" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Check if tool command exists
+$toolExists = $false
+$toolCommand = Get-Command claude -ErrorAction SilentlyContinue
+if ($toolCommand) {
+    $toolExists = $true
+    Write-Host "[OK] Claude AI command found: $($toolCommand.Source)" -ForegroundColor Green
+} else {
+    Write-Host "[NOT FOUND] Claude AI command not available" -ForegroundColor Red
+}
+
+# Backup script path
+$backupScript = Join-Path $aiToolsDirPath "ai_tools_backup_restore.py"
+
+if (-not (Test-Path $backupScript)) {
+    Write-Host "[WARNING] Backup script not found, skipping backup/restore" -ForegroundColor Yellow
+} else {
+    if ($toolExists) {
+        # Tool exists - offer backup
+        Write-Host ""
+        Write-Host "[INFO] Claude AI is available" -ForegroundColor Cyan
+        Write-Host "[INFO] You can create a backup before running" -ForegroundColor Cyan
+        Write-Host ""
+
+        $backupChoice = Read-Host "Create backup of Claude AI? (check existing backups first) (y/N)"
+        if ($backupChoice -eq "y" -or $backupChoice -eq "Y") {
+            Write-Host ""
+            Write-Host "[INFO] Starting backup process..." -ForegroundColor Yellow
+            python -u "$backupScript" claude backup
+            Write-Host ""
+        } else {
+            Write-Host "[INFO] Skipping backup" -ForegroundColor Cyan
+        }
+    } else {
+        # Tool not found - offer restore
+        Write-Host ""
+        Write-Host "[ERROR] Claude AI command not found!" -ForegroundColor Red
+        Write-Host "[INFO] You can restore from a previous backup" -ForegroundColor Cyan
+        Write-Host ""
+
+        $restoreChoice = Read-Host "Restore Claude AI from backup? (Y/n)"
+        if ($restoreChoice -ne "n" -and $restoreChoice -ne "N") {
+            Write-Host ""
+            Write-Host "[INFO] Listing available backups..." -ForegroundColor Yellow
+            python -u "$backupScript" claude list
+            Write-Host ""
+
+            $confirmRestore = Read-Host "Proceed with restore from latest backup? (Y/n)"
+            if ($confirmRestore -ne "n" -and $confirmRestore -ne "N") {
+                Write-Host ""
+                Write-Host "[INFO] Starting restore process..." -ForegroundColor Yellow
+                python -u "$backupScript" claude restore
+                Write-Host ""
+
+                # Re-check if tool exists after restore
+                $toolCommand = Get-Command claude -ErrorAction SilentlyContinue
+                if ($toolCommand) {
+                    Write-Host "[SUCCESS] Claude AI restored successfully!" -ForegroundColor Green
+                } else {
+                    Write-Host "[WARNING] Restore completed but command still not found" -ForegroundColor Yellow
+                    Write-Host "[INFO] You may need to restart your terminal or check PATH" -ForegroundColor Cyan
+                }
+            } else {
+                Write-Host "[INFO] Restore cancelled" -ForegroundColor Cyan
+            }
+        } else {
+            Write-Host "[INFO] Skipping restore" -ForegroundColor Cyan
+            Write-Host "[WARNING] Claude AI will not be available" -ForegroundColor Yellow
+        }
+    }
+}
+
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host ""
+#endregion
+
+# Fallback to npx if command not found after restore attempt
+if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "Tool Not Found - Using npx Fallback" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "[WARNING] Claude AI command still not available" -ForegroundColor Yellow
+    Write-Host "[INFO] Falling back to npx execution" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Generate npx fallback command
+    $envVarsPartsNpx = @()
+    if ($env:ANTHROPIC_BASE_URL) {
+        $envVarsPartsNpx += "`$env:ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'"
+    }
+    if ($env:ANTHROPIC_AUTH_TOKEN) {
+        $envVarsPartsNpx += "`$env:ANTHROPIC_AUTH_TOKEN='$($env:ANTHROPIC_AUTH_TOKEN)'"
+    }
+    if ($env:ANTHROPIC_API_KEY) {
+        $envVarsPartsNpx += "`$env:ANTHROPIC_API_KEY='$($env:ANTHROPIC_API_KEY)'"
+    }
+
+    $envVarsCommandNpx = $envVarsPartsNpx -join '; '
+    if ($envVarsCommandNpx) {
+        $fullCommandDisplay = "$envVarsCommandNpx; npx -y @anthropic-ai/claude-code"
+    } else {
+        $fullCommandDisplay = "npx -y @anthropic-ai/claude-code"
+    }
+
+    Write-Host "[INFO] Using command: $fullCommandDisplay" -ForegroundColor Cyan
+    Write-Host ""
+}
 
 
 #region Launch Tool
