@@ -169,3 +169,99 @@ cleanup_file_cache() {
         echo -e "\033[33m[FILE CACHE CLEANUP] Removed $cleaned_files old file cache entries (older than 30 days)\033[0m"
     fi
 }
+
+# =============================================================================
+# Directory Processing Cache Functions
+# =============================================================================
+
+check_directory_processing_cache() {
+    local dir_path="$1"
+    local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
+    local cache_expiry_seconds=86400  # 24 hours
+    local current_time=$(date +%s)
+    
+    if [ ! -d "$cache_dir" ]; then
+        $sudo mkdir -p "$cache_dir"
+        return 1
+    fi
+    
+    # Create cache key from directory path
+    local cache_key=$(echo "$dir_path" | sha256sum | cut -d' ' -f1)
+    local cache_file="$cache_dir/${cache_key}.dirprocessed"
+    
+    if [ -s "$cache_file" ]; then
+        local cache_timestamp=$(cat "$cache_file" 2>/dev/null)
+        if [ -z "$cache_timestamp" ]; then
+            cache_timestamp="0"
+        fi
+        local cache_age=$((current_time - cache_timestamp))
+        
+        # Check if cache is still valid
+        if [ "$cache_age" -le "$cache_expiry_seconds" ]; then
+            # Also check if directory modification time hasn't changed
+            local current_dir_mtime=$(stat -c %Y "$dir_path" 2>/dev/null || echo "0")
+            local cached_dir_mtime=$(cat "$cache_dir/${cache_key}.dirmtime" 2>/dev/null || echo "0")
+            
+            if [ "$current_dir_mtime" = "$cached_dir_mtime" ]; then
+                return 0  # Cache hit - directory already processed and unchanged
+            fi
+        fi
+    fi
+    
+    return 1  # Cache miss - directory needs processing
+}
+
+set_directory_processing_cache() {
+    local dir_path="$1"
+    local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
+    local current_time=$(date +%s)
+    
+    if [ ! -d "$cache_dir" ]; then
+        $sudo mkdir -p "$cache_dir"
+    fi
+    
+    # Create cache key from directory path
+    local cache_key=$(echo "$dir_path" | sha256sum | cut -d' ' -f1)
+    local cache_file="$cache_dir/${cache_key}.dirprocessed"
+    local mtime_file="$cache_dir/${cache_key}.dirmtime"
+    
+    # Store processing timestamp
+    echo "$current_time" | $sudo tee "$cache_file" >/dev/null 2>&1
+    
+    # Store directory modification time
+    local dir_mtime=$(stat -c %Y "$dir_path" 2>/dev/null || echo "0")
+    echo "$dir_mtime" | $sudo tee "$mtime_file" >/dev/null 2>&1
+}
+
+cleanup_directory_processing_cache() {
+    local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
+    local cache_expiry_seconds=86400  # 24 hours
+    local current_time=$(date +%s)
+    local cleaned_files=0
+    
+    if [ ! -d "$cache_dir" ]; then
+        return 0
+    fi
+    
+    for cache_file in "$cache_dir"/*.dirprocessed; do
+        if [ -s "$cache_file" ]; then
+            local cache_timestamp=$(cat "$cache_file" 2>/dev/null)
+            if [ -z "$cache_timestamp" ]; then
+                cache_timestamp="0"
+            fi
+            local cache_age=$((current_time - cache_timestamp))
+            
+            if [ "$cache_age" -gt "$cache_expiry_seconds" ]; then
+                # Remove both processing timestamp and mtime files
+                local base_name=$(basename "$cache_file" .dirprocessed)
+                $sudo rm -f "$cache_file" 2>/dev/null
+                $sudo rm -f "$cache_dir/${base_name}.dirmtime" 2>/dev/null
+                ((cleaned_files++))
+            fi
+        fi
+    done
+    
+    if [ "$cleaned_files" -gt 0 ]; then
+        echo -e "\033[33m[DIR CACHE CLEANUP] Removed $cleaned_files expired directory processing cache entries\033[0m"
+    fi
+}
