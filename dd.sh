@@ -100,7 +100,7 @@ declare -a SOURCE_FILES=(
     "$DD_HELPER_DIR/secret_functions.sh"
     "$DD_HELPER_DIR/main_execution.sh"
     "$GVAR_COMMON_FILE"
-    "$DD_HELPER_DIR/webpath_permissions.sh"
+    "$DD_HELPER_DIR/smart_permissions.sh"
 )
 
 
@@ -301,9 +301,14 @@ main() {
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
 
-    # Step 3.5: Set web path permissions for real user (when running as root)
+    # Step 3.5: Smart Permissions & Environment Setup
     echo ""
-    set_webpath_execute_permissions
+    echo -e "\033[36m[SMART SETUP] Configuring permissions and environment...\033[0m"
+    if smart_permissions_fix "$CORE_NODE_ROOT_DIR"; then
+        echo -e "\033[32m[SMART SETUP] All permissions and environment configured successfully\033[0m"
+    else
+        echo -e "\033[33m[SMART SETUP] Setup completed with warnings\033[0m"
+    fi
 
     # Step 4: Create and initialize global variable directory
     echo ""

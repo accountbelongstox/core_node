@@ -76,6 +76,76 @@ echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
 echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
 echo "[DEBUG] projectRootPath:   $projectRootPath"
 
+#region Ensure /var/_core_node Permissions Setup
+# ============================================================================
+# PRE-EXECUTION PERMISSION SETUP
+# ============================================================================
+# This section ensures proper permissions for /var/_core_node when script
+# is generated in root environment but executed by non-root users
+# Uses get_real_user from pycore/pyfoundations/system_info.py for user detection
+# ============================================================================
+
+ensure_var_core_node_permissions() {
+    local target_path="/var/_core_node"
+    
+    # Check if we're running as root
+    if [ "$(id -u)" -eq 0 ]; then
+        echo "[INFO] Running as root - setting up /var/_core_node permissions"
+        
+        # Get real user using Python system_info module
+        local real_user
+        if command -v python3 >/dev/null 2>&1; then
+            real_user=$(python3 -c "
+import sys
+sys.path.insert(0, '$projectRootPath')
+from pycore.pyfoundations.system_info import get_real_user
+print(get_real_user())
+" 2>/dev/null || echo "")
+        fi
+        
+        # Fallback to environment variables or default
+        if [ -z "$real_user" ]; then
+            real_user="${SUDO_USER:-ubuntu}"
+        fi
+        
+        echo "[INFO] Detected real user: $real_user"
+        
+        # Create /var/_core_node if it doesn't exist
+        if [ ! -d "$target_path" ]; then
+            echo "[INFO] Creating directory: $target_path"
+            mkdir -p "$target_path"
+        fi
+        
+        # Set ownership and permissions for real user access
+        echo "[INFO] Setting permissions for $real_user on $target_path"
+        chown -R "$real_user:$real_user" "$target_path" 2>/dev/null || {
+            echo "[WARNING] Failed to change ownership, setting permissions for all users"
+        }
+        
+        # Set 777 permissions for full access and ensure all permission bits are set
+        echo "[INFO] Setting 777 permissions on $target_path"
+        chmod -R 777 "$target_path" 2>/dev/null || echo "[WARNING] Failed to set 777 permissions"
+        chmod -R +rwx "$target_path" 2>/dev/null || echo "[WARNING] Failed to set +rwx permissions"
+        
+        echo "[SUCCESS] /var/_core_node permissions configured for user: $real_user"
+    else
+        echo "[INFO] Not running as root - skipping permission setup"
+        # Check if /var/_core_node exists and is accessible
+        if [ ! -d "$target_path" ]; then
+            echo "[WARNING] $target_path does not exist and cannot be created (not root)"
+        elif [ ! -w "$target_path" ]; then
+            echo "[WARNING] $target_path is not writable by current user"
+        else
+            echo "[INFO] $target_path is accessible"
+        fi
+    fi
+}
+
+# Execute permission setup
+ensure_var_core_node_permissions
+
+#endregion
+
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING

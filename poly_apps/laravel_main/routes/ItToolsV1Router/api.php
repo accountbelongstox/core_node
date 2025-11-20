@@ -7,9 +7,25 @@ use App\Apps\ItToolsV1\ItToolsV1WebCtl\ItToolsV1WebCtl;
 use App\Apps\ItToolsV1\ItToolsV1TextCtl\ItToolsV1TextCtl;
 use App\Apps\ItToolsV1\ItToolsV1MathCtl\ItToolsV1MathCtl;
 use App\Apps\ItToolsV1\ItToolsV1NetworkCtl\ItToolsV1NetworkCtl;
+use App\Apps\ItToolsV1\ItToolsV1Controllers\ItToolsV1UnifiedCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1NginxManagerCtl;
 
 Route::prefix('ittools/v1')->group(function () {
+    
+    // Unified API Endpoints (Centralized)
+    Route::prefix('unified')->group(function () {
+        Route::post('/encode', [ItToolsV1UnifiedCtl::class, 'encode']);
+        Route::post('/decode', [ItToolsV1UnifiedCtl::class, 'decode']);
+        Route::post('/hash', [ItToolsV1UnifiedCtl::class, 'hash']);
+        Route::post('/hmac', [ItToolsV1UnifiedCtl::class, 'hmac']);
+        Route::post('/uuid', [ItToolsV1UnifiedCtl::class, 'uuid']);
+        Route::post('/token', [ItToolsV1UnifiedCtl::class, 'token']);
+        Route::post('/case', [ItToolsV1UnifiedCtl::class, 'convertCase']);
+        Route::post('/slugify', [ItToolsV1UnifiedCtl::class, 'slugify']);
+        Route::post('/color', [ItToolsV1UnifiedCtl::class, 'convertColor']);
+        Route::post('/password-analyze', [ItToolsV1UnifiedCtl::class, 'analyzePassword']);
+        Route::post('/basic-auth', [ItToolsV1UnifiedCtl::class, 'basicAuth']);
+    });
 
     // Crypto & Security Endpoints
     Route::prefix('crypto')->group(function () {

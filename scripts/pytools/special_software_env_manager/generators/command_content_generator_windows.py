@@ -281,6 +281,10 @@ Write-Host ""
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# Ensure DISABLE_AUTOUPDATER is set for Claude Code
+$env:DISABLE_AUTOUPDATER = "1"
+$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
 """
 
         file_name_display = ""
@@ -354,16 +358,42 @@ Write-Host ""
                     tool_type, tool_display_name, tool_type
                 )
 
-                # Generate npx fallback section
+                # Generate repair and npx fallback section  
                 npx_fallback_section = f"""
-# Fallback to npx if command not found after restore attempt
+# AI Tool Repair and npx Fallback
 if (-not (Get-Command {tool_type} -ErrorAction SilentlyContinue)) {{
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "Tool Not Found - Using npx Fallback" -ForegroundColor Yellow
+    Write-Host "Tool Not Found - Repair Options Available" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "[WARNING] {tool_display_name} command still not available" -ForegroundColor Yellow
-    Write-Host "[INFO] Falling back to npx execution" -ForegroundColor Cyan
+    Write-Host "[WARNING] {tool_display_name} command not available" -ForegroundColor Yellow
+    Write-Host ""
+    
+    # Code Relationship: Generated scripts -> dd.sh smart permissions (Linux only)
+    # Windows scripts detect missing tools and suggest Linux dd.sh for comprehensive repair
+    # dd.sh smart_permissions.sh provides full repair functionality on Linux systems
+    Write-Host "[SOLUTION] For comprehensive tool repair:" -ForegroundColor Cyan
+    Write-Host "  1. Switch to Linux/WSL environment" -ForegroundColor Gray
+    Write-Host "  2. Run: sudo $projectRootPath/dd.sh" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "[INFO] Linux dd.sh provides:" -ForegroundColor Cyan
+    Write-Host "  - AI tools repair from user directories" -ForegroundColor Gray
+    Write-Host "  - Package manager reinstallation" -ForegroundColor Gray
+    Write-Host "  - Symlink fixing for /usr/local/bin" -ForegroundColor Gray
+    Write-Host "  - Permission fixes for all components" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "[INFO] On Windows: Using npx fallback (temporary solution)" -ForegroundColor Cyan
+    Write-Host ""
+}}
+
+# Final check and npx fallback
+if (-not (Get-Command {tool_type} -ErrorAction SilentlyContinue)) {{
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "Using npx Fallback (No Installation Required)" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "[INFO] Running {tool_display_name} via npx (temporary solution)" -ForegroundColor Cyan
+    Write-Host "[INFO] For permanent fix: Use Linux environment + dd.sh" -ForegroundColor Cyan
     Write-Host ""
 
     # Generate npx fallback command
