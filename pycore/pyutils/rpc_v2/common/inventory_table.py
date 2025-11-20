@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from pycore import ColorPrint
+from pycore.pyutils.rpc_v2.constants import INVENTORY_TTL, INVENTORY_MAX_SIZE
 
 
 @dataclass
@@ -28,7 +29,7 @@ class InventoryItem:
 class InventoryTable:
     """Stores results when delivery attempts fail."""
 
-    def __init__(self, max_size: int = 10_000_000, default_ttl: float = 3600.0, debug: bool = True):
+    def __init__(self, max_size: int = INVENTORY_MAX_SIZE, default_ttl: float = INVENTORY_TTL, debug: bool = True):
         self.max_size = max_size
         self.default_ttl = default_ttl
         self.debug = debug

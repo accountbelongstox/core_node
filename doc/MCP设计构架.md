@@ -1,3 +1,37 @@
+注意复用代码，全面分析，你只能增加现有逻辑中的必要的差异代码，你增加w任何代码时都要查看现有代码是否有重用内容，你将选择增强存在代码，但替换为新代码代码，拒绝同一功能出现多个版本或多个定义。
+
+注意其中肯定 有很多全局，局部变量的混乱，以及代码复用、重复多处定义不一致的问题，你要全面根据设置构架，扫描所有问题，你增加w任何代码时都要查看现有代码然后使用最优选的复用方案，拒绝同一功能出现多个版本或多个定义。
+
+
+pycore\pyctl\mcpctl 扫描其中使用 rpcv2扩展现在的路由，注意要写为多文件系统。同时
+pycore\pyctl\mcpctl\web\static\js\rpc_client.js 换为rpc v2中的客戾闷在。扫描 并复用其中所有
+文件，注意复用代码，全面分析，你只能增加现有逻辑中的必要的差异代码，你增加w任何代码时都要查看现有代码是否有重用内容，你将选择增强存在代码，但替换为新代码代码，拒绝同一功能出现多个版本或多个定义。
+
+launcher 现在在其中引用单例时，给出两个模式，一个是通知 已经存在的进程退出，启动新的进程，二是发现
+  旧的进程则不退出。是地配置一个全局变量,任何线程都可以修改threa bus中线程的忙状态，如果是忙，则拒绝
+  退同，则新单例将停止启动。注意复用代码，全面分析，不能盲目加一堆代码。
+
+现在你先完成第一步调用 D:\programing\core_node\pycore\pylauncher 中配置启动rpc v2和心跳线程。
+
+如果你发现RPC v2服务器中有缺失的，你可以先修正。
+
+mcpctl 中要全面使用 rpc_v2 的构架，注明在 mcpctl中不要实现http服务器。
+
+ pycore\pyutils\rpc_v2\client\unified_rpc_client.js 首先查看客户端， 对比v1的连接策略
+pycore\pyutils\rpc\client\unified_rpc_client.js
+
+ 同时v2版本是从v1版本移置过来的，v1thcg本工作正常，pycore\pyutils\rpc 这是v1版本你作为参考 。
+
+  t"D:\programing\core_node\pycore\pyutils\rpc_v2\FIX.md"
+先全面扫描一下rpcv2这些问题在那里，全面修复数据一致性。注意 .ps1
+不要写其他脚本配合，你先了解rpcv2的工作原理。
+  
+  [Pasted text #1 +13 lines] 大量的错误，动态端口是用来检测单例的，防止 有些端口被
+  占用但不是本系统。所以使用协议交换，但现在为什么web也启动了一堆动火态端口。web的端口是固定 的。
+  
+  
+  python .\pymain.py app=mcp 使用这个命令完整测试
+ 
  同时给web页扩展出完整的顶部菜单，左菜单，tab菜单，中间功能区，右菜单，底部菜单，全部为可扩展。包括js/基于rpc v2的客户端，以及后端的api全部可扩展。
  
  python .\pymain.py app=mcp 使用该命令完整测试，现在在后端默认使用 rpc
@@ -81,11 +115,16 @@ ython pyapps/mcp/现在切换到 python pyapps/mcp/主入口方法上，启动�
   info with ocr and document parsing tool后端，真正的 get file info with ocr and document parsing
   tool稍候再接入。 返回hello ok!
 
-  D:\programing\core_node\pycore\pylauncher\launcher.py 现在继续其中的
+launcher 重构。
+现在launcher有点复杂，删掉所有代码全部重构， 改为 可以根据配置，一次性启动单个或多个任务 ，UI rpc v2,
+sppech乖。pycore\pyheartbeat\thread_pool.py 具体查看  ···
+D:\programing\core_node\pycore\pylauncher\launcher.py 现在继续其中的
   D:\programing\core_node\pycore\pylauncher\launcher.py pycore\pyfoundations\thread_bus.py  机制，加入
   pycore\pyutils\rpc_v2 可以在 launcher.py 配置启动，但当如果使用参数 启动 rpc v2时，将在
-  thread_bus.py的退出，重启动除中加入先关闭rpc ，先全面分析。同时做出一个通用性的扩展，这样可以一直扩展更多线程类，同时默认pyheartbeat是默认启动的，其他都需要配置，你可以要全面调整一下launcher.py和其他类的组合。这就是新的启动方式。
-  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 
+  thread_bus.py的退出，重启动除中加入先关闭rpc
+，先全面分析。同时做出一个通用性的扩展，这样可以一直扩展更多线程类，同时默认pyheartbeat是默认启动的，其他都
+需要配置，你可以要全面调整一下launcher.py和其他类的组合。这就是新的启动方式。
+  同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md ···
 
   现在使用这个方案，开始修改
   同时将你刚才的更新更新到文档，但每次只能有几句话更新重点   doc\PYCORE_UP.md 

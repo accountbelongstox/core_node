@@ -38,3 +38,20 @@ Route::get('/', [DebugIndex::class, 'index']);
 Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
 Route::get('/api_params_cache/load', [ApiParamsCache::class, 'load']);
 Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
+
+// Debug assets serving routes
+Route::get('/debug-assets/css/{file}', function ($file) {
+    $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/css/' . $file;
+    if (file_exists($path)) {
+        return response()->file($path, ['Content-Type' => 'text/css']);
+    }
+    abort(404);
+});
+
+Route::get('/debug-assets/js/{file}', function ($file) {
+    $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/js/' . $file;
+    if (file_exists($path)) {
+        return response()->file($path, ['Content-Type' => 'application/javascript']);
+    }
+    abort(404);
+});

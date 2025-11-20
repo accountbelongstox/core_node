@@ -31,7 +31,7 @@ Development standards for `ncore` and `apps` live in `development-guides/NODE_NC
 #### 1.3.3. Nuxt aggregate app (`./poly_apps/nuxt_main`)
 `poly_apps/nuxt_main` is the Nuxt-powered web entry point. Guide: `development-guides/NCORE_NUXT_INTEGRATION_GUIDE.md`.
 - **Project path:** `D:/programing/core_node/poly_apps/nuxt_main`
-- **Nuxt multi-app architecture doc:** `development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md`
+- **Nuxt multi-app architecture doc:** `development-guides/NUXT_MULTI_APP_ARCHITECTURE.md`
 
 ### 1.4. System bootstrap & installers
 - **Windows:** Root-level `dd.cmd` installs Node/Java/PHP/Docker and other essentials in one step. Details: `development-guides/DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
