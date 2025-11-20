@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laravel API Debug Interface</title>
+    
+    <!-- NAMESPACE: External CSS Imports -->
+    <link rel="stylesheet" href="/debug-assets/css/ittools-layout.css">
+    
     <style>
+        /* NAMESPACE: Main Layout Styles */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
@@ -15,25 +20,58 @@
         
         .layout { display: flex; height: 100vh; }
         
-        /* Left Sidebar */
+        /* NAMESPACE: Left Sidebar Styles */
         .sidebar {
-            width: 250px;
+            width: 60px;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border-right: 1px solid rgba(255, 255, 255, 0.2);
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: width 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .sidebar.expanded {
+            width: 250px;
         }
         
         .sidebar-header {
-            padding: 20px;
+            padding: 15px;
             border-bottom: 1px solid rgba(0,0,0,0.1);
             background: rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .sidebar-header:hover {
+            background: rgba(0,0,0,0.08);
+        }
+        
+        .sidebar-toggle-btn {
+            font-size: 20px;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar.expanded .sidebar-toggle-btn {
+            transform: rotate(180deg);
         }
         
         .sidebar-header h1 {
             font-size: 18px;
             color: #2c3e50;
             font-weight: 600;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            position: absolute;
+            left: 50px;
+        }
+        
+        .sidebar.expanded .sidebar-header h1 {
+            opacity: 1;
         }
         
         .menu-items {
@@ -46,12 +84,57 @@
         }
         
         .menu-item a {
-            display: block;
-            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
             text-decoration: none;
             color: #555;
             transition: all 0.3s ease;
             border-left: 3px solid transparent;
+            position: relative;
+            white-space: nowrap;
+        }
+        
+        .menu-icon {
+            font-size: 24px;
+            min-width: 30px;
+            text-align: center;
+        }
+        
+        .menu-text {
+            margin-left: 15px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            position: absolute;
+            left: 50px;
+        }
+        
+        .sidebar.expanded .menu-text {
+            opacity: 1;
+        }
+        
+        .menu-tooltip {
+            position: absolute;
+            left: 65px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+        }
+        
+        .sidebar:not(.expanded) .menu-item a:hover .menu-tooltip {
+            opacity: 1;
+        }
+        
+        .sidebar.expanded .menu-tooltip {
+            display: none;
         }
         
         .menu-item a:hover {
@@ -400,20 +483,32 @@
 </head>
 <body>
     <div class="layout">
-        <!-- Left Sidebar -->
-        <div class="sidebar">
-            <div class="sidebar-header">
+        <!-- NAMESPACE: Left Sidebar (Collapsible) -->
+        <div class="sidebar" id="main-sidebar">
+            <div class="sidebar-header" onclick="toggleSidebar()" title="Toggle Sidebar">
+                <span class="sidebar-toggle-btn">☰</span>
                 <h1>API Debug Center</h1>
             </div>
             <ul class="menu-items">
                 <li class="menu-item">
-                    <a href="#" onclick="showSection('api-testing')" class="active">
-                        🚀 API Testing Dashboard
+                    <a href="#" onclick="showSection('api-testing')" class="active" data-section="api-testing">
+                        <span class="menu-icon">🚀</span>
+                        <span class="menu-text">API Testing Dashboard</span>
+                        <span class="menu-tooltip">API Testing Dashboard</span>
                     </a>
                 </li>
                 <li class="menu-item">
-                    <a href="#" onclick="showSection('system-info')">
-                        📊 System Information
+                    <a href="#" onclick="showSection('dev-tools')" data-section="dev-tools">
+                        <span class="menu-icon">🛠️</span>
+                        <span class="menu-text">Development Tools</span>
+                        <span class="menu-tooltip">Development Tools</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('system-info')" data-section="system-info">
+                        <span class="menu-icon">📊</span>
+                        <span class="menu-text">System Information</span>
+                        <span class="menu-tooltip">System Information</span>
                     </a>
                 </li>
             </ul>
@@ -461,6 +556,75 @@
                     </div>
                 </div>
 
+                <!-- NAMESPACE: Development Tools Section -->
+                <div id="dev-tools-section" class="content-section">
+                    <div class="ittools-container">
+                        <!-- ITTools Top Menu -->
+                        <div class="ittools-top-menu">
+                            <button class="ittools-top-menu-item active" data-top-menu-id="tools">
+                                🛠️ Tools
+                            </button>
+                            <button class="ittools-top-menu-item" data-top-menu-id="favorites">
+                                ⭐ Favorites
+                            </button>
+                            <button class="ittools-top-menu-item" data-top-menu-id="recent">
+                                🕐 Recent
+                            </button>
+                        </div>
+                        
+                        <!-- ITTools Body -->
+                        <div class="ittools-body">
+                            <!-- Left Menu (Dynamically Generated) -->
+                            <div class="ittools-left-menu" id="ittools-dynamic-menu">
+                                <!-- Menu will be generated by ITToolsMenuConfig -->
+                            </div>
+                            
+                            <!-- Content Wrapper -->
+                            <div class="ittools-content-wrapper">
+                                <!-- Main Content Area -->
+                                <div class="ittools-main-content" id="ittools-main-content">
+                                    <div class="ittools-card">
+                                        <div class="ittools-card-header">Welcome to Development Tools</div>
+                                        <div class="ittools-card-body">
+                                            <p>Select a tool from the left menu to get started.</p>
+                                            <p style="margin-top: 10px; color: #666;">
+                                                Available categories:
+                                            </p>
+                                            <ul style="margin-top: 10px; margin-left: 20px; color: #666;">
+                                                <li>📝 Text Tools - Encoding, decoding, and text manipulation</li>
+                                                <li>🔐 Crypto Tools - Hashing, UUID generation, tokens</li>
+                                                <li>✨ Formatters - JSON, XML, SQL formatting</li>
+                                                <li>🔄 Converters - Timestamps, colors, units</li>
+                                                <li>🎲 Generators - Passwords, lorem ipsum, QR codes</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Right Panel -->
+                                <div class="ittools-right-panel">
+                                    <h3 style="margin-bottom: 15px; color: #2c3e50;">Tool Information</h3>
+                                    <p style="color: #666; font-size: 13px;">
+                                        This panel will show additional information about the selected tool.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ITTools Bottom Menu -->
+                        <div class="ittools-bottom-menu">
+                            <div class="ittools-bottom-menu-left">
+                                <button class="ittools-bottom-btn" onclick="ITTools.UI.toggleRightPanel()">
+                                    📋 Info Panel
+                                </button>
+                            </div>
+                            <div class="ittools-bottom-menu-right">
+                                <span class="ittools-bottom-status">Ready</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- System Information Section -->
                 <div id="system-info-section" class="content-section">
                     <div class="card">
@@ -478,7 +642,27 @@
 
             </div>
         </div>
-    </div></body>
+    </div>
+    
+    <!-- NAMESPACE: External JavaScript Imports -->
+    <script src="/debug-assets/js/ittools-menu-config.js"></script>
+    <script src="/debug-assets/js/ittools-core.js"></script>
+    <script src="/debug-assets/js/ittools-client-tools.js"></script>
+    <script src="/debug-assets/js/ittools-advanced-tools.js"></script>
+    <script src="/debug-assets/js/ittools-tools.js"></script>
+    
+    <!-- NAMESPACE: Initialize Dynamic Menu -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const menuContainer = document.getElementById('ittools-dynamic-menu');
+            if (menuContainer && typeof ITToolsMenuConfig !== 'undefined') {
+                menuContainer.innerHTML = ITToolsMenuConfig.renderMenu();
+                console.log('Dynamic menu rendered with', ITToolsMenuConfig.categories.length, 'categories');
+            }
+        });
+    </script>
+    
+    </body>
 
     <script>
 
@@ -488,13 +672,32 @@
         let cachedParams = {}; // Browser cache for API parameters
         let cachedHeaders = {}; // Browser cache for app headers
 
-        // Navigation Functions
+        // NAMESPACE: Sidebar State Management
+        function toggleSidebar() {
+            const sidebar = document.getElementById('main-sidebar');
+            const isExpanded = sidebar.classList.toggle('expanded');
+            localStorage.setItem('sidebar_expanded', isExpanded);
+        }
+        
+        function restoreSidebarState() {
+            const sidebar = document.getElementById('main-sidebar');
+            const wasExpanded = localStorage.getItem('sidebar_expanded') === 'true';
+            if (wasExpanded) {
+                sidebar.classList.add('expanded');
+            }
+        }
+        
+        // NAMESPACE: Navigation Functions
         function showSection(sectionType) {
             // Update menu active state
             document.querySelectorAll('.menu-item a').forEach(link => {
                 link.classList.remove('active');
             });
-            event.target.classList.add('active');
+            
+            const targetLink = document.querySelector(`[data-section="${sectionType}"]`);
+            if (targetLink) {
+                targetLink.classList.add('active');
+            }
 
             // Hide all sections
             document.querySelectorAll('.content-section').forEach(section => {
@@ -506,12 +709,29 @@
                 document.getElementById('system-info-section').classList.add('active');
                 document.getElementById('page-title').textContent = 'System Information';
                 document.getElementById('page-description').textContent = 'View comprehensive system and application information';
+            } else if (sectionType === 'dev-tools') {
+                document.getElementById('dev-tools-section').classList.add('active');
+                document.getElementById('page-title').textContent = 'Development Tools';
+                document.getElementById('page-description').textContent = 'Professional developer utilities and tools';
             } else if (sectionType === 'api-testing') {
                 document.getElementById('api-testing-section').classList.add('active');
                 document.getElementById('page-title').textContent = 'API Testing Dashboard';
                 document.getElementById('page-description').textContent = 'Test and debug your Laravel API endpoints';
             }
+            
+            // Save active section
+            localStorage.setItem('active_section', sectionType);
         }
+        
+        // Restore sidebar and active section on load
+        document.addEventListener('DOMContentLoaded', function() {
+            restoreSidebarState();
+            
+            const activeSection = localStorage.getItem('active_section');
+            if (activeSection && activeSection !== 'api-testing') {
+                showSection(activeSection);
+            }
+        });
 
         // Cache Management Functions
         function saveParamsToServer(appName, endpoint, method, params) {

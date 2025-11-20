@@ -38,6 +38,12 @@ class ConfigManager:
                         'Name': 'ANTHROPIC_API_KEY',
                         'Description': 'Anthropic API Key',
                         'Required': True
+                    },
+                    {
+                        'Name': 'DISABLE_AUTOUPDATER',
+                        'Description': 'Disable Claude Code automatic updates (set to 1 to disable)',
+                        'Required': False,
+                        'DefaultValue': '1'
                     }
                 ],
                 'MCPSupport': {

@@ -123,6 +123,10 @@ fi
 # =============================================================================
 
 set -e
+
+# Ensure DISABLE_AUTOUPDATER is set for Claude Code
+export DISABLE_AUTOUPDATER="1"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
 {root_check_section}"""
 
         file_name_display = ""
@@ -202,16 +206,49 @@ echo ""
                     tool_type, tool_display_name, tool_type
                 )
 
-                # Generate npx fallback section
+                # Generate repair and npx fallback section
                 npx_fallback_section = f"""
-# Fallback to npx if command not found after restore attempt
+# AI Tool Repair and npx Fallback
 if ! command -v {tool_type} &> /dev/null; then
     echo ""
     echo "============================================================"
-    echo "Tool Not Found - Using npx Fallback"
+    echo "Tool Not Found - Repair Options Available"
     echo "============================================================"
-    echo "[WARNING] {tool_display_name} command still not available"
-    echo "[INFO] Falling back to npx execution"
+    echo "[WARNING] {tool_display_name} command not available"
+    echo ""
+    
+    # Code Relationship: Generated scripts -> dd.sh smart permissions -> AI tools repair
+    # This generated script detects missing tools and suggests dd.sh for comprehensive repair
+    # dd.sh contains smart_permissions.sh which includes AI tools repair functionality
+    echo "[SOLUTION] For comprehensive tool repair, run:"
+    echo "  sudo $projectRootPath/dd.sh"
+    echo ""
+    echo "[INFO] dd.sh will attempt to:"
+    echo "  1. Find {tool_display_name} in user home directories"
+    echo "  2. Fix /usr/local/bin symlinks"
+    echo "  3. Repair with package managers (npm/yarn)"
+    echo "  4. Set proper permissions for all tools"
+    echo ""
+
+    # Try simple repair if repair function is available from dd.sh sourcing
+    if declare -f repair_ai_tool > /dev/null; then
+        echo "[INFO] Attempting quick repair for {tool_type}..."
+        if repair_ai_tool "{tool_type}"; then
+            echo "[SUCCESS] {tool_display_name} repaired successfully!"
+        else
+            echo "[WARNING] Quick repair failed"
+        fi
+    fi
+fi
+
+# Final check and npx fallback
+if ! command -v {tool_type} &> /dev/null; then
+    echo ""
+    echo "============================================================"
+    echo "Using npx Fallback (No Installation Required)"
+    echo "============================================================"
+    echo "[INFO] Running {tool_display_name} via npx (temporary solution)"
+    echo "[INFO] For permanent fix, run: sudo $projectRootPath/dd.sh"
     echo ""
 
     # Generate npx fallback command
