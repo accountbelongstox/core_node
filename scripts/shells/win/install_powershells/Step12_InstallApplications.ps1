@@ -10,6 +10,27 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# ============================================================================
+# PROJECT-WIDE NODE.JS PACKAGE MANAGEMENT NOTICE
+# ============================================================================
+# IMPORTANT: This project uses PNPM exclusively for all Node.js package management.
+#
+# WHY PNPM?
+# - Faster installation and disk space efficiency (uses hardlinks)
+# - Better monorepo support with workspaces
+# - More predictable dependency resolution
+# - Native support for hoisting strategies via .pnpmrc
+# - Better separation between different configuration concerns
+#
+# CONFIGURATION:
+# - All pnpm-specific settings are stored in .pnpmrc (separate from npm)
+# - npm InstallType calls are internally routed to Invoke-PnpmCommand
+# - npm is available as a fallback if pnpm is not installed
+#
+# This separation prevents npm from warning about unknown pnpm configurations
+# and maintains clean, project-specific package manager configurations.
+# ============================================================================
+
 param(
     [string]$Region = "Global", # This parameter is now largely superseded by Get-GlobalVar
     [string]$PackageName = "", # Filter packages by name (supports partial matching with wildcards)
@@ -190,7 +211,7 @@ function Install-SinglePackageViaManager {
         $executable = $null
         
         switch ($InstallType) {
-            "npm" { $executable = Invoke-NpmCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "npm" { $executable = Invoke-PnpmCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "pip" { $executable = Invoke-PipCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "cargo" { $executable = Invoke-CargoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "go" { $executable = Invoke-GoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
@@ -231,7 +252,7 @@ function Get-ValidatedPackageId {
         [hashtable]$PackageMeta,
         [hashtable]$SubInstallMethod = $null
     )
-    
+
     # Get install type and package ID, prioritizing SubInstallMethod
     $InstallType = if ($SubInstallMethod -and $SubInstallMethod.ContainsKey("InstallType")) {
         $SubInstallMethod.InstallType
@@ -240,7 +261,7 @@ function Get-ValidatedPackageId {
     } else {
         "winget"
     }
-    
+
     $PackageId = if ($SubInstallMethod -and $SubInstallMethod.ContainsKey("PackageId")) {
         $SubInstallMethod.PackageId
     } elseif ($PackageMeta.ContainsKey("PackageId")) {
@@ -248,17 +269,30 @@ function Get-ValidatedPackageId {
     } else {
         ""
     }
-    
+
+    # DEBUG OUTPUT
+    Write-DebugLog -Message "Get-ValidatedPackageId - InstallType: '$InstallType', PackageId: '$PackageId'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "SubInstallMethod exists: $($null -ne $SubInstallMethod)" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+    if ($SubInstallMethod) {
+        Write-DebugLog -Message "SubInstallMethod.InstallType: '$($SubInstallMethod.ContainsKey("InstallType") ? $SubInstallMethod.InstallType : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+        Write-DebugLog -Message "SubInstallMethod.PackageId: '$($SubInstallMethod.ContainsKey("PackageId") ? $SubInstallMethod.PackageId : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+    }
+    Write-DebugLog -Message "PackageMeta.InstallType: '$($PackageMeta.ContainsKey("InstallType") ? $PackageMeta.InstallType : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "PackageMeta.PackageId: '$($PackageMeta.ContainsKey("PackageId") ? $PackageMeta.PackageId : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+
     # Check if PackageId is required for this install type
     $RequiredTypes = @("winget", "choco", "scoop", "web", "uvx", "pipx", "uv", "poetry", "cargo", "go", "gem", "brew")
     $IsRequired = $InstallType -in $RequiredTypes
-    
+
     # For npm and pip, PackageId is not required as package name is used directly
     if ([string]::IsNullOrEmpty($PackageId) -and $IsRequired) {
         Write-Host "$SCRIPT_INDEX Error: Package requires PackageId for $InstallType installation type" -ForegroundColor Red -BackgroundColor White
+        Write-DebugLog -Message "ERROR: Missing PackageId for $InstallType. RequiredTypes: $($RequiredTypes -join ', ')" -Category "VALIDATION" -Color "Red" -LocalDebug $LocalDebugMode
         return $null
     }
-    
+
+    Write-DebugLog -Message "Validation passed. Returning: InstallType='$InstallType', PackageId='$PackageId'" -Category "VALIDATION" -Color "Green" -LocalDebug $LocalDebugMode
+
     return @{
         InstallType = $InstallType
         PackageId = $PackageId
@@ -301,7 +335,7 @@ function Install-PackagesBatch {
     if ($packageNames.Count -gt 0) {
         switch ($InstallType) {
             "pip" { $batchResult = Invoke-PipCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
-            "npm" { $batchResult = Invoke-NpmCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "npm" { $batchResult = Invoke-PnpmCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "yarn" { $batchResult = Invoke-YarnCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "pnpm" { $batchResult = Invoke-PnpmCommand -PackageName $packageNames -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             default {
@@ -517,7 +551,7 @@ function Invoke-StandardPackageInstallation {
 
     # Add type-specific notes
     switch ($InstallType) {
-        "npm" { Write-Host "$SCRIPT_INDEX Note: NPM installs Node.js packages globally or locally" -ForegroundColor Yellow }
+        "npm" { Write-Host "$SCRIPT_INDEX Note: PNPM (modern Node.js package manager) installs packages globally or locally" -ForegroundColor Yellow }
         "pip" { Write-Host "$SCRIPT_INDEX Note: PIP installs to Python environment, no custom install directory" -ForegroundColor Yellow }
         "pipx" { Write-Host "$SCRIPT_INDEX Note: PIPX installs isolated Python applications" -ForegroundColor Yellow }
         "uv" { Write-Host "$SCRIPT_INDEX Note: UV provides fast Python package management" -ForegroundColor Yellow }
@@ -545,9 +579,15 @@ function Install-BasePackage {
         [hashtable]$SubInstallMethod = $null
     )
 
+    # DEBUG: Log package installation attempt
+    Write-DebugLog -Message "Install-BasePackage called for: $PackageName" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "PackageMeta keys: $($PackageMeta.Keys -join ', ')" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "SubInstallMethod: $($null -eq $SubInstallMethod ? 'NULL' : 'PROVIDED')" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
+
     # Validate package ID and install type at the beginning
     $validationResult = Get-ValidatedPackageId -PackageMeta $PackageMeta -SubInstallMethod $SubInstallMethod
     if (-not $validationResult) {
+        Write-DebugLog -Message "Validation failed for package: $PackageName" -Category "STEP12" -Color "Red" -LocalDebug $LocalDebugMode
         return $null
     }
 

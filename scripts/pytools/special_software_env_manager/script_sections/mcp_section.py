@@ -39,18 +39,35 @@ if (Test-Path $preLaunchScript) {{
         upgrade_section = ""
         if support_upgrade:
             upgrade_section = f"""
-Write-Host "Available tasks:" -ForegroundColor White
-Write-Host "  [1] Upgrade {tool_display_name} to latest version (runs in separate window)" -ForegroundColor White
-Write-Host "  [2] Sync MCP server configurations (runs now)" -ForegroundColor White
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Red
+Write-Host "WARNING: Upgrade Option" -ForegroundColor Red
+Write-Host "============================================================" -ForegroundColor Red
+Write-Host "Upgrading {tool_display_name} may cause damage to your installation." -ForegroundColor Yellow
+Write-Host "Only proceed if you are absolutely sure." -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Red
 Write-Host ""
 
 $upgradeChoice = Read-Host "Do you want to upgrade {tool_display_name}? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {{
-    $upgradeScript = Join-Path $aiToolsDirPath "{update_script_name}"
     Write-Host ""
-    Write-Host "[INFO] Launching {tool_display_name} upgrade in separate window..." -ForegroundColor Yellow
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
-    Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host "FINAL CONFIRMATION REQUIRED" -ForegroundColor Red
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host "This upgrade process has been known to cause issues." -ForegroundColor Yellow
+    Write-Host "Are you ABSOLUTELY SURE you want to continue?" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Red
+    $finalConfirm = Read-Host "Type 'YES' in capital letters to confirm"
+
+    if ($finalConfirm -eq "YES") {{
+        $upgradeScript = Join-Path $aiToolsDirPath "{update_script_name}"
+        Write-Host ""
+        Write-Host "[INFO] Launching {tool_display_name} upgrade in separate window..." -ForegroundColor Yellow
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
+        Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
+    }} else {{
+        Write-Host "[INFO] Upgrade cancelled - confirmation not received" -ForegroundColor Cyan
+    }}
 }} else {{
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
 }}
@@ -84,16 +101,25 @@ if ($npmUpdateChoice -eq "y" -or $npmUpdateChoice -eq "Y") {
 
 """
 
-        sync_section = f"""$currentWorkingDir = Get-Location
-$syncScript = Join-Path $aiToolsDirPath "{sync_script_name}"
+        sync_section = f"""$syncScript = Join-Path $aiToolsDirPath "{sync_script_name}"
 Write-Host ""
-Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Syncing MCP Server Configurations (Always Required)" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "[INFO] Executing: python -u `"$syncScript`" --target {target_name} --working-dir `"$currentWorkingDir`"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: $currentWorkingDir" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python -u `"$syncScript`"" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "$syncScript" --target {target_name} --working-dir "$currentWorkingDir"
+python -u "$syncScript"
+
+if ($LASTEXITCODE -ne 0) {{
+    Write-Host ""
+    Write-Host "[WARNING] MCP synchronization failed" -ForegroundColor Yellow
+    Write-Host "[INFO] Continuing anyway..." -ForegroundColor Cyan
+}} else {{
+    Write-Host ""
+    Write-Host "[SUCCESS] MCP synchronization completed" -ForegroundColor Green
+}}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -134,27 +160,44 @@ fi"""
         upgrade_section = ""
         if support_upgrade:
             upgrade_section = f"""
-echo "Available tasks:"
-echo "  [1] Upgrade {tool_display_name} to latest version (runs in separate terminal)"
-echo "  [2] Sync MCP server configurations (runs now)"
+echo ""
+echo "============================================================"
+echo "WARNING: Upgrade Option"
+echo "============================================================"
+echo "Upgrading {tool_display_name} may cause damage to your installation."
+echo "Only proceed if you are absolutely sure."
+echo "============================================================"
 echo ""
 
 read -p "Do you want to upgrade {tool_display_name}? (y/N): " upgrade_choice
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     echo ""
-    echo "[INFO] Launching {tool_display_name} upgrade in separate terminal..."
-    upgrade_script="$ai_tools_dir_path/{update_script_name}"
-    if [ -f "$upgrade_script" ]; then
-        if command -v gnome-terminal &> /dev/null; then
-            gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
-        elif command -v xterm &> /dev/null; then
-            xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
+    echo "============================================================"
+    echo "FINAL CONFIRMATION REQUIRED"
+    echo "============================================================"
+    echo "This upgrade process has been known to cause issues."
+    echo "Are you ABSOLUTELY SURE you want to continue?"
+    echo "============================================================"
+    read -p "Type 'YES' in capital letters to confirm: " final_confirm
+
+    if [ "$final_confirm" = "YES" ]; then
+        echo ""
+        echo "[INFO] Launching {tool_display_name} upgrade in separate terminal..."
+        upgrade_script="$ai_tools_dir_path/{update_script_name}"
+        if [ -f "$upgrade_script" ]; then
+            if command -v gnome-terminal &> /dev/null; then
+                gnome-terminal -- bash -c "$upgrade_script; read -p 'Press Enter to close'"
+            elif command -v xterm &> /dev/null; then
+                xterm -e "bash $upgrade_script; read -p 'Press Enter to close'" &
+            else
+                bash "$upgrade_script" &
+            fi
+            echo "[SUCCESS] Upgrade terminal opened"
         else
-            bash "$upgrade_script" &
+            echo "[WARNING] Upgrade script not found: $upgrade_script"
         fi
-        echo "[SUCCESS] Upgrade terminal opened"
     else
-        echo "[WARNING] Upgrade script not found: $upgrade_script"
+        echo "[INFO] Upgrade cancelled - confirmation not received"
     fi
 else
     echo "[INFO] Skipping upgrade"
@@ -188,14 +231,14 @@ fi
 
 """
 
-        sync_section = f"""current_working_dir="$(pwd)"
-echo ""
-echo "Syncing MCP Server Configurations..."
+        sync_section = f"""echo ""
+echo "============================================================"
+echo "Syncing MCP Server Configurations (Always Required)"
+echo "============================================================"
 echo ""
 sync_script="$ai_tools_dir_path/{sync_script_name}"
 if [ -f "$sync_script" ]; then
-    echo "[INFO] Executing: python -u '$sync_script' --target {target_name} --working-dir '$current_working_dir'"
-    echo "[INFO] Working Directory: $current_working_dir"
+    echo "[INFO] Executing: python -u '$sync_script'"
     echo ""
 
     if command -v python3 &> /dev/null; then
@@ -207,7 +250,16 @@ if [ -f "$sync_script" ]; then
         exit 1
     fi
 
-    $PYTHON_CMD -u "$sync_script" --target {target_name} --working-dir "$current_working_dir"
+    $PYTHON_CMD -u "$sync_script"
+
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "[WARNING] MCP synchronization failed"
+        echo "[INFO] Continuing anyway..."
+    else
+        echo ""
+        echo "[SUCCESS] MCP synchronization completed"
+    fi
 else
     echo "[WARNING] MCP sync script not found: $sync_script"
     echo "[INFO] Skipping MCP synchronization"

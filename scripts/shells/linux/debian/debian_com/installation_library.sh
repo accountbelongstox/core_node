@@ -427,6 +427,18 @@ install_via_npm() {
         return 2
     fi
 
+    # Run pre-installation checks and auto-fix
+    log_install "Running pre-installation checks..."
+    local helper_dir="$SCRIPT_CURRENT_DIR"
+
+    if [ -f "$helper_dir/npm_pre_install_checker.sh" ]; then
+        bash "$helper_dir/npm_pre_install_checker.sh" "$package_id" "$app_name" 2>/dev/null || {
+            log_warning "Pre-installation check reported issues, but continuing with installation"
+        }
+    else
+        log_warning "Pre-installation checker not found, skipping checks"
+    fi
+
     # Install npm package globally with timeout and retry logic
     local max_retries=2
     local retry_count=0
@@ -434,7 +446,7 @@ install_via_npm() {
     while [ $retry_count -lt $max_retries ]; do
         if timeout 300 $USE_SUDO npm install -g "$package_id"; then
             log_success "Successfully installed $app_name via NPM"
-            
+
             # Fix permissions for npm global binaries
             log_install "Setting executable permissions for npm global binaries..."
             local npm_global_bin
@@ -443,7 +455,7 @@ install_via_npm() {
                 # Set executable permissions for all binaries in npm global bin directory
                 $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
                 log_success "Set executable permissions for binaries in: $npm_global_bin/bin"
-                
+
                 # Also check for the specific package binary
                 local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
                 local binary_path="$npm_global_bin/bin/$package_name"
@@ -454,13 +466,23 @@ install_via_npm() {
             else
                 log_warning "Could not determine npm global bin directory"
             fi
-            
+
             return 0
         else
+            log_error "NPM installation failed on attempt $((retry_count + 1))/$max_retries"
+
+            # On failure, run cleanup and try again
+            if [ $retry_count -eq 0 ]; then
+                log_install "Running cleanup before retry..."
+                if [ -f "$helper_dir/npm_cleanup_helper.sh" ]; then
+                    bash "$helper_dir/npm_cleanup_helper.sh" "$package_id" "$app_name" 2>/dev/null || true
+                fi
+                sleep 2
+            fi
+
             ((retry_count++))
             if [ $retry_count -lt $max_retries ]; then
-                log_warning "NPM installation failed, retry $retry_count/$max_retries..."
-                sleep 2
+                log_warning "Retrying installation..."
             fi
         fi
     done

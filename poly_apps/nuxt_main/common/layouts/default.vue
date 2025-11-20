@@ -1,7 +1,7 @@
 <template>
     <div
         class="main-section relative font-nunito text-sm font-normal antialiased"
-        :class="[store.sidebar ? 'toggle-sidebar' : '', store.menu, store.layout, store.rtlClass]"
+        :class="[store.sidebar ? 'toggle-sidebar' : '', config.menu, config.layout, config.rtlClass]"
     >
         <!--  BEGIN MAIN CONTAINER  -->
         <div class="relative">
@@ -55,7 +55,7 @@
             <theme-customizer />
             <!-- END APP SETTING LAUNCHER -->
 
-            <div class="main-container min-h-screen text-black dark:text-white-dark" :class="[store.navbar]">
+            <div class="main-container min-h-screen text-black dark:text-white-dark" :class="[config.navbar]">
                 <!--  BEGIN SIDEBAR  -->
                 <layout-sidebar />
                 <!--  END SIDEBAR  -->
@@ -80,29 +80,58 @@
     </div>
 </template>
 <script setup lang="ts">
-    import { ref, onMounted } from 'vue';
-    import appSetting from '@/app-setting';
+    import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
     import { useAppStore } from '@/stores/index';
+    import { useGlobalConfig } from '@/common/composables/useGlobalConfig';
+
     const store = useAppStore();
+    const { config } = useGlobalConfig();
     const showTopButton = ref(false);
-    const { setLocale } = useI18n();
+    const animationElement = ref<HTMLElement | null>(null);
+
+    const handleScroll = () => {
+        if (document.body.scrollTop > 50 || document.documentElement.scrollTop > 50) {
+            showTopButton.value = true;
+        } else {
+            showTopButton.value = false;
+        }
+    };
+
+    const applyAnimationClass = (action: 'add' | 'remove') => {
+        if (!config.value.animation) return;
+        const target = animationElement.value;
+        if (!target) return;
+        if (action === 'add') {
+            target.classList.add('animate__animated');
+            target.classList.add(config.value.animation);
+            return;
+        }
+        target.classList.remove('animate__animated');
+        target.classList.remove(config.value.animation);
+    };
+
+    const onAnimationEnd = () => {
+        applyAnimationClass('remove');
+    };
+
+    watch(
+        () => config.value.animation,
+        () => {
+            applyAnimationClass('add');
+        }
+    );
+
     onMounted(() => {
-        // set default settings
-        appSetting.init(setLocale);
-
-        window.onscroll = () => {
-            if (document.body.scrollTop > 50 || document.documentElement.scrollTop > 50) {
-                showTopButton.value = true;
-            } else {
-                showTopButton.value = false;
-            }
-        };
-
-        const eleanimation: any = document.querySelector('.animation');
-        eleanimation.addEventListener('animationend', function () {
-            appSetting.changeAnimation('remove');
-        });
+        window.addEventListener('scroll', handleScroll);
+        animationElement.value = document.querySelector('.animation');
+        animationElement.value?.addEventListener('animationend', onAnimationEnd);
+        applyAnimationClass('add');
         store.toggleMainLoader();
+    });
+
+    onBeforeUnmount(() => {
+        window.removeEventListener('scroll', handleScroll);
+        animationElement.value?.removeEventListener('animationend', onAnimationEnd);
     });
 
     const goToTop = () => {

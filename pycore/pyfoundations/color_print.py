@@ -73,6 +73,7 @@ class ColorPrint:
     GRAY = '\033[90m'
     WHITE = '\033[97m'
     BLUE = '\033[94m'
+    CYAN = '\033[96m'
     RESET = '\033[0m'
     _output_stream = sys.stderr
     # Auto-detect MCP mode from environment variable set by pymain.py
@@ -201,6 +202,12 @@ class ColorPrint:
         """Print blue text"""
         ColorPrint._write(message, ColorPrint.BLUE, end=end)
         ColorPrint._log_to_callback(message, "blue", "INFO")
+
+    @staticmethod
+    def cyan(message, end='\n'):
+        """Print cyan text"""
+        ColorPrint._write(message, ColorPrint.CYAN, end=end)
+        ColorPrint._log_to_callback(message, "cyan", "INFO")
 
     @staticmethod
     def debug(message, end='\n'):

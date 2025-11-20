@@ -15,6 +15,7 @@ from script_sections.mcp_section import MCPSectionGenerator
 from script_sections.user_directory_section import UserDirectorySectionGenerator
 from script_sections.env_loading_section import EnvLoadingSectionGenerator
 from script_sections.ssh_command_generator import SSHCommandGenerator
+from script_sections.backup_restore_section import BackupRestoreSectionGenerator
 
 
 class LinuxCommandContentGenerator:
@@ -28,6 +29,7 @@ class LinuxCommandContentGenerator:
         self.user_dir_generator = UserDirectorySectionGenerator()
         self.env_loading_generator = EnvLoadingSectionGenerator()
         self.ssh_generator = SSHCommandGenerator()
+        self.backup_restore_generator = BackupRestoreSectionGenerator(self.path_config)
 
     def get_mcp_sync_script_path(self, tool_type: str) -> Path:
         """Get MCP sync script path for a specific tool"""
@@ -121,6 +123,10 @@ fi
 # =============================================================================
 
 set -e
+
+# Ensure DISABLE_AUTOUPDATER is set for Claude Code
+export DISABLE_AUTOUPDATER="1"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
 {root_check_section}"""
 
         file_name_display = ""
@@ -133,20 +139,11 @@ echo "============================================================"
 echo ""
 """
 
-        # Path resolution section
-        path_resolution = """
-#region Initialize Path Variables
-script_source="${BASH_SOURCE[0]}"
-if [ -L "$script_source" ]; then
-    script_source="$(readlink -f "$script_source" 2>/dev/null || echo "$script_source")"
-fi
-script_current_path="$(cd "$(dirname "$script_source")" && pwd)"
-scripts_dir_path="$(cd "$script_current_path/.." && pwd)"
-project_root_path="$(cd "$scripts_dir_path/.." && pwd)"
-pytools_dir_path="$scripts_dir_path/pytools"
-ai_tools_dir_path="$pytools_dir_path/ai_tools"
-#endregion
-"""
+        # Generate user directory section
+        user_directory_section = self.user_dir_generator.generate_linux_user_directory_section()
+
+        # Path resolution section (for backward compatibility, now included in user_directory_section)
+        path_resolution = ""
 
         # Generate environment variable loading section
         env_loading_section = self.env_loading_generator.generate_linux_env_loading_section(variables, file_number)
@@ -192,6 +189,93 @@ echo ""
 
 """
 
+        # Detect tool type and generate backup/restore section
+        backup_restore_section = ""
+        npx_fallback_section = ""
+        tool_type_map = {
+            'claude': ('claude', 'Claude AI', '@anthropic-ai/claude-code'),
+            'codex': ('codex', 'Codex AI', '@openai/codex'),
+            'droid': ('droid', 'Factory AI Droid', '@factory/droid')
+        }
+
+        tool_key = command_prefix.lower() if command_prefix else config_name.lower()
+        for key, (tool_type, tool_display_name, npm_package) in tool_type_map.items():
+            if key in tool_key:
+                # Generate backup/restore section
+                backup_restore_section = self.backup_restore_generator.generate_linux_backup_restore_section(
+                    tool_type, tool_display_name, tool_type
+                )
+
+                # Generate repair and npx fallback section
+                npx_fallback_section = f"""
+# AI Tool Repair and npx Fallback
+if ! command -v {tool_type} &> /dev/null; then
+    echo ""
+    echo "============================================================"
+    echo "Tool Not Found - Repair Options Available"
+    echo "============================================================"
+    echo "[WARNING] {tool_display_name} command not available"
+    echo ""
+    
+    # Code Relationship: Generated scripts -> dd.sh smart permissions -> AI tools repair
+    # This generated script detects missing tools and suggests dd.sh for comprehensive repair
+    # dd.sh contains smart_permissions.sh which includes AI tools repair functionality
+    echo "[SOLUTION] For comprehensive tool repair, run:"
+    echo "  sudo $projectRootPath/dd.sh"
+    echo ""
+    echo "[INFO] dd.sh will attempt to:"
+    echo "  1. Find {tool_display_name} in user home directories"
+    echo "  2. Fix /usr/local/bin symlinks"
+    echo "  3. Repair with package managers (npm/yarn)"
+    echo "  4. Set proper permissions for all tools"
+    echo ""
+
+    # Try simple repair if repair function is available from dd.sh sourcing
+    if declare -f repair_ai_tool > /dev/null; then
+        echo "[INFO] Attempting quick repair for {tool_type}..."
+        if repair_ai_tool "{tool_type}"; then
+            echo "[SUCCESS] {tool_display_name} repaired successfully!"
+        else
+            echo "[WARNING] Quick repair failed"
+        fi
+    fi
+fi
+
+# Final check and npx fallback
+if ! command -v {tool_type} &> /dev/null; then
+    echo ""
+    echo "============================================================"
+    echo "Using npx Fallback (No Installation Required)"
+    echo "============================================================"
+    echo "[INFO] Running {tool_display_name} via npx (temporary solution)"
+    echo "[INFO] For permanent fix, run: sudo $projectRootPath/dd.sh"
+    echo ""
+
+    # Generate npx fallback command
+    env_vars_parts_npx=()
+"""
+                for var in variables:
+                    var_name = var['Name']
+                    npx_fallback_section += f"""    if [ -n "${{{var_name}:-}}" ]; then
+        env_vars_parts_npx+=("{var_name}='${{{var_name}}}'")
+    fi
+"""
+
+                npx_fallback_section += f"""
+    if [ ${{#env_vars_parts_npx[@]}} -gt 0 ]; then
+        env_vars_command_npx=$(IFS=' ' ; echo "${{env_vars_parts_npx[*]}}")
+        full_command_display="$env_vars_command_npx npx -y {npm_package}"
+    else
+        full_command_display="npx -y {npm_package}"
+    fi
+
+    echo "[INFO] Using command: $full_command_display"
+    echo ""
+fi
+
+"""
+                break
+
         launch_section = f"""
 #region Launch Tool
 echo ""
@@ -215,7 +299,7 @@ read
 #endregion
 """
 
-        return f"""{header}{file_name_display}{path_resolution}{env_section}{mcp_section_content}{launch_section}"""
+        return f"""{header}{file_name_display}{user_directory_section}{path_resolution}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:
