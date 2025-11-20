@@ -7,9 +7,15 @@ Shared configuration for RPC v2 components.
 import os
 from typing import Dict, Optional, Any
 
-from .constants import RPC_CONSTANTS
-
-DEFAULTS = RPC_CONSTANTS.DEFAULTS
+from pycore.pyutils.rpc_v2.constants import (
+    DEFAULT_SERVER_PORT,
+    DEFAULT_SERVER_HOST,
+    DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_HEARTBEAT_INTERVAL,
+    DEFAULT_SCAN_TIMEOUT,
+    DEFAULT_CONNECTION_TIMEOUT,
+    RPC_PROTOCOL_VERSION,
+)
 
 
 class RPCConfig:
@@ -27,14 +33,14 @@ class RPCConfig:
         if self._initialized:
             return
 
-        self.port: int = int(os.getenv("RPC_PORT", DEFAULTS["SERVER_PORT"]))
-        self.host: str = os.getenv("RPC_HOST", DEFAULTS["SERVER_HOST"])
-        self.scan_timeout: float = 2.0
+        self.port: int = int(os.getenv("RPC_PORT", DEFAULT_SERVER_PORT))
+        self.host: str = os.getenv("RPC_HOST", DEFAULT_SERVER_HOST)
+        self.scan_timeout: float = DEFAULT_SCAN_TIMEOUT
         self.scan_interval: float = 0.5
-        self.connection_timeout: float = 2.0
+        self.connection_timeout: float = DEFAULT_CONNECTION_TIMEOUT
         self.use_localhost: bool = True
         self.enable_network_scan: bool = True
-        self.protocol_version: str = "2.0"
+        self.protocol_version: str = RPC_PROTOCOL_VERSION
         self.cache_enabled: bool = True
         self.cache_ttl: float = 300.0
 

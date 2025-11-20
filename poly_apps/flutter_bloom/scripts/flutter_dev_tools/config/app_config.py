@@ -39,7 +39,6 @@ class AppConfig:
         Args:
             config_file: Path to config JSON file (optional)
         """
-        self.color_print = ColorPrint()
         self.encyclopedia = ENCYCLOPEDIA
 
         # Default config file location
@@ -104,7 +103,7 @@ class AppConfig:
         cached_config = self.encyclopedia.get(cache_key)
         if cached_config:
             self._config = cached_config
-            self.color_print.print_green("[Config] Loaded from cache")
+            ColorPrint.green("[Config] Loaded from cache")
             return
 
         # Load from file
@@ -117,11 +116,11 @@ class AppConfig:
                 self._config = self._deep_merge(self._get_default_config(), file_config)
 
                 # Cache the config
-                self.encyclopedia.set(cache_key, self._config)
+                self.encyclopedia.add(cache_key, self._config)
 
-                self.color_print.print_green(f"[Config] Loaded from {self.config_file}")
+                ColorPrint.green(f"[Config] Loaded from {self.config_file}")
             except Exception as e:
-                self.color_print.print_red(f"[Config] Failed to load config file: {e}")
+                ColorPrint.red(f"[Config] Failed to load config file: {e}")
                 self._config = self._get_default_config()
         else:
             # Use defaults and save to file
@@ -129,9 +128,9 @@ class AppConfig:
             self._save_config()
 
             # Cache the config
-            self.encyclopedia.set(cache_key, self._config)
+            self.encyclopedia.add(cache_key, self._config)
 
-            self.color_print.print_yellow(f"[Config] Created default config at {self.config_file}")
+            ColorPrint.yellow(f"[Config] Created default config at {self.config_file}")
 
     def _deep_merge(self, base: Dict, override: Dict) -> Dict:
         """
@@ -162,9 +161,9 @@ class AppConfig:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
 
-            self.color_print.print_green(f"[Config] Saved to {self.config_file}")
+            ColorPrint.green(f"[Config] Saved to {self.config_file}")
         except Exception as e:
-            self.color_print.print_red(f"[Config] Failed to save config: {e}")
+            ColorPrint.red(f"[Config] Failed to save config: {e}")
 
     def get(self, key_path: str, default: Any = None) -> Any:
         """
@@ -211,7 +210,7 @@ class AppConfig:
 
         # Update cache
         cache_key = f"{CONFIG_CACHE_PREFIX}_main"
-        self.encyclopedia.set(cache_key, self._config)
+        self.encyclopedia.add(cache_key, self._config)
 
         # Save to file if requested
         if save:
@@ -221,7 +220,7 @@ class AppConfig:
         """Reload configuration from file"""
         # Clear cache
         cache_key = f"{CONFIG_CACHE_PREFIX}_main"
-        self.encyclopedia.delete(cache_key)
+        self.encyclopedia.remove(cache_key)
 
         # Reload
         self._load_config()

@@ -252,6 +252,268 @@ function Invoke-NpmCommand {
 
 <#
 .SYNOPSIS
+    Installs Node.js packages using PNPM with binary scanning verification
+
+.DESCRIPTION
+    PNPM installation method - modern Node.js package manager that replaces NPM
+    in the core_node project. This project now uses pnpm exclusively for all
+    Node.js package management.
+
+    Why PNPM over NPM:
+    - Faster installation and disk space efficiency (uses hardlinks)
+    - Better monorepo support with workspaces
+    - More predictable dependency resolution
+    - Native support for hoisting strategies via .pnpmrc
+    - Better separation between different configuration concerns
+
+    Features:
+    - Uses binary scanning for faster verification
+    - Scans common pnpm global installation paths
+    - Return executable path for consistent environment variable setup
+    - Support for both global and local installations
+
+.PARAMETER PackageName
+    The pnpm package name (e.g., "yarn", "pm2", "ts-node")
+
+.PARAMETER InstallDir
+    NOTE: PNPM cannot specify custom installation directory like winget.
+    This parameter is kept for API consistency but will be ignored.
+    PNPM installs globally to user directories.
+
+.PARAMETER Keyword
+    Primary executable name for detection (e.g., "yarn", "pm2")
+
+.PARAMETER AdditionalKeywords
+    Additional keywords for comprehensive detection
+
+.PARAMETER OnlyCheckFlag
+    If true, only checks if package is installed
+
+.PARAMETER ForceInstall
+    If true, forces reinstallation
+
+.RETURNS
+    Returns the full path to the main executable, or $null if not found
+
+.NOTES
+    - This project uses pnpm as the primary package manager
+    - Cannot control installation directory (pnpm limitation)
+    - Uses binary scanning for faster verification
+    - Returns executable path for environment variable setup
+    - Configuration stored in .pnpmrc (separate from npm .npmrc)
+#>
+function Invoke-PnpmCommand {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [string]$InstallDir = "", # Ignored for pnpm (API consistency)
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $false
+    )
+
+    $Recurse = $false
+    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+
+    Write-DebugLog -Message "Processing package via PNPM: $PackageName" -Category "PNPM" -Color "Cyan"
+
+    # Get pnpm executable path
+    $pnpmExe = $Global:PNPM_EXE_PATH
+    if (-not $pnpmExe) {
+        # Fallback: search for pnpm in PATH
+        $pnpmExe = Get-Command "pnpm.cmd" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    }
+
+    if (-not (Test-Path $pnpmExe)) {
+        Write-DebugLog -Message "pnpm not found at: $pnpmExe" -Category "PNPM" -Color "Red"
+        # Fallback to npm if pnpm is not available
+        Write-DebugLog -Message "Fallback: pnpm not available, attempting npm fallback" -Category "PNPM" -Color "Yellow"
+        return Invoke-NpmFallback -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+    }
+
+    # Get pnpm global prefix (installation directory)
+    try {
+        $pnpmPrefix = & $pnpmExe config get globalDir
+        Write-DebugLog -Message "pnpm global directory: $pnpmPrefix" -Category "PNPM" -Color "Cyan"
+    }
+    catch {
+        Write-DebugLog -Message "Failed to get pnpm global directory: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+        return $null
+    }
+
+    # Extract package name without scope for directory paths
+    $packageDirName = $PackageName
+    if ($PackageName -match '^@[^/]+/(.+)$') {
+        $packageDirName = $matches[1]
+        Write-Host "       [PNPM] Package directory name: $packageDirName" -ForegroundColor Cyan
+    }
+
+    # Define search paths for pnpm global packages
+    Write-DebugLog -Message "pnpmPrefix: '$pnpmPrefix'" -Category "PNPM" -Color "Magenta"
+    Write-DebugLog -Message "packageDirName: '$packageDirName'" -Category "PNPM" -Color "Magenta"
+    Write-DebugLog -Message "packageDirName type: $($packageDirName.GetType().Name)" -Category "PNPM" -Color "Magenta"
+
+    Write-DebugLog -Message "Creating search paths..." -Category "PNPM" -Color "Magenta"
+    $searchPaths = @()
+
+    try {
+        # Add pnpm global directory (where globally installed packages go)
+        $searchPaths += $pnpmPrefix
+        Write-DebugLog -Message "Added pnpm global path: $pnpmPrefix" -Category "PNPM" -Color "Magenta"
+
+        # Add pnpm .bin directory (where symlinks to executables are created)
+        $pnpmBinDir = Join-Path $pnpmPrefix ".bin"
+        $searchPaths += $pnpmBinDir
+        Write-DebugLog -Message "Added pnpm bin path: $pnpmBinDir" -Category "PNPM" -Color "Magenta"
+
+        # Add pnpm node_modules structure (similar to npm)
+        $searchPaths += Join-Path $pnpmPrefix "node_modules\.bin"
+        Write-DebugLog -Message "Added pnpm node_modules\.bin path" -Category "PNPM" -Color "Magenta"
+
+        $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\bin"
+        Write-DebugLog -Message "Added pnpm node_modules\$packageDirName\bin path" -Category "PNPM" -Color "Magenta"
+
+        $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\dist"
+        Write-DebugLog -Message "Added pnpm node_modules\$packageDirName\dist path" -Category "PNPM" -Color "Magenta"
+
+        $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName"
+        Write-DebugLog -Message "Added pnpm node_modules\$packageDirName path" -Category "PNPM" -Color "Magenta"
+    }
+    catch {
+        Write-DebugLog -Message "Error in pnpm Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+        Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
+        throw
+    }
+
+    # Add npm compatibility paths as fallback (for packages installed via npm)
+    $npmExe = $Global:NPM_EXE_PATH
+    if (Test-Path $npmExe) {
+        try {
+            $npmPrefix = & $npmExe config get prefix 2>$null
+            if ($npmPrefix) {
+                Write-DebugLog -Message "Adding npm compatibility paths..." -Category "PNPM" -Color "Magenta"
+
+                $searchPaths += $npmPrefix
+                Write-DebugLog -Message "Added npm compatibility root path: $npmPrefix" -Category "PNPM" -Color "Magenta"
+
+                $searchPaths += Join-Path $npmPrefix "node_modules\.bin"
+                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\bin"
+                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\dist"
+                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName"
+                Write-DebugLog -Message "Added npm compatibility paths" -Category "PNPM" -Color "Magenta"
+            }
+        }
+        catch {
+            Write-DebugLog -Message "Error getting npm compatibility paths: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+        }
+    }
+
+    # Build search keywords
+    $searchKeywords = @($Keyword)
+    if ($AdditionalKeywords) {
+        $searchKeywords += $AdditionalKeywords
+    }
+    if (-not $searchKeywords -or $searchKeywords -eq "") {
+        $searchKeywords = @($PackageName)
+    }
+
+    # Check if already installed
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "Package already installed: $executable" -Category "PNPM" -Color "Green"
+        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "PNPM" -Color "Cyan"
+        return $executable
+    }
+
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+
+    # Install package using pnpm
+    Write-DebugLog -Message "Installing package via pnpm: $PackageName" -Category "PNPM" -Color "Yellow"
+    try {
+        $installArgs = @("add", "--global", $PackageName)
+        $Command = "$pnpmExe $($installArgs -join ' ')"
+        Write-DebugLog -Message "Command: $Command" -Category "PNPM" -Color "Magenta"
+
+        # Capture pnpm output
+        $pnpmOutput = & $pnpmExe $installArgs 2>&1
+        Write-DebugLog -Message "pnpm installation output: $($pnpmOutput -join ' ')" -Category "PNPM" -Color "Cyan"
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-DebugLog -Message "Installation successful" -Category "PNPM" -Color "Green"
+
+            # Refresh search paths after installation
+            Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PNPM" -Color "Magenta"
+            $searchPaths = @()
+            try {
+                # Re-add pnpm paths
+                $searchPaths += $pnpmPrefix
+                Write-DebugLog -Message "Added refresh pnpm global path: $pnpmPrefix" -Category "PNPM" -Color "Magenta"
+
+                $pnpmBinDir = Join-Path $pnpmPrefix ".bin"
+                $searchPaths += $pnpmBinDir
+                Write-DebugLog -Message "Added refresh pnpm bin path: $pnpmBinDir" -Category "PNPM" -Color "Magenta"
+
+                $searchPaths += Join-Path $pnpmPrefix "node_modules\.bin"
+                $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\bin"
+                $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\dist"
+                $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName"
+                Write-DebugLog -Message "Added all pnpm node_modules paths after refresh" -Category "PNPM" -Color "Magenta"
+            }
+            catch {
+                Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+                Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
+                throw
+            }
+
+            # Find the installed executable - search in all pnpm paths at once
+            Write-DebugLog -Message "Searching for executable after installation..." -Category "PNPM" -Color "Magenta"
+            Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PNPM" -Color "Magenta"
+            Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "PNPM" -Color "Magenta"
+
+            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+            Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "PNPM" -Color "Yellow"
+
+            if ($executable) {
+                Write-DebugLog -Message "Found executable: $executable" -Category "PNPM" -Color "Green"
+                return $executable
+            }
+            else {
+                Write-DebugLog -Message "Installation completed but executable not found" -Category "PNPM" -Color "Yellow"
+                return $null
+            }
+        }
+        else {
+            Write-DebugLog -Message "Installation failed with exit code: $LASTEXITCODE" -Category "PNPM" -Color "Red"
+            return $null
+        }
+    }
+    catch {
+        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+        return $null
+    }
+}
+
+# Helper function for npm fallback
+function Invoke-NpmFallback {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $false
+    )
+
+    Write-DebugLog -Message "Using NPM as fallback for: $PackageName" -Category "PNPM" -Color "Yellow"
+    return Invoke-NpmCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+}
+
+<#
+.SYNOPSIS
     Installs Python packages using PIP with binary scanning verification
 
 .DESCRIPTION

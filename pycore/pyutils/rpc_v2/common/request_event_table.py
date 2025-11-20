@@ -11,6 +11,12 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pycore import ColorPrint
+from pycore.pyutils.rpc_v2.constants import (
+    REQUEST_EVENT_MAX_SIZE,
+    REQUEST_EVENT_TTL,
+    DEFAULT_ACK_MAX_RETRIES,
+    DEFAULT_ACK_RETRY_INTERVAL,
+)
 
 
 class RequestStatus(Enum):
@@ -38,14 +44,14 @@ class RequestEvent:
     result: Optional[Any] = None
     error: Optional[str] = None
     retry_count: int = 0
-    max_retries: int = 3
-    retry_interval: float = 3.0
+    max_retries: int = DEFAULT_ACK_MAX_RETRIES
+    retry_interval: float = DEFAULT_ACK_RETRY_INTERVAL
     last_notify_attempt: Optional[float] = None
     notify_attempts: int = 0
 
 
 class RequestEventTable:
-    def __init__(self, max_size: int = 10_000_000, debug: bool = True):
+    def __init__(self, max_size: int = REQUEST_EVENT_MAX_SIZE, debug: bool = True):
         self.max_size = max_size
         self.debug = debug
         self.events: Dict[str, RequestEvent] = {}
@@ -126,7 +132,7 @@ class RequestEventTable:
         with self._lock:
             return self.events.pop(request_id, None) is not None
 
-    def cleanup(self, max_age: float = 3600.0) -> int:
+    def cleanup(self, max_age: float = REQUEST_EVENT_TTL) -> int:
         with self._lock:
             now = time.time()
             expired = []
