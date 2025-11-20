@@ -181,7 +181,20 @@ function Get-SecretValue {{
         for var in variables:
             secret_key_name = f"{var['Name']}_{file_number}"
             display_name = var.get('DisplayName', var['Name'])
-            var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
+            default_value = var.get('DefaultValue', '')
+            
+            if default_value:
+                var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
+if (-not $env:{var['Name']}) {{
+    $env:{var['Name']} = "{default_value}"
+    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']}) (default)" -ForegroundColor Green
+}} else {{
+    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']})" -ForegroundColor Green
+}}
+
+"""
+            else:
+                var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
 if ($env:{var['Name']}) {{
     Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']})" -ForegroundColor Green
 }} else {{
@@ -202,8 +215,9 @@ if ($env:{var['Name']}) {{
         for var in variables:
             secret_key_name = f"{var['Name']}_{file_number}"
             display_name = var.get('DisplayName', var['Name'])
+            default_value = var.get('DefaultValue', '')
             load_calls.append(
-                f"load_secret_value \"{secret_key_name}\" \"{var['Name']}\" \"{display_name}\""
+                f"load_secret_value \"{secret_key_name}\" \"{var['Name']}\" \"{display_name}\" \"{default_value}\""
             )
 
         load_commands = "\n".join(load_calls)
@@ -229,10 +243,10 @@ if ! command -v "$python_exec" &> /dev/null; then
 fi
 
 # Use relative path from script location to project root
-secret_manager_script="$project_root_path/pycore/pyfoundations/secret_manager.py"
+secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
 
 echo "[DEBUG] Python executable: $python_exec"
-echo "[DEBUG] Project root: $project_root_path"
+echo "[DEBUG] Project root: $projectRootPath"
 echo "[DEBUG] Secret manager script: $secret_manager_script"
 echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
 
@@ -240,16 +254,16 @@ load_secret_value() {{
     local key_name="$1"
     local env_name="$2"
     local display_name="$3"
+    local default_value="$4"
     local value=""
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
-    echo "[DEBUG] Working directory: $project_root_path"
-    echo "[DEBUG] Command: cd \"$project_root_path\" && $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
+    echo "[DEBUG] Python command: PYTHONPATH=\"$projectRootPath\" $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
 
     # Capture stderr to temp file for debugging
     local tmp_err=$(mktemp)
-    # Switch to project root before calling Python
-    value=$(cd "$project_root_path" && $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
+    # Use PYTHONPATH instead of cd
+    value=$(PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
     local exit_code=$?
 
     # Show stderr if there were errors
@@ -262,9 +276,19 @@ load_secret_value() {{
     echo "[DEBUG] Exit code: $exit_code"
     echo "[DEBUG] Returned value length: ${{#value}}"
 
+    # Use default value if secret loading failed and default is provided
+    if [ -z "$value" ] && [ -n "$default_value" ]; then
+        value="$default_value"
+        echo "[INFO] Using default value for $display_name"
+    fi
+
     if [ -n "$value" ]; then
         export "$env_name"=\"$value\"
-        echo "[SUCCESS] Loaded $display_name = $value"
+        if [ -n "$default_value" ] && [ "$value" = "$default_value" ]; then
+            echo "[SUCCESS] Loaded $display_name = $value (default)"
+        else
+            echo "[SUCCESS] Loaded $display_name = $value"
+        fi
         echo "[INFO] Command executed: export $env_name=\"$value\""
         
         # Verify environment variable is correctly set

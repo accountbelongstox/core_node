@@ -20,6 +20,7 @@ source "$DD_HELPER_DIR/constants.sh"
 
 # Build full paths from constants
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
+PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
 
 # Function to disable Ubuntu automatic updates
 disable_ubuntu_auto_updates() {
@@ -44,6 +45,25 @@ disable_ubuntu_auto_updates() {
     read
 }
 
+# Function to show permissions repair menu
+show_permissions_repair_menu() {
+    echo "Opening Permissions Repair Menu..."
+    echo ""
+    
+    if [ -s "$PERMISSIONS_REPAIR_MENU_SCRIPT" ]; then
+        # Source the script to access its functions
+        source "$PERMISSIONS_REPAIR_MENU_SCRIPT"
+        # Call the menu function with the project root
+        run_permissions_repair_menu "$CORE_NODE_ROOT_DIR"
+    else
+        echo "Error: Permissions repair menu script not found at: $PERMISSIONS_REPAIR_MENU_SCRIPT"
+        echo ""
+        echo "Press Enter to continue..."
+        read
+        return 1
+    fi
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     while true; do
@@ -52,10 +72,11 @@ show_linux_management_submenu() {
         echo "Linux Management Menu"
         echo "=========================================="
         echo "1) Disable Ubuntu Automatic Updates"
-        echo "2) Show System Information"
-        echo "3) Back to Main Menu"
+        echo "2) Permissions Repair Menu"
+        echo "3) Show System Information"
+        echo "4) Back to Main Menu"
         echo "=========================================="
-        echo -n "Enter your choice (1-3): "
+        echo -n "Enter your choice (1-4): "
         
         read -r choice
         case "$choice" in
@@ -63,6 +84,9 @@ show_linux_management_submenu() {
                 disable_ubuntu_auto_updates
                 ;;
             2)
+                show_permissions_repair_menu
+                ;;
+            3)
                 echo ""
                 echo "System Information:"
                 echo "==================="
@@ -83,7 +107,7 @@ show_linux_management_submenu() {
                 echo "Press Enter to continue..."
                 read
                 ;;
-            3)
+            4)
                 return 0
                 ;;
             *)
