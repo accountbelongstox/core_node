@@ -20,9 +20,9 @@ if ($processes) {
     foreach ($proc in $processes) {
         try {
             Stop-Process -Id $proc.Id -Force
-            Write-Host "  âœ“ Killed PID $($proc.Id)" -ForegroundColor Green
+            Write-Host "  âœ?Killed PID $($proc.Id)" -ForegroundColor Green
         } catch {
-            Write-Host "  âœ— Failed to kill PID $($proc.Id): $_" -ForegroundColor Red
+            Write-Host "  âœ?Failed to kill PID $($proc.Id): $_" -ForegroundColor Red
         }
     }
 

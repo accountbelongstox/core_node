@@ -10,6 +10,11 @@ import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore import ColorPrint
+from pycore.pyutils.rpc_v2.constants import (
+    DEFAULT_ACK_MAX_RETRIES,
+    DEFAULT_ACK_RETRY_INTERVAL,
+    REQUEST_MANAGER_MAX_SIZE,
+)
 
 
 class RequestManager:
@@ -27,8 +32,8 @@ class RequestManager:
                 "created_at": time.time(),
                 "status": "pending",
                 "retries": 0,
-                "max_retries": 3,
-                "retry_interval": 1.0,
+                "max_retries": DEFAULT_ACK_MAX_RETRIES,
+                "retry_interval": DEFAULT_ACK_RETRY_INTERVAL,
                 "metadata": metadata or {},
             }
             return request_id

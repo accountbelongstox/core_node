@@ -102,22 +102,22 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         server = ThreadingHTTPServer((host, port), DesignDocRequestHandler)
     except OSError as e:
         if "Address already in use" in str(e) or "Only one usage" in str(e):
-            color_print.print_red(f"[ERROR] Port {port} is still in use after cleanup attempt.")
-            color_print.print_red("[ERROR] Please wait a few seconds and try again.")
+            ColorPrint.red(f"[ERROR] Port {port} is still in use after cleanup attempt.")
+            ColorPrint.red("[ERROR] Please wait a few seconds and try again.")
             return
         else:
             raise
 
     apps = app_checker.list_apps(apps_dir)
 
-    color_print.print_cyan("\n" + "=" * 60)
-    color_print.print_cyan("Flutter Design Documentation Tool - Refactored Architecture")
-    color_print.print_cyan("=" * 60)
+    ColorPrint.cyan("\n" + "=" * 60)
+    ColorPrint.cyan("Flutter Design Documentation Tool - Refactored Architecture")
+    ColorPrint.cyan("=" * 60)
     print(f"Found {len(apps)} apps in {apps_dir}")
     print(f"\nBrowse: http://{host}:{port}")
     print(f"Shutdown: POST to http://{host}:{port}/api/shutdown")
     print("Press Ctrl+C to stop the server")
-    color_print.print_cyan("=" * 60 + "\n")
+    ColorPrint.cyan("=" * 60 + "\n")
 
     # Run server in a separate thread so we can monitor shutdown event
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -128,12 +128,12 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         while not shutdown_event.is_set():
             shutdown_event.wait(timeout=1.0)
     except KeyboardInterrupt:
-        color_print.print_yellow("\n\n[SHUTDOWN] Keyboard interrupt received")
+        ColorPrint.yellow("\n\n[SHUTDOWN] Keyboard interrupt received")
     finally:
-        color_print.print_blue("[SHUTDOWN] Shutting down server...")
+        ColorPrint.blue("[SHUTDOWN] Shutting down server...")
         server.shutdown()
         server.server_close()
-        color_print.print_green("[SHUTDOWN] Server stopped successfully")
+        ColorPrint.green("[SHUTDOWN] Server stopped successfully")
 
 
 if __name__ == "__main__":

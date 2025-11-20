@@ -17,7 +17,7 @@ from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_netifaces
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
-from pycore.pyutils.rpc_v2.protocol.rpc_protocol import RPC_STATUS_PATH
+from pycore.pyutils.rpc_v2.constants import RPC_STATUS_PATH
 
 netifaces = get_third_package_netifaces()
 

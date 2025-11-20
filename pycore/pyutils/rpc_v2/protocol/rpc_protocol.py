@@ -7,38 +7,21 @@ Protocol helpers for RPC v2 clients/discovery.
 import json
 import http.client
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict
+from typing import Any, Dict, Optional
 
 from fastapi import Request
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
+from pycore.pyutils.rpc_v2.constants import (
+    RPC_PROTOCOL_VERSION,
+    RPC_STATUS_PATH,
+    RPC_INFO_PATH,
+    RPC_ADDRESSES_PATH,
+    RPC_PROTOCOL_SYNC_PATH,
+)
+from pycore.pyutils.rpc_v2.protocol.models import RPCServiceInfo, RPCAddressResponse
 from pycore.pyutils.rpc_v2.address import RPCAddressProvider
-
-RPC_PROTOCOL_VERSION = "2.0"
-RPC_STATUS_PATH = "/rpc/status"
-RPC_INFO_PATH = "/rpc/info"
-RPC_ADDRESSES_PATH = "/rpc/addresses"
-RPC_PROTOCOL_SYNC_PATH = "/rpc/protocol/sync"
-
-
-@dataclass
-class RPCServiceInfo:
-    is_rpc_service: bool = True
-    protocol_version: str = RPC_PROTOCOL_VERSION
-    service_name: str = "FastAPI RPC Service"
-    port: Optional[int] = None
-    host: str = "localhost"
-    capabilities: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class RPCAddressResponse:
-    addresses: List[Dict[str, Any]] = field(default_factory=list)
-    use_localhost: bool = False
-    has_available_service: bool = False
-    provider_info: Dict[str, Any] = field(default_factory=dict)
 
 
 class RPCProtocolClient:
@@ -142,13 +125,6 @@ class RPCProtocolServer:
 
 
 __all__ = [
-    "RPC_PROTOCOL_VERSION",
-    "RPC_STATUS_PATH",
-    "RPC_INFO_PATH",
-    "RPC_ADDRESSES_PATH",
-    "RPC_PROTOCOL_SYNC_PATH",
-    "RPCServiceInfo",
-    "RPCAddressResponse",
     "RPCProtocolClient",
     "RPCProtocolServer",
 ]

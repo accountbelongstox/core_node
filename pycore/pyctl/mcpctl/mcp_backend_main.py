@@ -4,16 +4,15 @@
 MCP Backend Server - RPC v2 Architecture (Refactored 2025-11-19)
 
 Architecture:
-- Uses pycore.pylauncher (new refactored version with ThreadService)
-- Uses pycore.pyutils.rpc_v2 (FastAPIRPCServer with WebSocket, ACK, Inventory)
+- Uses pycore.pylauncher (new refactored version)
+- Uses pycore.pyutils.rpc_v2 (FastAPIRPCServer)
 - Does NOT directly implement HTTP server
-- Routes registered via backend/rpc_routes.py
+- All business logic reused from backend/handlers
 
 Usage:
     python -m pycore.pyctl.mcpctl.mcp_backend_main
 """
 
-import os
 import sys
 import time
 import uuid
@@ -25,15 +24,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import LauncherConfig, ServiceLauncher
-from pycore.pygvar import (
-    MCP_BACKEND_SINGLETON_PORT_START,
-    MCP_BACKEND_SINGLETON_PORT_RANGE,
-    MCP_BACKEND_RPC_PORT
-)
+from pycore.pygvar import MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
 from pycore.pyctl.mcpctl.backend import handlers
 from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes
-from pycore.pyctl.mcpctl.global_state import get_backend_state_dict, get_global_state
+from pycore.pyctl.mcpctl.global_state import get_global_state
 from pyapps.mcp.controller import (
     get_file_info_controller_singleton,
     get_database_controller_singleton,
@@ -50,15 +45,12 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("MCP Backend Server (RPC v2 Architecture)")
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue(f"[Backend] Singleton Detection: port {MCP_BACKEND_SINGLETON_PORT_START}-{MCP_BACKEND_SINGLETON_PORT_START + MCP_BACKEND_SINGLETON_PORT_RANGE - 1}")
-    ColorPrint.blue(f"[Backend] RPC v2 Service: port {MCP_BACKEND_RPC_PORT} (fixed)")
-    ColorPrint.blue("=" * 70)
 
     # Initialize global state manager
     global_state = get_global_state()
     ColorPrint.blue("[Backend] Global state manager initialized")
 
-    # Create service configuration using new LauncherConfig API
+    # Create launcher configuration using new API
     config = LauncherConfig(
         app_id="mcp_backend",
         app_name="MCP Backend Server",
@@ -80,16 +72,18 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
         ColorPrint.red("[FAILED] Could not start services")
         return False
 
-    # Get RPC v2 service
-    rpc_service = launcher.get_service('rpc_v2')
-    if not rpc_service:
+    # Get RPC v2 service instance (FastAPIRPCServerRunner)
+    rpc_runner = launcher.get_service('rpc_v2')
+    if not rpc_runner:
         ColorPrint.red("[FAILED] RPC v2 service not started")
+        launcher.stop()
         return False
 
-    # Get RPC v2 server instance
-    rpc_server = rpc_service.get_instance()
+    # Get actual RPC server from runner
+    rpc_server = rpc_runner.server if hasattr(rpc_runner, 'server') else rpc_runner
     if not rpc_server:
         ColorPrint.red("[FAILED] Could not get RPC v2 server instance")
+        launcher.stop()
         return False
 
     # Generate backend ID
@@ -98,7 +92,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     # Initialize backend_info from template
     backend_info = BACKEND_INFO_TEMPLATE.copy()
     backend_info["backend_id"] = backend_id
-    backend_info["singleton_port"] = None  # No singleton detection in new architecture
+    backend_info["singleton_port"] = None  # No singleton detection in this architecture
     backend_info["rpc_port"] = MCP_BACKEND_RPC_PORT
     backend_info["status"] = "running"
     backend_info["start_time"] = int(time.time())
@@ -110,14 +104,14 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
         ColorPrint.green(f"[SUCCESS] Heartbeat system running")
     ColorPrint.green("=" * 70)
 
-    # Initialize all controllers
+    # Initialize all controllers (复用业务逻辑)
     ColorPrint.blue("[Backend] Initializing controllers...")
     file_controller = get_file_info_controller_singleton()
     db_controller = get_database_controller_singleton()
     codebase_controller = get_codebase_controller_singleton()
     ColorPrint.green("[Backend] All controllers initialized (File, Database, Codebase)")
 
-    # Set global controllers for handlers
+    # Set global controllers for handlers (复用业务逻辑)
     handlers.file_processing.backend_info = backend_info
     handlers.file_processing.file_controller = file_controller
     handlers.database.backend_info = backend_info
@@ -125,18 +119,17 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     handlers.codebase.backend_info = backend_info
     handlers.codebase.codebase_controller = codebase_controller
 
-    # Register MCP routes to RPC v2 server
+    # Register MCP routes to RPC v2 server (使用 rpc_routes.py)
     ColorPrint.blue("[Backend] Registering MCP routes to RPC v2 server...")
     register_mcp_routes(rpc_server)
 
-    # Mount Web UI static files
-    if STATIC_DIR.exists():
+    # Mount Web UI static files (if available)
+    if STATIC_DIR.exists() and hasattr(rpc_server, 'add_static_dir'):
         rpc_server.add_static_dir("/static", str(STATIC_DIR))
         ColorPrint.green(f"[Backend] Static files mounted at /static")
 
-    # Mount root route for Web UI
-    if (WEB_DIR / "index.html").exists():
-        # RPC v2 server should handle root route automatically via static files
+    # Mount root route for Web UI (if available)
+    if (WEB_DIR / "index.html").exists() and hasattr(rpc_server, 'add_static_dir'):
         rpc_server.add_static_dir("/", str(WEB_DIR))
         ColorPrint.green(f"[Backend] Web UI mounted at http://localhost:{MCP_BACKEND_RPC_PORT}/")
 
