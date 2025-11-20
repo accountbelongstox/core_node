@@ -1748,4 +1748,542 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// ============================================
+// RSA Key Pair Generator
+// ============================================
+ITTools.Tools.Registry.register('rsa-generator', {
+    name: 'RSA Key Pair Generator',
+    category: 'crypto',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">RSA Key Pair Generator</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Key Size:</label>
+                        <select id="rsa-key-size" class="ittools-input">
+                            <option value="2048" selected>2048 bits (Recommended)</option>
+                            <option value="3072">3072 bits (More Secure)</option>
+                            <option value="4096">4096 bits (Maximum)</option>
+                        </select>
+                    </div>
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.RSAGenerator.generate()">
+                            🔐 Generate Key Pair
+                        </button>
+                    </div>
+                    <div id="rsa-result" class="ittools-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.RSAGenerator = {
+    async generate() {
+        const keySize = document.getElementById('rsa-key-size').value;
+        
+        ITTools.UI.showLoading('rsa-result', 'Generating RSA key pair (this may take a moment)...');
+        
+        try {
+            const response = await fetch('/api/ittools/v1/crypto/rsa/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key_size: parseInt(keySize) })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                const html = `
+                    <div style="margin-top: 15px;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🔑 Private Key</h4>
+                        <textarea class="ittools-textarea" rows="10" readonly>${result.data.private_key}</textarea>
+                        <button onclick="ITTools.UI.copyToClipboard(\`${result.data.private_key.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 5px;">📋 Copy Private Key</button>
+                        
+                        <h4 style="color: #667eea; margin: 20px 0 10px;">🔓 Public Key</h4>
+                        <textarea class="ittools-textarea" rows="8" readonly>${result.data.public_key}</textarea>
+                        <button onclick="ITTools.UI.copyToClipboard(\`${result.data.public_key.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 5px;">📋 Copy Public Key</button>
+                        
+                        <p style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; font-size: 12px;">
+                            ⚠️ <strong>Important:</strong> Keep your private key secure and never share it. The public key can be shared freely.
+                        </p>
+                    </div>
+                `;
+                ITTools.UI.showResult('rsa-result', html, true);
+            } else {
+                ITTools.UI.showResult('rsa-result', 'Error: ' + result.message, false);
+            }
+        } catch (error) {
+            ITTools.UI.showResult('rsa-result', 'Error: ' + error.message, false);
+        }
+    }
+};
+
+// ============================================
+// OTP Code Generator
+// ============================================
+ITTools.Tools.Registry.register('otp-generator', {
+    name: 'OTP Code Generator',
+    category: 'crypto',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">OTP Code Generator</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Code Length:</label>
+                        <select id="otp-length" class="ittools-input">
+                            <option value="4">4 digits</option>
+                            <option value="6" selected>6 digits</option>
+                            <option value="8">8 digits</option>
+                        </select>
+                    </div>
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Number of Codes:</label>
+                        <input type="number" id="otp-count" class="ittools-input" value="5" min="1" max="20">
+                    </div>
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.OTPGenerator.generate()">
+                            🔢 Generate OTP Codes
+                        </button>
+                    </div>
+                    <div id="otp-result" class="ittools-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.OTPGenerator = {
+    async generate() {
+        const length = document.getElementById('otp-length').value;
+        const count = document.getElementById('otp-count').value;
+        
+        ITTools.UI.showLoading('otp-result', 'Generating OTP codes...');
+        
+        try {
+            const response = await fetch('/api/ittools/v1/crypto/otp/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ length: parseInt(length), count: parseInt(count) })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                const codes = result.data.codes || [result.data.otp];
+                const html = `
+                    <div style="margin-top: 15px;">
+                        <strong>${codes.length} OTP Code(s) Generated:</strong>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 15px;">
+                            ${codes.map(code => `
+                                <div style="background: #667eea; color: white; padding: 20px; border-radius: 5px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 3px;">
+                                    ${code}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button onclick="ITTools.UI.copyToClipboard('${codes.join(', ')}')" class="ittools-btn ittools-btn-sm" style="margin-top: 15px;">📋 Copy All</button>
+                    </div>
+                `;
+                ITTools.UI.showResult('otp-result', html, true);
+            } else {
+                ITTools.UI.showResult('otp-result', 'Error: ' + result.message, false);
+            }
+        } catch (error) {
+            ITTools.UI.showResult('otp-result', 'Error: ' + error.message, false);
+        }
+    }
+};
+
+// ============================================
+// Markdown to HTML
+// ============================================
+ITTools.Tools.Registry.register('markdown-to-html', {
+    name: 'Markdown → HTML',
+    category: 'converter',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">Markdown to HTML Converter</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Markdown Input:</label>
+                        <textarea id="markdown-input" class="ittools-textarea" rows="10" placeholder="# Hello World"></textarea>
+                    </div>
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.MarkdownToHTML.convert()">
+                            → Convert to HTML
+                        </button>
+                    </div>
+                    <div id="markdown-result" class="ittools-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.MarkdownToHTML = {
+    async convert() {
+        const input = document.getElementById('markdown-input').value;
+        
+        if (!input) {
+            ITTools.UI.showResult('markdown-result', 'Please enter Markdown', false);
+            return;
+        }
+        
+        ITTools.UI.showLoading('markdown-result', 'Converting...');
+        
+        try {
+            const response = await fetch('/api/ittools/v1/web/markdown/to-html', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ markdown: input })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                ITTools.UI.showResult('markdown-result', 
+                    `<strong>HTML Output:</strong><br>
+                    <textarea class="ittools-textarea" rows="10" readonly>${result.data.html}</textarea>
+                    <h4 style="margin-top: 20px; color: #667eea;">Preview:</h4>
+                    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; background: white; margin-top: 10px;">
+                        ${result.data.html}
+                    </div>
+                    <button onclick="ITTools.UI.copyToClipboard(\`${result.data.html.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy HTML</button>`, 
+                    true);
+            } else {
+                ITTools.UI.showResult('markdown-result', 'Error: ' + result.message, false);
+            }
+        } catch (error) {
+            ITTools.UI.showResult('markdown-result', 'Error: ' + error.message, false);
+        }
+    }
+};
+
+// ============================================
+// Random Port Generator (Client-side)
+// ============================================
+ITTools.Tools.Registry.register('random-port', {
+    name: 'Random Port Generator',
+    category: 'generator',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">Random Port Generator</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Port Range:</label>
+                        <select id="port-range" class="ittools-input">
+                            <option value="user">User Ports (1024-49151)</option>
+                            <option value="dynamic" selected>Dynamic Ports (49152-65535)</option>
+                            <option value="all">All Non-System (1024-65535)</option>
+                        </select>
+                    </div>
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Number of Ports:</label>
+                        <input type="number" id="port-count" class="ittools-input" value="5" min="1" max="20">
+                    </div>
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.RandomPort.generate()">
+                            🎲 Generate Ports
+                        </button>
+                    </div>
+                    <div id="port-result" class="ittools-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.RandomPort = {
+    generate() {
+        const range = document.getElementById('port-range').value;
+        const count = parseInt(document.getElementById('port-count').value);
+        
+        let min, max;
+        if (range === 'user') {
+            min = 1024;
+            max = 49151;
+        } else if (range === 'dynamic') {
+            min = 49152;
+            max = 65535;
+        } else {
+            min = 1024;
+            max = 65535;
+        }
+        
+        const ports = [];
+        for (let i = 0; i < count; i++) {
+            ports.push(Math.floor(Math.random() * (max - min + 1)) + min);
+        }
+        
+        const html = `
+            <div style="margin-top: 15px;">
+                <strong>${count} Random Port(s):</strong>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 15px;">
+                    ${ports.map(port => `
+                        <div style="background: #667eea; color: white; padding: 15px; border-radius: 5px; text-align: center; font-size: 20px; font-weight: bold;">
+                            ${port}
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="ITTools.UI.copyToClipboard('${ports.join(', ')}')" class="ittools-btn ittools-btn-sm" style="margin-top: 15px;">📋 Copy All</button>
+            </div>
+        `;
+        
+        ITTools.UI.showResult('port-result', html, true);
+    }
+};
+
+// ============================================
+// ETA Calculator (Client-side)
+// ============================================
+ITTools.Tools.Registry.register('eta-calculator', {
+    name: 'ETA Calculator',
+    category: 'math',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">ETA (Estimated Time of Arrival) Calculator</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Total Items:</label>
+                        <input type="number" id="eta-total" class="ittools-input" placeholder="1000">
+                    </div>
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Completed Items:</label>
+                        <input type="number" id="eta-completed" class="ittools-input" placeholder="250">
+                    </div>
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Time Elapsed (minutes):</label>
+                        <input type="number" id="eta-elapsed" class="ittools-input" placeholder="30">
+                    </div>
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.ETACalculator.calculate()">
+                            ⏱️ Calculate ETA
+                        </button>
+                    </div>
+                    <div id="eta-result" class="ittools-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.ETACalculator = {
+    calculate() {
+        const total = parseFloat(document.getElementById('eta-total').value);
+        const completed = parseFloat(document.getElementById('eta-completed').value);
+        const elapsed = parseFloat(document.getElementById('eta-elapsed').value);
+        
+        if (!total || !completed || !elapsed) {
+            ITTools.UI.showResult('eta-result', 'Please fill all fields', false);
+            return;
+        }
+        
+        if (completed > total) {
+            ITTools.UI.showResult('eta-result', 'Completed cannot exceed total', false);
+            return;
+        }
+        
+        const remaining = total - completed;
+        const rate = completed / elapsed;
+        const etaMinutes = remaining / rate;
+        
+        const hours = Math.floor(etaMinutes / 60);
+        const minutes = Math.floor(etaMinutes % 60);
+        const percentage = ((completed / total) * 100).toFixed(2);
+        
+        const now = new Date();
+        const etaTime = new Date(now.getTime() + etaMinutes * 60000);
+        
+        const html = `
+            <div style="margin-top: 15px;">
+                <div style="display: grid; gap: 15px;">
+                    <div style="background: #667eea; color: white; padding: 20px; border-radius: 5px; text-align: center;">
+                        <div style="font-size: 14px; opacity: 0.9;">Estimated Time Remaining</div>
+                        <div style="font-size: 36px; font-weight: bold; margin: 10px 0;">${hours}h ${minutes}m</div>
+                        <div style="font-size: 12px; opacity: 0.8;">ETA: ${etaTime.toLocaleString()}</div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                        <strong>Progress:</strong> ${percentage}% (${completed} / ${total})
+                    </div>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                        <strong>Rate:</strong> ${rate.toFixed(2)} items/minute
+                    </div>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                        <strong>Remaining:</strong> ${remaining} items
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        ITTools.UI.showResult('eta-result', html, true);
+    }
+};
+
+// ============================================
+// MIME Types Reference (Client-side)
+// ============================================
+ITTools.Tools.Registry.register('mime-types', {
+    name: 'MIME Types Reference',
+    category: 'web',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">MIME Types Reference</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Search MIME Type or Extension:</label>
+                        <input type="text" id="mime-search" class="ittools-input" placeholder=".pdf, application/pdf, or image" oninput="ITTools.Implementations.MIMETypes.search()">
+                    </div>
+                    <div id="mime-result" style="max-height: 500px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.MIMETypes = {
+    types: {
+        '.html': 'text/html',
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.json': 'application/json',
+        '.xml': 'application/xml',
+        '.pdf': 'application/pdf',
+        '.zip': 'application/zip',
+        '.tar': 'application/x-tar',
+        '.gz': 'application/gzip',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.txt': 'text/plain',
+        '.csv': 'text/csv',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    },
+    
+    search() {
+        const query = document.getElementById('mime-search').value.toLowerCase();
+        const filtered = Object.entries(this.types).filter(([ext, mime]) => 
+            ext.toLowerCase().includes(query) || mime.toLowerCase().includes(query)
+        );
+        
+        if (filtered.length === 0) {
+            document.getElementById('mime-result').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No matching MIME types</p>';
+            return;
+        }
+        
+        const html = filtered.map(([ext, mime]) => `
+            <div style="background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-weight: bold; color: #667eea;">${ext}</span>
+                    <span style="margin-left: 15px; color: #666;">${mime}</span>
+                </div>
+                <button onclick="ITTools.UI.copyToClipboard('${mime}')" class="ittools-btn ittools-btn-sm">📋</button>
+            </div>
+        `).join('');
+        
+        document.getElementById('mime-result').innerHTML = html;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('mime-result')) {
+        ITTools.Implementations.MIMETypes.search();
+    }
+});
+
+// ============================================
+// Query String Parser (Client-side)
+// ============================================
+ITTools.Tools.Registry.register('query-string-parser', {
+    name: 'Query String Parser',
+    category: 'web',
+    render() {
+        return `
+            <div class="ittools-card">
+                <div class="ittools-card-header">Query String Parser</div>
+                <div class="ittools-card-body">
+                    <div class="ittools-form-group">
+                        <label class="ittools-label">Query String:</label>
+                        <input type="text" id="query-string-input" class="ittools-input" placeholder="?name=John&age=30&city=NYC">
+                    </div>
+                    <div class="ittools-btn-group">
+                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.QueryStringParser.parse()">
+                            🔍 Parse Query String
+                        </button>
+                        <button class="ittools-btn ittools-btn-secondary" onclick="ITTools.Implementations.QueryStringParser.useCurrent()">
+                            📍 Use Current URL
+                        </button>
+                    </div>
+                    <div id="query-result" class="ittools-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    }
+});
+
+ITTools.Implementations.QueryStringParser = {
+    useCurrent() {
+        const query = window.location.search;
+        document.getElementById('query-string-input').value = query || '(No query string in current URL)';
+        if (query) this.parse();
+    },
+    
+    parse() {
+        const input = document.getElementById('query-string-input').value.trim();
+        
+        if (!input) {
+            ITTools.UI.showResult('query-result', 'Please enter a query string', false);
+            return;
+        }
+        
+        const queryString = input.startsWith('?') ? input.substring(1) : input;
+        const params = new URLSearchParams(queryString);
+        const parsed = {};
+        
+        for (const [key, value] of params.entries()) {
+            parsed[key] = value;
+        }
+        
+        if (Object.keys(parsed).length === 0) {
+            ITTools.UI.showResult('query-result', 'No parameters found', false);
+            return;
+        }
+        
+        const html = `
+            <div style="margin-top: 15px;">
+                <strong>Parsed Parameters (${Object.keys(parsed).length}):</strong>
+                <div style="margin-top: 15px;">
+                    ${Object.entries(parsed).map(([key, value]) => `
+                        <div style="background: #f8f9fa; padding: 12px; margin-bottom: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span style="font-weight: bold; color: #667eea;">${key}:</span>
+                                <span style="margin-left: 10px;">${value}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <h4 style="margin-top: 20px; color: #667eea;">As JSON:</h4>
+                <textarea class="ittools-textarea" rows="8" readonly>${JSON.stringify(parsed, null, 2)}</textarea>
+                <button onclick="ITTools.UI.copyToClipboard(\`${JSON.stringify(parsed, null, 2).replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy JSON</button>
+            </div>
+        `;
+        
+        ITTools.UI.showResult('query-result', html, true);
+    }
+};
+
 console.log('ITTools Implementations loaded');
