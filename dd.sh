@@ -260,6 +260,8 @@ main() {
     else
         local total_dirs=0
         local processed_dirs=0
+        local cached_dirs=0
+        local actually_processed_dirs=0
         local overall_start_time=$(date +%s.%N)
 
         for dir in "${target_dirs[@]}"; do
@@ -281,12 +283,14 @@ main() {
                 # Check if directory was recently processed
                 if check_directory_processing_cache "$absolute_dir"; then
                     echo -e "\033[32m[CACHE HIT] Directory '$dir' already processed recently - skipping\033[0m"
+                    ((cached_dirs++))
                 else
                     echo -e "\033[33m[CACHE MISS] Processing directory '$dir'...\033[0m"
                     process_sh_files "$absolute_dir"
                     # Cache the processing completion
                     set_directory_processing_cache "$absolute_dir"
                     echo -e "\033[32m[CACHE SET] Directory '$dir' processing cached\033[0m"
+                    ((actually_processed_dirs++))
                 fi
                 echo
             else
@@ -303,7 +307,9 @@ main() {
         fi
 
         echo -e "\033[32m[COMPLETE] All .sh files processed!\033[0m"
-        echo -e "\033[32m  - Directories processed: $processed_dirs/$total_dirs\033[0m"
+        echo -e "\033[32m  - Directories checked: $processed_dirs/$total_dirs\033[0m"
+        echo -e "\033[32m  - Cache hits (skipped): $cached_dirs\033[0m"
+        echo -e "\033[32m  - Actually processed: $actually_processed_dirs\033[0m"
         echo -e "\033[32m  - Total processing time: ${overall_duration}s\033[0m"
     fi
 
