@@ -13,7 +13,7 @@
 import type { AppEntryType, AppEntryConfig } from '@/app-entry';
 import { getAppEntryConfig, getAllAppEntries } from '@/app-entry';
 
-export type RegisteredNamespace = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'pymatrix';
+export type RegisteredNamespace = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'pymatrix' | 'ittools' | 'main';
 
 export interface NamespaceValidation {
   namespace: string;
@@ -64,7 +64,7 @@ export class NamespaceRegistry {
   }
 
   validateAll(): Record<RegisteredNamespace, NamespaceValidation> {
-    const namespaces: RegisteredNamespace[] = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'pymatrix'];
+    const namespaces: RegisteredNamespace[] = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'pymatrix', 'ittools', 'main'];
     const results = {} as Record<RegisteredNamespace, NamespaceValidation>;
 
     for (const namespace of namespaces) {
@@ -87,12 +87,12 @@ export class NamespaceRegistry {
   }
 
   isNamespaceValid(namespace: string): namespace is RegisteredNamespace {
-    const validNamespaces: RegisteredNamespace[] = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'pymatrix'];
+    const validNamespaces: RegisteredNamespace[] = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'pymatrix', 'ittools', 'main'];
     return validNamespaces.includes(namespace as RegisteredNamespace);
   }
 
   getNamespacesList(): RegisteredNamespace[] {
-    return ['example', 'codemart', 'dev', 'admin', 'dashboard', 'pymatrix'];
+    return ['example', 'codemart', 'dev', 'admin', 'dashboard', 'pymatrix', 'ittools', 'main'];
   }
 }
 
@@ -100,6 +100,6 @@ export const namespaceRegistry = NamespaceRegistry.getInstance();
 
 export function validateNamespaceType(namespace: string): asserts namespace is RegisteredNamespace {
   if (!namespaceRegistry.isNamespaceValid(namespace)) {
-    throw new Error(`Invalid namespace: ${namespace}. Must be one of: example, codemart, dev, admin, dashboard, pymatrix`);
+    throw new Error(`Invalid namespace: ${namespace}. Must be one of: example, codemart, dev, admin, dashboard, pymatrix, ittools, main`);
   }
 }

@@ -7,7 +7,7 @@
   },
   "packageManager": "pnpm@10.13.1",
   "scripts": {
-    "switch-app": "node scripts/switch-app-entry.js",
+    "switch-app": "node scripts/switch-app.js",
     "build": "pnpm switch-app example && nuxt build",
     "build:example": "pnpm switch-app example && cross-env APP_ENTRY=example nuxt build",
     "build:codemart": "pnpm switch-app codemart && cross-env APP_ENTRY=codemart nuxt build",

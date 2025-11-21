@@ -271,6 +271,28 @@ main() {
             fi
         done
 
+        local all_cached=true
+        for dir in "${target_dirs[@]}"; do
+            local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
+            if [ -d "$absolute_dir" ] && ! check_directory_processing_cache "$absolute_dir"; then
+                all_cached=false
+                break
+            fi
+        done
+
+        if [ "$all_cached" = true ] && [ "$total_dirs" -gt 0 ]; then
+            echo -e "\033[32m[CACHE INFO] All directories ($total_dirs) have been processed recently (cache valid for 24h)\033[0m"
+            echo -e "\033[33m[SCAN OPTION] Skip directory scan? (recommended for faster startup)\033[0m"
+            read -p "Skip scan? [Y/n]: " -n 1 -r scan_choice
+            echo
+            if [[ ! $scan_choice =~ ^[Nn]$ ]]; then
+                echo -e "\033[32m[SKIPPED] Directory scanning skipped (using cache)\033[0m"
+                return 0
+            else
+                echo -e "\033[33m[FORCED SCAN] Force scanning all directories...\033[0m"
+            fi
+        fi
+
         echo -e "\033[33m[INFO] Found $total_dirs directories to scan: ${target_dirs[*]}\033[0m"
         echo
 
@@ -280,14 +302,12 @@ main() {
                 ((processed_dirs++))
                 echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
                 
-                # Check if directory was recently processed
                 if check_directory_processing_cache "$absolute_dir"; then
                     echo -e "\033[32m[CACHE HIT] Directory '$dir' already processed recently - skipping\033[0m"
                     ((cached_dirs++))
                 else
                     echo -e "\033[33m[CACHE MISS] Processing directory '$dir'...\033[0m"
                     process_sh_files "$absolute_dir"
-                    # Cache the processing completion
                     set_directory_processing_cache "$absolute_dir"
                     echo -e "\033[32m[CACHE SET] Directory '$dir' processing cached\033[0m"
                     ((actually_processed_dirs++))

@@ -11,9 +11,9 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-namespace App\Apps\IttoolsV1;
+namespace App\Apps\ItToolsV1;
 
-class IttoolsV1ApiInfo
+class ItToolsV1ApiInfo
 {
     public static function getApiInfo()
     {

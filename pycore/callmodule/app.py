@@ -11,7 +11,9 @@ from .routers import health_router, module_call_router, ocr_router
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
-CORSMiddleware = fastapi.middleware.cors.CORSMiddleware
+
+# Import CORS middleware correctly
+from fastapi.middleware.cors import CORSMiddleware
 
 
 def create_app() -> FastAPI:

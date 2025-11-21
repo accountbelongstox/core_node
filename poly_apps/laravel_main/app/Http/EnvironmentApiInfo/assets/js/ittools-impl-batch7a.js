@@ -254,8 +254,4 @@ ITTools.Implementations.NatoConverter = {
     }
 };
 
-// ============================================
-// Timestamp Converter
-// ============================================
-ITTools.Tools.Registry.register('timestamp-converter', {
 console.log('ITTools Batch 7a loaded (ascii-binary, base64-encoder, url-encoder, html-encoder, nato-converter)');
