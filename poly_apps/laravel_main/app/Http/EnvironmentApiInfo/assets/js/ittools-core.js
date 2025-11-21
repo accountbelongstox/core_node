@@ -6,6 +6,12 @@
 
 const ITTools = {
     // ============================================
+    // NAMESPACE: ITTools.Implementations
+    // PURPOSE: Container for tool implementation objects
+    // ============================================
+    Implementations: {},
+    
+    // ============================================
     // NAMESPACE: ITTools.State
     // PURPOSE: State management and localStorage
     // ============================================
@@ -233,9 +239,11 @@ const ITTools = {
             const element = document.getElementById(elementId);
             if (!element) return;
             
-            element.textContent = typeof result === 'object' 
-                ? JSON.stringify(result, null, 2) 
-                : result;
+            if (typeof result === 'object') {
+                element.textContent = JSON.stringify(result, null, 2);
+            } else {
+                element.innerHTML = result;
+            }
             element.className = 'ittools-result ' + (isSuccess ? 'success' : 'error');
             element.style.display = 'block';
         },

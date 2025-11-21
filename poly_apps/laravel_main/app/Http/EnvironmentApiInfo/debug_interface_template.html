@@ -645,12 +645,43 @@
     </div>
     
     <!-- NAMESPACE: External JavaScript Imports -->
+    <!-- Core Framework (Load First) -->
     <script src="/debug-assets/js/ittools-menu-config.js"></script>
     <script src="/debug-assets/js/ittools-core.js"></script>
     <script src="/debug-assets/js/ittools-client-tools.js"></script>
     <script src="/debug-assets/js/ittools-advanced-tools.js"></script>
     <script src="/debug-assets/js/ittools-tools.js"></script>
-    <script src="/debug-assets/js/ittools-implementations.js"></script>
+    
+    <!-- Category Implementations (Load After Core) - Each file < 500 lines -->
+    <script src="/debug-assets/js/ittools-impl-images.js"></script>
+    <script src="/debug-assets/js/ittools-impl-crypto.js"></script>
+    <script src="/debug-assets/js/ittools-impl-converters.js"></script>
+    <script src="/debug-assets/js/ittools-impl-formatters.js"></script>
+    <script src="/debug-assets/js/ittools-impl-web.js"></script>
+    <script src="/debug-assets/js/ittools-impl-generators.js"></script>
+    <script src="/debug-assets/js/ittools-impl-generators-2.js"></script>
+    <script src="/debug-assets/js/ittools-impl-text.js"></script>
+    <script src="/debug-assets/js/ittools-impl-dev.js"></script>
+    
+    <!-- Batch Implementations (New Tools) - Each file < 500 lines -->
+    <script src="/debug-assets/js/ittools-impl-batch1a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch1b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch2.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch3a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch3b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch4.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch5.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch6.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch7.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch8.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch9.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch10.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch11.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch12.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch13.js"></script>
+    
+    <!-- Debug Registry Checker (Development Only) -->
+    <script src="/debug-assets/js/debug-registry.js"></script>
     
     <!-- NAMESPACE: Initialize Dynamic Menu -->
     <script>
