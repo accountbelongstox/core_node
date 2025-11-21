@@ -29,6 +29,7 @@ $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
 $script:COLOR_INFO = "White"
+$script:COLOR_HIGHLIGHT = "Cyan"
 #endregion
 
 #region Helper Functions
@@ -54,81 +55,135 @@ function Write-ColorMessage {
 
     Write-Host -ForegroundColor $color "$prefix$Message"
 }
+
+function Invoke-ScriptAndPause {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ScriptPath,
+        [Parameter()] [string]$Description = "script"
+    )
+
+    if (Test-Path $ScriptPath) {
+        Write-ColorMessage -Message "Launching $Description..." -Type "Info"
+        Write-Host ""
+
+        try {
+            & python $ScriptPath
+            $exitCode = $LASTEXITCODE
+
+            Write-Host ""
+            Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
+            if ($exitCode -eq 0) {
+                Write-ColorMessage -Message "Script completed successfully" -Type "Success"
+            } else {
+                Write-ColorMessage -Message "Script completed with exit code: $exitCode" -Type "Warning"
+            }
+            Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
+            Write-Host ""
+            Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        } catch {
+            Write-Host ""
+            Write-ColorMessage -Message "Error running script: $($_.Exception.Message)" -Type "Error"
+            Write-Host ""
+            Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        }
+    } else {
+        Write-ColorMessage -Message "Error: Script not found at: $ScriptPath" -Type "Error"
+        Write-ColorMessage -Message "Please check if the script is properly installed" -Type "Info"
+        Write-Host ""
+        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    }
+}
 #endregion
 
 #region Backup Functions
 function Backup-CurrentProject {
     $backupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\core_node\backup_manager.py"
-
-    if (Test-Path $backupScript) {
-        Write-ColorMessage -Message "Launching Core Node Project Backup Manager..." -Type "Info"
-        try {
-            & python $backupScript
-        } catch {
-            Write-ColorMessage -Message "Error running backup script: $($_.Exception.Message)" -Type "Error"
-            Read-Host "Press Enter to continue"
-        }
-    } else {
-        Write-ColorMessage -Message "Error: backup_manager.py script not found at: $backupScript" -Type "Error"
-        Write-ColorMessage -Message "Please check if the backup script is properly installed" -Type "Info"
-        Read-Host "Press Enter to continue"
-    }
+    Invoke-ScriptAndPause -ScriptPath $backupScript -Description "Core Node Project Backup Manager"
 }
 
 function Backup-DevelopmentEnvironment {
     $devEnvBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\dev_env\backup_dev_env.py"
+    Invoke-ScriptAndPause -ScriptPath $devEnvBackupScript -Description "Development Environment Backup Manager"
+}
 
-    if (Test-Path $devEnvBackupScript) {
-        Write-ColorMessage -Message "Launching Development Environment Backup Manager..." -Type "Info"
-        try {
-            & python $devEnvBackupScript
-        } catch {
-            Write-ColorMessage -Message "Error running dev env backup script: $($_.Exception.Message)" -Type "Error"
-            Read-Host "Press Enter to continue"
-        }
-    } else {
-        Write-ColorMessage -Message "Error: backup_dev_env.py script not found at: $devEnvBackupScript" -Type "Error"
-        Write-ColorMessage -Message "Please check if the dev env backup script is properly installed" -Type "Info"
-        Read-Host "Press Enter to continue"
-    }
+function Backup-ClaudeCodexAnthropic {
+    $aiBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\claude_backup\backup_claude_anthropic.py"
+    Invoke-ScriptAndPause -ScriptPath $aiBackupScript -Description "Claude, Codex and @anthropic-ai Backup Manager"
 }
 #endregion
 
-#region Main Menu
+#region Menu System
 function Show-BackupMenu {
+    $menuItems = @(
+        @{
+            Text = "Backup this project (core_node)"
+            Action = { Backup-CurrentProject }
+        },
+        @{
+            Text = "Backup development environment"
+            Action = { Backup-DevelopmentEnvironment }
+        },
+        @{
+            Text = "Backup Claude, Codex and @anthropic-ai"
+            Action = { Backup-ClaudeCodexAnthropic }
+        },
+        @{
+            Text = "Back to main menu"
+            Action = { return $true }
+        },
+        @{
+            Text = "Exit"
+            Action = { exit }
+        }
+    )
+
+    $selectedIndex = 0
+
     while ($true) {
         Clear-Host
+        Write-Host ""
         Write-ColorMessage -Message "========================================" -Type "Info"
         Write-ColorMessage -Message "       Backup Management Menu" -Type "Info"
         Write-ColorMessage -Message "========================================" -Type "Info"
         Write-Host ""
-        Write-Host "  1. Backup this project (core_node)"
-        Write-Host "  2. Backup development environment"
-        Write-Host "  3. Back to main menu"
-        Write-Host "  4. Exit"
+
+        for ($i = 0; $i -lt $menuItems.Count; $i++) {
+            if ($i -eq $selectedIndex) {
+                Write-Host -NoNewline "  > " -ForegroundColor $script:COLOR_HIGHLIGHT
+                Write-Host $menuItems[$i].Text -ForegroundColor Black -BackgroundColor White
+            } else {
+                Write-Host "    $($menuItems[$i].Text)"
+            }
+        }
+
         Write-Host ""
         Write-ColorMessage -Message "========================================" -Type "Info"
+        Write-Host ""
+        Write-Host "Use arrow keys to navigate, Enter to select" -ForegroundColor $script:COLOR_HIGHLIGHT
 
-        $choice = Read-Host "Please select an option (1-4)"
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
-        switch ($choice) {
-            "1" {
-                Backup-CurrentProject
+        switch ($key.VirtualKeyCode) {
+            38 {
+                $selectedIndex--
+                if ($selectedIndex -lt 0) {
+                    $selectedIndex = $menuItems.Count - 1
+                }
             }
-            "2" {
-                Backup-DevelopmentEnvironment
+            40 {
+                $selectedIndex++
+                if ($selectedIndex -ge $menuItems.Count) {
+                    $selectedIndex = 0
+                }
             }
-            "3" {
-                Write-ColorMessage -Message "Returning to main menu..." -Type "Info"
-                return
-            }
-            "4" {
-                Write-ColorMessage -Message "Exiting..." -Type "Info"
-                exit
-            }
-            default {
-                Write-ColorMessage -Message "Invalid option. Please try again." -Type "Warning"
-                Start-Sleep -Seconds 1
+            13 {
+                $result = & $menuItems[$selectedIndex].Action
+                if ($result -eq $true) {
+                    return
+                }
             }
         }
     }
