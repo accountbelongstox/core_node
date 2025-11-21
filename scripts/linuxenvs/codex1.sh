@@ -37,6 +37,10 @@
 
 set -e
 
+# Ensure DISABLE_AUTOUPDATER is set for Claude Code
+export DISABLE_AUTOUPDATER="1"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+
 echo ""
 echo "============================================================"
 echo "Running: codex1.sh"
@@ -93,13 +97,16 @@ ensure_var_core_node_permissions() {
         echo "[INFO] Running as root - setting up /var/_core_node permissions"
         
         # Get real user using Python system_info module
-        local real_user
+        local real_user=""
         if command -v python3 >/dev/null 2>&1; then
             real_user=$(python3 -c "
 import sys
 sys.path.insert(0, '$projectRootPath')
-from pycore.pyfoundations.system_info import get_real_user
-print(get_real_user())
+try:
+    from pycore.pyfoundations.system_info import get_real_user
+    print(get_real_user())
+except Exception:
+    print('')
 " 2>/dev/null || echo "")
         fi
         
@@ -113,13 +120,16 @@ print(get_real_user())
         # Create /var/_core_node if it doesn't exist
         if [ ! -d "$target_path" ]; then
             echo "[INFO] Creating directory: $target_path"
-            mkdir -p "$target_path"
+            mkdir -p "$target_path" || {
+                echo "[ERROR] Failed to create directory: $target_path"
+                return 1
+            }
         fi
         
-        # Set ownership and permissions for real user access
-        echo "[INFO] Setting permissions for $real_user on $target_path"
+        # Set ownership for real user access
+        echo "[INFO] Setting ownership for $real_user on $target_path"
         chown -R "$real_user:$real_user" "$target_path" 2>/dev/null || {
-            echo "[WARNING] Failed to change ownership, setting permissions for all users"
+            echo "[WARNING] Failed to change ownership to $real_user"
         }
         
         # Set 777 permissions for full access and ensure all permission bits are set
@@ -129,14 +139,35 @@ print(get_real_user())
         
         echo "[SUCCESS] /var/_core_node permissions configured for user: $real_user"
     else
-        echo "[INFO] Not running as root - skipping permission setup"
+        echo "[INFO] Not running as root - checking /var/_core_node accessibility"
         # Check if /var/_core_node exists and is accessible
+        local needs_fix=false
         if [ ! -d "$target_path" ]; then
             echo "[WARNING] $target_path does not exist and cannot be created (not root)"
+            needs_fix=true
         elif [ ! -w "$target_path" ]; then
             echo "[WARNING] $target_path is not writable by current user"
+            echo "[WARNING] MyBest directory creation may fail"
+            needs_fix=true
         else
             echo "[INFO] $target_path is accessible"
+        fi
+        
+        # Code Relationship: Generated scripts -> dd.sh smart permissions
+        # When permission issues are detected in generated scripts (non-root execution),
+        # users should run dd.sh which contains smart_permissions.sh functionality
+        # to fix all permissions comprehensively as root user
+        if [ "$needs_fix" = true ]; then
+            echo ""
+            echo "[SOLUTION] To fix permission issues, run as root:"
+            echo "  sudo $projectRootPath/dd.sh"
+            echo ""
+            echo "[INFO] dd.sh contains smart_permissions.sh which will:"
+            echo "  1. Fix /var/_core_node permissions (777 + ownership)"
+            echo "  2. Fix core project permissions for all users"
+            echo "  3. Setup environment variables (DISABLE_AUTOUPDATER=1)"
+            echo "  4. Repair AI tools if needed"
+            echo ""
         fi
     fi
 }
@@ -301,6 +332,7 @@ load_secret_value() {
     local key_name="$1"
     local env_name="$2"
     local display_name="$3"
+    local default_value="$4"
     local value=""
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
@@ -322,9 +354,19 @@ load_secret_value() {
     echo "[DEBUG] Exit code: $exit_code"
     echo "[DEBUG] Returned value length: ${#value}"
 
+    # Use default value if secret loading failed and default is provided
+    if [ -z "$value" ] && [ -n "$default_value" ]; then
+        value="$default_value"
+        echo "[INFO] Using default value for $display_name"
+    fi
+
     if [ -n "$value" ]; then
         export "$env_name"="$value"
-        echo "[SUCCESS] Loaded $display_name = $value"
+        if [ -n "$default_value" ] && [ "$value" = "$default_value" ]; then
+            echo "[SUCCESS] Loaded $display_name = $value (default)"
+        else
+            echo "[SUCCESS] Loaded $display_name = $value"
+        fi
         echo "[INFO] Command executed: export $env_name="$value""
         
         # Verify environment variable is correctly set
@@ -344,8 +386,8 @@ load_secret_value() {
     return 1
 }
 
-load_secret_value "OPENAI_API_KEY_1" "OPENAI_API_KEY" "OPENAI_API_KEY"
-load_secret_value "OPENAI_BASE_URL_1" "OPENAI_BASE_URL" "OPENAI_BASE_URL"
+load_secret_value "OPENAI_API_KEY_1" "OPENAI_API_KEY" "OPENAI_API_KEY" ""
+load_secret_value "OPENAI_BASE_URL_1" "OPENAI_BASE_URL" "OPENAI_BASE_URL" ""
 
 echo ""
 
@@ -573,14 +615,47 @@ echo "============================================================"
 echo ""
 #endregion
 
-# Fallback to npx if command not found after restore attempt
+# AI Tool Repair and npx Fallback
 if ! command -v codex &> /dev/null; then
     echo ""
     echo "============================================================"
-    echo "Tool Not Found - Using npx Fallback"
+    echo "Tool Not Found - Repair Options Available"
     echo "============================================================"
-    echo "[WARNING] Codex AI command still not available"
-    echo "[INFO] Falling back to npx execution"
+    echo "[WARNING] Codex AI command not available"
+    echo ""
+    
+    # Code Relationship: Generated scripts -> dd.sh smart permissions -> AI tools repair
+    # This generated script detects missing tools and suggests dd.sh for comprehensive repair
+    # dd.sh contains smart_permissions.sh which includes AI tools repair functionality
+    echo "[SOLUTION] For comprehensive tool repair, run:"
+    echo "  sudo $projectRootPath/dd.sh"
+    echo ""
+    echo "[INFO] dd.sh will attempt to:"
+    echo "  1. Find Codex AI in user home directories"
+    echo "  2. Fix /usr/local/bin symlinks"
+    echo "  3. Repair with package managers (npm/yarn)"
+    echo "  4. Set proper permissions for all tools"
+    echo ""
+
+    # Try simple repair if repair function is available from dd.sh sourcing
+    if declare -f repair_ai_tool > /dev/null; then
+        echo "[INFO] Attempting quick repair for codex..."
+        if repair_ai_tool "codex"; then
+            echo "[SUCCESS] Codex AI repaired successfully!"
+        else
+            echo "[WARNING] Quick repair failed"
+        fi
+    fi
+fi
+
+# Final check and npx fallback
+if ! command -v codex &> /dev/null; then
+    echo ""
+    echo "============================================================"
+    echo "Using npx Fallback (No Installation Required)"
+    echo "============================================================"
+    echo "[INFO] Running Codex AI via npx (temporary solution)"
+    echo "[INFO] For permanent fix, run: sudo $projectRootPath/dd.sh"
     echo ""
 
     # Generate npx fallback command
