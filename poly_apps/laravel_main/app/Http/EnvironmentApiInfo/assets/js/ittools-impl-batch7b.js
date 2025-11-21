@@ -4,6 +4,7 @@
 // PURPOSE: Text tools part 2
 // ============================================
 
+ITTools.Tools.Registry.register('timestamp-converter', {
     name: 'Timestamp Converter',
     category: 'converter',
     render() {

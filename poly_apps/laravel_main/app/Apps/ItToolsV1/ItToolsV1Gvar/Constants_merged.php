@@ -11,11 +11,11 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-namespace App\Apps\IttoolsV1\IttoolsV1Gvar;
+namespace App\Apps\ItToolsV1\ItToolsV1Gvar;
 
-class Constants
+class ConstantsMerged
 {
-    const APP_NAME = 'IttoolsV1';
+    const APP_NAME = 'ItToolsV1';
     const APP_VERSION = '1.0.0';
     const APP_PREFIX = '/api/ittools/v1';
     

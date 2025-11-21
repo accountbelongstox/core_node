@@ -19,11 +19,11 @@ function Scan-Applications {
         [string]$AppsDirectory
     )
 
-    $appDirs = Get-ChildItem -Path $AppsDirectory -Directory -Filter "app_*" -ErrorAction SilentlyContinue
+    $appDirs = Get-ChildItem -Path $AppsDirectory -Directory -Filter "app_*_pages" -ErrorAction SilentlyContinue
     $discoveredApps = @()
 
     foreach ($appDir in $appDirs) {
-        $appName = $appDir.Name -replace "^app_", ""
+        $appName = $appDir.Name -replace "^app_", "" -replace "_pages$", ""
         $discoveredApps += $appName
     }
 
@@ -54,7 +54,7 @@ function Get-AppConfigOverride {
         [string]$AppsDirectory
     )
 
-    $appDir = Join-Path $AppsDirectory "app_$AppName"
+    $appDir = Join-Path $AppsDirectory "app_$($AppName)_pages"
     $configPath = Join-Path $appDir "app-config.json"
     $configOverride = $null
 
@@ -89,21 +89,21 @@ function Validate-AppStructure {
         [string]$AppsDirectory
     )
 
-    $appPath = Join-Path $AppsDirectory "app_$AppName"
+    $appPath = Join-Path $AppsDirectory "app_$($AppName)_pages"
 
     if (-not (Test-Path $appPath -PathType Container)) {
-        Write-Host "[ERROR] Application directory not found: app_$AppName" -ForegroundColor Red
+        Write-Host "[ERROR] Application directory not found: app_$($AppName)_pages" -ForegroundColor Red
         return $false
     }
 
     $hasAnyContent = (Get-ChildItem -Path $appPath -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
 
     if (-not $hasAnyContent) {
-        Write-Host "[WARNING] Application directory is empty: app_$AppName" -ForegroundColor Yellow
+        Write-Host "[WARNING] Application directory is empty: app_$($AppName)_pages" -ForegroundColor Yellow
         return $false
     }
 
-    Write-Host "[INFO] Discovered app: app_$AppName" -ForegroundColor Gray
+    Write-Host "[INFO] Discovered app: app_$($AppName)_pages" -ForegroundColor Gray
     return $true
 }
 

@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\EnvironmentApiInfo\DebugIndex;
 use App\Http\EnvironmentApiInfo\ApiInfoIndex;
 use App\Http\EnvironmentApiInfo\ApiParamsCache;
+use App\Http\EnvironmentApiInfo\ClipboardController;
+use App\Http\Controllers\TranslationController;
+use App\Http\Controllers\TTSController;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,3 +58,34 @@ Route::get('/debug-assets/js/{file}', function ($file) {
     }
     abort(404);
 });
+
+// Online Clipboard routes
+Route::get('/clipboard/namespace', [ClipboardController::class, 'getOrCreateNamespace']);
+Route::post('/clipboard/text', [ClipboardController::class, 'saveText']);
+Route::get('/clipboard/data', [ClipboardController::class, 'getData']);
+Route::post('/clipboard/upload', [ClipboardController::class, 'uploadFiles']);
+Route::get('/clipboard/download', [ClipboardController::class, 'downloadFile']);
+Route::post('/clipboard/delete-file', [ClipboardController::class, 'deleteFile']);
+Route::post('/clipboard/new', [ClipboardController::class, 'createNew']);
+Route::post('/clipboard/restore', [ClipboardController::class, 'restoreHistory']);
+
+// Translation API routes
+Route::post('/translation/translate', [TranslationController::class, 'translate']);
+Route::post('/translation/batch', [TranslationController::class, 'batchTranslate']);
+Route::post('/translation/detect', [TranslationController::class, 'detectAndTranslate']);
+Route::post('/translation/learning', [TranslationController::class, 'translateForLearning']);
+Route::get('/translation/languages', [TranslationController::class, 'getLanguages']);
+Route::get('/translation/types', [TranslationController::class, 'getTypes']);
+Route::get('/translation/models', [TranslationController::class, 'getModels']);
+Route::get('/translation/task/{taskId}', [TranslationController::class, 'getTaskStatus']);
+Route::post('/translation/process-next', [TranslationController::class, 'processNextTask']);
+
+// TTS API routes
+Route::post('/tts/generate', [TTSController::class, 'generate']);
+Route::post('/tts/batch-generate', [TTSController::class, 'batchGenerate']);
+Route::post('/tts/check', [TTSController::class, 'checkGeneration']);
+Route::post('/tts/batch-check', [TTSController::class, 'batchCheck']);
+Route::get('/tts/audio/{language}/{type}/{filename}', [TTSController::class, 'serveAudio']);
+Route::get('/tts/voices', [TTSController::class, 'getVoices']);
+Route::get('/tts/cache/stats', [TTSController::class, 'getCacheStats']);
+Route::post('/tts/cache/clear', [TTSController::class, 'clearCache']);

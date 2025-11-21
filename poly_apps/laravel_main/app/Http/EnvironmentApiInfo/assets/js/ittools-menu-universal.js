@@ -6,6 +6,7 @@
 
 ITTools.UniversalMenu = {
     HISTORY_KEY: 'ittools_history',
+    STATE_KEY: 'ittools_state',
     MAX_HISTORY: 20,
 
     getMenuConfig() {
@@ -56,20 +57,29 @@ ITTools.UniversalMenu = {
                 ${categories.map(cat => `
                     <div class="ittools-top-dropdown-item" data-dropdown-id="${cat.id}">
                         <span class="ittools-top-dropdown-trigger">${cat.icon} ${cat.label}</span>
-                        <div class="ittools-top-dropdown-content">
-                            ${cat.tools.map(tool => `
-                                <div class="ittools-top-dropdown-tool" 
-                                     data-tool-id="${tool.id}"
-                                     data-tool-label="${tool.label}">
-                                    ${tool.label}
-                                </div>
-                            `).join('')}
-                        </div>
                     </div>
                 `).join('')}
             </div>
         `;
         container.innerHTML = html;
+        
+        const globalContainer = document.getElementById('global-dropdown-container');
+        if (globalContainer) {
+            const dropdownHtml = categories.map(cat => `
+                <div class="ittools-top-dropdown-content" data-dropdown-for="${cat.id}" style="display: none; pointer-events: auto;">
+                    ${cat.tools.map(tool => `
+                        <div class="ittools-top-dropdown-tool" 
+                             data-tool-id="${tool.id}"
+                             data-tool-label="${tool.label}"
+                             data-category-id="${cat.id}">
+                            ${tool.label}
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+            globalContainer.innerHTML = dropdownHtml;
+        }
+        
         this.attachTopMenuEvents(container);
     },
 
@@ -146,18 +156,54 @@ ITTools.UniversalMenu = {
 
     attachTopMenuEvents(container) {
         const items = container.querySelectorAll('.ittools-top-dropdown-item');
+        const globalContainer = document.getElementById('global-dropdown-container');
+        
+        if (!globalContainer) {
+            console.error('Global dropdown container not found');
+            return;
+        }
+        
+        const hideAllDropdowns = () => {
+            const allDropdowns = globalContainer.querySelectorAll('.ittools-top-dropdown-content');
+            allDropdowns.forEach(dd => {
+                dd.style.display = 'none';
+            });
+            items.forEach(i => i.classList.remove('open'));
+        };
+        
         items.forEach(item => {
+            const dropdownId = item.getAttribute('data-dropdown-id');
+            const trigger = item.querySelector('.ittools-top-dropdown-trigger');
+            
             item.addEventListener('mouseenter', () => {
-                items.forEach(i => i.classList.remove('open'));
-                item.classList.add('open');
+                hideAllDropdowns();
+                
+                const dropdown = globalContainer.querySelector(`[data-dropdown-for="${dropdownId}"]`);
+                if (trigger && dropdown) {
+                    const rect = trigger.getBoundingClientRect();
+                    dropdown.style.top = rect.bottom + 'px';
+                    dropdown.style.left = rect.left + 'px';
+                    dropdown.style.display = 'block';
+                    item.classList.add('open');
+                }
             });
         });
         
-        container.addEventListener('mouseleave', () => {
-            items.forEach(item => item.classList.remove('open'));
+        container.addEventListener('mouseleave', (e) => {
+            const toElement = e.relatedTarget;
+            if (!toElement || !toElement.closest('#global-dropdown-container')) {
+                setTimeout(hideAllDropdowns, 100);
+            }
         });
         
-        container.addEventListener('click', (e) => {
+        globalContainer.addEventListener('mouseleave', (e) => {
+            const toElement = e.relatedTarget;
+            if (!toElement || !toElement.closest('.ittools-top-dropdown-bar')) {
+                hideAllDropdowns();
+            }
+        });
+        
+        globalContainer.addEventListener('click', (e) => {
             e.stopPropagation();
             const tool = e.target.closest('.ittools-top-dropdown-tool');
             if (tool) {
@@ -166,8 +212,15 @@ ITTools.UniversalMenu = {
                 const toolLabel = tool.getAttribute('data-tool-label');
                 if (toolId) {
                     this.selectTool(toolId, toolLabel);
-                    container.querySelectorAll('.ittools-top-dropdown-item').forEach(i => i.classList.remove('open'));
+                    hideAllDropdowns();
                 }
+            }
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.ittools-top-dropdown-bar') && 
+                !e.target.closest('#global-dropdown-container')) {
+                hideAllDropdowns();
             }
         });
     },
@@ -202,6 +255,56 @@ ITTools.UniversalMenu = {
         }
         this.addToHistory(toolId, toolLabel);
         this.refreshHistoryBar();
+        this.saveState(toolId);
+    },
+    
+    saveState(toolId) {
+        try {
+            const expandedGroups = [];
+            document.querySelectorAll('.ittools-menu-group-header.expanded').forEach(header => {
+                const groupId = header.getAttribute('data-group-id');
+                if (groupId) expandedGroups.push(groupId);
+            });
+            const state = { lastTool: toolId, expandedGroups: expandedGroups };
+            localStorage.setItem(this.STATE_KEY, JSON.stringify(state));
+        } catch (e) {
+            console.error('Failed to save state:', e);
+        }
+    },
+    
+    getState() {
+        try {
+            const stored = localStorage.getItem(this.STATE_KEY);
+            return stored ? JSON.parse(stored) : null;
+        } catch (e) {
+            return null;
+        }
+    },
+    
+    restoreState() {
+        const state = this.getState();
+        if (!state) return;
+        
+        if (state.expandedGroups && state.expandedGroups.length > 0) {
+            state.expandedGroups.forEach(groupId => {
+                if (typeof ITTools.Menu !== 'undefined' && ITTools.Menu.expandGroup) {
+                    ITTools.Menu.expandGroup(groupId, false);
+                }
+            });
+        }
+        
+        if (state.lastTool) {
+            const allTools = this.getAllToolsMap();
+            const toolInfo = allTools[state.lastTool];
+            if (toolInfo) {
+                setTimeout(() => {
+                    ITTools.Menu.activateSubmenu(state.lastTool, false);
+                    if (typeof ITTools.Tools !== 'undefined' && ITTools.Tools.loadTool) {
+                        ITTools.Tools.loadTool(state.lastTool);
+                    }
+                }, 100);
+            }
+        }
     },
 
     getHistory() {

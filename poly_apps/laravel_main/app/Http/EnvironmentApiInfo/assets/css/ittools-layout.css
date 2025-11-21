@@ -18,8 +18,113 @@
     padding: 12px 20px;
     display: flex;
     gap: 15px;
+    align-items: center;
     border-bottom: 2px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.ittools-search-wrapper {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+
+.ittools-search-input {
+    width: 100%;
+    padding: 8px 35px 8px 15px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.ittools-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ittools-search-input:focus {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: white;
+}
+
+.ittools-search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ittools-search-input:not(:placeholder-shown) + .ittools-search-clear {
+    display: flex;
+}
+
+.ittools-search-clear:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.ittools-search-results {
+    position: fixed;
+    min-width: 300px;
+    max-width: 400px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 99999;
+    display: none;
+    animation: dropdownFadeIn 0.2s ease;
+}
+
+.ittools-search-results.visible {
+    display: block;
+}
+
+.ittools-search-result-item {
+    padding: 10px 15px;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.ittools-search-result-item:last-child {
+    border-bottom: none;
+}
+
+.ittools-search-result-item:hover {
+    background: linear-gradient(135deg, rgba(103,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+    color: #667eea;
+    padding-left: 20px;
+}
+
+.ittools-search-result-category {
+    font-size: 11px;
+    color: #999;
+    margin-left: 5px;
+}
+
+.ittools-search-no-results {
+    padding: 15px;
+    text-align: center;
+    color: #999;
+    font-size: 13px;
 }
 
 .ittools-top-menu-item {
@@ -55,6 +160,7 @@
 /* ITTools Left Menu - Fixed Height Container */
 .ittools-left-menu {
     width: 240px;
+    min-width: 240px;
     background: rgba(248, 249, 250, 0.95);
     border-right: 1px solid rgba(0,0,0,0.1);
     display: flex;
@@ -62,6 +168,41 @@
     height: 100%;
     max-height: calc(100vh - 200px);
     overflow: hidden;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.ittools-left-menu.collapsed {
+    width: 0;
+    min-width: 0;
+    margin-left: 0;
+    border-right: none;
+    opacity: 0;
+}
+
+.ittools-menu-collapse-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 30px;
+    height: 30px;
+    background: rgba(103, 126, 234, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.ittools-menu-collapse-btn:hover {
+    background: rgba(103, 126, 234, 1);
+    transform: scale(1.1);
 }
 
 .ittools-left-menu-scroll {
@@ -449,13 +590,8 @@
 
 .ittools-top-dropdown-bar {
     display: flex;
+    flex-wrap: wrap;
     gap: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-.ittools-top-dropdown-bar::-webkit-scrollbar {
-    display: none;
 }
 
 .ittools-top-dropdown-item {
@@ -484,17 +620,15 @@
 
 .ittools-top-dropdown-content {
     display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
+    position: fixed;
     min-width: 200px;
     max-width: 280px;
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
     background: white;
     border-radius: 0 0 8px 8px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    z-index: 1000;
+    z-index: 99999;
     animation: dropdownFadeIn 0.2s ease;
 }
 

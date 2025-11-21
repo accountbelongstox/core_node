@@ -323,9 +323,4 @@ ITTools.Implementations.PercentCalc = {
     }
 };
 
-// ============================================
-// HEX to RGB Converter
-// ============================================
-ITTools.Tools.Registry.register('hex-rgb-converter', {
-    name: 'HEX to RGB Converter',
 console.log('ITTools Batch 6a loaded (age-calculator, bmi-calculator, loan-calculator, gst-calculator, percentage-calculator)');
