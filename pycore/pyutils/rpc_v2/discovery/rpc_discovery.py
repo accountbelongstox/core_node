@@ -15,7 +15,8 @@ from pycore import ColorPrint
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.discovery.local_ip_detector import get_local_lan_ip
 from pycore.pyutils.rpc_v2.discovery.network_scanner import NetworkScanner, NetworkHost
-from pycore.pyutils.rpc_v2.protocol.rpc_protocol import RPCProtocolClient
+# Delayed import to avoid circular dependency: protocol → address → discovery → protocol
+# from pycore.pyutils.rpc_v2.protocol.rpc_protocol import RPCProtocolClient
 
 
 @dataclass
