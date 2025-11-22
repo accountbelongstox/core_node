@@ -203,12 +203,7 @@ find_vscode_file() {
     for dir in "${search_dirs[@]}"; do
         while IFS= read -r -d '' candidate; do
             local basename_file=$(basename "$candidate")
-            
-            # Skip code-insiders packages
-            if [[ "$basename_file" =~ code-insiders ]] || [[ "$basename_file" =~ code_insiders ]]; then
-                continue
-            fi
-            
+
             local file_mtime=$(stat -c %Y "$candidate" 2>/dev/null || echo 0)
             if (( file_mtime > latest_mtime )); then
                 latest_mtime=$file_mtime
@@ -519,11 +514,6 @@ cleanup_vscode() {
     if dpkg -l | grep -q "code"; then
         print_step_from_common_functions "Removing VS Code package..."
         $USE_SUDO apt-get remove --purge -y code
-    fi
-
-    if dpkg -l | grep -q "code-insiders"; then
-        print_step_from_common_functions "Removing VS Code Insiders package..."
-        $USE_SUDO apt-get remove --purge -y code-insiders
     fi
 
     # Remove installation directory
