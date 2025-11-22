@@ -250,15 +250,35 @@ function Get-DefaultRemote {
     }
 }
 
-# Default remote (primary) - this will be restored after each operation
-$DEFAULT_REMOTE = Get-DefaultRemote -ProjectName $projectName
+# Load remote configurations from git_remotes.conf
+function Load-RemoteConfigs {
+    $configFile = Join-Path $PSScriptRoot "git_remotes.conf"
+    $remoteConfigs = @{}
+    
+    if (-not (Test-Path $configFile)) {
+        Write-Error "Configuration file not found: $configFile"
+        exit 1
+    }
+    
+    Get-Content $configFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith('#')) {
+            if ($line -match '^([^=]+)=(.+)$') {
+                $key = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                $remoteConfigs[$key] = $value
+            }
+        }
+    }
+    
+    return $remoteConfigs
+}
 
 # Remote configurations
-$remoteConfigs = @{
-    "gitee" = "git@gitee.com:accountbelongstox/$projectName.git"
-    "github" = "git@github.com:accountbelongstox/$projectName.git"
-    "local" = "git@192.168.50.2:adminroot/core_node.git"
-}
+$remoteConfigs = Load-RemoteConfigs
+
+# Default remote (primary) - this will be restored after each operation
+$DEFAULT_REMOTE = Get-DefaultRemote -ProjectName $projectName
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
 function Get-ExecutionOrder {

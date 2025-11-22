@@ -345,14 +345,32 @@ get_default_remote() {
     fi
 }
 
+# Load remote configurations from git_remotes.conf
+load_remote_configs() {
+    local config_file="$SCRIPT_DIR/git_remotes.conf"
+    declare -g -A remote_configs
+    
+    if [ ! -f "$config_file" ]; then
+        echo "Error: Configuration file not found: $config_file"
+        exit 1
+    fi
+    
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        # Skip empty lines and comments
+        [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+        # Trim whitespace
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs)
+        # Store in associative array
+        remote_configs["$key"]="$value"
+    done < "$config_file"
+}
+
+# Load configurations
+load_remote_configs
+
 # Default remote (primary) - this will be restored after each operation
 DEFAULT_REMOTE=$(get_default_remote "$PROJECT_NAME")
-
-# Remote configurations
-declare -A remote_configs
-remote_configs["gitee"]="git@gitee.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["github"]="git@github.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["local"]="git@192.168.50.2:adminroot/core_node.git"
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
 get_execution_order() {
