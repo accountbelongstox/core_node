@@ -7,7 +7,7 @@ from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 
-from .routers import health_router, module_call_router, ocr_router
+from .routers import health_router, module_call_router, ocr_router, translator_router
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(module_call_router)
     app.include_router(ocr_router)
+    app.include_router(translator_router)
 
     @app.on_event("startup")
     async def startup_event():

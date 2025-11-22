@@ -47,12 +47,12 @@ def register_module_routes(rpc_server: 'FastAPIRPCServer', debug: bool = False):
             route_name = f"{module_name}.{method_name}"
             
             # Create route handler closure
-            async def create_handler(mod=module_name, meth=method_name):
+            def create_handler(mod=module_name, meth=method_name):
                 async def handler(**params):
                     return await module_call_handler.call_method(mod, meth, params)
                 return handler
             
-            handler = await create_handler()
+            handler = create_handler()
             
             # Register route
             rpc_server.route(

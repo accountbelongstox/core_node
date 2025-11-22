@@ -952,7 +952,7 @@ create_natgateway_command() {
     fi
 
     echo ""
-    echo -e "${GREEN}‚ú?'natgateway' command is now available${NC}"
+    echo -e "${GREEN}ÔøΩ?'natgateway' command is now available${NC}"
     echo -e "${YELLOW}  You can run 'natgateway' from anywhere to:${NC}"
     echo -e "    - View router status"
     echo -e "    - Modify configuration"
@@ -978,11 +978,11 @@ show_status() {
 
         # Display system sharing with detailed explanation
         if [ "$SYSTEM_SHARING" = "yes" ]; then
-            echo -e "  System Sharing: ${GREEN}$SYSTEM_SHARING${NC} ${GREEN}‚ú?{NC}"
-            echo -e "    ${WHITE}‚Ü?System CAN use WAN for internet access${NC}"
+            echo -e "  System Sharing: ${GREEN}$SYSTEM_SHARING${NC} ${GREEN}ÔøΩ?{NC}"
+            echo -e "    ${WHITE}ÔøΩ?System CAN use WAN for internet access${NC}"
         else
-            echo -e "  System Sharing: ${YELLOW}$SYSTEM_SHARING${NC} ${RED}‚ú?{NC}"
-            echo -e "    ${WHITE}‚Ü?System CANNOT use WAN (only LAN forwarding)${NC}"
+            echo -e "  System Sharing: ${YELLOW}$SYSTEM_SHARING${NC} ${RED}ÔøΩ?{NC}"
+            echo -e "    ${WHITE}ÔøΩ?System CANNOT use WAN (only LAN forwarding)${NC}"
         fi
         echo ""
 
@@ -1220,7 +1220,7 @@ show_interactive_menu() {
                     echo ""
                     echo -e "${WHITE}What is System Sharing?${NC}"
                     if [ "$SYSTEM_SHARING" = "yes" ]; then
-                        echo -e "  ${GREEN}‚ú?ENABLED${NC} - The system (this machine) CAN use WAN for internet"
+                        echo -e "  ${GREEN}ÔøΩ?ENABLED${NC} - The system (this machine) CAN use WAN for internet"
                         echo -e "    - System traffic goes through WAN interface"
                         echo -e "    - Default route set via WAN gateway"
                         echo -e "    - Both system and LAN clients share WAN internet"
@@ -1228,7 +1228,7 @@ show_interactive_menu() {
                         echo -e "${YELLOW}Do you want to DISABLE system sharing?${NC}"
                         echo -e "  If disabled, only LAN clients can use WAN (not this system)"
                     else
-                        echo -e "  ${RED}‚ú?DISABLED${NC} - The system (this machine) CANNOT use WAN for internet"
+                        echo -e "  ${RED}ÔøΩ?DISABLED${NC} - The system (this machine) CANNOT use WAN for internet"
                         echo -e "    - System traffic does NOT go through WAN"
                         echo -e "    - Only LAN -> WAN forwarding works"
                         echo -e "    - Only LAN clients can access internet via WAN"
@@ -1276,10 +1276,10 @@ show_interactive_menu() {
                                             local current_wan="${wan_matches[0]}"
                                             local default_route=$(ip route | grep "default.*$current_wan" | head -1)
                                             if [[ -n "$default_route" ]]; then
-                                                echo -e "  ${GREEN}‚ú?Default route via $current_wan: OK${NC}"
-                                                echo -e "  ${GREEN}‚ú?System can now access internet via WAN${NC}"
+                                                echo -e "  ${GREEN}ÔøΩ?Default route via $current_wan: OK${NC}"
+                                                echo -e "  ${GREEN}ÔøΩ?System can now access internet via WAN${NC}"
                                             else
-                                                echo -e "  ${YELLOW}‚ö?Default route not found yet, checking service logs...${NC}"
+                                                echo -e "  ${YELLOW}ÔøΩ?Default route not found yet, checking service logs...${NC}"
                                                 echo -e "  ${YELLOW}  Service may need a few seconds to detect WAN gateway${NC}"
                                             fi
                                         fi
@@ -1336,6 +1336,12 @@ show_interactive_menu() {
                     log_info "Stopping service..."
                     if $USE_SUDO systemctl stop "$full_service_name"; then
                         log_success "Service stopped"
+                        log_info "Disabling service from auto-start..."
+                        if $USE_SUDO systemctl disable "$full_service_name"; then
+                            log_success "Service disabled from auto-start"
+                        else
+                            log_error "Failed to disable service"
+                        fi
                     else
                         log_error "Failed to stop service"
                     fi
@@ -1630,18 +1636,18 @@ install_natgateway() {
         echo ""
 
         echo -e "${YELLOW}NAT Gateway Service Features:${NC}"
-        echo -e "  ${GREEN}‚ú?{NC} Enable NAT Gateway when both WAN ($WAN_KEYWORD) and LAN ($LAN_KEYWORD) are available"
-        echo -e "  ${GREEN}‚ú?{NC} Auto-configure LAN interface as gateway (IP: 192.168.2.1/24)"
-        echo -e "  ${GREEN}‚ú?{NC} Disable NAT Gateway when interfaces are disconnected"
-        echo -e "  ${GREEN}‚ú?{NC} Hot-plug support: Automatically detects interface changes (checks every 5 seconds)"
-        echo -e "  ${GREEN}‚ú?{NC} Traffic statistics: Monitor forwarded data (LAN‚ÜîWAN)"
-        echo -e "  ${GREEN}‚ú?{NC} Service logs: /var/log/natgateway.log"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Enable NAT Gateway when both WAN ($WAN_KEYWORD) and LAN ($LAN_KEYWORD) are available"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Auto-configure LAN interface as gateway (IP: 192.168.2.1/24)"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Disable NAT Gateway when interfaces are disconnected"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Hot-plug support: Automatically detects interface changes (checks every 5 seconds)"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Traffic statistics: Monitor forwarded data (LAN‚ÜîWAN)"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Service logs: /var/log/natgateway.log"
         echo ""
         echo -e "${CYAN}Connected Router/Device Configuration:${NC}"
         echo -e "  When connecting a router or device to LAN interface ($LAN_KEYWORD):"
-        echo -e "  ${YELLOW}‚Ü?Gateway IP:${NC} 192.168.2.1"
-        echo -e "  ${YELLOW}‚Ü?Subnet:${NC} 192.168.2.0/24"
-        echo -e "  ${YELLOW}‚Ü?DNS:${NC} 8.8.8.8 or 1.1.1.1"
+        echo -e "  ${YELLOW}ÔøΩ?Gateway IP:${NC} 192.168.2.1"
+        echo -e "  ${YELLOW}ÔøΩ?Subnet:${NC} 192.168.2.0/24"
+        echo -e "  ${YELLOW}ÔøΩ?DNS:${NC} 8.8.8.8 or 1.1.1.1"
         echo ""
 
         echo -e "${GREEN}‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ‚îÅ${NC}"
@@ -1755,13 +1761,13 @@ main() {
         echo -e "${WHITE}This tool sets up a NAT Gateway, allowing LAN devices to access internet through WAN interface.${NC}"
         echo ""
         echo -e "${CYAN}Features:${NC}"
-        echo -e "  ${GREEN}‚ú?{NC} NAT Gateway: Share WAN internet connection with LAN devices"
-        echo -e "  ${GREEN}‚ú?{NC} Keyword-based interface matching (hot-plug support)"
-        echo -e "  ${GREEN}‚ú?{NC} Automatic NAT Gateway setup when interfaces are available"
-        echo -e "  ${GREEN}‚ú?{NC} Auto-configure LAN interface as gateway (default: 192.168.2.1/24)"
-        echo -e "  ${GREEN}‚ú?{NC} Real-time monitoring (checks every 5 seconds)"
-        echo -e "  ${GREEN}‚ú?{NC} Interactive menu for configuration management"
-        echo -e "  ${GREEN}‚ú?{NC} Systemd service for automatic startup"
+        echo -e "  ${GREEN}ÔøΩ?{NC} NAT Gateway: Share WAN internet connection with LAN devices"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Keyword-based interface matching (hot-plug support)"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Automatic NAT Gateway setup when interfaces are available"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Auto-configure LAN interface as gateway (default: 192.168.2.1/24)"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Real-time monitoring (checks every 5 seconds)"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Interactive menu for configuration management"
+        echo -e "  ${GREEN}ÔøΩ?{NC} Systemd service for automatic startup"
         echo ""
         echo -e "${YELLOW}Installation Process:${NC}"
         echo -e "  1. Create 'natgateway' command (available immediately)"

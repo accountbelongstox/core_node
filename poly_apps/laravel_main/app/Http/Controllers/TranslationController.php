@@ -125,19 +125,49 @@ class TranslationController extends Controller
     
     public function getModels(Request $request): JsonResponse
     {
+        $hardcodedModels = [
+            [
+                'id' => 'tngtech/deepseek-r1t2-chimera:free',
+                'name' => 'DeepSeek R1T2 Chimera (Free)',
+                'free' => true,
+                'context_length' => 8192,
+            ],
+        ];
+        
         $client = new \App\Services\OpenRouterClient();
         $freeModels = $client->getFreeModels();
         
+        $allModels = array_merge($hardcodedModels, $freeModels);
+        
+        $seen = [];
+        $uniqueModels = [];
+        foreach ($allModels as $model) {
+            if (!isset($seen[$model['id']])) {
+                $seen[$model['id']] = true;
+                $uniqueModels[] = $model;
+            }
+        }
+        
         $modelMapping = [];
-        foreach ($freeModels as $index => $model) {
+        foreach ($uniqueModels as $index => $model) {
             $modelMapping[$index] = $model['id'];
         }
         
-        \Cache::put('translation_model_mapping', $modelMapping, 3600);
+        $mappingFile = \App\Providers\PathMapper::getLaravelDatabaseDir() . '/translation_tasks/model_mapping.json';
+        $mappingDir = dirname($mappingFile);
+        
+        if (!is_dir($mappingDir)) {
+            mkdir($mappingDir, 0755, true);
+        }
+        
+        file_put_contents($mappingFile, json_encode([
+            'timestamp' => time(),
+            'mapping' => $modelMapping,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         
         return response()->json([
             'success' => true,
-            'models' => $freeModels,
+            'models' => $uniqueModels,
         ]);
     }
     
@@ -162,11 +192,15 @@ class TranslationController extends Controller
         ]);
         
         $modelIndex = $request->input('model');
-        $modelMapping = \Cache::get('translation_model_mapping', []);
         $modelId = null;
         
-        if ($modelIndex !== null && isset($modelMapping[$modelIndex])) {
-            $modelId = $modelMapping[$modelIndex];
+        $mappingFile = \App\Providers\PathMapper::getLaravelDatabaseDir() . '/translation_tasks/model_mapping.json';
+        
+        if (file_exists($mappingFile)) {
+            $mappingData = json_decode(file_get_contents($mappingFile), true);
+            if ($mappingData && isset($mappingData['mapping'][$modelIndex])) {
+                $modelId = $mappingData['mapping'][$modelIndex];
+            }
         }
         
         $params = [

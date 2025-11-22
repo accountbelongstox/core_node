@@ -226,15 +226,26 @@ XML,
                     'language' => $languageName,
                     'error' => $result,
                     'model_requested' => $actualModel,
+                    'raw_response' => $result,
                 ];
                 continue;
             }
             
             $allRawResponses[$languageName] = $result;
             
-            $parsed = $this->parseLineLearningResult($result, $languageName, $options);
-            $parsed['model_requested'] = $actualModel;
-            $allTranslations[] = $parsed;
+            try {
+                $parsed = $this->parseLineLearningResult($result, $languageName, $options);
+                $parsed['model_requested'] = $actualModel;
+                $parsed['raw_response'] = $result;
+                $allTranslations[] = $parsed;
+            } catch (\Exception $e) {
+                $allTranslations[] = [
+                    'language' => $languageName,
+                    'error' => 'Parse error: ' . $e->getMessage(),
+                    'model_requested' => $actualModel,
+                    'raw_response' => $result,
+                ];
+            }
         }
         
         if ($generateAudio) {
@@ -492,11 +503,11 @@ XML,
             } elseif (preg_match('/^' . preg_quote($languageName, '/') . '\s+Ambiguity Explanation[:\s]*(.*)$/i', $line, $m)) {
                 $translation['ambiguity_explanation'] = trim($m[1]);
                 $currentSection = null;
-            } elseif ($currentSection === 'words' && preg_match('/^(.+?)[:\uff1a]\s*(.+)$/', $line, $m)) {
+            } elseif ($currentSection === 'words' && preg_match('/^(.+?)[:：]\s*(.+)$/u', $line, $m)) {
                 $wordsList[] = ['word' => trim($m[1]), 'phonetic' => trim($m[2])];
-            } elseif ($currentSection === 'letters' && preg_match('/^(.+?)[:\uff1a]\s*(.+)$/', $line, $m)) {
+            } elseif ($currentSection === 'letters' && preg_match('/^(.+?)[:：]\s*(.+)$/u', $line, $m)) {
                 $lettersList[] = ['letter' => trim($m[1]), 'phonetic' => trim($m[2])];
-            } elseif (!isset($translation['translation']) && !preg_match('/^' . preg_quote($languageName, '/') . '/i', $line)) {
+            } elseif (!isset($translation['translation']) && !preg_match('/^' . preg_quote($languageName, '/') . '/iu', $line)) {
                 $translation['translation'] = $line;
             }
         }
