@@ -527,7 +527,7 @@ get_current_remote() {
 # Function to set remote URL
 set_remote_url() {
     local remote_url="$1"
-    
+
     write_color_text "Executing: git remote set-url origin $remote_url" "DarkGray"
     git remote set-url origin "$remote_url"
     if [ $? -eq 0 ]; then
@@ -719,37 +719,37 @@ invoke_safe_git_pull() {
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
-    
+
     write_color_text "----------------------------------------------------------------" "DarkYellow"
     write_color_text "Starting git operations for: $target_url" "Cyan"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
     write_color_text "--------------------------------" "Green"
-    
+
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
-    
+
     # Ensure SSH permissions are correct
     ensure_ssh_permissions
-    
+
     # Ensure git identity is configured
     ensure_git_identity
-    
+
     # Store original branch and remote for restoration
     ORIGINAL_BRANCH=$(get_current_branch)
     ORIGINAL_REMOTE_URL=$(get_current_remote)
     write_color_text "Original branch: $ORIGINAL_BRANCH" "DarkGray"
     write_color_text "Original remote: $ORIGINAL_REMOTE_URL" "DarkGray"
-    
+
     # Create backup if enabled
     create_working_backup
-    
+
     # Set target remote
     if ! set_remote_url "$target_url"; then
         return 1
     fi
-    
+
     # Show remote configuration
     write_color_text "--------------------------------" "Green"
     write_color_text "Executing: git remote -v" "DarkGray"
@@ -960,7 +960,13 @@ invoke_git_operations() {
     write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
     git push --set-upstream origin "$current_branch"
     write_color_text "----------------------------------------------------------------" "DarkBlue"
-    
+
+    # Restore default remote after push (always restore to DEFAULT_REMOTE)
+    if [ "$(get_current_remote)" != "$DEFAULT_REMOTE" ]; then
+        write_color_text "Restoring default remote: $DEFAULT_REMOTE" "Yellow"
+        set_remote_url "$DEFAULT_REMOTE"
+    fi
+
     return 0
 }
 
@@ -1014,10 +1020,6 @@ main() {
             write_color_text "Unknown remote target: $target" "Red"
             all_success=false
         fi
-        
-        # Always restore original branch and remote after each operation
-        restore_original_branch
-        restore_original_remote
     done
     
     write_color_text "\n=== Summary ===" "Magenta"
