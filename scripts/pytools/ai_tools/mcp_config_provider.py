@@ -31,15 +31,17 @@ from typing import Dict, List, Optional
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# Add pycore to path for secret_manager
-sys.path.insert(0, str(PROJECT_ROOT / 'pycore'))
+# Add project root to path so pycore can be imported
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def get_secret_value(key_name: str) -> Optional[str]:
     """Get secret value from secret manager"""
     try:
-        from pyfoundations.secret_manager import get_secret_key
-        return get_secret_key(key_name)
+        from pycore.pyfoundations.secret_manager import get_secret_key
+        value = get_secret_key(key_name)
+        return value if value else None
     except Exception as e:
         print(f"[WARNING] Could not load secret {key_name}: {e}")
         return None
@@ -80,16 +82,16 @@ class MCPConfigProvider:
         Get Context7 MCP configuration (HTTP transport)
 
         Returns:
-            MCPConfig if API key is available, None otherwise
+            MCPConfig with API key (if found) or empty string
         """
-        context7_api_key = get_secret_value("CONTEXT7_API_KEY")
+        context7_api_key = get_secret_value("CONTEXT7_API_KEY_1")
 
         if not context7_api_key:
             print(f"[WARNING] CONTEXT7_API_KEY not found in secret manager")
-            print(f"[INFO] Skipping Context7 MCP configuration")
-            return None
-
-        print(f"[INFO] Context7 API key loaded successfully")
+            print(f"[INFO] Adding Context7 MCP with empty API key (can be configured later)")
+            context7_api_key = ""
+        else:
+            print(f"[INFO] Context7 API key loaded successfully")
 
         return MCPConfig(
             name="context7",
@@ -112,14 +114,18 @@ class MCPConfigProvider:
         Returns:
             MCPConfig with relative path configuration
         """
-        # Use relative path from PROJECT_ROOT
-        # When executed from PROJECT_ROOT, this becomes: python3 pymain.py app=mcp
+        import sys
+
+        # Use current Python interpreter path
+        python_executable = sys.executable
+
+        # Use relative path for pymain.py (will be resolved to absolute by claude_sync_mcp_servers.py)
         pymain_relative = "pymain.py"
 
         return MCPConfig(
             name="unified",
             transport_type="stdio",
-            command="python3",
+            command=python_executable,
             args=[pymain_relative, "app=mcp"],
             env={"MCP_ALLOW_ALL_PATHS": "true"}
         )

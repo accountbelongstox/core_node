@@ -1309,7 +1309,7 @@ if (-not $SkipInitialization) {
     Store-GlobalPaths
     Make-PsExecutable
     Create-Symlink
-    
+
     # Check and ensure desktop shortcut exists
     $shortcutCheckScript = Join-Path $Global:CORE_NODE_DIR "pycore\pyutils\launcher\shortcut_check.ps1"
     if (Test-Path $shortcutCheckScript) {
@@ -1326,6 +1326,14 @@ if (-not $SkipInitialization) {
         }
     } else {
         Write-ColorMessage -Message "Shortcut check script not found: $shortcutCheckScript" -Type "Warning"
+    }
+
+    # Check for encrypted secrets and prompt for decryption
+    $secretDecryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretDecryptionCheck.ps1"
+    try {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $secretDecryptCheckScript
+    } catch {
+        Write-ColorMessage -Message "Failed to check encrypted secrets: $($_.Exception.Message)" -Type "Warning"
     }
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
