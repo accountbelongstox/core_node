@@ -27,6 +27,27 @@ class TranslationController extends Controller
         return $passcode === $expectedPasscode;
     }
     
+    private function resolveModelId(?int $modelIndex): ?string
+    {
+        if ($modelIndex === null) {
+            return null;
+        }
+        
+        $mappingFile = \App\Providers\PathMapper::getLaravelDatabaseDir() . '/translation_tasks/model_mapping.json';
+        
+        if (!file_exists($mappingFile)) {
+            return null;
+        }
+        
+        $mappingData = json_decode(file_get_contents($mappingFile), true);
+        
+        if ($mappingData && isset($mappingData['mapping'][$modelIndex])) {
+            return $mappingData['mapping'][$modelIndex];
+        }
+        
+        return null;
+    }
+    
     public function translate(Request $request): JsonResponse
     {
         if (!$this->validatePasscode($request)) {
@@ -40,14 +61,16 @@ class TranslationController extends Controller
             'text' => 'required|string',
             'target_language' => 'required|string',
             'type' => 'nullable|string',
-            'model' => 'nullable|string',
+            'model' => 'nullable|integer',
         ]);
+        
+        $modelId = $this->resolveModelId($request->input('model'));
         
         $result = $this->translationService->translate(
             text: $request->input('text'),
             targetLanguage: $request->input('target_language'),
             type: $request->input('type', 'general'),
-            model: $request->input('model')
+            model: $modelId
         );
         
         return response()->json($result);
@@ -67,14 +90,16 @@ class TranslationController extends Controller
             'texts.*' => 'required|string',
             'target_language' => 'required|string',
             'type' => 'nullable|string',
-            'model' => 'nullable|string',
+            'model' => 'nullable|integer',
         ]);
+        
+        $modelId = $this->resolveModelId($request->input('model'));
         
         $results = $this->translationService->batchTranslate(
             texts: $request->input('texts'),
             targetLanguage: $request->input('target_language'),
             type: $request->input('type', 'general'),
-            model: $request->input('model')
+            model: $modelId
         );
         
         return response()->json([
@@ -95,13 +120,15 @@ class TranslationController extends Controller
         $request->validate([
             'text' => 'required|string',
             'target_language' => 'required|string',
-            'model' => 'nullable|string',
+            'model' => 'nullable|integer',
         ]);
+        
+        $modelId = $this->resolveModelId($request->input('model'));
         
         $result = $this->translationService->detectAndTranslate(
             text: $request->input('text'),
             targetLanguage: $request->input('target_language'),
-            model: $request->input('model')
+            model: $modelId
         );
         
         return response()->json($result);
@@ -373,5 +400,49 @@ class TranslationController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+    
+    public function simpleTranslateWithGoogle(Request $request): JsonResponse
+    {
+        if (!$this->validatePasscode($request)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid passcode',
+            ], 401);
+        }
+        
+        $request->validate([
+            'text' => 'required|string',
+            'target_language' => 'required|string',
+        ]);
+        
+        $text = $request->input('text');
+        $targetLanguage = $request->input('target_language');
+        
+        $translatorUtil = new \App\CallPycoreUtils\PycoreTranslatorUtil();
+        
+        $result = $translatorUtil->translateSingle(
+            $text,
+            'auto',
+            $targetLanguage,
+            true
+        );
+        
+        if (isset($result['error'])) {
+            return response()->json([
+                'success' => false,
+                'error' => $result['error'],
+                'details' => $result['details'] ?? null,
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'translated_text' => $result['translated_text'] ?? '',
+            'original_text' => $result['original_text'] ?? $text,
+            'src_lang' => $result['src_lang'] ?? 'auto',
+            'dest_lang' => $result['dest_lang'] ?? $targetLanguage,
+            'provider' => 'google',
+        ]);
     }
 }

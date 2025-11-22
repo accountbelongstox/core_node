@@ -83,6 +83,21 @@ class PycoreHttpClient
                 ];
             }
             
+            if (isset($result['sync_response']) && $result['sync_response'] === true) {
+                if (isset($result['error']) && $result['error'] !== null) {
+                    return [
+                        'error' => $result['error'],
+                        'details' => $result,
+                    ];
+                }
+                
+                return [
+                    'success' => true,
+                    'result' => $result['result'] ?? null,
+                    'request_id' => $result['id'],
+                ];
+            }
+            
             $requestId = $result['id'];
             
             if ($async) {

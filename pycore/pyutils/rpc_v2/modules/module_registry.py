@@ -22,14 +22,14 @@ SUPPORTED_MODULES: Dict[str, Dict[str, Any]] = {
         "description": "Google Translator - Text translation service",
         "methods": {
             "translate_single": {
-                "sync": False,
+                "sync": True,
                 "description": "Translate single text",
                 "timeout": 30.0,
                 "params": {
                     "text": {"type": "str", "required": True, "description": "Text to translate"},
                     "src": {"type": "str", "required": False, "default": "auto", "description": "Source language code"},
                     "dest": {"type": "str", "required": False, "default": "en", "description": "Target language code"},
-                    "use_cache": {"type": "bool", "required": False, "default": True, "description": "Whether to use cache"}
+                    "use_cache": {"type": "bool", "required": False, "default": False, "description": "Whether to use cache"}
                 },
                 "returns": {
                     "type": "TranslationResult",
@@ -51,14 +51,14 @@ SUPPORTED_MODULES: Dict[str, Dict[str, Any]] = {
                 }
             },
             "translate_batch": {
-                "sync": False,
+                "sync": True,
                 "description": "Batch translate multiple texts",
                 "timeout": 60.0,
                 "params": {
                     "texts": {"type": "List[str]", "required": True, "description": "List of texts to translate"},
                     "src": {"type": "str", "required": False, "default": "auto", "description": "Source language code"},
                     "dest": {"type": "str", "required": False, "default": "en", "description": "Target language code"},
-                    "use_cache": {"type": "bool", "required": False, "default": True, "description": "Whether to use cache"}
+                    "use_cache": {"type": "bool", "required": False, "default": False, "description": "Whether to use cache"}
                 },
                 "returns": {
                     "type": "List[TranslationResult]",
@@ -89,7 +89,7 @@ SUPPORTED_MODULES: Dict[str, Dict[str, Any]] = {
                 }
             },
             "detect_language": {
-                "sync": False,
+                "sync": True,
                 "description": "Detect language of text",
                 "timeout": 10.0,
                 "params": {
@@ -117,14 +117,44 @@ SUPPORTED_MODULES: Dict[str, Dict[str, Any]] = {
 def get_module_config(module_name: str) -> Optional[Dict[str, Any]]:
     """
     Get module configuration by name
-    
+
     Args:
         module_name: Name of the module
-    
+
     Returns:
         Module configuration dict or None if not found
     """
     return SUPPORTED_MODULES.get(module_name)
+
+
+def get_module_info(module_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Get module information by name (alias for get_module_config)
+
+    Args:
+        module_name: Name of the module
+
+    Returns:
+        Module configuration dict or None if not found
+    """
+    return get_module_config(module_name)
+
+
+def get_method_info(module_name: str, method_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Get method information for a specific module method
+
+    Args:
+        module_name: Name of the module
+        method_name: Name of the method
+
+    Returns:
+        Method configuration dict or None if not found
+    """
+    module_config = SUPPORTED_MODULES.get(module_name)
+    if module_config and "methods" in module_config:
+        return module_config["methods"].get(method_name)
+    return None
 
 
 def get_all_modules() -> Dict[str, Dict[str, Any]]:
@@ -166,6 +196,8 @@ def list_module_methods(module_name: str) -> list[str]:
 __all__ = [
     "SUPPORTED_MODULES",
     "get_module_config",
+    "get_module_info",
+    "get_method_info",
     "get_all_modules",
     "list_module_names",
     "list_module_methods"
