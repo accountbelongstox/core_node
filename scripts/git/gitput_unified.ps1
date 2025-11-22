@@ -257,7 +257,7 @@ $DEFAULT_REMOTE = Get-DefaultRemote -ProjectName $projectName
 $remoteConfigs = @{
     "gitee" = "git@gitee.com:accountbelongstox/$projectName.git"
     "github" = "git@github.com:accountbelongstox/$projectName.git"
-    "local" = "git@192.168.2.1:adminroot/core_node.git"
+    "local" = "git@192.168.50.2:adminroot/core_node.git"
 }
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
