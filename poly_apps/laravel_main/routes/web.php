@@ -74,6 +74,7 @@ Route::post('/translation/translate', [TranslationController::class, 'translate'
 Route::post('/translation/batch', [TranslationController::class, 'batchTranslate']);
 Route::post('/translation/detect', [TranslationController::class, 'detectAndTranslate']);
 Route::post('/translation/learning', [TranslationController::class, 'translateForLearning']);
+Route::post('/translation/simple/google', [TranslationController::class, 'simpleTranslateWithGoogle']);
 Route::get('/translation/languages', [TranslationController::class, 'getLanguages']);
 Route::get('/translation/types', [TranslationController::class, 'getTypes']);
 Route::get('/translation/models', [TranslationController::class, 'getModels']);

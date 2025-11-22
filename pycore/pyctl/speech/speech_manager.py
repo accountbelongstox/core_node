@@ -49,7 +49,7 @@ class SpeechManager:
         self._edge_tts_available = False
         self._azure_tts_available = False
         self._db_initialized = False
-        self._cache_root = map_web_path("wwwroot", "pycore_db/tts_static")
+        self._cache_root = map_web_path("pycore_db") / "tts_static"
         self._initialize_cache_database()
 
     def initialize(self) -> bool:
