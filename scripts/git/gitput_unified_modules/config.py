@@ -10,12 +10,27 @@ from typing import Dict
 # Project configuration
 PROJECT_NAME = "core_node"
 
+def load_remote_configs() -> Dict[str, str]:
+    """Load remote configurations from git_remotes.conf"""
+    config_file = Path(__file__).parent.parent / "git_remotes.conf"
+    remote_configs = {}
+    
+    if not config_file.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_file}")
+    
+    with open(config_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                remote_configs[key.strip()] = value.strip()
+    
+    return remote_configs
+
 # Remote configurations
-REMOTE_CONFIGS: Dict[str, str] = {
-    "gitee": f"git@gitee.com:accountbelongstox/{PROJECT_NAME}.git",
-    "github": f"git@github.com:accountbelongstox/{PROJECT_NAME}.git",
-    "local": "git@192.168.50.2:adminroot/core_node.git",
-}
+REMOTE_CONFIGS: Dict[str, str] = load_remote_configs()
 
 # Required files in win_common directory
 REQUIRED_WIN_COMMON_FILES = [
