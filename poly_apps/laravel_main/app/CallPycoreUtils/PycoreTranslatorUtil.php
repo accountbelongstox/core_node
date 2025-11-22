@@ -18,15 +18,16 @@ class PycoreTranslatorUtil
             $textResults = [];
             
             foreach ($targetLanguages as $targetLang) {
-                $response = PycoreHttpClient::callDirect(
-                    '/translator/translate_single',
+                $response = PycoreHttpClient::call(
+                    'translator.translate_single',
                     [
                         'text' => $text,
                         'src' => $sourceLanguage === 'auto' ? 'auto' : $sourceLanguage,
                         'dest' => $targetLang,
                         'use_cache' => $useCache,
                     ],
-                    60
+                    60,
+                    false
                 );
                 
                 if (isset($response['error'])) {
@@ -77,15 +78,16 @@ class PycoreTranslatorUtil
         string $targetLanguage,
         bool $useCache = true
     ): ?array {
-        $response = PycoreHttpClient::callDirect(
-            '/translator/translate_single',
+        $response = PycoreHttpClient::call(
+            'translator.translate_single',
             [
                 'text' => $text,
                 'src' => $sourceLanguage === 'auto' ? 'auto' : $sourceLanguage,
                 'dest' => $targetLanguage,
                 'use_cache' => $useCache,
             ],
-            60
+            60,
+            false
         );
         
         if (isset($response['error'])) {
@@ -107,10 +109,11 @@ class PycoreTranslatorUtil
     
     public static function detectLanguage(string $text): ?array
     {
-        $response = PycoreHttpClient::callDirect(
-            '/translator/detect_language',
+        $response = PycoreHttpClient::call(
+            'translator.detect_language',
             ['text' => $text],
-            10
+            10,
+            false
         );
         
         if (isset($response['error'])) {
