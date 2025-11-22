@@ -170,11 +170,21 @@ ITTools.Tools.Registry.register('online-translation', {
                         </div>
                         
                         <div class="ittools-form-group">
-                            <label class="ittools-label">AI Model:</label>
-                            <select id="translation-model" class="ittools-select">
-                                <option value="free">Free (DeepSeek R1T2 Chimera)</option>
+                            <label class="ittools-label">Translation Provider:</label>
+                            <select id="simple-translation-provider" class="ittools-select" onchange="ITTools.Implementations.Translation.onSimpleProviderChange()">
+                                <option value="openrouter">🤖 OpenRouter AI</option>
+                                <option value="gemini">✨ Gemini AI (TODO)</option>
+                                <option value="google" selected>🌐 Google Translate</option>
                             </select>
-                            <div style="font-size: 12px; color: #666; margin-top: 5px;">* TODO: Simple translation - use learning mode for now</div>
+                        </div>
+                        
+                        <div id="simple-ai-model-panel" style="display: none;">
+                            <div class="ittools-form-group">
+                                <label class="ittools-label">AI Model:</label>
+                                <select id="simple-ai-model-select" class="ittools-select">
+                                    <option value="0">Loading models...</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="ittools-btn-group">
@@ -216,7 +226,13 @@ ITTools.Implementations.Translation = {
     init() {
         this.loadState();
         this.bindEvents();
-        this.loadFreeModels();
+        
+        setTimeout(() => {
+            const learningModelSelect = document.getElementById('ai-model-select');
+            if (learningModelSelect && learningModelSelect.innerHTML.includes('Loading models')) {
+                this.loadFreeModels(false);
+            }
+        }, 200);
     },
     
     loadState() {
@@ -338,13 +354,28 @@ ITTools.Implementations.Translation = {
             tabs[1].classList.add('active');
             document.getElementById('translation-learning-mode').style.display = 'none';
             document.getElementById('translation-simple-mode').style.display = 'block';
+            
+            setTimeout(() => {
+                this.onSimpleProviderChange();
+            }, 100);
         }
         
         this.saveState();
     },
     
-    async loadFreeModels() {
+    async loadFreeModels(forSimple = false) {
+        const modelSelect = forSimple 
+            ? document.getElementById('simple-ai-model-select')
+            : document.getElementById('ai-model-select');
+            
+        if (!modelSelect) {
+            console.warn('Model select element not found:', forSimple ? 'simple' : 'learning');
+            return;
+        }
+        
         try {
+            console.log('Loading models for:', forSimple ? 'simple' : 'learning');
+            
             const response = await fetch('/translation/models', {
                 method: 'GET',
                 headers: {
@@ -353,28 +384,39 @@ ITTools.Implementations.Translation = {
                 }
             });
             
+            if (!response.ok) {
+                console.error('Failed to load models:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Response body:', errorText);
+                modelSelect.innerHTML = `<option value="0">Failed (${response.status})</option>`;
+                return;
+            }
+            
             const result = await response.json();
+            console.log('Models response:', result);
             
             if (result.success && result.models && result.models.length > 0) {
-                const modelSelect = document.getElementById('ai-model-select');
-                if (modelSelect) {
-                    const savedIndex = modelSelect.value;
-                    
-                    modelSelect.innerHTML = result.models.map((model, index) => 
-                        `<option value="${index}">${this.escapeHtml(model.name)}</option>`
-                    ).join('');
-                    
-                    if (savedIndex && modelSelect.options[savedIndex]) {
-                        modelSelect.value = savedIndex;
-                    } else {
-                        modelSelect.value = '0';
-                    }
-                    
-                    this.freeModels = result.models;
+                const savedIndex = modelSelect.value;
+                
+                modelSelect.innerHTML = result.models.map((model, index) => 
+                    `<option value="${index}">${this.escapeHtml(model.name)}</option>`
+                ).join('');
+                
+                if (savedIndex && modelSelect.options[savedIndex]) {
+                    modelSelect.value = savedIndex;
+                } else {
+                    modelSelect.value = '0';
                 }
+                
+                this.freeModels = result.models;
+                console.log('Loaded', result.models.length, 'models');
+            } else {
+                console.error('Invalid models response:', result);
+                modelSelect.innerHTML = '<option value="0">No models available</option>';
             }
         } catch (error) {
             console.error('Failed to load free models:', error);
+            modelSelect.innerHTML = '<option value="0">Error: ' + error.message + '</option>';
         }
     },
     
@@ -404,12 +446,36 @@ ITTools.Implementations.Translation = {
         this.saveState();
     },
     
+    onSimpleProviderChange() {
+        const provider = document.getElementById('simple-translation-provider');
+        if (!provider) return;
+        
+        const providerValue = provider.value;
+        const aiPanel = document.getElementById('simple-ai-model-panel');
+        
+        if (!aiPanel) return;
+        
+        if (providerValue === 'openrouter') {
+            aiPanel.style.display = 'block';
+            
+            const simpleModelSelect = document.getElementById('simple-ai-model-select');
+            if (simpleModelSelect && simpleModelSelect.innerHTML.includes('Loading models')) {
+                this.loadFreeModels(true);
+            } else if (simpleModelSelect && this.freeModels.length > 0) {
+                simpleModelSelect.innerHTML = this.freeModels.map((model, index) => 
+                    `<option value="${index}">${this.escapeHtml(model.name)}</option>`
+                ).join('');
+            }
+        } else {
+            aiPanel.style.display = 'none';
+        }
+    },
+    
     async translate() {
         const passcode = document.getElementById('translation-passcode').value.trim();
         const sourceText = document.getElementById('translation-source').value.trim();
         const targetLang = document.getElementById('translation-target-lang').value;
-        const type = document.getElementById('translation-type').value;
-        const model = document.getElementById('translation-model').value;
+        const provider = document.getElementById('simple-translation-provider').value;
         
         if (!passcode) {
             ITTools.UI.showResult('translation-result', 'Please enter passcode', false);
@@ -421,37 +487,80 @@ ITTools.Implementations.Translation = {
             return;
         }
         
+        if (provider === 'gemini') {
+            ITTools.UI.showResult('translation-result', 'Gemini AI provider is not implemented yet', false);
+            return;
+        }
+        
         ITTools.UI.showLoading('translation-result', 'Translating...');
         document.getElementById('translation-output').style.display = 'none';
         
         try {
-            const response = await fetch('/translation/translate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-Translation-Passcode': passcode,
-                },
-                body: JSON.stringify({
-                    text: sourceText,
-                    target_language: targetLang,
-                    type: type,
-                    model: model,
-                    passcode: passcode,
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                document.getElementById('translation-result-text').value = result.translated_text;
-                document.getElementById('translation-output').style.display = 'block';
-                document.getElementById('translation-result').style.display = 'none';
-            } else {
-                ITTools.UI.showResult('translation-result', result.error || 'Translation failed', false);
+            if (provider === 'google') {
+                await this.translateWithGoogle(sourceText, targetLang, passcode);
+            } else if (provider === 'openrouter') {
+                await this.translateWithOpenRouter(sourceText, targetLang, passcode);
             }
         } catch (error) {
             ITTools.UI.showResult('translation-result', 'Error: ' + error.message, false);
+        }
+    },
+    
+    async translateWithGoogle(sourceText, targetLang, passcode) {
+        const response = await fetch('/translation/simple/google', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Translation-Passcode': passcode,
+            },
+            body: JSON.stringify({
+                text: sourceText,
+                target_language: targetLang,
+                passcode: passcode,
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('translation-result-text').value = result.translated_text;
+            document.getElementById('translation-output').style.display = 'block';
+            document.getElementById('translation-result').style.display = 'none';
+        } else {
+            ITTools.UI.showResult('translation-result', result.error || 'Translation failed', false);
+        }
+    },
+    
+    async translateWithOpenRouter(sourceText, targetLang, passcode) {
+        const modelSelect = document.getElementById('simple-ai-model-select');
+        const modelIndex = modelSelect ? parseInt(modelSelect.value) : 0;
+        const type = document.getElementById('translation-type').value;
+        
+        const response = await fetch('/translation/translate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Translation-Passcode': passcode,
+            },
+            body: JSON.stringify({
+                text: sourceText,
+                target_language: targetLang,
+                type: type,
+                model: modelIndex,
+                passcode: passcode,
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('translation-result-text').value = result.translated_text;
+            document.getElementById('translation-output').style.display = 'block';
+            document.getElementById('translation-result').style.display = 'none';
+        } else {
+            ITTools.UI.showResult('translation-result', result.error || 'Translation failed', false);
         }
     },
     

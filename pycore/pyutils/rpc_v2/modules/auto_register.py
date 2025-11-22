@@ -48,7 +48,7 @@ def register_module_routes(rpc_server: 'FastAPIRPCServer', debug: bool = False):
             
             # Create route handler closure
             def create_handler(mod=module_name, meth=method_name):
-                async def handler(**params):
+                async def handler(params, request_id, context):
                     return await module_call_handler.call_method(mod, meth, params)
                 return handler
             

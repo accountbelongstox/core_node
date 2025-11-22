@@ -222,20 +222,6 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_launch_command"]="which beekeeper-studio && $USE_SUDO beekeeper-studio"
     ["beekeeper_super"]="true"
 
-
-    # VSCode Insiders
-    ["code_insiders_name"]="Visual Studio Code Insiders"
-    ["code_insiders_exec"]="code-insiders"
-    ["code_insiders_package_id"]="code-insiders"
-    ["code_insiders_install_method"]="$METHOD_SNAP"
-    ["code_insiders_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["code_insiders_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["code_insiders_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["code_insiders_description"]="VSCode Insiders preview version"
-    ["code_insiders_verify_command"]="--version"
-    ["code_insiders_launch_command"]="which code-insiders && $USE_SUDO code-insiders --no-sandbox --user-data-dir"
-    ["code_insiders_super"]="code-insiders --no-sandbox --user-data-dir"
-
     # Text Editor (generic)
     ["text_editor_name"]="Text Editor"
     ["text_editor_exec"]="gedit"
@@ -442,7 +428,7 @@ BASE_PACKAGE_LIST=(
 DEV_PACKAGE_LIST=(
     "powershell" "postman" "termius" "android_studio"
     "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
-    "code_insiders" "text_editor"
+    "text_editor"
 )
 
 APP_PACKAGE_LIST=(

@@ -58,7 +58,7 @@ class GoogleTranslatorCache:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
     
     def _get_cache_dir(self) -> Path:
-        base_cache = map_web_path('wwwroot', 'pycore_db/translator_cache')
+        base_cache = map_web_path('pycore_db') / 'translator_cache'
         namespace_dir = base_cache / f"{self.src_lang}_to_{self.dest_lang}"
         return namespace_dir
     
@@ -96,10 +96,10 @@ class GoogleTranslator:
     def __init__(self, service_urls: Optional[List[str]] = None):
         if not GOOGLETRANS_AVAILABLE:
             raise ImportError("googletrans is not installed. Install it with: pip install googletrans")
-        
+
+        # 使用 translate.googleapis.com 标准 API (无需 token)
         self.service_urls = service_urls or [
-            'translate.google.com',
-            'translate.google.co.kr',
+            'translate.googleapis.com'
         ]
         self._translator = None
     
@@ -304,7 +304,7 @@ def clear_cache(src_lang: str = None, dest_lang: str = None) -> int:
         cache = GoogleTranslatorCache(src_lang, dest_lang)
         return cache.clear()
     else:
-        base_cache = map_web_path('wwwroot', 'pycore_db/translator_cache')
+        base_cache = map_web_path('pycore_db') / 'translator_cache'
         count = 0
         if base_cache.exists():
             for namespace_dir in base_cache.iterdir():
