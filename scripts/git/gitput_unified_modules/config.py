@@ -14,7 +14,7 @@ PROJECT_NAME = "core_node"
 REMOTE_CONFIGS: Dict[str, str] = {
     "gitee": f"git@gitee.com:accountbelongstox/{PROJECT_NAME}.git",
     "github": f"git@github.com:accountbelongstox/{PROJECT_NAME}.git",
-    "local": "git@192.168.2.1:adminroot/core_node.git",
+    "local": "git@192.168.50.2:adminroot/core_node.git",
 }
 
 # Required files in win_common directory
