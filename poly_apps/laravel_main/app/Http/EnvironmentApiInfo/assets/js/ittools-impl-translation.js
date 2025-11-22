@@ -643,6 +643,12 @@ ITTools.Implementations.Translation = {
                                 ${this.escapeHtml(trans.error)}
                             </div>
                             ${trans.parse_note ? `<div style="margin-top: 10px; font-size: 12px; color: #666;">${this.escapeHtml(trans.parse_note)}</div>` : ''}
+                            ${trans.raw_response ? `
+                                <details style="margin-top: 10px;">
+                                    <summary style="cursor: pointer; color: #666; font-size: 13px;">📄 Raw Response</summary>
+                                    <pre style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">${this.escapeHtml(trans.raw_response)}</pre>
+                                </details>
+                            ` : ''}
                         </div>
                     </div>
                 `;

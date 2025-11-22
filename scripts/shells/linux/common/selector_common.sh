@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/gvar_common.sh"
 
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
@@ -138,7 +138,7 @@ show_menu() {
     echo "Current Mode: ${current_values["INSTALL_MODE"]}"
 
     echo "--------------------------------------"
-    echo "Controls: Arrow Keys=Navigate, Enter=Confirm, Q=Quit, D=Manage Services"
+    echo "Controls: Arrow Keys=Navigate, Enter=Confirm, Q=Quit, M=Linux Management"
     echo "--------------------------------------"
     
     # Ensure arrays are in sync
@@ -304,8 +304,8 @@ while true; do
         "")  # Enter key
             confirm_configuration
             ;;
-        [dD])  # D key to disable services
-            show_service_management_menu
+        [mM])  # M key for Linux management
+            show_linux_management_menu
             ;;
         [qQ])  # Q key to quit
             echo ""
@@ -314,6 +314,32 @@ while true; do
             ;;
     esac
 done
+
+# Function to show Linux management menu
+show_linux_management_menu() {
+    clear
+    echo "  Linux Management"
+    echo ""
+    echo "Available management options:"
+    echo "  1) Manage Services (Nginx, MySQL, Redis, etc.)"
+    echo "  2) NAT Gateway Configuration"
+    echo "  3) Return to main menu"
+    echo ""
+    echo "Enter your choice (1-3): "
+
+    read -n 1 choice
+    case "$choice" in
+        1) show_service_management_menu ;;
+        2) manage_natgateway ;;
+        3) return ;;
+        *) 
+            echo ""
+            echo "Invalid choice. Press any key to continue..."
+            read -n 1
+            show_linux_management_menu
+            ;;
+    esac
+}
 
 # Function to show service management menu
 show_service_management_menu() {
@@ -326,9 +352,9 @@ show_service_management_menu() {
     echo "  3) Redis"
     echo "  4) Gitea"
     echo "  5) XRDP (Remote Desktop)"
-    echo "  6) Return to main menu"
+    echo "  6) Return to Linux Management"
     echo ""
-    echo "Enter your choice (1-5): "
+    echo "Enter your choice (1-6): "
 
     read -n 1 choice
     case "$choice" in
@@ -337,6 +363,76 @@ show_service_management_menu() {
         3) manage_redis_service ;;
         4) manage_gitea_service ;;
         5) manage_xrdp_service ;;
+        6) show_linux_management_menu ;;
+        *) 
+            echo ""
+            echo "Invalid choice. Press any key to continue..."
+            read -n 1
+            show_service_management_menu
+            ;;
+    esac
+}
+
+# Function to manage NAT gateway
+manage_natgateway() {
+    clear
+    echo "  NAT Gateway Configuration"
+    echo ""
+    
+    local natgateway_script="$SCRIPT_DIR/../debian/install_shells/101_natgateway.sh"
+    
+    if [ ! -f "$natgateway_script" ]; then
+        echo "Error: NAT gateway script not found at: $natgateway_script"
+        echo ""
+        echo "Press any key to return to Linux Management..."
+        read -n 1
+        show_linux_management_menu
+        return
+    fi
+    
+    echo "Launching NAT Gateway configuration..."
+    echo ""
+    
+    if [ ! -x "$natgateway_script" ]; then
+        chmod +x "$natgateway_script"
+    fi
+    
+    "$natgateway_script"
+    
+    local exit_code=$?
+    echo ""
+    
+    if [ $exit_code -eq 0 ]; then
+        echo "NAT Gateway configuration completed successfully."
+    else
+        echo "NAT Gateway configuration exited with code: $exit_code"
+    fi
+    
+    echo ""
+    echo "Press any key to return to Linux Management..."
+    read -n 1
+    show_linux_management_menu
+}
+
+# Legacy service management functions
+manage_old_service() {
+    local service_name="$1"
+    echo ""
+    echo "Managing $service_name..."
+    echo "1) Start service"
+    echo "2) Stop service"
+    echo "3) Restart service"
+    echo "4) Check service status"
+    echo "5) Return"
+    echo ""
+    read -n 1 action
+    
+    case "$action" in
+        1) $USE_SUDO systemctl start "$service_name" && echo "$service_name started" ;;
+        2) $USE_SUDO systemctl stop "$service_name" && echo "$service_name stopped" ;;
+        3) $USE_SUDO systemctl restart "$service_name" && echo "$service_name restarted" ;;
+        4) $USE_SUDO systemctl status "$service_name" ;;
+        5) return ;;
         6) return ;;
         *) echo "Invalid choice. Press any key to continue..."; read -n 1 ;;
     esac
