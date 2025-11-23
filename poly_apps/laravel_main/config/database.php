@@ -54,7 +54,7 @@ return [
             'synchronous' => null,
         ],
 
-        'AppQyV1' => [
+        'appqyv1' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
             'database' => PathMapper::getDefaultDatabasePath('app_qy_v1_database.sqlite'),
@@ -63,6 +63,62 @@ return [
             'busy_timeout' => 5000,
             'journal_mode' => 'WAL',
             'synchronous' => 'NORMAL',
+        ],
+        
+        'awyv0' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('awy_v0_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'vipclubv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('vipclub_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'servermanagerv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('server_manager_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'achatv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('achat_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'codemartv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('code_mart_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'mcpv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('mcp_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'ittoolsv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('it_tools_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ],
+        
+        'bankv1' => [
+            'driver' => 'sqlite',
+            'database' => PathMapper::getDefaultDatabasePath('bank_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
         ],
 
         'mysql' => [

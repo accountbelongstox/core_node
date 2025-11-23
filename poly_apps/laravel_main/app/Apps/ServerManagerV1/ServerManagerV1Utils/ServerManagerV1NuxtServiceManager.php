@@ -137,6 +137,57 @@ class ServerManagerV1NuxtServiceManager
     }
 
     /**
+     * Scan available Nuxt apps from source directory
+     * Looks for app_*_pages directories in nuxt_main
+     *
+     * @return array List of available app names
+     */
+    public static function scanAvailableApps(): array
+    {
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
+        
+        if (!is_dir($nuxtMainPath)) {
+            return [];
+        }
+
+        $apps = [];
+        $entries = scandir($nuxtMainPath);
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            // Match app_*_pages pattern
+            if (preg_match('/^app_(.+)_pages$/', $entry, $matches)) {
+                $appDir = "$nuxtMainPath/$entry";
+                if (is_dir($appDir)) {
+                    $apps[] = $matches[1];
+                }
+            }
+        }
+
+        sort($apps);
+        return $apps;
+    }
+
+    /**
+     * Validate if app exists in source
+     *
+     * @param string $appname App namespace
+     * @return bool True if app exists
+     */
+    public static function validateAppExists(string $appname): bool
+    {
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
+        $appDir = "$nuxtMainPath/app_{$appname}_pages";
+        
+        return is_dir($appDir);
+    }
+
+    /**
      * Create systemd service file for Nuxt app
      *
      * @param string $appname App namespace
@@ -217,29 +268,32 @@ SERVICE;
     }
 
     /**
-     * Generate systemd service file content for debug mode (direct source)
+     * Generate systemd service file content for debug mode (factory with file watcher)
      */
     private static function generateDebugServiceFileContent(string $appname, int $port, string $user): string
     {
         $nodePath = PathMapper::getNodeBinaryPath();
         $coreNodeDir = PathMapper::getCoreNodeDir();
         $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
-        $switchScript = "$nuxtMainPath/scripts/switch-app-entry-plus.js";
+        $switchScript = "$nuxtMainPath/scripts/switch-app.js";
+        $factoryPath = self::getFactoryPath($appname);
 
         return <<<SERVICE
 [Unit]
-Description=Nuxt PolyApp - $appname (Debug Mode)
+Description=Nuxt PolyApp - $appname (Debug Mode - Factory with File Watcher)
 After=network.target
 
 [Service]
 Type=simple
 User=$user
-WorkingDirectory=$nuxtMainPath
+WorkingDirectory=$factoryPath
 Environment="NODE_ENV=development"
 Environment="PORT=$port"
 Environment="NITRO_PORT=$port"
-Environment="NUXT_APP_NAMESPACE=$appname"
-ExecStart=$nodePath $switchScript --app $appname
+Environment="NUXT_PORT=$port"
+Environment="NUXT_HOST=0.0.0.0"
+Environment="APP_ENTRY=$appname"
+ExecStart=$nodePath $switchScript $appname --mode dev
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -507,7 +561,8 @@ SERVICE;
 
         // Check for debug mode markers
         if (str_contains($content, 'Debug Mode') ||
-            str_contains($content, 'switch-app-entry-plus.js') ||
+            str_contains($content, 'File Watcher') ||
+            str_contains($content, '--mode dev') ||
             str_contains($content, 'NODE_ENV=development')) {
             return 'debug';
         }
@@ -667,8 +722,21 @@ SERVICE;
             'action' => 'none',
             'mode' => $debugMode ? 'debug' : 'production',
             'duplicates_removed' => [],
-            'mode_changed' => false
+            'mode_changed' => false,
+            'port_changed' => false,
+            'old_port' => null,
+            'new_port' => $port
         ];
+
+        // Step 0: Validate app exists
+        if (!self::validateAppExists($appname)) {
+            $result['error'] = "App '$appname' does not exist in source (app_{$appname}_pages not found)";
+            Log::error('Cannot create service for non-existent app', [
+                'appname' => $appname,
+                'expected_dir' => "app_{$appname}_pages"
+            ]);
+            return $result;
+        }
 
         // Step 1: Resolve duplicates if enabled
         if ($autoResolve) {
@@ -682,12 +750,35 @@ SERVICE;
             $requestedMode = $debugMode ? 'debug' : 'production';
             $modeChanged = ($currentMode !== $requestedMode);
 
-            $result['mode_changed'] = $modeChanged;
-            $result['action'] = $modeChanged ? 'refreshed_mode_change' : 'refreshed';
+            // Check if port changed
+            $oldPort = self::findPortForApp($appname);
+            $portChanged = ($oldPort !== null && $oldPort !== $port);
 
-            // Refresh the service
+            $result['mode_changed'] = $modeChanged;
+            $result['port_changed'] = $portChanged;
+            $result['old_port'] = $oldPort;
+
+            if ($modeChanged && $portChanged) {
+                $result['action'] = 'refreshed_mode_and_port_change';
+            } elseif ($modeChanged) {
+                $result['action'] = 'refreshed_mode_change';
+            } elseif ($portChanged) {
+                $result['action'] = 'refreshed_port_change';
+            } else {
+                $result['action'] = 'refreshed_no_change';
+            }
+
+            // Always refresh to ensure consistency
             $success = self::refreshService($appname, $port, $user, $debugMode);
             $result['success'] = $success;
+
+            Log::info('Service refreshed', [
+                'service_name' => $serviceName,
+                'mode_changed' => $modeChanged,
+                'port_changed' => $portChanged,
+                'old_port' => $oldPort,
+                'new_port' => $port
+            ]);
 
             return $result;
         }
@@ -699,6 +790,11 @@ SERVICE;
 
         if ($success) {
             self::enableService($serviceName);
+            Log::info('New service created and enabled', [
+                'service_name' => $serviceName,
+                'port' => $port,
+                'mode' => $debugMode ? 'debug' : 'production'
+            ]);
         }
 
         return $result;

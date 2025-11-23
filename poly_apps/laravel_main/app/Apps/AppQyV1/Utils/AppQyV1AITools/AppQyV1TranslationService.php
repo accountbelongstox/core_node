@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 use App\Services\OpenRouterClient;
 use App\Services\DeepSeekClient;
 use App\Services\GeminiClient;
+use App\Services\Translation\TranslationConstants;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1TranslationService
@@ -64,6 +65,35 @@ XML,
         'vi' => 'Vietnamese', 'wuu' => 'Wu Chinese', 'yue' => 'Cantonese', 'zh' => 'Chinese',
         'zu' => 'Zulu'
     ];
+    
+    const LANGUAGE_PROMPT_TEMPLATES = [
+        'en' => ['translation' => 'English Translation: {translation}', 'words' => 'English Words: {word} [{phonetic}]'],
+        'lo' => ['translation' => 'ການແປພາສາລາວ: {ການແປ}', 'words' => 'ຄຳສັບລາວ: {ຄຳ} [{ການອອກສຽງ}]'],
+        'ja' => ['translation' => '日本語訳：{翻訳}', 'words' => '日本語単語：{単語} [{読み方}]'],
+        'vi' => ['translation' => 'Bản dịch tiếng Việt: {bản dịch}', 'words' => 'Từ vựng tiếng Việt: {từ} [{phiên âm}]'],
+        'zh' => ['translation' => '中文翻译：{翻译内容}', 'words' => '中文词汇：{词语} [{拼音}]'],
+        'ko' => ['translation' => '한국어 번역: {번역}', 'words' => '한국어 단어: {단어} [{발음}]'],
+        'th' => ['translation' => 'การแปลภาษาไทย: {คำแปล}', 'words' => 'คำศัพท์ไทย: {คำ} [{การออกเสียง}]'],
+        'es' => ['translation' => 'Traducción al español: {traducción}', 'words' => 'Palabras en español: {palabra} [{fonética}]'],
+        'fr' => ['translation' => 'Traduction française: {traduction}', 'words' => 'Mots français: {mot} [{phonétique}]'],
+        'de' => ['translation' => 'Deutsche Übersetzung: {Übersetzung}', 'words' => 'Deutsche Wörter: {Wort} [{Aussprache}]'],
+        'ru' => ['translation' => 'Русский перевод: {перевод}', 'words' => 'Русские слова: {слово} [{произношение}]'],
+    ];
+    
+    public function getLanguageTemplates(): array
+    {
+        $templates = [];
+        
+        foreach (self::LANGUAGE_PROMPT_TEMPLATES as $langCode => $template) {
+            $templates[$langCode] = [
+                'name' => self::LANGUAGES[$langCode] ?? $langCode,
+                'translation' => $template['translation'],
+                'words' => $template['words'],
+            ];
+        }
+        
+        return $templates;
+    }
     
     public function __construct()
     {

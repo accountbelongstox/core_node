@@ -171,91 +171,204 @@ show_simple_menu() {
     echo ""
 }
 
+sync_to_laravel_nginx() {
+    local app_name="$1"
+    local port="$2"
+
+    clear
+    echo ""
+    echo "==============================================================================="
+    echo "  SYNC TO LARAVEL NGINX"
+    echo "==============================================================================="
+    echo ""
+    echo "App      : $app_name"
+    echo "Port     : $port"
+    echo ""
+    echo "Select service mode:"
+    echo "  1) Debug mode   - Dev server with file watcher"
+    echo "  2) Build mode   - Production optimized"
+    echo ""
+    read -p "Enter choice (1 or 2): " mode_choice
+
+    local mode="debug"
+    local debug_flag="1"
+
+    if [[ "$mode_choice" == "2" ]]; then
+        mode="build"
+        debug_flag="0"
+    fi
+
+    echo ""
+    echo "Selected mode: $mode"
+    echo ""
+
+    # Calculate relative path from nuxt_main/scripts to laravel_main
+    local laravel_dir="$SCRIPT_DIR/../../laravel_main"
+
+    if [ ! -d "$laravel_dir" ]; then
+        echo "[ERROR] Laravel directory not found: $laravel_dir"
+        echo "Press any key to continue..."
+        read -rsn1
+        return 1
+    fi
+
+    echo "[INFO] Laravel directory: $laravel_dir"
+    echo "[INFO] Calling PHP Artisan command..."
+    echo ""
+
+    # Call Laravel Artisan command
+    cd "$laravel_dir"
+
+    echo "[COMMAND] php artisan nuxt:service:refresh $app_name $port $debug_flag"
+    echo ""
+
+    if php artisan nuxt:service:refresh "$app_name" "$port" "$debug_flag"; then
+        echo ""
+        echo "[SUCCESS] Service synced to Laravel Nginx successfully!"
+        echo ""
+        echo "Service details:"
+        echo "  - systemd service: nuxt-polyapp-${app_name}.service"
+        echo "  - Port: $port"
+        echo "  - Mode: $mode"
+        echo ""
+    else
+        echo ""
+        echo "[ERROR] Failed to sync service to Laravel Nginx"
+        echo ""
+    fi
+
+    cd "$APP_DIR"
+
+    echo "Press any key to continue..."
+    read -rsn1
+
+    return 0
+}
+
 show_interactive_menu() {
     if [ ! -t 0 ] || [ ! -t 1 ]; then
         show_simple_menu
         return
     fi
-    
+
     local apps=()
     local index=0
-    
+
     for app_dir in "$APP_DIR"/app_*_pages; do
         if [ -d "$app_dir" ]; then
             local app_name=$(basename "$app_dir" | sed 's/^app_//' | sed 's/_pages$//')
             apps+=("$app_name")
-            
+
             local port=$((BASE_PORT + index))
             APP_PORTS[$app_name]=$port
-            
+
             local display_name=$(echo "$app_name" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2));}1')
             APP_DISPLAY_NAMES[$app_name]=$display_name
-            
+
             index=$((index + 1))
         fi
     done
-    
+
     if [ ${#apps[@]} -eq 0 ]; then
         echo "ERROR: No apps found (app_*_pages directories)"
         exit 1
     fi
-    
+
     local selected=0
     local mode="debug"
-    
+    local modes=("debug" "build" "sync")
+    local mode_index=0
+
     while true; do
         clear
         echo ""
         echo "=== Nuxt Main Application Launcher ==="
         echo ""
-        echo "Use Arrow Keys: Up/Down to select app, Left/Right to toggle mode"
-        echo "Press Enter to start, q to quit"
+        echo "Use Arrow Keys: Up/Down to select app, Left/Right to cycle action"
+        echo "Actions: [debug] → [build] → [sync to Laravel]"
+        echo "Press Enter to execute, 'q' to quit"
         echo ""
-        
+
         for i in "${!apps[@]}"; do
             local app="${apps[$i]}"
             local port="${APP_PORTS[$app]}"
             local display="${APP_DISPLAY_NAMES[$app]}"
-            
+
+            # Get current mode display
+            local mode_display="$mode"
+            if [ "$mode" = "sync" ]; then
+                mode_display="sync→Laravel"
+            fi
+
             if [ $i -eq $selected ]; then
-                echo -e "\033[32m\033[7m> $display (Port $port) [$mode]\033[0m"
+                echo -e "\033[32m\033[7m> $display (Port $port) [$mode_display]\033[0m"
             else
                 echo "  $display (Port $port)"
             fi
         done
-        
+
         echo ""
         local sel_app="${apps[$selected]}"
         local sel_port="${APP_PORTS[$sel_app]}"
         local sel_display="${APP_DISPLAY_NAMES[$sel_app]}"
-        echo -e "\033[33mSelected: $sel_display - Port: $sel_port - Mode: $mode\033[0m"
+
+        # Display action description
+        local action_desc=""
+        case "$mode" in
+            "debug")
+                action_desc="Start dev server with file watcher"
+                ;;
+            "build")
+                action_desc="Build production version"
+                ;;
+            "sync")
+                action_desc="Sync to Laravel Nginx & systemd"
+                ;;
+        esac
+
+        echo -e "\033[33mSelected: $sel_display - Port: $sel_port\033[0m"
+        echo -e "\033[36mAction: $action_desc\033[0m"
         echo ""
-        
+
         IFS= read -rsn1 key
-        
+
         if [[ $key == $'\x1b' ]]; then
             read -rsn2 -t 0.1 key
             case "$key" in
                 '[A')
+                    # Up arrow - select previous app
                     selected=$((selected - 1))
                     [ $selected -lt 0 ] && selected=$((${#apps[@]} - 1))
                     ;;
                 '[B')
+                    # Down arrow - select next app
                     selected=$((selected + 1))
                     [ $selected -ge ${#apps[@]} ] && selected=0
                     ;;
-                '[C'|'[D')
-                    if [ "$mode" = "debug" ]; then
-                        mode="build"
-                    else
-                        mode="debug"
-                    fi
+                '[C')
+                    # Right arrow - next mode
+                    mode_index=$((mode_index + 1))
+                    [ $mode_index -ge ${#modes[@]} ] && mode_index=0
+                    mode="${modes[$mode_index]}"
+                    ;;
+                '[D')
+                    # Left arrow - previous mode
+                    mode_index=$((mode_index - 1))
+                    [ $mode_index -lt 0 ] && mode_index=$((${#modes[@]} - 1))
+                    mode="${modes[$mode_index]}"
                     ;;
             esac
         elif [[ $key == "" ]]; then
-            APP_NAME="${apps[$selected]}"
-            MODE="$mode"
-            return 0
+            # Enter key pressed
+            if [ "$mode" = "sync" ]; then
+                # Execute sync to Laravel (will prompt for debug/build mode)
+                sync_to_laravel_nginx "${apps[$selected]}" "${APP_PORTS[${apps[$selected]}]}"
+            else
+                # Start the app
+                APP_NAME="${apps[$selected]}"
+                MODE="$mode"
+                return 0
+            fi
         elif [[ $key == "q" ]] || [[ $key == "Q" ]]; then
             echo "Cancelled by user"
             exit 0
