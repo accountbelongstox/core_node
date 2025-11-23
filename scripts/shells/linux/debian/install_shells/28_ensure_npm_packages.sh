@@ -30,6 +30,60 @@ fi
 
 CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 
+migrate_old_npm_installation() {
+    local old_base_dir="/www/dev_ubuntu24"
+    local new_base_dir="/www/_ubuntu_24"
+    
+    echo "[$SCRIPT_INDEX] Checking for old npm installation references..."
+    
+    if command -v npm >/dev/null 2>&1; then
+        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
+        
+        if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
+            local new_npm_prefix="${current_npm_prefix/$old_base_dir/$new_base_dir}"
+            echo "[$SCRIPT_INDEX] Migrating npm prefix: $current_npm_prefix -> $new_npm_prefix"
+            npm config set prefix "$new_npm_prefix"
+        fi
+    fi
+    
+    if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"$old_base_dir"* ]]; then
+        export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX/$old_base_dir/$new_base_dir}"
+        echo "[$SCRIPT_INDEX] Updated NPM_CONFIG_PREFIX in current shell: $NPM_CONFIG_PREFIX"
+    fi
+    
+    if [ -f /etc/environment ]; then
+        if grep -q "$old_base_dir" /etc/environment; then
+            echo "[$SCRIPT_INDEX] Updating /etc/environment references..."
+            $USE_SUDO sed -i "s|$old_base_dir|$new_base_dir|g" /etc/environment
+        fi
+    fi
+    
+    if [ -d "$old_base_dir" ]; then
+        if [ -d "$old_base_dir/nodejs" ]; then
+            echo "[$SCRIPT_INDEX] Migrating nodejs directory..."
+            if [ ! -d "$new_base_dir" ]; then
+                $USE_SUDO mkdir -p "$new_base_dir"
+            fi
+            
+            if [ -d "$new_base_dir/nodejs" ]; then
+                $USE_SUDO rsync -a --ignore-existing "$old_base_dir/nodejs/" "$new_base_dir/nodejs/"
+            else
+                $USE_SUDO mv "$old_base_dir/nodejs" "$new_base_dir/nodejs"
+            fi
+            
+            $USE_SUDO rm -rf "$old_base_dir/nodejs"
+        fi
+        
+        if [ -z "$(ls -A "$old_base_dir" 2>/dev/null)" ]; then
+            echo "[$SCRIPT_INDEX] Removing empty old directory: $old_base_dir"
+            $USE_SUDO rm -rf "$old_base_dir"
+        fi
+    fi
+    
+    echo "[$SCRIPT_INDEX] Migration check completed"
+    return 0
+}
+
 # Function to extract package names from npm list output
 get_installed_packages() {
     # Use the Node.js script to get the package list
@@ -43,16 +97,40 @@ get_installed_packages() {
     echo "$GLOBAL_PACKAGES" | grep -v 'npm@' | sed -n 's/.*\([@/][^@]*\)@.*/\1/p' | sed 's/^[@/]*//'
 }
 
-# Function to check if a package is installed
+# Function to check if a package is installed and linked correctly
 is_package_installed() {
     local package_name=$1
     
-    # Use npm list to check if package is installed globally
-    if npm list -g "$package_name" >/dev/null 2>&1; then
-        return 0
+    if ! npm list -g "$package_name" >/dev/null 2>&1; then
+        return 1
     fi
     
-    # Also check if the binary exists in PATH (fallback check)
+    local npm_bin_dir=$(npm config get prefix 2>/dev/null)/bin
+    if [ -z "$npm_bin_dir" ] || [ ! -d "$npm_bin_dir" ]; then
+        return 1
+    fi
+    
+    local binary_path="$npm_bin_dir/$package_name"
+    if [ ! -e "$binary_path" ]; then
+        binary_path=$(which "$package_name" 2>/dev/null)
+        if [ -z "$binary_path" ]; then
+            return 1
+        fi
+    fi
+    
+    local link_path="/usr/local/bin/$package_name"
+    if [ -L "$link_path" ]; then
+        local current_target=$(readlink -f "$link_path")
+        local real_binary=$(readlink -f "$binary_path")
+        
+        if [ "$current_target" = "$real_binary" ]; then
+            return 0
+        else
+            echo "[$SCRIPT_INDEX] Package $package_name installed but link incorrect"
+            return 1
+        fi
+    fi
+    
     if command -v "$package_name" >/dev/null 2>&1; then
         return 0
     fi
@@ -96,6 +174,9 @@ ensure_package() {
 }
 
 echo "[$SCRIPT_INDEX] NPM Global Package Installation Script"
+
+migrate_old_npm_installation
+
 echo "[$SCRIPT_INDEX] Checking currently installed global packages..."
 
 # Cache the global packages list
