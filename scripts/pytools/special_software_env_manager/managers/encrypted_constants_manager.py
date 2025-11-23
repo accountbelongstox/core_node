@@ -50,6 +50,9 @@ class EncryptedConstantsManager:
         print()
         selected_action = show_menu("Encrypted Constants Selection", menu_items)
 
+        if not selected_action:
+            return None, None
+
         if selected_action.startswith('create_'):
             mode = 'create'
             file_number = int(selected_action.replace('create_', ''))
@@ -93,6 +96,11 @@ class EncryptedConstantsManager:
         print()
 
         mode, file_number = self._select_file_number(config)
+
+        if mode is None or file_number is None:
+            ColorMessage.write("Operation cancelled.", 'warning')
+            input("Press Enter to continue...")
+            return
 
         clear_screen()
         ColorMessage.write(f"Save Encrypted Constants for {config_name}", 'info')

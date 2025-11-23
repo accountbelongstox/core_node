@@ -9,14 +9,10 @@ ITTools.Tools.Registry.register('online-translation', {
             <div class="ittools-card">
                 <div class="ittools-card-header">🌐 AI Translation & Language Learning Tool</div>
                 <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Passcode (Required):</label>
-                        <input type="password" id="translation-passcode" class="ittools-input" placeholder="Enter passcode" value="12345678">
-                    </div>
-                    
                     <div class="ittools-tabs" style="margin-bottom: 20px;">
                         <button class="ittools-tab active" onclick="ITTools.Implementations.Translation.switchMode('learning')">Language Learning</button>
                         <button class="ittools-tab" onclick="ITTools.Implementations.Translation.switchMode('simple')">Simple Translation</button>
+                        <button class="ittools-tab" onclick="ITTools.Implementations.Translation.switchMode('tts')">🔊 Text to Speech</button>
                     </div>
                     
                     <div id="translation-learning-mode">
@@ -211,6 +207,136 @@ ITTools.Tools.Registry.register('online-translation', {
                             <textarea id="translation-result-text" class="ittools-textarea" readonly style="min-height: 150px; background: rgba(248, 249, 250, 0.8);"></textarea>
                         </div>
                     </div>
+                    
+                    <div id="translation-tts-mode" style="display: none;">
+                        <div class="ittools-form-group">
+                            <label class="ittools-label">Text to Speak:</label>
+                            <textarea id="tts-source" class="ittools-textarea" placeholder="Enter text for text-to-speech..." style="min-height: 120px;"></textarea>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div class="ittools-form-group">
+                                <label class="ittools-label">Language:</label>
+                                <select id="tts-language-mode" class="ittools-select" onchange="ITTools.Implementations.Translation.onTTSLanguageModeChange()">
+                                    <option value="detect">🔍 Auto Detect</option>
+                                    <option value="manual">📝 Select Manually</option>
+                                </select>
+                            </div>
+                            
+                            <div class="ittools-form-group" id="tts-language-select-group" style="display: none;">
+                                <label class="ittools-label">Target Language:</label>
+                                <select id="tts-target-lang" class="ittools-select">
+                                    <option value="af">Afrikaans</option>
+                                    <option value="am">Amharic</option>
+                                    <option value="ar">Arabic</option>
+                                    <option value="as">Assamese</option>
+                                    <option value="az">Azerbaijani</option>
+                                    <option value="bg">Bulgarian</option>
+                                    <option value="bn">Bengali</option>
+                                    <option value="bs">Bosnian</option>
+                                    <option value="ca">Catalan</option>
+                                    <option value="cs">Czech</option>
+                                    <option value="cy">Welsh</option>
+                                    <option value="da">Danish</option>
+                                    <option value="de">German</option>
+                                    <option value="el">Greek</option>
+                                    <option value="en" selected>English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="et">Estonian</option>
+                                    <option value="eu">Basque</option>
+                                    <option value="fa">Persian</option>
+                                    <option value="fi">Finnish</option>
+                                    <option value="fil">Filipino</option>
+                                    <option value="fr">French</option>
+                                    <option value="ga">Irish</option>
+                                    <option value="gl">Galician</option>
+                                    <option value="gu">Gujarati</option>
+                                    <option value="he">Hebrew</option>
+                                    <option value="hi">Hindi</option>
+                                    <option value="hr">Croatian</option>
+                                    <option value="hu">Hungarian</option>
+                                    <option value="hy">Armenian</option>
+                                    <option value="id">Indonesian</option>
+                                    <option value="is">Icelandic</option>
+                                    <option value="it">Italian</option>
+                                    <option value="ja">Japanese</option>
+                                    <option value="jv">Javanese</option>
+                                    <option value="ka">Georgian</option>
+                                    <option value="kk">Kazakh</option>
+                                    <option value="km">Khmer</option>
+                                    <option value="kn">Kannada</option>
+                                    <option value="ko">Korean</option>
+                                    <option value="lo">Lao</option>
+                                    <option value="lt">Lithuanian</option>
+                                    <option value="lv">Latvian</option>
+                                    <option value="mk">Macedonian</option>
+                                    <option value="ml">Malayalam</option>
+                                    <option value="mn">Mongolian</option>
+                                    <option value="mr">Marathi</option>
+                                    <option value="ms">Malay</option>
+                                    <option value="mt">Maltese</option>
+                                    <option value="my">Burmese</option>
+                                    <option value="nb">Norwegian</option>
+                                    <option value="ne">Nepali</option>
+                                    <option value="nl">Dutch</option>
+                                    <option value="or">Odia</option>
+                                    <option value="pa">Punjabi</option>
+                                    <option value="pl">Polish</option>
+                                    <option value="ps">Pashto</option>
+                                    <option value="pt">Portuguese</option>
+                                    <option value="ro">Romanian</option>
+                                    <option value="ru">Russian</option>
+                                    <option value="si">Sinhala</option>
+                                    <option value="sk">Slovak</option>
+                                    <option value="sl">Slovenian</option>
+                                    <option value="so">Somali</option>
+                                    <option value="sq">Albanian</option>
+                                    <option value="sr">Serbian</option>
+                                    <option value="su">Sundanese</option>
+                                    <option value="sv">Swedish</option>
+                                    <option value="sw">Swahili</option>
+                                    <option value="ta">Tamil</option>
+                                    <option value="te">Telugu</option>
+                                    <option value="th">Thai</option>
+                                    <option value="tr">Turkish</option>
+                                    <option value="uk">Ukrainian</option>
+                                    <option value="ur">Urdu</option>
+                                    <option value="uz">Uzbek</option>
+                                    <option value="vi">Vietnamese</option>
+                                    <option value="wuu">Wu Chinese</option>
+                                    <option value="yue">Cantonese</option>
+                                    <option value="zh">Chinese (Mandarin)</option>
+                                    <option value="zu">Zulu</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="ittools-form-group">
+                            <label class="ittools-label">Speech Speed:</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="range" id="tts-speed" min="0.5" max="2.0" step="0.1" value="0.9" class="ittools-slider" style="flex: 1;" oninput="document.getElementById('tts-speed-value').textContent = this.value">
+                                <span id="tts-speed-value" style="min-width: 40px; font-weight: 600; color: #667eea;">0.9</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 5px;">
+                                <span>0.5x (Slower)</span>
+                                <span>1.0x (Normal)</span>
+                                <span>2.0x (Faster)</span>
+                            </div>
+                        </div>
+                        
+                        <div class="ittools-btn-group">
+                            <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.Translation.generateTTS()">
+                                🔊 Generate Speech
+                            </button>
+                            <button class="ittools-btn ittools-btn-secondary" onclick="ITTools.Implementations.Translation.clearTTS()">
+                                🗑️ Clear
+                            </button>
+                        </div>
+                        
+                        <div id="tts-result" class="ittools-result" style="display: none; margin-top: 15px;"></div>
+                        
+                        <div id="tts-output" style="margin-top: 20px;"></div>
+                    </div>
                 </div>
             </div>
         `;
@@ -222,10 +348,12 @@ ITTools.Implementations.Translation = {
     translationMethod: 'ai',
     storageKey: 'ittools_translation_state',
     freeModels: [],
+    languageTemplates: {},
     
     init() {
         this.loadState();
         this.bindEvents();
+        this.loadLanguageTemplates();
         
         setTimeout(() => {
             const learningModelSelect = document.getElementById('ai-model-select');
@@ -233,6 +361,34 @@ ITTools.Implementations.Translation = {
                 this.loadFreeModels(false);
             }
         }, 200);
+    },
+    
+    async loadLanguageTemplates() {
+        try {
+            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/templates', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                }
+            });
+            
+            if (!response.ok) {
+                console.error('Failed to load language templates:', response.status);
+                return;
+            }
+            
+            const result = await response.json();
+            
+            if (result.success && result.templates) {
+                this.languageTemplates = result.templates;
+                console.log('[Translation] Loaded language templates:', Object.keys(this.languageTemplates));
+            } else {
+                console.error('Invalid templates response:', result);
+            }
+        } catch (error) {
+            console.error('Failed to load language templates:', error);
+        }
     },
     
     loadState() {
@@ -346,18 +502,29 @@ ITTools.Implementations.Translation = {
         const tabs = document.querySelectorAll('.ittools-tab');
         tabs.forEach(tab => tab.classList.remove('active'));
         
+        const learningMode = document.getElementById('translation-learning-mode');
+        const simpleMode = document.getElementById('translation-simple-mode');
+        const ttsMode = document.getElementById('translation-tts-mode');
+        
         if (mode === 'learning') {
             tabs[0].classList.add('active');
-            document.getElementById('translation-learning-mode').style.display = 'block';
-            document.getElementById('translation-simple-mode').style.display = 'none';
-        } else {
+            if (learningMode) learningMode.style.display = 'block';
+            if (simpleMode) simpleMode.style.display = 'none';
+            if (ttsMode) ttsMode.style.display = 'none';
+        } else if (mode === 'simple') {
             tabs[1].classList.add('active');
-            document.getElementById('translation-learning-mode').style.display = 'none';
-            document.getElementById('translation-simple-mode').style.display = 'block';
+            if (learningMode) learningMode.style.display = 'none';
+            if (simpleMode) simpleMode.style.display = 'block';
+            if (ttsMode) ttsMode.style.display = 'none';
             
             setTimeout(() => {
                 this.onSimpleProviderChange();
             }, 100);
+        } else if (mode === 'tts') {
+            tabs[2].classList.add('active');
+            if (learningMode) learningMode.style.display = 'none';
+            if (simpleMode) simpleMode.style.display = 'none';
+            if (ttsMode) ttsMode.style.display = 'block';
         }
         
         this.saveState();
@@ -373,10 +540,21 @@ ITTools.Implementations.Translation = {
             return;
         }
         
+        const savedState = localStorage.getItem(this.storageKey);
+        let savedModelIndex = '0';
+        if (savedState) {
+            try {
+                const state = JSON.parse(savedState);
+                savedModelIndex = state.selectedModel || '0';
+            } catch (e) {
+                console.error('Failed to parse saved state:', e);
+            }
+        }
+        
         try {
             console.log('Loading models for:', forSimple ? 'simple' : 'learning');
             
-            const response = await fetch('/translation/models', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/models', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -396,14 +574,27 @@ ITTools.Implementations.Translation = {
             console.log('Models response:', result);
             
             if (result.success && result.models && result.models.length > 0) {
-                const savedIndex = modelSelect.value;
+                const providerIcons = {
+                    'deepseek': '🧠',
+                    'gemini': '✨',
+                    'openrouter': '🔀'
+                };
                 
-                modelSelect.innerHTML = result.models.map((model, index) => 
-                    `<option value="${index}">${this.escapeHtml(model.name)}</option>`
-                ).join('');
+                const providerLabels = {
+                    'deepseek': 'DeepSeek',
+                    'gemini': 'Gemini',
+                    'openrouter': 'OpenRouter'
+                };
                 
-                if (savedIndex && modelSelect.options[savedIndex]) {
-                    modelSelect.value = savedIndex;
+                modelSelect.innerHTML = result.models.map((model, index) => {
+                    const icon = providerIcons[model.provider] || '🤖';
+                    const providerLabel = providerLabels[model.provider] || 'Unknown';
+                    return `<option value="${index}">${icon} ${this.escapeHtml(model.name)} [${providerLabel}]</option>`;
+                }).join('');
+                
+                if (savedModelIndex && modelSelect.options[savedModelIndex]) {
+                    modelSelect.value = savedModelIndex;
+                    console.log('Restored saved model selection:', savedModelIndex);
                 } else {
                     modelSelect.value = '0';
                 }
@@ -472,15 +663,9 @@ ITTools.Implementations.Translation = {
     },
     
     async translate() {
-        const passcode = document.getElementById('translation-passcode').value.trim();
         const sourceText = document.getElementById('translation-source').value.trim();
         const targetLang = document.getElementById('translation-target-lang').value;
         const provider = document.getElementById('simple-translation-provider').value;
-        
-        if (!passcode) {
-            ITTools.UI.showResult('translation-result', 'Please enter passcode', false);
-            return;
-        }
         
         if (!sourceText) {
             ITTools.UI.showResult('translation-result', 'Please enter text to translate', false);
@@ -497,27 +682,25 @@ ITTools.Implementations.Translation = {
         
         try {
             if (provider === 'google') {
-                await this.translateWithGoogle(sourceText, targetLang, passcode);
+                await this.translateWithGoogle(sourceText, targetLang);
             } else if (provider === 'openrouter') {
-                await this.translateWithOpenRouter(sourceText, targetLang, passcode);
+                await this.translateWithOpenRouter(sourceText, targetLang);
             }
         } catch (error) {
             ITTools.UI.showResult('translation-result', 'Error: ' + error.message, false);
         }
     },
     
-    async translateWithGoogle(sourceText, targetLang, passcode) {
-        const response = await fetch('/translation/simple/google', {
+    async translateWithGoogle(sourceText, targetLang) {
+        const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/simple/google', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Translation-Passcode': passcode,
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
                 text: sourceText,
-                target_language: targetLang,
-                passcode: passcode,
+                target_language: targetLang
             })
         });
         
@@ -532,24 +715,22 @@ ITTools.Implementations.Translation = {
         }
     },
     
-    async translateWithOpenRouter(sourceText, targetLang, passcode) {
+    async translateWithOpenRouter(sourceText, targetLang) {
         const modelSelect = document.getElementById('simple-ai-model-select');
         const modelIndex = modelSelect ? parseInt(modelSelect.value) : 0;
         const type = document.getElementById('translation-type').value;
         
-        const response = await fetch('/translation/translate', {
+        const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/translate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Translation-Passcode': passcode,
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
                 text: sourceText,
                 target_language: targetLang,
                 type: type,
-                model: modelIndex,
-                passcode: passcode,
+                model: modelIndex
             })
         });
         
@@ -565,7 +746,6 @@ ITTools.Implementations.Translation = {
     },
     
     async translateLearning() {
-        const passcode = document.getElementById('translation-passcode').value.trim();
         const sourceText = document.getElementById('learning-source').value.trim();
         
         const translationMethod = this.translationMethod;
@@ -591,11 +771,6 @@ ITTools.Implementations.Translation = {
             return;
         }
         
-        if (!passcode) {
-            ITTools.UI.showResult('learning-result', 'Please enter passcode', false);
-            return;
-        }
-        
         if (!sourceText) {
             ITTools.UI.showResult('learning-result', 'Please enter text to learn', false);
             return;
@@ -610,22 +785,20 @@ ITTools.Implementations.Translation = {
         document.getElementById('learning-output').innerHTML = '';
         
         try {
-            const response = await fetch('/translation/learning', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/learning', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-Translation-Passcode': passcode,
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     text: sourceText,
                     target_languages: selectedLangs,
                     options: options,
                     model: modelIndex,
-                    passcode: passcode,
                     generate_audio: generateAudio,
                     translation_method: translationMethod,
-                    skip_cache: skipCache,
+                    skip_cache: skipCache
                 })
             });
             
@@ -636,8 +809,8 @@ ITTools.Implementations.Translation = {
                     this.renderLearningResults(result.result, selectedLangs, generateAudio);
                     ITTools.UI.showResult('learning-result', `✅ Completed${result.cached ? ' (cached)' : ''} - Processing time: ${result.processing_time}s`, true);
                 } else if (result.status === 'pending') {
-                    if (translationMethod === 'ai' && result.prompts) {
-                        this.showAIPrompts(result.prompts, selectedLangs);
+                    if (translationMethod === 'ai' && result.prompt) {
+                        this.showAIPrompt(result.prompt, selectedLangs);
                     }
                     this.pollTaskStatus(result.task_id, selectedLangs, generateAudio, translationMethod);
                 }
@@ -649,24 +822,21 @@ ITTools.Implementations.Translation = {
         }
     },
     
-    showAIPrompts(prompts, selectedLangs) {
+    showAIPrompt(prompt, selectedLangs) {
         const outputDiv = document.getElementById('learning-output');
-        const promptsHtml = selectedLangs.map(langCode => {
-            const prompt = prompts[langCode];
-            if (!prompt) return '';
-            return `
-                <div class="ittools-card" style="margin-bottom: 15px; background: rgba(103,126,234,0.05);">
-                    <div class="ittools-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                        🤖 AI Prompt for ${langCode.toUpperCase()}
-                    </div>
-                    <div class="ittools-card-body">
-                        <pre style="white-space: pre-wrap; word-wrap: break-word; background: #f8f9fa; padding: 15px; border-radius: 6px; font-size: 12px; max-height: 300px; overflow-y: auto;">${this.escapeHtml(prompt)}</pre>
-                    </div>
+        const langsDisplay = selectedLangs.map(l => l.toUpperCase()).join(', ');
+        const promptHtml = `
+            <div class="ittools-card" style="margin-bottom: 15px; background: rgba(103,126,234,0.05);">
+                <div class="ittools-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    🤖 AI Prompt (${langsDisplay})
                 </div>
-            `;
-        }).join('');
+                <div class="ittools-card-body">
+                    <pre style="white-space: pre-wrap; word-wrap: break-word; background: #f8f9fa; padding: 15px; border-radius: 6px; font-size: 12px; max-height: 400px; overflow-y: auto;">${this.escapeHtml(prompt)}</pre>
+                </div>
+            </div>
+        `;
         
-        outputDiv.innerHTML = promptsHtml;
+        outputDiv.innerHTML = promptHtml;
     },
     
     escapeHtml(text) {
@@ -690,7 +860,7 @@ ITTools.Implementations.Translation = {
             ITTools.UI.showLoading('learning-result', `${methodIcon} Processing... ⏱️ ${timeStr} (poll #${pollCount})`);
             
             try {
-                const response = await fetch(`/translation/task/${taskId}`);
+                const response = await AuthHelper.makeAuthenticatedRequest(`/app_qy_v1/ai_tools/translation/task/${taskId}`);
                 const result = await response.json();
                 
                 if (!result.success) {
@@ -722,7 +892,7 @@ ITTools.Implementations.Translation = {
     
     async triggerTaskProcessing() {
         try {
-            await fetch('/translation/process-next', {
+            await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/process-next', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -734,12 +904,193 @@ ITTools.Implementations.Translation = {
         }
     },
     
+    parseWordsFromString(wordsStr) {
+        const words = [];
+        const parts = wordsStr.split(/[,，、;；]+/);
+        
+        console.log('[parseWordsFromString] Input:', wordsStr);
+        console.log('[parseWordsFromString] Split parts:', parts);
+        
+        for (let part of parts) {
+            part = part.trim();
+            if (!part) continue;
+            
+            const match = part.match(/^(.+?)\s*[\[\(（「『【〔]\s*(.+?)\s*[\]\)）」』】〕]\s*$/);
+            console.log('[parseWordsFromString] Part:', part, 'Match:', match);
+            
+            if (match) {
+                words.push({
+                    word: match[1].trim(),
+                    phonetic: match[2].trim()
+                });
+            } else {
+                words.push({
+                    word: part,
+                    phonetic: ''
+                });
+            }
+        }
+        
+        console.log('[parseWordsFromString] Result:', words);
+        return words;
+    },
+    
+    parseLanguageFromRawResponse(rawResponse, langCode, langTemplates) {
+        const lines = rawResponse.split('\n');
+        const result = {
+            language: langTemplates[langCode]?.name || langCode,
+            lang_code: langCode,
+            translation: null,
+            words: [],
+            compatibility_mode: null
+        };
+        
+        const template = langTemplates[langCode];
+        if (!template) {
+            console.warn('[Parse] No template for language:', langCode);
+            return result;
+        }
+        
+        const transLabel = template.translation.split(':')[0].split('：')[0].trim();
+        const wordsLabel = template.words.split(':')[0].split('：')[0].trim();
+        
+        const allLabels = Object.values(langTemplates).map(t => {
+            const tLabel = t.translation ? t.translation.split(':')[0].split('：')[0].trim() : null;
+            const wLabel = t.words ? t.words.split(':')[0].split('：')[0].trim() : null;
+            return [tLabel, wLabel];
+        }).flat().filter(Boolean);
+        
+        console.log('[Parse] Parsing', langCode, 'with labels:', { transLabel, wordsLabel });
+        
+        let i = 0;
+        let wordsLineIndex = -1;
+        
+        while (i < lines.length) {
+            const trimmedLine = lines[i].trim();
+            
+            if (!trimmedLine) {
+                i++;
+                continue;
+            }
+            
+            if (trimmedLine.startsWith(transLabel)) {
+                result.translation = trimmedLine.substring(transLabel.length).replace(/^[:：]\s*/, '').trim();
+                console.log('[Parse] Found translation:', result.translation);
+                i++;
+                continue;
+            }
+            
+            if (trimmedLine.startsWith(wordsLabel)) {
+                wordsLineIndex = i;
+                const firstLineContent = trimmedLine.substring(wordsLabel.length).replace(/^[:：]\s*/, '').trim();
+                
+                if (firstLineContent && firstLineContent.includes(',')) {
+                    result.words = this.parseWordsFromString(firstLineContent);
+                    result.compatibility_mode = 'single-line';
+                    console.log('[Parse] Words format: single-line (comma-separated)');
+                } else if (firstLineContent) {
+                    result.words = this.parseWordsFromString(firstLineContent);
+                    result.compatibility_mode = 'multi-line';
+                    
+                    let j = i + 1;
+                    while (j < lines.length) {
+                        const nextLine = lines[j].trim();
+                        if (!nextLine) {
+                            j++;
+                            continue;
+                        }
+                        
+                        const isLabel = allLabels.some(label => nextLine.startsWith(label));
+                        if (isLabel) {
+                            break;
+                        }
+                        
+                        const wordMatch = nextLine.match(/^(.+?)\s*[\[\(（「『【〔]\s*(.+?)\s*[\]\)）」』】〕]\s*$/);
+                        if (wordMatch) {
+                            result.words.push({
+                                word: wordMatch[1].trim(),
+                                phonetic: wordMatch[2].trim()
+                            });
+                        } else {
+                            result.words.push({
+                                word: nextLine,
+                                phonetic: ''
+                            });
+                        }
+                        
+                        j++;
+                    }
+                    
+                    console.log('[Parse] Words format: multi-line (each word on new line)');
+                    i = j;
+                    continue;
+                } else {
+                    result.compatibility_mode = 'multi-line';
+                    
+                    let j = i + 1;
+                    while (j < lines.length) {
+                        const nextLine = lines[j].trim();
+                        if (!nextLine) {
+                            j++;
+                            continue;
+                        }
+                        
+                        const isLabel = allLabels.some(label => nextLine.startsWith(label));
+                        if (isLabel) {
+                            break;
+                        }
+                        
+                        const wordMatch = nextLine.match(/^(.+?)\s*[\[\(（「『【〔]\s*(.+?)\s*[\]\)）」』】〕]\s*$/);
+                        if (wordMatch) {
+                            result.words.push({
+                                word: wordMatch[1].trim(),
+                                phonetic: wordMatch[2].trim()
+                            });
+                        } else {
+                            result.words.push({
+                                word: nextLine,
+                                phonetic: ''
+                            });
+                        }
+                        
+                        j++;
+                    }
+                    
+                    console.log('[Parse] Words format: multi-line (each word on new line)');
+                    i = j;
+                    continue;
+                }
+                
+                console.log('[Parse] Found words:', result.words);
+                i++;
+                continue;
+            }
+            
+            i++;
+        }
+        
+        if (result.compatibility_mode) {
+            console.log('[Parse] Compatibility mode:', result.compatibility_mode);
+        }
+        
+        return result;
+    },
+    
+    escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    },
+    
     renderLearningResults(result, selectedLangs, generateAudio) {
         const outputDiv = document.getElementById('learning-output');
         let html = '';
         
+        const rawResponse = result.raw_response || '';
+        
         result.translations.forEach((trans, idx) => {
             const langCode = selectedLangs[idx];
+            
+            const parsed = this.parseLanguageFromRawResponse(rawResponse, langCode, this.languageTemplates);
+            trans = { ...trans, ...parsed };
             
             if (trans.error) {
                 html += `
@@ -766,8 +1117,9 @@ ITTools.Implementations.Translation = {
             
             html += `
                 <div class="ittools-card" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(103,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%);">
-                    <div class="ittools-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                        ${trans.language || 'Language ' + (idx + 1)}
+                    <div class="ittools-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${trans.language || 'Language ' + (idx + 1)}</span>
+                        ${trans.compatibility_mode ? `<span style="font-size: 11px; opacity: 0.8; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px;" title="Parse mode: ${trans.compatibility_mode === 'single-line' ? 'Words in one line (comma-separated)' : 'Words on separate lines'}">\u{1F4DD} ${trans.compatibility_mode === 'single-line' ? 'Single-line' : 'Multi-line'}</span>` : ''}
                     </div>
                     <div class="ittools-card-body">
                         <div style="margin-bottom: 15px;">
@@ -778,15 +1130,6 @@ ITTools.Implementations.Translation = {
                             </div>
                         </div>
                         
-                        ${trans.phonetics ? `
-                        <div style="margin-bottom: 15px;">
-                            <strong style="color: #667eea;">📢 Phonetics:</strong>
-                            <div style="padding: 10px; background: rgba(103,126,234,0.1); border-radius: 6px; margin-top: 5px; font-family: monospace;">
-                                ${trans.phonetics}
-                            </div>
-                        </div>
-                        ` : ''}
-                        
                         ${trans.words && trans.words.length > 0 ? `
                         <div style="margin-bottom: 15px;">
                             <strong style="color: #667eea;">📝 Words Breakdown:</strong>
@@ -794,10 +1137,10 @@ ITTools.Implementations.Translation = {
                                 ${trans.words.map(w => `
                                     <div style="padding: 8px 12px; background: white; border: 2px solid #667eea; border-radius: 6px; display: inline-block;">
                                         <div style="display: flex; align-items: center; gap: 5px;">
-                                            <span style="font-weight: 600;">${w.word}</span>
-                                            ${generateAudio ? '<span class="audio-btn-container" data-text="' + w.word + '" data-lang="' + langCode + '" data-type="word"></span>' : ''}
+                                            <span style="font-weight: 600;">${this.escapeHtml(w.word)}</span>
+                                            ${generateAudio ? '<span class="audio-btn-container" data-text="' + this.escapeHtml(w.word) + '" data-lang="' + langCode + '" data-type="word"></span>' : ''}
                                         </div>
-                                        <div style="font-size: 12px; color: #666; font-family: monospace;">${w.phonetic || ''}</div>
+                                        <div style="font-size: 12px; color: #666; font-family: monospace;">${this.escapeHtml(w.phonetic || '')}</div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -832,10 +1175,30 @@ ITTools.Implementations.Translation = {
                             ` : ''}
                         </div>
                         ` : ''}
+                        
+                        ${trans.parse_note ? `
+                        <div style="margin-top: 10px; padding: 8px; background: rgba(255,193,7,0.1); border-left: 3px solid #ffc107; border-radius: 4px; font-size: 12px; color: #856404;">
+                            ⚠️ ${this.escapeHtml(trans.parse_note)}
+                            ${trans.debug_patterns ? `<br><small>Expected: ${this.escapeHtml(JSON.stringify(trans.debug_patterns))}</small>` : ''}
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         });
+        
+        if (result.raw_response) {
+            html += `
+                <div class="ittools-card" style="margin-bottom: 20px; background: rgba(108,117,125,0.05);">
+                    <div class="ittools-card-header" style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white;">
+                        🔍 Debug - Raw AI Response
+                    </div>
+                    <div class="ittools-card-body">
+                        <pre style="white-space: pre-wrap; word-wrap: break-word; background: #f8f9fa; padding: 15px; border-radius: 6px; font-size: 12px; max-height: 400px; overflow-y: auto; font-family: monospace;">${this.escapeHtml(result.raw_response)}</pre>
+                    </div>
+                </div>
+            `;
+        }
         
         outputDiv.innerHTML = html;
         
@@ -884,7 +1247,281 @@ ITTools.Implementations.Translation = {
         if (resultText) {
             ITTools.UI.copyToClipboard(resultText);
         }
+    },
+    
+    onTTSLanguageModeChange() {
+        const mode = document.getElementById('tts-language-mode').value;
+        const selectGroup = document.getElementById('tts-language-select-group');
+        
+        if (mode === 'manual') {
+            selectGroup.style.display = 'block';
+        } else {
+            selectGroup.style.display = 'none';
+        }
+    },
+    
+    async generateTTS() {
+        const text = document.getElementById('tts-source').value.trim();
+        const languageMode = document.getElementById('tts-language-mode').value;
+        const targetLang = document.getElementById('tts-target-lang').value;
+        const speed = parseFloat(document.getElementById('tts-speed').value);
+        
+        if (!text) {
+            ITTools.UI.showResult('tts-result', 'Please enter text to speak', false);
+            return;
+        }
+        
+        const paragraphs = text.split(/\n+/).filter(p => p.trim().length > 0);
+        
+        if (paragraphs.length === 0) {
+            ITTools.UI.showResult('tts-result', 'No valid text found', false);
+            return;
+        }
+        
+        ITTools.UI.showLoading('tts-result', `Generating speech for ${paragraphs.length} paragraph(s)...`);
+        document.getElementById('tts-output').innerHTML = '';
+        
+        try {
+            const results = [];
+            
+            for (let i = 0; i < paragraphs.length; i++) {
+                const paragraph = paragraphs[i];
+                let language = targetLang;
+                
+                if (languageMode === 'detect') {
+                    const detectResult = await this.detectLanguageForTTS(paragraph);
+                    if (detectResult && detectResult.lang) {
+                        language = detectResult.lang;
+                    }
+                }
+                
+                const result = await this.generateSingleTTS(paragraph, language, speed, i + 1);
+                results.push(result);
+            }
+            
+            document.getElementById('tts-result').style.display = 'none';
+            this.displayTTSResults(results);
+            
+        } catch (error) {
+            ITTools.UI.showResult('tts-result', 'Error: ' + error.message, false);
+        }
+    },
+    
+    async detectLanguageForTTS(text) {
+        try {
+            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/simple/google', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    text: text.substring(0, 100),
+                    target_language: 'en'
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.src_lang) {
+                let lang = result.src_lang.toLowerCase();
+                if (lang.startsWith('zh-')) lang = 'zh';
+                return { lang: lang };
+            }
+        } catch (error) {
+            console.error('Language detection failed:', error);
+        }
+        
+        return { lang: 'en' };
+    },
+    
+    async generateSingleTTS(text, language, speed, index) {
+        try {
+            const rateValue = Math.round((speed - 1.0) * 100);
+            const ratePercent = (rateValue >= 0 ? '+' : '') + rateValue + '%';
+            
+            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/tts/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: text,
+                    language: language,
+                    type: 'sentence',
+                    options: {
+                        rate: ratePercent
+                    }
+                })
+            });
+            
+            const result = await response.json();
+            
+            return {
+                success: result.success,
+                text: text,
+                language: language,
+                audioUrl: result.audio_url,
+                error: result.error,
+                index: index,
+                fromCache: result.cached || result.from_cache
+            };
+        } catch (error) {
+            return {
+                success: false,
+                text: text,
+                language: language,
+                error: error.message,
+                index: index
+            };
+        }
+    },
+    
+    displayTTSResults(results) {
+        const output = document.getElementById('tts-output');
+        
+        let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
+        
+        results.forEach((result, idx) => {
+            if (result.success) {
+                html += `
+                    <div class="ittools-card" style="background: linear-gradient(135deg, rgba(103,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%);">
+                        <div class="ittools-card-header" style="background: linear-gradient(135deg, #677eea 0%, #764ba2 100%); color: white;">
+                            🔊 Paragraph ${result.index} (${result.language.toUpperCase()}) ${result.fromCache ? '💾 Cached' : ''}
+                        </div>
+                        <div class="ittools-card-body">
+                            <p style="margin-bottom: 15px; padding: 10px; background: rgba(248, 249, 250, 0.5); border-radius: 6px; line-height: 1.6;">
+                                ${this.escapeHtml(result.text)}
+                            </p>
+                            <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                                <label style="font-size: 13px; font-weight: 600; color: #667eea;">Playback Speed:</label>
+                                <select onchange="this.closest('.ittools-card-body').querySelector('audio').playbackRate = this.value" style="padding: 5px 10px; border-radius: 4px; border: 1px solid #ddd;">
+                                    <option value="0.5">0.5x</option>
+                                    <option value="0.6">0.6x</option>
+                                    <option value="0.75">0.75x</option>
+                                    <option value="1" selected>1.0x</option>
+                                    <option value="1.25">1.25x</option>
+                                    <option value="1.5">1.5x</option>
+                                    <option value="1.75">1.75x</option>
+                                    <option value="2">2.0x</option>
+                                </select>
+                            </div>
+                            <audio controls style="width: 100%; border-radius: 6px;">
+                                <source src="${result.audioUrl}" type="audio/mpeg">
+                                Your browser does not support audio playback.
+                            </audio>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="ittools-card" style="background: rgba(255,107,107,0.05);">
+                        <div class="ittools-card-header" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white;">
+                            ❌ Paragraph ${result.index} - Error
+                        </div>
+                        <div class="ittools-card-body">
+                            <p style="margin-bottom: 10px;">${this.escapeHtml(result.text.substring(0, 100))}...</p>
+                            <div style="padding: 10px; background: rgba(255,107,107,0.1); border-left: 4px solid #ff6b6b; border-radius: 6px; color: #d63031;">
+                                ${this.escapeHtml(result.error)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += '</div>';
+        output.innerHTML = html;
+    },
+    
+    clearTTS() {
+        document.getElementById('tts-source').value = '';
+        document.getElementById('tts-output').innerHTML = '';
+        document.getElementById('tts-result').style.display = 'none';
+        document.getElementById('tts-speed').value = '0.9';
+        document.getElementById('tts-speed-value').textContent = '0.9';
+        document.getElementById('tts-language-mode').value = 'detect';
+        this.onTTSLanguageModeChange();
     }
 };
+
+if (!ITTools.TTS) {
+    ITTools.TTS = {
+        cache: {},
+        
+        createAudioButton(text, lang, type) {
+            const btn = document.createElement('button');
+            btn.className = 'audio-play-btn';
+            btn.innerHTML = '🔊';
+            btn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 5px; opacity: 0.6; transition: opacity 0.2s;';
+            btn.title = 'Play audio';
+            
+            btn.addEventListener('mouseenter', () => {
+                btn.style.opacity = '1';
+            });
+            
+            btn.addEventListener('mouseleave', () => {
+                btn.style.opacity = '0.6';
+            });
+            
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '⏳';
+                btn.disabled = true;
+                
+                try {
+                    const cacheKey = `${lang}_${type}_${text}`;
+                    let audioUrl = this.cache[cacheKey];
+                    
+                    if (!audioUrl) {
+                        const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/tts/generate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                text: text,
+                                language: lang,
+                                type: type,
+                                options: {}
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            audioUrl = result.audio_url;
+                            this.cache[cacheKey] = audioUrl;
+                        } else {
+                            throw new Error(result.error || 'TTS generation failed');
+                        }
+                    }
+                    
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                    
+                    btn.innerHTML = '▶️';
+                    
+                    audio.addEventListener('ended', () => {
+                        btn.innerHTML = originalHtml;
+                    });
+                    
+                } catch (error) {
+                    console.error('[TTS] Error:', error);
+                    alert('Failed to generate audio: ' + error.message);
+                    btn.innerHTML = originalHtml;
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+            
+            return btn;
+        }
+    };
+}
 
 console.log('ITTools Translation implementation loaded');

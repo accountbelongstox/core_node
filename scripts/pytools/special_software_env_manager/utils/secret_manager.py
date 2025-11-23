@@ -11,6 +11,13 @@ import subprocess
 import getpass
 from pathlib import Path
 
+# Add pycore to path for pyfoundations import
+_current_file = Path(__file__).resolve()
+_project_root = _current_file.parent.parent.parent.parent.parent
+_pycore_path = _project_root / 'pycore'
+if _pycore_path.exists() and str(_pycore_path) not in sys.path:
+    sys.path.insert(0, str(_pycore_path))
+
 from utils.common_utils import ColorMessage, get_project_root
 from config.path_config import get_path_config
 
