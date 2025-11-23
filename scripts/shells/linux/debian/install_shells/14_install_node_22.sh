@@ -44,9 +44,111 @@ echo "SELECTED_REGION: $SELECTED_REGION"
 echo "NODE_VERSION: $NODE_VERSION"
 echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
 
+# Function to migrate from old directory structure
+migrate_old_nodejs_installation() {
+    local old_base_dir="/www/dev_ubuntu24"
+    local new_base_dir="/www/_ubuntu_24"
+    
+    # Check if old directory exists
+    if [ ! -d "$old_base_dir/nodejs" ]; then
+        return 0
+    fi
+    
+    echo "Detected old Node.js installation in: $old_base_dir/nodejs"
+    echo "Migrating to new directory structure: $new_base_dir/nodejs"
+    
+    # Create new base directory if needed
+    if [ ! -d "$new_base_dir" ]; then
+        $USE_SUDO mkdir -p "$new_base_dir"
+    fi
+    
+    # Migrate nodejs directory
+    if [ -d "$new_base_dir/nodejs" ]; then
+        echo "New directory already exists, merging contents..."
+        $USE_SUDO rsync -a --ignore-existing "$old_base_dir/nodejs/" "$new_base_dir/nodejs/"
+    else
+        echo "Moving nodejs directory..."
+        $USE_SUDO mv "$old_base_dir/nodejs" "$new_base_dir/nodejs"
+    fi
+    
+    # Update npm config if it points to old directory
+    if command -v npm >/dev/null 2>&1; then
+        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
+        if [[ "$current_npm_prefix" == *"dev_ubuntu24"* ]]; then
+            local new_npm_prefix="${current_npm_prefix/dev_ubuntu24/_ubuntu_24}"
+            echo "Updating npm prefix: $current_npm_prefix -> $new_npm_prefix"
+            npm config set prefix "$new_npm_prefix"
+        fi
+    fi
+    
+    # Update environment variables
+    if [ -f /etc/environment ]; then
+        echo "Updating environment variables..."
+        $USE_SUDO sed -i "s|/www/dev_ubuntu24/|/www/_ubuntu_24/|g" /etc/environment
+        
+        # Also update current shell environment
+        if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"dev_ubuntu24"* ]]; then
+            export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX/dev_ubuntu24/_ubuntu_24}"
+            echo "Updated NPM_CONFIG_PREFIX in current shell: $NPM_CONFIG_PREFIX"
+        fi
+        
+        if [ -n "$NODE_HOME" ] && [[ "$NODE_HOME" == *"dev_ubuntu24"* ]]; then
+            export NODE_HOME="${NODE_HOME/dev_ubuntu24/_ubuntu_24}"
+            echo "Updated NODE_HOME in current shell: $NODE_HOME"
+        fi
+        
+        if [ -n "$NODE_PATH" ] && [[ "$NODE_PATH" == *"dev_ubuntu24"* ]]; then
+            export NODE_PATH="${NODE_PATH/dev_ubuntu24/_ubuntu_24}"
+            echo "Updated NODE_PATH in current shell: $NODE_PATH"
+        fi
+        
+        if [[ "$PATH" == *"dev_ubuntu24"* ]]; then
+            export PATH="${PATH//\/www\/dev_ubuntu24\//\/www\/_ubuntu_24\/}"
+            echo "Updated PATH in current shell"
+        fi
+    fi
+    
+    # Update symlinks
+    for binary in node npm npx; do
+        local link_path="/usr/local/bin/$binary"
+        if [ -L "$link_path" ]; then
+            local target=$(readlink "$link_path")
+            if [[ "$target" == *"dev_ubuntu24"* ]]; then
+                local new_target="${target/dev_ubuntu24/_ubuntu_24}"
+                if [ -e "$new_target" ]; then
+                    echo "Updating symlink: $link_path -> $new_target"
+                    $USE_SUDO ln -sf "$new_target" "$link_path"
+                fi
+            fi
+        fi
+    done
+    
+    # Remove old nodejs directory after successful migration
+    if [ -d "$old_base_dir/nodejs" ]; then
+        echo "Removing old nodejs directory: $old_base_dir/nodejs"
+        $USE_SUDO rm -rf "$old_base_dir/nodejs"
+    fi
+    
+    # Check if old base directory is empty and remove it
+    if [ -d "$old_base_dir" ]; then
+        if [ -z "$(ls -A "$old_base_dir" 2>/dev/null)" ]; then
+            echo "Old base directory is empty, removing: $old_base_dir"
+            $USE_SUDO rm -rf "$old_base_dir"
+        else
+            echo "Old base directory still contains files, keeping: $old_base_dir"
+        fi
+    fi
+    
+    echo "Migration completed"
+    return 0
+}
+
 # Function to detect and fix previous installation issues
 detect_and_fix_previous_issues() {
     echo "Detecting and fixing previous installation issues..."
+    
+    # First, migrate from old directory structure if needed
+    migrate_old_nodejs_installation
     
     # 1. Fix broken environment variables from previous runs
     echo "Checking /etc/environment for broken entries..."
@@ -143,6 +245,12 @@ configure_npm_settings() {
             echo "Error: npm not found in system PATH"
             return 1
         fi
+    fi
+    
+    # Clear conflicting environment variables before configuring
+    if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"dev_ubuntu24"* ]]; then
+        echo "Detected old NPM_CONFIG_PREFIX in environment, clearing..."
+        unset NPM_CONFIG_PREFIX
     fi
 
     # Configure registry based on region
@@ -550,7 +658,7 @@ case $installation_result in
         echo "=================================================="
         echo "Node.js $NODE_VERSION is already installed"
         echo "=================================================="
-        echo "Skipping installation, Node.js version is already >= $NODE_SHORT_VERSION"
+        echo "Verifying and fixing configuration if needed..."
         echo ""
         ;;
     2)

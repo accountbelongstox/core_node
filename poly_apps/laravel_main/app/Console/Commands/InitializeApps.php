@@ -8,37 +8,120 @@ use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 
 class InitializeApps extends Command
 {
-    protected $signature = 'apps:init 
-                            {app? : Specific app to initialize (optional)}
-                            {--force : Force re-initialization of already completed steps}
-                            {--status : Check initialization status only}
-                            {--reset : Reset initialization status}
-                            {--all : Initialize all registered apps}';
+    protected $signature = 'sys:init';
 
-    protected $description = 'Initialize application databases and resources';
+    protected $description = 'Initialize system databases and resources';
 
     public function handle()
     {
+        $this->info('Initializing system...');
+        $this->newLine();
+        
+        $this->info('Creating external storage directories...');
+        $directories = [
+            'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
+            'uploads' => \App\Providers\PathMapper::getLaravelUploadsDir(),
+            'static' => \App\Providers\PathMapper::getLaravelStaticDir(),
+            'cache' => \App\Providers\PathMapper::getLaravelCacheDir(),
+            'logs' => \App\Providers\PathMapper::getLaravelLogsDir(),
+            'sessions' => \App\Providers\PathMapper::getLaravelSessionsDir(),
+            'tmp' => \App\Providers\PathMapper::getLaravelTmpDir(),
+        ];
+        
+        foreach ($directories as $name => $path) {
+            if (!file_exists($path)) {
+                mkdir($path, 0755, true);
+                $this->line("  ✅ Created {$name}: {$path}");
+            } else {
+                $this->line("  ✓ Exists {$name}: {$path}");
+            }
+        }
+        $this->newLine();
+        
+        $results = \App\Services\UserSyncService::ensureUserTablesExist();
+        
+        $this->info('Database initialization results:');
+        
+        foreach ($results as $dbName => $status) {
+            $icon = in_array($status, ['created', 'exists']) ? '✅' : '❌';
+            $this->line("{$icon} {$dbName}: {$status}");
+            
+            $connection = $dbName === 'Main' ? 'sqlite' : strtolower($dbName);
+            
+            try {
+                if (config("database.connections.{$connection}")) {
+                    $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+                    
+                    if (!empty($tables)) {
+                        foreach ($tables as $table) {
+                            $tableName = $table->name;
+                            $count = \DB::connection($connection)->table($tableName)->count();
+                            $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
+                            $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
+                            
+                            $this->line("   • <fg=cyan;options=bold>{$tableName}</> (" . count($structure) . " columns, {$count} rows)");
+                            
+                            if (!empty($structure)) {
+                                $this->line("     <fg=yellow>Columns:</>");
+                                foreach ($structure as $col) {
+                                    $pkMark = $col['pk'] ? ' <fg=red>[PK]</>' : '';
+                                    $defaultInfo = $col['default'] ? " DEFAULT {$col['default']}" : '';
+                                    $this->line("       - {$col['name']}: {$col['type']} {$col['notnull']}{$defaultInfo}{$pkMark}");
+                                }
+                            }
+                            
+                            if (!empty($indexes)) {
+                                $this->line("     <fg=yellow>Indexes:</>");
+                                foreach ($indexes as $idx) {
+                                    $uniqueMark = $idx['unique'] ? ' <fg=green>[UNIQUE]</>' : '';
+                                    $this->line("       - {$idx['name']}: ({$idx['columns']}){$uniqueMark}");
+                                }
+                            }
+                            
+                            $this->newLine();
+                        }
+                    } else {
+                        $this->line("   <fg=gray>No tables</>");
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->line("   <fg=red>Error: {$e->getMessage()}</>");
+            }
+            
+            $this->newLine();
+        }
+        
+        $successCount = collect($results)->filter(fn($s) => in_array($s, ['created', 'exists']))->count();
+        $totalCount = count($results);
+        $this->info("Successfully initialized {$successCount}/{$totalCount} databases.");
+        $this->newLine();
+        
+        $this->info('Creating TTS cache tables...');
+        $ttsResults = \App\Services\UserSyncService::ensureTTSCacheTablesExist();
+        foreach ($ttsResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+        
+        $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
-        
         $manager->register(new AppQyV1Initializer());
+        $result = $manager->initializeAll(false);
         
-        if ($this->option('status')) {
-            return $this->showStatus($manager);
+        foreach ($result['results'] as $appName => $appResult) {
+            $this->displayAppResult($appName, $appResult);
         }
         
-        if ($this->option('reset')) {
-            return $this->resetStatus($manager);
+        $this->newLine();
+        
+        if ($result['success']) {
+            $this->info('✅ System initialized successfully!');
+            return Command::SUCCESS;
+        } else {
+            $this->error('❌ System initialization failed');
+            return 1;
         }
-        
-        $appName = $this->argument('app');
-        $force = $this->option('force');
-        
-        if ($this->option('all') || !$appName) {
-            return $this->initializeAll($manager, $force);
-        }
-        
-        return $this->initializeApp($manager, $appName, $force);
     }
     
     private function showStatus(AppInitializationManager $manager)

@@ -70,7 +70,7 @@ declare -gA BASE_PACKAGES=(
     ["chrome_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
     ["chrome_description"]="Google Chrome web browser"
     ["chrome_verify_command"]="--version"
-    ["chrome_launch_command"]="which google-chrome && $USE_SUDO google-chrome --no-sandbox"
+    ["chrome_itemkey"]="--no-sandbox"
 
     # Vim Editor
     ["vim_name"]="Vim"
@@ -81,7 +81,6 @@ declare -gA BASE_PACKAGES=(
     ["vim_groups"]="$GROUP_ESSENTIAL $GROUP_DEVELOPMENT $GROUP_ALL"
     ["vim_description"]="Vi IMproved text editor"
     ["vim_verify_command"]="--version"
-    ["vim_launch_command"]=""
 
     # CMake Build System
     ["cmake_name"]="CMake"
@@ -92,7 +91,6 @@ declare -gA BASE_PACKAGES=(
     ["cmake_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["cmake_description"]="Cross-platform build system"
     ["cmake_verify_command"]="--version"
-    ["cmake_launch_command"]=""
 )
 
 # Development Tools - Programming environments and development utilities
@@ -107,7 +105,6 @@ declare -gA DEV_PACKAGES=(
     ["powershell_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["powershell_description"]="PowerShell cross-platform shell and scripting language"
     ["powershell_verify_command"]="--version"
-    ["powershell_launch_command"]="which pwsh && $USE_SUDO pwsh"
 
     # Postman API Testing
     ["postman_name"]="Postman"
@@ -118,7 +115,6 @@ declare -gA DEV_PACKAGES=(
     ["postman_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["postman_description"]="API development and testing tool"
     ["postman_verify_command"]=""
-    ["postman_launch_command"]="which postman && $USE_SUDO postman"
     ["postman_super"]="true"
     
     # Termius SSH Client
@@ -130,7 +126,6 @@ declare -gA DEV_PACKAGES=(
     ["termius_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["termius_description"]="SSH client and terminal"
     ["termius_verify_command"]=""
-    ["termius_launch_command"]="which termius-app && $USE_SUDO termius-app"
     ["termius_super"]="true"
 
     # Android Studio
@@ -143,7 +138,6 @@ declare -gA DEV_PACKAGES=(
     ["android_studio_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["android_studio_description"]="Android development IDE"
     ["android_studio_verify_command"]=""
-    ["android_studio_launch_command"]="which android-studio && $USE_SUDO android-studio"
     ["android_studio_super"]="true"
 
     # IntelliJ IDEA Community
@@ -156,7 +150,6 @@ declare -gA DEV_PACKAGES=(
     ["intellij_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["intellij_description"]="Java IDE by JetBrains"
     ["intellij_verify_command"]=""
-    ["intellij_launch_command"]="which intellij-idea-community && $USE_SUDO intellij-idea-community"
     ["intellij_super"]="true"
     
     # PyCharm Community
@@ -169,7 +162,6 @@ declare -gA DEV_PACKAGES=(
     ["pycharm_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["pycharm_description"]="Python IDE by JetBrains"
     ["pycharm_verify_command"]=""
-    ["pycharm_launch_command"]="which pycharm-community && $USE_SUDO pycharm-community"
     ["pycharm_super"]="true"
 
     # CLion C++ IDE
@@ -182,7 +174,6 @@ declare -gA DEV_PACKAGES=(
     ["clion_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["clion_description"]="C/C++ IDE by JetBrains"
     ["clion_verify_command"]=""
-    ["clion_launch_command"]="which clion && $USE_SUDO clion"
     ["clion_super"]="true"
 
     # Sublime Text
@@ -195,7 +186,6 @@ declare -gA DEV_PACKAGES=(
     ["sublime_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["sublime_description"]="Sophisticated text editor"
     ["sublime_verify_command"]="--version"
-    ["sublime_launch_command"]="which subl && $USE_SUDO subl"
     ["sublime_super"]="true"
     
     # Insomnia API Client
@@ -207,7 +197,6 @@ declare -gA DEV_PACKAGES=(
     ["insomnia_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["insomnia_description"]="REST API testing tool"
     ["insomnia_verify_command"]=""
-    ["insomnia_launch_command"]="which insomnia && $USE_SUDO insomnia"
     ["insomnia_super"]="true"
 
     # Beekeeper Studio Database Manager
@@ -219,7 +208,6 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["beekeeper_description"]="SQL editor and database manager"
     ["beekeeper_verify_command"]=""
-    ["beekeeper_launch_command"]="which beekeeper-studio && $USE_SUDO beekeeper-studio"
     ["beekeeper_super"]="true"
 
     # Text Editor (generic)
@@ -231,7 +219,6 @@ declare -gA DEV_PACKAGES=(
     ["text_editor_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["text_editor_description"]="Simple text editor"
     ["text_editor_verify_command"]="--version"
-    ["text_editor_launch_command"]="which gedit && $USE_SUDO gedit"
     ["text_editor_super"]="true"
 )
 
@@ -246,7 +233,6 @@ declare -gA APP_PACKAGES=(
     ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
     ["rustdesk_description"]="Remote desktop application"
     ["rustdesk_verify_command"]="--version"
-    ["rustdesk_launch_command"]="which rustdesk && $USE_SUDO rustdesk"
     ["rustdesk_requires_desktop"]="true"
 
     # Firefox Browser
@@ -258,7 +244,6 @@ declare -gA APP_PACKAGES=(
     ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
     ["firefox_description"]="Mozilla Firefox web browser"
     ["firefox_verify_command"]="--version"
-    ["firefox_launch_command"]="which firefox && $USE_SUDO firefox"
 
     # LibreOffice Office Suite
     ["libreoffice_name"]="LibreOffice"
@@ -269,7 +254,6 @@ declare -gA APP_PACKAGES=(
     ["libreoffice_groups"]="$GROUP_OFFICE $GROUP_ALL"
     ["libreoffice_description"]="Free office suite"
     ["libreoffice_verify_command"]="--version"
-    ["libreoffice_launch_command"]="which libreoffice && $USE_SUDO libreoffice"
 
     # Opera Browser
     ["opera_name"]="Opera"
@@ -280,7 +264,7 @@ declare -gA APP_PACKAGES=(
     ["opera_groups"]="$GROUP_ALL"
     ["opera_description"]="Opera web browser"
     ["opera_verify_command"]="--version"
-    ["opera_launch_command"]="which opera && $USE_SUDO opera --no-sandbox"
+    ["opera_itemkey"]="--no-sandbox"
 
 
     # Hey Mail
@@ -292,7 +276,6 @@ declare -gA APP_PACKAGES=(
     ["hey_mail_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
     ["hey_mail_description"]="Hey email client"
     ["hey_mail_verify_command"]=""
-    ["hey_mail_launch_command"]="which hey && $USE_SUDO hey"
 
     # Gemini Desktop
     ["gemini_desktop_name"]="Gemini Desktop"
@@ -303,7 +286,6 @@ declare -gA APP_PACKAGES=(
     ["gemini_desktop_groups"]="$GROUP_ALL"
     ["gemini_desktop_description"]="Google Gemini AI desktop app"
     ["gemini_desktop_verify_command"]=""
-    ["gemini_desktop_launch_command"]="which gemini && $USE_SUDO gemini"
 
     # WeChat
     ["wechat_name"]="WeChat"
@@ -314,7 +296,6 @@ declare -gA APP_PACKAGES=(
     ["wechat_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
     ["wechat_description"]="WeChat messaging and social media app"
     ["wechat_verify_command"]="--version"
-    ["wechat_launch_command"]="which wechat && wechat"
     ["wechat_super"]="false"
     ["wechat_desktop_name"]="WeChat"
     ["wechat_desktop_comment"]="WeChat for Linux"
@@ -335,7 +316,6 @@ declare -gA AI_PACKAGES=(
     ["gemini_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
     ["gemini_verify_command"]="--version"
-    ["gemini_launch_command"]="which gemini && $USE_SUDO node gemini"
 
     # Claude Code
     ["claude_name"]="Anthropic Claude Code"
@@ -346,7 +326,6 @@ declare -gA AI_PACKAGES=(
     ["claude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["claude_description"]="Anthropic Claude Code - AI-powered coding assistant with advanced reasoning"
     ["claude_verify_command"]="--version"
-    ["claude_launch_command"]="which claude && $USE_SUDO node claude"
 
     # OpenAI Codex
     ["codex_name"]="OpenAI Codex"
@@ -357,7 +336,6 @@ declare -gA AI_PACKAGES=(
     ["codex_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
     ["codex_verify_command"]="--version"
-    ["codex_launch_command"]="which codex && $USE_SUDO node codex"
     ["codex_itemkey"]="--yolo"
 
     # Cursor Agent
@@ -369,7 +347,6 @@ declare -gA AI_PACKAGES=(
     ["cursor_agent_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["cursor_agent_description"]="Cursor Agent - AI-first code editor with intelligent code completion"
     ["cursor_agent_verify_command"]="--version"
-    ["cursor_agent_launch_command"]="which cursor && $USE_SUDO cursor"
 
     # SuperClaude
     ["superclaude_name"]="SuperClaude Framework"
@@ -380,7 +357,6 @@ declare -gA AI_PACKAGES=(
     ["superclaude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["superclaude_description"]="SuperClaude Framework - Extended Claude Code with specialized commands and personas"
     ["superclaude_verify_command"]="--version"
-    ["superclaude_launch_command"]="which superclaude && $USE_SUDO superclaude"
 
     # OpenCode AI
     ["opencode_name"]="OpenCode AI"
@@ -391,7 +367,6 @@ declare -gA AI_PACKAGES=(
     ["opencode_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["opencode_description"]="OpenCode AI - AI-powered code generation and development assistant"
     ["opencode_verify_command"]="--version"
-    ["opencode_launch_command"]="which opencode && $USE_SUDO opencode"
 
     # Auggie CLI
     ["auggie_name"]="Augment Code Auggie"
@@ -402,7 +377,6 @@ declare -gA AI_PACKAGES=(
     ["auggie_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
     ["auggie_verify_command"]="--version"
-    ["auggie_launch_command"]="which auggie && $USE_SUDO node auggie"
 
     # Droid AI Assistant
     ["droid_name"]="Droid AI Assistant"
@@ -413,7 +387,6 @@ declare -gA AI_PACKAGES=(
     ["droid_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["droid_description"]="Droid AI Assistant - AI-powered development assistant from Factory.ai"
     ["droid_verify_command"]="--version"
-    ["droid_launch_command"]="which droid && $USE_SUDO droid"
 )
 
 # MCP Services - Model Context Protocol services and tools
@@ -629,10 +602,15 @@ get_package_id() {
     get_app_property "$app_name" "package_id"
 }
 
-# Function to get launch command for an application
-get_launch_command() {
+# Function to check if application needs super (sudo) privileges
+get_super() {
     local app_name="$1"
-    get_app_property "$app_name" "launch_command"
+    local super=$(get_app_property "$app_name" "super")
+    if [ "$super" = "false" ]; then
+        echo ""
+    else
+        echo "$USE_SUDO"
+    fi
 }
 
 # Function to get itemkey for an application (optional command argument)
@@ -641,83 +619,66 @@ get_itemkey() {
     get_app_property "$app_name" "itemkey"
 }
 
-# Function to create launch script in /usr/local/bin
+# Function to create symlink in /usr/local/bin
 create_launch_script() {
     local app_name="$1"
-    local launch_command=$(get_launch_command "$app_name")
-    local script_name="$app_name"
-    local script_path="/usr/local/bin/$script_name"
+    local link_name="$app_name"
+    local link_path="/usr/local/bin/$link_name"
 
-    # Skip if no launch command
-    if [ -z "$launch_command" ]; then
+    local install_method=$(get_install_method "$app_name")
+    local exec_name=$(get_app_property "$app_name" "exec")
+
+    if [ -z "$exec_name" ]; then
         return 0
     fi
 
-    # Get npm global bin directory for npm-based applications
-    local install_method=$(get_install_method "$app_name")
-    local npm_global_bin=""
-    if [ "$install_method" = "$METHOD_NPM" ]; then
-        npm_global_bin=$(npm config get prefix 2>/dev/null)
-        if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
-            npm_global_bin="$npm_global_bin/bin"
-        fi
-    fi
+    local target_path=""
 
-    # Create the launch script with absolute paths
-    cat > "/tmp/$script_name" << EOF
-#!/bin/bash
-# Launch script for $app_name
-# Generated by 120_install_desktop_applications.sh
-# Package: $(get_package_id "$app_name")
-
-EOF
-
-    # Add npm global bin to PATH if this is an npm package
-    if [ -n "$npm_global_bin" ]; then
-        cat >> "/tmp/$script_name" << EOF
-# Add npm global bin to PATH
-export PATH="\$PATH:$npm_global_bin"
-EOF
-    fi
-
-    # Process the launch command to use absolute paths
-    local processed_command="$launch_command"
-
-    # For npm packages with node commands, ensure proper path resolution
-    if [ -n "$npm_global_bin" ] && [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
-        # Extract the executable name after "node"
-        local exec_name=$(echo "$launch_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
-        if [ -n "$exec_name" ]; then
-            local actual_binary="$npm_global_bin/$exec_name"
-            if [ -f "$actual_binary" ] || [ -L "$actual_binary" ]; then
-                # Replace "node exec" with "node /absolute/path/exec" and remove which part
-                processed_command=$(echo "$launch_command" | sed "s|which [^&]* && ||g" | sed "s|node[[:space:]]\+$exec_name|node $actual_binary|g")
+    case "$install_method" in
+        "$METHOD_NPM")
+            local npm_bin=$(npm config get prefix 2>/dev/null)/bin
+            if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
+                target_path="$npm_bin/$exec_name"
+            else
+                # Fallback to which if npm bin not available
+                target_path=$(which "$exec_name" 2>/dev/null)
             fi
+            ;;
+        "$METHOD_SNAP")
+            target_path="/snap/bin/$exec_name"
+            if [ ! -e "$target_path" ]; then
+                target_path=$(which "$exec_name" 2>/dev/null)
+            fi
+            ;;
+        "$METHOD_APT"|"$METHOD_FLATPAK"|"$METHOD_PIPX"|"$METHOD_UV_TOOL"|"$METHOD_CURL"|"$METHOD_WEB"|"$METHOD_APPIMAGE"|"$METHOD_MICROSOFT_APT")
+            target_path=$(which "$exec_name" 2>/dev/null)
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    if [ -z "$target_path" ] || [ ! -e "$target_path" ]; then
+        return 0
+    fi
+
+    # Check if link already points to correct target
+    if [ -L "$link_path" ]; then
+        local current_target=$(readlink -f "$link_path")
+        local real_target=$(readlink -f "$target_path")
+        
+        if [ "$current_target" = "$real_target" ]; then
+            return 0
         fi
     fi
 
-    # Get itemkey if it exists (optional command argument)
-    local itemkey=$(get_itemkey "$app_name")
-    local final_command="$processed_command"
-    
-    # If itemkey exists, prepend it before user arguments
-    if [ -n "$itemkey" ]; then
-        # Add itemkey before user arguments ($@)
-        final_command="$processed_command $itemkey"
+    # Remove existing link/file
+    if [ -e "$link_path" ] || [ -L "$link_path" ]; then
+        $USE_SUDO rm -f "$link_path"
     fi
-    
-    # Add the processed launch command
-    cat >> "/tmp/$script_name" << EOF
 
-# Execute the launch command
-$final_command "\$@"
-EOF
-
-    # Move to /usr/local/bin and make executable
-    $USE_SUDO mv "/tmp/$script_name" "$script_path"
-    $USE_SUDO chmod +x "$script_path"
-
-    echo "Created launch script: $script_path"
+    # Create symlink
+    $USE_SUDO ln -sf "$target_path" "$link_path"
 }
 
 # Function to get snap confinement mode for an application
@@ -758,5 +719,5 @@ has_special_repo() {
 export -f get_package_property get_app_property get_mcp_property
 export -f app_in_group mcp_in_group get_apps_by_package_group
 export -f get_apps_by_group get_install_method get_package_id
-export -f get_launch_command get_itemkey create_launch_script
+export -f get_itemkey get_super create_launch_script
 export -f get_snap_confinement is_snap_fallback_enabled get_repo_type has_special_repo

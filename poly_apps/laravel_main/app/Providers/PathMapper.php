@@ -270,8 +270,7 @@ class PathMapper
      */
     public static function getLaravelPublicPath(): string
     {
-        $wwwRoot = self::getWwwRoot();
-        return $wwwRoot . '/laravel_main';
+        return self::mapWebPath('laravel_data_dir');
     }
 
     /**
@@ -279,7 +278,6 @@ class PathMapper
      */
     public static function getLaravelDatabaseDir(): string
     {
-        // Use mapped laravel_data_dir
         return self::mapWebPath('laravel_data_dir');
     }
 
@@ -305,6 +303,31 @@ class PathMapper
     public static function getLaravelTmpDir(): string
     {
         return self::getLaravelDatabaseDir() . '/tmp';
+    }
+
+    public static function getLaravelAvatarsDir(): string
+    {
+        return self::getLaravelDatabaseDir() . '/avatars';
+    }
+
+    public static function getLaravelUploadsDir(): string
+    {
+        return self::getLaravelDatabaseDir() . '/uploads';
+    }
+
+    public static function getLaravelStaticDir(): string
+    {
+        return self::getLaravelDatabaseDir() . '/static';
+    }
+
+    public static function getLaravelCacheDir(): string
+    {
+        return self::getLaravelDatabaseDir() . '/cache';
+    }
+
+    public static function getLaravelLogsDir(): string
+    {
+        return self::getLaravelDatabaseDir() . '/logs';
     }
 
     /**

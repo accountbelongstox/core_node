@@ -1,10 +1,32 @@
 const AuthHelper = {
     currentUser: null,
     authModalId: 'auth-modal',
+    maskedInvitationCode: '',
     
     init() {
+        this.loadInvitationCode();
         this.checkAuthStatus();
         this.createAuthModal();
+    },
+    
+    async loadInvitationCode() {
+        try {
+            const response = await fetch('/api/app_qy_v1/invitation-code', {
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.masked_code) {
+                    this.maskedInvitationCode = data.masked_code;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load invitation code:', error);
+        }
     },
     
     async checkAuthStatus() {
@@ -62,12 +84,12 @@ const AuthHelper = {
                         <h3>Register New Account</h3>
                         <form id="register-form" onsubmit="AuthHelper.handleRegister(event)">
                             <div class="auth-form-group">
-                                <label>Name:</label>
-                                <input type="text" id="register-name" required class="auth-input" placeholder="Your name">
+                                <label>Username (Email/Phone):</label>
+                                <input type="text" id="register-username" required class="auth-input" placeholder="Email or phone number">
                             </div>
                             <div class="auth-form-group">
-                                <label>Email:</label>
-                                <input type="email" id="register-email" required class="auth-input" placeholder="your@email.com">
+                                <label>Name (Optional):</label>
+                                <input type="text" id="register-name" class="auth-input" placeholder="Your name (optional)">
                             </div>
                             <div class="auth-form-group">
                                 <label>Password:</label>
@@ -79,8 +101,8 @@ const AuthHelper = {
                             </div>
                             <div class="auth-form-group">
                                 <label>Invitation Code:</label>
-                                <input type="text" id="register-invitation" required class="auth-input" placeholder="APPQY2025" value="APPQY2025">
-                                <small style="color: #666; font-size: 12px;">固定邀请码: APPQY2025</small>
+                                <input type="text" id="register-invitation" required class="auth-input" placeholder="Enter invitation code">
+                                <small id="invitation-hint" style="color: #666; font-size: 12px;">Loading...</small>
                             </div>
                             <div id="register-error" class="auth-error" style="display: none;"></div>
                             <button type="submit" class="auth-btn auth-btn-primary">Register</button>
@@ -220,6 +242,13 @@ const AuthHelper = {
         
         document.head.insertAdjacentHTML('beforeend', styles);
         document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        setTimeout(() => {
+            const hintEl = document.getElementById('invitation-hint');
+            if (hintEl && this.maskedInvitationCode) {
+                hintEl.textContent = `固定邀请码: ${this.maskedInvitationCode}`;
+            }
+        }, 100);
     },
     
     showAuthModal() {
@@ -227,6 +256,11 @@ const AuthHelper = {
         if (modal) {
             modal.style.display = 'flex';
             this.switchTab('login');
+            
+            const hintEl = document.getElementById('invitation-hint');
+            if (hintEl && this.maskedInvitationCode) {
+                hintEl.textContent = `固定邀请码: ${this.maskedInvitationCode}`;
+            }
         }
     },
     
@@ -271,7 +305,7 @@ const AuthHelper = {
         try {
             await this.getCsrfToken();
             
-            const response = await fetch('/login', {
+            const response = await fetch('/api/login', {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -302,8 +336,8 @@ const AuthHelper = {
     async handleRegister(event) {
         event.preventDefault();
         
+        const username = document.getElementById('register-username').value;
         const name = document.getElementById('register-name').value;
-        const email = document.getElementById('register-email').value;
         const password = document.getElementById('register-password').value;
         const passwordConfirm = document.getElementById('register-password-confirm').value;
         const invitationCode = document.getElementById('register-invitation').value;
@@ -326,7 +360,7 @@ const AuthHelper = {
         try {
             await this.getCsrfToken();
             
-            const response = await fetch('/register', {
+            const response = await fetch('/api/register', {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -335,8 +369,8 @@ const AuthHelper = {
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify({
+                    username,
                     name,
-                    email,
                     password,
                     password_confirmation: passwordConfirm,
                     invitation_code: invitationCode

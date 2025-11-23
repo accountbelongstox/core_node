@@ -365,7 +365,7 @@ ITTools.Implementations.Translation = {
     
     async loadLanguageTemplates() {
         try {
-            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/templates', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/templates', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -554,7 +554,7 @@ ITTools.Implementations.Translation = {
         try {
             console.log('Loading models for:', forSimple ? 'simple' : 'learning');
             
-            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/models', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/models', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -692,7 +692,7 @@ ITTools.Implementations.Translation = {
     },
     
     async translateWithGoogle(sourceText, targetLang) {
-        const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/simple/google', {
+        const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/simple/google', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -720,7 +720,7 @@ ITTools.Implementations.Translation = {
         const modelIndex = modelSelect ? parseInt(modelSelect.value) : 0;
         const type = document.getElementById('translation-type').value;
         
-        const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/translate', {
+        const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/translate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -785,7 +785,7 @@ ITTools.Implementations.Translation = {
         document.getElementById('learning-output').innerHTML = '';
         
         try {
-            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/learning', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/learning', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -860,7 +860,7 @@ ITTools.Implementations.Translation = {
             ITTools.UI.showLoading('learning-result', `${methodIcon} Processing... ⏱️ ${timeStr} (poll #${pollCount})`);
             
             try {
-                const response = await AuthHelper.makeAuthenticatedRequest(`/app_qy_v1/ai_tools/translation/task/${taskId}`);
+                const response = await AuthHelper.makeAuthenticatedRequest(`/api/app_qy_v1/ai_tools/translation/task/${taskId}`);
                 const result = await response.json();
                 
                 if (!result.success) {
@@ -892,7 +892,7 @@ ITTools.Implementations.Translation = {
     
     async triggerTaskProcessing() {
         try {
-            await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/process-next', {
+            await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/process-next', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1309,7 +1309,7 @@ ITTools.Implementations.Translation = {
     
     async detectLanguageForTTS(text) {
         try {
-            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/translation/simple/google', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/simple/google', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1340,7 +1340,7 @@ ITTools.Implementations.Translation = {
             const rateValue = Math.round((speed - 1.0) * 100);
             const ratePercent = (rateValue >= 0 ? '+' : '') + rateValue + '%';
             
-            const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/tts/generate', {
+            const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/tts/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1478,7 +1478,7 @@ if (!ITTools.TTS) {
                     let audioUrl = this.cache[cacheKey];
                     
                     if (!audioUrl) {
-                        const response = await AuthHelper.makeAuthenticatedRequest('/app_qy_v1/ai_tools/tts/generate', {
+                        const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/tts/generate', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
