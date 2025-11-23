@@ -366,6 +366,128 @@ class ConfigManager:
                 'SmartRecognition': {
                     'Enabled': False
                 }
+            },
+            'DeepSeek': {
+                'Common': 'deepseek',
+                'DisplayName': 'DeepSeek',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'DEEPSEEK_API_KEY',
+                        'DisplayName': 'DeepSeek API Key',
+                        'Description': 'DeepSeek API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'DEEPSEEK_BASE_URL',
+                        'DisplayName': 'DeepSeek Base URL',
+                        'Description': 'DeepSeek API Base URL (default: https://api.deepseek.com)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Google AI Studio': {
+                'Common': 'google_aistudio',
+                'DisplayName': 'Google AI Studio',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'GOOGLE_API_KEY',
+                        'DisplayName': 'Google API Key',
+                        'Description': 'Google AI Studio API Key (Gemini)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'GOOGLE_PROJECT_NAME',
+                        'DisplayName': 'Google Project Name',
+                        'Description': 'Google Cloud Project Name (e.g., projects/556092724464)',
+                        'InputType': 'Text',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'GOOGLE_PROJECT_NUMBER',
+                        'DisplayName': 'Google Project Number',
+                        'Description': 'Google Cloud Project Number (e.g., 556092724464)',
+                        'InputType': 'Text',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'GOOGLE_BASE_URL',
+                        'DisplayName': 'Google AI Studio Base URL',
+                        'Description': 'Google AI Studio API Base URL',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'DuGouGole': {
+                'Common': 'dugougole',
+                'DisplayName': 'DuGouGole',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'DUGOUGOLE_API_KEY',
+                        'DisplayName': 'DuGouGole API Key',
+                        'Description': 'DuGouGole API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'DUGOUGOLE_BASE_URL',
+                        'DisplayName': 'DuGouGole Base URL',
+                        'Description': 'DuGouGole API Base URL',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Poxie': {
+                'Common': 'poxie',
+                'DisplayName': 'Poxie',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'POXIE_API_KEY',
+                        'DisplayName': 'Poxie API Key',
+                        'Description': 'Poxie API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'POXIE_BASE_URL',
+                        'DisplayName': 'Poxie Base URL',
+                        'Description': 'Poxie API Base URL',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
             }
         }
 

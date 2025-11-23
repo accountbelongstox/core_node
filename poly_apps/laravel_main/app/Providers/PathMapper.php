@@ -284,6 +284,14 @@ class PathMapper
     }
 
     /**
+     * Get Laravel data directory (alias for getLaravelDatabaseDir)
+     */
+    public static function getLaravelDataDir(): string
+    {
+        return self::getLaravelDatabaseDir();
+    }
+
+    /**
      * Get Laravel sessions directory (within laravel_db)
      */
     public static function getLaravelSessionsDir(): string
@@ -934,6 +942,140 @@ class PathMapper
         }
 
         return $symlinkPath;
+    }
+
+    /**
+     * Get PHP binary path
+     * Follows PHP installation patterns
+     *
+     * Priority:
+     * 1. /usr/local/bin/php (most common for compiled PHP)
+     * 2. /usr/bin/php (system package manager installation)
+     * 3. which php command
+     * 4. Fallback to /usr/local/bin/php
+     *
+     * @return string Path to php binary
+     */
+    public static function getPhpBinaryPath(): string
+    {
+        $commonPaths = [
+            '/usr/local/bin/php',
+            '/usr/bin/php',
+        ];
+
+        foreach ($commonPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which php');
+        if ($result->successful()) {
+            $phpPath = trim($result->output());
+            if (!empty($phpPath) && file_exists($phpPath)) {
+                return $phpPath;
+            }
+        }
+
+        return '/usr/local/bin/php';
+    }
+
+    /**
+     * Get pnpm binary path
+     *
+     * Priority:
+     * 1. /usr/local/bin/pnpm (most common installation)
+     * 2. which pnpm command
+     * 3. Fallback to 'pnpm' (let system PATH resolve)
+     *
+     * @return string Path to pnpm binary
+     */
+    public static function getPnpmBinaryPath(): string
+    {
+        $commonPath = '/usr/local/bin/pnpm';
+        if (file_exists($commonPath) && is_executable($commonPath)) {
+            return $commonPath;
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which pnpm');
+        if ($result->successful()) {
+            $pnpmPath = trim($result->output());
+            if (!empty($pnpmPath) && file_exists($pnpmPath)) {
+                return $pnpmPath;
+            }
+        }
+
+        return 'pnpm';
+    }
+
+    /**
+     * Get pdftk binary path
+     *
+     * Priority:
+     * 1. /usr/bin/pdftk (system package manager installation)
+     * 2. /usr/local/bin/pdftk (compiled installation)
+     * 3. which pdftk command
+     * 4. Fallback to null if not found
+     *
+     * @return string|null Path to pdftk binary or null if not found
+     */
+    public static function getPdftkBinaryPath(): ?string
+    {
+        $commonPaths = [
+            '/usr/bin/pdftk',
+            '/usr/local/bin/pdftk',
+        ];
+
+        foreach ($commonPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which pdftk');
+        if ($result->successful()) {
+            $pdftkPath = trim($result->output());
+            if (!empty($pdftkPath) && file_exists($pdftkPath)) {
+                return $pdftkPath;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get Ghostscript binary path
+     *
+     * Priority:
+     * 1. /usr/bin/gs (system package manager installation)
+     * 2. /usr/local/bin/gs (compiled installation)
+     * 3. which gs command
+     * 4. Fallback to null if not found
+     *
+     * @return string|null Path to gs binary or null if not found
+     */
+    public static function getGhostscriptBinaryPath(): ?string
+    {
+        $commonPaths = [
+            '/usr/bin/gs',
+            '/usr/local/bin/gs',
+        ];
+
+        foreach ($commonPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which gs');
+        if ($result->successful()) {
+            $gsPath = trim($result->output());
+            if (!empty($gsPath) && file_exists($gsPath)) {
+                return $gsPath;
+            }
+        }
+
+        return null;
     }
 }
 

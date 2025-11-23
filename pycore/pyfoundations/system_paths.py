@@ -322,13 +322,19 @@ APP_LOGS_DIR = get_app_logs_dir()
 
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     """
-    Map web path based on environment (similar to gvar_common.sh map_web_path)
+    Map web path based on environment
+
+    SYNC WARNING: This function MUST be kept in sync with:
+    - Shell version: scripts/shells/linux/common/gvar_common.sh::map_web_path()
+    - All mappings must produce identical results across Python and Shell
 
     Windows mappings:
     - applications -> d:\\applications
     - programing -> d:\\programing
     - www -> d:\\www
     - wwwroot -> d:\\www\\wwwroot
+    - pycore_db -> d:\\www\\wwwroot\\pycore_db
+    - laravel_db -> d:\\www\\wwwroot\\laravel_db
     - compile_dir -> d:\\_win11 or d:\\_win10
     - old_compile_dir -> d:\\dev_win11 or d:\\dev_win10
 
@@ -336,11 +342,13 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     - WSL: Uses /mnt/d (or largest mounted drive)
     - Desktop: Uses largest /mnt/* drive if available, else /www
     - Server: Uses /www
+    - pycore_db -> /www/wwwroot/pycore_db
+    - laravel_db -> /www/wwwroot/laravel_db
     - compile_dir -> /mnt/d/_ubuntu24 (or _{distro}{version})
     - old_compile_dir -> /mnt/d/dev_ubuntu24 (or dev_{distro}{version})
 
     Args:
-        path_key: Path key (e.g., 'wwwroot', 'applications', 'programing', 'compile_dir', 'old_compile_dir')
+        path_key: Path key (e.g., 'wwwroot', 'pycore_db', 'laravel_db')
         sub_path: Optional sub-path to append
 
     Returns:

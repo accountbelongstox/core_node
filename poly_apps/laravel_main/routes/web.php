@@ -18,6 +18,7 @@ use App\Http\EnvironmentApiInfo\ApiParamsCache;
 use App\Http\EnvironmentApiInfo\ClipboardController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
+use App\Http\Controllers\AppInitializationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -77,6 +78,7 @@ Route::post('/translation/learning', [TranslationController::class, 'translateFo
 Route::post('/translation/simple/google', [TranslationController::class, 'simpleTranslateWithGoogle']);
 Route::get('/translation/languages', [TranslationController::class, 'getLanguages']);
 Route::get('/translation/types', [TranslationController::class, 'getTypes']);
+Route::get('/translation/templates', [TranslationController::class, 'getLanguageTemplates']);
 Route::get('/translation/models', [TranslationController::class, 'getModels']);
 Route::get('/translation/task/{taskId}', [TranslationController::class, 'getTaskStatus']);
 Route::post('/translation/process-next', [TranslationController::class, 'processNextTask']);
@@ -86,7 +88,17 @@ Route::post('/tts/generate', [TTSController::class, 'generate']);
 Route::post('/tts/batch-generate', [TTSController::class, 'batchGenerate']);
 Route::post('/tts/check', [TTSController::class, 'checkGeneration']);
 Route::post('/tts/batch-check', [TTSController::class, 'batchCheck']);
+Route::get('/tts/audio/{language}/{type}/{speed}/{filename}', [TTSController::class, 'serveAudioWithSpeed']);
 Route::get('/tts/audio/{language}/{type}/{filename}', [TTSController::class, 'serveAudio']);
+Route::get('/tts/sentence/{language}/{md5}', [TTSController::class, 'serveSentenceByMd5']);
 Route::get('/tts/voices', [TTSController::class, 'getVoices']);
 Route::get('/tts/cache/stats', [TTSController::class, 'getCacheStats']);
 Route::post('/tts/cache/clear', [TTSController::class, 'clearCache']);
+
+Route::prefix('system/init')->group(function () {
+    Route::get('/status', [AppInitializationController::class, 'status']);
+    Route::get('/apps', [AppInitializationController::class, 'listApps']);
+    Route::post('/all', [AppInitializationController::class, 'initializeAll']);
+    Route::post('/{appName}', [AppInitializationController::class, 'initialize']);
+    Route::post('/{appName}/reset', [AppInitializationController::class, 'reset']);
+});

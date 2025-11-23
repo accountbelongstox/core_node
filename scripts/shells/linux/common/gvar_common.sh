@@ -914,6 +914,9 @@ GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 
 # Function to map paths based on environment (using get_base_data_directory)
+# SYNC WARNING: This function MUST be kept in sync with:
+# - Python version: pycore/pyfoundations/system_paths.py::map_web_path()
+# - All mappings must produce identical results across Shell and Python
 map_web_path() {
     local path_key="$1"
     local sub_path="$2"
@@ -941,6 +944,12 @@ map_web_path() {
     case "$path_key" in
         "wwwroot")
             mapped_path="$base_path/wwwroot"
+            ;;
+        "pycore_db")
+            mapped_path="$base_path/wwwroot/pycore_db"
+            ;;
+        "laravel_db")
+            mapped_path="$base_path/wwwroot/laravel_db"
             ;;
         "nginxconfig")
             mapped_path="$base_path/nginxconfig"
