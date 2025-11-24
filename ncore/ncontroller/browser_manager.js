@@ -38,16 +38,17 @@ class BrowserManager {
 
             // Initialize EnhancedPage for smart tab reuse
             const session = await this.singleton.getSession();
-            const browser = session.browser;
+            const browserWrapper = session.browser;
+            const nativeBrowser = browserWrapper.browser;
 
             // Get or create the first page
-            let pages = await browser.pages();
+            let pages = await nativeBrowser.pages();
             if (pages.length === 0) {
-                await browser.newPage();
-                pages = await browser.pages();
+                await nativeBrowser.newPage();
+                pages = await nativeBrowser.pages();
             }
 
-            this.enhancedPage = new EnhancedPage(pages[0], browser, {
+            this.enhancedPage = new EnhancedPage(pages[0], nativeBrowser, {
                 urlComparisonStrict: false
             });
             await this.enhancedPage.initialize();
