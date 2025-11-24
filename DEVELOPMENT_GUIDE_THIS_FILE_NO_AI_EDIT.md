@@ -14,7 +14,7 @@
 
 ### 1.1. Node Core Service Framework
 Located in `./ncore`, the framework runs on the latest Node.js version and exposes multiple entry points via the subdirectories inside `./apps`. Each entry can boot a dedicated app flow while reusing the capabilities provided by `ncore`.
-Development standards for `ncore` and `apps` live in `development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+Development standards for `ncore` and `apps` live in `development-guides/NODE_NCORE_GUIDE.md`.
 
 ### 1.2. Application Modules (`apps`)
 - **Core apps (`apps`)**: Everything under `apps/` is a business entry powered by `ncore`. Launch from the repo root using `node ./main.js app=appName`; the runtime automatically invokes `apps/appName/main.js` and calls its `start` method.
@@ -42,7 +42,7 @@ Development standards for `ncore` and `apps` live in `development-guides/NODE_NC
 - Read `development-guides/AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md` before running anything.
 
 ### 1.6. MCP (AI-MCP service)
-Development standards: `development-guides/MCPSERVER_GUIDE_THIS_FILE_NO_AI_EDIT.md`.
+Development standards: `development-guides/MCPSERVER_GUIDE.md`.
 
 ### 1.7. Python Core (`pycore`)
 Python core framework and utilities. Development guide: `development-guides/PYTHON_PYCORE.md`.

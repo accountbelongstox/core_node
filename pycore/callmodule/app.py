@@ -7,7 +7,7 @@ from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 
-from .routers import health_router, module_call_router, ocr_router, translator_router
+from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(module_call_router)
     app.include_router(ocr_router)
     app.include_router(translator_router)
+    app.include_router(mcp_router)  # MCP backend integrated routes
 
     @app.on_event("startup")
     async def startup_event():
@@ -56,9 +57,10 @@ def create_app() -> FastAPI:
         print("=" * 60)
         print("Pycore Module Caller FastAPI Server Started")
         print("=" * 60)
-        print(f"Dashboard:    http://{config.host}:{config.http_port}/docs")
-        print(f"Health check: http://{config.host}:{config.http_port}/health")
-        print(f"API endpoint: POST http://{config.host}:{config.http_port}/api/call")
+        print(f"Dashboard:     http://{config.host}:{config.http_port}/docs")
+        print(f"Health check:  http://{config.host}:{config.http_port}/health")
+        print(f"API endpoint:  POST http://{config.host}:{config.http_port}/api/call")
+        print(f"MCP Backend:   POST http://{config.host}:{config.http_port}/mcp/*")
         print("=" * 60)
 
     @app.on_event("shutdown")

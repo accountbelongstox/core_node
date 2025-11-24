@@ -1,0 +1,2006 @@
+{
+  "language": "ja",
+  "generated_at": "2025-11-22T21:30:01.166884+00:00",
+  "items": [
+    {
+      "id": "sentence_001",
+      "domain": "logistics",
+      "text": "私は 会議室のスケジュールを確認する必要があります",
+      "romanization": "watashi wa kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "confirm_meeting",
+        "text": "会議室のスケジュールを確認する必要があります",
+        "romanization": "kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and ensure the meeting space is available.",
+        "zh": "第一人称单数说话者，确认会议室是否有空。"
+      }
+    },
+    {
+      "id": "sentence_002",
+      "domain": "logistics",
+      "text": "私は 飲料水の配送状況を確認します",
+      "romanization": "watashi wa inryousui no haisou joukyou o kakunin shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "check_water_delivery",
+        "text": "飲料水の配送状況を確認します",
+        "romanization": "inryousui no haisou joukyou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and track hydration logistics.",
+        "zh": "第一人称单数说话者，追踪饮用水配送。"
+      }
+    },
+    {
+      "id": "sentence_003",
+      "domain": "training",
+      "text": "私は 安全マニュアルを見直す必要があります",
+      "romanization": "watashi wa anzen manyuaru o minaosu hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "review_safety_manual",
+        "text": "安全マニュアルを見直す必要があります",
+        "romanization": "anzen manyuaru o minaosu hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and keep the team aligned on safety steps.",
+        "zh": "第一人称单数说话者，保持团队对安全流程一致。"
+      }
+    },
+    {
+      "id": "sentence_004",
+      "domain": "logistics",
+      "text": "私は 移動ルートを手配する予定です",
+      "romanization": "watashi wa idou ruuto o tehai suru yotei desu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "arrange_transport",
+        "text": "移動ルートを手配する予定です",
+        "romanization": "idou ruuto o tehai suru yotei desu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and define how staff travels.",
+        "zh": "第一人称单数说话者，规划人员出行路线。"
+      }
+    },
+    {
+      "id": "sentence_005",
+      "domain": "inventory",
+      "text": "私は 在庫表を更新する必要があります",
+      "romanization": "watashi wa zaiko hyou o koushin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "update_inventory",
+        "text": "在庫表を更新する必要があります",
+        "romanization": "zaiko hyou o koushin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and keep supply records current.",
+        "zh": "第一人称单数说话者，保持供应记录最新。"
+      }
+    },
+    {
+      "id": "sentence_006",
+      "domain": "training",
+      "text": "私は ボランティア説明会を調整します",
+      "romanization": "watashi wa borantia setsumeikai o chousei shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "coordinate_briefing",
+        "text": "ボランティア説明会を調整します",
+        "romanization": "borantia setsumeikai o chousei shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and ensure volunteers hear the same instructions.",
+        "zh": "第一人称单数说话者，确保志愿者获得统一指导。"
+      }
+    },
+    {
+      "id": "sentence_007",
+      "domain": "health",
+      "text": "私は 医療物資の数量を確認します",
+      "romanization": "watashi wa iryou busshi no suuryou o kakunin shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "verify_medical_supplies",
+        "text": "医療物資の数量を確認します",
+        "romanization": "iryou busshi no suuryou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and confirm enough medicine is on hand.",
+        "zh": "第一人称单数说话者，确认医疗物资数量。"
+      }
+    },
+    {
+      "id": "sentence_008",
+      "domain": "communication",
+      "text": "私は 現地通訳を依頼する必要があります",
+      "romanization": "watashi wa genchi tsuuyaku o irai suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "request_translator",
+        "text": "現地通訳を依頼する必要があります",
+        "romanization": "genchi tsuuyaku o irai suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and secure language support.",
+        "zh": "第一人称单数说话者，确保语言支援。"
+      }
+    },
+    {
+      "id": "sentence_009",
+      "domain": "infrastructure",
+      "text": "私は 発電機の燃料を点検します",
+      "romanization": "watashi wa hatsudenki no nenryou o tenken shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "inspect_generator",
+        "text": "発電機の燃料を点検します",
+        "romanization": "hatsudenki no nenryou o tenken shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and prevent unexpected outages.",
+        "zh": "第一人称单数说话者，防止发电机停机。"
+      }
+    },
+    {
+      "id": "sentence_010",
+      "domain": "research",
+      "text": "私は 地域調査票を準備します",
+      "romanization": "watashi wa chiiki chousahyou o junbi shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "prepare_survey",
+        "text": "地域調査票を準備します",
+        "romanization": "chiiki chousahyou o junbi shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and ready feedback tools.",
+        "zh": "第一人称单数说话者，准备社区调研表。"
+      }
+    },
+    {
+      "id": "sentence_011",
+      "domain": "health",
+      "text": "私は 移動クリニックを準備します",
+      "romanization": "watashi wa idou kurinikku o junbi shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "organize_clinic",
+        "text": "移動クリニックを準備します",
+        "romanization": "idou kurinikku o junbi shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and set up outreach health services.",
+        "zh": "第一人称单数说话者，筹备流动诊所。"
+      }
+    },
+    {
+      "id": "sentence_012",
+      "domain": "safety",
+      "text": "私は 気象警報を監視します",
+      "romanization": "watashi wa kishou keihou o kanshi shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "monitor_weather",
+        "text": "気象警報を監視します",
+        "romanization": "kishou keihou o kanshi shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and keep tabs on upcoming storms.",
+        "zh": "第一人称单数说话者，关注天气预警。"
+      }
+    },
+    {
+      "id": "sentence_013",
+      "domain": "infrastructure",
+      "text": "私は 機材保管場所を確保します",
+      "romanization": "watashi wa kizai hokan basho o kakuho shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "secure_storage",
+        "text": "機材保管場所を確保します",
+        "romanization": "kizai hokan basho o kakuho shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and protect critical tools.",
+        "zh": "第一人称单数说话者，保障设备存放安全。"
+      }
+    },
+    {
+      "id": "sentence_014",
+      "domain": "finance",
+      "text": "私は 予算報告書を最終確定します",
+      "romanization": "watashi wa yosan houkokusho o saishuu kakutei shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "finalize_budget",
+        "text": "予算報告書を最終確定します",
+        "romanization": "yosan houkokusho o saishuu kakutei shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and lock the financial summary.",
+        "zh": "第一人称单数说话者，敲定财政汇总。"
+      }
+    },
+    {
+      "id": "sentence_015",
+      "domain": "logistics",
+      "text": "私は 川の渡河計画を立てます",
+      "romanization": "watashi wa kawa no toka keikaku o tatemasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "plan_river_crossing",
+        "text": "川の渡河計画を立てます",
+        "romanization": "kawa no toka keikaku o tatemasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and prepare for terrain challenges.",
+        "zh": "第一人称单数说话者，提前规划渡河。"
+      }
+    },
+    {
+      "id": "sentence_016",
+      "domain": "training",
+      "text": "私は 研修後のフィードバックを記録します",
+      "romanization": "watashi wa kenshuugo no fiidobakku o kiroku shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "document_feedback",
+        "text": "研修後のフィードバックを記録します",
+        "romanization": "kenshuugo no fiidobakku o kiroku shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and capture lessons learned.",
+        "zh": "第一人称单数说话者，记录培训反馈。"
+      }
+    },
+    {
+      "id": "sentence_017",
+      "domain": "communication",
+      "text": "私は フォローアップの連絡を予定します",
+      "romanization": "watashi wa foro appu no renraku o yotei shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "schedule_followup",
+        "text": "フォローアップの連絡を予定します",
+        "romanization": "foro appu no renraku o yotei shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and keep communication open.",
+        "zh": "第一人称单数说话者，安排后续沟通。"
+      }
+    },
+    {
+      "id": "sentence_018",
+      "domain": "infrastructure",
+      "text": "私は 携帯センサーを校正します",
+      "romanization": "watashi wa keitai sensaa o kousei shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "calibrate_sensors",
+        "text": "携帯センサーを校正します",
+        "romanization": "keitai sensaa o kousei shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and keep readings accurate.",
+        "zh": "第一人称单数说话者，保持测量准确。"
+      }
+    },
+    {
+      "id": "sentence_019",
+      "domain": "communication",
+      "text": "私は 地域への注意喚起チラシを配布します",
+      "romanization": "watashi wa chiiki e no chuui kanki chirashi o haifu shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "distribute_flyers",
+        "text": "地域への注意喚起チラシを配布します",
+        "romanization": "chiiki e no chuui kanki chirashi o haifu shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and spread key warnings.",
+        "zh": "第一人称单数说话者，分发提醒宣传单。"
+      }
+    },
+    {
+      "id": "sentence_020",
+      "domain": "compliance",
+      "text": "私は 税関書類を提出します",
+      "romanization": "watashi wa zeikan shorui o teishutsu shimasu",
+      "subject": {
+        "id": "subj_i",
+        "text": "私は",
+        "romanization": "watashi wa"
+      },
+      "predicate": {
+        "id": "submit_customs",
+        "text": "税関書類を提出します",
+        "romanization": "zeikan shorui o teishutsu shimasu"
+      },
+      "explanations": {
+        "en": "First person singular speaker and complete border requirements.",
+        "zh": "第一人称单数说话者，完成海关申报。"
+      }
+    },
+    {
+      "id": "sentence_021",
+      "domain": "logistics",
+      "text": "あなたは 会議室のスケジュールを確認する必要があります",
+      "romanization": "anata wa kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "confirm_meeting",
+        "text": "会議室のスケジュールを確認する必要があります",
+        "romanization": "kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and ensure the meeting space is available.",
+        "zh": "直接第二人称，确认会议室是否有空。"
+      }
+    },
+    {
+      "id": "sentence_022",
+      "domain": "logistics",
+      "text": "あなたは 飲料水の配送状況を確認します",
+      "romanization": "anata wa inryousui no haisou joukyou o kakunin shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "check_water_delivery",
+        "text": "飲料水の配送状況を確認します",
+        "romanization": "inryousui no haisou joukyou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and track hydration logistics.",
+        "zh": "直接第二人称，追踪饮用水配送。"
+      }
+    },
+    {
+      "id": "sentence_023",
+      "domain": "training",
+      "text": "あなたは 安全マニュアルを見直す必要があります",
+      "romanization": "anata wa anzen manyuaru o minaosu hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "review_safety_manual",
+        "text": "安全マニュアルを見直す必要があります",
+        "romanization": "anzen manyuaru o minaosu hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and keep the team aligned on safety steps.",
+        "zh": "直接第二人称，保持团队对安全流程一致。"
+      }
+    },
+    {
+      "id": "sentence_024",
+      "domain": "logistics",
+      "text": "あなたは 移動ルートを手配する予定です",
+      "romanization": "anata wa idou ruuto o tehai suru yotei desu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "arrange_transport",
+        "text": "移動ルートを手配する予定です",
+        "romanization": "idou ruuto o tehai suru yotei desu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and define how staff travels.",
+        "zh": "直接第二人称，规划人员出行路线。"
+      }
+    },
+    {
+      "id": "sentence_025",
+      "domain": "inventory",
+      "text": "あなたは 在庫表を更新する必要があります",
+      "romanization": "anata wa zaiko hyou o koushin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "update_inventory",
+        "text": "在庫表を更新する必要があります",
+        "romanization": "zaiko hyou o koushin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and keep supply records current.",
+        "zh": "直接第二人称，保持供应记录最新。"
+      }
+    },
+    {
+      "id": "sentence_026",
+      "domain": "training",
+      "text": "あなたは ボランティア説明会を調整します",
+      "romanization": "anata wa borantia setsumeikai o chousei shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "coordinate_briefing",
+        "text": "ボランティア説明会を調整します",
+        "romanization": "borantia setsumeikai o chousei shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and ensure volunteers hear the same instructions.",
+        "zh": "直接第二人称，确保志愿者获得统一指导。"
+      }
+    },
+    {
+      "id": "sentence_027",
+      "domain": "health",
+      "text": "あなたは 医療物資の数量を確認します",
+      "romanization": "anata wa iryou busshi no suuryou o kakunin shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "verify_medical_supplies",
+        "text": "医療物資の数量を確認します",
+        "romanization": "iryou busshi no suuryou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and confirm enough medicine is on hand.",
+        "zh": "直接第二人称，确认医疗物资数量。"
+      }
+    },
+    {
+      "id": "sentence_028",
+      "domain": "communication",
+      "text": "あなたは 現地通訳を依頼する必要があります",
+      "romanization": "anata wa genchi tsuuyaku o irai suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "request_translator",
+        "text": "現地通訳を依頼する必要があります",
+        "romanization": "genchi tsuuyaku o irai suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and secure language support.",
+        "zh": "直接第二人称，确保语言支援。"
+      }
+    },
+    {
+      "id": "sentence_029",
+      "domain": "infrastructure",
+      "text": "あなたは 発電機の燃料を点検します",
+      "romanization": "anata wa hatsudenki no nenryou o tenken shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "inspect_generator",
+        "text": "発電機の燃料を点検します",
+        "romanization": "hatsudenki no nenryou o tenken shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and prevent unexpected outages.",
+        "zh": "直接第二人称，防止发电机停机。"
+      }
+    },
+    {
+      "id": "sentence_030",
+      "domain": "research",
+      "text": "あなたは 地域調査票を準備します",
+      "romanization": "anata wa chiiki chousahyou o junbi shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "prepare_survey",
+        "text": "地域調査票を準備します",
+        "romanization": "chiiki chousahyou o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and ready feedback tools.",
+        "zh": "直接第二人称，准备社区调研表。"
+      }
+    },
+    {
+      "id": "sentence_031",
+      "domain": "health",
+      "text": "あなたは 移動クリニックを準備します",
+      "romanization": "anata wa idou kurinikku o junbi shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "organize_clinic",
+        "text": "移動クリニックを準備します",
+        "romanization": "idou kurinikku o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and set up outreach health services.",
+        "zh": "直接第二人称，筹备流动诊所。"
+      }
+    },
+    {
+      "id": "sentence_032",
+      "domain": "safety",
+      "text": "あなたは 気象警報を監視します",
+      "romanization": "anata wa kishou keihou o kanshi shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "monitor_weather",
+        "text": "気象警報を監視します",
+        "romanization": "kishou keihou o kanshi shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and keep tabs on upcoming storms.",
+        "zh": "直接第二人称，关注天气预警。"
+      }
+    },
+    {
+      "id": "sentence_033",
+      "domain": "infrastructure",
+      "text": "あなたは 機材保管場所を確保します",
+      "romanization": "anata wa kizai hokan basho o kakuho shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "secure_storage",
+        "text": "機材保管場所を確保します",
+        "romanization": "kizai hokan basho o kakuho shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and protect critical tools.",
+        "zh": "直接第二人称，保障设备存放安全。"
+      }
+    },
+    {
+      "id": "sentence_034",
+      "domain": "finance",
+      "text": "あなたは 予算報告書を最終確定します",
+      "romanization": "anata wa yosan houkokusho o saishuu kakutei shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "finalize_budget",
+        "text": "予算報告書を最終確定します",
+        "romanization": "yosan houkokusho o saishuu kakutei shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and lock the financial summary.",
+        "zh": "直接第二人称，敲定财政汇总。"
+      }
+    },
+    {
+      "id": "sentence_035",
+      "domain": "logistics",
+      "text": "あなたは 川の渡河計画を立てます",
+      "romanization": "anata wa kawa no toka keikaku o tatemasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "plan_river_crossing",
+        "text": "川の渡河計画を立てます",
+        "romanization": "kawa no toka keikaku o tatemasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and prepare for terrain challenges.",
+        "zh": "直接第二人称，提前规划渡河。"
+      }
+    },
+    {
+      "id": "sentence_036",
+      "domain": "training",
+      "text": "あなたは 研修後のフィードバックを記録します",
+      "romanization": "anata wa kenshuugo no fiidobakku o kiroku shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "document_feedback",
+        "text": "研修後のフィードバックを記録します",
+        "romanization": "kenshuugo no fiidobakku o kiroku shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and capture lessons learned.",
+        "zh": "直接第二人称，记录培训反馈。"
+      }
+    },
+    {
+      "id": "sentence_037",
+      "domain": "communication",
+      "text": "あなたは フォローアップの連絡を予定します",
+      "romanization": "anata wa foro appu no renraku o yotei shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "schedule_followup",
+        "text": "フォローアップの連絡を予定します",
+        "romanization": "foro appu no renraku o yotei shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and keep communication open.",
+        "zh": "直接第二人称，安排后续沟通。"
+      }
+    },
+    {
+      "id": "sentence_038",
+      "domain": "infrastructure",
+      "text": "あなたは 携帯センサーを校正します",
+      "romanization": "anata wa keitai sensaa o kousei shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "calibrate_sensors",
+        "text": "携帯センサーを校正します",
+        "romanization": "keitai sensaa o kousei shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and keep readings accurate.",
+        "zh": "直接第二人称，保持测量准确。"
+      }
+    },
+    {
+      "id": "sentence_039",
+      "domain": "communication",
+      "text": "あなたは 地域への注意喚起チラシを配布します",
+      "romanization": "anata wa chiiki e no chuui kanki chirashi o haifu shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "distribute_flyers",
+        "text": "地域への注意喚起チラシを配布します",
+        "romanization": "chiiki e no chuui kanki chirashi o haifu shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and spread key warnings.",
+        "zh": "直接第二人称，分发提醒宣传单。"
+      }
+    },
+    {
+      "id": "sentence_040",
+      "domain": "compliance",
+      "text": "あなたは 税関書類を提出します",
+      "romanization": "anata wa zeikan shorui o teishutsu shimasu",
+      "subject": {
+        "id": "subj_you",
+        "text": "あなたは",
+        "romanization": "anata wa"
+      },
+      "predicate": {
+        "id": "submit_customs",
+        "text": "税関書類を提出します",
+        "romanization": "zeikan shorui o teishutsu shimasu"
+      },
+      "explanations": {
+        "en": "Direct second person counterpart and complete border requirements.",
+        "zh": "直接第二人称，完成海关申报。"
+      }
+    },
+    {
+      "id": "sentence_041",
+      "domain": "logistics",
+      "text": "私たちは 会議室のスケジュールを確認する必要があります",
+      "romanization": "watashitachi wa kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "confirm_meeting",
+        "text": "会議室のスケジュールを確認する必要があります",
+        "romanization": "kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and ensure the meeting space is available.",
+        "zh": "第一人称复数，确认会议室是否有空。"
+      }
+    },
+    {
+      "id": "sentence_042",
+      "domain": "logistics",
+      "text": "私たちは 飲料水の配送状況を確認します",
+      "romanization": "watashitachi wa inryousui no haisou joukyou o kakunin shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "check_water_delivery",
+        "text": "飲料水の配送状況を確認します",
+        "romanization": "inryousui no haisou joukyou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and track hydration logistics.",
+        "zh": "第一人称复数，追踪饮用水配送。"
+      }
+    },
+    {
+      "id": "sentence_043",
+      "domain": "training",
+      "text": "私たちは 安全マニュアルを見直す必要があります",
+      "romanization": "watashitachi wa anzen manyuaru o minaosu hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "review_safety_manual",
+        "text": "安全マニュアルを見直す必要があります",
+        "romanization": "anzen manyuaru o minaosu hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and keep the team aligned on safety steps.",
+        "zh": "第一人称复数，保持团队对安全流程一致。"
+      }
+    },
+    {
+      "id": "sentence_044",
+      "domain": "logistics",
+      "text": "私たちは 移動ルートを手配する予定です",
+      "romanization": "watashitachi wa idou ruuto o tehai suru yotei desu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "arrange_transport",
+        "text": "移動ルートを手配する予定です",
+        "romanization": "idou ruuto o tehai suru yotei desu"
+      },
+      "explanations": {
+        "en": "Collective first person and define how staff travels.",
+        "zh": "第一人称复数，规划人员出行路线。"
+      }
+    },
+    {
+      "id": "sentence_045",
+      "domain": "inventory",
+      "text": "私たちは 在庫表を更新する必要があります",
+      "romanization": "watashitachi wa zaiko hyou o koushin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "update_inventory",
+        "text": "在庫表を更新する必要があります",
+        "romanization": "zaiko hyou o koushin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and keep supply records current.",
+        "zh": "第一人称复数，保持供应记录最新。"
+      }
+    },
+    {
+      "id": "sentence_046",
+      "domain": "training",
+      "text": "私たちは ボランティア説明会を調整します",
+      "romanization": "watashitachi wa borantia setsumeikai o chousei shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "coordinate_briefing",
+        "text": "ボランティア説明会を調整します",
+        "romanization": "borantia setsumeikai o chousei shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and ensure volunteers hear the same instructions.",
+        "zh": "第一人称复数，确保志愿者获得统一指导。"
+      }
+    },
+    {
+      "id": "sentence_047",
+      "domain": "health",
+      "text": "私たちは 医療物資の数量を確認します",
+      "romanization": "watashitachi wa iryou busshi no suuryou o kakunin shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "verify_medical_supplies",
+        "text": "医療物資の数量を確認します",
+        "romanization": "iryou busshi no suuryou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and confirm enough medicine is on hand.",
+        "zh": "第一人称复数，确认医疗物资数量。"
+      }
+    },
+    {
+      "id": "sentence_048",
+      "domain": "communication",
+      "text": "私たちは 現地通訳を依頼する必要があります",
+      "romanization": "watashitachi wa genchi tsuuyaku o irai suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "request_translator",
+        "text": "現地通訳を依頼する必要があります",
+        "romanization": "genchi tsuuyaku o irai suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and secure language support.",
+        "zh": "第一人称复数，确保语言支援。"
+      }
+    },
+    {
+      "id": "sentence_049",
+      "domain": "infrastructure",
+      "text": "私たちは 発電機の燃料を点検します",
+      "romanization": "watashitachi wa hatsudenki no nenryou o tenken shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "inspect_generator",
+        "text": "発電機の燃料を点検します",
+        "romanization": "hatsudenki no nenryou o tenken shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and prevent unexpected outages.",
+        "zh": "第一人称复数，防止发电机停机。"
+      }
+    },
+    {
+      "id": "sentence_050",
+      "domain": "research",
+      "text": "私たちは 地域調査票を準備します",
+      "romanization": "watashitachi wa chiiki chousahyou o junbi shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "prepare_survey",
+        "text": "地域調査票を準備します",
+        "romanization": "chiiki chousahyou o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and ready feedback tools.",
+        "zh": "第一人称复数，准备社区调研表。"
+      }
+    },
+    {
+      "id": "sentence_051",
+      "domain": "health",
+      "text": "私たちは 移動クリニックを準備します",
+      "romanization": "watashitachi wa idou kurinikku o junbi shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "organize_clinic",
+        "text": "移動クリニックを準備します",
+        "romanization": "idou kurinikku o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and set up outreach health services.",
+        "zh": "第一人称复数，筹备流动诊所。"
+      }
+    },
+    {
+      "id": "sentence_052",
+      "domain": "safety",
+      "text": "私たちは 気象警報を監視します",
+      "romanization": "watashitachi wa kishou keihou o kanshi shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "monitor_weather",
+        "text": "気象警報を監視します",
+        "romanization": "kishou keihou o kanshi shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and keep tabs on upcoming storms.",
+        "zh": "第一人称复数，关注天气预警。"
+      }
+    },
+    {
+      "id": "sentence_053",
+      "domain": "infrastructure",
+      "text": "私たちは 機材保管場所を確保します",
+      "romanization": "watashitachi wa kizai hokan basho o kakuho shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "secure_storage",
+        "text": "機材保管場所を確保します",
+        "romanization": "kizai hokan basho o kakuho shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and protect critical tools.",
+        "zh": "第一人称复数，保障设备存放安全。"
+      }
+    },
+    {
+      "id": "sentence_054",
+      "domain": "finance",
+      "text": "私たちは 予算報告書を最終確定します",
+      "romanization": "watashitachi wa yosan houkokusho o saishuu kakutei shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "finalize_budget",
+        "text": "予算報告書を最終確定します",
+        "romanization": "yosan houkokusho o saishuu kakutei shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and lock the financial summary.",
+        "zh": "第一人称复数，敲定财政汇总。"
+      }
+    },
+    {
+      "id": "sentence_055",
+      "domain": "logistics",
+      "text": "私たちは 川の渡河計画を立てます",
+      "romanization": "watashitachi wa kawa no toka keikaku o tatemasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "plan_river_crossing",
+        "text": "川の渡河計画を立てます",
+        "romanization": "kawa no toka keikaku o tatemasu"
+      },
+      "explanations": {
+        "en": "Collective first person and prepare for terrain challenges.",
+        "zh": "第一人称复数，提前规划渡河。"
+      }
+    },
+    {
+      "id": "sentence_056",
+      "domain": "training",
+      "text": "私たちは 研修後のフィードバックを記録します",
+      "romanization": "watashitachi wa kenshuugo no fiidobakku o kiroku shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "document_feedback",
+        "text": "研修後のフィードバックを記録します",
+        "romanization": "kenshuugo no fiidobakku o kiroku shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and capture lessons learned.",
+        "zh": "第一人称复数，记录培训反馈。"
+      }
+    },
+    {
+      "id": "sentence_057",
+      "domain": "communication",
+      "text": "私たちは フォローアップの連絡を予定します",
+      "romanization": "watashitachi wa foro appu no renraku o yotei shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "schedule_followup",
+        "text": "フォローアップの連絡を予定します",
+        "romanization": "foro appu no renraku o yotei shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and keep communication open.",
+        "zh": "第一人称复数，安排后续沟通。"
+      }
+    },
+    {
+      "id": "sentence_058",
+      "domain": "infrastructure",
+      "text": "私たちは 携帯センサーを校正します",
+      "romanization": "watashitachi wa keitai sensaa o kousei shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "calibrate_sensors",
+        "text": "携帯センサーを校正します",
+        "romanization": "keitai sensaa o kousei shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and keep readings accurate.",
+        "zh": "第一人称复数，保持测量准确。"
+      }
+    },
+    {
+      "id": "sentence_059",
+      "domain": "communication",
+      "text": "私たちは 地域への注意喚起チラシを配布します",
+      "romanization": "watashitachi wa chiiki e no chuui kanki chirashi o haifu shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "distribute_flyers",
+        "text": "地域への注意喚起チラシを配布します",
+        "romanization": "chiiki e no chuui kanki chirashi o haifu shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and spread key warnings.",
+        "zh": "第一人称复数，分发提醒宣传单。"
+      }
+    },
+    {
+      "id": "sentence_060",
+      "domain": "compliance",
+      "text": "私たちは 税関書類を提出します",
+      "romanization": "watashitachi wa zeikan shorui o teishutsu shimasu",
+      "subject": {
+        "id": "subj_we",
+        "text": "私たちは",
+        "romanization": "watashitachi wa"
+      },
+      "predicate": {
+        "id": "submit_customs",
+        "text": "税関書類を提出します",
+        "romanization": "zeikan shorui o teishutsu shimasu"
+      },
+      "explanations": {
+        "en": "Collective first person and complete border requirements.",
+        "zh": "第一人称复数，完成海关申报。"
+      }
+    },
+    {
+      "id": "sentence_061",
+      "domain": "logistics",
+      "text": "かれらは 会議室のスケジュールを確認する必要があります",
+      "romanization": "karera wa kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "confirm_meeting",
+        "text": "会議室のスケジュールを確認する必要があります",
+        "romanization": "kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and ensure the meeting space is available.",
+        "zh": "第三人称复数，确认会议室是否有空。"
+      }
+    },
+    {
+      "id": "sentence_062",
+      "domain": "logistics",
+      "text": "かれらは 飲料水の配送状況を確認します",
+      "romanization": "karera wa inryousui no haisou joukyou o kakunin shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "check_water_delivery",
+        "text": "飲料水の配送状況を確認します",
+        "romanization": "inryousui no haisou joukyou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and track hydration logistics.",
+        "zh": "第三人称复数，追踪饮用水配送。"
+      }
+    },
+    {
+      "id": "sentence_063",
+      "domain": "training",
+      "text": "かれらは 安全マニュアルを見直す必要があります",
+      "romanization": "karera wa anzen manyuaru o minaosu hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "review_safety_manual",
+        "text": "安全マニュアルを見直す必要があります",
+        "romanization": "anzen manyuaru o minaosu hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and keep the team aligned on safety steps.",
+        "zh": "第三人称复数，保持团队对安全流程一致。"
+      }
+    },
+    {
+      "id": "sentence_064",
+      "domain": "logistics",
+      "text": "かれらは 移動ルートを手配する予定です",
+      "romanization": "karera wa idou ruuto o tehai suru yotei desu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "arrange_transport",
+        "text": "移動ルートを手配する予定です",
+        "romanization": "idou ruuto o tehai suru yotei desu"
+      },
+      "explanations": {
+        "en": "Third person plural group and define how staff travels.",
+        "zh": "第三人称复数，规划人员出行路线。"
+      }
+    },
+    {
+      "id": "sentence_065",
+      "domain": "inventory",
+      "text": "かれらは 在庫表を更新する必要があります",
+      "romanization": "karera wa zaiko hyou o koushin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "update_inventory",
+        "text": "在庫表を更新する必要があります",
+        "romanization": "zaiko hyou o koushin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and keep supply records current.",
+        "zh": "第三人称复数，保持供应记录最新。"
+      }
+    },
+    {
+      "id": "sentence_066",
+      "domain": "training",
+      "text": "かれらは ボランティア説明会を調整します",
+      "romanization": "karera wa borantia setsumeikai o chousei shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "coordinate_briefing",
+        "text": "ボランティア説明会を調整します",
+        "romanization": "borantia setsumeikai o chousei shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and ensure volunteers hear the same instructions.",
+        "zh": "第三人称复数，确保志愿者获得统一指导。"
+      }
+    },
+    {
+      "id": "sentence_067",
+      "domain": "health",
+      "text": "かれらは 医療物資の数量を確認します",
+      "romanization": "karera wa iryou busshi no suuryou o kakunin shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "verify_medical_supplies",
+        "text": "医療物資の数量を確認します",
+        "romanization": "iryou busshi no suuryou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and confirm enough medicine is on hand.",
+        "zh": "第三人称复数，确认医疗物资数量。"
+      }
+    },
+    {
+      "id": "sentence_068",
+      "domain": "communication",
+      "text": "かれらは 現地通訳を依頼する必要があります",
+      "romanization": "karera wa genchi tsuuyaku o irai suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "request_translator",
+        "text": "現地通訳を依頼する必要があります",
+        "romanization": "genchi tsuuyaku o irai suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and secure language support.",
+        "zh": "第三人称复数，确保语言支援。"
+      }
+    },
+    {
+      "id": "sentence_069",
+      "domain": "infrastructure",
+      "text": "かれらは 発電機の燃料を点検します",
+      "romanization": "karera wa hatsudenki no nenryou o tenken shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "inspect_generator",
+        "text": "発電機の燃料を点検します",
+        "romanization": "hatsudenki no nenryou o tenken shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and prevent unexpected outages.",
+        "zh": "第三人称复数，防止发电机停机。"
+      }
+    },
+    {
+      "id": "sentence_070",
+      "domain": "research",
+      "text": "かれらは 地域調査票を準備します",
+      "romanization": "karera wa chiiki chousahyou o junbi shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "prepare_survey",
+        "text": "地域調査票を準備します",
+        "romanization": "chiiki chousahyou o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and ready feedback tools.",
+        "zh": "第三人称复数，准备社区调研表。"
+      }
+    },
+    {
+      "id": "sentence_071",
+      "domain": "health",
+      "text": "かれらは 移動クリニックを準備します",
+      "romanization": "karera wa idou kurinikku o junbi shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "organize_clinic",
+        "text": "移動クリニックを準備します",
+        "romanization": "idou kurinikku o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and set up outreach health services.",
+        "zh": "第三人称复数，筹备流动诊所。"
+      }
+    },
+    {
+      "id": "sentence_072",
+      "domain": "safety",
+      "text": "かれらは 気象警報を監視します",
+      "romanization": "karera wa kishou keihou o kanshi shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "monitor_weather",
+        "text": "気象警報を監視します",
+        "romanization": "kishou keihou o kanshi shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and keep tabs on upcoming storms.",
+        "zh": "第三人称复数，关注天气预警。"
+      }
+    },
+    {
+      "id": "sentence_073",
+      "domain": "infrastructure",
+      "text": "かれらは 機材保管場所を確保します",
+      "romanization": "karera wa kizai hokan basho o kakuho shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "secure_storage",
+        "text": "機材保管場所を確保します",
+        "romanization": "kizai hokan basho o kakuho shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and protect critical tools.",
+        "zh": "第三人称复数，保障设备存放安全。"
+      }
+    },
+    {
+      "id": "sentence_074",
+      "domain": "finance",
+      "text": "かれらは 予算報告書を最終確定します",
+      "romanization": "karera wa yosan houkokusho o saishuu kakutei shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "finalize_budget",
+        "text": "予算報告書を最終確定します",
+        "romanization": "yosan houkokusho o saishuu kakutei shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and lock the financial summary.",
+        "zh": "第三人称复数，敲定财政汇总。"
+      }
+    },
+    {
+      "id": "sentence_075",
+      "domain": "logistics",
+      "text": "かれらは 川の渡河計画を立てます",
+      "romanization": "karera wa kawa no toka keikaku o tatemasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "plan_river_crossing",
+        "text": "川の渡河計画を立てます",
+        "romanization": "kawa no toka keikaku o tatemasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and prepare for terrain challenges.",
+        "zh": "第三人称复数，提前规划渡河。"
+      }
+    },
+    {
+      "id": "sentence_076",
+      "domain": "training",
+      "text": "かれらは 研修後のフィードバックを記録します",
+      "romanization": "karera wa kenshuugo no fiidobakku o kiroku shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "document_feedback",
+        "text": "研修後のフィードバックを記録します",
+        "romanization": "kenshuugo no fiidobakku o kiroku shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and capture lessons learned.",
+        "zh": "第三人称复数，记录培训反馈。"
+      }
+    },
+    {
+      "id": "sentence_077",
+      "domain": "communication",
+      "text": "かれらは フォローアップの連絡を予定します",
+      "romanization": "karera wa foro appu no renraku o yotei shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "schedule_followup",
+        "text": "フォローアップの連絡を予定します",
+        "romanization": "foro appu no renraku o yotei shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and keep communication open.",
+        "zh": "第三人称复数，安排后续沟通。"
+      }
+    },
+    {
+      "id": "sentence_078",
+      "domain": "infrastructure",
+      "text": "かれらは 携帯センサーを校正します",
+      "romanization": "karera wa keitai sensaa o kousei shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "calibrate_sensors",
+        "text": "携帯センサーを校正します",
+        "romanization": "keitai sensaa o kousei shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and keep readings accurate.",
+        "zh": "第三人称复数，保持测量准确。"
+      }
+    },
+    {
+      "id": "sentence_079",
+      "domain": "communication",
+      "text": "かれらは 地域への注意喚起チラシを配布します",
+      "romanization": "karera wa chiiki e no chuui kanki chirashi o haifu shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "distribute_flyers",
+        "text": "地域への注意喚起チラシを配布します",
+        "romanization": "chiiki e no chuui kanki chirashi o haifu shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and spread key warnings.",
+        "zh": "第三人称复数，分发提醒宣传单。"
+      }
+    },
+    {
+      "id": "sentence_080",
+      "domain": "compliance",
+      "text": "かれらは 税関書類を提出します",
+      "romanization": "karera wa zeikan shorui o teishutsu shimasu",
+      "subject": {
+        "id": "subj_they",
+        "text": "かれらは",
+        "romanization": "karera wa"
+      },
+      "predicate": {
+        "id": "submit_customs",
+        "text": "税関書類を提出します",
+        "romanization": "zeikan shorui o teishutsu shimasu"
+      },
+      "explanations": {
+        "en": "Third person plural group and complete border requirements.",
+        "zh": "第三人称复数，完成海关申报。"
+      }
+    },
+    {
+      "id": "sentence_081",
+      "domain": "logistics",
+      "text": "彼女は 会議室のスケジュールを確認する必要があります",
+      "romanization": "kanojo wa kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "confirm_meeting",
+        "text": "会議室のスケジュールを確認する必要があります",
+        "romanization": "kaigishitsu no sukejuuru o kakunin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and ensure the meeting space is available.",
+        "zh": "特定女性主语，确认会议室是否有空。"
+      }
+    },
+    {
+      "id": "sentence_082",
+      "domain": "logistics",
+      "text": "彼女は 飲料水の配送状況を確認します",
+      "romanization": "kanojo wa inryousui no haisou joukyou o kakunin shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "check_water_delivery",
+        "text": "飲料水の配送状況を確認します",
+        "romanization": "inryousui no haisou joukyou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and track hydration logistics.",
+        "zh": "特定女性主语，追踪饮用水配送。"
+      }
+    },
+    {
+      "id": "sentence_083",
+      "domain": "training",
+      "text": "彼女は 安全マニュアルを見直す必要があります",
+      "romanization": "kanojo wa anzen manyuaru o minaosu hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "review_safety_manual",
+        "text": "安全マニュアルを見直す必要があります",
+        "romanization": "anzen manyuaru o minaosu hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and keep the team aligned on safety steps.",
+        "zh": "特定女性主语，保持团队对安全流程一致。"
+      }
+    },
+    {
+      "id": "sentence_084",
+      "domain": "logistics",
+      "text": "彼女は 移動ルートを手配する予定です",
+      "romanization": "kanojo wa idou ruuto o tehai suru yotei desu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "arrange_transport",
+        "text": "移動ルートを手配する予定です",
+        "romanization": "idou ruuto o tehai suru yotei desu"
+      },
+      "explanations": {
+        "en": "Specific female subject and define how staff travels.",
+        "zh": "特定女性主语，规划人员出行路线。"
+      }
+    },
+    {
+      "id": "sentence_085",
+      "domain": "inventory",
+      "text": "彼女は 在庫表を更新する必要があります",
+      "romanization": "kanojo wa zaiko hyou o koushin suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "update_inventory",
+        "text": "在庫表を更新する必要があります",
+        "romanization": "zaiko hyou o koushin suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and keep supply records current.",
+        "zh": "特定女性主语，保持供应记录最新。"
+      }
+    },
+    {
+      "id": "sentence_086",
+      "domain": "training",
+      "text": "彼女は ボランティア説明会を調整します",
+      "romanization": "kanojo wa borantia setsumeikai o chousei shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "coordinate_briefing",
+        "text": "ボランティア説明会を調整します",
+        "romanization": "borantia setsumeikai o chousei shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and ensure volunteers hear the same instructions.",
+        "zh": "特定女性主语，确保志愿者获得统一指导。"
+      }
+    },
+    {
+      "id": "sentence_087",
+      "domain": "health",
+      "text": "彼女は 医療物資の数量を確認します",
+      "romanization": "kanojo wa iryou busshi no suuryou o kakunin shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "verify_medical_supplies",
+        "text": "医療物資の数量を確認します",
+        "romanization": "iryou busshi no suuryou o kakunin shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and confirm enough medicine is on hand.",
+        "zh": "特定女性主语，确认医疗物资数量。"
+      }
+    },
+    {
+      "id": "sentence_088",
+      "domain": "communication",
+      "text": "彼女は 現地通訳を依頼する必要があります",
+      "romanization": "kanojo wa genchi tsuuyaku o irai suru hitsuyou ga arimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "request_translator",
+        "text": "現地通訳を依頼する必要があります",
+        "romanization": "genchi tsuuyaku o irai suru hitsuyou ga arimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and secure language support.",
+        "zh": "特定女性主语，确保语言支援。"
+      }
+    },
+    {
+      "id": "sentence_089",
+      "domain": "infrastructure",
+      "text": "彼女は 発電機の燃料を点検します",
+      "romanization": "kanojo wa hatsudenki no nenryou o tenken shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "inspect_generator",
+        "text": "発電機の燃料を点検します",
+        "romanization": "hatsudenki no nenryou o tenken shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and prevent unexpected outages.",
+        "zh": "特定女性主语，防止发电机停机。"
+      }
+    },
+    {
+      "id": "sentence_090",
+      "domain": "research",
+      "text": "彼女は 地域調査票を準備します",
+      "romanization": "kanojo wa chiiki chousahyou o junbi shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "prepare_survey",
+        "text": "地域調査票を準備します",
+        "romanization": "chiiki chousahyou o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and ready feedback tools.",
+        "zh": "特定女性主语，准备社区调研表。"
+      }
+    },
+    {
+      "id": "sentence_091",
+      "domain": "health",
+      "text": "彼女は 移動クリニックを準備します",
+      "romanization": "kanojo wa idou kurinikku o junbi shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "organize_clinic",
+        "text": "移動クリニックを準備します",
+        "romanization": "idou kurinikku o junbi shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and set up outreach health services.",
+        "zh": "特定女性主语，筹备流动诊所。"
+      }
+    },
+    {
+      "id": "sentence_092",
+      "domain": "safety",
+      "text": "彼女は 気象警報を監視します",
+      "romanization": "kanojo wa kishou keihou o kanshi shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "monitor_weather",
+        "text": "気象警報を監視します",
+        "romanization": "kishou keihou o kanshi shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and keep tabs on upcoming storms.",
+        "zh": "特定女性主语，关注天气预警。"
+      }
+    },
+    {
+      "id": "sentence_093",
+      "domain": "infrastructure",
+      "text": "彼女は 機材保管場所を確保します",
+      "romanization": "kanojo wa kizai hokan basho o kakuho shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "secure_storage",
+        "text": "機材保管場所を確保します",
+        "romanization": "kizai hokan basho o kakuho shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and protect critical tools.",
+        "zh": "特定女性主语，保障设备存放安全。"
+      }
+    },
+    {
+      "id": "sentence_094",
+      "domain": "finance",
+      "text": "彼女は 予算報告書を最終確定します",
+      "romanization": "kanojo wa yosan houkokusho o saishuu kakutei shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "finalize_budget",
+        "text": "予算報告書を最終確定します",
+        "romanization": "yosan houkokusho o saishuu kakutei shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and lock the financial summary.",
+        "zh": "特定女性主语，敲定财政汇总。"
+      }
+    },
+    {
+      "id": "sentence_095",
+      "domain": "logistics",
+      "text": "彼女は 川の渡河計画を立てます",
+      "romanization": "kanojo wa kawa no toka keikaku o tatemasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "plan_river_crossing",
+        "text": "川の渡河計画を立てます",
+        "romanization": "kawa no toka keikaku o tatemasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and prepare for terrain challenges.",
+        "zh": "特定女性主语，提前规划渡河。"
+      }
+    },
+    {
+      "id": "sentence_096",
+      "domain": "training",
+      "text": "彼女は 研修後のフィードバックを記録します",
+      "romanization": "kanojo wa kenshuugo no fiidobakku o kiroku shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "document_feedback",
+        "text": "研修後のフィードバックを記録します",
+        "romanization": "kenshuugo no fiidobakku o kiroku shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and capture lessons learned.",
+        "zh": "特定女性主语，记录培训反馈。"
+      }
+    },
+    {
+      "id": "sentence_097",
+      "domain": "communication",
+      "text": "彼女は フォローアップの連絡を予定します",
+      "romanization": "kanojo wa foro appu no renraku o yotei shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "schedule_followup",
+        "text": "フォローアップの連絡を予定します",
+        "romanization": "foro appu no renraku o yotei shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and keep communication open.",
+        "zh": "特定女性主语，安排后续沟通。"
+      }
+    },
+    {
+      "id": "sentence_098",
+      "domain": "infrastructure",
+      "text": "彼女は 携帯センサーを校正します",
+      "romanization": "kanojo wa keitai sensaa o kousei shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "calibrate_sensors",
+        "text": "携帯センサーを校正します",
+        "romanization": "keitai sensaa o kousei shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and keep readings accurate.",
+        "zh": "特定女性主语，保持测量准确。"
+      }
+    },
+    {
+      "id": "sentence_099",
+      "domain": "communication",
+      "text": "彼女は 地域への注意喚起チラシを配布します",
+      "romanization": "kanojo wa chiiki e no chuui kanki chirashi o haifu shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "distribute_flyers",
+        "text": "地域への注意喚起チラシを配布します",
+        "romanization": "chiiki e no chuui kanki chirashi o haifu shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and spread key warnings.",
+        "zh": "特定女性主语，分发提醒宣传单。"
+      }
+    },
+    {
+      "id": "sentence_100",
+      "domain": "compliance",
+      "text": "彼女は 税関書類を提出します",
+      "romanization": "kanojo wa zeikan shorui o teishutsu shimasu",
+      "subject": {
+        "id": "subj_she",
+        "text": "彼女は",
+        "romanization": "kanojo wa"
+      },
+      "predicate": {
+        "id": "submit_customs",
+        "text": "税関書類を提出します",
+        "romanization": "zeikan shorui o teishutsu shimasu"
+      },
+      "explanations": {
+        "en": "Specific female subject and complete border requirements.",
+        "zh": "特定女性主语，完成海关申报。"
+      }
+    }
+  ]
+}

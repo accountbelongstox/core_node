@@ -1,0 +1,398 @@
+{
+  "language": "lo",
+  "generated_at": "2025-11-22T22:05:25.313877+00:00+00:00",
+  "items": [
+    {
+      "order": 8001,
+      "term": "yellow",
+      "romanization": "yellow",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yellow",
+        "zh": "老挝语翻译: yellow"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8002,
+      "term": "yes",
+      "romanization": "yes",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yes",
+        "zh": "老挝语翻译: yes"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8003,
+      "term": "yeah",
+      "romanization": "yeah",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yeah",
+        "zh": "老挝语翻译: yeah"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8004,
+      "term": "yesterday",
+      "romanization": "yesterday",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yesterday",
+        "zh": "老挝语翻译: yesterday"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8005,
+      "term": "yet",
+      "romanization": "yet",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yet",
+        "zh": "老挝语翻译: yet"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8006,
+      "term": "yield",
+      "romanization": "yield",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yield",
+        "zh": "老挝语翻译: yield"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8007,
+      "term": "yoga",
+      "romanization": "yoga",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yoga",
+        "zh": "老挝语翻译: yoga"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8008,
+      "term": "yoghurt",
+      "romanization": "yoghurt",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yoghurt",
+        "zh": "老挝语翻译: yoghurt"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8009,
+      "term": "you",
+      "romanization": "you",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: you",
+        "zh": "老挝语翻译: you"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8010,
+      "term": "young",
+      "romanization": "young",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: young",
+        "zh": "老挝语翻译: young"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8011,
+      "term": "youngster",
+      "romanization": "youngster",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: youngster",
+        "zh": "老挝语翻译: youngster"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8012,
+      "term": "your",
+      "romanization": "your",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: your",
+        "zh": "老挝语翻译: your"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8013,
+      "term": "yours",
+      "romanization": "yours",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yours",
+        "zh": "老挝语翻译: yours"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8014,
+      "term": "yourself",
+      "romanization": "yourself",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yourself",
+        "zh": "老挝语翻译: yourself"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8015,
+      "term": "yourselves",
+      "romanization": "yourselves",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: yourselves",
+        "zh": "老挝语翻译: yourselves"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8016,
+      "term": "youth",
+      "romanization": "youth",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: youth",
+        "zh": "老挝语翻译: youth"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8017,
+      "term": "youthful",
+      "romanization": "youthful",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: youthful",
+        "zh": "老挝语翻译: youthful"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8018,
+      "term": "zeal",
+      "romanization": "zeal",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zeal",
+        "zh": "老挝语翻译: zeal"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8019,
+      "term": "zealous",
+      "romanization": "zealous",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zealous",
+        "zh": "老挝语翻译: zealous"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8020,
+      "term": "zero",
+      "romanization": "zero",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zero",
+        "zh": "老挝语翻译: zero"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8021,
+      "term": "zigzag",
+      "romanization": "zigzag",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zigzag",
+        "zh": "老挝语翻译: zigzag"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8022,
+      "term": "zip",
+      "romanization": "zip",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zip",
+        "zh": "老挝语翻译: zip"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8023,
+      "term": "zipper",
+      "romanization": "zipper",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zipper",
+        "zh": "老挝语翻译: zipper"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8024,
+      "term": "zone",
+      "romanization": "zone",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zone",
+        "zh": "老挝语翻译: zone"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8025,
+      "term": "zoo",
+      "romanization": "zoo",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zoo",
+        "zh": "老挝语翻译: zoo"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8026,
+      "term": "zoology",
+      "romanization": "zoology",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zoology",
+        "zh": "老挝语翻译: zoology"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8027,
+      "term": "zoological",
+      "romanization": "zoological",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zoological",
+        "zh": "老挝语翻译: zoological"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    },
+    {
+      "order": 8028,
+      "term": "zoom",
+      "romanization": "zoom",
+      "ipa": null,
+      "meaning": {
+        "en": "Lao translation of: zoom",
+        "zh": "老挝语翻译: zoom"
+      },
+      "notes": {
+        "en": "Common Lao vocabulary pronunciation guide",
+        "zh": "常见老挝语词汇读音指南"
+      }
+    }
+  ]
+}

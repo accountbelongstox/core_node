@@ -366,6 +366,61 @@ class ConfigManager:
                 'SmartRecognition': {
                     'Enabled': False
                 }
+            },
+            'Local Test Credentials': {
+                'Common': 'local_test',
+                'DisplayName': 'Local Test Credentials',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'LOCAL_TEST_PASSWORD',
+                        'DisplayName': 'Local Test Password',
+                        'Description': 'Password for local testing environment',
+                        'InputType': 'Password',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_API_KEY',
+                        'DisplayName': 'Local Test API Key',
+                        'Description': 'API Key for local testing',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_SECRET_KEY',
+                        'DisplayName': 'Local Test Secret Key',
+                        'Description': 'Secret Key for local testing',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_ENCRYPTION_KEY',
+                        'DisplayName': 'Local Test Encryption Key',
+                        'Description': 'Encryption Key for local testing (32 bytes hex)',
+                        'InputType': 'Token',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_JWT_SECRET',
+                        'DisplayName': 'Local Test JWT Secret',
+                        'Description': 'JWT Secret for local testing authentication',
+                        'InputType': 'Token',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_DB_PASSWORD',
+                        'DisplayName': 'Local Test Database Password',
+                        'Description': 'Database password for local testing',
+                        'InputType': 'Password',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
             }
         }
 

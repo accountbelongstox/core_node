@@ -1,0 +1,76 @@
+{
+  "language": "ja",
+  "generated_at": "2025-11-22T21:30:01.166884+00:00",
+  "items": [
+    {
+      "order": 1,
+      "term": "ありがとう",
+      "romanization": "arigatou",
+      "ipa": null,
+      "meaning": {
+        "en": "thank you",
+        "zh": "谢谢"
+      },
+      "notes": {
+        "en": "Common Japanese reading aid.",
+        "zh": "常见Japanese词汇读音。"
+      }
+    },
+    {
+      "order": 2,
+      "term": "おはよう",
+      "romanization": "ohayou",
+      "ipa": null,
+      "meaning": {
+        "en": "good morning",
+        "zh": "早上好"
+      },
+      "notes": {
+        "en": "Common Japanese reading aid.",
+        "zh": "常见Japanese词汇读音。"
+      }
+    },
+    {
+      "order": 3,
+      "term": "すみません",
+      "romanization": "sumimasen",
+      "ipa": null,
+      "meaning": {
+        "en": "excuse me",
+        "zh": "对不起/劳驾"
+      },
+      "notes": {
+        "en": "Common Japanese reading aid.",
+        "zh": "常见Japanese词汇读音。"
+      }
+    },
+    {
+      "order": 4,
+      "term": "お願いします",
+      "romanization": "onegaishimasu",
+      "ipa": null,
+      "meaning": {
+        "en": "please",
+        "zh": "拜托"
+      },
+      "notes": {
+        "en": "Common Japanese reading aid.",
+        "zh": "常见Japanese词汇读音。"
+      }
+    },
+    {
+      "order": 5,
+      "term": "大丈夫",
+      "romanization": "daijoubu",
+      "ipa": null,
+      "meaning": {
+        "en": "it's fine",
+        "zh": "没问题"
+      },
+      "notes": {
+        "en": "Common Japanese reading aid.",
+        "zh": "常见Japanese词汇读音。"
+      }
+    }
+  ]
+}

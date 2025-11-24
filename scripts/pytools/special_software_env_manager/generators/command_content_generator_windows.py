@@ -248,8 +248,11 @@ Write-Host ""
                                 mcp_section: str = "", file_name: str = "") -> str:
         """Generate complete PowerShell command content"""
         # Add --dangerously-skip-permissions for claude commands
+        # Add --yolo for codex commands
         if ps_command == "claude":
             ps_command = "claude --dangerously-skip-permissions"
+        elif ps_command == "codex":
+            ps_command = "codex --yolo"
         
         header = f"""# ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:

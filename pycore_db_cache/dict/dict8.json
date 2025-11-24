@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.255093+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "bean",
+        "laos": "ຫມາກຖົ່ວ",
+        "jp": "豆",
+        "vie": "hạt đậu",
+        "en_pronunciation": "/bin/",
+        "laos_pronunciation": "makthov",
+        "jp_pronunciation": "mame",
+        "vie_pronunciation": "hat dau"
+      },
+      "means": {
+        "en": "Any of various edible seeds of plants of the family Leguminosae used for food",
+        "zh": "任何用于食品的豆科植物的各种可食用种子"
+      }
+    },
+    {
+      "word": {
+        "en": "bear",
+        "laos": "ຮັບຜິດຊອບ",
+        "jp": "クマ",
+        "vie": "gấu",
+        "en_pronunciation": "/bɛr/",
+        "laos_pronunciation": "habphidsob",
+        "jp_pronunciation": "kuma",
+        "vie_pronunciation": "gau"
+      },
+      "means": {
+        "en": "Massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+        "zh": "大型跖行肉食性或杂食性哺乳动物，有长长的毛茸茸的皮毛和强壮的爪子"
+      }
+    },
+    {
+      "word": {
+        "en": "beard",
+        "laos": "ໄລ່ຈັບຫນວດ",
+        "jp": "ひげ",
+        "vie": "râu",
+        "en_pronunciation": "/bɪrd/",
+        "laos_pronunciation": "lai chabnuad",
+        "jp_pronunciation": "hige",
+        "vie_pronunciation": "rau"
+      },
+      "means": {
+        "en": "The hair growing on the lower part of a man's face",
+        "zh": "男人脸下部长的头发"
+      }
+    },
+    {
+      "word": {
+        "en": "bearing",
+        "laos": "ທີ່ຮັບຜິດຊອບ",
+        "jp": "ベアリング",
+        "vie": "mang",
+        "en_pronunciation": "/ˈbɛrɪŋ/",
+        "laos_pronunciation": "thihabphidsob",
+        "jp_pronunciation": "bearingu",
+        "vie_pronunciation": "mang"
+      },
+      "means": {
+        "en": "Relevant relation or interconnection",
+        "zh": "相关关系或相互联系"
+      }
+    },
+    {
+      "word": {
+        "en": "beast",
+        "laos": "ສັດຮ້າຍ",
+        "jp": "獣",
+        "vie": "con thú",
+        "en_pronunciation": "/bist/",
+        "laos_pronunciation": "sadhai",
+        "jp_pronunciation": "kemono",
+        "vie_pronunciation": "con thu"
+      },
+      "means": {
+        "en": "A living organism characterized by voluntary movement",
+        "zh": "以随意运动为特征的活有机体"
+      }
+    },
+    {
+      "word": {
+        "en": "beat",
+        "laos": "ຕີ",
+        "jp": "ビート",
+        "vie": "đánh bại",
+        "en_pronunciation": "/bit/",
+        "laos_pronunciation": "ti",
+        "jp_pronunciation": "biito",
+        "vie_pronunciation": "danh bai"
+      },
+      "means": {
+        "en": "A regular route for a sentry or policeman",
+        "zh": "哨兵或警察的常规路线"
+      }
+    },
+    {
+      "word": {
+        "en": "beauty",
+        "laos": "ຄວາມງາມ",
+        "jp": "美しさ",
+        "vie": "sắc đẹp",
+        "en_pronunciation": "/ˈbjuti/",
+        "laos_pronunciation": "khuaamngam",
+        "jp_pronunciation": "utsukushisa",
+        "vie_pronunciation": "sac dep"
+      },
+      "means": {
+        "en": "The qualities that give pleasure to the senses",
+        "zh": "带来感官愉悦的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "because",
+        "laos": "ເພາະວ່າ",
+        "jp": "なぜなら",
+        "vie": "bởi vì",
+        "en_pronunciation": "/bɪˈkəz/",
+        "laos_pronunciation": "phova",
+        "jp_pronunciation": "nazenara",
+        "vie_pronunciation": "boi vi"
+      },
+      "means": {
+        "en": "Because is an English word referring to 'because'.",
+        "zh": "因为是一个英语单词，指的是“因为”。"
+      }
+    },
+    {
+      "word": {
+        "en": "beautiful",
+        "laos": "ສວຍງາມ",
+        "jp": "美しい",
+        "vie": "đẹp",
+        "en_pronunciation": "/ˈbjutəfəl/",
+        "laos_pronunciation": "suanyngam",
+        "jp_pronunciation": "utsukushii",
+        "vie_pronunciation": "dep"
+      },
+      "means": {
+        "en": "Delighting the senses or exciting intellectual or emotional admiration",
+        "zh": "愉悦感官或激发智力或情感上的钦佩"
+      }
+    },
+    {
+      "word": {
+        "en": "beautify",
+        "laos": "ເສີມຄວາມ",
+        "jp": "美化する",
+        "vie": "làm đẹp",
+        "en_pronunciation": "/ˈbjutɪˌfaɪ/",
+        "laos_pronunciation": "soemkhuaam",
+        "jp_pronunciation": "bika suru",
+        "vie_pronunciation": "lam dep"
+      },
+      "means": {
+        "en": "Make more beautiful",
+        "zh": "让更美丽"
+      }
+    },
+    {
+      "word": {
+        "en": "beckon",
+        "laos": "ຂິງ",
+        "jp": "手招きする",
+        "vie": "vẫy gọi",
+        "en_pronunciation": "/ˈbɛkən/",
+        "laos_pronunciation": "khing",
+        "jp_pronunciation": "temaneki suru",
+        "vie_pronunciation": "vay goi"
+      },
+      "means": {
+        "en": "Signal with the hands or nod",
+        "zh": "用手或点头示意"
+      }
+    },
+    {
+      "word": {
+        "en": "become",
+        "laos": "ກາຍເປັນ",
+        "jp": "なる",
+        "vie": "trở thành",
+        "en_pronunciation": "/bɪˈkəm/",
+        "laos_pronunciation": "kaipen",
+        "jp_pronunciation": "naru",
+        "vie_pronunciation": "tro thanh"
+      },
+      "means": {
+        "en": "Enter or assume a certain state or condition",
+        "zh": "进入或假定某种状态或条件"
+      }
+    },
+    {
+      "word": {
+        "en": "bed",
+        "laos": "ຕຽງ",
+        "jp": "ベッド",
+        "vie": "giường",
+        "en_pronunciation": "/bɛd/",
+        "laos_pronunciation": "tiang",
+        "jp_pronunciation": "beddo",
+        "vie_pronunciation": "giuong"
+      },
+      "means": {
+        "en": "A piece of furniture that provides a place to sleep",
+        "zh": "一件提供睡眠场所的家具"
+      }
+    },
+    {
+      "word": {
+        "en": "bee",
+        "laos": "ເຜິ້ງ",
+        "jp": "蜂",
+        "vie": "con ong",
+        "en_pronunciation": "/bi/",
+        "laos_pronunciation": "phoeng",
+        "jp_pronunciation": "hachi",
+        "vie_pronunciation": "con ong"
+      },
+      "means": {
+        "en": "Any of numerous hairy-bodied insects including social and solitary species",
+        "zh": "众多有毛昆虫的任一种，包括群居和独居物种"
+      }
+    },
+    {
+      "word": {
+        "en": "bedding",
+        "laos": "ໂຮດປ້າ",
+        "jp": "寝具",
+        "vie": "bộ đồ giường",
+        "en_pronunciation": "/ˈbɛdɪŋ/",
+        "laos_pronunciation": "ohdpa",
+        "jp_pronunciation": "shingu",
+        "vie_pronunciation": "bo do giuong"
+      },
+      "means": {
+        "en": "Coverings that are used on a bed",
+        "zh": "床上使用的覆盖物"
+      }
+    },
+    {
+      "word": {
+        "en": "beef",
+        "laos": "ຊີ້ນງົວ",
+        "jp": "牛肉",
+        "vie": "thịt bò",
+        "en_pronunciation": "/bif/",
+        "laos_pronunciation": "sinngua",
+        "jp_pronunciation": "gyuuniku",
+        "vie_pronunciation": "thit bo"
+      },
+      "means": {
+        "en": "Cattle that are reared for their meat",
+        "zh": "为获取肉而饲养的牛"
+      }
+    },
+    {
+      "word": {
+        "en": "beer",
+        "laos": "ເຄື່ອງເບຍ",
+        "jp": "ビール",
+        "vie": "bia",
+        "en_pronunciation": "/bɪr/",
+        "laos_pronunciation": "kheuongbia",
+        "jp_pronunciation": "biiru",
+        "vie_pronunciation": "bia"
+      },
+      "means": {
+        "en": "A general name for alcoholic beverages made by fermenting a cereal (or mixture of cereals) flavored with hops",
+        "zh": "通过发酵用啤酒花调味的谷物（或谷物混合物）制成的酒精饮料的总称"
+      }
+    },
+    {
+      "word": {
+        "en": "beetle",
+        "laos": "ແມງ",
+        "jp": "カブトムシ",
+        "vie": "bọ cánh cứng",
+        "en_pronunciation": "/ˈbitəl/",
+        "laos_pronunciation": "aemng",
+        "jp_pronunciation": "kabutomushi",
+        "vie_pronunciation": "bo canh cung"
+      },
+      "means": {
+        "en": "Insect having biting mouthparts and front wings modified to form horny covers overlying the membranous rear wings",
+        "zh": "昆虫的咬口器和前翅经过改造，形成覆盖在膜质后翅上的角质层"
+      }
+    },
+    {
+      "word": {
+        "en": "before",
+        "laos": "ທີ່ຈະ",
+        "jp": "前に",
+        "vie": "trước đây",
+        "en_pronunciation": "/ˌbiˈfɔr/",
+        "laos_pronunciation": "thicha",
+        "jp_pronunciation": "mae ni",
+        "vie_pronunciation": "truoc day"
+      },
+      "means": {
+        "en": "Earlier in time; previously",
+        "zh": "时间较早；"
+      }
+    },
+    {
+      "word": {
+        "en": "beforehand",
+        "laos": "ລ່ວງຫນ້າ",
+        "jp": "事前に",
+        "vie": "trước",
+        "en_pronunciation": "/bɪˈfɔˌrhænd/",
+        "laos_pronunciation": "luangna",
+        "jp_pronunciation": "jizen ni",
+        "vie_pronunciation": "truoc"
+      },
+      "means": {
+        "en": "Being ahead of time or need",
+        "zh": "以前"
+      }
+    },
+    {
+      "word": {
+        "en": "beg",
+        "laos": "ຂໍຮ້ອງ",
+        "jp": "懇願する",
+        "vie": "ăn xin",
+        "en_pronunciation": "/bɛg/",
+        "laos_pronunciation": "khohong",
+        "jp_pronunciation": "kongan suru",
+        "vie_pronunciation": "an xin"
+      },
+      "means": {
+        "en": "Call upon in supplication; entreat",
+        "zh": "提前或需要"
+      }
+    },
+    {
+      "word": {
+        "en": "beggar",
+        "laos": "ຜູ້ຢິງຂໍທານ",
+        "jp": "乞食",
+        "vie": "người ăn xin",
+        "en_pronunciation": "/ˈbɛgər/",
+        "laos_pronunciation": "phu yingkhothan",
+        "jp_pronunciation": "kojiki",
+        "vie_pronunciation": "nguoi an xin"
+      },
+      "means": {
+        "en": "A pauper who lives by begging",
+        "zh": "恳求呼求；"
+      }
+    },
+    {
+      "word": {
+        "en": "begin",
+        "laos": "ເລີ້ມຕົ້ນ",
+        "jp": "始める",
+        "vie": "bắt đầu",
+        "en_pronunciation": "/bɪˈgɪn/",
+        "laos_pronunciation": "loemton",
+        "jp_pronunciation": "hajime ru",
+        "vie_pronunciation": "bat dau"
+      },
+      "means": {
+        "en": "Israeli statesman (born in Russia) who (as prime minister of Israel) negotiated a peace treaty with Anwar Sadat (then the president of Egypt) (1913-1992)",
+        "zh": "恳求"
+      }
+    },
+    {
+      "word": {
+        "en": "beginning",
+        "laos": "ຈຸດເລີ່ມຕົ້ນ",
+        "jp": "始まり",
+        "vie": "sự khởi đầu",
+        "en_pronunciation": "/bɪˈgɪnɪŋ/",
+        "laos_pronunciation": "chudloemton",
+        "jp_pronunciation": "hajimari",
+        "vie_pronunciation": "su khoi dau"
+      },
+      "means": {
+        "en": "The event consisting of the start of something",
+        "zh": "一个靠乞讨为生的乞丐"
+      }
+    },
+    {
+      "word": {
+        "en": "behalf",
+        "laos": "ສາຢ",
+        "jp": "代理して",
+        "vie": "thay mặt",
+        "en_pronunciation": "/bɪˈhæf/",
+        "laos_pronunciation": "say",
+        "jp_pronunciation": "dairi shite",
+        "vie_pronunciation": "thay mat"
+      },
+      "means": {
+        "en": "As the agent of or on someone's part (usually expressed as  rather than )",
+        "zh": "以色列政治家（出生于俄罗斯），（作为以色列总理）与安瓦尔·萨达特（当时的埃及总统）谈判和平条约（1913-1992）"
+      }
+    },
+    {
+      "word": {
+        "en": "behave",
+        "laos": "ປະຕິບັດຕົວ",
+        "jp": "振る舞う",
+        "vie": "cư xử",
+        "en_pronunciation": "/bɪˈheɪv/",
+        "laos_pronunciation": "patibadtua",
+        "jp_pronunciation": "furu mau",
+        "vie_pronunciation": "cu xu"
+      },
+      "means": {
+        "en": "Behave in a certain manner; show a certain behavior; conduct or comport oneself",
+        "zh": "由某事的开始组成的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "behavior",
+        "laos": "ການປະພຶດ",
+        "jp": "行動",
+        "vie": "hành vi",
+        "en_pronunciation": "/bɪˈheɪvjər/",
+        "laos_pronunciation": "kanpaphud",
+        "jp_pronunciation": "koudou",
+        "vie_pronunciation": "hanh vi"
+      },
+      "means": {
+        "en": "Manner of acting or controlling yourself",
+        "zh": "作为某人的代理人或代表某人（通常表示为而不是）"
+      }
+    },
+    {
+      "word": {
+        "en": "behaviour",
+        "laos": "ການປະພຶດ",
+        "jp": "行動",
+        "vie": "hành vi",
+        "en_pronunciation": "/bɪˈheɪvjər/",
+        "laos_pronunciation": "kanpaphud",
+        "jp_pronunciation": "koudou",
+        "vie_pronunciation": "hanh vi"
+      },
+      "means": {
+        "en": "The action or reaction of something (as a machine or substance) under specified circumstances",
+        "zh": "以某种方式行事；"
+      }
+    },
+    {
+      "word": {
+        "en": "behavioral",
+        "laos": "ການປະພຶດ",
+        "jp": "行動的な",
+        "vie": "hành vi",
+        "en_pronunciation": "/bɪˈheɪvjərəl/",
+        "laos_pronunciation": "kanpaphud",
+        "jp_pronunciation": "koudou tekina",
+        "vie_pronunciation": "hanh vi"
+      },
+      "means": {
+        "en": "Of or relating to behavior",
+        "zh": "表现出某种行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "behavioural",
+        "laos": "ການປະພຶດ",
+        "jp": "行動的な",
+        "vie": "hành vi",
+        "en_pronunciation": "/behavioural/",
+        "laos_pronunciation": "kanpaphud",
+        "jp_pronunciation": "koudou tekina",
+        "vie_pronunciation": "hanh vi"
+      },
+      "means": {
+        "en": "Of or relating to behavior",
+        "zh": "行为或举止"
+      }
+    },
+    {
+      "word": {
+        "en": "behind",
+        "laos": "ທາງຫລັງ",
+        "jp": "後ろに",
+        "vie": "đằng sau",
+        "en_pronunciation": "/bɪˈhaɪnd/",
+        "laos_pronunciation": "thanglang",
+        "jp_pronunciation": "ushiro ni",
+        "vie_pronunciation": "dang sau"
+      },
+      "means": {
+        "en": "The fleshy part of the human body that you sit on",
+        "zh": "行事或控制自己的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "being",
+        "laos": "ເປັນ",
+        "jp": "であること",
+        "vie": "được",
+        "en_pronunciation": "/biɪŋ/",
+        "laos_pronunciation": "pen",
+        "jp_pronunciation": "dearukoto",
+        "vie_pronunciation": "duoc"
+      },
+      "means": {
+        "en": "The state or fact of existing",
+        "zh": "某物（如机器或物质）在特定情况下的动作或反应"
+      }
+    },
+    {
+      "word": {
+        "en": "belief",
+        "laos": "ຄວາມເຊື່ອ",
+        "jp": "信念",
+        "vie": "niềm tin",
+        "en_pronunciation": "/bɪˈlif/",
+        "laos_pronunciation": "khuaamseu",
+        "jp_pronunciation": "shinnen",
+        "vie_pronunciation": "niem tin"
+      },
+      "means": {
+        "en": "Any cognitive content held as true",
+        "zh": "属于或与行为有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "believe",
+        "laos": "ເຊື່ອ",
+        "jp": "信じる",
+        "vie": "tin tưởng",
+        "en_pronunciation": "/bɪˈliv/",
+        "laos_pronunciation": "seu",
+        "jp_pronunciation": "shinji ru",
+        "vie_pronunciation": "tin tuong"
+      },
+      "means": {
+        "en": "Accept as true; take to be true",
+        "zh": "属于或与行为有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "bell",
+        "laos": "ລະຄັງ",
+        "jp": "ベル",
+        "vie": "chuông",
+        "en_pronunciation": "/bɛl/",
+        "laos_pronunciation": "lakhang",
+        "jp_pronunciation": "beru",
+        "vie_pronunciation": "chuong"
+      },
+      "means": {
+        "en": "A hollow device made of metal that makes a ringing sound when struck",
+        "zh": "你坐的人体的肉质部分"
+      }
+    },
+    {
+      "word": {
+        "en": "belly",
+        "laos": "ທ້ອງ",
+        "jp": "腹",
+        "vie": "bụng",
+        "en_pronunciation": "/ˈbɛli/",
+        "laos_pronunciation": "thong",
+        "jp_pronunciation": "hara",
+        "vie_pronunciation": "bung"
+      },
+      "means": {
+        "en": "The region of the body of a vertebrate between the thorax and the pelvis",
+        "zh": "现有的状态或事实"
+      }
+    },
+    {
+      "word": {
+        "en": "belong",
+        "laos": "ເປັນຂອງ",
+        "jp": "所属する",
+        "vie": "thuộc về",
+        "en_pronunciation": "/bɪˈlɔŋ/",
+        "laos_pronunciation": "penkhong",
+        "jp_pronunciation": "shozoku suru",
+        "vie_pronunciation": "thuoc ve"
+      },
+      "means": {
+        "en": "Be owned by; be in the possession of",
+        "zh": "任何认知内容都被视为真实"
+      }
+    },
+    {
+      "word": {
+        "en": "belongings",
+        "laos": "ສິ່ງຂອງ",
+        "jp": "持ち物",
+        "vie": "đồ đạc",
+        "en_pronunciation": "/bɪˈlɔŋɪŋz/",
+        "laos_pronunciation": "singkhong",
+        "jp_pronunciation": "mochimono",
+        "vie_pronunciation": "do dac"
+      },
+      "means": {
+        "en": "Something owned; any tangible or intangible possession that is owned by someone",
+        "zh": "接受为真；"
+      }
+    },
+    {
+      "word": {
+        "en": "beloved",
+        "laos": "ຊູ້ເຂິ່ນ",
+        "jp": "愛する人",
+        "vie": "người yêu dấu",
+        "en_pronunciation": "/bɪˈləvəd/",
+        "laos_pronunciation": "su khoen",
+        "jp_pronunciation": "aisu ru nin",
+        "vie_pronunciation": "nguoi yeu dau"
+      },
+      "means": {
+        "en": "A beloved person; used as terms of endearment",
+        "zh": "认为是真的"
+      }
+    },
+    {
+      "word": {
+        "en": "below",
+        "laos": "ດ້ານລຸ່ມ",
+        "jp": "以下",
+        "vie": "bên dưới",
+        "en_pronunciation": "/bɪˈloʊ/",
+        "laos_pronunciation": "danlum",
+        "jp_pronunciation": "ika",
+        "vie_pronunciation": "ben duoi"
+      },
+      "means": {
+        "en": "In or to a place that is lower",
+        "zh": "一种由金属制成的中空装置，敲击时会发出清脆的声音"
+      }
+    },
+    {
+      "word": {
+        "en": "belt",
+        "laos": "ສາຍແອວ",
+        "jp": "ベルト",
+        "vie": "vành đai",
+        "en_pronunciation": "/bɛlt/",
+        "laos_pronunciation": "saiaeov",
+        "jp_pronunciation": "beruto",
+        "vie_pronunciation": "vanh dai"
+      },
+      "means": {
+        "en": "Endless loop of flexible material between two rotating shafts or pulleys",
+        "zh": "脊椎动物身体胸部和骨盆之间的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "bench",
+        "laos": "ຕັ່ງຍາວ",
+        "jp": "ベンチ",
+        "vie": "băng ghế dự bị",
+        "en_pronunciation": "/bɛnʧ/",
+        "laos_pronunciation": "tangnyav",
+        "jp_pronunciation": "benchi",
+        "vie_pronunciation": "bang ghe du bi"
+      },
+      "means": {
+        "en": "A long seat for more than one person",
+        "zh": "被拥有；"
+      }
+    },
+    {
+      "word": {
+        "en": "bend",
+        "laos": "ງໍ",
+        "jp": "曲げる",
+        "vie": "uốn cong",
+        "en_pronunciation": "/bɛnd/",
+        "laos_pronunciation": "ngo",
+        "jp_pronunciation": "mage ru",
+        "vie_pronunciation": "uon cong"
+      },
+      "means": {
+        "en": "A circular segment of a curve",
+        "zh": "拥有"
+      }
+    },
+    {
+      "word": {
+        "en": "beneath",
+        "laos": "ຢູ່ໃຕ້",
+        "jp": "下に",
+        "vie": "bên dưới",
+        "en_pronunciation": "/bɪˈniθ/",
+        "laos_pronunciation": "yutai",
+        "jp_pronunciation": "shitani",
+        "vie_pronunciation": "ben duoi"
+      },
+      "means": {
+        "en": "In or to a place that is lower",
+        "zh": "拥有的东西；"
+      }
+    },
+    {
+      "word": {
+        "en": "benefit",
+        "laos": "ຜົນປະໂຫຍດ",
+        "jp": "利益",
+        "vie": "lợi ích",
+        "en_pronunciation": "/ˈbɛnəfɪt/",
+        "laos_pronunciation": "phonpaojd",
+        "jp_pronunciation": "rieki",
+        "vie_pronunciation": "loi ich"
+      },
+      "means": {
+        "en": "Financial assistance in time of need",
+        "zh": "某人拥有的任何有形或无形财产"
+      }
+    },
+    {
+      "word": {
+        "en": "beneficial",
+        "laos": "ປະໂຍດຊະນະ",
+        "jp": "有益な",
+        "vie": "có lợi",
+        "en_pronunciation": "/ˌbɛnəˈfɪʃəl/",
+        "laos_pronunciation": "paonydsana",
+        "jp_pronunciation": "yuueki na",
+        "vie_pronunciation": "co loi"
+      },
+      "means": {
+        "en": "Promoting or enhancing well-being",
+        "zh": "一个心爱的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "beneficiary",
+        "laos": "ຜູ້ຢິງຮັບປະໂຫຢດ",
+        "jp": "受益者",
+        "vie": "người thụ hưởng",
+        "en_pronunciation": "/ˌbɛnəˈfɪʃiˌɛri/",
+        "laos_pronunciation": "phu ying hab pa ohyd",
+        "jp_pronunciation": "juekisha",
+        "vie_pronunciation": "nguoi thu huong"
+      },
+      "means": {
+        "en": "The recipient of funds or other benefits",
+        "zh": "用作表达爱意的词语"
+      }
+    },
+    {
+      "word": {
+        "en": "benevolent",
+        "laos": "ມີຄວາມເມດຕາ",
+        "jp": "慈悲深い",
+        "vie": "nhân từ",
+        "en_pronunciation": "/bəˈnɛvələnt/",
+        "laos_pronunciation": "mikhuaammedta",
+        "jp_pronunciation": "jihi fukai",
+        "vie_pronunciation": "nhan tu"
+      },
+      "means": {
+        "en": "Intending or showing kindness",
+        "zh": "在或到较低的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "benevolence",
+        "laos": "ກຸສັດ",
+        "jp": "慈悲",
+        "vie": "lòng nhân từ",
+        "en_pronunciation": "/bəˈnɛvələns/",
+        "laos_pronunciation": "kusad",
+        "jp_pronunciation": "jihi",
+        "vie_pronunciation": "long nhan tu"
+      },
+      "means": {
+        "en": "Disposition to do good",
+        "zh": "两个旋转轴或滑轮之间的柔性材料的无限环"
+      }
+    },
+    {
+      "word": {
+        "en": "benign",
+        "laos": "ຂ້າພະເຈົ້າ",
+        "jp": "良性の",
+        "vie": "lành tính",
+        "en_pronunciation": "/bɪˈnaɪn/",
+        "laos_pronunciation": "khaphachao",
+        "jp_pronunciation": "ryousei no",
+        "vie_pronunciation": "lanh tinh"
+      },
+      "means": {
+        "en": "Not dangerous to health; not recurrent or progressive (especially of a tumor)",
+        "zh": "长座位可供多人使用"
+      }
+    },
+    {
+      "word": {
+        "en": "berry",
+        "laos": "ຫມາກໄມ້",
+        "jp": "ベリー",
+        "vie": "quả mọng",
+        "en_pronunciation": "/ˈbɛri/",
+        "laos_pronunciation": "makmai",
+        "jp_pronunciation": "berii",
+        "vie_pronunciation": "qua mong"
+      },
+      "means": {
+        "en": "Any of numerous small and pulpy edible fruits; used as desserts or in making jams and jellies and preserves",
+        "zh": "曲线的圆弧段"
+      }
+    },
+    {
+      "word": {
+        "en": "beset",
+        "laos": "ທອບສາຍ",
+        "jp": "悩まされる",
+        "vie": "vây hãm",
+        "en_pronunciation": "/bɪˈsɛt/",
+        "laos_pronunciation": "thobsai",
+        "jp_pronunciation": "nayama sareru",
+        "vie_pronunciation": "vay ham"
+      },
+      "means": {
+        "en": "Annoy continually or chronically",
+        "zh": "在或到较低的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "beside",
+        "laos": "ຂ້າງ",
+        "jp": "そばに",
+        "vie": "bên cạnh",
+        "en_pronunciation": "/ˌbiˈsaɪd/",
+        "laos_pronunciation": "khang",
+        "jp_pronunciation": "sobani",
+        "vie_pronunciation": "ben canh"
+      },
+      "means": {
+        "en": "Beside is an English word referring to 'beside'.",
+        "zh": "需要时提供经济援助"
+      }
+    },
+    {
+      "word": {
+        "en": "besides",
+        "laos": "ນອກຈາກ",
+        "jp": "それに加えて",
+        "vie": "ngoài ra",
+        "en_pronunciation": "/ˌbiˈsaɪdz/",
+        "laos_pronunciation": "nokchak",
+        "jp_pronunciation": "soreni kuwae te",
+        "vie_pronunciation": "ngoai ra"
+      },
+      "means": {
+        "en": "Making an additional point; anyway",
+        "zh": "促进或增强福祉"
+      }
+    },
+    {
+      "word": {
+        "en": "besiege",
+        "laos": "Besiege",
+        "jp": "包囲する",
+        "vie": "bao vây",
+        "en_pronunciation": "/bɪˈsiʤ/",
+        "laos_pronunciation": "Besiege",
+        "jp_pronunciation": "houi suru",
+        "vie_pronunciation": "bao vay"
+      },
+      "means": {
+        "en": "Surround so as to force to give up",
+        "zh": "资金或其他福利的接受者"
+      }
+    },
+    {
+      "word": {
+        "en": "best",
+        "laos": "ດີທີ່ສຸດ",
+        "jp": "最高の",
+        "vie": "tốt nhất",
+        "en_pronunciation": "/bɛst/",
+        "laos_pronunciation": "dithisud",
+        "jp_pronunciation": "saikou no",
+        "vie_pronunciation": "tot nhat"
+      },
+      "means": {
+        "en": "The supreme effort one can make",
+        "zh": "意图或表现出善意"
+      }
+    },
+    {
+      "word": {
+        "en": "best-seller",
+        "laos": "ຜູ້ຂາຍດີທີ່ສຸດ",
+        "jp": "ベストセラー",
+        "vie": "bán chạy nhất",
+        "en_pronunciation": "/best-seller/",
+        "laos_pronunciation": "phukhaidithisud",
+        "jp_pronunciation": "besutoseraa",
+        "vie_pronunciation": "ban chay nhat"
+      },
+      "means": {
+        "en": "A book that has had a large and rapid sale",
+        "zh": "行善的心性"
+      }
+    },
+    {
+      "word": {
+        "en": "best-selling",
+        "laos": "ການຂາຍດີທີ່ສຸດ",
+        "jp": "ベストセラー",
+        "vie": "bán chạy nhất",
+        "en_pronunciation": "/best-selling/",
+        "laos_pronunciation": "kankhaidithisud",
+        "jp_pronunciation": "besutoseraa",
+        "vie_pronunciation": "ban chay nhat"
+      },
+      "means": {
+        "en": "Selling in great numbers",
+        "zh": "对健康无危害；"
+      }
+    },
+    {
+      "word": {
+        "en": "bet",
+        "laos": "ພະນັນ",
+        "jp": "賭ける",
+        "vie": "cá cược",
+        "en_pronunciation": "/bɛt/",
+        "laos_pronunciation": "phanan",
+        "jp_pronunciation": "kake ru",
+        "vie_pronunciation": "ca cuoc"
+      },
+      "means": {
+        "en": "The money risked on a gamble",
+        "zh": "不复发或进展（尤其是肿瘤）"
+      }
+    },
+    {
+      "word": {
+        "en": "betray",
+        "laos": "ການທໍລະຍົດ",
+        "jp": "裏切る",
+        "vie": "phản bội",
+        "en_pronunciation": "/bɪˈtreɪ/",
+        "laos_pronunciation": "kan tholanyod",
+        "jp_pronunciation": "uragiru",
+        "vie_pronunciation": "phan boi"
+      },
+      "means": {
+        "en": "Reveal unintentionally",
+        "zh": "众多小而多汁的可食用水果之一；"
+      }
+    },
+    {
+      "word": {
+        "en": "betrayal",
+        "laos": "ການຫັກຫລັງ",
+        "jp": "裏切り",
+        "vie": "sự phản bội",
+        "en_pronunciation": "/bɪˈtreɪəl/",
+        "laos_pronunciation": "kanhaklang",
+        "jp_pronunciation": "uragiri",
+        "vie_pronunciation": "su phan boi"
+      },
+      "means": {
+        "en": "An act of deliberate betrayal",
+        "zh": "用作甜点或制作果酱、果冻和蜜饯"
+      }
+    },
+    {
+      "word": {
+        "en": "better",
+        "laos": "ດີກວ່າ",
+        "jp": "より良い",
+        "vie": "tốt hơn",
+        "en_pronunciation": "/ˈbɛtər/",
+        "laos_pronunciation": "dikva",
+        "jp_pronunciation": "yori yoi",
+        "vie_pronunciation": "tot hon"
+      },
+      "means": {
+        "en": "Something superior in quality or condition or effect",
+        "zh": "持续或长期骚扰"
+      }
+    },
+    {
+      "word": {
+        "en": "between",
+        "laos": "ລະຫວ່າງ",
+        "jp": "の間",
+        "vie": "giữa",
+        "en_pronunciation": "/bɪtˈwin/",
+        "laos_pronunciation": "lavang",
+        "jp_pronunciation": "no kan",
+        "vie_pronunciation": "giua"
+      },
+      "means": {
+        "en": "In the interval",
+        "zh": "Beside是一个英语单词，指的是“在旁边”。"
+      }
+    },
+    {
+      "word": {
+        "en": "beverage",
+        "laos": "ເຄື່ອງດື່ມ",
+        "jp": "飲み物",
+        "vie": "đồ uống",
+        "en_pronunciation": "/ˈbɛvərɪʤ/",
+        "laos_pronunciation": "kheuongdum",
+        "jp_pronunciation": "nomimono",
+        "vie_pronunciation": "do uong"
+      },
+      "means": {
+        "en": "Any liquid suitable for drinking",
+        "zh": "补充一点；"
+      }
+    },
+    {
+      "word": {
+        "en": "beware",
+        "laos": "ລະວັງ",
+        "jp": "気をつけて",
+        "vie": "cẩn thận",
+        "en_pronunciation": "/bɪˈwɛr/",
+        "laos_pronunciation": "lavang",
+        "jp_pronunciation": "kiwo tsukete",
+        "vie_pronunciation": "can than"
+      },
+      "means": {
+        "en": "Be on one's guard; be cautious or wary about; be alert to",
+        "zh": "无论如何"
+      }
+    },
+    {
+      "word": {
+        "en": "bewilder",
+        "laos": "bewilder",
+        "jp": "困惑する",
+        "vie": "làm hoang mang",
+        "en_pronunciation": "/bɪˈwɪldər/",
+        "laos_pronunciation": "bewilder",
+        "jp_pronunciation": "konwaku suru",
+        "vie_pronunciation": "lam hoang mang"
+      },
+      "means": {
+        "en": "Be a mystery or bewildering to",
+        "zh": "包围以逼放弃"
+      }
+    },
+    {
+      "word": {
+        "en": "bewilderment",
+        "laos": "ຄວາມອ້ວນ",
+        "jp": "当惑",
+        "vie": "sự hoang mang",
+        "en_pronunciation": "/bɪˈwɪldərmənt/",
+        "laos_pronunciation": "khuaamuan",
+        "jp_pronunciation": "touwaku",
+        "vie_pronunciation": "su hoang mang"
+      },
+      "means": {
+        "en": "Confusion resulting from failure to understand",
+        "zh": "一个人所能做出的最大努力"
+      }
+    },
+    {
+      "word": {
+        "en": "beyond",
+        "laos": "ນອກ",
+        "jp": "超えて",
+        "vie": "vượt xa",
+        "en_pronunciation": "/bɪɔnd/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "koe te",
+        "vie_pronunciation": "vuot xa"
+      },
+      "means": {
+        "en": "Farther along in space or time or degree",
+        "zh": "一本销量大且迅速的书"
+      }
+    },
+    {
+      "word": {
+        "en": "bias",
+        "laos": "ອະຄະຕິ",
+        "jp": "偏見",
+        "vie": "sự thiên vị",
+        "en_pronunciation": "/baɪəs/",
+        "laos_pronunciation": "akhati",
+        "jp_pronunciation": "henken",
+        "vie_pronunciation": "su thien vi"
+      },
+      "means": {
+        "en": "A partiality that prevents objective consideration of an issue or situation",
+        "zh": "大量销售"
+      }
+    },
+    {
+      "word": {
+        "en": "bible",
+        "laos": "ພາສາ",
+        "jp": "聖書",
+        "vie": "kinh thánh",
+        "en_pronunciation": "/ˈbaɪbəl/",
+        "laos_pronunciation": "phasa",
+        "jp_pronunciation": "seisho",
+        "vie_pronunciation": "kinh thanh"
+      },
+      "means": {
+        "en": "The sacred writings of the Christian religions",
+        "zh": "赌博所冒的钱"
+      }
+    },
+    {
+      "word": {
+        "en": "biblical",
+        "laos": "ໃນຄໍາພີໄບເບິນ",
+        "jp": "聖書的な",
+        "vie": "kinh thánh",
+        "en_pronunciation": "/ˈbɪblɪkəl/",
+        "laos_pronunciation": "nai khoaphi baiboen",
+        "jp_pronunciation": "seisho tekina",
+        "vie_pronunciation": "kinh thanh"
+      },
+      "means": {
+        "en": "Of or pertaining to or contained in or in accordance with the Bible",
+        "zh": "无意中透露"
+      }
+    },
+    {
+      "word": {
+        "en": "bibliography",
+        "laos": "ບັນນານຸກົມ",
+        "jp": "参考文献",
+        "vie": "thư mục",
+        "en_pronunciation": "/ˌbɪbliˈɑgrəfi/",
+        "laos_pronunciation": "bannanukom",
+        "jp_pronunciation": "sankoubunken",
+        "vie_pronunciation": "thu muc"
+      },
+      "means": {
+        "en": "A list of writings with time and place of publication (such as the writings of a single author or the works referred to in preparing a document etc.)",
+        "zh": "故意背叛的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "bicycle",
+        "laos": "ລົດຖີບ",
+        "jp": "自転車",
+        "vie": "xe đạp",
+        "en_pronunciation": "/ˈbaɪsɪkəl/",
+        "laos_pronunciation": "lodthib",
+        "jp_pronunciation": "jitensha",
+        "vie_pronunciation": "xe dap"
+      },
+      "means": {
+        "en": "A wheeled vehicle that has two wheels and is moved by foot pedals",
+        "zh": "质量、状况或效果优越的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "bike",
+        "laos": "ລົດຖີບ",
+        "jp": "自転車",
+        "vie": "xe đạp",
+        "en_pronunciation": "/baɪk/",
+        "laos_pronunciation": "lodthib",
+        "jp_pronunciation": "jitensha",
+        "vie_pronunciation": "xe dap"
+      },
+      "means": {
+        "en": "A motor vehicle with two wheels and a strong frame",
+        "zh": "区间内"
+      }
+    },
+    {
+      "word": {
+        "en": "bid",
+        "laos": "ການປະມູນ",
+        "jp": "入札",
+        "vie": "giá thầu",
+        "en_pronunciation": "/bɪd/",
+        "laos_pronunciation": "kanpamun",
+        "jp_pronunciation": "nyuusatsu",
+        "vie_pronunciation": "gia thau"
+      },
+      "means": {
+        "en": "An authoritative direction or instruction to do something",
+        "zh": "任何适合饮用的液体"
+      }
+    },
+    {
+      "word": {
+        "en": "big",
+        "laos": "ໃຫຢ່",
+        "jp": "大きい",
+        "vie": "lớn",
+        "en_pronunciation": "/bɪg/",
+        "laos_pronunciation": "haiy",
+        "jp_pronunciation": "ookii",
+        "vie_pronunciation": "lon"
+      },
+      "means": {
+        "en": "Above average in size or number or quantity or magnitude or extent",
+        "zh": "保持警惕；"
+      }
+    },
+    {
+      "word": {
+        "en": "bilateral",
+        "laos": "ສອງຝ່າຍ",
+        "jp": "両側性",
+        "vie": "song phương",
+        "en_pronunciation": "/baɪˈlætərəl/",
+        "laos_pronunciation": "songfai",
+        "jp_pronunciation": "ryougawa sei",
+        "vie_pronunciation": "song phuong"
+      },
+      "means": {
+        "en": "Having identical parts on each side of an axis",
+        "zh": "保持谨慎或警惕；"
+      }
+    },
+    {
+      "word": {
+        "en": "bill",
+        "laos": "ບັນຊີ",
+        "jp": "請求書",
+        "vie": "hóa đơn",
+        "en_pronunciation": "/bɪl/",
+        "laos_pronunciation": "bansi",
+        "jp_pronunciation": "seikyuusho",
+        "vie_pronunciation": "hoa don"
+      },
+      "means": {
+        "en": "A statute in draft before it becomes law",
+        "zh": "警惕"
+      }
+    },
+    {
+      "word": {
+        "en": "billion",
+        "laos": "ພັນລ້ານ",
+        "jp": "十億",
+        "vie": "tỷ",
+        "en_pronunciation": "/ˈbɪljən/",
+        "laos_pronunciation": "phanlan",
+        "jp_pronunciation": "juuoku",
+        "vie_pronunciation": "ty"
+      },
+      "means": {
+        "en": "The number that is represented as a one followed by 12 zeros; in the United Kingdom the usage followed in the United States is frequently seen",
+        "zh": "变得神秘或令人困惑"
+      }
+    },
+    {
+      "word": {
+        "en": "billionaire",
+        "laos": "ມະຫາເສດຖີ",
+        "jp": "億万長者",
+        "vie": "tỷ phú",
+        "en_pronunciation": "/ˌbɪljəˈnɛr/",
+        "laos_pronunciation": "mahasedthi",
+        "jp_pronunciation": "okumanchouja",
+        "vie_pronunciation": "ty phu"
+      },
+      "means": {
+        "en": "A very rich person whose material wealth is valued at more than a billion dollars",
+        "zh": "因不理解而产生的混乱"
+      }
+    },
+    {
+      "word": {
+        "en": "bin",
+        "laos": "ຖັງນ້ໍາ",
+        "jp": "ビン",
+        "vie": "cái thùng",
+        "en_pronunciation": "/bɪn/",
+        "laos_pronunciation": "thangnoa",
+        "jp_pronunciation": "bin",
+        "vie_pronunciation": "cai thung"
+      },
+      "means": {
+        "en": "A container; usually has a lid",
+        "zh": "在空间、时间或程度上走得更远"
+      }
+    },
+    {
+      "word": {
+        "en": "bind",
+        "laos": "ຜູກ",
+        "jp": "バインド",
+        "vie": "ràng buộc",
+        "en_pronunciation": "/baɪnd/",
+        "laos_pronunciation": "phuk",
+        "jp_pronunciation": "baindo",
+        "vie_pronunciation": "rang buoc"
+      },
+      "means": {
+        "en": "Something that hinders as if with bonds",
+        "zh": "妨碍客观考虑问题或情况的偏见"
+      }
+    },
+    {
+      "word": {
+        "en": "binoculars",
+        "laos": "ກ້ອງສ່ອງທາງໄກ",
+        "jp": "双眼鏡",
+        "vie": "ống nhòm",
+        "en_pronunciation": "/bəˈnɑkjələrz/",
+        "laos_pronunciation": "kong songthangkai",
+        "jp_pronunciation": "sougankyou",
+        "vie_pronunciation": "ong nhom"
+      },
+      "means": {
+        "en": "An optical instrument designed for simultaneous use by both eyes",
+        "zh": "基督教的神圣著作"
+      }
+    },
+    {
+      "word": {
+        "en": "biochemistry",
+        "laos": "ຊີວະເຄມີ",
+        "jp": "生化学",
+        "vie": "hóa sinh",
+        "en_pronunciation": "/ˌbaɪoʊˈkɛmɪˌstri/",
+        "laos_pronunciation": "siuaakhemi",
+        "jp_pronunciation": "seikagaku",
+        "vie_pronunciation": "hoa sinh"
+      },
+      "means": {
+        "en": "The organic chemistry of compounds and processes occurring in organisms; the effort to understand biology within the context of chemistry",
+        "zh": "属于圣经的、关于圣经的、包含在圣经中的或根据圣经的"
+      }
+    },
+    {
+      "word": {
+        "en": "biography",
+        "laos": "ຊີວະປະຫວັດ",
+        "jp": "伝記",
+        "vie": "tiểu sử",
+        "en_pronunciation": "/baɪˈɑgrəfi/",
+        "laos_pronunciation": "siuaapavad",
+        "jp_pronunciation": "denki",
+        "vie_pronunciation": "tieu su"
+      },
+      "means": {
+        "en": "An account of the series of events making up a person's life",
+        "zh": "带有出版时间和地点的著作清单（例如单个作者的著作或准备文件时引用的作品等）"
+      }
+    },
+    {
+      "word": {
+        "en": "biology",
+        "laos": "ຊີວະວິທະຍາ",
+        "jp": "生物学",
+        "vie": "sinh học",
+        "en_pronunciation": "/baɪˈɑləʤi/",
+        "laos_pronunciation": "siuaavithanya",
+        "jp_pronunciation": "seibutsugaku",
+        "vie_pronunciation": "sinh hoc"
+      },
+      "means": {
+        "en": "The science that studies living organisms",
+        "zh": "有两个轮子并通过脚踏板移动的轮式车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "biotechnology",
+        "laos": "ເຕັກໂນໂລຢີຊີວະພາບ",
+        "jp": "バイオテクノロジー",
+        "vie": "công nghệ sinh học",
+        "en_pronunciation": "/ˌbaɪoʊˌtɛkˈnɑləʤi/",
+        "laos_pronunciation": "tekonol yisiuaaphab",
+        "jp_pronunciation": "baiotekunorojii",
+        "vie_pronunciation": "cong nghe sinh hoc"
+      },
+      "means": {
+        "en": "The branch of molecular biology that studies the use of microorganisms to perform specific industrial processes",
+        "zh": "具有两个轮子和坚固车架的机动车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "bird",
+        "laos": "ນົກ",
+        "jp": "鳥",
+        "vie": "chim",
+        "en_pronunciation": "/bərd/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "tori",
+        "vie_pronunciation": "chim"
+      },
+      "means": {
+        "en": "Warm-blooded egg-laying vertebrates characterized by feathers and forelimbs modified as wings",
+        "zh": "做某事的权威指示或指示"
+      }
+    },
+    {
+      "word": {
+        "en": "biochemical",
+        "laos": "ສານເຄມີ",
+        "jp": "生化学的",
+        "vie": "sinh hóa",
+        "en_pronunciation": "/ˌbaɪoʊˈkɛmɪkəl/",
+        "laos_pronunciation": "sankhemi",
+        "jp_pronunciation": "seikagakuteki",
+        "vie_pronunciation": "sinh hoa"
+      },
+      "means": {
+        "en": "Of or relating to biochemistry; involving chemical processes in living organisms",
+        "zh": "大小、数量、数量、幅度或范围高于平均水平"
+      }
+    },
+    {
+      "word": {
+        "en": "biographical",
+        "laos": "ຊີວະປະຫວັດ",
+        "jp": "伝記",
+        "vie": "tiểu sử",
+        "en_pronunciation": "/ˌbaɪəˈgræfɪkəl/",
+        "laos_pronunciation": "siuaapavad",
+        "jp_pronunciation": "denki",
+        "vie_pronunciation": "tieu su"
+      },
+      "means": {
+        "en": "Of or relating to or being biography",
+        "zh": "轴的每一侧都有相同的零件"
+      }
+    },
+    {
+      "word": {
+        "en": "biological",
+        "laos": "ຊີວະພາບ",
+        "jp": "生物学的",
+        "vie": "sinh học",
+        "en_pronunciation": "/ˌbaɪəˈlɑʤɪkəl/",
+        "laos_pronunciation": "siuaaphab",
+        "jp_pronunciation": "seibutsugakuteki",
+        "vie_pronunciation": "sinh hoc"
+      },
+      "means": {
+        "en": "Pertaining to biology or to life and living things",
+        "zh": "成为法律之前的法规草案"
+      }
+    },
+    {
+      "word": {
+        "en": "biochemist",
+        "laos": "Biochemist",
+        "jp": "生化学者",
+        "vie": "nhà hóa sinh",
+        "en_pronunciation": "/ˌbaɪoʊˈkɛmɪst/",
+        "laos_pronunciation": "Biochemist",
+        "jp_pronunciation": "seikagaku mono",
+        "vie_pronunciation": "nha hoa sinh"
+      },
+      "means": {
+        "en": "Someone with special training in biochemistry",
+        "zh": "表示为 1 后跟 12 个 0 的数字；"
+      }
+    },
+    {
+      "word": {
+        "en": "biographer",
+        "laos": "ນັກຊີວະປະຫວັດ",
+        "jp": "伝記作家",
+        "vie": "người viết tiểu sử",
+        "en_pronunciation": "/baɪˈɑgrəfər/",
+        "laos_pronunciation": "naksiuaapavad",
+        "jp_pronunciation": "denki sakka",
+        "vie_pronunciation": "nguoi viet tieu su"
+      },
+      "means": {
+        "en": "Someone who writes an account of a person's life",
+        "zh": "在英国，常见于美国的用法"
+      }
+    },
+    {
+      "word": {
+        "en": "biologist",
+        "laos": "ນັກຊີວະວິທະຍາ",
+        "jp": "生物学者",
+        "vie": "nhà sinh vật học",
+        "en_pronunciation": "/baɪˈɑləʤɪst/",
+        "laos_pronunciation": "nak siuaavithanya",
+        "jp_pronunciation": "seibutsugakusha",
+        "vie_pronunciation": "nha sinh vat hoc"
+      },
+      "means": {
+        "en": "(biology) a scientist who studies living organisms",
+        "zh": "一个非常富有的人，其物质财富价值超过十亿美元"
+      }
+    },
+    {
+      "word": {
+        "en": "birth",
+        "laos": "ສໍາພະວະ",
+        "jp": "誕生",
+        "vie": "sinh",
+        "en_pronunciation": "/bərθ/",
+        "laos_pronunciation": "soa phauaa",
+        "jp_pronunciation": "tanjou",
+        "vie_pronunciation": "sinh"
+      },
+      "means": {
+        "en": "The time when something begins (especially life)",
+        "zh": "一个容器；"
+      }
+    },
+    {
+      "word": {
+        "en": "birthday",
+        "laos": "ວັນເກີດ",
+        "jp": "誕生日",
+        "vie": "sinh nhật",
+        "en_pronunciation": "/ˈbərθˌdeɪ/",
+        "laos_pronunciation": "vankoed",
+        "jp_pronunciation": "tanjoubi",
+        "vie_pronunciation": "sinh nhat"
+      },
+      "means": {
+        "en": "An anniversary of the day on which a person was born (or the celebration of it)",
+        "zh": "通常有一个盖子"
+      }
+    },
+    {
+      "word": {
+        "en": "biscuit",
+        "laos": "ເຂົ້າຫນົມປັງ",
+        "jp": "ビスケット",
+        "vie": "bánh quy",
+        "en_pronunciation": "/ˈbɪskət/",
+        "laos_pronunciation": "khaonompang",
+        "jp_pronunciation": "bisuketto",
+        "vie_pronunciation": "banh quy"
+      },
+      "means": {
+        "en": "Small round bread leavened with baking-powder or soda",
+        "zh": "像债券一样阻碍的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "bishop",
+        "laos": "ເຈົ້າອະທິການ",
+        "jp": "司教",
+        "vie": "giám mục",
+        "en_pronunciation": "/ˈbɪʃəp/",
+        "laos_pronunciation": "chao athikan",
+        "jp_pronunciation": "shikyou",
+        "vie_pronunciation": "giam muc"
+      },
+      "means": {
+        "en": "A senior member of the Christian clergy having spiritual and administrative authority; appointed in Christian churches to oversee priests or ministers; considered in some churches to be successors of the twelve Apostles of Christ",
+        "zh": "专为双眼同时使用而设计的光学仪器"
+      }
+    },
+    {
+      "word": {
+        "en": "bit",
+        "laos": "ສະກັດກັ້ນ",
+        "jp": "ビット",
+        "vie": "chút",
+        "en_pronunciation": "/bɪt/",
+        "laos_pronunciation": "sakadkan",
+        "jp_pronunciation": "bitto",
+        "vie_pronunciation": "chut"
+      },
+      "means": {
+        "en": "A small piece or quantity of something",
+        "zh": "有机体中发生的化合物和过程的有机化学；"
+      }
+    },
+    {
+      "word": {
+        "en": "bitch",
+        "laos": "ຕັບ",
+        "jp": "雌犬",
+        "vie": "con khốn",
+        "en_pronunciation": "/bɪʧ/",
+        "laos_pronunciation": "tab",
+        "jp_pronunciation": "mesuinu",
+        "vie_pronunciation": "con khon"
+      },
+      "means": {
+        "en": "An unpleasant difficulty",
+        "zh": "在化学背景下理解生物学的努力"
+      }
+    }
+  ]
+}

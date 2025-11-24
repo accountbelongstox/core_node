@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.266300+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "caution",
+        "laos": "ຄວາມລະມັດລະວັງ",
+        "jp": "注意",
+        "vie": "thận trọng",
+        "en_pronunciation": "/ˈkɔʃən/",
+        "laos_pronunciation": "khuaamlamadlavang",
+        "jp_pronunciation": "chuui",
+        "vie_pronunciation": "than trong"
+      },
+      "means": {
+        "en": "The trait of being cautious; being attentive to possible danger",
+        "zh": "谨慎的特质；"
+      }
+    },
+    {
+      "word": {
+        "en": "cautious",
+        "laos": "ສະຫລຽວສະຫລາດ",
+        "jp": "慎重な",
+        "vie": "thận trọng",
+        "en_pronunciation": "/ˈkɔʃəs/",
+        "laos_pronunciation": "sa liauasalad",
+        "jp_pronunciation": "shinchou na",
+        "vie_pronunciation": "than trong"
+      },
+      "means": {
+        "en": "People who are fearful and cautious",
+        "zh": "注意可能的危险"
+      }
+    },
+    {
+      "word": {
+        "en": "cave",
+        "laos": "ຖໍ້າ",
+        "jp": "洞窟",
+        "vie": "hang động",
+        "en_pronunciation": "/keɪv/",
+        "laos_pronunciation": "thoa",
+        "jp_pronunciation": "doukutsu",
+        "vie_pronunciation": "hang dong"
+      },
+      "means": {
+        "en": "A geological formation consisting of an underground enclosure with access from the surface of the ground or from the sea",
+        "zh": "害怕和谨慎的人"
+      }
+    },
+    {
+      "word": {
+        "en": "cavity",
+        "laos": "ໂກນ",
+        "jp": "空洞",
+        "vie": "khoang",
+        "en_pronunciation": "/ˈkævəti/",
+        "laos_pronunciation": "okn",
+        "jp_pronunciation": "kuudou",
+        "vie_pronunciation": "khoang"
+      },
+      "means": {
+        "en": "A sizeable hole (usually in the ground)",
+        "zh": "由地下围墙组成的地质构造，可从地面或海洋进入"
+      }
+    },
+    {
+      "word": {
+        "en": "cease",
+        "laos": "ຢຸດ",
+        "jp": "やめる",
+        "vie": "chấm dứt",
+        "en_pronunciation": "/sis/",
+        "laos_pronunciation": "yud",
+        "jp_pronunciation": "yameru",
+        "vie_pronunciation": "cham dut"
+      },
+      "means": {
+        "en": "(`cease' is a noun only in the phrase `without cease') end",
+        "zh": "一个相当大的洞（通常在地面上）"
+      }
+    },
+    {
+      "word": {
+        "en": "ceiling",
+        "laos": "ເພດານ",
+        "jp": "天井",
+        "vie": "trần nhà",
+        "en_pronunciation": "/ˈsilɪŋ/",
+        "laos_pronunciation": "phedan",
+        "jp_pronunciation": "tenjou",
+        "vie_pronunciation": "tran nha"
+      },
+      "means": {
+        "en": "The overhead upper surface of a covered space",
+        "zh": "（“cease”仅在短语“without stop”中是名词）"
+      }
+    },
+    {
+      "word": {
+        "en": "celebrate",
+        "laos": "ສະເຫຼີມສະຫຼອງ",
+        "jp": "祝う",
+        "vie": "ăn mừng",
+        "en_pronunciation": "/ˈsɛləˌbreɪt/",
+        "laos_pronunciation": "sa heimsarong",
+        "jp_pronunciation": "iwau",
+        "vie_pronunciation": "an mung"
+      },
+      "means": {
+        "en": "Behave as expected during of holidays or rites",
+        "zh": "有顶空间的顶部上表面"
+      }
+    },
+    {
+      "word": {
+        "en": "celebration",
+        "laos": "ການສະເຫຼີມສະຫຼອງ",
+        "jp": "お祝い",
+        "vie": "lễ kỷ niệm",
+        "en_pronunciation": "/ˌsɛləˈbreɪʃən/",
+        "laos_pronunciation": "kansa heimsarong",
+        "jp_pronunciation": "o iwai",
+        "vie_pronunciation": "le ky niem"
+      },
+      "means": {
+        "en": "A joyful occasion for special festivities to mark some happy event",
+        "zh": "在假期或仪式期间表现得如预期"
+      }
+    },
+    {
+      "word": {
+        "en": "celebrity",
+        "laos": "ນັກສະເຫຼີມສະຫຼອງ",
+        "jp": "有名人",
+        "vie": "người nổi tiếng",
+        "en_pronunciation": "/səˈlɛbrɪti/",
+        "laos_pronunciation": "nak sa heimsarong",
+        "jp_pronunciation": "yuumeijin",
+        "vie_pronunciation": "nguoi noi tieng"
+      },
+      "means": {
+        "en": "A widely known person",
+        "zh": "庆祝某些喜事的特别庆祝活动的欢乐场合"
+      }
+    },
+    {
+      "word": {
+        "en": "cell",
+        "laos": "ຫ້ອງ",
+        "jp": "セル",
+        "vie": "tế bào",
+        "en_pronunciation": "/sɛl/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "seru",
+        "vie_pronunciation": "te bao"
+      },
+      "means": {
+        "en": "Any small compartment",
+        "zh": "一个广为人知的人"
+      }
+    },
+    {
+      "word": {
+        "en": "cellar",
+        "laos": "ຫ້ອງໃຕ້ດິນ",
+        "jp": "地下室",
+        "vie": "hầm",
+        "en_pronunciation": "/ˈsɛlər/",
+        "laos_pronunciation": "hongtaidin",
+        "jp_pronunciation": "chikashitsu",
+        "vie_pronunciation": "ham"
+      },
+      "means": {
+        "en": "The lowermost portion of a structure partly or wholly below ground level; often used for storage",
+        "zh": "任何小隔间"
+      }
+    },
+    {
+      "word": {
+        "en": "cell-phone",
+        "laos": "ໂທລະສັບມືຖື",
+        "jp": "携帯電話",
+        "vie": "điện thoại di động",
+        "en_pronunciation": "/cell-phone/",
+        "laos_pronunciation": "othlasabmuthu",
+        "jp_pronunciation": "keitaidenwa",
+        "vie_pronunciation": "dien thoai di dong"
+      },
+      "means": {
+        "en": "A hand-held mobile radiotelephone for use in an area divided into small sections, each with its own short-range transmitter/receiver",
+        "zh": "部分或全部低于地面的结构的最低部分；"
+      }
+    },
+    {
+      "word": {
+        "en": "celsius",
+        "laos": "ໄທເຊ",
+        "jp": "摂氏",
+        "vie": "độ C",
+        "en_pronunciation": "/ˈsɛlsiəs/",
+        "laos_pronunciation": "thaise",
+        "jp_pronunciation": "sesshi",
+        "vie_pronunciation": "do C"
+      },
+      "means": {
+        "en": "Swedish astronomer who devised the centigrade thermometer (1701-1744)",
+        "zh": "常用于存储"
+      }
+    },
+    {
+      "word": {
+        "en": "celcius",
+        "laos": "ສະມຸຫະ",
+        "jp": "摂氏",
+        "vie": "độ C",
+        "en_pronunciation": "/celcius/",
+        "laos_pronunciation": "sa muha",
+        "jp_pronunciation": "sesshi",
+        "vie_pronunciation": "do C"
+      },
+      "means": {
+        "en": "Celcius is an English word referring to 'celcius'.",
+        "zh": "一种手持移动无线电话，用于在分成小部分的区域中使用，每个部分都有自己的短程发射机/接收机"
+      }
+    },
+    {
+      "word": {
+        "en": "cement",
+        "laos": "ຊີມັງ",
+        "jp": "セメント",
+        "vie": "xi măng",
+        "en_pronunciation": "/sɪˈmɛnt/",
+        "laos_pronunciation": "simang",
+        "jp_pronunciation": "semento",
+        "vie_pronunciation": "xi mang"
+      },
+      "means": {
+        "en": "Concrete pavement is sometimes referred to as cement",
+        "zh": "瑞典天文学家，发明了摄氏度温度计（1701-1744）"
+      }
+    },
+    {
+      "word": {
+        "en": "cemetery",
+        "laos": "ປ່າຊ້າ",
+        "jp": "墓地",
+        "vie": "nghĩa trang",
+        "en_pronunciation": "/ˈsɛmɪˌtɛri/",
+        "laos_pronunciation": "pasa",
+        "jp_pronunciation": "bochi",
+        "vie_pronunciation": "nghia trang"
+      },
+      "means": {
+        "en": "A tract of land used for burials",
+        "zh": "Celcius 是一个英语单词，指的是“celcius”。"
+      }
+    },
+    {
+      "word": {
+        "en": "censor",
+        "laos": "ຜູ້ກວດກາ",
+        "jp": "検閲官",
+        "vie": "người kiểm duyệt",
+        "en_pronunciation": "/ˈsɛnsər/",
+        "laos_pronunciation": "phukuadka",
+        "jp_pronunciation": "ken'etsukan",
+        "vie_pronunciation": "nguoi kiem duyet"
+      },
+      "means": {
+        "en": "Someone who censures or condemns",
+        "zh": "混凝土路面有时被称为水泥"
+      }
+    },
+    {
+      "word": {
+        "en": "censorship",
+        "laos": "ການກວດສອບ",
+        "jp": "検閲",
+        "vie": "sự kiểm duyệt",
+        "en_pronunciation": "/ˈsɛnsərˌʃɪp/",
+        "laos_pronunciation": "kankuadsob",
+        "jp_pronunciation": "ken'etsu",
+        "vie_pronunciation": "su kiem duyet"
+      },
+      "means": {
+        "en": "Counterintelligence achieved by banning or deleting any information of value to the enemy",
+        "zh": "一块用于埋葬的土地"
+      }
+    },
+    {
+      "word": {
+        "en": "census",
+        "laos": "ສໍາມະໂນຄົວ",
+        "jp": "国勢調査",
+        "vie": "điều tra dân số",
+        "en_pronunciation": "/ˈsɛnsəs/",
+        "laos_pronunciation": "soama onkhua",
+        "jp_pronunciation": "kokuseichousa",
+        "vie_pronunciation": "dieu tra dan so"
+      },
+      "means": {
+        "en": "A periodic count of the population",
+        "zh": "谴责或谴责的人"
+      }
+    },
+    {
+      "word": {
+        "en": "cent",
+        "laos": "ຮ້ອຍ",
+        "jp": "セント",
+        "vie": "xu",
+        "en_pronunciation": "/sɛnt/",
+        "laos_pronunciation": "hony",
+        "jp_pronunciation": "sento",
+        "vie_pronunciation": "xu"
+      },
+      "means": {
+        "en": "A fractional monetary unit of several countries",
+        "zh": "通过禁止或删除对敌人有价值的任何信息来实现反情报"
+      }
+    },
+    {
+      "word": {
+        "en": "center",
+        "laos": "ສູນກາງ",
+        "jp": "センター",
+        "vie": "trung tâm",
+        "en_pronunciation": "/ˈsɛnər/",
+        "laos_pronunciation": "sunkang",
+        "jp_pronunciation": "sentaa",
+        "vie_pronunciation": "trung tam"
+      },
+      "means": {
+        "en": "An area that is approximately central within some larger region",
+        "zh": "定期统计人口"
+      }
+    },
+    {
+      "word": {
+        "en": "centre",
+        "laos": "ສູນກາງ",
+        "jp": "センター",
+        "vie": "trung tâm",
+        "en_pronunciation": "/ˈsɛntər/",
+        "laos_pronunciation": "sunkang",
+        "jp_pronunciation": "sentaa",
+        "vie_pronunciation": "trung tam"
+      },
+      "means": {
+        "en": "A low-lying region in central France",
+        "zh": "几个国家的分数货币单位"
+      }
+    },
+    {
+      "word": {
+        "en": "central",
+        "laos": "ພາກກາງ",
+        "jp": "中央",
+        "vie": "trung tâm",
+        "en_pronunciation": "/ˈsɛntrəl/",
+        "laos_pronunciation": "phakkang",
+        "jp_pronunciation": "chuuou",
+        "vie_pronunciation": "trung tam"
+      },
+      "means": {
+        "en": "A workplace that serves as a telecommunications facility where lines from telephones can be connected together to permit communication",
+        "zh": "大约位于某个较大区域中心的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "centralize",
+        "laos": "ທ້ອນໂຮມ",
+        "jp": "集中化する",
+        "vie": "tập trung hóa",
+        "en_pronunciation": "/ˈsɛntrəˌlaɪz/",
+        "laos_pronunciation": "thonohm",
+        "jp_pronunciation": "shuuchuuka suru",
+        "vie_pronunciation": "tap trung hoa"
+      },
+      "means": {
+        "en": "Make central",
+        "zh": "法国中部的低洼地区"
+      }
+    },
+    {
+      "word": {
+        "en": "centralise",
+        "laos": "ທ້ອນໂຮມ",
+        "jp": "集中化する",
+        "vie": "tập trung hóa",
+        "en_pronunciation": "/centralise/",
+        "laos_pronunciation": "thonohm",
+        "jp_pronunciation": "shuuchuuka suru",
+        "vie_pronunciation": "tap trung hoa"
+      },
+      "means": {
+        "en": "Make central",
+        "zh": "用作电信设施的工作场所，可以将电话线路连接在一起以进行通信"
+      }
+    },
+    {
+      "word": {
+        "en": "centigrade",
+        "laos": "ເປີເຊັນ",
+        "jp": "摂氏",
+        "vie": "độ C",
+        "en_pronunciation": "/ˈsɛntəˌgreɪd/",
+        "laos_pronunciation": "poesen",
+        "jp_pronunciation": "sesshi",
+        "vie_pronunciation": "do C"
+      },
+      "means": {
+        "en": "Of or relating to a temperature scale on which the freezing point of water is 0 degrees and the boiling point of water is 100 degrees",
+        "zh": "使中央"
+      }
+    },
+    {
+      "word": {
+        "en": "centimeter",
+        "laos": "ຊັງຕີແມັດ",
+        "jp": "センチメートル",
+        "vie": "centimét",
+        "en_pronunciation": "/ˈsɛntəˌmitər/",
+        "laos_pronunciation": "sangtimaed",
+        "jp_pronunciation": "senchimeetoru",
+        "vie_pronunciation": "centimet"
+      },
+      "means": {
+        "en": "A metric unit of length equal to one hundredth of a meter",
+        "zh": "使中央"
+      }
+    },
+    {
+      "word": {
+        "en": "centimetre",
+        "laos": "ຊັງຕີແມັດ",
+        "jp": "センチメートル",
+        "vie": "centimét",
+        "en_pronunciation": "/ˈsɛntəˌmitər/",
+        "laos_pronunciation": "sangtimaed",
+        "jp_pronunciation": "senchimeetoru",
+        "vie_pronunciation": "centimet"
+      },
+      "means": {
+        "en": "A metric unit of length equal to one hundredth of a meter",
+        "zh": "属于或关于水的冰点为 0 度且水的沸点为 100 度的温标"
+      }
+    },
+    {
+      "word": {
+        "en": "century",
+        "laos": "ສະຕະວັດ",
+        "jp": "世紀",
+        "vie": "thế kỷ",
+        "en_pronunciation": "/ˈsɛnʧəri/",
+        "laos_pronunciation": "satavad",
+        "jp_pronunciation": "seiki",
+        "vie_pronunciation": "the ky"
+      },
+      "means": {
+        "en": "A period of 100 years",
+        "zh": "等于百分之一米的公制长度单位"
+      }
+    },
+    {
+      "word": {
+        "en": "ceramic",
+        "laos": "ເລື້ອຢຊ້ອນ",
+        "jp": "セラミック",
+        "vie": "gốm sứ",
+        "en_pronunciation": "/sərˈæmɪk/",
+        "laos_pronunciation": "leu yson",
+        "jp_pronunciation": "seramikku",
+        "vie_pronunciation": "gom su"
+      },
+      "means": {
+        "en": "An artifact made of hard brittle material produced from nonmetallic minerals by firing at high temperatures",
+        "zh": "等于百分之一米的公制长度单位"
+      }
+    },
+    {
+      "word": {
+        "en": "cereal",
+        "laos": "ບຸບພັນນະຊາດ",
+        "jp": "シリアル",
+        "vie": "ngũ cốc",
+        "en_pronunciation": "/ˈsɪriəl/",
+        "laos_pronunciation": "bub phan nasad",
+        "jp_pronunciation": "shiriaru",
+        "vie_pronunciation": "ngu coc"
+      },
+      "means": {
+        "en": "Grass whose starchy grains are used as food: wheat; rice; rye; oats; maize; buckwheat; millet",
+        "zh": "100年的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "ceremony",
+        "laos": "ພິທີ",
+        "jp": "儀式",
+        "vie": "buổi lễ",
+        "en_pronunciation": "/ˈsɛrəˌmoʊni/",
+        "laos_pronunciation": "phithi",
+        "jp_pronunciation": "gishiki",
+        "vie_pronunciation": "buoi le"
+      },
+      "means": {
+        "en": "A formal event performed on a special occasion",
+        "zh": "以非金属矿物为原料，经高温烧制而成的硬脆材料制成的工艺品"
+      }
+    },
+    {
+      "word": {
+        "en": "ceremonial",
+        "laos": "ເປັນພິເສດ",
+        "jp": "儀式的な",
+        "vie": "nghi lễ",
+        "en_pronunciation": "/ˌsɛrəˈmoʊniəl/",
+        "laos_pronunciation": "penphised",
+        "jp_pronunciation": "gishiki tekina",
+        "vie_pronunciation": "nghi le"
+      },
+      "means": {
+        "en": "A formal event performed on a special occasion",
+        "zh": "以淀粉粒为食物的草类：小麦；"
+      }
+    },
+    {
+      "word": {
+        "en": "certain",
+        "laos": "ແນ່ນອນ",
+        "jp": "確かな",
+        "vie": "nhất định",
+        "en_pronunciation": "/ˈsərtən/",
+        "laos_pronunciation": "aennon",
+        "jp_pronunciation": "tashika na",
+        "vie_pronunciation": "nhat dinh"
+      },
+      "means": {
+        "en": "Definite but not specified or identified",
+        "zh": "米;"
+      }
+    },
+    {
+      "word": {
+        "en": "certainly",
+        "laos": "ບັງແນ່",
+        "jp": "確かに",
+        "vie": "chắc chắn",
+        "en_pronunciation": "/ˈsərtənli/",
+        "laos_pronunciation": "bangaen",
+        "jp_pronunciation": "tashikani",
+        "vie_pronunciation": "chac chan"
+      },
+      "means": {
+        "en": "Definitely or positively (`sure' is sometimes used informally for `surely')",
+        "zh": "黑麦;"
+      }
+    },
+    {
+      "word": {
+        "en": "certainty",
+        "laos": "ຄວາມແນ່ນອນ",
+        "jp": "確実性",
+        "vie": "sự chắc chắn",
+        "en_pronunciation": "/ˈsərtənti/",
+        "laos_pronunciation": "khuaamaennon",
+        "jp_pronunciation": "kakujitsusei",
+        "vie_pronunciation": "su chac chan"
+      },
+      "means": {
+        "en": "The state of being certain",
+        "zh": "燕麦；"
+      }
+    },
+    {
+      "word": {
+        "en": "certificate",
+        "laos": "ໃບຢັ້ງຢືນ",
+        "jp": "証明書",
+        "vie": "giấy chứng nhận",
+        "en_pronunciation": "/sərˈtɪfɪkət/",
+        "laos_pronunciation": "baiyangyun",
+        "jp_pronunciation": "shoumeisho",
+        "vie_pronunciation": "giay chung nhan"
+      },
+      "means": {
+        "en": "A document attesting to the truth of certain stated facts",
+        "zh": "玉米;"
+      }
+    },
+    {
+      "word": {
+        "en": "certify",
+        "laos": "ຢັ້ງຢືນ",
+        "jp": "証明する",
+        "vie": "chứng nhận",
+        "en_pronunciation": "/ˈsərtəˌfaɪ/",
+        "laos_pronunciation": "yangyun",
+        "jp_pronunciation": "shoumeisu ru",
+        "vie_pronunciation": "chung nhan"
+      },
+      "means": {
+        "en": "Provide evidence for; stand as proof of; show by one's behavior, attitude, or external attributes",
+        "zh": "荞麦；"
+      }
+    },
+    {
+      "word": {
+        "en": "certification",
+        "laos": "ການຢັ້ງຢືນ",
+        "jp": "認証",
+        "vie": "chứng nhận",
+        "en_pronunciation": "/ˌsərtəfəˈkeɪʃən/",
+        "laos_pronunciation": "kanyangyun",
+        "jp_pronunciation": "ninshou",
+        "vie_pronunciation": "chung nhan"
+      },
+      "means": {
+        "en": "The act of certifying or bestowing a franchise on",
+        "zh": "小米"
+      }
+    },
+    {
+      "word": {
+        "en": "chain",
+        "laos": "ໂສ້",
+        "jp": "チェーン",
+        "vie": "chuỗi",
+        "en_pronunciation": "/ʧeɪn/",
+        "laos_pronunciation": "os",
+        "jp_pronunciation": "cheen",
+        "vie_pronunciation": "chuoi"
+      },
+      "means": {
+        "en": "A series of things depending on each other as if linked together",
+        "zh": "在特殊场合进行的正式活动"
+      }
+    },
+    {
+      "word": {
+        "en": "chair",
+        "laos": "ເກົ້າອີ້",
+        "jp": "椅子",
+        "vie": "cái ghế",
+        "en_pronunciation": "/ʧɛr/",
+        "laos_pronunciation": "kaoi",
+        "jp_pronunciation": "isu",
+        "vie_pronunciation": "cai ghe"
+      },
+      "means": {
+        "en": "A seat for one person, with a support for the back",
+        "zh": "在特殊场合进行的正式活动"
+      }
+    },
+    {
+      "word": {
+        "en": "chairman",
+        "laos": "ປະທານ",
+        "jp": "会長",
+        "vie": "chủ tịch",
+        "en_pronunciation": "/ˈʧɛrmən/",
+        "laos_pronunciation": "pathan",
+        "jp_pronunciation": "kaichou",
+        "vie_pronunciation": "chu tich"
+      },
+      "means": {
+        "en": "The officer who presides at the meetings of an organization",
+        "zh": "明确但未指定或确定"
+      }
+    },
+    {
+      "word": {
+        "en": "chairperson",
+        "laos": "ປະທານ",
+        "jp": "議長",
+        "vie": "chủ tịch",
+        "en_pronunciation": "/ˈʧɛrˌpərsən/",
+        "laos_pronunciation": "pathan",
+        "jp_pronunciation": "gichou",
+        "vie_pronunciation": "chu tich"
+      },
+      "means": {
+        "en": "The officer who presides at the meetings of an organization",
+        "zh": "肯定地或积极地（“肯定”有时非正式地用于“肯定”）"
+      }
+    },
+    {
+      "word": {
+        "en": "chalk",
+        "laos": "ສໍຂາວ",
+        "jp": "チョーク",
+        "vie": "phấn",
+        "en_pronunciation": "/ʧɔk/",
+        "laos_pronunciation": "sokhav",
+        "jp_pronunciation": "chooku",
+        "vie_pronunciation": "phan"
+      },
+      "means": {
+        "en": "A soft whitish calcite",
+        "zh": "确定的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "challenge",
+        "laos": "ທ້າທາຍ",
+        "jp": "挑戦",
+        "vie": "thử thách",
+        "en_pronunciation": "/ˈʧælənʤ/",
+        "laos_pronunciation": "thathai",
+        "jp_pronunciation": "chousen",
+        "vie_pronunciation": "thu thach"
+      },
+      "means": {
+        "en": "A demanding or stimulating situation",
+        "zh": "证明某些陈述事实真实性的文件"
+      }
+    },
+    {
+      "word": {
+        "en": "challenging",
+        "laos": "ທີ່ທ້າທາຢ",
+        "jp": "挑戦的な",
+        "vie": "đầy thử thách",
+        "en_pronunciation": "/ˈʧælənʤɪŋ/",
+        "laos_pronunciation": "thi thathay",
+        "jp_pronunciation": "chousenteki na",
+        "vie_pronunciation": "day thu thach"
+      },
+      "means": {
+        "en": "Take exception to",
+        "zh": "提供证据；"
+      }
+    },
+    {
+      "word": {
+        "en": "chamber",
+        "laos": "ສະພາ",
+        "jp": "チャンバー",
+        "vie": "buồng",
+        "en_pronunciation": "/ˈʧeɪmbər/",
+        "laos_pronunciation": "sapha",
+        "jp_pronunciation": "chanbaa",
+        "vie_pronunciation": "buong"
+      },
+      "means": {
+        "en": "A natural or artificial enclosed space",
+        "zh": "作为证明；"
+      }
+    },
+    {
+      "word": {
+        "en": "champagne",
+        "laos": "ເຫລົ້າແວັງ",
+        "jp": "シャンパン",
+        "vie": "rượu sâm panh",
+        "en_pronunciation": "/ʃæmˈpeɪn/",
+        "laos_pronunciation": "heloa vaeng",
+        "jp_pronunciation": "shanpan",
+        "vie_pronunciation": "ruou sam panh"
+      },
+      "means": {
+        "en": "A white sparkling wine either produced in Champagne or resembling that produced there",
+        "zh": "通过一个人的行为、态度或外在属性表现出来"
+      }
+    },
+    {
+      "word": {
+        "en": "champion",
+        "laos": "ແຊ້ມ",
+        "jp": "チャンピオン",
+        "vie": "nhà vô địch",
+        "en_pronunciation": "/ˈʧæmpiən/",
+        "laos_pronunciation": "aesm",
+        "jp_pronunciation": "chanpion",
+        "vie_pronunciation": "nha vo dich"
+      },
+      "means": {
+        "en": "Someone who has won first place in a competition",
+        "zh": "证明或授予特许经营权的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "championship",
+        "laos": "ການແຂ່ງຂັນ",
+        "jp": "チャンピオンシップ",
+        "vie": "chức vô địch",
+        "en_pronunciation": "/ˈʧæmpiənˌʃɪp/",
+        "laos_pronunciation": "kanaekhngkhan",
+        "jp_pronunciation": "chanpionshippu",
+        "vie_pronunciation": "chuc vo dich"
+      },
+      "means": {
+        "en": "The status of being a champion",
+        "zh": "一系列事物相互依存，仿佛联系在一起"
+      }
+    },
+    {
+      "word": {
+        "en": "chance",
+        "laos": "ໂອກາດ",
+        "jp": "チャンス",
+        "vie": "cơ hội",
+        "en_pronunciation": "/ʧæns/",
+        "laos_pronunciation": "ookad",
+        "jp_pronunciation": "chansu",
+        "vie_pronunciation": "co hoi"
+      },
+      "means": {
+        "en": "A possibility due to a favorable combination of circumstances",
+        "zh": "一个人的座位，有靠背支撑"
+      }
+    },
+    {
+      "word": {
+        "en": "chancellor",
+        "laos": "ອະນາຄົດ",
+        "jp": "首相",
+        "vie": "thủ tướng",
+        "en_pronunciation": "/ˈʧænsələr/",
+        "laos_pronunciation": "anakhod",
+        "jp_pronunciation": "shushou",
+        "vie_pronunciation": "thu tuong"
+      },
+      "means": {
+        "en": "The British cabinet minister responsible for finance",
+        "zh": "主持组织会议的官员"
+      }
+    },
+    {
+      "word": {
+        "en": "change",
+        "laos": "ແປງ",
+        "jp": "変化する",
+        "vie": "thay đổi",
+        "en_pronunciation": "/ʧeɪnʤ/",
+        "laos_pronunciation": "aepng",
+        "jp_pronunciation": "henkasu ru",
+        "vie_pronunciation": "thay doi"
+      },
+      "means": {
+        "en": "An event that occurs when something passes from one state or phase to another",
+        "zh": "主持组织会议的官员"
+      }
+    },
+    {
+      "word": {
+        "en": "channel",
+        "laos": "ຕະລົກ",
+        "jp": "チャンネル",
+        "vie": "kênh",
+        "en_pronunciation": "/ˈʧænəl/",
+        "laos_pronunciation": "talok",
+        "jp_pronunciation": "channeru",
+        "vie_pronunciation": "kenh"
+      },
+      "means": {
+        "en": "A path over which electrical signals can pass",
+        "zh": "柔软的白色方解石"
+      }
+    },
+    {
+      "word": {
+        "en": "chant",
+        "laos": "ເວດ",
+        "jp": "唱える",
+        "vie": "tụng kinh",
+        "en_pronunciation": "/ʧænt/",
+        "laos_pronunciation": "ved",
+        "jp_pronunciation": "tonae ru",
+        "vie_pronunciation": "tung kinh"
+      },
+      "means": {
+        "en": "A repetitive song in which as many syllables as necessary are assigned to a single tone",
+        "zh": "要求较高或刺激的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "chaos",
+        "laos": "ຄວາມຫຢົ້ງເຫຢີງ",
+        "jp": "混沌",
+        "vie": "hỗn loạn",
+        "en_pronunciation": "/keɪɑs/",
+        "laos_pronunciation": "khuaam hyong heying",
+        "jp_pronunciation": "konton",
+        "vie_pronunciation": "hon loan"
+      },
+      "means": {
+        "en": "A state of extreme confusion and disorder",
+        "zh": "例外"
+      }
+    },
+    {
+      "word": {
+        "en": "chaotic",
+        "laos": "ຈ້າລະຫວັນ",
+        "jp": "混沌とした",
+        "vie": "hỗn loạn",
+        "en_pronunciation": "/keɪˈɑtɪk/",
+        "laos_pronunciation": "cha lavan",
+        "jp_pronunciation": "konton toshita",
+        "vie_pronunciation": "hon loan"
+      },
+      "means": {
+        "en": "Lacking a visible order or organization",
+        "zh": "自然或人造的封闭空间"
+      }
+    },
+    {
+      "word": {
+        "en": "chapel",
+        "laos": "ໂຮງສູດ",
+        "jp": "礼拝堂",
+        "vie": "nhà nguyện",
+        "en_pronunciation": "/ˈʧæpəl/",
+        "laos_pronunciation": "ohngsud",
+        "jp_pronunciation": "reihaidou",
+        "vie_pronunciation": "nha nguyen"
+      },
+      "means": {
+        "en": "A place of worship that has its own altar",
+        "zh": "香槟产区生产的起泡白葡萄酒或类似产区生产的起泡白葡萄酒"
+      }
+    },
+    {
+      "word": {
+        "en": "chapter",
+        "laos": "ບົດ",
+        "jp": "章",
+        "vie": "chương",
+        "en_pronunciation": "/ˈʧæptər/",
+        "laos_pronunciation": "bod",
+        "jp_pronunciation": "shou",
+        "vie_pronunciation": "chuong"
+      },
+      "means": {
+        "en": "A subdivision of a written work; usually numbered and titled",
+        "zh": "在比赛中获得第一名的人"
+      }
+    },
+    {
+      "word": {
+        "en": "character",
+        "laos": "ລັກສະນະ",
+        "jp": "キャラクター",
+        "vie": "nhân vật",
+        "en_pronunciation": "/ˈkɛrɪktər/",
+        "laos_pronunciation": "laksana",
+        "jp_pronunciation": "kyarakutaa",
+        "vie_pronunciation": "nhan vat"
+      },
+      "means": {
+        "en": "An imaginary person represented in a work of fiction (play or film or story)",
+        "zh": "冠军的地位"
+      }
+    },
+    {
+      "word": {
+        "en": "characteristic",
+        "laos": "ລັກສະນະ",
+        "jp": "特徴的な",
+        "vie": "đặc trưng",
+        "en_pronunciation": "/ˌkɛrɪktərˈɪstɪk/",
+        "laos_pronunciation": "laksana",
+        "jp_pronunciation": "tokuchouteki na",
+        "vie_pronunciation": "dac trung"
+      },
+      "means": {
+        "en": "A prominent attribute or aspect of something",
+        "zh": "由于有利的环境组合而产生的可能性"
+      }
+    },
+    {
+      "word": {
+        "en": "characterize",
+        "laos": "ມີເຣດ",
+        "jp": "特徴づける",
+        "vie": "mô tả đặc điểm",
+        "en_pronunciation": "/ˈkɛrɪktərˌaɪz/",
+        "laos_pronunciation": "mi red",
+        "jp_pronunciation": "tokuchou zukeru",
+        "vie_pronunciation": "mo ta dac diem"
+      },
+      "means": {
+        "en": "Describe or portray the character or the qualities or peculiarities of",
+        "zh": "英国负责财政的内阁大臣"
+      }
+    },
+    {
+      "word": {
+        "en": "characterise",
+        "laos": "ມີເຣດ",
+        "jp": "特徴づける",
+        "vie": "mô tả đặc điểm",
+        "en_pronunciation": "/characterise/",
+        "laos_pronunciation": "mi red",
+        "jp_pronunciation": "tokuchou zukeru",
+        "vie_pronunciation": "mo ta dac diem"
+      },
+      "means": {
+        "en": "Be characteristic of",
+        "zh": "当事物从一种状态或阶段过渡到另一种状态或阶段时发生的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "charge",
+        "laos": "ຟ້ອງ",
+        "jp": "充電する",
+        "vie": "tính phí",
+        "en_pronunciation": "/ʧɑrʤ/",
+        "laos_pronunciation": "fong",
+        "jp_pronunciation": "juuden suru",
+        "vie_pronunciation": "tinh phi"
+      },
+      "means": {
+        "en": "An impetuous rush toward someone or something",
+        "zh": "电信号可以通过的路径"
+      }
+    },
+    {
+      "word": {
+        "en": "charity",
+        "laos": "ການກຸສົນ",
+        "jp": "慈善活動",
+        "vie": "từ thiện",
+        "en_pronunciation": "/ˈʧɛrɪti/",
+        "laos_pronunciation": "kankuson",
+        "jp_pronunciation": "jizenkatsudou",
+        "vie_pronunciation": "tu thien"
+      },
+      "means": {
+        "en": "A foundation created to promote the public good (not for assistance to any particular individuals)",
+        "zh": "一首重复的歌曲，其中尽可能多的音节被分配给一个音调"
+      }
+    },
+    {
+      "word": {
+        "en": "charitable",
+        "laos": "ທີ່ໃຈ",
+        "jp": "慈善的な",
+        "vie": "từ thiện",
+        "en_pronunciation": "/ˈʧɛrətəbəl/",
+        "laos_pronunciation": "thichai",
+        "jp_pronunciation": "jizen tekina",
+        "vie_pronunciation": "tu thien"
+      },
+      "means": {
+        "en": "Relating to or characterized by charity",
+        "zh": "极度混乱和混乱的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "charm",
+        "laos": "ເສກ",
+        "jp": "魅力",
+        "vie": "quyến rũ",
+        "en_pronunciation": "/ʧɑrm/",
+        "laos_pronunciation": "sek",
+        "jp_pronunciation": "miryoku",
+        "vie_pronunciation": "quyen ru"
+      },
+      "means": {
+        "en": "Attractiveness that interests or pleases or stimulates",
+        "zh": "缺乏可见的秩序或组织"
+      }
+    },
+    {
+      "word": {
+        "en": "charming",
+        "laos": "ທີ່ມີສະເຫນ່",
+        "jp": "魅力的な",
+        "vie": "quyến rũ",
+        "en_pronunciation": "/ˈʧɑrmɪŋ/",
+        "laos_pronunciation": "thimi sa hen",
+        "jp_pronunciation": "miryokuteki na",
+        "vie_pronunciation": "quyen ru"
+      },
+      "means": {
+        "en": "Attract; cause to be enamored",
+        "zh": "有自己的祭坛的礼拜场所"
+      }
+    },
+    {
+      "word": {
+        "en": "chart",
+        "laos": "ແຜນພູມ",
+        "jp": "チャート",
+        "vie": "biểu đồ",
+        "en_pronunciation": "/ʧɑrt/",
+        "laos_pronunciation": "aephnphum",
+        "jp_pronunciation": "chaato",
+        "vie_pronunciation": "bieu do"
+      },
+      "means": {
+        "en": "A visual display of information",
+        "zh": "书面作品的细分；"
+      }
+    },
+    {
+      "word": {
+        "en": "charter",
+        "laos": "ກົດໄລ່ຕາ",
+        "jp": "チャーター",
+        "vie": "điều lệ",
+        "en_pronunciation": "/ˈʧɑrtər/",
+        "laos_pronunciation": "kod laita",
+        "jp_pronunciation": "chaataa",
+        "vie_pronunciation": "dieu le"
+      },
+      "means": {
+        "en": "A document incorporating an institution and specifying its rights; includes the articles of incorporation and the certificate of incorporation",
+        "zh": "通常有编号和标题"
+      }
+    },
+    {
+      "word": {
+        "en": "chase",
+        "laos": "ໄລ່",
+        "jp": "追いかける",
+        "vie": "đuổi theo",
+        "en_pronunciation": "/ʧeɪs/",
+        "laos_pronunciation": "lai",
+        "jp_pronunciation": "oi kakeru",
+        "vie_pronunciation": "duoi theo"
+      },
+      "means": {
+        "en": "The act of pursuing in an effort to overtake or capture",
+        "zh": "虚构作品（戏剧、电影或故事）中出现的虚构人物"
+      }
+    },
+    {
+      "word": {
+        "en": "chat",
+        "laos": "ການສົນທະນາ",
+        "jp": "チャット",
+        "vie": "trò chuyện",
+        "en_pronunciation": "/ʧæt/",
+        "laos_pronunciation": "kansonthana",
+        "jp_pronunciation": "chatto",
+        "vie_pronunciation": "tro chuyen"
+      },
+      "means": {
+        "en": "An informal conversation",
+        "zh": "某事物的突出属性或方面"
+      }
+    },
+    {
+      "word": {
+        "en": "cheap",
+        "laos": "ລາຄາຖືກ",
+        "jp": "安い",
+        "vie": "giá rẻ",
+        "en_pronunciation": "/ʧip/",
+        "laos_pronunciation": "lakhathuk",
+        "jp_pronunciation": "yasui",
+        "vie_pronunciation": "gia re"
+      },
+      "means": {
+        "en": "Relatively low in price or charging low prices",
+        "zh": "描述或描绘人物的性格、品质或特点"
+      }
+    },
+    {
+      "word": {
+        "en": "cheat",
+        "laos": "ໂກງ",
+        "jp": "不正行為",
+        "vie": "gian lận",
+        "en_pronunciation": "/ʧit/",
+        "laos_pronunciation": "okng",
+        "jp_pronunciation": "fuseikoui",
+        "vie_pronunciation": "gian lan"
+      },
+      "means": {
+        "en": "Weedy annual grass often occurs in grainfields and other cultivated land; seeds sometimes considered poisonous",
+        "zh": "具有以下特点"
+      }
+    },
+    {
+      "word": {
+        "en": "check",
+        "laos": "ກວດກາ",
+        "jp": "チェックする",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/ʧɛk/",
+        "laos_pronunciation": "kuadka",
+        "jp_pronunciation": "chekku suru",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "A written order directing a bank to pay money",
+        "zh": "急躁地冲向某人或某事"
+      }
+    },
+    {
+      "word": {
+        "en": "cheque",
+        "laos": "ກວດກາ",
+        "jp": "チェックする",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/ʧɛk/",
+        "laos_pronunciation": "kuadka",
+        "jp_pronunciation": "chekku suru",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "A written order directing a bank to pay money",
+        "zh": "为促进公共利益而创建的基金会（不是为了帮助任何特定个人）"
+      }
+    },
+    {
+      "word": {
+        "en": "cheek",
+        "laos": "ແກ້ມ",
+        "jp": "頬",
+        "vie": "má",
+        "en_pronunciation": "/ʧik/",
+        "laos_pronunciation": "aekm",
+        "jp_pronunciation": "hoo",
+        "vie_pronunciation": "ma"
+      },
+      "means": {
+        "en": "Either side of the face below the eyes",
+        "zh": "与慈善有关或以慈善为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "cheer",
+        "laos": "ເບີກ",
+        "jp": "乾杯",
+        "vie": "cổ vũ",
+        "en_pronunciation": "/ʧɪr/",
+        "laos_pronunciation": "boek",
+        "jp_pronunciation": "kanpai",
+        "vie_pronunciation": "co vu"
+      },
+      "means": {
+        "en": "A cry or shout of approval",
+        "zh": "引起兴趣、取悦或刺激的吸引力"
+      }
+    },
+    {
+      "word": {
+        "en": "cheerful",
+        "laos": "ຊື່ນຊົມ",
+        "jp": "陽気な",
+        "vie": "vui vẻ",
+        "en_pronunciation": "/ˈʧɪrfəl/",
+        "laos_pronunciation": "sunsom",
+        "jp_pronunciation": "youki na",
+        "vie_pronunciation": "vui ve"
+      },
+      "means": {
+        "en": "Being full of or promoting cheer; having or showing good spirits",
+        "zh": "吸引；"
+      }
+    },
+    {
+      "word": {
+        "en": "cheese",
+        "laos": "ເນີຍແຂງ",
+        "jp": "チーズ",
+        "vie": "phô mai",
+        "en_pronunciation": "/ʧiz/",
+        "laos_pronunciation": "noenyaekhng",
+        "jp_pronunciation": "chiizu",
+        "vie_pronunciation": "pho mai"
+      },
+      "means": {
+        "en": "A solid food prepared from the pressed curd of milk",
+        "zh": "让人倾心"
+      }
+    },
+    {
+      "word": {
+        "en": "chef",
+        "laos": "ພໍ່ຄົວ",
+        "jp": "シェフ",
+        "vie": "đầu bếp",
+        "en_pronunciation": "/ʃɛf/",
+        "laos_pronunciation": "phokhua",
+        "jp_pronunciation": "shiefu",
+        "vie_pronunciation": "dau bep"
+      },
+      "means": {
+        "en": "A professional cook",
+        "zh": "信息的可视化展示"
+      }
+    },
+    {
+      "word": {
+        "en": "chemistry",
+        "laos": "ເຄມີສາດ",
+        "jp": "化学",
+        "vie": "hóa học",
+        "en_pronunciation": "/ˈkɛmɪstri/",
+        "laos_pronunciation": "khemisad",
+        "jp_pronunciation": "kagaku",
+        "vie_pronunciation": "hoa hoc"
+      },
+      "means": {
+        "en": "The science of matter; the branch of the natural sciences dealing with the composition of substances and their properties and reactions",
+        "zh": "包含机构并明确其权利的文件；"
+      }
+    },
+    {
+      "word": {
+        "en": "chemical",
+        "laos": "ທາງເຄມີ",
+        "jp": "化学",
+        "vie": "hóa chất",
+        "en_pronunciation": "/ˈkɛmɪkəl/",
+        "laos_pronunciation": "thangkhemi",
+        "jp_pronunciation": "kagaku",
+        "vie_pronunciation": "hoa chat"
+      },
+      "means": {
+        "en": "Material produced by or used in a reaction involving changes in atoms or molecules",
+        "zh": "包括公司章程和公司证书"
+      }
+    },
+    {
+      "word": {
+        "en": "chemist",
+        "laos": "ນັກເຄມີ",
+        "jp": "化学者",
+        "vie": "nhà hóa học",
+        "en_pronunciation": "/ˈkɛmɪst/",
+        "laos_pronunciation": "nakkhemi",
+        "jp_pronunciation": "kagakusha",
+        "vie_pronunciation": "nha hoa hoc"
+      },
+      "means": {
+        "en": "A scientist who specializes in chemistry",
+        "zh": "试图超越或捕获的追击行为"
+      }
+    },
+    {
+      "word": {
+        "en": "cherish",
+        "laos": "ຖະຫນອມກ່ອມກ້ຽງ",
+        "jp": "大切にする",
+        "vie": "trân trọng",
+        "en_pronunciation": "/ˈʧɛrɪʃ/",
+        "laos_pronunciation": "thanom komkiang",
+        "jp_pronunciation": "taisetsu nisuru",
+        "vie_pronunciation": "tran trong"
+      },
+      "means": {
+        "en": "Be fond of; be attached to",
+        "zh": "非正式谈话"
+      }
+    },
+    {
+      "word": {
+        "en": "chess",
+        "laos": "ຫມາກເສິກ",
+        "jp": "チェス",
+        "vie": "cờ vua",
+        "en_pronunciation": "/ʧɛs/",
+        "laos_pronunciation": "maksoek",
+        "jp_pronunciation": "chesu",
+        "vie_pronunciation": "co vua"
+      },
+      "means": {
+        "en": "Weedy annual native to Europe but widely distributed as a weed especially in wheat",
+        "zh": "价格相对较低或收费较低"
+      }
+    },
+    {
+      "word": {
+        "en": "chest",
+        "laos": "ເອິກ",
+        "jp": "胸",
+        "vie": "ngực",
+        "en_pronunciation": "/ʧɛst/",
+        "laos_pronunciation": "oek",
+        "jp_pronunciation": "mune",
+        "vie_pronunciation": "nguc"
+      },
+      "means": {
+        "en": "The part of the human torso between the neck and the diaphragm or the corresponding part in other vertebrates",
+        "zh": "一年生杂草经常出现在粮田和其他耕地中；"
+      }
+    },
+    {
+      "word": {
+        "en": "chew",
+        "laos": "ຄ້ຽວ",
+        "jp": "噛む",
+        "vie": "nhai",
+        "en_pronunciation": "/ʧu/",
+        "laos_pronunciation": "khiav",
+        "jp_pronunciation": "kamu",
+        "vie_pronunciation": "nhai"
+      },
+      "means": {
+        "en": "A wad of something chewable as tobacco",
+        "zh": "种子有时被认为有毒"
+      }
+    },
+    {
+      "word": {
+        "en": "chicken",
+        "laos": "ໄກ່",
+        "jp": "鶏肉",
+        "vie": "gà",
+        "en_pronunciation": "/ˈʧɪkən/",
+        "laos_pronunciation": "kai",
+        "jp_pronunciation": "toriniku",
+        "vie_pronunciation": "ga"
+      },
+      "means": {
+        "en": "The flesh of a chicken used for food",
+        "zh": "指示银行付款的书面命令"
+      }
+    },
+    {
+      "word": {
+        "en": "chief",
+        "laos": "ຜູ້ນໍາ",
+        "jp": "チーフ",
+        "vie": "người đứng đầu",
+        "en_pronunciation": "/ʧif/",
+        "laos_pronunciation": "phunoa",
+        "jp_pronunciation": "chiifu",
+        "vie_pronunciation": "nguoi dung dau"
+      },
+      "means": {
+        "en": "A person who is in charge",
+        "zh": "指示银行付款的书面命令"
+      }
+    },
+    {
+      "word": {
+        "en": "child",
+        "laos": "ລູກ",
+        "jp": "子供",
+        "vie": "đứa trẻ",
+        "en_pronunciation": "/ʧaɪld/",
+        "laos_pronunciation": "luk",
+        "jp_pronunciation": "kodomo",
+        "vie_pronunciation": "dua tre"
+      },
+      "means": {
+        "en": "A young person of either sex",
+        "zh": "脸部两侧、眼睛下方"
+      }
+    },
+    {
+      "word": {
+        "en": "childish",
+        "laos": "ເດັກນ້ອຍ",
+        "jp": "幼稚な",
+        "vie": "trẻ con",
+        "en_pronunciation": "/ˈʧaɪldɪʃ/",
+        "laos_pronunciation": "deknony",
+        "jp_pronunciation": "youchi na",
+        "vie_pronunciation": "tre con"
+      },
+      "means": {
+        "en": "Indicating a lack of maturity",
+        "zh": "表示赞同的哭泣或喊叫"
+      }
+    },
+    {
+      "word": {
+        "en": "chill",
+        "laos": "ຫນາວ",
+        "jp": "寒い",
+        "vie": "thư giãn",
+        "en_pronunciation": "/ʧɪl/",
+        "laos_pronunciation": "nav",
+        "jp_pronunciation": "samui",
+        "vie_pronunciation": "thu gian"
+      },
+      "means": {
+        "en": "Coldness due to a cold environment",
+        "zh": "充满或促进欢乐；"
+      }
+    },
+    {
+      "word": {
+        "en": "chilly",
+        "laos": "ເຜັດ",
+        "jp": "肌寒い",
+        "vie": "lạnh lẽo",
+        "en_pronunciation": "/ˈʧɪli/",
+        "laos_pronunciation": "phed",
+        "jp_pronunciation": "hadasamui",
+        "vie_pronunciation": "lanh leo"
+      },
+      "means": {
+        "en": "Very hot and finely tapering pepper of special pungency",
+        "zh": "拥有或表现出良好的精神状态"
+      }
+    },
+    {
+      "word": {
+        "en": "chimney",
+        "laos": "ປ່ອງແປວ",
+        "jp": "煙突",
+        "vie": "ống khói",
+        "en_pronunciation": "/ˈʧɪmni/",
+        "laos_pronunciation": "pongaepv",
+        "jp_pronunciation": "entotsu",
+        "vie_pronunciation": "ong khoi"
+      },
+      "means": {
+        "en": "A vertical flue that provides a path through which smoke from a fire is carried away through the wall or roof of a building",
+        "zh": "由压榨牛奶凝乳制成的固体食品"
+      }
+    },
+    {
+      "word": {
+        "en": "chin",
+        "laos": "ຄາງ",
+        "jp": "あご",
+        "vie": "cái cằm",
+        "en_pronunciation": "/ʧɪn/",
+        "laos_pronunciation": "khang",
+        "jp_pronunciation": "ago",
+        "vie_pronunciation": "cai cam"
+      },
+      "means": {
+        "en": "The protruding part of the lower jaw",
+        "zh": "专业厨师"
+      }
+    },
+    {
+      "word": {
+        "en": "china",
+        "laos": "ຈີນ",
+        "jp": "中国",
+        "vie": "trung quốc",
+        "en_pronunciation": "/ˈʧaɪnə/",
+        "laos_pronunciation": "chin",
+        "jp_pronunciation": "chuugoku",
+        "vie_pronunciation": "trung quoc"
+      },
+      "means": {
+        "en": "A communist nation that covers a vast territory in eastern Asia; the most populous country in the world",
+        "zh": "物质科学；"
+      }
+    },
+    {
+      "word": {
+        "en": "chip",
+        "laos": "ບ່ານ",
+        "jp": "チップ",
+        "vie": "chip",
+        "en_pronunciation": "/ʧɪp/",
+        "laos_pronunciation": "ban",
+        "jp_pronunciation": "chippu",
+        "vie_pronunciation": "chip"
+      },
+      "means": {
+        "en": "A small fragment of something broken off from the whole",
+        "zh": "自然科学的一个分支，研究物质的组成及其性质和反应"
+      }
+    },
+    {
+      "word": {
+        "en": "chocolate",
+        "laos": "ໂກໂກ",
+        "jp": "チョコレート",
+        "vie": "sô cô la",
+        "en_pronunciation": "/ˈʧɔklət/",
+        "laos_pronunciation": "okok",
+        "jp_pronunciation": "chokoreeto",
+        "vie_pronunciation": "so co la"
+      },
+      "means": {
+        "en": "A beverage made from cocoa powder and milk and sugar; usually drunk hot",
+        "zh": "由涉及原子或分子变化的反应产生或使用的材料"
+      }
+    },
+    {
+      "word": {
+        "en": "choice",
+        "laos": "ການເລືອກ",
+        "jp": "選択",
+        "vie": "sự lựa chọn",
+        "en_pronunciation": "/ʧɔɪs/",
+        "laos_pronunciation": "kanleuok",
+        "jp_pronunciation": "sentaku",
+        "vie_pronunciation": "su lua chon"
+      },
+      "means": {
+        "en": "The person or thing chosen or selected",
+        "zh": "专门研究化学的科学家"
+      }
+    }
+  ]
+}

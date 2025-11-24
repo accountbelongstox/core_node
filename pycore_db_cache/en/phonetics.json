@@ -1,0 +1,76 @@
+{
+  "language": "en",
+  "generated_at": "2025-11-22T21:30:01.166884+00:00",
+  "items": [
+    {
+      "order": 1,
+      "term": "through",
+      "romanization": "throo",
+      "ipa": null,
+      "meaning": {
+        "en": "preposition indicating passage",
+        "zh": "表示穿过的介词"
+      },
+      "notes": {
+        "en": "Common English reading aid.",
+        "zh": "常见English词汇读音。"
+      }
+    },
+    {
+      "order": 2,
+      "term": "queue",
+      "romanization": "kyoo",
+      "ipa": null,
+      "meaning": {
+        "en": "line of people",
+        "zh": "排队"
+      },
+      "notes": {
+        "en": "Common English reading aid.",
+        "zh": "常见English词汇读音。"
+      }
+    },
+    {
+      "order": 3,
+      "term": "though",
+      "romanization": "thoh",
+      "ipa": null,
+      "meaning": {
+        "en": "contrast conjunction",
+        "zh": "转折连词"
+      },
+      "notes": {
+        "en": "Common English reading aid.",
+        "zh": "常见English词汇读音。"
+      }
+    },
+    {
+      "order": 4,
+      "term": "schedule",
+      "romanization": "skeh-jool",
+      "ipa": null,
+      "meaning": {
+        "en": "plan",
+        "zh": "计划"
+      },
+      "notes": {
+        "en": "Common English reading aid.",
+        "zh": "常见English词汇读音。"
+      }
+    },
+    {
+      "order": 5,
+      "term": "measure",
+      "romanization": "meh-zher",
+      "ipa": null,
+      "meaning": {
+        "en": "gauge",
+        "zh": "测量"
+      },
+      "notes": {
+        "en": "Common English reading aid.",
+        "zh": "常见English词汇读音。"
+      }
+    }
+  ]
+}

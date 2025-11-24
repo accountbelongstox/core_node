@@ -55,8 +55,8 @@ class ExampleUserModel(BaseModel):
             sqlalchemy.Column('email', sqlalchemy.String(255), unique=True, nullable=False, index=True),
             sqlalchemy.Column('password_hash', sqlalchemy.String(255), nullable=False),
             sqlalchemy.Column('is_active', sqlalchemy.Boolean, default=True, nullable=False),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
-            sqlalchemy.Column('last_login', sqlalchemy.DateTime, nullable=True),
+            sqlalchemy.Column('created_at', sqlalchemy.String(50), nullable=False),
+            sqlalchemy.Column('last_login', sqlalchemy.String(50), nullable=True),
         )
 
     # ===== Custom Methods (Differentiated Functionality) =====

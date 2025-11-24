@@ -77,9 +77,12 @@ class MCPConfigProvider:
         return PROJECT_ROOT
 
     @staticmethod
-    def get_context7_config() -> Optional[MCPConfig]:
+    def get_context7_config(target: str = "claude") -> Optional[MCPConfig]:
         """
-        Get Context7 MCP configuration (HTTP transport)
+        Get Context7 MCP configuration
+
+        Args:
+            target: Target AI tool (claude uses HTTP, codex uses stdio with npx)
 
         Returns:
             MCPConfig with API key (if found) or empty string
@@ -93,15 +96,27 @@ class MCPConfigProvider:
         else:
             print(f"[INFO] Context7 API key loaded successfully")
 
-        return MCPConfig(
-            name="context7",
-            transport_type="http",
-            url="https://mcp.context7.com/mcp",
-            headers={
-                "CONTEXT7_API_KEY": context7_api_key,
-                "Accept": "application/json, text/event-stream"
-            }
-        )
+        # Codex uses stdio with npx, Claude uses HTTP
+        if target.lower() == "codex":
+            # Codex format: codex mcp add context7 -- npx -y @upstash/context7-mcp
+            return MCPConfig(
+                name="context7",
+                transport_type="stdio",
+                command="npx",
+                args=["-y", "@upstash/context7-mcp"],
+                env={"CONTEXT7_API_KEY": context7_api_key} if context7_api_key else {}
+            )
+        else:
+            # Claude format: HTTP transport with headers
+            return MCPConfig(
+                name="context7",
+                transport_type="http",
+                url="https://mcp.context7.com/mcp",
+                headers={
+                    "CONTEXT7_API_KEY": context7_api_key,
+                    "Accept": "application/json, text/event-stream"
+                }
+            )
 
     @staticmethod
     def get_unified_server_config() -> MCPConfig:
@@ -146,8 +161,8 @@ class MCPConfigProvider:
         print(f"[INFO] Loading MCP configurations for {target}...")
         print()
 
-        # Context7 MCP (HTTP transport)
-        context7_config = cls.get_context7_config()
+        # Context7 MCP (HTTP for Claude, stdio with npx for Codex)
+        context7_config = cls.get_context7_config(target)
         if context7_config:
             configs.append(context7_config)
 

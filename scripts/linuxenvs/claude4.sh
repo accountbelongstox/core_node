@@ -85,7 +85,7 @@ shellsDirPath="$scriptsDirPath/shells"
 linuxDirPath="$shellsDirPath/linux"
 linuxCommonDirPath="$linuxDirPath/linux_common"
 pytoolsDirPath="$scriptsDirPath/pytools"
-aiToolsDirPath="$pytoolsDirPath/ai_tools"
+ai_tools_dir_path="$pytoolsDirPath/ai_tools"
 
 # Path resolution algorithm:
 #   Script (resolve symlink) -> Script Dir (linuxenvs) -> Scripts Dir -> Project Root
@@ -94,103 +94,6 @@ echo "[DEBUG] scriptSource:      $scriptSource"
 echo "[DEBUG] scriptCurrentPath: $scriptCurrentPath"
 echo "[DEBUG] scriptsDirPath:    $scriptsDirPath"
 echo "[DEBUG] projectRootPath:   $projectRootPath"
-
-#region Ensure /var/_core_node Permissions Setup
-# ============================================================================
-# PRE-EXECUTION PERMISSION SETUP
-# ============================================================================
-# This section ensures proper permissions for /var/_core_node when script
-# is generated in root environment but executed by non-root users
-# Uses get_real_user from pycore/pyfoundations/system_info.py for user detection
-# ============================================================================
-
-ensure_var_core_node_permissions() {
-    local target_path="/var/_core_node"
-    
-    # Check if we're running as root
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "[INFO] Running as root - setting up /var/_core_node permissions"
-        
-        # Get real user using Python system_info module
-        local real_user=""
-        if command -v python3 >/dev/null 2>&1; then
-            real_user=$(python3 -c "
-import sys
-sys.path.insert(0, '$projectRootPath')
-try:
-    from pycore.pyfoundations.system_info import get_real_user
-    print(get_real_user())
-except Exception:
-    print('')
-" 2>/dev/null || echo "")
-        fi
-        
-        # Fallback to environment variables or default
-        if [ -z "$real_user" ]; then
-            real_user="${SUDO_USER:-ubuntu}"
-        fi
-        
-        echo "[INFO] Detected real user: $real_user"
-        
-        # Create /var/_core_node if it doesn't exist
-        if [ ! -d "$target_path" ]; then
-            echo "[INFO] Creating directory: $target_path"
-            mkdir -p "$target_path" || {
-                echo "[ERROR] Failed to create directory: $target_path"
-                return 1
-            }
-        fi
-        
-        # Set ownership for real user access
-        echo "[INFO] Setting ownership for $real_user on $target_path"
-        chown -R "$real_user:$real_user" "$target_path" 2>/dev/null || {
-            echo "[WARNING] Failed to change ownership to $real_user"
-        }
-        
-        # Set 777 permissions for full access and ensure all permission bits are set
-        echo "[INFO] Setting 777 permissions on $target_path"
-        chmod -R 777 "$target_path" 2>/dev/null || echo "[WARNING] Failed to set 777 permissions"
-        chmod -R +rwx "$target_path" 2>/dev/null || echo "[WARNING] Failed to set +rwx permissions"
-        
-        echo "[SUCCESS] /var/_core_node permissions configured for user: $real_user"
-    else
-        echo "[INFO] Not running as root - checking /var/_core_node accessibility"
-        # Check if /var/_core_node exists and is accessible
-        local needs_fix=false
-        if [ ! -d "$target_path" ]; then
-            echo "[WARNING] $target_path does not exist and cannot be created (not root)"
-            needs_fix=true
-        elif [ ! -w "$target_path" ]; then
-            echo "[WARNING] $target_path is not writable by current user"
-            echo "[WARNING] MyBest directory creation may fail"
-            needs_fix=true
-        else
-            echo "[INFO] $target_path is accessible"
-        fi
-        
-        # Code Relationship: Generated scripts -> dd.sh smart permissions
-        # When permission issues are detected in generated scripts (non-root execution),
-        # users should run dd.sh which contains smart_permissions.sh functionality
-        # to fix all permissions comprehensively as root user
-        if [ "$needs_fix" = true ]; then
-            echo ""
-            echo "[SOLUTION] To fix permission issues, run as root:"
-            echo "  sudo $projectRootPath/dd.sh"
-            echo ""
-            echo "[INFO] dd.sh contains smart_permissions.sh which will:"
-            echo "  1. Fix /var/_core_node permissions (777 + ownership)"
-            echo "  2. Fix core project permissions for all users"
-            echo "  3. Setup environment variables (DISABLE_AUTOUPDATER=1)"
-            echo "  4. Repair AI tools if needed"
-            echo ""
-        fi
-    fi
-}
-
-# Execute permission setup
-ensure_var_core_node_permissions
-
-#endregion
 
 #region Custom User Directory Configuration
 # ============================================================================

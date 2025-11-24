@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.290726+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "department",
+        "laos": "ພະແນກ",
+        "jp": "部門",
+        "vie": "khoa",
+        "en_pronunciation": "/dɪˈpɑrtmənt/",
+        "laos_pronunciation": "phaaenk",
+        "jp_pronunciation": "bumon",
+        "vie_pronunciation": "khoa"
+      },
+      "means": {
+        "en": "A specialized division of a large organization",
+        "zh": "大型组织的专门部门"
+      }
+    },
+    {
+      "word": {
+        "en": "depend",
+        "laos": "ຂຶ້ນກັບຍູ່",
+        "jp": "依存する",
+        "vie": "phụ thuộc",
+        "en_pronunciation": "/dɪˈpɛnd/",
+        "laos_pronunciation": "khunkab nyu",
+        "jp_pronunciation": "izon suru",
+        "vie_pronunciation": "phu thuoc"
+      },
+      "means": {
+        "en": "Be contingent upon (something that is elided)",
+        "zh": "取决于（被省略的东西）"
+      }
+    },
+    {
+      "word": {
+        "en": "dependent",
+        "laos": "ທີ່ຂຶ້ນກັບຍູ່",
+        "jp": "依存している",
+        "vie": "phụ thuộc",
+        "en_pronunciation": "/dɪˈpɛndənt/",
+        "laos_pronunciation": "thikhunkab nyu",
+        "jp_pronunciation": "izon shiteiru",
+        "vie_pronunciation": "phu thuoc"
+      },
+      "means": {
+        "en": "A person who relies on another person for support (especially financial support)",
+        "zh": "依赖他人支持（尤其是经济支持）的人"
+      }
+    },
+    {
+      "word": {
+        "en": "dependence",
+        "laos": "ການຢູ່ກິນຢູ່ເຮືອນ",
+        "jp": "依存性",
+        "vie": "sự phụ thuộc",
+        "en_pronunciation": "/dɪˈpɛndəns/",
+        "laos_pronunciation": "kan yukinyuheuon",
+        "jp_pronunciation": "izonsei",
+        "vie_pronunciation": "su phu thuoc"
+      },
+      "means": {
+        "en": "The state of relying on or being controlled by someone or something else",
+        "zh": "依赖某人或某物或受其控制的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "dependable",
+        "laos": "ທີ່ເພິ່ງພໍໃຈ",
+        "jp": "頼りになる",
+        "vie": "đáng tin cậy",
+        "en_pronunciation": "/dɪˈpɛndəbəl/",
+        "laos_pronunciation": "thiphoengphochai",
+        "jp_pronunciation": "tayori ninaru",
+        "vie_pronunciation": "dang tin cay"
+      },
+      "means": {
+        "en": "Worthy of reliance or trust",
+        "zh": "值得依赖或信任"
+      }
+    },
+    {
+      "word": {
+        "en": "depict",
+        "laos": "ມາດຕະຖານ",
+        "jp": "描く",
+        "vie": "miêu tả",
+        "en_pronunciation": "/dɪˈpɪkt/",
+        "laos_pronunciation": "madtathan",
+        "jp_pronunciation": "egaku",
+        "vie_pronunciation": "mieu ta"
+      },
+      "means": {
+        "en": "Show in, or as in, a picture",
+        "zh": "在图片中显示或如图所示"
+      }
+    },
+    {
+      "word": {
+        "en": "depiction",
+        "laos": "ຮູບໂຕ້",
+        "jp": "描写",
+        "vie": "miêu tả",
+        "en_pronunciation": "/dɪˈpɪkʃən/",
+        "laos_pronunciation": "hubot",
+        "jp_pronunciation": "byousha",
+        "vie_pronunciation": "mieu ta"
+      },
+      "means": {
+        "en": "A graphic or vivid verbal description",
+        "zh": "图形或生动的口头描述"
+      }
+    },
+    {
+      "word": {
+        "en": "deplete",
+        "laos": "ເສື່ອມໂຊມ",
+        "jp": "枯渇する",
+        "vie": "cạn kiệt",
+        "en_pronunciation": "/dɪˈplit/",
+        "laos_pronunciation": "seuomosm",
+        "jp_pronunciation": "kokatsu suru",
+        "vie_pronunciation": "can kiet"
+      },
+      "means": {
+        "en": "Use up (resources or materials)",
+        "zh": "用尽（资源或材料）"
+      }
+    },
+    {
+      "word": {
+        "en": "depletion",
+        "laos": "ຄວາມເສີຍຫາຍ",
+        "jp": "枯渇",
+        "vie": "cạn kiệt",
+        "en_pronunciation": "/dɪˈpliʃən/",
+        "laos_pronunciation": "khuaam soenyhai",
+        "jp_pronunciation": "kokatsu",
+        "vie_pronunciation": "can kiet"
+      },
+      "means": {
+        "en": "The act of decreasing something markedly",
+        "zh": "显着减少某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "deplore",
+        "laos": "ທີ່ຫນ້າເສົ້າ",
+        "jp": "嘆く",
+        "vie": "tiếc nuối",
+        "en_pronunciation": "/dɪˈplɔr/",
+        "laos_pronunciation": "thi nasao",
+        "jp_pronunciation": "nageku",
+        "vie_pronunciation": "tiec nuoi"
+      },
+      "means": {
+        "en": "Express strong disapproval of",
+        "zh": "表示强烈反对"
+      }
+    },
+    {
+      "word": {
+        "en": "deploy",
+        "laos": "ບອກ",
+        "jp": "デプロイする",
+        "vie": "triển khai",
+        "en_pronunciation": "/dɪˈplɔɪ/",
+        "laos_pronunciation": "bok",
+        "jp_pronunciation": "depuroi suru",
+        "vie_pronunciation": "trien khai"
+      },
+      "means": {
+        "en": "Place troops or weapons in battle formation",
+        "zh": "将部队或武器布置成战斗队形"
+      }
+    },
+    {
+      "word": {
+        "en": "deployment",
+        "laos": "ການປະຕິບັດງານ",
+        "jp": "導入",
+        "vie": "triển khai",
+        "en_pronunciation": "/dɪˈplɔɪmənt/",
+        "laos_pronunciation": "kanpatibadngan",
+        "jp_pronunciation": "dounyuu",
+        "vie_pronunciation": "trien khai"
+      },
+      "means": {
+        "en": "The distribution of forces in preparation for battle or work",
+        "zh": "准备战斗或工作时的兵力分配"
+      }
+    },
+    {
+      "word": {
+        "en": "deport",
+        "laos": "ເນນ",
+        "jp": "国外追放",
+        "vie": "trục xuất",
+        "en_pronunciation": "/dɪˈpɔrt/",
+        "laos_pronunciation": "nen",
+        "jp_pronunciation": "kokugai tsuihou",
+        "vie_pronunciation": "truc xuat"
+      },
+      "means": {
+        "en": "Behave in a certain manner",
+        "zh": "以某种方式行事"
+      }
+    },
+    {
+      "word": {
+        "en": "deportation",
+        "laos": "ການເນລະເທດ",
+        "jp": "国外追放",
+        "vie": "trục xuất",
+        "en_pronunciation": "/ˌdipɔrˈteɪʃən/",
+        "laos_pronunciation": "kan nelathed",
+        "jp_pronunciation": "kokugai tsuihou",
+        "vie_pronunciation": "truc xuat"
+      },
+      "means": {
+        "en": "The act of expelling a person from their native land",
+        "zh": "将一个人驱逐出其祖国的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "deposit",
+        "laos": "ຝາກເງິນ",
+        "jp": "デポジット",
+        "vie": "đặt cọc",
+        "en_pronunciation": "/dɪˈpɑzət/",
+        "laos_pronunciation": "fakngoen",
+        "jp_pronunciation": "depojitto",
+        "vie_pronunciation": "dat coc"
+      },
+      "means": {
+        "en": "The phenomenon of sediment or gravel accumulating",
+        "zh": "沉积物或碎石堆积的现象"
+      }
+    },
+    {
+      "word": {
+        "en": "depot",
+        "laos": "DOT DEPOT",
+        "jp": "デポ",
+        "vie": "kho hàng",
+        "en_pronunciation": "/ˈdipoʊ/",
+        "laos_pronunciation": "DOT DEPOT",
+        "jp_pronunciation": "depo",
+        "vie_pronunciation": "kho hang"
+      },
+      "means": {
+        "en": "Station where transport vehicles load or unload passengers or goods",
+        "zh": "运输车辆装卸旅客或货物的车站"
+      }
+    },
+    {
+      "word": {
+        "en": "depreciate",
+        "laos": "ເສື່ອມ",
+        "jp": "減価償却する",
+        "vie": "mất giá",
+        "en_pronunciation": "/dɪˈpriʃiˌeɪt/",
+        "laos_pronunciation": "seuom",
+        "jp_pronunciation": "genkashoukyaku suru",
+        "vie_pronunciation": "mat gia"
+      },
+      "means": {
+        "en": "Belittle",
+        "zh": "贬低"
+      }
+    },
+    {
+      "word": {
+        "en": "depreciation",
+        "laos": "ການດ້ອຍໂອຣະ",
+        "jp": "減価償却費",
+        "vie": "khấu hao",
+        "en_pronunciation": "/dɪˌpriʃiˈeɪʃən/",
+        "laos_pronunciation": "kan dony oora",
+        "jp_pronunciation": "genkashoukyakuhi",
+        "vie_pronunciation": "khau hao"
+      },
+      "means": {
+        "en": "A decrease in price or value",
+        "zh": "价格或价值下降"
+      }
+    },
+    {
+      "word": {
+        "en": "depress",
+        "laos": "ຊຶມ",
+        "jp": "落ち込む",
+        "vie": "chán nản",
+        "en_pronunciation": "/dɪˈprɛs/",
+        "laos_pronunciation": "sum",
+        "jp_pronunciation": "ochikomu",
+        "vie_pronunciation": "chan nan"
+      },
+      "means": {
+        "en": "Lower someone's spirits; make downhearted",
+        "zh": "使某人情绪低落；"
+      }
+    },
+    {
+      "word": {
+        "en": "depression",
+        "laos": "ຄວາມອຸກໃຈ",
+        "jp": "うつ病",
+        "vie": "trầm cảm",
+        "en_pronunciation": "/dɪˈprɛʃən/",
+        "laos_pronunciation": "khuaamukchai",
+        "jp_pronunciation": "utsu byou",
+        "vie_pronunciation": "tram cam"
+      },
+      "means": {
+        "en": "A mental state characterized by a pessimistic sense of inadequacy and a despondent lack of activity",
+        "zh": "使心灰意冷"
+      }
+    },
+    {
+      "word": {
+        "en": "deprive",
+        "laos": "ຢຶດເອົາ",
+        "jp": "奪う",
+        "vie": "tước đoạt",
+        "en_pronunciation": "/dɪˈpraɪv/",
+        "laos_pronunciation": "yudoao",
+        "jp_pronunciation": "ubau",
+        "vie_pronunciation": "tuoc doat"
+      },
+      "means": {
+        "en": "Take away possessions from someone",
+        "zh": "一种以悲观的不足感和沮丧的缺乏活动为特征的精神状态"
+      }
+    },
+    {
+      "word": {
+        "en": "deprivation",
+        "laos": "ການຂາດ",
+        "jp": "剥奪",
+        "vie": "thiếu thốn",
+        "en_pronunciation": "/ˌdɛprəˈveɪʃən/",
+        "laos_pronunciation": "kankhad",
+        "jp_pronunciation": "hakudatsu",
+        "vie_pronunciation": "thieu thon"
+      },
+      "means": {
+        "en": "A state of extreme poverty",
+        "zh": "拿走某人的财物"
+      }
+    },
+    {
+      "word": {
+        "en": "depth",
+        "laos": "ຄວາມເລິກ",
+        "jp": "深さ",
+        "vie": "độ sâu",
+        "en_pronunciation": "/dɛpθ/",
+        "laos_pronunciation": "khuaamloek",
+        "jp_pronunciation": "fukasa",
+        "vie_pronunciation": "do sau"
+      },
+      "means": {
+        "en": "The extent downward or backward or inward",
+        "zh": "赤贫状态"
+      }
+    },
+    {
+      "word": {
+        "en": "deputy",
+        "laos": "ຮອງ",
+        "jp": "副官",
+        "vie": "phó",
+        "en_pronunciation": "/ˈdɛpjəti/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "fukukan",
+        "vie_pronunciation": "pho"
+      },
+      "means": {
+        "en": "Someone authorized to exercise the powers of sheriff in emergencies",
+        "zh": "向下或向后或向内的程度"
+      }
+    },
+    {
+      "word": {
+        "en": "derail",
+        "laos": "ການດູແລ",
+        "jp": "脱線する",
+        "vie": "trật bánh",
+        "en_pronunciation": "/dɪˈreɪl/",
+        "laos_pronunciation": "kanduael",
+        "jp_pronunciation": "dassen suru",
+        "vie_pronunciation": "trat banh"
+      },
+      "means": {
+        "en": "Cause to run off the tracks",
+        "zh": "被授权在紧急情况下行使治安官权力的人"
+      }
+    },
+    {
+      "word": {
+        "en": "derailment",
+        "laos": "ອະນຸພູມ",
+        "jp": "脱線",
+        "vie": "trật bánh",
+        "en_pronunciation": "/dɪˈreɪlmənt/",
+        "laos_pronunciation": "anuphum",
+        "jp_pronunciation": "dassen",
+        "vie_pronunciation": "trat banh"
+      },
+      "means": {
+        "en": "An accident in which a train runs off its track",
+        "zh": "导致偏离轨道"
+      }
+    },
+    {
+      "word": {
+        "en": "deregulate",
+        "laos": "ເພນິດ",
+        "jp": "規制緩和する",
+        "vie": "bãi bỏ quy định",
+        "en_pronunciation": "/diˈrɛgjəleɪt/",
+        "laos_pronunciation": "phenid",
+        "jp_pronunciation": "kiseikanwa suru",
+        "vie_pronunciation": "bai bo quy dinh"
+      },
+      "means": {
+        "en": "Lift the regulations on",
+        "zh": "火车脱离轨道的事故"
+      }
+    },
+    {
+      "word": {
+        "en": "deregulation",
+        "laos": "ທໍາແດງ",
+        "jp": "規制緩和",
+        "vie": "bãi bỏ quy định",
+        "en_pronunciation": "/diˌrɛgjəˈleɪʃən/",
+        "laos_pronunciation": "thoaaedng",
+        "jp_pronunciation": "kiseikanwa",
+        "vie_pronunciation": "bai bo quy dinh"
+      },
+      "means": {
+        "en": "The act of freeing from regulation (especially from governmental regulations)",
+        "zh": "解除有关规定"
+      }
+    },
+    {
+      "word": {
+        "en": "derive",
+        "laos": "ຊະບາ",
+        "jp": "導き出す",
+        "vie": "lấy được",
+        "en_pronunciation": "/dəraɪv/",
+        "laos_pronunciation": "saba",
+        "jp_pronunciation": "michibikidasu",
+        "vie_pronunciation": "lay duoc"
+      },
+      "means": {
+        "en": "Reason by deduction; establish by deduction",
+        "zh": "摆脱监管（尤其是政府监管）的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "derivative",
+        "laos": "ອະຕູນ",
+        "jp": "派生関数",
+        "vie": "phái sinh",
+        "en_pronunciation": "/dərˈɪvɪtɪv/",
+        "laos_pronunciation": "atun",
+        "jp_pronunciation": "hasei kansuu",
+        "vie_pronunciation": "phai sinh"
+      },
+      "means": {
+        "en": "The result of mathematical differentiation; the instantaneous change of one quantity relative to another; df(x)/dx",
+        "zh": "演绎推理；"
+      }
+    },
+    {
+      "word": {
+        "en": "derivation",
+        "laos": "ອະນຸພົງ",
+        "jp": "導出",
+        "vie": "sự dẫn xuất",
+        "en_pronunciation": "/ˌdɛrəˈveɪʃən/",
+        "laos_pronunciation": "anuphong",
+        "jp_pronunciation": "doushutsu",
+        "vie_pronunciation": "su dan xuat"
+      },
+      "means": {
+        "en": "The source or origin from which something derives (i.e. comes or issues)",
+        "zh": "通过演绎法建立"
+      }
+    },
+    {
+      "word": {
+        "en": "descend",
+        "laos": "ລົງໄປ",
+        "jp": "降りる",
+        "vie": "đi xuống",
+        "en_pronunciation": "/dɪˈsɛnd/",
+        "laos_pronunciation": "longpai",
+        "jp_pronunciation": "ori ru",
+        "vie_pronunciation": "di xuong"
+      },
+      "means": {
+        "en": "Move downward and lower, but not necessarily all the way",
+        "zh": "数学微分的结果；"
+      }
+    },
+    {
+      "word": {
+        "en": "descent",
+        "laos": "ຍອງ",
+        "jp": "降下",
+        "vie": "đi xuống",
+        "en_pronunciation": "/dɪˈsɛnt/",
+        "laos_pronunciation": "nyong",
+        "jp_pronunciation": "kouka",
+        "vie_pronunciation": "di xuong"
+      },
+      "means": {
+        "en": "A movement downward",
+        "zh": "一个量相对于另一个量的瞬时变化；"
+      }
+    },
+    {
+      "word": {
+        "en": "descendant",
+        "laos": "ລູກຫລານ",
+        "jp": "子孫",
+        "vie": "hậu duệ",
+        "en_pronunciation": "/dɪˈsɛndənt/",
+        "laos_pronunciation": "luklan",
+        "jp_pronunciation": "shison",
+        "vie_pronunciation": "hau due"
+      },
+      "means": {
+        "en": "A person considered as descended from some ancestor or race",
+        "zh": "df(x)/dx"
+      }
+    },
+    {
+      "word": {
+        "en": "describe",
+        "laos": "ພັນລະນາ",
+        "jp": "説明する",
+        "vie": "mô tả",
+        "en_pronunciation": "/dɪˈskraɪb/",
+        "laos_pronunciation": "phanlana",
+        "jp_pronunciation": "setsumeisu ru",
+        "vie_pronunciation": "mo ta"
+      },
+      "means": {
+        "en": "Give a description of",
+        "zh": "某事物的来源或起源（即出现或问题）"
+      }
+    },
+    {
+      "word": {
+        "en": "desert",
+        "laos": "ຮ້າງ",
+        "jp": "砂漠",
+        "vie": "sa mạc",
+        "en_pronunciation": "/ˈdɛzərt/",
+        "laos_pronunciation": "hang",
+        "jp_pronunciation": "sabaku",
+        "vie_pronunciation": "sa mac"
+      },
+      "means": {
+        "en": "Arid land with little or no vegetation",
+        "zh": "向下移动并降低，但不一定一直移动"
+      }
+    },
+    {
+      "word": {
+        "en": "description",
+        "laos": "ລາຍລະອຽດ",
+        "jp": "説明",
+        "vie": "mô tả",
+        "en_pronunciation": "/dɪˈskrɪpʃən/",
+        "laos_pronunciation": "lailaoiad",
+        "jp_pronunciation": "setsumei",
+        "vie_pronunciation": "mo ta"
+      },
+      "means": {
+        "en": "A statement that represents something in words",
+        "zh": "向下运动"
+      }
+    },
+    {
+      "word": {
+        "en": "descriptive",
+        "laos": "ອະທິບາຍ",
+        "jp": "説明的な",
+        "vie": "mô tả",
+        "en_pronunciation": "/dɪˈskrɪptɪv/",
+        "laos_pronunciation": "athibai",
+        "jp_pronunciation": "setsumeiteki na",
+        "vie_pronunciation": "mo ta"
+      },
+      "means": {
+        "en": "Serving to describe or inform or characterized by description",
+        "zh": "被认为是某个祖先或种族的后裔的人"
+      }
+    },
+    {
+      "word": {
+        "en": "desertion",
+        "laos": "ການຫລົບຫນີ",
+        "jp": "脱走",
+        "vie": "sự đào ngũ",
+        "en_pronunciation": "/dɪˈzərʃən/",
+        "laos_pronunciation": "kanlobni",
+        "jp_pronunciation": "dassou",
+        "vie_pronunciation": "su dao ngu"
+      },
+      "means": {
+        "en": "Withdrawing support or help despite allegiance or responsibility",
+        "zh": "给出描述"
+      }
+    },
+    {
+      "word": {
+        "en": "deserve",
+        "laos": "ສົມຄວນໄດ້ຮັບ",
+        "jp": "値する",
+        "vie": "xứng đáng",
+        "en_pronunciation": "/dɪˈzərv/",
+        "laos_pronunciation": "somkhuandaihab",
+        "jp_pronunciation": "atai suru",
+        "vie_pronunciation": "xung dang"
+      },
+      "means": {
+        "en": "Be worthy or deserving",
+        "zh": "干旱的土地，几乎没有植被"
+      }
+    },
+    {
+      "word": {
+        "en": "design",
+        "laos": "ການອອກແບບ",
+        "jp": "デザイン",
+        "vie": "thiết kế",
+        "en_pronunciation": "/dɪˈzaɪn/",
+        "laos_pronunciation": "kanookaebb",
+        "jp_pronunciation": "dezain",
+        "vie_pronunciation": "thiet ke"
+      },
+      "means": {
+        "en": "The act of working out the form of something (as by making a sketch or outline or plan)",
+        "zh": "用文字表达某事的陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "designer",
+        "laos": "ຜູ້ກິນ",
+        "jp": "デザイナー",
+        "vie": "nhà thiết kế",
+        "en_pronunciation": "/dɪˈzaɪnər/",
+        "laos_pronunciation": "phukin",
+        "jp_pronunciation": "dezainaa",
+        "vie_pronunciation": "nha thiet ke"
+      },
+      "means": {
+        "en": "A person who specializes in designing architectural interiors and their furnishings",
+        "zh": "用于描述或告知或以描述为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "designate",
+        "laos": "ກໍານົດ",
+        "jp": "指定する",
+        "vie": "chỉ định",
+        "en_pronunciation": "/ˈdɛzɪgˌneɪt/",
+        "laos_pronunciation": "koanod",
+        "jp_pronunciation": "shiteisu ru",
+        "vie_pronunciation": "chi dinh"
+      },
+      "means": {
+        "en": "Assign a name or title to",
+        "zh": "尽管有忠诚或责任，但撤回支持或帮助"
+      }
+    },
+    {
+      "word": {
+        "en": "designation",
+        "laos": "ການອອກແບບ",
+        "jp": "指定",
+        "vie": "sự chỉ định",
+        "en_pronunciation": "/ˌdɛzɪgˈneɪʃən/",
+        "laos_pronunciation": "kanookaebb",
+        "jp_pronunciation": "shitei",
+        "vie_pronunciation": "su chi dinh"
+      },
+      "means": {
+        "en": "Identifying word or words by which someone or something is called and classified or distinguished from others",
+        "zh": "值得或值得"
+      }
+    },
+    {
+      "word": {
+        "en": "desire",
+        "laos": "ຄວາມປາຖະຫນາ",
+        "jp": "欲望",
+        "vie": "mong muốn",
+        "en_pronunciation": "/dɪˈzaɪər/",
+        "laos_pronunciation": "khuaampathana",
+        "jp_pronunciation": "yokubou",
+        "vie_pronunciation": "mong muon"
+      },
+      "means": {
+        "en": "The feeling that accompanies an unsatisfied state",
+        "zh": "制定某事物的形式的行为（例如通过绘制草图、轮廓或计划）"
+      }
+    },
+    {
+      "word": {
+        "en": "desirable",
+        "laos": "ເປັນຄວາມປາຖະຫນາ",
+        "jp": "望ましい",
+        "vie": "mong muốn",
+        "en_pronunciation": "/dɪˈzaɪərəbəl/",
+        "laos_pronunciation": "pen khuaampathana",
+        "jp_pronunciation": "nozomashii",
+        "vie_pronunciation": "mong muon"
+      },
+      "means": {
+        "en": "Worth having or seeking or achieving",
+        "zh": "专门从事建筑室内装饰及其家具设计的人"
+      }
+    },
+    {
+      "word": {
+        "en": "desirability",
+        "laos": "ຄວາມຫມົດຫວັງ",
+        "jp": "望ましさ",
+        "vie": "sự đáng khao khát",
+        "en_pronunciation": "/dɪˌzaɪrəˈbɪlɪti/",
+        "laos_pronunciation": "khuaam modvang",
+        "jp_pronunciation": "nozomashisa",
+        "vie_pronunciation": "su dang khao khat"
+      },
+      "means": {
+        "en": "The quality of being worthy of desiring",
+        "zh": "指定名称或头衔"
+      }
+    },
+    {
+      "word": {
+        "en": "desirous",
+        "laos": "ຫນ້າສົນໃຈ",
+        "jp": "望ましい",
+        "vie": "ham muốn",
+        "en_pronunciation": "/dɪˈzaɪrəs/",
+        "laos_pronunciation": "nasonchai",
+        "jp_pronunciation": "nozomashii",
+        "vie_pronunciation": "ham muon"
+      },
+      "means": {
+        "en": "Having or expressing desire for something",
+        "zh": "识别一个或多个单词，用来称呼某人或某物，并对其进行分类或区别于其他人或事物"
+      }
+    },
+    {
+      "word": {
+        "en": "desk",
+        "laos": "ໂຕະ",
+        "jp": "机",
+        "vie": "bàn",
+        "en_pronunciation": "/dɛsk/",
+        "laos_pronunciation": "to",
+        "jp_pronunciation": "tsukue",
+        "vie_pronunciation": "ban"
+      },
+      "means": {
+        "en": "A piece of furniture with a writing surface and usually drawers or other compartments",
+        "zh": "伴随着不满足的状态的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "desktop",
+        "laos": "ຂໍ້ທີ",
+        "jp": "デスクトップ",
+        "vie": "máy tính để bàn",
+        "en_pronunciation": "/ˈdɛskˌtɑp/",
+        "laos_pronunciation": "khothi",
+        "jp_pronunciation": "desukutoppu",
+        "vie_pronunciation": "may tinh de ban"
+      },
+      "means": {
+        "en": "The top of a desk",
+        "zh": "值得拥有或寻求或实现"
+      }
+    },
+    {
+      "word": {
+        "en": "desolate",
+        "laos": "ປ່ຽວ",
+        "jp": "荒涼とした",
+        "vie": "hoang vắng",
+        "en_pronunciation": "/ˈdɛzələt/",
+        "laos_pronunciation": "piav",
+        "jp_pronunciation": "kouryou toshita",
+        "vie_pronunciation": "hoang vang"
+      },
+      "means": {
+        "en": "Leave someone who needs or counts on you; leave in the lurch",
+        "zh": "值得渴望的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "despair",
+        "laos": "ຄວາມສິ້ນຫວັງ",
+        "jp": "絶望",
+        "vie": "tuyệt vọng",
+        "en_pronunciation": "/dɪˈspɛr/",
+        "laos_pronunciation": "khuaam sinvang",
+        "jp_pronunciation": "zetsubou",
+        "vie_pronunciation": "tuyet vong"
+      },
+      "means": {
+        "en": "A state in which all hope is lost or absent",
+        "zh": "拥有或表达对某事的渴望"
+      }
+    },
+    {
+      "word": {
+        "en": "desperate",
+        "laos": "ທີ່ຫມົດຫວັງ",
+        "jp": "絶望的な",
+        "vie": "tuyệt vọng",
+        "en_pronunciation": "/ˈdɛspərɪt/",
+        "laos_pronunciation": "thi modvang",
+        "jp_pronunciation": "zetsubouteki na",
+        "vie_pronunciation": "tuyet vong"
+      },
+      "means": {
+        "en": "A person who is frightened and in need of help",
+        "zh": "一件带有书写表面且通常有抽屉或其他隔间的家具"
+      }
+    },
+    {
+      "word": {
+        "en": "despatch",
+        "laos": "ໂດຢ",
+        "jp": "発送",
+        "vie": "gửi đi",
+        "en_pronunciation": "/despatch/",
+        "laos_pronunciation": "ody",
+        "jp_pronunciation": "hassou",
+        "vie_pronunciation": "gui di"
+      },
+      "means": {
+        "en": "An official report (usually sent in haste)",
+        "zh": "桌子的顶部"
+      }
+    },
+    {
+      "word": {
+        "en": "despise",
+        "laos": "ດູຫມິ່ນປະຫມາດ",
+        "jp": "軽蔑する",
+        "vie": "coi thường",
+        "en_pronunciation": "/dɪˈspaɪz/",
+        "laos_pronunciation": "du min pamad",
+        "jp_pronunciation": "keibetsu suru",
+        "vie_pronunciation": "coi thuong"
+      },
+      "means": {
+        "en": "Look down on with disdain",
+        "zh": "离开需要你或依赖你的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "despite",
+        "laos": "ເຖິງແມ່ນວ່າ",
+        "jp": "にもかかわらず",
+        "vie": "mặc dù",
+        "en_pronunciation": "/dɪˈspaɪt/",
+        "laos_pronunciation": "thoengaemnva",
+        "jp_pronunciation": "nimokakawarazu",
+        "vie_pronunciation": "mac du"
+      },
+      "means": {
+        "en": "Lack of respect accompanied by a feeling of intense dislike",
+        "zh": "陷入困境"
+      }
+    },
+    {
+      "word": {
+        "en": "dessert",
+        "laos": "ຂອງຫວານ",
+        "jp": "デザート",
+        "vie": "món tráng miệng",
+        "en_pronunciation": "/dɪˈzərt/",
+        "laos_pronunciation": "khongvan",
+        "jp_pronunciation": "dezaato",
+        "vie_pronunciation": "mon trang mieng"
+      },
+      "means": {
+        "en": "A dish served as the last course of a meal",
+        "zh": "所有希望都丧失或不存在的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "destination",
+        "laos": "ຈຸດຫມາຍປາຍທາງ",
+        "jp": "目的地",
+        "vie": "điểm đến",
+        "en_pronunciation": "/ˌdɛstɪˈneɪʃən/",
+        "laos_pronunciation": "chudmaipaithang",
+        "jp_pronunciation": "mokutekichi",
+        "vie_pronunciation": "diem den"
+      },
+      "means": {
+        "en": "The place designated as the end (as of a race or journey)",
+        "zh": "一个受到惊吓并需要帮助的人"
+      }
+    },
+    {
+      "word": {
+        "en": "destiny",
+        "laos": "ກັມຫລັກ",
+        "jp": "運命",
+        "vie": "định mệnh",
+        "en_pronunciation": "/ˈdɛstəni/",
+        "laos_pronunciation": "kamlak",
+        "jp_pronunciation": "unmei",
+        "vie_pronunciation": "dinh menh"
+      },
+      "means": {
+        "en": "An event (or a course of events) that will inevitably happen in the future",
+        "zh": "正式报告（通常匆忙发送）"
+      }
+    },
+    {
+      "word": {
+        "en": "destined",
+        "laos": "ຂະຫຍາຍ",
+        "jp": "運命の",
+        "vie": "định mệnh",
+        "en_pronunciation": "/ˈdɛstɪnd/",
+        "laos_pronunciation": "khajai",
+        "jp_pronunciation": "unmei no",
+        "vie_pronunciation": "dinh menh"
+      },
+      "means": {
+        "en": "Decree or designate beforehand",
+        "zh": "蔑视地看不起"
+      }
+    },
+    {
+      "word": {
+        "en": "destroy",
+        "laos": "ພັງ",
+        "jp": "破壊する",
+        "vie": "phá hủy",
+        "en_pronunciation": "/dɪˈstrɔɪ/",
+        "laos_pronunciation": "phang",
+        "jp_pronunciation": "hakai suru",
+        "vie_pronunciation": "pha huy"
+      },
+      "means": {
+        "en": "Do away with, cause the destruction or undoing of",
+        "zh": "缺乏尊重并伴有强烈的厌恶感"
+      }
+    },
+    {
+      "word": {
+        "en": "destruction",
+        "laos": "ວິນາດສະກັມ",
+        "jp": "破壊",
+        "vie": "sự phá hủy",
+        "en_pronunciation": "/dɪˈstrəkʃən/",
+        "laos_pronunciation": "vi nad sakam",
+        "jp_pronunciation": "hakai",
+        "vie_pronunciation": "su pha huy"
+      },
+      "means": {
+        "en": "The termination of something by causing so much damage to it that it cannot be repaired or no longer exists",
+        "zh": "作为一顿饭最后一道菜的一道菜"
+      }
+    },
+    {
+      "word": {
+        "en": "destructive",
+        "laos": "ທໍາລາຍ",
+        "jp": "破壊的な",
+        "vie": "phá hoại",
+        "en_pronunciation": "/dɪˈstrəktɪv/",
+        "laos_pronunciation": "thoalai",
+        "jp_pronunciation": "hakaiteki na",
+        "vie_pronunciation": "pha hoai"
+      },
+      "means": {
+        "en": "Causing destruction or much damage",
+        "zh": "指定为终点的地点（如比赛或旅程）"
+      }
+    },
+    {
+      "word": {
+        "en": "detach",
+        "laos": "detach",
+        "jp": "切り離す",
+        "vie": "tách ra",
+        "en_pronunciation": "/ˈdɪˌtæʧ/",
+        "laos_pronunciation": "detach",
+        "jp_pronunciation": "kirihanasu",
+        "vie_pronunciation": "tach ra"
+      },
+      "means": {
+        "en": "Cause to become detached or separated; take off",
+        "zh": "未来不可避免地发生的事件（或一系列事件）"
+      }
+    },
+    {
+      "word": {
+        "en": "detached",
+        "laos": "ແຍກແຍ່",
+        "jp": "切り離された",
+        "vie": "tách ra",
+        "en_pronunciation": "/dɪˈtæʧt/",
+        "laos_pronunciation": "aenykaeny",
+        "jp_pronunciation": "kirihanasa reta",
+        "vie_pronunciation": "tach ra"
+      },
+      "means": {
+        "en": "Cause to become detached or separated; take off",
+        "zh": "事先法令或指定"
+      }
+    },
+    {
+      "word": {
+        "en": "detachment",
+        "laos": "ການດູດຊືມ",
+        "jp": "分離",
+        "vie": "biệt đội",
+        "en_pronunciation": "/dɪˈtæʧmənt/",
+        "laos_pronunciation": "kan dudsum",
+        "jp_pronunciation": "bunri",
+        "vie_pronunciation": "biet doi"
+      },
+      "means": {
+        "en": "Avoiding emotional involvement",
+        "zh": "废除、造成破坏或撤销"
+      }
+    },
+    {
+      "word": {
+        "en": "detail",
+        "laos": "ລາຍລະອຽດ",
+        "jp": "詳細",
+        "vie": "chi tiết",
+        "en_pronunciation": "/ˈditeɪl/",
+        "laos_pronunciation": "lailaoiad",
+        "jp_pronunciation": "shousai",
+        "vie_pronunciation": "chi tiet"
+      },
+      "means": {
+        "en": "An isolated fact that is considered separately from the whole",
+        "zh": "通过对某事物造成严重损坏而使其无法修复或不再存在而终止该事物"
+      }
+    },
+    {
+      "word": {
+        "en": "detailed",
+        "laos": "ລາຍລະອຽດ",
+        "jp": "詳しい",
+        "vie": "chi tiết",
+        "en_pronunciation": "/dɪˈteɪld/",
+        "laos_pronunciation": "lailaoiad",
+        "jp_pronunciation": "kuwashii",
+        "vie_pronunciation": "chi tiet"
+      },
+      "means": {
+        "en": "Provide details for",
+        "zh": "造成破坏或严重损害"
+      }
+    },
+    {
+      "word": {
+        "en": "detain",
+        "laos": "ກັກຂັງ",
+        "jp": "拘留する",
+        "vie": "giam giữ",
+        "en_pronunciation": "/dɪˈteɪn/",
+        "laos_pronunciation": "kakkhang",
+        "jp_pronunciation": "kouryuu suru",
+        "vie_pronunciation": "giam giu"
+      },
+      "means": {
+        "en": "Deprive of freedom; take into confinement",
+        "zh": "导致疏远或分离；"
+      }
+    },
+    {
+      "word": {
+        "en": "detention",
+        "laos": "ການກັກຂັງ",
+        "jp": "拘留",
+        "vie": "giam giữ",
+        "en_pronunciation": "/dɪˈtɛnʃən/",
+        "laos_pronunciation": "kankakkhang",
+        "jp_pronunciation": "kouryuu",
+        "vie_pronunciation": "giam giu"
+      },
+      "means": {
+        "en": "A state of being confined (usually for a short time)",
+        "zh": "起飞"
+      }
+    },
+    {
+      "word": {
+        "en": "detect",
+        "laos": "ກວດພົບ",
+        "jp": "検出する",
+        "vie": "phát hiện",
+        "en_pronunciation": "/dɪˈtɛkt/",
+        "laos_pronunciation": "kuadphob",
+        "jp_pronunciation": "kenshutsu suru",
+        "vie_pronunciation": "phat hien"
+      },
+      "means": {
+        "en": "Discover or determine the existence, presence, or fact of",
+        "zh": "导致疏远或分离；"
+      }
+    },
+    {
+      "word": {
+        "en": "detection",
+        "laos": "ການຄົ້ນຫາ",
+        "jp": "検出",
+        "vie": "phát hiện",
+        "en_pronunciation": "/dɪˈtɛkʃən/",
+        "laos_pronunciation": "kankhonha",
+        "jp_pronunciation": "kenshutsu",
+        "vie_pronunciation": "phat hien"
+      },
+      "means": {
+        "en": "The perception that something has occurred or some state exists",
+        "zh": "起飞"
+      }
+    },
+    {
+      "word": {
+        "en": "detective",
+        "laos": "ນັກສືບ",
+        "jp": "探偵",
+        "vie": "thám tử",
+        "en_pronunciation": "/dɪˈtɛktɪv/",
+        "laos_pronunciation": "naksub",
+        "jp_pronunciation": "tantei",
+        "vie_pronunciation": "tham tu"
+      },
+      "means": {
+        "en": "A police officer who investigates crimes",
+        "zh": "避免情感投入"
+      }
+    },
+    {
+      "word": {
+        "en": "deter",
+        "laos": "ການກີດຂວາງ",
+        "jp": "抑止する",
+        "vie": "răn đe",
+        "en_pronunciation": "/dɪˈtər/",
+        "laos_pronunciation": "kan kidkhuaang",
+        "jp_pronunciation": "yokushi suru",
+        "vie_pronunciation": "ran de"
+      },
+      "means": {
+        "en": "Try to prevent; show opposition to",
+        "zh": "与整体分开考虑的孤立事实"
+      }
+    },
+    {
+      "word": {
+        "en": "deterrent",
+        "laos": "ອຸປະສັກ",
+        "jp": "抑止力",
+        "vie": "răn đe",
+        "en_pronunciation": "/dɪˈtərrənt/",
+        "laos_pronunciation": "upasak",
+        "jp_pronunciation": "yokushi chikara",
+        "vie_pronunciation": "ran de"
+      },
+      "means": {
+        "en": "Something immaterial that interferes with or delays action or progress",
+        "zh": "提供详细信息"
+      }
+    },
+    {
+      "word": {
+        "en": "detergent",
+        "laos": "ຜົງຊັກຟອກ",
+        "jp": "洗剤",
+        "vie": "chất tẩy rửa",
+        "en_pronunciation": "/dɪˈtərʤənt/",
+        "laos_pronunciation": "phong sakfok",
+        "jp_pronunciation": "senzai",
+        "vie_pronunciation": "chat tay rua"
+      },
+      "means": {
+        "en": "A surface-active chemical widely used in industry and laundering",
+        "zh": "剥夺自由；"
+      }
+    },
+    {
+      "word": {
+        "en": "deteriorate",
+        "laos": "ເສື່ອມໂຊມ",
+        "jp": "悪化する",
+        "vie": "xấu đi",
+        "en_pronunciation": "/dɪˈtɪriərˌeɪt/",
+        "laos_pronunciation": "seuomosm",
+        "jp_pronunciation": "akka suru",
+        "vie_pronunciation": "xau di"
+      },
+      "means": {
+        "en": "Become worse or disintegrate",
+        "zh": "收监"
+      }
+    },
+    {
+      "word": {
+        "en": "deterioration",
+        "laos": "ການດູຖູກ",
+        "jp": "劣化",
+        "vie": "sự xuống cấp",
+        "en_pronunciation": "/dɪˈtɪriərˌeɪʃən/",
+        "laos_pronunciation": "kanduthuk",
+        "jp_pronunciation": "rekka",
+        "vie_pronunciation": "su xuong cap"
+      },
+      "means": {
+        "en": "A symptom of reduced quality or strength",
+        "zh": "一种被限制的状态（通常是很短的时间）"
+      }
+    },
+    {
+      "word": {
+        "en": "determine",
+        "laos": "ກໍານົດ",
+        "jp": "決定する",
+        "vie": "xác định",
+        "en_pronunciation": "/dɪˈtərmən/",
+        "laos_pronunciation": "koanod",
+        "jp_pronunciation": "kettei suru",
+        "vie_pronunciation": "xac dinh"
+      },
+      "means": {
+        "en": "Establish after a calculation, investigation, experiment, survey, or study",
+        "zh": "发现或确定以下事物的存在、存在或事实"
+      }
+    },
+    {
+      "word": {
+        "en": "determination",
+        "laos": "ການກໍານົດເງື່ອນໄຂ",
+        "jp": "決意",
+        "vie": "quyết tâm",
+        "en_pronunciation": "/dɪˌtərməˈneɪʃən/",
+        "laos_pronunciation": "kankoanodngeuonkhai",
+        "jp_pronunciation": "ketsui",
+        "vie_pronunciation": "quyet tam"
+      },
+      "means": {
+        "en": "The act of determining the properties of something, usually by research or calculation",
+        "zh": "对某事发生或某种状态存在的感知"
+      }
+    },
+    {
+      "word": {
+        "en": "determined",
+        "laos": "ກໍານົດ",
+        "jp": "決心した",
+        "vie": "xác định",
+        "en_pronunciation": "/dɪˈtərmənd/",
+        "laos_pronunciation": "koanod",
+        "jp_pronunciation": "kesshin shita",
+        "vie_pronunciation": "xac dinh"
+      },
+      "means": {
+        "en": "Establish after a calculation, investigation, experiment, survey, or study",
+        "zh": "调查犯罪的警察"
+      }
+    },
+    {
+      "word": {
+        "en": "detriment",
+        "laos": "ຄວາມເສັຍຫາຍ",
+        "jp": "弊害",
+        "vie": "sự tổn hại",
+        "en_pronunciation": "/ˈdɛtrəmənt/",
+        "laos_pronunciation": "khuaamsenyhai",
+        "jp_pronunciation": "heigai",
+        "vie_pronunciation": "su ton hai"
+      },
+      "means": {
+        "en": "A damage or loss",
+        "zh": "尽力阻止；"
+      }
+    },
+    {
+      "word": {
+        "en": "detrimental",
+        "laos": "ທໍາລາຍ",
+        "jp": "有害な",
+        "vie": "có hại",
+        "en_pronunciation": "/ˌdɛtrəˈmɛnəl/",
+        "laos_pronunciation": "thoalai",
+        "jp_pronunciation": "yuugai na",
+        "vie_pronunciation": "co hai"
+      },
+      "means": {
+        "en": "(sometimes followed by `to') causing harm or injury",
+        "zh": "表示反对"
+      }
+    },
+    {
+      "word": {
+        "en": "devastate",
+        "laos": "ທີ່ເສີຍເມີຍ",
+        "jp": "荒廃させる",
+        "vie": "tàn phá",
+        "en_pronunciation": "/ˈdɛvəˌsteɪt/",
+        "laos_pronunciation": "thisoenymoeny",
+        "jp_pronunciation": "kouhai saseru",
+        "vie_pronunciation": "tan pha"
+      },
+      "means": {
+        "en": "Cause extensive destruction or ruin utterly",
+        "zh": "干扰或延迟行动或进展的非物质事物"
+      }
+    },
+    {
+      "word": {
+        "en": "devastating",
+        "laos": "ທີ່ໂຫດຮ້າຢ",
+        "jp": "壊滅的な",
+        "vie": "tàn phá",
+        "en_pronunciation": "/ˈdɛvəˌsteɪtɪŋ/",
+        "laos_pronunciation": "thi ohd hay",
+        "jp_pronunciation": "kaimetsuteki na",
+        "vie_pronunciation": "tan pha"
+      },
+      "means": {
+        "en": "Cause extensive destruction or ruin utterly",
+        "zh": "一种广泛用于工业和洗涤业的表面活性化学品"
+      }
+    },
+    {
+      "word": {
+        "en": "devastation",
+        "laos": "ຄວາມເສຍຫາຍ",
+        "jp": "荒廃",
+        "vie": "sự tàn phá",
+        "en_pronunciation": "/ˌdɛvəˈsteɪʃən/",
+        "laos_pronunciation": "khuaamsiahai",
+        "jp_pronunciation": "kouhai",
+        "vie_pronunciation": "su tan pha"
+      },
+      "means": {
+        "en": "The state of being decayed or destroyed",
+        "zh": "变得更糟或崩溃"
+      }
+    },
+    {
+      "word": {
+        "en": "develop",
+        "laos": "ພັດທະນາ",
+        "jp": "開発する",
+        "vie": "phát triển",
+        "en_pronunciation": "/dɪˈvɛləp/",
+        "laos_pronunciation": "phadthana",
+        "jp_pronunciation": "kaihatsu suru",
+        "vie_pronunciation": "phat trien"
+      },
+      "means": {
+        "en": "Make something new, such as a product or a mental or artistic creation",
+        "zh": "质量或强度下降的症状"
+      }
+    },
+    {
+      "word": {
+        "en": "development",
+        "laos": "ການພັດທະນາ",
+        "jp": "開発",
+        "vie": "phát triển",
+        "en_pronunciation": "/dɪˈvɛləpmənt/",
+        "laos_pronunciation": "kanphadthana",
+        "jp_pronunciation": "kaihatsu",
+        "vie_pronunciation": "phat trien"
+      },
+      "means": {
+        "en": "Act of improving by expanding or enlarging or refining",
+        "zh": "经过计算、调查、实验、调查或研究后确定"
+      }
+    },
+    {
+      "word": {
+        "en": "developmental",
+        "laos": "ການພັດທະນາ",
+        "jp": "発達的な",
+        "vie": "phát triển",
+        "en_pronunciation": "/dɪˌvɛləpˈmɛnəl/",
+        "laos_pronunciation": "kanphadthana",
+        "jp_pronunciation": "hattatsu tekina",
+        "vie_pronunciation": "phat trien"
+      },
+      "means": {
+        "en": "Of or relating to or constituting development",
+        "zh": "通常通过研究或计算来确定某物属性的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "developer",
+        "laos": "ຜູ້ພັດທະນາ",
+        "jp": "開発者",
+        "vie": "nhà phát triển",
+        "en_pronunciation": "/dɪˈvɛləpər/",
+        "laos_pronunciation": "phuphadthana",
+        "jp_pronunciation": "kaihatsusha",
+        "vie_pronunciation": "nha phat trien"
+      },
+      "means": {
+        "en": "Someone who develops real estate (especially someone who prepares a site for residential or commercial use)",
+        "zh": "经过计算、调查、实验、调查或研究后确定"
+      }
+    },
+    {
+      "word": {
+        "en": "deviate",
+        "laos": "ຫັນທິດ",
+        "jp": "逸脱する",
+        "vie": "đi chệch hướng",
+        "en_pronunciation": "/ˈdiviˌeɪt/",
+        "laos_pronunciation": "hanthid",
+        "jp_pronunciation": "itsudatsu suru",
+        "vie_pronunciation": "di chech huong"
+      },
+      "means": {
+        "en": "A person whose behavior deviates from what is acceptable especially in sexual behavior",
+        "zh": "损坏或丢失"
+      }
+    },
+    {
+      "word": {
+        "en": "deviation",
+        "laos": "ອະຣິ",
+        "jp": "偏差",
+        "vie": "sự lệch lạc",
+        "en_pronunciation": "/ˌdiviˈeɪʃən/",
+        "laos_pronunciation": "ari",
+        "jp_pronunciation": "hensa",
+        "vie_pronunciation": "su lech lac"
+      },
+      "means": {
+        "en": "A variation that deviates from the standard or norm",
+        "zh": "（有时后跟“to”）造成伤害或伤害"
+      }
+    },
+    {
+      "word": {
+        "en": "device",
+        "laos": "ອຸປະກອນ",
+        "jp": "デバイス",
+        "vie": "thiết bị",
+        "en_pronunciation": "/dɪˈvaɪs/",
+        "laos_pronunciation": "upakon",
+        "jp_pronunciation": "debaisu",
+        "vie_pronunciation": "thiet bi"
+      },
+      "means": {
+        "en": "An instrumentality invented for a particular purpose",
+        "zh": "造成大面积破坏或彻底毁坏"
+      }
+    },
+    {
+      "word": {
+        "en": "devil",
+        "laos": "ຜີເຜດ",
+        "jp": "悪魔",
+        "vie": "ma quỷ",
+        "en_pronunciation": "/ˈdɛvəl/",
+        "laos_pronunciation": "phiphed",
+        "jp_pronunciation": "akuma",
+        "vie_pronunciation": "ma quy"
+      },
+      "means": {
+        "en": "(Judeo-Christian and Islamic religions) chief spirit of evil and adversary of God; tempter of mankind; master of Hell",
+        "zh": "造成大面积破坏或彻底毁坏"
+      }
+    },
+    {
+      "word": {
+        "en": "devise",
+        "laos": "ຄິດຂຶ້ນ",
+        "jp": "工夫する",
+        "vie": "nghĩ ra",
+        "en_pronunciation": "/dɪˈvaɪz/",
+        "laos_pronunciation": "khidkhun",
+        "jp_pronunciation": "kufuu suru",
+        "vie_pronunciation": "nghi ra"
+      },
+      "means": {
+        "en": "A will disposing of real property",
+        "zh": "腐烂或毁坏的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "devote",
+        "laos": "ໂສມບາດ",
+        "jp": "捧げる",
+        "vie": "cống hiến",
+        "en_pronunciation": "/dɪˈvoʊt/",
+        "laos_pronunciation": "osmbad",
+        "jp_pronunciation": "sasage ru",
+        "vie_pronunciation": "cong hien"
+      },
+      "means": {
+        "en": "Give entirely to a specific person, activity, or cause",
+        "zh": "创造新事物，例如产品或精神或艺术创作"
+      }
+    },
+    {
+      "word": {
+        "en": "devotion",
+        "laos": "ຄວາມເສຍສະຫລະ",
+        "jp": "献身",
+        "vie": "sự tận tâm",
+        "en_pronunciation": "/dɪˈvoʊʃən/",
+        "laos_pronunciation": "khuaamsiasala",
+        "jp_pronunciation": "kenshin",
+        "vie_pronunciation": "su tan tam"
+      },
+      "means": {
+        "en": "Feelings of ardent love",
+        "zh": "通过扩大、扩大或细化来改进的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "devour",
+        "laos": "ກິນໃຈ",
+        "jp": "むさぼり食う",
+        "vie": "ngấu nghiến",
+        "en_pronunciation": "/dɪˈvaʊər/",
+        "laos_pronunciation": "kinchai",
+        "jp_pronunciation": "musabori kuu",
+        "vie_pronunciation": "ngau nghien"
+      },
+      "means": {
+        "en": "Destroy completely",
+        "zh": "属于发展或与发展有关或构成发展"
+      }
+    },
+    {
+      "word": {
+        "en": "dew",
+        "laos": "ນ້ໍາຄ້າງ",
+        "jp": "露",
+        "vie": "sương",
+        "en_pronunciation": "/du/",
+        "laos_pronunciation": "noakhang",
+        "jp_pronunciation": "tsuyu",
+        "vie_pronunciation": "suong"
+      },
+      "means": {
+        "en": "Water that has condensed on a cool surface overnight from water vapor in the air",
+        "zh": "房地产开发者（尤其是准备住宅或商业用地的人）"
+      }
+    },
+    {
+      "word": {
+        "en": "diabetes",
+        "laos": "ໂລກເບົາຫວານ",
+        "jp": "糖尿病",
+        "vie": "bệnh tiểu đường",
+        "en_pronunciation": "/ˌdaɪəˈbitiz/",
+        "laos_pronunciation": "olk bao van",
+        "jp_pronunciation": "tounyoubyou",
+        "vie_pronunciation": "benh tieu duong"
+      },
+      "means": {
+        "en": "A polygenic disease characterized by abnormally high glucose levels in the blood; any of several metabolic disorders marked by excessive urination and persistent thirst",
+        "zh": "行为偏离可接受范围的人，尤其是性行为"
+      }
+    }
+  ]
+}

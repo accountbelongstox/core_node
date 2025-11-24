@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.419329+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "spill",
+        "laos": "ການບິນ",
+        "jp": "こぼれる",
+        "vie": "đổ tràn",
+        "en_pronunciation": "/spɪl/",
+        "laos_pronunciation": "kanbin",
+        "jp_pronunciation": "koboreru",
+        "vie_pronunciation": "do tran"
+      },
+      "means": {
+        "en": "Liquid that is spilled",
+        "zh": "溢出的液体"
+      }
+    },
+    {
+      "word": {
+        "en": "spin",
+        "laos": "ລວດ",
+        "jp": "スピン",
+        "vie": "quay",
+        "en_pronunciation": "/spɪn/",
+        "laos_pronunciation": "luad",
+        "jp_pronunciation": "supin",
+        "vie_pronunciation": "quay"
+      },
+      "means": {
+        "en": "A swift whirling motion (usually of a missile)",
+        "zh": "快速旋转运动（通常是导弹）"
+      }
+    },
+    {
+      "word": {
+        "en": "spine",
+        "laos": "ກະດູກສັນຫຼັງ",
+        "jp": "背骨",
+        "vie": "cột sống",
+        "en_pronunciation": "/spaɪn/",
+        "laos_pronunciation": "kaduksanrang",
+        "jp_pronunciation": "sebone",
+        "vie_pronunciation": "cot song"
+      },
+      "means": {
+        "en": "The series of vertebrae forming the axis of the skeleton and protecting the spinal cord",
+        "zh": "形成骨骼轴并保护脊髓的一系列椎骨"
+      }
+    },
+    {
+      "word": {
+        "en": "spinal",
+        "laos": "ສະເຕກ",
+        "jp": "脊椎",
+        "vie": "cột sống",
+        "en_pronunciation": "/ˈspaɪnəl/",
+        "laos_pronunciation": "sa tek",
+        "jp_pronunciation": "sekitsui",
+        "vie_pronunciation": "cot song"
+      },
+      "means": {
+        "en": "Anesthesia of the lower half of the body; caused by injury to the spinal cord or by injecting an anesthetic beneath the arachnoid membrane that surrounds the spinal cord",
+        "zh": "下半身麻醉；"
+      }
+    },
+    {
+      "word": {
+        "en": "spiral",
+        "laos": "ກ້ຽວວຽນ",
+        "jp": "スパイラル",
+        "vie": "xoắn ốc",
+        "en_pronunciation": "/ˈspaɪrəl/",
+        "laos_pronunciation": "kiauauaian",
+        "jp_pronunciation": "supairaru",
+        "vie_pronunciation": "xoan oc"
+      },
+      "means": {
+        "en": "A plane curve traced by a point circling about the center but at increasing distances from the center",
+        "zh": "由脊髓损伤或在脊髓周围的蛛网膜下注射麻醉剂引起"
+      }
+    },
+    {
+      "word": {
+        "en": "spirit",
+        "laos": "ຜີ",
+        "jp": "精神",
+        "vie": "tinh thần",
+        "en_pronunciation": "/ˈspɪrɪt/",
+        "laos_pronunciation": "phi",
+        "jp_pronunciation": "seishin",
+        "vie_pronunciation": "tinh than"
+      },
+      "means": {
+        "en": "The vital principle or animating force within living things",
+        "zh": "由绕中心旋转但距中心距离逐渐增加的点绘制的平面曲线"
+      }
+    },
+    {
+      "word": {
+        "en": "spiritual",
+        "laos": "ທີ່ວິນແຄງ",
+        "jp": "精神的な",
+        "vie": "tinh thần",
+        "en_pronunciation": "/ˈspɪrɪˌʧuəl/",
+        "laos_pronunciation": "thi vinaekhng",
+        "jp_pronunciation": "seishinteki na",
+        "vie_pronunciation": "tinh than"
+      },
+      "means": {
+        "en": "A kind of religious song originated by Blacks in the southern United States",
+        "zh": "生物体内的生命原理或动力"
+      }
+    },
+    {
+      "word": {
+        "en": "spit",
+        "laos": "ຂາກນ້ໍາລາຍ",
+        "jp": "唾を吐きます",
+        "vie": "nhổ",
+        "en_pronunciation": "/spɪt/",
+        "laos_pronunciation": "khak noalai",
+        "jp_pronunciation": "tsuba wo haki masu",
+        "vie_pronunciation": "nho"
+      },
+      "means": {
+        "en": "A narrow strip of land that juts out into the sea",
+        "zh": "起源于美国南部黑人的一种宗教歌曲"
+      }
+    },
+    {
+      "word": {
+        "en": "spite",
+        "laos": "ວ່າ",
+        "jp": "にもかかわらず",
+        "vie": "bất chấp",
+        "en_pronunciation": "/spaɪt/",
+        "laos_pronunciation": "va",
+        "jp_pronunciation": "nimokakawarazu",
+        "vie_pronunciation": "bat chap"
+      },
+      "means": {
+        "en": "Feeling a need to see others suffer",
+        "zh": "伸入大海的狭长地带"
+      }
+    },
+    {
+      "word": {
+        "en": "splash",
+        "laos": "ມົ້ງ",
+        "jp": "スプラッシュ",
+        "vie": "giật gân",
+        "en_pronunciation": "/splæʃ/",
+        "laos_pronunciation": "mong",
+        "jp_pronunciation": "supurasshu",
+        "vie_pronunciation": "giat gan"
+      },
+      "means": {
+        "en": "The sound like water splashing",
+        "zh": "感觉需要看到别人受苦"
+      }
+    },
+    {
+      "word": {
+        "en": "splendid",
+        "laos": "ທີ່ງົດງາມ",
+        "jp": "素晴らしい",
+        "vie": "lộng lẫy",
+        "en_pronunciation": "/ˈsplɛndɪd/",
+        "laos_pronunciation": "thingodngam",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "long lay"
+      },
+      "means": {
+        "en": "Having great beauty and splendor",
+        "zh": "声音像水花四溅"
+      }
+    },
+    {
+      "word": {
+        "en": "splendor",
+        "laos": "ຄວາມງົດງາມ",
+        "jp": "素晴らしさ",
+        "vie": "sự huy hoàng",
+        "en_pronunciation": "/ˈsplɛndər/",
+        "laos_pronunciation": "khuaamngodngam",
+        "jp_pronunciation": "subarashisa",
+        "vie_pronunciation": "su huy hoang"
+      },
+      "means": {
+        "en": "A quality that outshines the usual",
+        "zh": "拥有伟大的美丽和辉煌"
+      }
+    },
+    {
+      "word": {
+        "en": "splendour",
+        "laos": "ຄວາມງົດງາມ",
+        "jp": "素晴らしさ",
+        "vie": "sự huy hoàng",
+        "en_pronunciation": "/splendour/",
+        "laos_pronunciation": "khuaamngodngam",
+        "jp_pronunciation": "subarashisa",
+        "vie_pronunciation": "su huy hoang"
+      },
+      "means": {
+        "en": "A quality that outshines the usual",
+        "zh": "超越平常的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "split",
+        "laos": "ຮ້າວແຕກ",
+        "jp": "分割",
+        "vie": "chia đôi",
+        "en_pronunciation": "/splɪt/",
+        "laos_pronunciation": "hauaaetk",
+        "jp_pronunciation": "bunkatsu",
+        "vie_pronunciation": "chia doi"
+      },
+      "means": {
+        "en": "Extending the legs at right angles to the trunk (one in front and the other in back)",
+        "zh": "超越平常的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "spoil",
+        "laos": "ເຮັດໃຫ້ບູດ",
+        "jp": "台無しにする",
+        "vie": "làm hỏng",
+        "en_pronunciation": "/spɔɪl/",
+        "laos_pronunciation": "hedhaibud",
+        "jp_pronunciation": "dainashi nisuru",
+        "vie_pronunciation": "lam hong"
+      },
+      "means": {
+        "en": "(usually plural) valuables taken by violence (especially in war)",
+        "zh": "将双腿伸展至与躯干成直角（一前一后）"
+      }
+    },
+    {
+      "word": {
+        "en": "spokesman",
+        "laos": "ໂຄສົກ",
+        "jp": "広報担当者",
+        "vie": "người phát ngôn",
+        "en_pronunciation": "/ˈspoʊksmən/",
+        "laos_pronunciation": "okhsok",
+        "jp_pronunciation": "kouhoutantousha",
+        "vie_pronunciation": "nguoi phat ngon"
+      },
+      "means": {
+        "en": "A male spokesperson",
+        "zh": "（通常是复数）通过暴力（尤其是在战争中）夺取的贵重物品"
+      }
+    },
+    {
+      "word": {
+        "en": "spokeswoman",
+        "laos": "ໂຄສົກ",
+        "jp": "広報担当者",
+        "vie": "người phát ngôn",
+        "en_pronunciation": "/ˈspoʊksˌwʊmən/",
+        "laos_pronunciation": "okhsok",
+        "jp_pronunciation": "kouhoutantousha",
+        "vie_pronunciation": "nguoi phat ngon"
+      },
+      "means": {
+        "en": "A female spokesperson",
+        "zh": "一位男性代言人"
+      }
+    },
+    {
+      "word": {
+        "en": "spokesperson",
+        "laos": "ໂຄສົກ",
+        "jp": "広報担当者",
+        "vie": "người phát ngôn",
+        "en_pronunciation": "/ˈspoʊkspərsən/",
+        "laos_pronunciation": "okhsok",
+        "jp_pronunciation": "kouhoutantousha",
+        "vie_pronunciation": "nguoi phat ngon"
+      },
+      "means": {
+        "en": "An advocate who represents someone else's policy or purpose",
+        "zh": "一位女发言人"
+      }
+    },
+    {
+      "word": {
+        "en": "sponge",
+        "laos": "ຟອງນ້ໍາ",
+        "jp": "スポンジ",
+        "vie": "miếng bọt biển",
+        "en_pronunciation": "/spənʤ/",
+        "laos_pronunciation": "fongnoa",
+        "jp_pronunciation": "suponji",
+        "vie_pronunciation": "mieng bot bien"
+      },
+      "means": {
+        "en": "A porous mass of interlacing fibers that forms the internal skeleton of various marine animals and usable to absorb water or any porous rubber or cellulose product similarly used",
+        "zh": "代表他人政策或目的的倡导者"
+      }
+    },
+    {
+      "word": {
+        "en": "spongy",
+        "laos": "spongy",
+        "jp": "スポンジ状の",
+        "vie": "xốp",
+        "en_pronunciation": "/ˈspənʤi/",
+        "laos_pronunciation": "spongy",
+        "jp_pronunciation": "suponji jouno",
+        "vie_pronunciation": "xop"
+      },
+      "means": {
+        "en": "Easily squashed; resembling a sponge in having soft porous texture and compressibility",
+        "zh": "交织纤维的多孔物质，形成各种海洋动物的内部骨骼，可用于吸收水或类似使用的任何多孔橡胶或纤维素产品"
+      }
+    },
+    {
+      "word": {
+        "en": "sponsor",
+        "laos": "ຜູ້ສະຫນັບສະຫນູນ",
+        "jp": "スポンサー",
+        "vie": "nhà tài trợ",
+        "en_pronunciation": "/ˈspɑnsər/",
+        "laos_pronunciation": "phusanabsanun",
+        "jp_pronunciation": "suponsaa",
+        "vie_pronunciation": "nha tai tro"
+      },
+      "means": {
+        "en": "Someone who supports or champions something",
+        "zh": "容易被压扁；"
+      }
+    },
+    {
+      "word": {
+        "en": "sponsorship",
+        "laos": "ການອຸປະຖໍາ",
+        "jp": "スポンサーシップ",
+        "vie": "tài trợ",
+        "en_pronunciation": "/ˈspɑnsərˌʃɪp/",
+        "laos_pronunciation": "kanupathoa",
+        "jp_pronunciation": "suponsaashippu",
+        "vie_pronunciation": "tai tro"
+      },
+      "means": {
+        "en": "The act of sponsoring (either officially or financially)",
+        "zh": "类似海绵，具有柔软的多孔质地和可压缩性"
+      }
+    },
+    {
+      "word": {
+        "en": "spontaneous",
+        "laos": "spontaneous",
+        "jp": "自発的",
+        "vie": "tự phát",
+        "en_pronunciation": "/spɑnˈteɪniəs/",
+        "laos_pronunciation": "spontaneous",
+        "jp_pronunciation": "jihatsuteki",
+        "vie_pronunciation": "tu phat"
+      },
+      "means": {
+        "en": "Happening or arising without apparent external cause",
+        "zh": "支持或拥护某事的人"
+      }
+    },
+    {
+      "word": {
+        "en": "spontaneity",
+        "laos": "ຄວາມຫຢິດສະຫຼັກ",
+        "jp": "自発性",
+        "vie": "sự tự phát",
+        "en_pronunciation": "/ˌspɑntəˈniəti/",
+        "laos_pronunciation": "khuaam hyidsarak",
+        "jp_pronunciation": "jihatsusei",
+        "vie_pronunciation": "su tu phat"
+      },
+      "means": {
+        "en": "The quality of being spontaneous and coming from natural feelings without constraint",
+        "zh": "赞助行为（官方或经济上）"
+      }
+    },
+    {
+      "word": {
+        "en": "spoon",
+        "laos": "ບ່ວງນ້ອຍ",
+        "jp": "スプーン",
+        "vie": "cái thìa",
+        "en_pronunciation": "/spun/",
+        "laos_pronunciation": "buangnony",
+        "jp_pronunciation": "supuun",
+        "vie_pronunciation": "cai thia"
+      },
+      "means": {
+        "en": "A piece of cutlery with a shallow bowl-shaped container and a handle; used to stir or serve or take up food",
+        "zh": "没有明显外部原因的情况下发生或出现"
+      }
+    },
+    {
+      "word": {
+        "en": "spoonful",
+        "laos": "ບ່ວງຂອງບ່ວງ",
+        "jp": "スプーン一杯",
+        "vie": "một thìa",
+        "en_pronunciation": "/ˈspunˌfʊl/",
+        "laos_pronunciation": "buang khongbuang",
+        "jp_pronunciation": "supuun ippai",
+        "vie_pronunciation": "mot thia"
+      },
+      "means": {
+        "en": "As much as a spoon will hold",
+        "zh": "自发的、来自自然感受、不受约束的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "sport",
+        "laos": "ກິລາ",
+        "jp": "スポーツ",
+        "vie": "thể thao",
+        "en_pronunciation": "/spɔrt/",
+        "laos_pronunciation": "kila",
+        "jp_pronunciation": "supootsu",
+        "vie_pronunciation": "the thao"
+      },
+      "means": {
+        "en": "An active diversion requiring physical exertion and competition",
+        "zh": "一种带有浅碗状容器和手柄的餐具；"
+      }
+    },
+    {
+      "word": {
+        "en": "sportsman",
+        "laos": "ນັກກິລາ",
+        "jp": "スポーツマン",
+        "vie": "vận động viên thể thao",
+        "en_pronunciation": "/ˈspɔrtsmən/",
+        "laos_pronunciation": "nakkila",
+        "jp_pronunciation": "supootsuman",
+        "vie_pronunciation": "van dong vien the thao"
+      },
+      "means": {
+        "en": "Someone who engages in sports",
+        "zh": "用于搅拌或盛放或盛放食物"
+      }
+    },
+    {
+      "word": {
+        "en": "sportswoman",
+        "laos": "ນັກກິລາ",
+        "jp": "スポーツウーマン",
+        "vie": "vận động viên thể thao",
+        "en_pronunciation": "/sportswoman/",
+        "laos_pronunciation": "nakkila",
+        "jp_pronunciation": "supootsuuuman",
+        "vie_pronunciation": "van dong vien the thao"
+      },
+      "means": {
+        "en": "Someone who engages in sports",
+        "zh": "一个勺子能容纳多少东西"
+      }
+    },
+    {
+      "word": {
+        "en": "spot",
+        "laos": "ບ່ອນ",
+        "jp": "スポット",
+        "vie": "chỗ",
+        "en_pronunciation": "/spɑt/",
+        "laos_pronunciation": "bon",
+        "jp_pronunciation": "supotto",
+        "vie_pronunciation": "cho"
+      },
+      "means": {
+        "en": "A point located with respect to surface features of some region",
+        "zh": "需要体力消耗和竞争的主动消遣"
+      }
+    },
+    {
+      "word": {
+        "en": "spotlight",
+        "laos": "ການທີ່ວ່າ",
+        "jp": "スポットライト",
+        "vie": "ánh đèn sân khấu",
+        "en_pronunciation": "/ˈspɑˌtlaɪt/",
+        "laos_pronunciation": "kanthiva",
+        "jp_pronunciation": "supottoraito",
+        "vie_pronunciation": "anh den san khau"
+      },
+      "means": {
+        "en": "A focus of public attention",
+        "zh": "从事体育运动的人"
+      }
+    },
+    {
+      "word": {
+        "en": "spouse",
+        "laos": "ເມັຽ",
+        "jp": "配偶者",
+        "vie": "vợ/chồng",
+        "en_pronunciation": "/spaʊs/",
+        "laos_pronunciation": "meia",
+        "jp_pronunciation": "haiguusha",
+        "vie_pronunciation": "vo/chong"
+      },
+      "means": {
+        "en": "A person's partner in marriage",
+        "zh": "从事体育运动的人"
+      }
+    },
+    {
+      "word": {
+        "en": "sprawl",
+        "laos": "ຂີ້ຄ້ານ",
+        "jp": "広がる",
+        "vie": "ngổn ngang",
+        "en_pronunciation": "/sprɔl/",
+        "laos_pronunciation": "khikhan",
+        "jp_pronunciation": "hiroga ru",
+        "vie_pronunciation": "ngon ngang"
+      },
+      "means": {
+        "en": "An aggregation or continuous network of urban communities",
+        "zh": "相对于某个区域的表面特征定位的点"
+      }
+    },
+    {
+      "word": {
+        "en": "spray",
+        "laos": "ສີດພົ່ນ",
+        "jp": "スプレー",
+        "vie": "phun",
+        "en_pronunciation": "/spreɪ/",
+        "laos_pronunciation": "sidphon",
+        "jp_pronunciation": "supuree",
+        "vie_pronunciation": "phun"
+      },
+      "means": {
+        "en": "A pesticide in suspension or solution; intended for spraying",
+        "zh": "成为公众关注的焦点"
+      }
+    },
+    {
+      "word": {
+        "en": "spread",
+        "laos": "ແຜ່​ກະ​ຈາຍ​ເຊື້ອ",
+        "jp": "広がる",
+        "vie": "lây lan",
+        "en_pronunciation": "/sprɛd/",
+        "laos_pronunciation": "aeph ka chaiseu",
+        "jp_pronunciation": "hiroga ru",
+        "vie_pronunciation": "lay lan"
+      },
+      "means": {
+        "en": "Process or result of distributing or extending over a wide expanse of space",
+        "zh": "一个人的婚姻伴侣"
+      }
+    },
+    {
+      "word": {
+        "en": "spring",
+        "laos": "ລະດູໃບໄມ້ຫຼົ່ນ",
+        "jp": "春",
+        "vie": "mùa xuân",
+        "en_pronunciation": "/spərɪŋ/",
+        "laos_pronunciation": "ladu baimairon",
+        "jp_pronunciation": "haru",
+        "vie_pronunciation": "mua xuan"
+      },
+      "means": {
+        "en": "The season of growth",
+        "zh": "城市社区的聚集或连续网络"
+      }
+    },
+    {
+      "word": {
+        "en": "sprinkle",
+        "laos": "ປົ່ນ",
+        "jp": "振りかける",
+        "vie": "rắc",
+        "en_pronunciation": "/ˈsprɪŋkəl/",
+        "laos_pronunciation": "pon",
+        "jp_pronunciation": "furi kakeru",
+        "vie_pronunciation": "rac"
+      },
+      "means": {
+        "en": "A light shower that falls in some locations and not others nearby",
+        "zh": "悬浮液或溶液中的农药；"
+      }
+    },
+    {
+      "word": {
+        "en": "spur",
+        "laos": "ເດືອຍ",
+        "jp": "拍車",
+        "vie": "thúc đẩy",
+        "en_pronunciation": "/spər/",
+        "laos_pronunciation": "deuony",
+        "jp_pronunciation": "hakusha",
+        "vie_pronunciation": "thuc day"
+      },
+      "means": {
+        "en": "A verbalization that encourages you to attempt something",
+        "zh": "用于喷涂"
+      }
+    },
+    {
+      "word": {
+        "en": "spy",
+        "laos": "ຈາຣະຊົນ",
+        "jp": "スパイ",
+        "vie": "điệp viên",
+        "en_pronunciation": "/spaɪ/",
+        "laos_pronunciation": "charason",
+        "jp_pronunciation": "supai",
+        "vie_pronunciation": "diep vien"
+      },
+      "means": {
+        "en": "(military) a secret agent hired by a state to obtain information about its enemies or by a business to obtain industrial secrets from competitors",
+        "zh": "分布或延伸到广阔空间的过程或结果"
+      }
+    },
+    {
+      "word": {
+        "en": "squad",
+        "laos": "ມາໄກວ",
+        "jp": "分隊",
+        "vie": "đội hình",
+        "en_pronunciation": "/skwɑd/",
+        "laos_pronunciation": "ma kaiv",
+        "jp_pronunciation": "buntai",
+        "vie_pronunciation": "doi hinh"
+      },
+      "means": {
+        "en": "A smallest army unit",
+        "zh": "生长的季节"
+      }
+    },
+    {
+      "word": {
+        "en": "square",
+        "laos": "ຮຽບຮ້ອຍ",
+        "jp": "正方形",
+        "vie": "hình vuông",
+        "en_pronunciation": "/skwɛr/",
+        "laos_pronunciation": "hiabhony",
+        "jp_pronunciation": "seihoukei",
+        "vie_pronunciation": "hinh vuong"
+      },
+      "means": {
+        "en": "(geometry) a plane rectangle with four equal sides and four right angles; a four-sided regular polygon",
+        "zh": "一些地方有小阵雨，而附近的其他地方则没有"
+      }
+    },
+    {
+      "word": {
+        "en": "squeeze",
+        "laos": "ບຽດ",
+        "jp": "絞る",
+        "vie": "bóp",
+        "en_pronunciation": "/skwiz/",
+        "laos_pronunciation": "biad",
+        "jp_pronunciation": "shiboru",
+        "vie_pronunciation": "bop"
+      },
+      "means": {
+        "en": "The act of gripping and pressing firmly",
+        "zh": "鼓励你尝试某事的言语"
+      }
+    },
+    {
+      "word": {
+        "en": "stab",
+        "laos": "ແທງ",
+        "jp": "刺す",
+        "vie": "đâm",
+        "en_pronunciation": "/stæb/",
+        "laos_pronunciation": "aethng",
+        "jp_pronunciation": "sasu",
+        "vie_pronunciation": "dam"
+      },
+      "means": {
+        "en": "A sudden sharp feeling",
+        "zh": "（军事）受国家雇佣以获取有关其敌人的信息或受企业雇佣以从竞争对手那里获取工业秘密的秘密特工"
+      }
+    },
+    {
+      "word": {
+        "en": "stable",
+        "laos": "ສະຖຽນ",
+        "jp": "安定した",
+        "vie": "ổn định",
+        "en_pronunciation": "/ˈsteɪbəl/",
+        "laos_pronunciation": "sathian",
+        "jp_pronunciation": "antei shita",
+        "vie_pronunciation": "on dinh"
+      },
+      "means": {
+        "en": "A farm building for housing horses or other livestock",
+        "zh": "最小的陆军单位"
+      }
+    },
+    {
+      "word": {
+        "en": "stability",
+        "laos": "ສະຖຽນລະພາບ",
+        "jp": "安定性",
+        "vie": "sự ổn định",
+        "en_pronunciation": "/stəˈbɪlɪti/",
+        "laos_pronunciation": "sathianlaphab",
+        "jp_pronunciation": "anteisei",
+        "vie_pronunciation": "su on dinh"
+      },
+      "means": {
+        "en": "The quality or attribute of being firm and steadfast",
+        "zh": "（几何）有四个等边和四个直角的平面矩形；"
+      }
+    },
+    {
+      "word": {
+        "en": "stabilize",
+        "laos": "ສະຖຽນລະພາບ",
+        "jp": "安定させる",
+        "vie": "ổn định",
+        "en_pronunciation": "/ˈsteɪbəˌlaɪz/",
+        "laos_pronunciation": "sathianlaphab",
+        "jp_pronunciation": "antei saseru",
+        "vie_pronunciation": "on dinh"
+      },
+      "means": {
+        "en": "Make stable and keep from fluctuating or put into an equilibrium",
+        "zh": "四边形正多边形"
+      }
+    },
+    {
+      "word": {
+        "en": "stabilise",
+        "laos": "ສະຖຽນລະພາບ",
+        "jp": "安定させる",
+        "vie": "ổn định",
+        "en_pronunciation": "/stabilise/",
+        "laos_pronunciation": "sathianlaphab",
+        "jp_pronunciation": "antei saseru",
+        "vie_pronunciation": "on dinh"
+      },
+      "means": {
+        "en": "Support or hold steady and make steadfast, with or as if with a brace",
+        "zh": "用力握住并按压的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "stack",
+        "laos": "ຢອງທັບ",
+        "jp": "スタック",
+        "vie": "chồng",
+        "en_pronunciation": "/stæk/",
+        "laos_pronunciation": "yongthab",
+        "jp_pronunciation": "sutakku",
+        "vie_pronunciation": "chong"
+      },
+      "means": {
+        "en": "An orderly pile",
+        "zh": "突然强烈的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "stadium",
+        "laos": "ສະຫນາມກິລາ",
+        "jp": "スタジアム",
+        "vie": "sân vận động",
+        "en_pronunciation": "/ˈsteɪdiəm/",
+        "laos_pronunciation": "sanamkila",
+        "jp_pronunciation": "sutajiamu",
+        "vie_pronunciation": "san van dong"
+      },
+      "means": {
+        "en": "A large structure for open-air sports or entertainments",
+        "zh": "用于饲养马或其他牲畜的农场建筑"
+      }
+    },
+    {
+      "word": {
+        "en": "staff",
+        "laos": "ຄະນະ",
+        "jp": "スタッフ",
+        "vie": "nhân viên",
+        "en_pronunciation": "/stæf/",
+        "laos_pronunciation": "khana",
+        "jp_pronunciation": "sutaffu",
+        "vie_pronunciation": "nhan vien"
+      },
+      "means": {
+        "en": "Personnel who assist their superior in carrying out an assigned task",
+        "zh": "坚定不移的品质或属性"
+      }
+    },
+    {
+      "word": {
+        "en": "stage",
+        "laos": "ຊັ້ນ",
+        "jp": "ステージ",
+        "vie": "sân khấu",
+        "en_pronunciation": "/steɪʤ/",
+        "laos_pronunciation": "san",
+        "jp_pronunciation": "suteeji",
+        "vie_pronunciation": "san khau"
+      },
+      "means": {
+        "en": "Any distinct time period in a sequence of events",
+        "zh": "保持稳定，避免波动或达到平衡"
+      }
+    },
+    {
+      "word": {
+        "en": "stagger",
+        "laos": "ເຊືອດ",
+        "jp": "よろめかせる",
+        "vie": "loạng choạng",
+        "en_pronunciation": "/ˈstægər/",
+        "laos_pronunciation": "seuod",
+        "jp_pronunciation": "yoromekaseru",
+        "vie_pronunciation": "loang choang"
+      },
+      "means": {
+        "en": "An unsteady uneven gait",
+        "zh": "用或好像用支架支撑或保持稳定并使其坚定"
+      }
+    },
+    {
+      "word": {
+        "en": "stagnate",
+        "laos": "ສະຫງົບ",
+        "jp": "停滞する",
+        "vie": "trì trệ",
+        "en_pronunciation": "/ˈstægˌneɪt/",
+        "laos_pronunciation": "sangob",
+        "jp_pronunciation": "teitai suru",
+        "vie_pronunciation": "tri tre"
+      },
+      "means": {
+        "en": "Stand still",
+        "zh": "整齐的一堆"
+      }
+    },
+    {
+      "word": {
+        "en": "stagnation",
+        "laos": "ການສອດ",
+        "jp": "停滞",
+        "vie": "sự trì trệ",
+        "en_pronunciation": "/stægˈneɪʃən/",
+        "laos_pronunciation": "kansod",
+        "jp_pronunciation": "teitai",
+        "vie_pronunciation": "su tri tre"
+      },
+      "means": {
+        "en": "A state of inactivity (in business or art etc)",
+        "zh": "用于露天运动或娱乐的大型建筑"
+      }
+    },
+    {
+      "word": {
+        "en": "stagnant",
+        "laos": "ນິ້ງ",
+        "jp": "停滞している",
+        "vie": "trì trệ",
+        "en_pronunciation": "/ˈstægnənt/",
+        "laos_pronunciation": "ning",
+        "jp_pronunciation": "teitai shiteiru",
+        "vie_pronunciation": "tri tre"
+      },
+      "means": {
+        "en": "Not circulating or flowing",
+        "zh": "协助上级完成指定任务的人员"
+      }
+    },
+    {
+      "word": {
+        "en": "stain",
+        "laos": "ຮອຍເປື້ອນ",
+        "jp": "汚れ",
+        "vie": "vết ố",
+        "en_pronunciation": "/steɪn/",
+        "laos_pronunciation": "honypeuon",
+        "jp_pronunciation": "yogore",
+        "vie_pronunciation": "vet o"
+      },
+      "means": {
+        "en": "A soiled or discolored appearance",
+        "zh": "一系列事件中的任何不同时间段"
+      }
+    },
+    {
+      "word": {
+        "en": "stainless",
+        "laos": "ສະແຕນ",
+        "jp": "ステンレス",
+        "vie": "không gỉ",
+        "en_pronunciation": "/ˈsteɪnləs/",
+        "laos_pronunciation": "saaetn",
+        "jp_pronunciation": "sutenresu",
+        "vie_pronunciation": "khong gi"
+      },
+      "means": {
+        "en": "Steel containing chromium that makes it resistant to corrosion",
+        "zh": "步态不稳、不均匀"
+      }
+    },
+    {
+      "word": {
+        "en": "stair",
+        "laos": "ຂັ້ນໄດ",
+        "jp": "階段",
+        "vie": "cầu thang",
+        "en_pronunciation": "/stɛr/",
+        "laos_pronunciation": "khandai",
+        "jp_pronunciation": "kaidan",
+        "vie_pronunciation": "cau thang"
+      },
+      "means": {
+        "en": "Support consisting of a place to rest the foot while ascending or descending a stairway",
+        "zh": "站着不动"
+      }
+    },
+    {
+      "word": {
+        "en": "staircase",
+        "laos": "ຂັ້ນໄດ",
+        "jp": "階段",
+        "vie": "cầu thang",
+        "en_pronunciation": "/ˈstɛrˌkeɪs/",
+        "laos_pronunciation": "khandai",
+        "jp_pronunciation": "kaidan",
+        "vie_pronunciation": "cau thang"
+      },
+      "means": {
+        "en": "A way of access (upward and downward) consisting of a set of steps",
+        "zh": "不活跃的状态（商业或艺术等）"
+      }
+    },
+    {
+      "word": {
+        "en": "stake",
+        "laos": "ສະພັມ",
+        "jp": "賭け金",
+        "vie": "cổ phần",
+        "en_pronunciation": "/steɪk/",
+        "laos_pronunciation": "sa pham",
+        "jp_pronunciation": "kake kin",
+        "vie_pronunciation": "co phan"
+      },
+      "means": {
+        "en": "(law) a right or legal share of something; a financial involvement with something",
+        "zh": "不循环或流动"
+      }
+    },
+    {
+      "word": {
+        "en": "stale",
+        "laos": "ລໍາແຍ່ງ",
+        "jp": "古い",
+        "vie": "cũ kỹ",
+        "en_pronunciation": "/steɪl/",
+        "laos_pronunciation": "loaaenyng",
+        "jp_pronunciation": "furui",
+        "vie_pronunciation": "cu ky"
+      },
+      "means": {
+        "en": "Urinate, of cattle and horses",
+        "zh": "外观脏污或变色"
+      }
+    },
+    {
+      "word": {
+        "en": "stalk",
+        "laos": "ກ້ານຂາ",
+        "jp": "茎",
+        "vie": "thân cây",
+        "en_pronunciation": "/stɔk/",
+        "laos_pronunciation": "kankha",
+        "jp_pronunciation": "kuki",
+        "vie_pronunciation": "than cay"
+      },
+      "means": {
+        "en": "Material consisting of seed coverings and small pieces of stem or leaves that have been separated from the seeds",
+        "zh": "钢含有铬，使其耐腐蚀"
+      }
+    },
+    {
+      "word": {
+        "en": "stall",
+        "laos": "ໃບປ້ໍາ",
+        "jp": "ストール",
+        "vie": "gian hàng",
+        "en_pronunciation": "/stɔl/",
+        "laos_pronunciation": "bai poa",
+        "jp_pronunciation": "sutooru",
+        "vie_pronunciation": "gian hang"
+      },
+      "means": {
+        "en": "A compartment in a stable where a single animal is confined and fed",
+        "zh": "支撑物包括在上下楼梯时放置脚部的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "stammer",
+        "laos": "ພຶມພໍາ",
+        "jp": "どもる",
+        "vie": "lắp bắp",
+        "en_pronunciation": "/ˈstæmər/",
+        "laos_pronunciation": "phumphoa",
+        "jp_pronunciation": "domoru",
+        "vie_pronunciation": "lap bap"
+      },
+      "means": {
+        "en": "A speech disorder involving hesitations and involuntary repetitions of certain sounds",
+        "zh": "由一组台阶组成的访问方式（向上和向下）"
+      }
+    },
+    {
+      "word": {
+        "en": "stamp",
+        "laos": "ປະທັບຕາ",
+        "jp": "スタンプ",
+        "vie": "tem",
+        "en_pronunciation": "/stæmp/",
+        "laos_pronunciation": "pathabta",
+        "jp_pronunciation": "sutanpu",
+        "vie_pronunciation": "tem"
+      },
+      "means": {
+        "en": "The distinctive form in which a thing is made",
+        "zh": "（法律）某物的权利或合法份额；"
+      }
+    },
+    {
+      "word": {
+        "en": "stance",
+        "laos": "ຈຸດຢືນ",
+        "jp": "スタンス",
+        "vie": "lập trường",
+        "en_pronunciation": "/stæns/",
+        "laos_pronunciation": "chudyun",
+        "jp_pronunciation": "sutansu",
+        "vie_pronunciation": "lap truong"
+      },
+      "means": {
+        "en": "Standing posture",
+        "zh": "对某事的经济参与"
+      }
+    },
+    {
+      "word": {
+        "en": "stand",
+        "laos": "ຜາມໄຊ",
+        "jp": "立つ",
+        "vie": "đứng",
+        "en_pronunciation": "/stænd/",
+        "laos_pronunciation": "phamsai",
+        "jp_pronunciation": "tatsu",
+        "vie_pronunciation": "dung"
+      },
+      "means": {
+        "en": "A support or foundation",
+        "zh": "牛和马的尿液"
+      }
+    },
+    {
+      "word": {
+        "en": "standard",
+        "laos": "ມາດຕະຖານ",
+        "jp": "標準",
+        "vie": "tiêu chuẩn",
+        "en_pronunciation": "/ˈstændərd/",
+        "laos_pronunciation": "madtathan",
+        "jp_pronunciation": "hyoujun",
+        "vie_pronunciation": "tieu chuan"
+      },
+      "means": {
+        "en": "A basis for comparison; a reference point against which other things can be evaluated",
+        "zh": "由种子覆盖物和与种子分离的小块茎或叶组成的材料"
+      }
+    },
+    {
+      "word": {
+        "en": "standardize",
+        "laos": "ເຮັດຕາມມາດຕະຖານ",
+        "jp": "標準化する",
+        "vie": "chuẩn hóa",
+        "en_pronunciation": "/ˈstændərˌdaɪz/",
+        "laos_pronunciation": "hedtammadtathan",
+        "jp_pronunciation": "hyoujunka suru",
+        "vie_pronunciation": "chuan hoa"
+      },
+      "means": {
+        "en": "Cause to conform to standard or norm",
+        "zh": "马厩中的一个隔间，其中限制和喂养单个动物"
+      }
+    },
+    {
+      "word": {
+        "en": "standardise",
+        "laos": "ເຮັດຕາມມາດຕະຖານ",
+        "jp": "標準化する",
+        "vie": "chuẩn hóa",
+        "en_pronunciation": "/standardise/",
+        "laos_pronunciation": "hedtammadtathan",
+        "jp_pronunciation": "hyoujunka suru",
+        "vie_pronunciation": "chuan hoa"
+      },
+      "means": {
+        "en": "Evaluate by comparing with a standard",
+        "zh": "一种言语障碍，涉及犹豫和不自觉地重复某些声音"
+      }
+    },
+    {
+      "word": {
+        "en": "standardization",
+        "laos": "ມາດຕະຖານ",
+        "jp": "標準化",
+        "vie": "tiêu chuẩn hóa",
+        "en_pronunciation": "/stændərdɪˈzeɪʃən/",
+        "laos_pronunciation": "madtathan",
+        "jp_pronunciation": "hyoujunka",
+        "vie_pronunciation": "tieu chuan hoa"
+      },
+      "means": {
+        "en": "The condition in which a standard has been successfully established",
+        "zh": "制造事物的独特形式"
+      }
+    },
+    {
+      "word": {
+        "en": "standardisation",
+        "laos": "ມາດຕະຖານ",
+        "jp": "標準化",
+        "vie": "tiêu chuẩn hóa",
+        "en_pronunciation": "/standardisation/",
+        "laos_pronunciation": "madtathan",
+        "jp_pronunciation": "hyoujunka",
+        "vie_pronunciation": "tieu chuan hoa"
+      },
+      "means": {
+        "en": "The condition in which a standard has been successfully established",
+        "zh": "站立姿势"
+      }
+    },
+    {
+      "word": {
+        "en": "standby",
+        "laos": "ສະແຕດັສ",
+        "jp": "スタンバイ",
+        "vie": "chế độ chờ",
+        "en_pronunciation": "/ˈstændˈbaɪ/",
+        "laos_pronunciation": "sa aetdas",
+        "jp_pronunciation": "sutanbai",
+        "vie_pronunciation": "che do cho"
+      },
+      "means": {
+        "en": "Something that can be relied on when needed",
+        "zh": "支持或基础"
+      }
+    },
+    {
+      "word": {
+        "en": "standpoint",
+        "laos": "ລູກປືນ",
+        "jp": "立場",
+        "vie": "quan điểm",
+        "en_pronunciation": "/ˈstændˌpɔɪnt/",
+        "laos_pronunciation": "lukpun",
+        "jp_pronunciation": "tachiba",
+        "vie_pronunciation": "quan diem"
+      },
+      "means": {
+        "en": "A mental position from which things are viewed",
+        "zh": "比较的基础；"
+      }
+    },
+    {
+      "word": {
+        "en": "staple",
+        "laos": "ອາຫານຫຼັກ",
+        "jp": "ステープル",
+        "vie": "ghim",
+        "en_pronunciation": "/ˈsteɪpəl/",
+        "laos_pronunciation": "ahanrak",
+        "jp_pronunciation": "suteepuru",
+        "vie_pronunciation": "ghim"
+      },
+      "means": {
+        "en": "(usually plural) a necessary commodity for which demand is constant",
+        "zh": "可以评估其他事物的参考点"
+      }
+    },
+    {
+      "word": {
+        "en": "stapler",
+        "laos": "ບໍລິສັດ Stapler",
+        "jp": "ホッチキス",
+        "vie": "cái bấm ghim",
+        "en_pronunciation": "/ˈsteɪpələr/",
+        "laos_pronunciation": "bolisad Stapler",
+        "jp_pronunciation": "hotchikisu",
+        "vie_pronunciation": "cai bam ghim"
+      },
+      "means": {
+        "en": "A machine that inserts staples into sheets of paper in order to fasten them together",
+        "zh": "导致符合标准或规范"
+      }
+    },
+    {
+      "word": {
+        "en": "star",
+        "laos": "ດາວ",
+        "jp": "スター",
+        "vie": "ngôi sao",
+        "en_pronunciation": "/stɑr/",
+        "laos_pronunciation": "dav",
+        "jp_pronunciation": "sutaa",
+        "vie_pronunciation": "ngoi sao"
+      },
+      "means": {
+        "en": "(astronomy) a celestial body of hot gases that radiates energy derived from thermonuclear reactions in the interior",
+        "zh": "通过与标准比较来评估"
+      }
+    },
+    {
+      "word": {
+        "en": "stare",
+        "laos": "ກຶ້ງຕາ",
+        "jp": "見つめる",
+        "vie": "nhìn chằm chằm",
+        "en_pronunciation": "/stɛr/",
+        "laos_pronunciation": "kungta",
+        "jp_pronunciation": "mitsu meru",
+        "vie_pronunciation": "nhin cham cham"
+      },
+      "means": {
+        "en": "A fixed look with eyes open wide",
+        "zh": "标准成功建立的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "starry",
+        "laos": "ດາວ",
+        "jp": "星空",
+        "vie": "đầy sao",
+        "en_pronunciation": "/ˈstɑˌri/",
+        "laos_pronunciation": "dav",
+        "jp_pronunciation": "hoshizora",
+        "vie_pronunciation": "day sao"
+      },
+      "means": {
+        "en": "Abounding with or resembling stars",
+        "zh": "标准成功建立的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "stark",
+        "laos": "ແປກ",
+        "jp": "厳しい",
+        "vie": "khắc nghiệt",
+        "en_pronunciation": "/stɑrk/",
+        "laos_pronunciation": "aepk",
+        "jp_pronunciation": "ikameshii",
+        "vie_pronunciation": "khac nghiet"
+      },
+      "means": {
+        "en": "Devoid of any qualifications or disguise or adornment",
+        "zh": "需要时可以依赖的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "start",
+        "laos": "ຊູບ",
+        "jp": "始める",
+        "vie": "bắt đầu",
+        "en_pronunciation": "/stɑrt/",
+        "laos_pronunciation": "sub",
+        "jp_pronunciation": "hajime ru",
+        "vie_pronunciation": "bat dau"
+      },
+      "means": {
+        "en": "The beginning of anything",
+        "zh": "看待事物的心理位置"
+      }
+    },
+    {
+      "word": {
+        "en": "starter",
+        "laos": "ການເພິ່ນເລີ່ມ",
+        "jp": "スターター",
+        "vie": "món khai vị",
+        "en_pronunciation": "/ˈstɑrtər/",
+        "laos_pronunciation": "kan phoenloem",
+        "jp_pronunciation": "sutaataa",
+        "vie_pronunciation": "mon khai vi"
+      },
+      "means": {
+        "en": "An electric motor for starting an engine",
+        "zh": "（通常是复数）需求恒定的必需商品"
+      }
+    },
+    {
+      "word": {
+        "en": "startle",
+        "laos": "ຊົ້ນ",
+        "jp": "びっくりする",
+        "vie": "giật mình",
+        "en_pronunciation": "/ˈstɑrtəl/",
+        "laos_pronunciation": "son",
+        "jp_pronunciation": "bikkurisuru",
+        "vie_pronunciation": "giat minh"
+      },
+      "means": {
+        "en": "A sudden involuntary movement",
+        "zh": "将订书钉插入纸张以将它们固定在一起的机器"
+      }
+    },
+    {
+      "word": {
+        "en": "starve",
+        "laos": "ອົດທອນ",
+        "jp": "餓死する",
+        "vie": "chết đói",
+        "en_pronunciation": "/stɑrv/",
+        "laos_pronunciation": "odthon",
+        "jp_pronunciation": "gashi suru",
+        "vie_pronunciation": "chet doi"
+      },
+      "means": {
+        "en": "Be hungry; go without food",
+        "zh": "（天文学）由内部热核反应产生的热气体辐射能量的天体"
+      }
+    },
+    {
+      "word": {
+        "en": "starvation",
+        "laos": "ທີ່ອຶດຢາກ",
+        "jp": "飢餓",
+        "vie": "sự đói khát",
+        "en_pronunciation": "/stɑrˈveɪʃən/",
+        "laos_pronunciation": "thiudyak",
+        "jp_pronunciation": "kiga",
+        "vie_pronunciation": "su doi khat"
+      },
+      "means": {
+        "en": "A state of extreme hunger resulting from lack of essential nutrients over a prolonged period",
+        "zh": "睁大眼睛的固定表情"
+      }
+    },
+    {
+      "word": {
+        "en": "state",
+        "laos": "ລັດ",
+        "jp": "状態",
+        "vie": "tiểu bang",
+        "en_pronunciation": "/steɪt/",
+        "laos_pronunciation": "lad",
+        "jp_pronunciation": "joutai",
+        "vie_pronunciation": "tieu bang"
+      },
+      "means": {
+        "en": "The territory occupied by one of the constituent administrative districts of a nation",
+        "zh": "充满或类似星星"
+      }
+    },
+    {
+      "word": {
+        "en": "statement",
+        "laos": "ຖະແຫຼງການ",
+        "jp": "声明",
+        "vie": "tuyên bố",
+        "en_pronunciation": "/ˈsteɪtmənt/",
+        "laos_pronunciation": "thaaerngkan",
+        "jp_pronunciation": "seimei",
+        "vie_pronunciation": "tuyen bo"
+      },
+      "means": {
+        "en": "A message that is stated or declared; a communication (oral or written) setting forth particulars or facts etc",
+        "zh": "没有任何资格或伪装或装饰"
+      }
+    },
+    {
+      "word": {
+        "en": "statesman",
+        "laos": "ໄດ້",
+        "jp": "政治家",
+        "vie": "chính khách",
+        "en_pronunciation": "/ˈsteɪtsmən/",
+        "laos_pronunciation": "dai",
+        "jp_pronunciation": "seijika",
+        "vie_pronunciation": "chinh khach"
+      },
+      "means": {
+        "en": "A man who is a respected leader in national or international affairs",
+        "zh": "一切的开始"
+      }
+    },
+    {
+      "word": {
+        "en": "static",
+        "laos": "ສະຖິດ",
+        "jp": "静的",
+        "vie": "tĩnh",
+        "en_pronunciation": "/ˈstætɪk/",
+        "laos_pronunciation": "sa thid",
+        "jp_pronunciation": "seiteki",
+        "vie_pronunciation": "tinh"
+      },
+      "means": {
+        "en": "A crackling or hissing noise caused by electrical interference",
+        "zh": "用于启动发动机的电动机"
+      }
+    },
+    {
+      "word": {
+        "en": "station",
+        "laos": "ສະຖານີ",
+        "jp": "駅",
+        "vie": "trạm",
+        "en_pronunciation": "/ˈsteɪʃən/",
+        "laos_pronunciation": "sathani",
+        "jp_pronunciation": "eki",
+        "vie_pronunciation": "tram"
+      },
+      "means": {
+        "en": "A facility equipped with special equipment and personnel for a particular purpose",
+        "zh": "突然不自主的运动"
+      }
+    },
+    {
+      "word": {
+        "en": "stationary",
+        "laos": "ປະສະວະກໍາ",
+        "jp": "静止した",
+        "vie": "văn phòng phẩm",
+        "en_pronunciation": "/ˈsteɪʃəˌnɛri/",
+        "laos_pronunciation": "pa sauaakoa",
+        "jp_pronunciation": "seishi shita",
+        "vie_pronunciation": "van phong pham"
+      },
+      "means": {
+        "en": "Standing still",
+        "zh": "饥饿；"
+      }
+    },
+    {
+      "word": {
+        "en": "stationery",
+        "laos": "ເຄື່ອງຂຽນ",
+        "jp": "文房具",
+        "vie": "văn phòng phẩm",
+        "en_pronunciation": "/ˈsteɪʃəˌnɛri/",
+        "laos_pronunciation": "kheuongkhian",
+        "jp_pronunciation": "bunbougu",
+        "vie_pronunciation": "van phong pham"
+      },
+      "means": {
+        "en": "Paper cut to an appropriate size for writing letters; usually with matching envelopes",
+        "zh": "不吃东西去"
+      }
+    },
+    {
+      "word": {
+        "en": "statistic",
+        "laos": "ສະຖິຕິ",
+        "jp": "統計",
+        "vie": "thống kê",
+        "en_pronunciation": "/stəˈtɪstɪk/",
+        "laos_pronunciation": "sathiti",
+        "jp_pronunciation": "toukei",
+        "vie_pronunciation": "thong ke"
+      },
+      "means": {
+        "en": "A datum that can be represented numerically",
+        "zh": "由于长期缺乏必需营养素而导致的极度饥饿状态"
+      }
+    },
+    {
+      "word": {
+        "en": "statistical",
+        "laos": "ເພດສະຖິຕິ",
+        "jp": "統計的",
+        "vie": "thống kê",
+        "en_pronunciation": "/stəˈtɪstɪkəl/",
+        "laos_pronunciation": "phedsathiti",
+        "jp_pronunciation": "toukeiteki",
+        "vie_pronunciation": "thong ke"
+      },
+      "means": {
+        "en": "Of or relating to statistics",
+        "zh": "一个国家的行政区之一所占据的领土"
+      }
+    },
+    {
+      "word": {
+        "en": "statue",
+        "laos": "ຮູບປັ້ນ",
+        "jp": "彫像",
+        "vie": "bức tượng",
+        "en_pronunciation": "/ˈstæˌʧu/",
+        "laos_pronunciation": "hubpan",
+        "jp_pronunciation": "chouzou",
+        "vie_pronunciation": "buc tuong"
+      },
+      "means": {
+        "en": "A sculpture representing a human or animal",
+        "zh": "陈述或声明的消息；"
+      }
+    },
+    {
+      "word": {
+        "en": "status",
+        "laos": "ສະຖານະພາບ",
+        "jp": "ステータス",
+        "vie": "trạng thái",
+        "en_pronunciation": "/ˈstætəs/",
+        "laos_pronunciation": "sathanaphab",
+        "jp_pronunciation": "suteetasu",
+        "vie_pronunciation": "trang thai"
+      },
+      "means": {
+        "en": "The relative position or standing of things or especially persons in a society",
+        "zh": "阐述细节或事实等的通信（口头或书面）"
+      }
+    },
+    {
+      "word": {
+        "en": "statute",
+        "laos": "ກົດລະບຽບ",
+        "jp": "法令",
+        "vie": "quy chế",
+        "en_pronunciation": "/ˈstæʧut/",
+        "laos_pronunciation": "kodlabiab",
+        "jp_pronunciation": "hourei",
+        "vie_pronunciation": "quy che"
+      },
+      "means": {
+        "en": "An act passed by a legislative body",
+        "zh": "国家或国际事务中受人尊敬的领导人"
+      }
+    },
+    {
+      "word": {
+        "en": "statutory",
+        "laos": "ນິຕິບັນຍັດ",
+        "jp": "法定の",
+        "vie": "theo luật định",
+        "en_pronunciation": "/ˈstæʧəˌtɔri/",
+        "laos_pronunciation": "nitibnaiad",
+        "jp_pronunciation": "houtei no",
+        "vie_pronunciation": "theo luat dinh"
+      },
+      "means": {
+        "en": "Relating to or created by statutes",
+        "zh": "由电气干扰引起的噼啪声或嘶嘶声"
+      }
+    },
+    {
+      "word": {
+        "en": "stay",
+        "laos": "ຢູ່",
+        "jp": "滞在する",
+        "vie": "ở lại",
+        "en_pronunciation": "/steɪ/",
+        "laos_pronunciation": "yu",
+        "jp_pronunciation": "taizai suru",
+        "vie_pronunciation": "o lai"
+      },
+      "means": {
+        "en": "Continuing or remaining in a place or state",
+        "zh": "为特定目的配备特殊设备和人员的设施"
+      }
+    },
+    {
+      "word": {
+        "en": "steady",
+        "laos": "ຕ່ໍາ",
+        "jp": "安定した",
+        "vie": "ổn định",
+        "en_pronunciation": "/ˈstɛdi/",
+        "laos_pronunciation": "toa",
+        "jp_pronunciation": "antei shita",
+        "vie_pronunciation": "on dinh"
+      },
+      "means": {
+        "en": "A person loved by another person",
+        "zh": "站着不动"
+      }
+    }
+  ]
+}

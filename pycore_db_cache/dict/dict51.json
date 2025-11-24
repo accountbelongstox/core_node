@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.369194+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "official",
+        "laos": "ພະແນກການ",
+        "jp": "役人",
+        "vie": "chính thức",
+        "en_pronunciation": "/əˈfɪʃəl/",
+        "laos_pronunciation": "phaaenkkan",
+        "jp_pronunciation": "yakunin",
+        "vie_pronunciation": "chinh thuc"
+      },
+      "means": {
+        "en": "A worker who holds or is invested with an office",
+        "zh": "拥有或投资办公室的工人"
+      }
+    },
+    {
+      "word": {
+        "en": "offset",
+        "laos": "ຊົດເຊີຍ",
+        "jp": "オフセット",
+        "vie": "bù đắp",
+        "en_pronunciation": "/ˈɔfˌsɛt/",
+        "laos_pronunciation": "sodsoeny",
+        "jp_pronunciation": "ofusetto",
+        "vie_pronunciation": "bu dap"
+      },
+      "means": {
+        "en": "The time at which something is supposed to begin",
+        "zh": "某事应该开始的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "offspring",
+        "laos": "ຄວາມເປັນລວດລາຍ",
+        "jp": "子孫",
+        "vie": "con cháu",
+        "en_pronunciation": "/ˈɔfˌsprɪŋ/",
+        "laos_pronunciation": "khuaampenluadlai",
+        "jp_pronunciation": "shison",
+        "vie_pronunciation": "con chau"
+      },
+      "means": {
+        "en": "The immediate descendants of a person",
+        "zh": "一个人的直系后代"
+      }
+    },
+    {
+      "word": {
+        "en": "often",
+        "laos": "ເນືອງໆ",
+        "jp": "頻繁に",
+        "vie": "thường xuyên",
+        "en_pronunciation": "/ˈɔfən/",
+        "laos_pronunciation": "neuong",
+        "jp_pronunciation": "hinpan ni",
+        "vie_pronunciation": "thuong xuyen"
+      },
+      "means": {
+        "en": "Many times at short intervals",
+        "zh": "短时间间隔多次"
+      }
+    },
+    {
+      "word": {
+        "en": "oftentimes",
+        "laos": "ຂາຢບົນ",
+        "jp": "しばしば",
+        "vie": "thường xuyên",
+        "en_pronunciation": "/ˈɔfənˌtaɪmz/",
+        "laos_pronunciation": "kha ybon",
+        "jp_pronunciation": "shibashiba",
+        "vie_pronunciation": "thuong xuyen"
+      },
+      "means": {
+        "en": "Many times at short intervals",
+        "zh": "短时间间隔多次"
+      }
+    },
+    {
+      "word": {
+        "en": "oil",
+        "laos": "ນ້ໍາມັນ",
+        "jp": "油",
+        "vie": "dầu",
+        "en_pronunciation": "/ɔɪl/",
+        "laos_pronunciation": "noaman",
+        "jp_pronunciation": "abura",
+        "vie_pronunciation": "dau"
+      },
+      "means": {
+        "en": "A slippery or viscous liquid or liquefiable substance not miscible with water",
+        "zh": "不与水混溶的光滑或粘稠液体或可液化物质"
+      }
+    },
+    {
+      "word": {
+        "en": "oily",
+        "laos": "ເປັນນ້ໍາມັນ",
+        "jp": "油っぽい",
+        "vie": "nhờn",
+        "en_pronunciation": "/ˈɔɪli/",
+        "laos_pronunciation": "pennoaman",
+        "jp_pronunciation": "abura ppoi",
+        "vie_pronunciation": "nhon"
+      },
+      "means": {
+        "en": "Containing an unusual amount of grease or oil",
+        "zh": "含有异常量的油脂或油"
+      }
+    },
+    {
+      "word": {
+        "en": "okay",
+        "laos": "ຕົກລົງ",
+        "jp": "わかりました",
+        "vie": "được rồi",
+        "en_pronunciation": "/ˌoʊˈkeɪ/",
+        "laos_pronunciation": "toklong",
+        "jp_pronunciation": "wakarimashita",
+        "vie_pronunciation": "duoc roi"
+      },
+      "means": {
+        "en": "An endorsement",
+        "zh": "背书"
+      }
+    },
+    {
+      "word": {
+        "en": "old",
+        "laos": "ແກ່",
+        "jp": "古い",
+        "vie": "cũ",
+        "en_pronunciation": "/oʊld/",
+        "laos_pronunciation": "aek",
+        "jp_pronunciation": "furui",
+        "vie_pronunciation": "cu"
+      },
+      "means": {
+        "en": "Past times (especially in the phrase `in days of old')",
+        "zh": "过去的时代（尤其是“过去的日子”这句话）"
+      }
+    },
+    {
+      "word": {
+        "en": "old-fashioned",
+        "laos": "ແບບເກົ່າ",
+        "jp": "昔ながらの",
+        "vie": "lỗi thời",
+        "en_pronunciation": "/ˌoʊldˈfæʃənd/",
+        "laos_pronunciation": "aebbkeoa",
+        "jp_pronunciation": "mukashi nagarano",
+        "vie_pronunciation": "loi thoi"
+      },
+      "means": {
+        "en": "Out of fashion",
+        "zh": "过时了"
+      }
+    },
+    {
+      "word": {
+        "en": "olive",
+        "laos": "ໂຊະ",
+        "jp": "オリーブ",
+        "vie": "ô liu",
+        "en_pronunciation": "/ˈɑlɪv/",
+        "laos_pronunciation": "so",
+        "jp_pronunciation": "oriibu",
+        "vie_pronunciation": "o liu"
+      },
+      "means": {
+        "en": "Small ovoid fruit of the European olive tree; important food and source of oil",
+        "zh": "欧洲橄榄树的小卵形果实；"
+      }
+    },
+    {
+      "word": {
+        "en": "olympic",
+        "laos": "Olympic",
+        "jp": "オリンピック",
+        "vie": "thế vận hội",
+        "en_pronunciation": "/oʊˈlɪmpɪk/",
+        "laos_pronunciation": "Olympic",
+        "jp_pronunciation": "orinpikku",
+        "vie_pronunciation": "the van hoi"
+      },
+      "means": {
+        "en": "Of or relating to the Olympic Games",
+        "zh": "重要的食物和石油来源"
+      }
+    },
+    {
+      "word": {
+        "en": "omit",
+        "laos": "ລົບ",
+        "jp": "省略",
+        "vie": "bỏ qua",
+        "en_pronunciation": "/oʊˈmɪt/",
+        "laos_pronunciation": "lob",
+        "jp_pronunciation": "shouryaku",
+        "vie_pronunciation": "bo qua"
+      },
+      "means": {
+        "en": "Prevent from being included or considered or accepted",
+        "zh": "属于奥运会或与奥运会有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "olympics",
+        "laos": "ພິນບອລ",
+        "jp": "オリンピック",
+        "vie": "Thế vận hội",
+        "en_pronunciation": "/oʊˈlɪmpɪks/",
+        "laos_pronunciation": "phin bol",
+        "jp_pronunciation": "orinpikku",
+        "vie_pronunciation": "The van hoi"
+      },
+      "means": {
+        "en": "The modern revival of the ancient games held once every 4 years in a selected country",
+        "zh": "防止被包括或考虑或接受"
+      }
+    },
+    {
+      "word": {
+        "en": "olympiad",
+        "laos": "Olympiad",
+        "jp": "オリンピック",
+        "vie": "thế vận hội",
+        "en_pronunciation": "/oʊˈlɪmpiˌæd/",
+        "laos_pronunciation": "Olympiad",
+        "jp_pronunciation": "orinpikku",
+        "vie_pronunciation": "the van hoi"
+      },
+      "means": {
+        "en": "One of the four-year intervals between Olympic Games; used to reckon time in ancient Greece for twelve centuries beginning in 776 BC",
+        "zh": "每四年在选定国家举办一次的古代运动会的现代复兴"
+      }
+    },
+    {
+      "word": {
+        "en": "omission",
+        "laos": "ການລົບລ້າງ",
+        "jp": "省略",
+        "vie": "thiếu sót",
+        "en_pronunciation": "/oʊˈmɪʃən/",
+        "laos_pronunciation": "kanloblang",
+        "jp_pronunciation": "shouryaku",
+        "vie_pronunciation": "thieu sot"
+      },
+      "means": {
+        "en": "A mistake resulting from neglect",
+        "zh": "奥运会间隔四年之一；"
+      }
+    },
+    {
+      "word": {
+        "en": "on",
+        "laos": "ຕໍ່ໆໄປ",
+        "jp": "に",
+        "vie": "trên",
+        "en_pronunciation": "/ɔn/",
+        "laos_pronunciation": "topai",
+        "jp_pronunciation": "ni",
+        "vie_pronunciation": "tren"
+      },
+      "means": {
+        "en": "In operation or operational",
+        "zh": "古希腊从公元前 776 年开始计算时间已有十二个世纪"
+      }
+    },
+    {
+      "word": {
+        "en": "once",
+        "laos": "ແລ້ວເທື່ອ",
+        "jp": "一度",
+        "vie": "một lần",
+        "en_pronunciation": "/wəns/",
+        "laos_pronunciation": "aeluatheu",
+        "jp_pronunciation": "ichido",
+        "vie_pronunciation": "mot lan"
+      },
+      "means": {
+        "en": "On one occasion",
+        "zh": "因疏忽而导致的错误"
+      }
+    },
+    {
+      "word": {
+        "en": "one",
+        "laos": "ຫນື່ງ",
+        "jp": "1つ",
+        "vie": "một",
+        "en_pronunciation": "/wən/",
+        "laos_pronunciation": "nung",
+        "jp_pronunciation": "1 tsu",
+        "vie_pronunciation": "mot"
+      },
+      "means": {
+        "en": "The smallest whole number or a numeral representing this number",
+        "zh": "运行中或运行中"
+      }
+    },
+    {
+      "word": {
+        "en": "oneself",
+        "laos": "ຕົນເອງ",
+        "jp": "自分自身",
+        "vie": "chính mình",
+        "en_pronunciation": "/ˌwənˈsɛlf/",
+        "laos_pronunciation": "tonoeng",
+        "jp_pronunciation": "jibunjishin",
+        "vie_pronunciation": "chinh minh"
+      },
+      "means": {
+        "en": "Oneself is an English word referring to 'oneself'.",
+        "zh": "有一次"
+      }
+    },
+    {
+      "word": {
+        "en": "ongoing",
+        "laos": "ເປັນຕໂດວ",
+        "jp": "継続中",
+        "vie": "đang diễn ra",
+        "en_pronunciation": "/ˈɔnˌgoʊɪŋ/",
+        "laos_pronunciation": "pen t odv",
+        "jp_pronunciation": "keizokuchuu",
+        "vie_pronunciation": "dang dien ra"
+      },
+      "means": {
+        "en": "Currently happening",
+        "zh": "最小的整数或代表该数字的数字"
+      }
+    },
+    {
+      "word": {
+        "en": "onion",
+        "laos": "ຜັກບົ່ວ",
+        "jp": "タマネギ",
+        "vie": "hành tây",
+        "en_pronunciation": "/ˈənjən/",
+        "laos_pronunciation": "phakbov",
+        "jp_pronunciation": "tamanegi",
+        "vie_pronunciation": "hanh tay"
+      },
+      "means": {
+        "en": "The bulb of an onion plant",
+        "zh": "Oneself是一个英语单词，指的是“自己”。"
+      }
+    },
+    {
+      "word": {
+        "en": "online",
+        "laos": "ອອນລາຍ",
+        "jp": "オンライン",
+        "vie": "trực tuyến",
+        "en_pronunciation": "/ˈɔnˌlaɪn/",
+        "laos_pronunciation": "nlai",
+        "jp_pronunciation": "onrain",
+        "vie_pronunciation": "truc tuyen"
+      },
+      "means": {
+        "en": "On a regular route of a railroad or bus or airline system",
+        "zh": "目前正在发生"
+      }
+    },
+    {
+      "word": {
+        "en": "only",
+        "laos": "ເທົ່ານັ້ນ",
+        "jp": "だけ",
+        "vie": "chỉ",
+        "en_pronunciation": "/ˈoʊnli/",
+        "laos_pronunciation": "theoanan",
+        "jp_pronunciation": "dake",
+        "vie_pronunciation": "chi"
+      },
+      "means": {
+        "en": "Being the only one; single and isolated from others",
+        "zh": "洋葱植物的球茎"
+      }
+    },
+    {
+      "word": {
+        "en": "onset",
+        "laos": "ຊົດໆ",
+        "jp": "発症",
+        "vie": "khởi đầu",
+        "en_pronunciation": "/ˈɔnˌsɛt/",
+        "laos_pronunciation": "sod",
+        "jp_pronunciation": "hasshou",
+        "vie_pronunciation": "khoi dau"
+      },
+      "means": {
+        "en": "The beginning or early stages",
+        "zh": "在铁路、公共汽车或航空系统的常规路线上"
+      }
+    },
+    {
+      "word": {
+        "en": "onto",
+        "laos": "ໃສ່",
+        "jp": "に",
+        "vie": "lên",
+        "en_pronunciation": "/ˈɔntu/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "ni",
+        "vie_pronunciation": "len"
+      },
+      "means": {
+        "en": "Onto is an English word referring to 'onto'.",
+        "zh": "成为唯一的一个；"
+      }
+    },
+    {
+      "word": {
+        "en": "onward",
+        "laos": "ເປັນບາດ",
+        "jp": "先へ",
+        "vie": "trở đi",
+        "en_pronunciation": "/ˈɔnwərd/",
+        "laos_pronunciation": "penbad",
+        "jp_pronunciation": "saki he",
+        "vie_pronunciation": "tro di"
+      },
+      "means": {
+        "en": "Forward in time or order or degree",
+        "zh": "单身且与他人隔绝"
+      }
+    },
+    {
+      "word": {
+        "en": "opaque",
+        "laos": "ຕີ່",
+        "jp": "不透明な",
+        "vie": "mờ đục",
+        "en_pronunciation": "/oʊˈpeɪk/",
+        "laos_pronunciation": "ti",
+        "jp_pronunciation": "futoumei na",
+        "vie_pronunciation": "mo duc"
+      },
+      "means": {
+        "en": "Not transmitting or reflecting light or radiant energy; impenetrable to sight",
+        "zh": "开始或早期阶段"
+      }
+    },
+    {
+      "word": {
+        "en": "open",
+        "laos": "ເປີດ",
+        "jp": "開く",
+        "vie": "mở",
+        "en_pronunciation": "/ˈoʊpən/",
+        "laos_pronunciation": "poed",
+        "jp_pronunciation": "hiraku",
+        "vie_pronunciation": "mo"
+      },
+      "means": {
+        "en": "A clear or unobstructed space or expanse of land or water",
+        "zh": "Onto是一个英语单词，指的是“onto”。"
+      }
+    },
+    {
+      "word": {
+        "en": "opener",
+        "laos": "ຜູ້ຢິງເປີດ",
+        "jp": "オープナー",
+        "vie": "cái mở đầu",
+        "en_pronunciation": "/ˈoʊpənər/",
+        "laos_pronunciation": "phu yingpoed",
+        "jp_pronunciation": "oopunaa",
+        "vie_pronunciation": "cai mo dau"
+      },
+      "means": {
+        "en": "The first event in a series",
+        "zh": "按时间、顺序或程度向前推进"
+      }
+    },
+    {
+      "word": {
+        "en": "opening",
+        "laos": "ການເປີດ",
+        "jp": "オープニング",
+        "vie": "khai mạc",
+        "en_pronunciation": "/ˈoʊpənɪŋ/",
+        "laos_pronunciation": "kanpoed",
+        "jp_pronunciation": "oopuningu",
+        "vie_pronunciation": "khai mac"
+      },
+      "means": {
+        "en": "An open or empty space in or between things",
+        "zh": "不透射或反射光或辐射能；"
+      }
+    },
+    {
+      "word": {
+        "en": "openly",
+        "laos": "ຢ່າງເປີດເຜີຍ",
+        "jp": "公然と",
+        "vie": "công khai",
+        "en_pronunciation": "/ˈoʊpənli/",
+        "laos_pronunciation": "yangpoedphoeny",
+        "jp_pronunciation": "kouzen to",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "In an open way",
+        "zh": "难以穿透的视线"
+      }
+    },
+    {
+      "word": {
+        "en": "opera",
+        "laos": "Opera",
+        "jp": "オペラ",
+        "vie": "opera",
+        "en_pronunciation": "/ˈɑprə/",
+        "laos_pronunciation": "Opera",
+        "jp_pronunciation": "opera",
+        "vie_pronunciation": "opera"
+      },
+      "means": {
+        "en": "A drama set to music; consists of singing with orchestral accompaniment and an orchestral overture and interludes",
+        "zh": "干净或无障碍的空间或广阔的土地或水域"
+      }
+    },
+    {
+      "word": {
+        "en": "operate",
+        "laos": "ປະຕິບັດງານ",
+        "jp": "操作する",
+        "vie": "vận hành",
+        "en_pronunciation": "/ˈɔpərˌeɪt/",
+        "laos_pronunciation": "patibadngan",
+        "jp_pronunciation": "sousa suru",
+        "vie_pronunciation": "van hanh"
+      },
+      "means": {
+        "en": "Direct or control; projects, businesses, etc.",
+        "zh": "系列中的第一个活动"
+      }
+    },
+    {
+      "word": {
+        "en": "operation",
+        "laos": "ການປະຕິບັດງານ",
+        "jp": "操作",
+        "vie": "hoạt động",
+        "en_pronunciation": "/ˌɑpərˈeɪʃən/",
+        "laos_pronunciation": "kanpatibadngan",
+        "jp_pronunciation": "sousa",
+        "vie_pronunciation": "hoat dong"
+      },
+      "means": {
+        "en": "The state of being in effect or being operative",
+        "zh": "事物内部或事物之间的开放或空旷的空间"
+      }
+    },
+    {
+      "word": {
+        "en": "operational",
+        "laos": "ການດໍາເນີນງານ",
+        "jp": "運用可能",
+        "vie": "hoạt động",
+        "en_pronunciation": "/ˌɑpərˈeɪʃənəl/",
+        "laos_pronunciation": "kandoanoenngan",
+        "jp_pronunciation": "unyoukanou",
+        "vie_pronunciation": "hoat dong"
+      },
+      "means": {
+        "en": "Pertaining to a process or series of actions for achieving a result",
+        "zh": "以开放的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "operator",
+        "laos": "ຜູ້ປະຕິບັດງານ",
+        "jp": "オペレーター",
+        "vie": "toán tử",
+        "en_pronunciation": "/ˈɑpərˌeɪtər/",
+        "laos_pronunciation": "phupatibadngan",
+        "jp_pronunciation": "opereetaa",
+        "vie_pronunciation": "toan tu"
+      },
+      "means": {
+        "en": "(mathematics) a symbol or function representing a mathematical operation",
+        "zh": "一部配有音乐的戏剧；"
+      }
+    },
+    {
+      "word": {
+        "en": "operative",
+        "laos": "ການປະຕິບັດງານ",
+        "jp": "工作員",
+        "vie": "hoạt động",
+        "en_pronunciation": "/ˈɑpərətɪv/",
+        "laos_pronunciation": "kanpatibadngan",
+        "jp_pronunciation": "kousakuin",
+        "vie_pronunciation": "hoat dong"
+      },
+      "means": {
+        "en": "A person secretly employed in espionage for a government",
+        "zh": "由管弦乐伴奏的歌唱以及管弦乐序曲和间奏曲组成"
+      }
+    },
+    {
+      "word": {
+        "en": "opinion",
+        "laos": "ຄວາມຄິດເຫັນ",
+        "jp": "意見",
+        "vie": "ý kiến",
+        "en_pronunciation": "/əˈpɪnjən/",
+        "laos_pronunciation": "khuaamkhidhen",
+        "jp_pronunciation": "iken",
+        "vie_pronunciation": "y kien"
+      },
+      "means": {
+        "en": "A personal belief or judgment that is not founded on proof or certainty",
+        "zh": "直接或控制；"
+      }
+    },
+    {
+      "word": {
+        "en": "opportunity",
+        "laos": "ໂອກາດ",
+        "jp": "機会",
+        "vie": "cơ hội",
+        "en_pronunciation": "/ˌɑpərˈtunəti/",
+        "laos_pronunciation": "ookad",
+        "jp_pronunciation": "kikai",
+        "vie_pronunciation": "co hoi"
+      },
+      "means": {
+        "en": "A possibility due to a favorable combination of circumstances",
+        "zh": "项目、企业等"
+      }
+    },
+    {
+      "word": {
+        "en": "oppose",
+        "laos": "ຄັດຄ້ານ",
+        "jp": "反対する",
+        "vie": "phản đối",
+        "en_pronunciation": "/əˈpoʊz/",
+        "laos_pronunciation": "khadkhan",
+        "jp_pronunciation": "hantai suru",
+        "vie_pronunciation": "phan doi"
+      },
+      "means": {
+        "en": "Be against; express opposition to",
+        "zh": "有效或正在运作的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "opposition",
+        "laos": "ຝ່າຢຄ້ານ",
+        "jp": "反対",
+        "vie": "sự phản đối",
+        "en_pronunciation": "/ˌɑpəˈzɪʃən/",
+        "laos_pronunciation": "faykhan",
+        "jp_pronunciation": "hantai",
+        "vie_pronunciation": "su phan doi"
+      },
+      "means": {
+        "en": "The action of opposing something that you disapprove or disagree with",
+        "zh": "与实现结果的过程或一系列行动有关"
+      }
+    },
+    {
+      "word": {
+        "en": "opponent",
+        "laos": "ຄູ່ມື",
+        "jp": "相手",
+        "vie": "đối thủ",
+        "en_pronunciation": "/əˈpoʊnənt/",
+        "laos_pronunciation": "khumu",
+        "jp_pronunciation": "aite",
+        "vie_pronunciation": "doi thu"
+      },
+      "means": {
+        "en": "A contestant that you are matched against",
+        "zh": "（数学）代表数学运算的符号或函数"
+      }
+    },
+    {
+      "word": {
+        "en": "opposite",
+        "laos": "ກົງກັນຂ້າມ",
+        "jp": "反対側",
+        "vie": "ngược lại",
+        "en_pronunciation": "/ˈɑpəzɪt/",
+        "laos_pronunciation": "kongkankham",
+        "jp_pronunciation": "hantaigawa",
+        "vie_pronunciation": "nguoc lai"
+      },
+      "means": {
+        "en": "A word that expresses a meaning opposed to the meaning of another word, in which case the two words are antonyms of each other",
+        "zh": "秘密受雇于政府从事间谍活动的人"
+      }
+    },
+    {
+      "word": {
+        "en": "oppress",
+        "laos": "ບຽດສີ",
+        "jp": "抑圧する",
+        "vie": "đàn áp",
+        "en_pronunciation": "/əˈprɛs/",
+        "laos_pronunciation": "biadsi",
+        "jp_pronunciation": "yokuatsu suru",
+        "vie_pronunciation": "dan ap"
+      },
+      "means": {
+        "en": "Come down on or keep down by unjust use of one's authority",
+        "zh": "并非基于证据或确定性的个人信念或判断"
+      }
+    },
+    {
+      "word": {
+        "en": "oppression",
+        "laos": "ການກົດຂີ່ຂົ່ມເຫັງ",
+        "jp": "弾圧",
+        "vie": "sự áp bức",
+        "en_pronunciation": "/əˈprɛʃən/",
+        "laos_pronunciation": "kankodkhikhomheng",
+        "jp_pronunciation": "dan'atsu",
+        "vie_pronunciation": "su ap buc"
+      },
+      "means": {
+        "en": "The act of subjugating by cruelty",
+        "zh": "由于有利的环境组合而产生的可能性"
+      }
+    },
+    {
+      "word": {
+        "en": "oppressive",
+        "laos": "ກົດຂີ່",
+        "jp": "抑圧的な",
+        "vie": "áp bức",
+        "en_pronunciation": "/əˈprɛsɪv/",
+        "laos_pronunciation": "kodkhi",
+        "jp_pronunciation": "yokuatsuteki na",
+        "vie_pronunciation": "ap buc"
+      },
+      "means": {
+        "en": "Weighing heavily on the senses or spirit",
+        "zh": "反对；"
+      }
+    },
+    {
+      "word": {
+        "en": "opt",
+        "laos": "ເລືອກເລືອກ",
+        "jp": "選択する",
+        "vie": "chọn",
+        "en_pronunciation": "/ɑpt/",
+        "laos_pronunciation": "leuokleuok",
+        "jp_pronunciation": "sentakusu ru",
+        "vie_pronunciation": "chon"
+      },
+      "means": {
+        "en": "Select as an alternative over another",
+        "zh": "表示反对"
+      }
+    },
+    {
+      "word": {
+        "en": "option",
+        "laos": "ຕົວເລືອກ",
+        "jp": "オプション",
+        "vie": "tùy chọn",
+        "en_pronunciation": "/ˈɔpʃən/",
+        "laos_pronunciation": "tualeuok",
+        "jp_pronunciation": "opushon",
+        "vie_pronunciation": "tuy chon"
+      },
+      "means": {
+        "en": "The right to buy or sell property at an agreed price; the right is purchased and if it is not exercised by a stated date the money is forfeited",
+        "zh": "反对您不赞成或不同意的事情的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "optional",
+        "laos": "ທີ່ເລືອກໄດ້",
+        "jp": "オプション",
+        "vie": "tùy chọn",
+        "en_pronunciation": "/ˈɔpʃənəl/",
+        "laos_pronunciation": "thi leuokdai",
+        "jp_pronunciation": "opushon",
+        "vie_pronunciation": "tuy chon"
+      },
+      "means": {
+        "en": "Possible but not necessary; left to personal choice",
+        "zh": "与您匹配的参赛者"
+      }
+    },
+    {
+      "word": {
+        "en": "optic",
+        "laos": "ໂອບ",
+        "jp": "光学",
+        "vie": "quang học",
+        "en_pronunciation": "/ˈɑptɪk/",
+        "laos_pronunciation": "oob",
+        "jp_pronunciation": "kougaku",
+        "vie_pronunciation": "quang hoc"
+      },
+      "means": {
+        "en": "The organ of sight",
+        "zh": "表达与另一个词的含义相反的含义的词，在这种情况下，这两个词是彼此的反义词"
+      }
+    },
+    {
+      "word": {
+        "en": "optical",
+        "laos": "ສີຕາ",
+        "jp": "光学的",
+        "vie": "quang học",
+        "en_pronunciation": "/ˈɑptɪkəl/",
+        "laos_pronunciation": "sita",
+        "jp_pronunciation": "kougakuteki",
+        "vie_pronunciation": "quang hoc"
+      },
+      "means": {
+        "en": "Of or relating to or involving light or optics",
+        "zh": "不公正地使用权力来贬低或压制"
+      }
+    },
+    {
+      "word": {
+        "en": "optimism",
+        "laos": "ໃນແງ່ດີ",
+        "jp": "楽観主義",
+        "vie": "sự lạc quan",
+        "en_pronunciation": "/ˈɑptɪˌmɪzəm/",
+        "laos_pronunciation": "nai aengdi",
+        "jp_pronunciation": "rakukan shugi",
+        "vie_pronunciation": "su lac quan"
+      },
+      "means": {
+        "en": "The optimistic feeling that all is going to turn out well",
+        "zh": "残酷征服的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "optimistic",
+        "laos": "ທີ່ຄິດໃນແງ່ດີ",
+        "jp": "楽観的な",
+        "vie": "lạc quan",
+        "en_pronunciation": "/ˌɑptɪˈmɪstɪk/",
+        "laos_pronunciation": "thi khid nai aengdi",
+        "jp_pronunciation": "rakukanteki na",
+        "vie_pronunciation": "lac quan"
+      },
+      "means": {
+        "en": "Expecting the best in this best of all possible worlds",
+        "zh": "沉重地压在感官或精神上"
+      }
+    },
+    {
+      "word": {
+        "en": "optimist",
+        "laos": "ຜູ້ທາຣະນະ",
+        "jp": "楽観主義者",
+        "vie": "người lạc quan",
+        "en_pronunciation": "/ˈɑptɪmɪst/",
+        "laos_pronunciation": "phu tharana",
+        "jp_pronunciation": "rakkanshugisha",
+        "vie_pronunciation": "nguoi lac quan"
+      },
+      "means": {
+        "en": "A person disposed to take a favorable view of things",
+        "zh": "选择作为替代方案"
+      }
+    },
+    {
+      "word": {
+        "en": "optimum",
+        "laos": "ທີ່ດີທີ່ສຸດ",
+        "jp": "最適な",
+        "vie": "tối ưu",
+        "en_pronunciation": "/ˈɑptɪməm/",
+        "laos_pronunciation": "thidithisud",
+        "jp_pronunciation": "saiteki na",
+        "vie_pronunciation": "toi uu"
+      },
+      "means": {
+        "en": "Most favorable conditions or greatest degree or amount possible under given circumstances",
+        "zh": "以约定价格购买或出售财产的权利；"
+      }
+    },
+    {
+      "word": {
+        "en": "optimal",
+        "laos": "ທີ່ດີທີ່ສຸດ",
+        "jp": "最適な",
+        "vie": "tối ưu",
+        "en_pronunciation": "/ˈɑptɪməl/",
+        "laos_pronunciation": "thidithisud",
+        "jp_pronunciation": "saiteki na",
+        "vie_pronunciation": "toi uu"
+      },
+      "means": {
+        "en": "Most desirable possible under a restriction expressed or implied",
+        "zh": "该权利已购买，如果未在规定日期前行使，则该款项将被没收"
+      }
+    },
+    {
+      "word": {
+        "en": "or",
+        "laos": "ຫຼື",
+        "jp": "または",
+        "vie": "hoặc",
+        "en_pronunciation": "/ər/",
+        "laos_pronunciation": "ru",
+        "jp_pronunciation": "mataha",
+        "vie_pronunciation": "hoac"
+      },
+      "means": {
+        "en": "A state in northwestern United States on the Pacific",
+        "zh": "可能但没必要；"
+      }
+    },
+    {
+      "word": {
+        "en": "oral",
+        "laos": "ປາກເປົ່າ",
+        "jp": "口頭",
+        "vie": "bằng miệng",
+        "en_pronunciation": "/ˈɔrəl/",
+        "laos_pronunciation": "pakpeoa",
+        "jp_pronunciation": "koutou",
+        "vie_pronunciation": "bang mieng"
+      },
+      "means": {
+        "en": "An examination conducted by spoken communication",
+        "zh": "留给个人选择"
+      }
+    },
+    {
+      "word": {
+        "en": "orange",
+        "laos": "ສີສົ້ມ",
+        "jp": "オレンジ色",
+        "vie": "trái cam",
+        "en_pronunciation": "/ˈɔrɪnʤ/",
+        "laos_pronunciation": "sisom",
+        "jp_pronunciation": "orenji iro",
+        "vie_pronunciation": "trai cam"
+      },
+      "means": {
+        "en": "Round yellow to orange fruit of any of several citrus trees",
+        "zh": "视觉器官"
+      }
+    },
+    {
+      "word": {
+        "en": "orbit",
+        "laos": "ໂຄຈອນ",
+        "jp": "軌道",
+        "vie": "quỹ đạo",
+        "en_pronunciation": "/ˈɔrbət/",
+        "laos_pronunciation": "okhchon",
+        "jp_pronunciation": "kidou",
+        "vie_pronunciation": "quy dao"
+      },
+      "means": {
+        "en": "The (usually elliptical) path described by one celestial body in its revolution about another",
+        "zh": "属于或涉及或涉及光或光学的"
+      }
+    },
+    {
+      "word": {
+        "en": "orbital",
+        "laos": "ອະທິດ",
+        "jp": "軌道",
+        "vie": "quỹ đạo",
+        "en_pronunciation": "/ˈɔrbətəl/",
+        "laos_pronunciation": "athid",
+        "jp_pronunciation": "kidou",
+        "vie_pronunciation": "quy dao"
+      },
+      "means": {
+        "en": "Of or relating to an orbit",
+        "zh": "一切都会好起来的乐观感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "orchestra",
+        "laos": "orchestra",
+        "jp": "オーケストラ",
+        "vie": "dàn nhạc",
+        "en_pronunciation": "/ˈɔrkəstrə/",
+        "laos_pronunciation": "orchestra",
+        "jp_pronunciation": "ookesutora",
+        "vie_pronunciation": "dan nhac"
+      },
+      "means": {
+        "en": "A musical organization consisting of a group of instrumentalists including string players",
+        "zh": "在这个最好的世界中期待最好的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "ordeal",
+        "laos": "ໂສກເສົ້າ",
+        "jp": "試練",
+        "vie": "thử thách",
+        "en_pronunciation": "/ɔrˈdil/",
+        "laos_pronunciation": "osksao",
+        "jp_pronunciation": "shiren",
+        "vie_pronunciation": "thu thach"
+      },
+      "means": {
+        "en": "A severe or trying experience",
+        "zh": "倾向于对事物持积极看法的人"
+      }
+    },
+    {
+      "word": {
+        "en": "order",
+        "laos": "ການສັ່ງຊື້",
+        "jp": "注文する",
+        "vie": "đặt hàng",
+        "en_pronunciation": "/ˈɔrdər/",
+        "laos_pronunciation": "kansangsu",
+        "jp_pronunciation": "chuumon suru",
+        "vie_pronunciation": "dat hang"
+      },
+      "means": {
+        "en": "(often plural) a command given by a superior (e.g., a military or law enforcement officer) that must be obeyed",
+        "zh": "在特定情况下可能的最有利条件或最大程度或金额"
+      }
+    },
+    {
+      "word": {
+        "en": "orderly",
+        "laos": "ເປັນລະບຽບຮຽບຮ້ອຍ",
+        "jp": "秩序ある",
+        "vie": "có trật tự",
+        "en_pronunciation": "/ˈɔrdərli/",
+        "laos_pronunciation": "penlabiabhiabhony",
+        "jp_pronunciation": "chitsujo aru",
+        "vie_pronunciation": "co trat tu"
+      },
+      "means": {
+        "en": "A soldier who serves as an attendant to a superior officer",
+        "zh": "在明示或暗示的限制下最理想的可能"
+      }
+    },
+    {
+      "word": {
+        "en": "ordinary",
+        "laos": "ສາມັນ",
+        "jp": "普通の",
+        "vie": "bình thường",
+        "en_pronunciation": "/ˈɔrdəˌnɛri/",
+        "laos_pronunciation": "saman",
+        "jp_pronunciation": "futsuu no",
+        "vie_pronunciation": "binh thuong"
+      },
+      "means": {
+        "en": "A judge of a probate court",
+        "zh": "美国西北部太平洋上的一个州"
+      }
+    },
+    {
+      "word": {
+        "en": "ore",
+        "laos": "ແຮ່",
+        "jp": "鉱石",
+        "vie": "quặng",
+        "en_pronunciation": "/ɔr/",
+        "laos_pronunciation": "aeh",
+        "jp_pronunciation": "kouseki",
+        "vie_pronunciation": "quang"
+      },
+      "means": {
+        "en": "A mineral that contains metal that is valuable enough to be mined",
+        "zh": "通过口语交流进行的考试"
+      }
+    },
+    {
+      "word": {
+        "en": "organ",
+        "laos": "ອະໄວຍະວະ",
+        "jp": "器官",
+        "vie": "cơ quan",
+        "en_pronunciation": "/ˈɔrgən/",
+        "laos_pronunciation": "auaainyauaa",
+        "jp_pronunciation": "kikan",
+        "vie_pronunciation": "co quan"
+      },
+      "means": {
+        "en": "A fully differentiated structural and functional unit in an animal that is specialized for some particular function",
+        "zh": "几种柑橘树中任何一种的圆形黄色至橙色果实"
+      }
+    },
+    {
+      "word": {
+        "en": "organic",
+        "laos": "ອິນຊີ",
+        "jp": "オーガニック",
+        "vie": "hữu cơ",
+        "en_pronunciation": "/ɔrˈgænɪk/",
+        "laos_pronunciation": "insi",
+        "jp_pronunciation": "ooganikku",
+        "vie_pronunciation": "huu co"
+      },
+      "means": {
+        "en": "A fertilizer that is derived from animal or vegetable matter",
+        "zh": "一个天体围绕另一个天体公转时所描绘的（通常是椭圆形）路径"
+      }
+    },
+    {
+      "word": {
+        "en": "organism",
+        "laos": "ອົງການຈັດຕັ້ງ",
+        "jp": "生物",
+        "vie": "sinh vật",
+        "en_pronunciation": "/ˈɔrgəˌnɪzəm/",
+        "laos_pronunciation": "ongkanchadtang",
+        "jp_pronunciation": "seibutsu",
+        "vie_pronunciation": "sinh vat"
+      },
+      "means": {
+        "en": "A living thing that has (or can develop) the ability to act or function independently",
+        "zh": "轨道的或与轨道有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "organize",
+        "laos": "ຈັດຕັ້ງ",
+        "jp": "整理する",
+        "vie": "tổ chức",
+        "en_pronunciation": "/ˈɔrgəˌnaɪz/",
+        "laos_pronunciation": "chadtang",
+        "jp_pronunciation": "seiri suru",
+        "vie_pronunciation": "to chuc"
+      },
+      "means": {
+        "en": "Create (as an entity)",
+        "zh": "由一组乐器演奏家（包括弦乐演奏者）组成的音乐组织"
+      }
+    },
+    {
+      "word": {
+        "en": "organise",
+        "laos": "ຈັດຕັ້ງ",
+        "jp": "整理する",
+        "vie": "tổ chức",
+        "en_pronunciation": "/organise/",
+        "laos_pronunciation": "chadtang",
+        "jp_pronunciation": "seiri suru",
+        "vie_pronunciation": "to chuc"
+      },
+      "means": {
+        "en": "Bring order and organization to",
+        "zh": "严峻或艰难的经历"
+      }
+    },
+    {
+      "word": {
+        "en": "organization",
+        "laos": "ການຈັດຕັ້ງ",
+        "jp": "組織",
+        "vie": "tổ chức",
+        "en_pronunciation": "/ˌɔrgənəˈzeɪʃən/",
+        "laos_pronunciation": "kanchadtang",
+        "jp_pronunciation": "soshiki",
+        "vie_pronunciation": "to chuc"
+      },
+      "means": {
+        "en": "A group of people who work together",
+        "zh": "（通常是复数）必须遵守的上级（例如军事或执法人员）发出的命令"
+      }
+    },
+    {
+      "word": {
+        "en": "organisation",
+        "laos": "ການຈັດຕັ້ງ",
+        "jp": "組織",
+        "vie": "tổ chức",
+        "en_pronunciation": "/ˌɔrgənɪˈzeɪʃən/",
+        "laos_pronunciation": "kanchadtang",
+        "jp_pronunciation": "soshiki",
+        "vie_pronunciation": "to chuc"
+      },
+      "means": {
+        "en": "The persons (or committees or departments etc.) who make up a body for the purpose of administering something",
+        "zh": "担任上级军官侍从的士兵"
+      }
+    },
+    {
+      "word": {
+        "en": "organizational",
+        "laos": "ການຈັດຕັ້ງ",
+        "jp": "組織的な",
+        "vie": "tổ chức",
+        "en_pronunciation": "/ˌɔrgənəˈzeɪʃənəl/",
+        "laos_pronunciation": "kanchadtang",
+        "jp_pronunciation": "soshikiteki na",
+        "vie_pronunciation": "to chuc"
+      },
+      "means": {
+        "en": "Of or relating to an organization",
+        "zh": "遗嘱认证法庭法官"
+      }
+    },
+    {
+      "word": {
+        "en": "organisational",
+        "laos": "ການຈັດຕັ້ງ",
+        "jp": "組織的な",
+        "vie": "tổ chức",
+        "en_pronunciation": "/organisational/",
+        "laos_pronunciation": "kanchadtang",
+        "jp_pronunciation": "soshikiteki na",
+        "vie_pronunciation": "to chuc"
+      },
+      "means": {
+        "en": "Of or relating to an organization",
+        "zh": "含有足以开采的金属的矿物"
+      }
+    },
+    {
+      "word": {
+        "en": "orient",
+        "laos": "ຕາເວັນອອກ",
+        "jp": "向きを変える",
+        "vie": "định hướng",
+        "en_pronunciation": "/ˈɔriˌɛnt/",
+        "laos_pronunciation": "tauaenook",
+        "jp_pronunciation": "muki wo kae ru",
+        "vie_pronunciation": "dinh huong"
+      },
+      "means": {
+        "en": "The countries of Asia",
+        "zh": "动物体内完全分化的结构和功能单位，专门用于某些特定功能"
+      }
+    },
+    {
+      "word": {
+        "en": "orientation",
+        "laos": "ປະຖົມນິເທດ",
+        "jp": "向き",
+        "vie": "định hướng",
+        "en_pronunciation": "/ˌɔriɛnˈteɪʃən/",
+        "laos_pronunciation": "pathom nithed",
+        "jp_pronunciation": "muki",
+        "vie_pronunciation": "dinh huong"
+      },
+      "means": {
+        "en": "The act of orienting",
+        "zh": "来自动物或植物物质的肥料"
+      }
+    },
+    {
+      "word": {
+        "en": "oriental",
+        "laos": "Oriental",
+        "jp": "東洋の",
+        "vie": "phương đông",
+        "en_pronunciation": "/ˌɔriˈɛnəl/",
+        "laos_pronunciation": "Oriental",
+        "jp_pronunciation": "touyou no",
+        "vie_pronunciation": "phuong dong"
+      },
+      "means": {
+        "en": "A member of an Oriental race; the term is regarded as offensive by Asians (especially by Asian Americans)",
+        "zh": "具有（或可以发展）独立行动或功能的能力的生物"
+      }
+    },
+    {
+      "word": {
+        "en": "origin",
+        "laos": "ຕົ້ນກໍາເນີດ",
+        "jp": "起源",
+        "vie": "nguồn gốc",
+        "en_pronunciation": "/ˈɔrəʤən/",
+        "laos_pronunciation": "tonkoanoed",
+        "jp_pronunciation": "kigen",
+        "vie_pronunciation": "nguon goc"
+      },
+      "means": {
+        "en": "The place where something begins, where it springs into being",
+        "zh": "创建（作为实体）"
+      }
+    },
+    {
+      "word": {
+        "en": "ornament",
+        "laos": "ເຄື່ອງປະດັບ",
+        "jp": "飾り",
+        "vie": "vật trang trí",
+        "en_pronunciation": "/ˈɔrnəmənt/",
+        "laos_pronunciation": "kheuongpadab",
+        "jp_pronunciation": "kazari",
+        "vie_pronunciation": "vat trang tri"
+      },
+      "means": {
+        "en": "Something used to beautify",
+        "zh": "带来秩序和组织"
+      }
+    },
+    {
+      "word": {
+        "en": "orphan",
+        "laos": "ເດັກກໍາພອຍ",
+        "jp": "孤児",
+        "vie": "mồ côi",
+        "en_pronunciation": "/ˈɔrfən/",
+        "laos_pronunciation": "dekkoaphony",
+        "jp_pronunciation": "koji",
+        "vie_pronunciation": "mo coi"
+      },
+      "means": {
+        "en": "A child who has lost both parents",
+        "zh": "一群一起工作的人"
+      }
+    },
+    {
+      "word": {
+        "en": "orthodox",
+        "laos": "ແບບດັ້ງເດີມ",
+        "jp": "正統派",
+        "vie": "chính thống",
+        "en_pronunciation": "/ˈɔrθəˌdɑks/",
+        "laos_pronunciation": "aebbdangdoem",
+        "jp_pronunciation": "seitouha",
+        "vie_pronunciation": "chinh thong"
+      },
+      "means": {
+        "en": "Of or pertaining to or characteristic of Judaism",
+        "zh": "为管理某事而组成机构的人员（或委员会或部门等）"
+      }
+    },
+    {
+      "word": {
+        "en": "other",
+        "laos": "ອື່ນ",
+        "jp": "その他",
+        "vie": "khác",
+        "en_pronunciation": "/ˈəðər/",
+        "laos_pronunciation": "un",
+        "jp_pronunciation": "sono hoka",
+        "vie_pronunciation": "khac"
+      },
+      "means": {
+        "en": "Not the same one or ones already mentioned or implied; - the White Queen",
+        "zh": "属于某个组织或与某个组织有关"
+      }
+    },
+    {
+      "word": {
+        "en": "otherwise",
+        "laos": "ດັ່ງນັ້ນ",
+        "jp": "それ以外の場合",
+        "vie": "mặt khác",
+        "en_pronunciation": "/ˈəðərˌwaɪz/",
+        "laos_pronunciation": "dangnan",
+        "jp_pronunciation": "sore igai no baai",
+        "vie_pronunciation": "mat khac"
+      },
+      "means": {
+        "en": "Other than as supposed or expected",
+        "zh": "属于某个组织或与某个组织有关"
+      }
+    },
+    {
+      "word": {
+        "en": "ought to",
+        "laos": "ກິກ",
+        "jp": "すべきだ",
+        "vie": "nên",
+        "en_pronunciation": "/ɔt tɪ/",
+        "laos_pronunciation": "kik",
+        "jp_pronunciation": "subekida",
+        "vie_pronunciation": "nen"
+      },
+      "means": {
+        "en": "Ought to is an English word referring to 'ought to'.",
+        "zh": "亚洲国家"
+      }
+    },
+    {
+      "word": {
+        "en": "ounce",
+        "laos": "ຕໍ່ 0 0",
+        "jp": "オンス",
+        "vie": "ounce",
+        "en_pronunciation": "/aʊns/",
+        "laos_pronunciation": "to 0 0",
+        "jp_pronunciation": "onsu",
+        "vie_pronunciation": "ounce"
+      },
+      "means": {
+        "en": "A unit of apothecary weight equal to 480 grains or one twelfth of a pound",
+        "zh": "定向行为"
+      }
+    },
+    {
+      "word": {
+        "en": "our",
+        "laos": "ຂອງພວກເຮົາ",
+        "jp": "私たちの",
+        "vie": "của chúng tôi",
+        "en_pronunciation": "/ɑr/",
+        "laos_pronunciation": "khongphuakhao",
+        "jp_pronunciation": "watashitachi no",
+        "vie_pronunciation": "cua chung toi"
+      },
+      "means": {
+        "en": "Our is an English word referring to 'our'.",
+        "zh": "东方种族的成员；"
+      }
+    },
+    {
+      "word": {
+        "en": "ours",
+        "laos": "ຂອງພວກເຮົາ",
+        "jp": "私たちの",
+        "vie": "của chúng tôi",
+        "en_pronunciation": "/ɑrz/",
+        "laos_pronunciation": "khongphuakhao",
+        "jp_pronunciation": "watashitachi no",
+        "vie_pronunciation": "cua chung toi"
+      },
+      "means": {
+        "en": "Ours is an English word referring to 'ours'.",
+        "zh": "这个词被亚洲人（尤其是亚裔美国人）视为冒犯性的"
+      }
+    },
+    {
+      "word": {
+        "en": "ourselves",
+        "laos": "ຕົວເຮົາເອງ",
+        "jp": "私たち自身",
+        "vie": "chính chúng ta",
+        "en_pronunciation": "/ɑrˈsɛlvz/",
+        "laos_pronunciation": "tuahaooeng",
+        "jp_pronunciation": "watashitachi jishin",
+        "vie_pronunciation": "chinh chung ta"
+      },
+      "means": {
+        "en": "Ourselves is an English word referring to 'ourselves'.",
+        "zh": "某事物开始的地方，它产生的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "out",
+        "laos": "ອອກ",
+        "jp": "アウト",
+        "vie": "ra ngoài",
+        "en_pronunciation": "/aʊt/",
+        "laos_pronunciation": "k",
+        "jp_pronunciation": "auto",
+        "vie_pronunciation": "ra ngoai"
+      },
+      "means": {
+        "en": "(baseball) a failure by a batter or runner to reach a base safely in baseball",
+        "zh": "用来美化的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "outbreak",
+        "laos": "​ການ​ລະ​ບາດ",
+        "jp": "流行",
+        "vie": "sự bùng phát",
+        "en_pronunciation": "/ˈaʊtˌbreɪk/",
+        "laos_pronunciation": "kan labad",
+        "jp_pronunciation": "ryuukou",
+        "vie_pronunciation": "su bung phat"
+      },
+      "means": {
+        "en": "A sudden violent spontaneous occurrence (usually of some undesirable condition)",
+        "zh": "一个失去父母的孩子"
+      }
+    },
+    {
+      "word": {
+        "en": "outcome",
+        "laos": "ຜົນໄດ້ຮັບ",
+        "jp": "結果",
+        "vie": "kết quả",
+        "en_pronunciation": "/ˈaʊtˌkəm/",
+        "laos_pronunciation": "phondaihab",
+        "jp_pronunciation": "kekka",
+        "vie_pronunciation": "ket qua"
+      },
+      "means": {
+        "en": "Something that results",
+        "zh": "属于犹太教或属于犹太教或具有犹太教特征"
+      }
+    },
+    {
+      "word": {
+        "en": "outdated",
+        "laos": "ລ້າສະໄຫມ",
+        "jp": "時代遅れの",
+        "vie": "lỗi thời",
+        "en_pronunciation": "/ˈaʊtˌdeɪtɪd/",
+        "laos_pronunciation": "lasahaim",
+        "jp_pronunciation": "jidaiokure no",
+        "vie_pronunciation": "loi thoi"
+      },
+      "means": {
+        "en": "Old; no longer valid or fashionable",
+        "zh": "与已经提及或暗示的一项或多项不同；"
+      }
+    },
+    {
+      "word": {
+        "en": "original",
+        "laos": "ເດີມ",
+        "jp": "オリジナル",
+        "vie": "nguyên bản",
+        "en_pronunciation": "/ərˈɪʤənəl/",
+        "laos_pronunciation": "doem",
+        "jp_pronunciation": "orijinaru",
+        "vie_pronunciation": "nguyen ban"
+      },
+      "means": {
+        "en": "An original creation (i.e., an audio recording) from which copies can be made",
+        "zh": "- 白皇后"
+      }
+    },
+    {
+      "word": {
+        "en": "ornamental",
+        "laos": "ໄມ້ປະດັບ",
+        "jp": "観賞用",
+        "vie": "trang trí",
+        "en_pronunciation": "/ˌɔrnəˈmɛntəl/",
+        "laos_pronunciation": "maipadab",
+        "jp_pronunciation": "kanshouyou",
+        "vie_pronunciation": "trang tri"
+      },
+      "means": {
+        "en": "Any plant grown for its beauty or ornamental value",
+        "zh": "与假设或预期不同"
+      }
+    },
+    {
+      "word": {
+        "en": "orphanage",
+        "laos": "ໂຮງລ້ຽງເດັກກໍາພອຍ",
+        "jp": "孤児院",
+        "vie": "trại trẻ mồ côi",
+        "en_pronunciation": "/ˈɔrfənəʤ/",
+        "laos_pronunciation": "ohng liang dekkoaphony",
+        "jp_pronunciation": "koji in",
+        "vie_pronunciation": "trai tre mo coi"
+      },
+      "means": {
+        "en": "The condition of being a child without living parents",
+        "zh": "Oought to 是一个英语单词，指的是“应该”。"
+      }
+    },
+    {
+      "word": {
+        "en": "originality",
+        "laos": "ຕົ້ນສະບັບ",
+        "jp": "独創性",
+        "vie": "tính độc đáo",
+        "en_pronunciation": "/ərˌɪʤəˈnælɪti/",
+        "laos_pronunciation": "tonsabab",
+        "jp_pronunciation": "dokusousei",
+        "vie_pronunciation": "tinh doc dao"
+      },
+      "means": {
+        "en": "The ability to think and act independently",
+        "zh": "一个药剂师重量单位等于 480 格令或十二分之一磅"
+      }
+    },
+    {
+      "word": {
+        "en": "originate",
+        "laos": "ຈາກຕົ້ນກໍາເນີດ",
+        "jp": "発生する",
+        "vie": "bắt nguồn",
+        "en_pronunciation": "/ərˈɪʤəˌneɪt/",
+        "laos_pronunciation": "chak ton koanoed",
+        "jp_pronunciation": "hassei suru",
+        "vie_pronunciation": "bat nguon"
+      },
+      "means": {
+        "en": "Come into existence; take on form or shape",
+        "zh": "our 是一个英语单词，指的是“我们的”。"
+      }
+    }
+  ]
+}

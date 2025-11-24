@@ -1,0 +1,467 @@
+{
+  "language": "ja",
+  "script": "Hiragana",
+  "generated_at": "2025-11-22T21:30:01.166884+00:00",
+  "items": [
+    {
+      "order": 1,
+      "symbol": "あ",
+      "romanization": "a",
+      "type": "vowel",
+      "notes": {
+        "en": "Japanese script element representing vowel.",
+        "zh": "Japanese字母，表示vowel."
+      }
+    },
+    {
+      "order": 2,
+      "symbol": "い",
+      "romanization": "i",
+      "type": "vowel",
+      "notes": {
+        "en": "Japanese script element representing vowel.",
+        "zh": "Japanese字母，表示vowel."
+      }
+    },
+    {
+      "order": 3,
+      "symbol": "う",
+      "romanization": "u",
+      "type": "vowel",
+      "notes": {
+        "en": "Japanese script element representing vowel.",
+        "zh": "Japanese字母，表示vowel."
+      }
+    },
+    {
+      "order": 4,
+      "symbol": "え",
+      "romanization": "e",
+      "type": "vowel",
+      "notes": {
+        "en": "Japanese script element representing vowel.",
+        "zh": "Japanese字母，表示vowel."
+      }
+    },
+    {
+      "order": 5,
+      "symbol": "お",
+      "romanization": "o",
+      "type": "vowel",
+      "notes": {
+        "en": "Japanese script element representing vowel.",
+        "zh": "Japanese字母，表示vowel."
+      }
+    },
+    {
+      "order": 6,
+      "symbol": "か",
+      "romanization": "ka",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 7,
+      "symbol": "き",
+      "romanization": "ki",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 8,
+      "symbol": "く",
+      "romanization": "ku",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 9,
+      "symbol": "け",
+      "romanization": "ke",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 10,
+      "symbol": "こ",
+      "romanization": "ko",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 11,
+      "symbol": "さ",
+      "romanization": "sa",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 12,
+      "symbol": "し",
+      "romanization": "shi",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 13,
+      "symbol": "す",
+      "romanization": "su",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 14,
+      "symbol": "せ",
+      "romanization": "se",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 15,
+      "symbol": "そ",
+      "romanization": "so",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 16,
+      "symbol": "た",
+      "romanization": "ta",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 17,
+      "symbol": "ち",
+      "romanization": "chi",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 18,
+      "symbol": "つ",
+      "romanization": "tsu",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 19,
+      "symbol": "て",
+      "romanization": "te",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 20,
+      "symbol": "と",
+      "romanization": "to",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 21,
+      "symbol": "な",
+      "romanization": "na",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 22,
+      "symbol": "に",
+      "romanization": "ni",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 23,
+      "symbol": "ぬ",
+      "romanization": "nu",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 24,
+      "symbol": "ね",
+      "romanization": "ne",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 25,
+      "symbol": "の",
+      "romanization": "no",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 26,
+      "symbol": "は",
+      "romanization": "ha",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 27,
+      "symbol": "ひ",
+      "romanization": "hi",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 28,
+      "symbol": "ふ",
+      "romanization": "fu",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 29,
+      "symbol": "へ",
+      "romanization": "he",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 30,
+      "symbol": "ほ",
+      "romanization": "ho",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 31,
+      "symbol": "ま",
+      "romanization": "ma",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 32,
+      "symbol": "み",
+      "romanization": "mi",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 33,
+      "symbol": "む",
+      "romanization": "mu",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 34,
+      "symbol": "め",
+      "romanization": "me",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 35,
+      "symbol": "も",
+      "romanization": "mo",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 36,
+      "symbol": "や",
+      "romanization": "ya",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 37,
+      "symbol": "ゆ",
+      "romanization": "yu",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 38,
+      "symbol": "よ",
+      "romanization": "yo",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 39,
+      "symbol": "ら",
+      "romanization": "ra",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 40,
+      "symbol": "り",
+      "romanization": "ri",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 41,
+      "symbol": "る",
+      "romanization": "ru",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 42,
+      "symbol": "れ",
+      "romanization": "re",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 43,
+      "symbol": "ろ",
+      "romanization": "ro",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 44,
+      "symbol": "わ",
+      "romanization": "wa",
+      "type": "syllable",
+      "notes": {
+        "en": "Japanese script element representing syllable.",
+        "zh": "Japanese字母，表示syllable."
+      }
+    },
+    {
+      "order": 45,
+      "symbol": "を",
+      "romanization": "wo",
+      "type": "particle",
+      "notes": {
+        "en": "Japanese script element representing particle.",
+        "zh": "Japanese字母，表示particle."
+      }
+    },
+    {
+      "order": 46,
+      "symbol": "ん",
+      "romanization": "n",
+      "type": "nasal",
+      "notes": {
+        "en": "Japanese script element representing nasal.",
+        "zh": "Japanese字母，表示nasal."
+      }
+    }
+  ]
+}
