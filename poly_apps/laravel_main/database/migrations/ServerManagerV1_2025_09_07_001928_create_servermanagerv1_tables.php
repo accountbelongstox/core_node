@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         // Nginx Sites Table
-        Schema::connection('ServerManagerV1')->create('servermanagerv1_nginx_sites', function (Blueprint $table) {
+        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_nginx_sites')) {
+        Schema::connection('servermanagerv1')->create('servermanagerv1_nginx_sites', function (Blueprint $table) {
             $table->id();
             $table->string('site_name')->unique();
             $table->string('domain');
@@ -27,9 +28,11 @@ return new class extends Migration
             $table->boolean('is_enabled')->default(true);
             $table->timestamps();
         });
+        }
 
         // Execution Logs Table
-        Schema::connection('ServerManagerV1')->create('servermanagerv1_execution_logs', function (Blueprint $table) {
+        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_execution_logs')) {
+        Schema::connection('servermanagerv1')->create('servermanagerv1_execution_logs', function (Blueprint $table) {
             $table->id();
             $table->string('script_id');
             $table->string('script_name');
@@ -47,9 +50,11 @@ return new class extends Migration
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
+        }
 
         // SSL Certificates Table
-        Schema::connection('ServerManagerV1')->create('servermanagerv1_certificates', function (Blueprint $table) {
+        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_certificates')) {
+        Schema::connection('servermanagerv1')->create('servermanagerv1_certificates', function (Blueprint $table) {
             $table->id();
             $table->string('domain')->unique();
             $table->string('certificate_path');
@@ -64,9 +69,11 @@ return new class extends Migration
             $table->enum('status', ['active', 'expired', 'pending', 'failed']);
             $table->timestamps();
         });
+        }
 
         // System Snapshots Table
-        Schema::connection('ServerManagerV1')->create('servermanagerv1_system_snapshots', function (Blueprint $table) {
+        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_system_snapshots')) {
+        Schema::connection('servermanagerv1')->create('servermanagerv1_system_snapshots', function (Blueprint $table) {
             $table->id();
             $table->enum('snapshot_type', ['scheduled', 'manual', 'alert']);
             $table->float('cpu_usage')->nullable();
@@ -82,9 +89,11 @@ return new class extends Migration
             $table->json('service_status')->nullable();
             $table->timestamps();
         });
+        }
 
         // File Access Logs Table
-        Schema::connection('ServerManagerV1')->create('servermanagerv1_file_access_logs', function (Blueprint $table) {
+        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_file_access_logs')) {
+        Schema::connection('servermanagerv1')->create('servermanagerv1_file_access_logs', function (Blueprint $table) {
             $table->id();
             $table->enum('action', ['browse', 'download', 'preview', 'info']);
             $table->text('file_path');
@@ -96,9 +105,11 @@ return new class extends Migration
             $table->text('error_message')->nullable();
             $table->timestamps();
         });
+        }
 
         // Predefined Scripts Table
-        Schema::connection('ServerManagerV1')->create('servermanagerv1_predefined_scripts', function (Blueprint $table) {
+        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_predefined_scripts')) {
+        Schema::connection('servermanagerv1')->create('servermanagerv1_predefined_scripts', function (Blueprint $table) {
             $table->id();
             $table->string('script_name')->unique();
             $table->string('script_category');
@@ -111,6 +122,7 @@ return new class extends Migration
             $table->boolean('is_enabled')->default(true);
             $table->timestamps();
         });
+        }
     }
 
     /**
@@ -118,11 +130,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('ServerManagerV1')->dropIfExists('servermanagerv1_predefined_scripts');
-        Schema::connection('ServerManagerV1')->dropIfExists('servermanagerv1_file_access_logs');
-        Schema::connection('ServerManagerV1')->dropIfExists('servermanagerv1_system_snapshots');
-        Schema::connection('ServerManagerV1')->dropIfExists('servermanagerv1_certificates');
-        Schema::connection('ServerManagerV1')->dropIfExists('servermanagerv1_execution_logs');
-        Schema::connection('ServerManagerV1')->dropIfExists('servermanagerv1_nginx_sites');
+        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_predefined_scripts');
+        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_file_access_logs');
+        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_system_snapshots');
+        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_certificates');
+        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_execution_logs');
+        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_nginx_sites');
     }
 };

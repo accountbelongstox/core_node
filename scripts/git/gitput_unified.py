@@ -95,16 +95,12 @@ def get_execution_order(targets: list) -> list:
     return ordered_targets
 
 
-def restore_original_remote() -> None:
-    """Restore original remote URL"""
-    global original_remote_url
+def restore_default_remote() -> None:
+    """Restore default remote URL (always restore to DEFAULT_REMOTE)"""
     default_remote = get_default_remote(PROJECT_NAME)
     current_remote = get_current_remote()
-    
-    if original_remote_url and original_remote_url != default_remote:
-        write_color_text(f"Restoring original remote: {original_remote_url}", "Yellow")
-        set_remote_url(original_remote_url)
-    elif current_remote != default_remote:
+
+    if current_remote != default_remote:
         write_color_text(f"Restoring default remote: {default_remote}", "Yellow")
         set_remote_url(default_remote)
 
@@ -200,7 +196,6 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         return False
     finally:
         os.chdir(original_working_dir)
-        restore_original_remote()
 
 
 def invoke_git_operations(target_url: str) -> bool:
@@ -306,15 +301,17 @@ def invoke_git_operations(target_url: str) -> bool:
         write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
         push_branch(current_branch, set_upstream=True)
         write_color_text("----------------------------------------------------------------", "DarkBlue")
-        
+
+        # Restore default remote after push
+        restore_default_remote()
+
         return True
-        
+
     except Exception as e:
         write_color_text(f"Git operation failed: {e}", "Red")
         return False
     finally:
         os.chdir(original_working_dir)
-        restore_original_remote()
 
 
 def main():
@@ -389,10 +386,6 @@ def main():
             else:
                 write_color_text(f"Unknown remote target: {target}", "Red")
                 all_success = False
-            
-            # Always restore original branch and remote after each operation
-            restore_original_branch(original_branch)
-            restore_original_remote()
         
         write_color_text("\n=== Summary ===", "Magenta")
         if args.pull:

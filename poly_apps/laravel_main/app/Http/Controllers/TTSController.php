@@ -7,6 +7,13 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
+/**
+ * @deprecated This controller is deprecated. Use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController instead.
+ * All TTS APIs have been moved to AppQyV1 with database-backed caching.
+ * 
+ * Old endpoints: /tts/*
+ * New endpoints: /app_qy_v1/ai_tools/tts/*
+ */
 class TTSController extends Controller
 {
     private $ttsService;
@@ -82,7 +89,25 @@ class TTSController extends Controller
         ]);
     }
     
-    public function serveAudio(string $language, string $type, string $filename): Response
+    public function serveAudioWithSpeed(string $language, string $type, string $speed, string $filename)
+    {
+        $relativePath = $language . '/' . $type . '/' . $speed . '/' . $filename;
+        $fullPath = $this->ttsService->getAudioPath($relativePath);
+        
+        if (!$fullPath || !file_exists($fullPath)) {
+            abort(404, 'Audio file not found');
+        }
+        
+        $content = file_get_contents($fullPath);
+        
+        return response($content, 200, [
+            'Content-Type' => 'audio/mpeg',
+            'Cache-Control' => 'public, max-age=31536000',
+            'Content-Length' => strlen($content),
+        ]);
+    }
+    
+    public function serveAudio(string $language, string $type, string $filename)
     {
         $relativePath = $language . '/' . $type . '/' . $filename;
         $fullPath = $this->ttsService->getAudioPath($relativePath);
@@ -91,9 +116,31 @@ class TTSController extends Controller
             abort(404, 'Audio file not found');
         }
         
-        return response()->file($fullPath, [
+        $content = file_get_contents($fullPath);
+        
+        return response($content, 200, [
             'Content-Type' => 'audio/mpeg',
             'Cache-Control' => 'public, max-age=31536000',
+            'Content-Length' => strlen($content),
+        ]);
+    }
+    
+    public function serveSentenceByMd5(string $language, string $md5)
+    {
+        $filename = $md5 . '.mp3';
+        $relativePath = $language . '/sentence/' . $filename;
+        $fullPath = $this->ttsService->getAudioPath($relativePath);
+        
+        if (!$fullPath || !file_exists($fullPath)) {
+            abort(404, 'Audio file not found');
+        }
+        
+        $content = file_get_contents($fullPath);
+        
+        return response($content, 200, [
+            'Content-Type' => 'audio/mpeg',
+            'Cache-Control' => 'public, max-age=31536000',
+            'Content-Length' => strlen($content),
         ]);
     }
     

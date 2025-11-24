@@ -7,7 +7,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('CodeMartV1')->create('codemart_v1_projects', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_projects')) {
+        Schema::connection('codemartv1')->create('codemart_v1_projects', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained('users')->onDelete('cascade');
             $table->string('title');
@@ -31,8 +32,10 @@ return new class extends Migration
             $table->index('status');
             $table->index('complexity');
         });
+        }
 
-        Schema::connection('CodeMartV1')->create('codemart_v1_project_proposals', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_project_proposals')) {
+        Schema::connection('codemartv1')->create('codemart_v1_project_proposals', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->enum('status', ['draft', 'pending', 'approved', 'rejected', 'revised'])->default('pending');
@@ -45,8 +48,10 @@ return new class extends Migration
             $table->timestamps();
             $table->unique('project_id');
         });
+        }
 
-        Schema::connection('CodeMartV1')->create('codemart_v1_milestones', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_milestones')) {
+        Schema::connection('codemartv1')->create('codemart_v1_milestones', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->string('title');
@@ -61,8 +66,10 @@ return new class extends Migration
             $table->index(['project_id', 'order']);
             $table->index('status');
         });
+        }
 
-        Schema::connection('CodeMartV1')->create('codemart_v1_project_attachments', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_project_attachments')) {
+        Schema::connection('codemartv1')->create('codemart_v1_project_attachments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->string('file_name');
@@ -74,13 +81,14 @@ return new class extends Migration
             $table->timestamps();
             $table->index('project_id');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_project_attachments');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_milestones');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_project_proposals');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_projects');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_project_attachments');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_milestones');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_project_proposals');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_projects');
     }
 };

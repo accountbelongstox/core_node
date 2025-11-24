@@ -23,7 +23,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AwyV0')->create('awy_v0_conversation_participants', function (Blueprint $table) {
+        if (!Schema::connection('awyv0')->hasTable('awy_v0_conversation_participants')) {
+            Schema::connection('awyv0')->create('awy_v0_conversation_participants', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('conversation_id')->index();
             $table->unsignedBigInteger('user_id')->index();
@@ -38,6 +39,7 @@ return new class extends Migration
             $table->index(['user_id', 'is_active'], 'awy_v0_conversation_participants_user_active');
             $table->index('joined_at', 'awy_v0_conversation_participants_joined_at');
         });
+        }
     }
 
     /**
@@ -45,6 +47,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AwyV0')->dropIfExists('awy_v0_conversation_participants');
+        Schema::connection('awyv0')->dropIfExists('awy_v0_conversation_participants');
     }
 };

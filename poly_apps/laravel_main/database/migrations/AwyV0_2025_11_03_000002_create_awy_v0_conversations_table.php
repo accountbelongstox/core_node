@@ -23,7 +23,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AwyV0')->create('awy_v0_conversations', function (Blueprint $table) {
+        if (!Schema::connection('awyv0')->hasTable('awy_v0_conversations')) {
+            Schema::connection('awyv0')->create('awy_v0_conversations', function (Blueprint $table) {
             $table->id();
             $table->string('conversation_id', 100)->unique();
             $table->string('type')->default('direct'); // direct, group
@@ -35,6 +36,7 @@ return new class extends Migration
             $table->index('created_by', 'awy_v0_conversations_created_by');
             $table->index('type', 'awy_v0_conversations_type');
         });
+        }
     }
 
     /**
@@ -42,6 +44,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AwyV0')->dropIfExists('awy_v0_conversations');
+        Schema::connection('awyv0')->dropIfExists('awy_v0_conversations');
     }
 };

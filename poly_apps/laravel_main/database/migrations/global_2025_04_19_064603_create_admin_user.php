@@ -26,28 +26,51 @@ return new class extends Migration {
      */
     public function up(): void
     {
+        if (!Schema::hasColumn('users', 'rolelevel')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->integer('rolelevel')->default(0)->after('avatar');
+            });
+        }
+
+        if (!Schema::hasColumn('users', 'rolename')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('rolename')->default('user')->after('rolelevel');
+            });
+        }
+
+        if (!Schema::hasColumn('users', 'user_token')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('user_token')->nullable()->after('password');
+            });
+        }
+
         $username = 'adminroot';
         $hasAdmin = DB::table('users')->where('username', $username)->first();
         if ($hasAdmin) {
             echo "Admin user already exists";
             $adminId = $hasAdmin->id;
         }else{
-            $adminId = DB::table('users')->insertGetId([
+            $userData = [
                 'nickname' => 'Administrator',
                 'username' => $username,
                 'rolelevel' => 1,
                 'rolename' => 'admin',
                 'email' => 'accountbelongstox@163.com',
-                'email_verified_at' => now(),
                 'password' => Hash::make('12345678'),
                 'created_at' => now(),
                 'updated_at' => now(),
                 'user_token' => StrTool::genUserTokenByTimeAndUUID(),
-            ]);
+            ];
+            if (Schema::hasColumn('users', 'email_verified_at')) {
+                $userData['email_verified_at'] = now();
+            }
+            $adminId = DB::table('users')->insertGetId($userData);
         }
 
         if ($adminId) {
-            DictV1WordGroupPublicController::ensureDefaultGroupIfNotExist($adminId, $username);
+            if (class_exists('App\Apps\DictV1\Controllers\DictV1Public\DictV1WordGroupPublicController')) {
+                DictV1WordGroupPublicController::ensureDefaultGroupIfNotExist($adminId, $username);
+            }
         }else{
             echo "Failed to create admin user, but default group is created";
         }

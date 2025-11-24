@@ -34,6 +34,49 @@ echo "[29] Selected Region: $SELECTED_REGION"
 SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 CHECK_NPMRC_SCRIPT="$SHELLS_SCRIPTS_DIR/check_npmrc.js"
 
+migrate_and_fix_npm_config() {
+    local old_base_dir=$(map_web_path "dev_system_old")
+    local USE_SUDO=$(get_var "USE_SUDO")
+    if [ -z "$USE_SUDO" ]; then
+        USE_SUDO="sudo"
+    fi
+    
+    echo "[29] Checking and fixing npm configuration..."
+    
+    if command -v npm >/dev/null 2>&1; then
+        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
+        
+        if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
+            echo "[29] Clearing npm prefix pointing to old directory"
+            npm config delete prefix
+        fi
+    fi
+    
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        echo "[29] Clearing NPM_CONFIG_PREFIX: $NPM_CONFIG_PREFIX"
+        unset NPM_CONFIG_PREFIX
+    fi
+    
+    if [ -f /etc/environment ]; then
+        if grep -q "$old_base_dir" /etc/environment; then
+            echo "[29] Removing old directory references from /etc/environment..."
+            $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
+        fi
+        if grep -q "NPM_CONFIG_PREFIX" /etc/environment; then
+            echo "[29] Removing NPM_CONFIG_PREFIX from /etc/environment..."
+            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
+        fi
+    fi
+    
+    if [ -d "$old_base_dir" ]; then
+        echo "[29] Removing old base directory: $old_base_dir"
+        $USE_SUDO rm -rf "$old_base_dir"
+    fi
+    
+    echo "[29] Configuration check completed"
+    return 0
+}
+
 # Print section header
 print_header() {
     echo -e "\n\033[1;34m=== $1 ===\033[0m"
@@ -57,6 +100,8 @@ print_error() {
 
 # Main execution starts here
 print_header_from_common_functions "NPM Configuration Setup"
+
+migrate_and_fix_npm_config
 
 # Step 1: Check script existence
 print_step_from_common_functions "Checking npmrc configuration script..."
@@ -92,15 +137,36 @@ echo "----------------------------------------"
 
 # Step 4: Run npmrc configuration script
 print_step_from_common_functions "Running npmrc configuration script..."
-if [ "$SELECTED_REGION" != "Global" ]; then
-    "$NODE_BIN" "$CHECK_NPMRC_SCRIPT" 
-    if [ $? -ne 0 ]; then
-        print_error_from_common_functions "Failed to configure npmrc"
-        exit 1
+if [ -f "$CHECK_NPMRC_SCRIPT" ]; then
+    if [ "$SELECTED_REGION" != "Global" ]; then
+        "$NODE_BIN" "$CHECK_NPMRC_SCRIPT" 
+        if [ $? -ne 0 ]; then
+            print_error_from_common_functions "Failed to configure npmrc"
+            exit 1
+        fi
+        print_success_from_common_functions "Npmrc configuration completed"
+    else
+        print_step_from_common_functions "Skipping npmrc configuration for Global environment"
     fi
-    print_success_from_common_functions "Npmrc configuration completed"
 else
-    print_step_from_common_functions "Skipping npmrc configuration for Global environment"
+    print_step_from_common_functions "Warning: check_npmrc.js not found, verifying basic configuration..."
+    
+    if [ "$SELECTED_REGION" = "China" ]; then
+        echo "[29] Setting up China mirror configuration..."
+        npm config set registry https://repo.huaweicloud.com/repository/npm/
+        npm config set disturl https://repo.huaweicloud.com/nodejs
+        npm config set sass_binary_site https://repo.huaweicloud.com/node-sass
+        npm config set sharp_libvips_binary_host https://repo.huaweicloud.com/node-libvips
+        npm config set python_mirror https://repo.huaweicloud.com/python
+        npm config set electron_mirror https://repo.huaweicloud.com/electron/
+        npm config set electron_builder_binaries_mirror https://repo.huaweicloud.com/electron-builder-binaries/
+        npm config set canvas_binary_host_mirror https://repo.huaweicloud.com/node-canvas-prebuilt/
+        npm config set node_sqlite3_binary_host_mirror https://repo.huaweicloud.com/node-sqlite3/
+        npm config set better_sqlite3_binary_host_mirror https://repo.huaweicloud.com/better-sqlite3/
+    else
+        echo "[29] Setting up Global registry configuration..."
+        npm config set registry https://registry.npmjs.org/
+    fi
 fi
 
 # Step 5: Verify configuration
@@ -131,11 +197,10 @@ echo "----------------------------------------"
 
 # Step 6: Test npm access
 print_step_from_common_functions "Testing npm registry access..."
-npm ping
-if [ $? -eq 0 ]; then
+if npm ping >/dev/null 2>&1; then
     print_success_from_common_functions "Successfully connected to npm registry"
 else
-    print_error_from_common_functions "Failed to connect to npm registry"
+    print_error_from_common_functions "Failed to connect to npm registry (this is non-fatal)"
 fi
 
 # Final status
@@ -164,10 +229,14 @@ REQUIRED_CONFIGS=(
 
 CONFIG_STATUS="OK"
 for config in "${REQUIRED_CONFIGS[@]}"; do
-    value=$(npm config get $config)
-    if [ -z "$value" ]; then
-        print_error_from_common_functions "Missing configuration: $config"
-        CONFIG_STATUS="FAILED"
+    value=$(npm config get $config 2>/dev/null)
+    if [ -z "$value" ] || [ "$value" = "undefined" ]; then
+        if [ "$SELECTED_REGION" = "China" ]; then
+            print_error_from_common_functions "Missing configuration: $config"
+            CONFIG_STATUS="FAILED"
+        else
+            echo "[29] Configuration $config not set (optional for Global region)"
+        fi
     else
         print_success_from_common_functions "$config = $value"
     fi
@@ -179,5 +248,4 @@ if [ "$CONFIG_STATUS" = "OK" ]; then
 else
     print_header_from_common_functions "NPM Configuration Incomplete"
     print_error_from_common_functions "Some configurations are missing or incorrect"
-    exit 1
 fi

@@ -15,6 +15,8 @@ use App\Apps\BankV1\BankV1Gvar\BankV1Config;
 use App\Apps\BankV1\BankV1TablesMaps\BankV1TablesMaps;
 use App\Apps\BankV1\BankV1Utils\BankV1SecurityUtils;
 use App\Apps\BankV1\BankV1Utils\BankV1LoggingUtils;
+use App\Services\UnifiedAuthService;
+use App\Models\User;
 
 class BankV1AuthCtl extends Controller
 {
@@ -62,20 +64,16 @@ class BankV1AuthCtl extends Controller
                 );
             }
 
-            // Find user
-            $usersTable = $this->tableMaps->getTableName('bank_users');
-            $user = DB::table($usersTable)
-                ->where($this->tableMaps->getFieldName('bank_users', 'username'), $credentials['username'])
-                ->first();
-
-            if (!$user) {
+            $authResult = UnifiedAuthService::login($credentials['username'], $credentials['password'], 'bankv1');
+            
+            if (!$authResult['success']) {
                 $this->loggingUtils->logSecurityEvent(
                     null,
                     $deviceId,
                     'LOGIN_FAILED',
                     'high',
-                    'Login attempt with invalid username',
-                    ['username' => $credentials['username']],
+                    'Login attempt failed',
+                    ['username' => $credentials['username'], 'error' => $authResult['error']],
                     $request
                 );
 
@@ -85,16 +83,18 @@ class BankV1AuthCtl extends Controller
                     BankV1Config::getErrorCode('INVALID_CREDENTIALS')
                 );
             }
-
-            // Check if account is locked
-            if ($user->is_locked) {
+            
+            $user = $authResult['user'];
+            $subAppUser = $authResult['sub_app_user'];
+            
+            if ($subAppUser && isset($subAppUser->is_locked) && $subAppUser->is_locked) {
                 $this->loggingUtils->logSecurityEvent(
                     $user->id,
                     $deviceId,
                     'LOGIN_BLOCKED',
                     'high',
                     'Login attempt on locked account',
-                    ['lock_reason' => $user->lock_reason],
+                    ['lock_reason' => $subAppUser->lock_reason ?? 'Unknown'],
                     $request
                 );
 
@@ -102,42 +102,6 @@ class BankV1AuthCtl extends Controller
                     BankV1Config::getErrorMessage('ACCOUNT_LOCKED'),
                     423,
                     BankV1Config::getErrorCode('ACCOUNT_LOCKED')
-                );
-            }
-
-            // Check password
-            if (!Hash::check($credentials['password'], $user->password)) {
-                // Increment login attempts
-                $attempts = $user->login_attempts + 1;
-                $updateData = [
-                    $this->tableMaps->getFieldName('bank_users', 'login_attempts') => $attempts,
-                ];
-
-                // Lock account if max attempts reached
-                if ($attempts >= BankV1Config::MAX_LOGIN_ATTEMPTS) {
-                    $updateData[$this->tableMaps->getFieldName('bank_users', 'is_locked')] = true;
-                    $updateData[$this->tableMaps->getFieldName('bank_users', 'lock_reason')] = 'Too many failed login attempts';
-                    $updateData[$this->tableMaps->getFieldName('bank_users', 'locked_at')] = now();
-                }
-
-                DB::table($usersTable)
-                    ->where($this->tableMaps->getFieldName('bank_users', 'id'), $user->id)
-                    ->update($updateData);
-
-                $this->loggingUtils->logSecurityEvent(
-                    $user->id,
-                    $deviceId,
-                    'LOGIN_FAILED',
-                    'medium',
-                    'Invalid password attempt',
-                    ['attempts' => $attempts],
-                    $request
-                );
-
-                return $this->errorResponse(
-                    BankV1Config::getErrorMessage('INVALID_CREDENTIALS'),
-                    401,
-                    BankV1Config::getErrorCode('INVALID_CREDENTIALS')
                 );
             }
 
@@ -166,13 +130,15 @@ class BankV1AuthCtl extends Controller
             // Generate JWT tokens
             $tokenData = $this->generateTokens($user, $deviceId);
 
-            // Reset login attempts and update last login
-            DB::table($usersTable)
-                ->where($this->tableMaps->getFieldName('bank_users', 'id'), $user->id)
-                ->update([
-                    $this->tableMaps->getFieldName('bank_users', 'login_attempts') => 0,
-                    $this->tableMaps->getFieldName('bank_users', 'last_login_at') => now(),
-                ]);
+            if ($subAppUser) {
+                $usersTable = $this->tableMaps->getTableName('bank_users');
+                DB::connection('bankv1')->table($usersTable)
+                    ->where('main_user_id', $user->id)
+                    ->update([
+                        $this->tableMaps->getFieldName('bank_users', 'login_attempts') => 0,
+                        $this->tableMaps->getFieldName('bank_users', 'last_login_at') => now(),
+                    ]);
+            }
 
             // Create session
             $sessionId = $this->createSession($user->id, $deviceId, $request);
@@ -269,27 +235,40 @@ class BankV1AuthCtl extends Controller
             DB::beginTransaction();
 
             try {
-                // Create user
-                $usersTable = $this->tableMaps->getTableName('bank_users');
-                $userId = DB::table($usersTable)->insertGetId([
-                    $this->tableMaps->getFieldName('bank_users', 'username') => $userData['username'],
-                    $this->tableMaps->getFieldName('bank_users', 'email') => $userData['email'],
-                    $this->tableMaps->getFieldName('bank_users', 'password') => Hash::make($userData['password']),
-                    $this->tableMaps->getFieldName('bank_users', 'full_name') => $userData['full_name'],
-                    $this->tableMaps->getFieldName('bank_users', 'phone') => $userData['phone'] ?? null,
-                    $this->tableMaps->getFieldName('bank_users', 'account_status') => 'active',
-                    $this->tableMaps->getFieldName('bank_users', 'is_locked') => false,
-                    $this->tableMaps->getFieldName('bank_users', 'login_attempts') => 0,
-                    $this->tableMaps->getFieldName('bank_users', 'created_at') => now(),
-                    $this->tableMaps->getFieldName('bank_users', 'updated_at') => now(),
-                ]);
+                $credentials = [
+                    'username' => $userData['username'],
+                    'email' => $userData['email'],
+                    'phone' => $userData['phone'] ?? null,
+                    'name' => $userData['full_name'],
+                    'password' => $userData['password'],
+                    'sub_app_data' => [
+                        'full_name' => $userData['full_name'],
+                        'account_status' => 'active',
+                        'is_locked' => false,
+                        'login_attempts' => 0,
+                    ],
+                ];
+                
+                $result = UnifiedAuthService::register($credentials, 'bankv1');
+                
+                if (!$result['success']) {
+                    DB::rollBack();
+                    return $this->errorResponse(
+                        $result['error'],
+                        422,
+                        BankV1Config::getErrorCode('INVALID_CREDENTIALS')
+                    );
+                }
+                
+                $user = $result['user'];
+                $subAppUser = $result['sub_app_user'];
 
                 // Create default account
                 $accountsTable = $this->tableMaps->getTableName('bank_accounts');
                 $accountNumber = $this->generateAccountNumber();
                 
-                DB::table($accountsTable)->insert([
-                    $this->tableMaps->getFieldName('bank_accounts', 'user_id') => $userId,
+                DB::connection('bankv1')->table($accountsTable)->insert([
+                    $this->tableMaps->getFieldName('bank_accounts', 'user_id') => $subAppUser->id,
                     $this->tableMaps->getFieldName('bank_accounts', 'account_number') => $accountNumber,
                     $this->tableMaps->getFieldName('bank_accounts', 'account_type') => 'checking',
                     $this->tableMaps->getFieldName('bank_accounts', 'balance') => BankV1Config::DEFAULT_ACCOUNT_BALANCE,
@@ -302,14 +281,14 @@ class BankV1AuthCtl extends Controller
 
                 // Register device if provided
                 if ($deviceId && $appSignature) {
-                    $this->securityUtils->registerDevice($userId, $deviceId, $appSignature, $request);
+                    $this->securityUtils->registerDevice($subAppUser->id, $deviceId, $appSignature, $request);
                 }
 
                 DB::commit();
 
                 // Log registration
                 $this->loggingUtils->logAppEvent(
-                    $userId,
+                    $subAppUser->id,
                     $deviceId,
                     null,
                     BankV1Config::LOG_EVENT_TYPES['LOGIN'],
@@ -322,7 +301,7 @@ class BankV1AuthCtl extends Controller
                 );
 
                 return $this->successResponse([
-                    'user_id' => $userId,
+                    'user_id' => $subAppUser->id,
                     'account_number' => $accountNumber,
                     'message' => BankV1Config::getSuccessMessage('REGISTRATION_SUCCESS'),
                 ], BankV1Config::getSuccessMessage('REGISTRATION_SUCCESS'));

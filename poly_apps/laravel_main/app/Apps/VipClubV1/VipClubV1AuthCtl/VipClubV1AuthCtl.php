@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use App\Services\UnifiedAuthService;
+use Illuminate\Support\Facades\DB;
 
 class VipClubV1AuthCtl extends Controller
 {
@@ -31,26 +33,34 @@ class VipClubV1AuthCtl extends Controller
             return VipClubV1ResponseUtils::validationError('Validation failed', $validator->errors());
         }
 
-        $usersTable = GlobalTablesMap::getTableName('GLOBAL_USERS');
-        $userFields = GlobalTablesMap::GLOBAL_USERS['fields'];
-
-        $user = new User();
-        $user->{$userFields['username']} = $request->email;
-        $user->{$userFields['email']} = $request->email;
-        $user->{$userFields['password']} = Hash::make($request->password);
-        $user->{$userFields['name']} = $request->full_name;
-        $user->{$userFields['phone']} = $request->phone;
-        $user->{$userFields['member_type']} = 'regular';
-        $user->{$userFields['vip_points']} = 0;
-        $user->{$userFields['member_since']} = Carbon::now();
-        $user->{$userFields['is_active']} = true;
-        $user->save();
+        $credentials = [
+            'username' => $request->email,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'name' => $request->full_name,
+            'password' => $request->password,
+            'sub_app_data' => [
+                'member_type' => 'regular',
+                'vip_points' => 0,
+                'member_since' => Carbon::now(),
+                'is_active' => true,
+            ],
+        ];
+        
+        $result = UnifiedAuthService::register($credentials, 'vipclubv1');
+        
+        if (!$result['success']) {
+            return VipClubV1ResponseUtils::error($result['error'], 422);
+        }
+        
+        $user = $result['user'];
+        $subAppUser = $result['sub_app_user'];
 
         $cardNumber = $this->generateCardNumber();
 
         $vipCard = new VipClubV1VipCardModel();
         $vipCard->{VipClubV1TablesMap::getFieldName('VIP_CARDS', 'card_number')} = $cardNumber;
-        $vipCard->{VipClubV1TablesMap::getFieldName('VIP_CARDS', 'user_id')} = $user->id;
+        $vipCard->{VipClubV1TablesMap::getFieldName('VIP_CARDS', 'user_id')} = $subAppUser->id;
         $vipCard->{VipClubV1TablesMap::getFieldName('VIP_CARDS', 'member_type')} = 'regular';
         $vipCard->{VipClubV1TablesMap::getFieldName('VIP_CARDS', 'issue_date')} = Carbon::now();
         $vipCard->{VipClubV1TablesMap::getFieldName('VIP_CARDS', 'expiry_date')} = Carbon::now()->addYears(3);
@@ -78,15 +88,18 @@ class VipClubV1AuthCtl extends Controller
             return VipClubV1ResponseUtils::validationError('Validation failed', $validator->errors());
         }
 
-        $userFields = GlobalTablesMap::GLOBAL_USERS['fields'];
-
-        $user = User::where($userFields['email'], $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->{$userFields['password']})) {
-            return VipClubV1ResponseUtils::unauthorized('Invalid credentials');
+        $authResult = UnifiedAuthService::login($request->email, $request->password, 'vipclubv1');
+        
+        if (!$authResult['success']) {
+            return VipClubV1ResponseUtils::unauthorized($authResult['error']);
         }
-
-        if (!$user->{$userFields['is_active']}) {
+        
+        $user = $authResult['user'];
+        $subAppUser = $authResult['sub_app_user'];
+        
+        $userFields = GlobalTablesMap::GLOBAL_USERS['fields'];
+        
+        if ($subAppUser && !$subAppUser->is_active) {
             return VipClubV1ResponseUtils::forbidden('Account is inactive');
         }
 

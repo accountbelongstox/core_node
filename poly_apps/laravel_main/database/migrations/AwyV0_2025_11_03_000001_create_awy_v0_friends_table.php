@@ -23,7 +23,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AwyV0')->create('awy_v0_friends', function (Blueprint $table) {
+        if (!Schema::connection('awyv0')->hasTable('awy_v0_friends')) {
+            Schema::connection('awyv0')->create('awy_v0_friends', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id')->index();
             $table->unsignedBigInteger('friend_id')->index();
@@ -41,6 +42,7 @@ return new class extends Migration
             $table->index(['friend_id', 'status'], 'awy_v0_friends_friend_status');
             $table->index('status', 'awy_v0_friends_status');
         });
+        }
     }
 
     /**
@@ -48,6 +50,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AwyV0')->dropIfExists('awy_v0_friends');
+        Schema::connection('awyv0')->dropIfExists('awy_v0_friends');
     }
 };

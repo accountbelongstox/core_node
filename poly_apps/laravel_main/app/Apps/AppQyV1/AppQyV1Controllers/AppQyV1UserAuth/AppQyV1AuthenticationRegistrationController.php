@@ -42,7 +42,16 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         $email = $request->email ?? "";
         $nickname = $request->nickname ?? "";
         $name = $request->name ?? "";
-        $userData = CommonUserGen::createUser($request->username, $request->password, $email, $nickname, $name);
+        $userData = CommonUserGen::createUser($request->username, $request->password, $email, $nickname, $name, 'appqyv1');
+        
+        if (!$userData) {
+            return response()->json([
+                'message' => 'Registration failed',
+                'code' => 500,
+                'status' => 'error',
+            ], 500);
+        }
+        
         $user = $userData['user'];
         $token = $userData['token'];
         $expiration = $userData['expiration'];

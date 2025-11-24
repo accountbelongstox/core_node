@@ -66,19 +66,6 @@ class GlobalTablesMap
         ]
     ];
 
-    // Global Groups Table
-    public const GLOBAL_GROUPS = [
-        'tablename' => 'global_groups',
-        'fields' => [
-            'id' => 'id',
-            'name' => 'name',
-            'identifier' => 'identifier',
-            'created_at' => 'created_at',
-            'updated_at' => 'updated_at',
-            'deleted_at' => 'deleted_at'
-        ]
-    ];
-
     // Personal Access Tokens Table
     public const PERSONAL_ACCESS_TOKENS = [
         'tablename' => 'personal_access_tokens',
@@ -116,44 +103,6 @@ class GlobalTablesMap
             'user_agent' => 'user_agent',
             'payload' => 'payload',
             'last_activity' => 'last_activity'
-        ]
-    ];
-
-    // Cache Table
-    public const CACHE = [
-        'tablename' => 'cache',
-        'fields' => [
-            'key' => 'key',
-            'value' => 'value',
-            'expiration' => 'expiration'
-        ]
-    ];
-
-    // Jobs Table
-    public const JOBS = [
-        'tablename' => 'jobs',
-        'fields' => [
-            'id' => 'id',
-            'queue' => 'queue',
-            'payload' => 'payload',
-            'attempts' => 'attempts',
-            'reserved_at' => 'reserved_at',
-            'available_at' => 'available_at',
-            'created_at' => 'created_at'
-        ]
-    ];
-
-    // Failed Jobs Table
-    public const FAILED_JOBS = [
-        'tablename' => 'failed_jobs',
-        'fields' => [
-            'id' => 'id',
-            'uuid' => 'uuid',
-            'connection' => 'connection',
-            'queue' => 'queue',
-            'payload' => 'payload',
-            'exception' => 'exception',
-            'failed_at' => 'failed_at'
         ]
     ];
 
@@ -204,13 +153,9 @@ class GlobalTablesMap
     {
         return [
             'GLOBAL_USERS',
-            'GLOBAL_GROUPS',
             'PERSONAL_ACCESS_TOKENS',
             'PASSWORD_RESET_TOKENS',
-            'SESSIONS',
-            'CACHE',
-            'JOBS',
-            'FAILED_JOBS'
+            'SESSIONS'
         ];
     }
 
