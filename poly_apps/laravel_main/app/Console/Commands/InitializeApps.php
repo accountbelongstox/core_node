@@ -101,6 +101,27 @@ class InitializeApps extends Command
         }
         $this->newLine();
         
+        $this->info('Creating multilingual word tables...');
+        $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
+        foreach ($wordTableResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+        
+        $this->info('Importing multilingual word data...');
+        $importResults = \App\Services\UserSyncService::importMultilingualWordsFromMd();
+        if (isset($importResults['skipped']) && $importResults['skipped']) {
+            $this->line("  ⏭️  {$importResults['message']}");
+        } elseif (!empty($importResults['errors'])) {
+            foreach ($importResults['errors'] as $error) {
+                $this->line("  ❌ {$error}");
+            }
+        } else {
+            $this->line("  ✅ Imported {$importResults['imported']} words from {$importResults['total_files']} files");
+        }
+        $this->newLine();
+        
         $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());
