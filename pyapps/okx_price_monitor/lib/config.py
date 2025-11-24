@@ -116,6 +116,21 @@ class OKXMonitorConfig:
     # Hours of historical data to load on startup
     HISTORY_HOURS = 3
 
+    # Database name for OKX price data
+    DATABASE_NAME = "okx"
+
+    # ============================================================
+    # Trading Alert Thresholds
+    # ============================================================
+    # 30 seconds change threshold for alert (%)
+    ALERT_CHANGE_30S_THRESHOLD = 1.0
+
+    # 1 minute change threshold for alert (%)
+    ALERT_CHANGE_1MIN_THRESHOLD = 2.0
+
+    # 2 minutes change threshold for alert (%)
+    ALERT_CHANGE_2MIN_THRESHOLD = 3.0
+
     # ============================================================
     # Request Configuration
     # ============================================================
@@ -185,11 +200,18 @@ class OKXMonitorConfig:
         ColorPrint.blue(f"  Coin Cache TTL: {cls.COIN_CACHE_TTL}s")
         ColorPrint.blue(f"  Max History: {cls.MAX_HISTORY}")
         ColorPrint.blue(f"  Save to File: {cls.SAVE_TO_FILE}")
+        ColorPrint.green("  Database Configuration:")
+        ColorPrint.blue(f"    Database Name: {cls.DATABASE_NAME}")
+        ColorPrint.blue(f"    History Hours: {cls.HISTORY_HOURS}h")
         ColorPrint.green("  Trading Thresholds:")
         ColorPrint.blue(f"    Buy Dip: {cls.BUY_DIP_THRESHOLD}%")
         ColorPrint.blue(f"    Sell Peak: {cls.SELL_PEAK_THRESHOLD}%")
         ColorPrint.blue(f"    Strong Buy: {cls.STRONG_BUY_THRESHOLD}%")
         ColorPrint.blue(f"    Strong Sell: {cls.STRONG_SELL_THRESHOLD}%")
+        ColorPrint.green("  Alert Thresholds:")
+        ColorPrint.blue(f"    30 Seconds: {cls.ALERT_CHANGE_30S_THRESHOLD}%")
+        ColorPrint.blue(f"    1 Minute: {cls.ALERT_CHANGE_1MIN_THRESHOLD}%")
+        ColorPrint.blue(f"    2 Minutes: {cls.ALERT_CHANGE_2MIN_THRESHOLD}%")
         ColorPrint.green("=" * 60)
 
 

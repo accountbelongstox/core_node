@@ -1310,6 +1310,15 @@ if (-not $SkipInitialization) {
     Make-PsExecutable
     Create-Symlink
 
+    # Sync scripts from inline winenvs to global .winenvs
+    Write-ColorMessage -Message "Synchronizing inline scripts to global winenvs..." -Type "Info"
+    try {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "$script:PS_CURENT_DIR\win_common\WindowsPathFunction.ps1" "sync"
+        Write-ColorMessage -Message "Script synchronization completed" -Type "Success"
+    } catch {
+        Write-ColorMessage -Message "Failed to synchronize scripts: $($_.Exception.Message)" -Type "Warning"
+    }
+
     # Check and ensure desktop shortcut exists
     $shortcutCheckScript = Join-Path $Global:CORE_NODE_DIR "pycore\pyutils\launcher\shortcut_check.ps1"
     if (Test-Path $shortcutCheckScript) {

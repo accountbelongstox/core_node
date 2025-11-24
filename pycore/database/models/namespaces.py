@@ -31,6 +31,9 @@ class TableNamespaces:
     # ===== Voice App Namespace =====
     APP_VOICE = "app_voice"
 
+    # ===== OKX Price Monitor App Namespace =====
+    APP_OKX = "app_okx"
+
     # Add more namespaces as needed...
     # APP_YOUR_APP = "app_your_app"
     # UTIL_YOUR_UTIL = "util_your_util"

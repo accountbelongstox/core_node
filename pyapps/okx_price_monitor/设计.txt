@@ -1,0 +1,123 @@
+每个币在启动后，则提供器提供后，都要初始化对象「
+最近3个小时的记录（按时间 排序）并动态更新，
+当前价格对比30秒，1分前的涨幅，2分钟的涨幅
+最近30秒，1分钟，2分钟的曲线，向上还是向下？
+
+」」
+
+同时如果30秒内的涨幅超过比如1%，或者1分钟内涨幅超过2%，则提醒交易时机。注意配置中心化。
+
+
+[DEBUG] [PIP] ERROR: Exception while getting user pip location:
+[DEBUG] [PIP] Adding additional common pip installation paths...
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\.local\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\.local\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Final search paths count: 1
+[DEBUG] [PIP] Final search paths:
+[DEBUG] [PIP]   [0] D:\.dev_win10\python313\Scripts
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'pipx'
+[DEBUG] [KEYWORD] Deduplicated keywords: pipx
+[DEBUG] [EXEC] No executable found matching keyword: pipx pipx,IncludeSystemPaths: False
+[DEBUG] [EXEC] Searched paths summary (total: 1):
+[DEBUG] [EXEC]   - D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] Starting pip package installation for: pipx
+[DEBUG] [PIP] Search keywords: pipx, pipx
+[DEBUG] [PIP] Search paths count: 1
+[DEBUG] [PIP] Will try 3 installation methods
+[DEBUG] [PIP] === Trying global installation ===
+[DEBUG] [PIP] Command: D:\.dev_win10\python313\Scripts\pip.exe install pipx
+[DEBUG] [PIP] Starting pip installation...
+[DEBUG] [PIP] EXCEPTION: Exception during global installation:   WARNING: The scripts activate-global-python-argcomplete.exe, python-argcomplete-check-easy-install-script.exe and register-python-argcomplete.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[DEBUG] [PIP] Exception type: RemoteException
+[DEBUG] [PIP] === Trying upgrade installation ===
+[DEBUG] [PIP] Command: D:\.dev_win10\python313\Scripts\pip.exe install --upgrade pipx
+[DEBUG] [PIP] Starting pip installation...
+[DEBUG] [PIP] EXCEPTION: Exception during upgrade installation:   WARNING: The script userpath.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[DEBUG] [PIP] Exception type: RemoteException
+[DEBUG] [PIP] === Trying force reinstall ===
+[DEBUG] [PIP] Command: D:\.dev_win10\python313\Scripts\pip.exe install --force-reinstall pipx
+[DEBUG] [PIP] Starting pip installation...
+[DEBUG] [PIP] EXCEPTION: Exception during force reinstall:   WARNING: The scripts activate-global-python-argcomplete.exe, python-argcomplete-check-easy-install-script.exe and register-python-argcomplete.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[DEBUG] [PIP] Exception type: RemoteException
+[DEBUG] [PIP] CRITICAL ERROR: All installation methods failed
+[DEBUG] [PIP] Package: pipx
+[DEBUG] [PIP] Tried methods: global installation, upgrade installation, force reinstall
+[Step12] Failed to install pip package: pipx
+
+[DEBUG] [PIP] Trying to find user-specific pip paths...
+[DEBUG] [PIP] ERROR: Exception while getting user pip location:
+[DEBUG] [PIP] Adding additional common pip installation paths...
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\.local\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\.local\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Local\Programs\Python\Scripts
+[DEBUG] [PIP] Checking additional path: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Path not found: C:\Users\accou\AppData\Roaming\Python\Scripts
+[DEBUG] [PIP] Final search paths count: 1
+[DEBUG] [PIP] Final search paths:
+[DEBUG] [PIP]   [0] D:\.dev_win10\python313\Scripts
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'uv'
+[DEBUG] [KEYWORD] Deduplicated keywords: uv
+[DEBUG] [EXEC] No executable found matching keyword: uv uv,IncludeSystemPaths: False
+[DEBUG] [EXEC] Searched paths summary (total: 1):
+[DEBUG] [EXEC]   - D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] Starting pip package installation for: uv
+[DEBUG] [PIP] Search keywords: uv, uv
+[DEBUG] [PIP] Search paths count: 1
+[DEBUG] [PIP] Will try 3 installation methods
+[DEBUG] [PIP] === Trying global installation ===
+[DEBUG] [PIP] Command: D:\.dev_win10\python313\Scripts\pip.exe install uv
+[DEBUG] [PIP] Starting pip installation...
+[DEBUG] [PIP] EXCEPTION: Exception during global installation:
+[DEBUG] [PIP] Exception type: RemoteException
+[DEBUG] [PIP] === Trying upgrade installation ===
+[DEBUG] [PIP] Command: D:\.dev_win10\python313\Scripts\pip.exe install --upgrade uv
+[DEBUG] [PIP] Starting pip installation...
+[DEBUG] [PIP] EXCEPTION: Exception during upgrade installation:
+[DEBUG] [PIP] Exception type: RemoteException
+[DEBUG] [PIP] === Trying force reinstall ===
+[DEBUG] [PIP] Command: D:\.dev_win10\python313\Scripts\pip.exe install --force-reinstall uv
+[DEBUG] [PIP] Starting pip installation...
+[DEBUG] [PIP] EXCEPTION: Exception during force reinstall:
+[DEBUG] [PIP] Exception type: RemoteException
+[DEBUG] [PIP] CRITICAL ERROR: All installation methods failed
+[DEBUG] [PIP] Package: uv
+[DEBUG] [PIP] Tried methods: global installation, upgrade installation, force reinstall
+[Step12] Failed to install pip package: uv
+[Step12] Installing pip package: poetry
+[DEBUG] [PIP] Processing pip package: poetry
+[DEBUG] [PIP] Starting Python Scripts directory detection...
+[DEBUG] [PIP] PIP executable path: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Global PYTHON_DIR: D:\.dev_win10\python313
+[DEBUG] [PIP] Global PYTHON_EXE_PATH: D:\.dev_win10\python313\python.exe
+[DEBUG] [PIP] Global PIP_EXE_PATH: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Method 1: Using GlobalVars PYTHON_DIR...
+[DEBUG] [PIP] Method 1: Calculated Scripts path: D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] Method 1: Path exists: True
+[DEBUG] [PIP] Method 1 SUCCESS: Python Scripts directory (from GlobalVars): D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] Final validation: Checking if D:\.dev_win10\python313\Scripts exists...
+[DEBUG] [PIP] SUCCESS: Python Scripts directory found and accessible: D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] Starting search paths building...
+[DEBUG] [PIP] Adding main Python Scripts directory: D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] SUCCESS: Added Python Scripts path: D:\.dev_win10\python313\Scripts
+[DEBUG] [PIP] Trying to find user-specific pip paths...
+[DEBUG] [PIP] ERROR: Exception while getting user pip location:
+[DEBUG] [PIP] Adding additional common pip installation paths...
+
+解决一下python安装总是调用到系统上不存在的路径 的问题。 注意反复运行这个脚本会修正和重置配置。
+
+scripts\shells\win\install_powershells\postinstall\PhpPostInstallProcessor.ps1  scripts\shells\win\install_powershells\Step7_InstallPHP.ps1 你确认整合了吗。
