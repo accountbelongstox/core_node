@@ -104,23 +104,47 @@ def start():
         page_ids.append(page_id)
 
         ColorPrint.green(f"  Page ID: {page_id}, Tab Action: {tab_action}")
-        time.sleep(3)  # Wait for page to load and URLs to be intercepted
+
+        ColorPrint.yellow(f"  ⏳ Waiting 5 seconds for URLs to be intercepted...")
+        time.sleep(5)  # Wait for page to load and URLs to be intercepted
 
         # Check intercepted URLs for this page
+        import uuid
+        request_id = str(uuid.uuid4())[:8]
+        ColorPrint.blue(f"  🔍 [REQ-{request_id}] Querying intercepted URLs for pageId: {page_id}")
         rpc_url = f"{config.RPC_BASE_URL}/rpc/browser/getInterceptedApiUrls"
-        payload = {'pageId': page_id, 'clearAfterGet': False}
-        response = requests.post(rpc_url, json=payload, timeout=30)
-        result = response.json()
+        payload = {'pageId': page_id, 'clearAfterGet': False, 'requestId': request_id}
 
-        if result.get('success'):
-            urls = result.get('urls', [])
-            ColorPrint.blue(f"  ✅ Intercepted {len(urls)} URLs so far:")
-            for j, url_obj in enumerate(urls[-3:], 1):  # Show last 3 URLs
-                url = url_obj.get('url', '')
-                status = url_obj.get('status', 'N/A')
-                ColorPrint.yellow(f"    [{j}] Status {status}: {url[:120]}...")
-        else:
-            ColorPrint.red(f"  ❌ Failed to get intercepted URLs: {result.get('error')}")
+        try:
+            response = requests.post(rpc_url, json=payload, timeout=30)
+
+            # Debug: Show raw response
+            ColorPrint.yellow(f"  📡 [REQ-{request_id}] HTTP Status: {response.status_code}")
+
+            result = response.json()
+
+            # Debug: Show response structure
+            ColorPrint.yellow(f"  📦 [REQ-{request_id}] RPC Response keys: {list(result.keys())}")
+            ColorPrint.yellow(f"  📦 [REQ-{request_id}] RPC Response: success={result.get('success')}, count={result.get('count', 'N/A')}, requestId={result.get('requestId', 'N/A')}")
+
+            if result.get('success'):
+                urls = result.get('urls', [])
+                ColorPrint.yellow(f"  📦 URLs array type: {type(urls)}, length: {len(urls)}")
+                ColorPrint.blue(f"  ✅ Intercepted {len(urls)} URLs so far:")
+
+                if len(urls) > 0:
+                    for j, url_obj in enumerate(urls[-3:], 1):  # Show last 3 URLs
+                        url = url_obj.get('url', '')
+                        status = url_obj.get('status', 'N/A')
+                        ColorPrint.yellow(f"    [{j}] Status {status}: {url[:120]}...")
+                else:
+                    ColorPrint.red(f"  ⚠️ URLs array is empty!")
+            else:
+                ColorPrint.red(f"  ❌ Failed to get intercepted URLs: {result.get('error')}")
+        except Exception as e:
+            ColorPrint.red(f"  ❌ Exception querying URLs: {str(e)}")
+            import traceback
+            ColorPrint.red(traceback.format_exc())
 
     ColorPrint.green(f"[Step 1] All pages opened successfully")
     ColorPrint.green(f"  Total pages: {len(page_ids)}")
