@@ -7,6 +7,22 @@
 const ITToolsMenuConfig = {
     categories: [
         {
+            id: 'clipboard-tools',
+            icon: '📋',
+            label: 'Online Clipboard',
+            tools: [
+                { id: 'online-clipboard', label: 'Online Clipboard', clientSide: false }
+            ]
+        },
+        {
+            id: 'ai-tools',
+            icon: '🤖',
+            label: 'AI Tools',
+            tools: [
+                { id: 'online-translation', label: 'AI Translation', clientSide: false }
+            ]
+        },
+        {
             id: 'image-tools',
             icon: '🖼️',
             label: 'Image Tools',

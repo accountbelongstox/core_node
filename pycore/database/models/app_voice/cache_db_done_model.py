@@ -50,7 +50,7 @@ class VoiceCacheDbDoneModel(BaseModel):
             sqlalchemy.Column('id', sqlalchemy.Integer, primary_key=True, autoincrement=True),
             sqlalchemy.Column('cache_db_name', sqlalchemy.Text, nullable=False, unique=True, index=True),
             sqlalchemy.Column('done', sqlalchemy.Boolean, default=False, nullable=False),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
+            sqlalchemy.Column('created_at', sqlalchemy.String(50), nullable=False),
         )
 
     @classmethod

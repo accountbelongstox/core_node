@@ -312,10 +312,16 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
             key = _get_key_input()
             
             if key == 'up':
-                selected_index = max(0, selected_index - 1)
+                if selected_index == 0:
+                    selected_index = len(menu_items) - 1  # 从顶部循环到底部
+                else:
+                    selected_index = selected_index - 1
                 continue
             elif key == 'down':
-                selected_index = min(len(menu_items) - 1, selected_index + 1)
+                if selected_index == len(menu_items) - 1:
+                    selected_index = 0  # 从底部循环到顶部
+                else:
+                    selected_index = selected_index + 1
                 continue
             elif key == 'enter':
                 selected_item = menu_items[selected_index]

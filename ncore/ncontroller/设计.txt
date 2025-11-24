@@ -1,0 +1,30 @@
+不需要显示html,只需要显示 json
+
+node .\ncore_module_caller.js 跟踪其中的逻辑，现在在 路由第一页  http://127.0.0.1:58000/ ，要显示所有能访问的url信息。
+
+返回的信息要包含所有F12控制台输出的信息，waring/error等。是浏览器本身的信息，需要深入扩展ncore\utils\puppeteer_spider_v2  使期有监听系统级的功能，
+这是便于本地调试的，包括HTML错误和JS错误等信息。而不是网站正常的打印信息。
+
+Result:
+  - Success: true
+  - Page ID: page_1763844245122
+  - URL: https://www.google.com/
+  - Title: Google
+  - Screenshot: C:\Users\MPC\.core_node\screenshots\screenshot_1763844245394_6614ad777d98f624.png
+  - Console Logs: 0 logs
+  - HTML Content Length: 202609 chars
+
+同时  [2025-11-22T20:44:13.803Z] WARNING: [PageCollector] Failed to download resource https://github.githubassets.com/assets/17000-0348c9423ed5.js: Protocol error (Page.getResourceContent): Agent is not enabled.
+
+
+//------------------------------------------------------------------------
+
+ncore\ncontroller 中改为可以有多个ctl,brower只是其中之用，是用耿组织utils中的基本类库避免循环引用的。
+同时将这一点更新 development-guides\NODE_NCORE_GUIDE.md 但只能更新冲突的地方，和几句话说重点。
+之后，扩展ncore\utils\puppeteer_spider_v2 和 ncontroller/browerctl 
+1： 参考 apps\DocumentOffline ，
+1-a： 参考 apps\DocumentOffline ，下载文档，现在可以传入一个url,下载整个文档结构，并自动移除html页中的css/js部份，并智能去年头部底部等干扰内容，同时不用下载静态资源。返回一个整站的本地目录地址，以及目录结构。
+1-b： 参考 apps\DocumentOffline ，下载整站，现在可以传入一个url,下载整个网站，并智能重新连接html页中的css/js部份，以及目录结构 需要深度分析对比  apps\DocumentOffline。
+
+
+D:\programing\core_node\development-guides\PYTHON_PYCORE.md 根据规范引用， D:\programing\core_node\pycore\pyutils 中的 所有库，比如 pycore\pyutils\ocr_cnocr_engine.py pycore\pyutils\image_matcher.py pycore\pyutils\image_enhancer.py pycore\pyutils\image_crop.py pycore\pyutils\window_analyzer.py pycore\pyutils\window_screenshot.py pycore\pyutils\window_ops.py 在 pyapps 中完成一个app，监听桌面最右下角区域的 500px x 500[x区域，後 10秒种一次，之后显示ocr识别到的内容。如果识别到  一组词，比如 keep review 连着的，则调用windows点击 keep

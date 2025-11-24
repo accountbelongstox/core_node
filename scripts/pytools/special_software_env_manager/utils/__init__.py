@@ -11,6 +11,8 @@ __all__ = [
     'get_project_root',
     'resolve_secret_value',
     'LOCAL_SECRET_MANAGER',
-    'SmartRecognition'
+    'SmartRecognition',
+    'LocalTestHelper',
+    'get_local_test_credentials',
+    'print_local_test_status'
 ]
-

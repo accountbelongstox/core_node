@@ -21,7 +21,41 @@ class AppQyV1TableMaps
      * All database operations should reference these mappings instead of hardcoded table/field names
      */
     
-    // AppQyV1 Application Tables
+    private const SUPPORTED_LANGUAGES = [
+        'af', 'am', 'ar', 'as', 'az', 'bg', 'bn', 'bs', 'ca', 'cs',
+        'cy', 'da', 'de', 'el', 'en', 'es', 'et', 'eu', 'fa', 'fi',
+        'fil', 'fr', 'ga', 'gl', 'gu', 'he', 'hi', 'hr', 'hu', 'hy',
+        'id', 'is', 'it', 'ja', 'jv', 'ka', 'kk', 'km', 'kn', 'ko',
+        'lo', 'lt', 'lv', 'mk', 'ml', 'mn', 'mr', 'ms', 'mt', 'my',
+        'nb', 'ne', 'nl', 'or', 'pa', 'pl', 'ps', 'pt', 'ro', 'ru',
+        'si', 'sk', 'sl', 'so', 'sq', 'sr', 'su', 'sv', 'sw', 'ta',
+        'te', 'th', 'tr', 'uk', 'ur', 'uz', 'vi', 'wuu', 'yue', 'zh', 'zu'
+    ];
+
+    private const DICTIONARY_FIELDS = [
+        'id' => 'id',
+        'content' => 'content',
+        'md5' => 'md5',
+        'translations' => 'translations',
+        'has_translation' => 'has_translation',
+        'translation_provider' => 'translation_provider',
+        'phonetic' => 'phonetic',
+        'us_phonetic' => 'us_phonetic',
+        'uk_phonetic' => 'uk_phonetic',
+        'tts_files' => 'tts_files',
+        'tts_provider' => 'tts_provider',
+        'image_files' => 'image_files',
+        'image_provider' => 'image_provider',
+        'word_details' => 'word_details',
+        'is_exist_local' => 'is_exist_local',
+        'has_operations' => 'has_operations',
+        'query_count' => 'query_count',
+        'last_modified' => 'last_modified',
+        'last_query_time' => 'last_query_time',
+        'created_at' => 'created_at',
+        'updated_at' => 'updated_at'
+    ];
+    
     public const app_qy_v1_DICTIONARIES = [
         'tablename' => 'app_qy_v1_dictionaries',
         'fields' => [
@@ -89,11 +123,27 @@ class AppQyV1TableMaps
      */
     public static function getTableName(string $tableKey): string
     {
+        if (preg_match('/^app_qy_v1_([a-z]{2,3})_DICTIONARIES$/i', $tableKey, $matches)) {
+            $langCode = strtolower($matches[1]);
+            if (in_array($langCode, self::SUPPORTED_LANGUAGES)) {
+                return "app_qy_v1_{$langCode}_dictionaries";
+            }
+        }
+        
         $constantName = strtoupper($tableKey);
         if (defined("self::{$constantName}")) {
             return constant("self::{$constantName}")['tablename'];
         }
         throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
+    }
+    
+    public static function getDictionaryTableName(string $langCode): string
+    {
+        $langCode = strtolower($langCode);
+        if (!in_array($langCode, self::SUPPORTED_LANGUAGES)) {
+            throw new \InvalidArgumentException("Language code '{$langCode}' is not supported");
+        }
+        return "app_qy_v1_{$langCode}_dictionaries";
     }
 
     /**
@@ -101,6 +151,16 @@ class AppQyV1TableMaps
      */
     public static function getFieldName(string $tableKey, string $fieldKey): string
     {
+        if (preg_match('/^app_qy_v1_([a-z]{2,3})_DICTIONARIES$/i', $tableKey, $matches)) {
+            $langCode = strtolower($matches[1]);
+            if (in_array($langCode, self::SUPPORTED_LANGUAGES)) {
+                if (isset(self::DICTIONARY_FIELDS[$fieldKey])) {
+                    return self::DICTIONARY_FIELDS[$fieldKey];
+                }
+                throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in dictionary tables");
+            }
+        }
+        
         $constantName = strtoupper($tableKey);
         if (defined("self::{$constantName}")) {
             $tableMap = constant("self::{$constantName}");
@@ -110,6 +170,14 @@ class AppQyV1TableMaps
             throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in table '{$tableKey}'");
         }
         throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
+    }
+    
+    public static function getDictionaryFieldName(string $fieldKey): string
+    {
+        if (!isset(self::DICTIONARY_FIELDS[$fieldKey])) {
+            throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in dictionary fields");
+        }
+        return self::DICTIONARY_FIELDS[$fieldKey];
     }
 
     /**
@@ -129,11 +197,27 @@ class AppQyV1TableMaps
      */
     public static function getAvailableTableKeys(): array
     {
-        return [
+        $keys = [
             'app_qy_v1_DICTIONARIES',
             'app_qy_v1_PERSONAL_DICTIONARIES',
             'app_qy_v1_WORD_GROUPS'
         ];
+        
+        foreach (self::SUPPORTED_LANGUAGES as $langCode) {
+            $keys[] = "app_qy_v1_{$langCode}_DICTIONARIES";
+        }
+        
+        return $keys;
+    }
+    
+    public static function getSupportedLanguages(): array
+    {
+        return self::SUPPORTED_LANGUAGES;
+    }
+    
+    public static function isLanguageSupported(string $langCode): bool
+    {
+        return in_array(strtolower($langCode), self::SUPPORTED_LANGUAGES);
     }
 
     /**

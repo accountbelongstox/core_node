@@ -22,6 +22,7 @@ from pycore.pyfoundations.third_party import (
     get_third_package_edge_tts,
     get_third_package_speechsdk,
     get_third_package_vosk,
+    get_third_package_whisper,
 )
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
 from pycore.pyutils.azure_speech import get_azure_speech_client
@@ -95,6 +96,7 @@ class ProviderStatus:
                 'azure': ProviderInfo()
             },
             'stt': {
+                'whisper': ProviderInfo(),
                 'azure': ProviderInfo(),
                 'local': ProviderInfo()
             }
@@ -175,6 +177,18 @@ class ProviderStatus:
         """
         ColorPrint.blue("[ProviderStatus] Checking STT providers...")
 
+        # Whisper STT availability
+        whisper_module = get_third_package_whisper()
+        whisper_info = self._status['stt']['whisper']
+        if whisper_module:
+            whisper_info.mark_available()
+            ColorPrint.green("[ProviderStatus] ✓ Whisper STT available")
+        else:
+            error_msg = "Whisper not installed"
+            whisper_info.mark_unavailable(error_msg)
+            ColorPrint.yellow(f"[ProviderStatus] ✗ Whisper STT unavailable: {error_msg}")
+
+        # Azure STT availability
         speechsdk = get_third_package_speechsdk()
         blocked, blocked_error = is_stt_quota_blocked()
         if speechsdk and not blocked:
@@ -185,6 +199,7 @@ class ProviderStatus:
             self._status['stt']['azure'].mark_unavailable(error_msg)
             ColorPrint.yellow(f"[ProviderStatus] ✗ Azure STT unavailable: {error_msg}")
 
+        # Local STT (Vosk) availability
         vosk_module = get_third_package_vosk()
         if vosk_module:
             self._status['stt']['local'].mark_available()
@@ -299,12 +314,12 @@ class ProviderStatus:
         """
         Get best available STT provider
 
-        Priority order: azure > local
+        Priority order: whisper > azure > local
 
         Returns:
             Provider name or None if no providers available
         """
-        for provider in ['azure', 'local']:
+        for provider in ['whisper', 'azure', 'local']:
             if self._status['stt'][provider].available:
                 return provider
         return None

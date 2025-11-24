@@ -8,7 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('VipClubV1')->create('vipclubv1_facilities', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_facilities')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_facilities', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->enum('type', ['shooting', 'golf', 'hotel']);
@@ -25,10 +26,11 @@ return new class extends Migration
             $table->index('type');
             $table->index('is_active');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_facilities');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_facilities');
     }
 };

@@ -6,6 +6,12 @@
 
 const ITTools = {
     // ============================================
+    // NAMESPACE: ITTools.Implementations
+    // PURPOSE: Container for tool implementation objects
+    // ============================================
+    Implementations: {},
+    
+    // ============================================
     // NAMESPACE: ITTools.State
     // PURPOSE: State management and localStorage
     // ============================================
@@ -72,6 +78,9 @@ const ITTools = {
         
         addRecentTool(toolId) {
             const state = this.get();
+            if (!state.recentTools || !Array.isArray(state.recentTools)) {
+                state.recentTools = [];
+            }
             state.recentTools = state.recentTools.filter(id => id !== toolId);
             state.recentTools.unshift(toolId);
             if (state.recentTools.length > 10) {
@@ -89,6 +98,50 @@ const ITTools = {
         init() {
             const state = ITTools.State.get();
             this.restoreMenuState(state);
+            this.restoreLeftMenuState();
+        },
+        
+        toggleLeftMenu() {
+            const leftMenu = document.getElementById('ittools-dynamic-menu');
+            const collapseBtn = document.getElementById('ittools-menu-collapse-btn');
+            
+            if (leftMenu && collapseBtn) {
+                const isCollapsed = leftMenu.classList.toggle('collapsed');
+                collapseBtn.textContent = isCollapsed ? '▶' : '◀';
+                
+                try {
+                    localStorage.setItem('ittools_left_menu_collapsed', isCollapsed ? '1' : '0');
+                } catch (e) {
+                    console.error('Failed to save left menu state:', e);
+                }
+            }
+        },
+        
+        restoreLeftMenuState() {
+            try {
+                const isCollapsed = localStorage.getItem('ittools_left_menu_collapsed');
+                if (isCollapsed === null || isCollapsed === '1') {
+                    const leftMenu = document.getElementById('ittools-dynamic-menu');
+                    const collapseBtn = document.getElementById('ittools-menu-collapse-btn');
+                    if (leftMenu && !leftMenu.classList.contains('collapsed')) {
+                        leftMenu.classList.add('collapsed');
+                    }
+                    if (collapseBtn) {
+                        collapseBtn.textContent = '▶';
+                    }
+                } else {
+                    const leftMenu = document.getElementById('ittools-dynamic-menu');
+                    const collapseBtn = document.getElementById('ittools-menu-collapse-btn');
+                    if (leftMenu) {
+                        leftMenu.classList.remove('collapsed');
+                    }
+                    if (collapseBtn) {
+                        collapseBtn.textContent = '◀';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to restore left menu state:', e);
+            }
         },
         
         restoreMenuState(state) {
@@ -233,9 +286,11 @@ const ITTools = {
             const element = document.getElementById(elementId);
             if (!element) return;
             
-            element.textContent = typeof result === 'object' 
-                ? JSON.stringify(result, null, 2) 
-                : result;
+            if (typeof result === 'object') {
+                element.textContent = JSON.stringify(result, null, 2);
+            } else {
+                element.innerHTML = result;
+            }
             element.className = 'ittools-result ' + (isSuccess ? 'success' : 'error');
             element.style.display = 'block';
         },
@@ -294,6 +349,114 @@ const ITTools = {
     },
     
     // ============================================
+    // NAMESPACE: ITTools.Search
+    // PURPOSE: Tool search functionality
+    // ============================================
+    Search: {
+        init() {
+            const searchInput = document.getElementById('ittools-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    this.performSearch(e.target.value);
+                });
+                
+                searchInput.addEventListener('focus', (e) => {
+                    if (e.target.value.trim()) {
+                        this.performSearch(e.target.value);
+                    }
+                });
+                
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.ittools-search-wrapper') && 
+                        !e.target.closest('#global-search-results')) {
+                        this.hideResults();
+                    }
+                });
+            }
+        },
+        
+        performSearch(keyword) {
+            const resultsContainer = document.getElementById('global-search-results');
+            if (!resultsContainer) return;
+            
+            if (!keyword || keyword.trim().length === 0) {
+                this.hideResults();
+                return;
+            }
+            
+            const term = keyword.trim().toLowerCase();
+            const allTools = ITTools.UniversalMenu.getAllToolsMap();
+            const results = [];
+            
+            Object.keys(allTools).forEach(toolId => {
+                const tool = allTools[toolId];
+                const labelLower = tool.label.toLowerCase();
+                
+                if (labelLower.includes(term)) {
+                    results.push({
+                        id: toolId,
+                        label: tool.label,
+                        categoryIcon: tool.icon,
+                        score: labelLower.indexOf(term) === 0 ? 0 : 1
+                    });
+                }
+            });
+            
+            results.sort((a, b) => a.score - b.score);
+            this.displayResults(results);
+        },
+        
+        displayResults(results) {
+            const resultsContainer = document.getElementById('global-search-results');
+            const searchInput = document.getElementById('ittools-search-input');
+            if (!resultsContainer || !searchInput) return;
+            
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div class="ittools-search-no-results">No tools found</div>';
+            } else {
+                resultsContainer.innerHTML = results.map(result => `
+                    <div class="ittools-search-result-item" 
+                         data-tool-id="${result.id}"
+                         data-tool-label="${result.label}"
+                         onclick="ITTools.Search.selectTool('${result.id}', '${result.label}')">
+                        ${result.label}
+                        <span class="ittools-search-result-category">${result.categoryIcon}</span>
+                    </div>
+                `).join('');
+            }
+            
+            const rect = searchInput.getBoundingClientRect();
+            resultsContainer.style.top = (rect.bottom + 5) + 'px';
+            resultsContainer.style.left = rect.left + 'px';
+            resultsContainer.style.width = rect.width + 'px';
+            resultsContainer.classList.add('visible');
+        },
+        
+        hideResults() {
+            const resultsContainer = document.getElementById('global-search-results');
+            if (resultsContainer) {
+                resultsContainer.classList.remove('visible');
+            }
+        },
+        
+        selectTool(toolId, toolLabel) {
+            if (typeof ITTools.UniversalMenu !== 'undefined' && ITTools.UniversalMenu.selectTool) {
+                ITTools.UniversalMenu.selectTool(toolId, toolLabel);
+            }
+            this.hideResults();
+            this.clearSearch();
+        },
+        
+        clearSearch() {
+            const searchInput = document.getElementById('ittools-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            this.hideResults();
+        }
+    },
+    
+    // ============================================
     // NAMESPACE: ITTools.Init
     // PURPOSE: Initialization functions
     // ============================================
@@ -301,6 +464,7 @@ const ITTools = {
         run() {
             console.log('Initializing ITTools...');
             ITTools.Menu.init();
+            ITTools.Search.init();
             this.attachEventListeners();
             console.log('ITTools initialized successfully');
         },

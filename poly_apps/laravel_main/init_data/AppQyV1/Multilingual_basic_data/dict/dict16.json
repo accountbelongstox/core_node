@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.277708+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "conduct",
+        "laos": "ປະຕິສະຈັນ",
+        "jp": "行為",
+        "vie": "tiến hành",
+        "en_pronunciation": "/ˈkɑndəkt/",
+        "laos_pronunciation": "pati sachan",
+        "jp_pronunciation": "koui",
+        "vie_pronunciation": "tien hanh"
+      },
+      "means": {
+        "en": "Manner of acting or controlling yourself",
+        "zh": "行事或控制自己的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "confederation",
+        "laos": "ສະຫະພັນ",
+        "jp": "連合",
+        "vie": "liên minh",
+        "en_pronunciation": "/kənˌfɛdərˈeɪʃən/",
+        "laos_pronunciation": "sahaphan",
+        "jp_pronunciation": "rengou",
+        "vie_pronunciation": "lien minh"
+      },
+      "means": {
+        "en": "The state of being allied or confederated",
+        "zh": "结盟或同盟的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "confer",
+        "laos": "ມອບໃຫ້",
+        "jp": "授与する",
+        "vie": "ban cho",
+        "en_pronunciation": "/kənˈfər/",
+        "laos_pronunciation": "mobhai",
+        "jp_pronunciation": "juyo suru",
+        "vie_pronunciation": "ban cho"
+      },
+      "means": {
+        "en": "Have a conference in order to talk something over",
+        "zh": "开会讨论一些事情"
+      }
+    },
+    {
+      "word": {
+        "en": "conference",
+        "laos": "ກອງປະຊຸມ",
+        "jp": "会議",
+        "vie": "hội nghị",
+        "en_pronunciation": "/ˈkɑnfərəns/",
+        "laos_pronunciation": "kongpasum",
+        "jp_pronunciation": "kaigi",
+        "vie_pronunciation": "hoi nghi"
+      },
+      "means": {
+        "en": "A prearranged meeting for consultation or exchange of information or discussion (especially one with a formal agenda)",
+        "zh": "预先安排的协商、信息交流或讨论会议（尤其是有正式议程的会议）"
+      }
+    },
+    {
+      "word": {
+        "en": "confess",
+        "laos": "ຢອມຮັບ",
+        "jp": "告白する",
+        "vie": "thú nhận",
+        "en_pronunciation": "/kənˈfɛs/",
+        "laos_pronunciation": "yomhab",
+        "jp_pronunciation": "kokuhaku suru",
+        "vie_pronunciation": "thu nhan"
+      },
+      "means": {
+        "en": "Confess to a punishable or reprehensible deed, usually under pressure",
+        "zh": "通常在压力下承认应受惩罚或应受谴责的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "confide",
+        "laos": "ໄວ້ໃຈ",
+        "jp": "打ち明ける",
+        "vie": "tâm sự",
+        "en_pronunciation": "/kənˈfaɪd/",
+        "laos_pronunciation": "vaichai",
+        "jp_pronunciation": "uchi ake ru",
+        "vie_pronunciation": "tam su"
+      },
+      "means": {
+        "en": "Reveal in private; tell confidentially",
+        "zh": "私下透露；"
+      }
+    },
+    {
+      "word": {
+        "en": "confidence",
+        "laos": "ຄວາມໄວ້ວາງໃຈ",
+        "jp": "自信",
+        "vie": "sự tự tin",
+        "en_pronunciation": "/ˈkɑnfədɛns/",
+        "laos_pronunciation": "khuaamuaaiuaangchai",
+        "jp_pronunciation": "jishin",
+        "vie_pronunciation": "su tu tin"
+      },
+      "means": {
+        "en": "Freedom from doubt; belief in yourself and your abilities",
+        "zh": "保密地告诉"
+      }
+    },
+    {
+      "word": {
+        "en": "configuration",
+        "laos": "ການຕັ້ງຄ່າ",
+        "jp": "構成",
+        "vie": "cấu hình",
+        "en_pronunciation": "/kənˌfɪgjərˈeɪʃən/",
+        "laos_pronunciation": "kantangkha",
+        "jp_pronunciation": "kousei",
+        "vie_pronunciation": "cau hinh"
+      },
+      "means": {
+        "en": "An arrangement of parts or elements",
+        "zh": "免于怀疑；"
+      }
+    },
+    {
+      "word": {
+        "en": "conductor",
+        "laos": "ຜູ້ຊາຢ Conductor",
+        "jp": "指揮者",
+        "vie": "nhạc trưởng",
+        "en_pronunciation": "/kənˈdəktər/",
+        "laos_pronunciation": "phusay Conductor",
+        "jp_pronunciation": "shikisha",
+        "vie_pronunciation": "nhac truong"
+      },
+      "means": {
+        "en": "The person who leads a musical group",
+        "zh": "对自己和自己的能力有信心"
+      }
+    },
+    {
+      "word": {
+        "en": "confederate",
+        "laos": "Confederate",
+        "jp": "南軍",
+        "vie": "liên minh",
+        "en_pronunciation": "/kənˈfɛdərˌeɪt/",
+        "laos_pronunciation": "Confederate",
+        "jp_pronunciation": "nangun",
+        "vie_pronunciation": "lien minh"
+      },
+      "means": {
+        "en": "A supporter of the Confederate States of America",
+        "zh": "零件或元素的排列"
+      }
+    },
+    {
+      "word": {
+        "en": "confession",
+        "laos": "ການຮັກສາ",
+        "jp": "告白",
+        "vie": "sự xưng tội",
+        "en_pronunciation": "/kənˈfɛʃən/",
+        "laos_pronunciation": "kanhaksa",
+        "jp_pronunciation": "kokuhaku",
+        "vie_pronunciation": "su xung toi"
+      },
+      "means": {
+        "en": "An admission of misdeeds or faults",
+        "zh": "领导音乐团体的人"
+      }
+    },
+    {
+      "word": {
+        "en": "confident",
+        "laos": "ຫມັ້ນໃຈ",
+        "jp": "自信を持って",
+        "vie": "tự tin",
+        "en_pronunciation": "/ˈkɑnfədənt/",
+        "laos_pronunciation": "manchai",
+        "jp_pronunciation": "jishin wo motsu te",
+        "vie_pronunciation": "tu tin"
+      },
+      "means": {
+        "en": "Having or marked by confidence or assurance",
+        "zh": "美利坚联盟国的支持者"
+      }
+    },
+    {
+      "word": {
+        "en": "confidential",
+        "laos": "ເປັນຄວາມລັບ",
+        "jp": "機密",
+        "vie": "bí mật",
+        "en_pronunciation": "/ˌkɑnfəˈdɛnʃəl/",
+        "laos_pronunciation": "penkhuaamlab",
+        "jp_pronunciation": "kimitsu",
+        "vie_pronunciation": "bi mat"
+      },
+      "means": {
+        "en": "Entrusted with private information and the confidence of another",
+        "zh": "承认不当行为或过失"
+      }
+    },
+    {
+      "word": {
+        "en": "confine",
+        "laos": "ຢັບຢັ້ງ",
+        "jp": "閉じ込める",
+        "vie": "hạn chế",
+        "en_pronunciation": "/kənˈfaɪn/",
+        "laos_pronunciation": "yabyang",
+        "jp_pronunciation": "tojikome ru",
+        "vie_pronunciation": "han che"
+      },
+      "means": {
+        "en": "Place limits on (extent or access)",
+        "zh": "具有或以信心或保证为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "confinement",
+        "laos": "ການກັກຂັງ",
+        "jp": "監禁",
+        "vie": "sự giam cầm",
+        "en_pronunciation": "/kənˈfaɪnmənt/",
+        "laos_pronunciation": "kankakkhang",
+        "jp_pronunciation": "kankin",
+        "vie_pronunciation": "su giam cam"
+      },
+      "means": {
+        "en": "Concluding state of pregnancy; from the onset of contractions to the birth of a child",
+        "zh": "委托私人信息和他人的信任"
+      }
+    },
+    {
+      "word": {
+        "en": "confirm",
+        "laos": "ຢືນຢັນ",
+        "jp": "確認する",
+        "vie": "xác nhận",
+        "en_pronunciation": "/kənˈfərm/",
+        "laos_pronunciation": "yunyan",
+        "jp_pronunciation": "kakuninsu ru",
+        "vie_pronunciation": "xac nhan"
+      },
+      "means": {
+        "en": "Establish or strengthen as with new evidence or facts",
+        "zh": "对（范围或访问）施加限制"
+      }
+    },
+    {
+      "word": {
+        "en": "confirmation",
+        "laos": "ການຖືເອົາ",
+        "jp": "確認",
+        "vie": "xác nhận",
+        "en_pronunciation": "/ˌkɑnfərˈmeɪʃən/",
+        "laos_pronunciation": "kanthuoao",
+        "jp_pronunciation": "kakunin",
+        "vie_pronunciation": "xac nhan"
+      },
+      "means": {
+        "en": "Additional proof that something that was believed (some fact or hypothesis or theory) is correct",
+        "zh": "妊娠结束状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "conflict",
+        "laos": "ແຍ້ງ",
+        "jp": "紛争",
+        "vie": "xung đột",
+        "en_pronunciation": "/ˈkɑnflɪkt/",
+        "laos_pronunciation": "aenyng",
+        "jp_pronunciation": "funsou",
+        "vie_pronunciation": "xung dot"
+      },
+      "means": {
+        "en": "An open clash between two opposing groups (or individuals); --Thomas Paine",
+        "zh": "从宫缩开始到孩子出生"
+      }
+    },
+    {
+      "word": {
+        "en": "conform",
+        "laos": "ເຮັດໃຫ້ສອດຄ່ອງ",
+        "jp": "適合する",
+        "vie": "tuân theo",
+        "en_pronunciation": "/kənˈfɔrm/",
+        "laos_pronunciation": "hedhaisodkhong",
+        "jp_pronunciation": "tekigou suru",
+        "vie_pronunciation": "tuan theo"
+      },
+      "means": {
+        "en": "Be similar, be in line with",
+        "zh": "用新的证据或事实建立或加强"
+      }
+    },
+    {
+      "word": {
+        "en": "conformity",
+        "laos": "ຄວາມສອດ",
+        "jp": "適合性",
+        "vie": "sự phù hợp",
+        "en_pronunciation": "/kənˈfɔrməti/",
+        "laos_pronunciation": "khuaamsod",
+        "jp_pronunciation": "tekigousei",
+        "vie_pronunciation": "su phu hop"
+      },
+      "means": {
+        "en": "Correspondence in form or appearance",
+        "zh": "额外证明所相信的事物（某些事实或假设或理论）是正确的"
+      }
+    },
+    {
+      "word": {
+        "en": "confront",
+        "laos": "ປະເຊີນ",
+        "jp": "対決する",
+        "vie": "đối đầu",
+        "en_pronunciation": "/kənˈfrənt/",
+        "laos_pronunciation": "pasoen",
+        "jp_pronunciation": "taiketsu suru",
+        "vie_pronunciation": "doi dau"
+      },
+      "means": {
+        "en": "Oppose, as in hostility or a competition",
+        "zh": "两个对立团体（或个人）之间的公开冲突；"
+      }
+    },
+    {
+      "word": {
+        "en": "confrontation",
+        "laos": "ການປະຊຸມ",
+        "jp": "対決",
+        "vie": "sự đối đầu",
+        "en_pronunciation": "/ˌkɑnfrənˈteɪʃən/",
+        "laos_pronunciation": "kanpasum",
+        "jp_pronunciation": "taiketsu",
+        "vie_pronunciation": "su doi dau"
+      },
+      "means": {
+        "en": "A bold challenge",
+        "zh": "——托马斯·潘恩"
+      }
+    },
+    {
+      "word": {
+        "en": "confucian",
+        "laos": "ຂົງຈື້",
+        "jp": "儒家",
+        "vie": "Nho giáo",
+        "en_pronunciation": "/kənfˈjuʃən/",
+        "laos_pronunciation": "khongchu",
+        "jp_pronunciation": "juka",
+        "vie_pronunciation": "Nho giao"
+      },
+      "means": {
+        "en": "A believer in the teachings of Confucius",
+        "zh": "相似、一致"
+      }
+    },
+    {
+      "word": {
+        "en": "confucianism",
+        "laos": "ການຕັ້ງໃຈ",
+        "jp": "儒教",
+        "vie": "Nho giáo",
+        "en_pronunciation": "/kənfˈjuʃəˌnɪzəm/",
+        "laos_pronunciation": "kantangchai",
+        "jp_pronunciation": "jukyou",
+        "vie_pronunciation": "Nho giao"
+      },
+      "means": {
+        "en": "The teachings of Confucius emphasizing love for humanity; high value given to learning and to devotion to family (including ancestors); peace; justice; influenced the traditional culture of China",
+        "zh": "形式或外观的对应"
+      }
+    },
+    {
+      "word": {
+        "en": "confuse",
+        "laos": "ສັບສົນ",
+        "jp": "混乱させる",
+        "vie": "nhầm lẫn",
+        "en_pronunciation": "/kənfˈjuz/",
+        "laos_pronunciation": "sabson",
+        "jp_pronunciation": "konran saseru",
+        "vie_pronunciation": "nham lan"
+      },
+      "means": {
+        "en": "Mistake one thing for another",
+        "zh": "反对，如敌意或竞争"
+      }
+    },
+    {
+      "word": {
+        "en": "confusion",
+        "laos": "ສັມເພດ",
+        "jp": "混乱",
+        "vie": "sự nhầm lẫn",
+        "en_pronunciation": "/kənfˈjuʒən/",
+        "laos_pronunciation": "samphed",
+        "jp_pronunciation": "konran",
+        "vie_pronunciation": "su nham lan"
+      },
+      "means": {
+        "en": "Disorder resulting from a failure to behave predictably",
+        "zh": "大胆的挑战"
+      }
+    },
+    {
+      "word": {
+        "en": "congratulate",
+        "laos": "ສັນລະເສີນຍ້ອງຍໍ",
+        "jp": "おめでとう",
+        "vie": "chúc mừng",
+        "en_pronunciation": "/kənˈgræʧəˌleɪt/",
+        "laos_pronunciation": "sanlasoennyongnyo",
+        "jp_pronunciation": "omedetou",
+        "vie_pronunciation": "chuc mung"
+      },
+      "means": {
+        "en": "Say something to someone that expresses praise",
+        "zh": "孔子教义的信仰者"
+      }
+    },
+    {
+      "word": {
+        "en": "congratulation",
+        "laos": "ຊົມເຊີຍ",
+        "jp": "おめでとうございます",
+        "vie": "lời chúc mừng",
+        "en_pronunciation": "/kənˌgræʧəˈleɪʃən/",
+        "laos_pronunciation": "somsoeny",
+        "jp_pronunciation": "omedetougozaimasu",
+        "vie_pronunciation": "loi chuc mung"
+      },
+      "means": {
+        "en": "The act of acknowledging that someone has an occasion for celebration",
+        "zh": "孔子的教义强调仁爱；"
+      }
+    },
+    {
+      "word": {
+        "en": "congratulatory",
+        "laos": "ຊົມເຊີຍ",
+        "jp": "おめでとうございます",
+        "vie": "chúc mừng",
+        "en_pronunciation": "/kənˈgræʧələˌtɔri/",
+        "laos_pronunciation": "somsoeny",
+        "jp_pronunciation": "omedetougozaimasu",
+        "vie_pronunciation": "chuc mung"
+      },
+      "means": {
+        "en": "Expressive of sympathetic pleasure or joy on account of someone's success or good fortune",
+        "zh": "高度重视学习和对家庭（包括祖先）的奉献；"
+      }
+    },
+    {
+      "word": {
+        "en": "congregate",
+        "laos": "ໂຮມກັນ",
+        "jp": "集まる",
+        "vie": "tụ tập",
+        "en_pronunciation": "/ˈkɑŋgrəˌgeɪt/",
+        "laos_pronunciation": "ohmkan",
+        "jp_pronunciation": "atsumaru",
+        "vie_pronunciation": "tu tap"
+      },
+      "means": {
+        "en": "Come together, usually for a purpose",
+        "zh": "和平;"
+      }
+    },
+    {
+      "word": {
+        "en": "congregation",
+        "laos": "ປະສາສາດ",
+        "jp": "会衆",
+        "vie": "hội chúng",
+        "en_pronunciation": "/ˌkɑŋgrəˈgeɪʃən/",
+        "laos_pronunciation": "pa sasad",
+        "jp_pronunciation": "kaishuu",
+        "vie_pronunciation": "hoi chung"
+      },
+      "means": {
+        "en": "A group of people who adhere to a common faith and habitually attend a given church",
+        "zh": "正义;"
+      }
+    },
+    {
+      "word": {
+        "en": "congress",
+        "laos": "ສະພາ",
+        "jp": "議会",
+        "vie": "đại hội",
+        "en_pronunciation": "/ˈkɑŋgrəs/",
+        "laos_pronunciation": "sapha",
+        "jp_pronunciation": "gikai",
+        "vie_pronunciation": "dai hoi"
+      },
+      "means": {
+        "en": "The legislature of the United States government",
+        "zh": "影响了中国的传统文化"
+      }
+    },
+    {
+      "word": {
+        "en": "congressional",
+        "laos": "Congressional",
+        "jp": "議会の",
+        "vie": "quốc hội",
+        "en_pronunciation": "/kənˈgrɛʃənəl/",
+        "laos_pronunciation": "Congressional",
+        "jp_pronunciation": "gikai no",
+        "vie_pronunciation": "quoc hoi"
+      },
+      "means": {
+        "en": "Of or relating to congress",
+        "zh": "把一件事错当成另一件事"
+      }
+    },
+    {
+      "word": {
+        "en": "conjunction",
+        "laos": "ສັດຕະການ",
+        "jp": "接続詞",
+        "vie": "sự kết hợp",
+        "en_pronunciation": "/kənˈʤəŋkʃən/",
+        "laos_pronunciation": "sadtakan",
+        "jp_pronunciation": "setsuzokushi",
+        "vie_pronunciation": "su ket hop"
+      },
+      "means": {
+        "en": "The temporal property of two things happening at the same time",
+        "zh": "因未能按预期行事而导致的混乱"
+      }
+    },
+    {
+      "word": {
+        "en": "connect",
+        "laos": "ເຊື່ອມຕໍ່",
+        "jp": "接続する",
+        "vie": "kết nối",
+        "en_pronunciation": "/kəˈnɛkt/",
+        "laos_pronunciation": "seuomto",
+        "jp_pronunciation": "setsuzokusu ru",
+        "vie_pronunciation": "ket noi"
+      },
+      "means": {
+        "en": "Connect, fasten, or put together two or more pieces",
+        "zh": "对某人说一些表达赞美的话"
+      }
+    },
+    {
+      "word": {
+        "en": "connection",
+        "laos": "ການເຊື່ອມຕໍ່",
+        "jp": "接続",
+        "vie": "kết nối",
+        "en_pronunciation": "/kəˈnɛkʃən/",
+        "laos_pronunciation": "kanseuomto",
+        "jp_pronunciation": "setsuzoku",
+        "vie_pronunciation": "ket noi"
+      },
+      "means": {
+        "en": "A relation between things or events (as in the case of one causing the other or sharing features with it)",
+        "zh": "承认某人有庆祝机会的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "connexion",
+        "laos": "ສອດແສ",
+        "jp": "つながり",
+        "vie": "sự kết nối",
+        "en_pronunciation": "/kəˈnɛkʃən/",
+        "laos_pronunciation": "sodaes",
+        "jp_pronunciation": "tsunagari",
+        "vie_pronunciation": "su ket noi"
+      },
+      "means": {
+        "en": "A connecting shape",
+        "zh": "表达因某人的成功或好运而产生的同情的愉悦或喜悦"
+      }
+    },
+    {
+      "word": {
+        "en": "connotation",
+        "laos": "ຄວາມຫມາຍ",
+        "jp": "含意",
+        "vie": "ý nghĩa",
+        "en_pronunciation": "/ˌkɑnəˈteɪʃən/",
+        "laos_pronunciation": "khuaammai",
+        "jp_pronunciation": "gan'i",
+        "vie_pronunciation": "y nghia"
+      },
+      "means": {
+        "en": "What you must know in order to determine the reference of an expression",
+        "zh": "聚集在一起，通常是为了一个目的"
+      }
+    },
+    {
+      "word": {
+        "en": "conquer",
+        "laos": "ຜາບແພ້",
+        "jp": "征服する",
+        "vie": "chinh phục",
+        "en_pronunciation": "/ˈkɑŋkər/",
+        "laos_pronunciation": "phabaeph",
+        "jp_pronunciation": "seifuku suru",
+        "vie_pronunciation": "chinh phuc"
+      },
+      "means": {
+        "en": "To put down by force or authority",
+        "zh": "一群坚持共同信仰并习惯参加特定教堂的人"
+      }
+    },
+    {
+      "word": {
+        "en": "conqueror",
+        "laos": "Conqueror",
+        "jp": "征服者",
+        "vie": "kẻ chinh phục",
+        "en_pronunciation": "/ˈkɑŋkərər/",
+        "laos_pronunciation": "Conqueror",
+        "jp_pronunciation": "seifukusha",
+        "vie_pronunciation": "ke chinh phuc"
+      },
+      "means": {
+        "en": "Someone who is victorious by force of arms",
+        "zh": "美国政府立法机关"
+      }
+    },
+    {
+      "word": {
+        "en": "conquest",
+        "laos": "ໄຊ",
+        "jp": "征服",
+        "vie": "chinh phục",
+        "en_pronunciation": "/ˈkɑŋkwɛst/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "seifuku",
+        "vie_pronunciation": "chinh phuc"
+      },
+      "means": {
+        "en": "The act of conquering",
+        "zh": "属于国会或与国会有关"
+      }
+    },
+    {
+      "word": {
+        "en": "conscience",
+        "laos": "ສະຕິປັນຍາ",
+        "jp": "良心",
+        "vie": "lương tâm",
+        "en_pronunciation": "/ˈkɑnʃəns/",
+        "laos_pronunciation": "satipnaia",
+        "jp_pronunciation": "ryoushin",
+        "vie_pronunciation": "luong tam"
+      },
+      "means": {
+        "en": "Motivation deriving logically from ethical or moral principles that govern a person's thoughts and actions",
+        "zh": "同时发生的两件事的时间属性"
+      }
+    },
+    {
+      "word": {
+        "en": "conscientious",
+        "laos": "ສະຕິ",
+        "jp": "良心的な",
+        "vie": "tận tâm",
+        "en_pronunciation": "/ˌkɑnʃiˈɛnʃəs/",
+        "laos_pronunciation": "sati",
+        "jp_pronunciation": "ryoushinteki na",
+        "vie_pronunciation": "tan tam"
+      },
+      "means": {
+        "en": "Characterized by extreme care and great effort",
+        "zh": "连接、紧固或将两个或多个部件组合在一起"
+      }
+    },
+    {
+      "word": {
+        "en": "conscious",
+        "laos": "ສະຕິ",
+        "jp": "意識のある",
+        "vie": "có ý thức",
+        "en_pronunciation": "/ˈkɑnʃəs/",
+        "laos_pronunciation": "sati",
+        "jp_pronunciation": "ishiki noaru",
+        "vie_pronunciation": "co y thuc"
+      },
+      "means": {
+        "en": "Intentionally conceived",
+        "zh": "事物或事件之间的关系（如一个因素导致另一个因素或与之共享特征的情况）"
+      }
+    },
+    {
+      "word": {
+        "en": "consciousness",
+        "laos": "ສະຕິ",
+        "jp": "意識",
+        "vie": "ý thức",
+        "en_pronunciation": "/ˈkɑnʃəsnəs/",
+        "laos_pronunciation": "sati",
+        "jp_pronunciation": "ishiki",
+        "vie_pronunciation": "y thuc"
+      },
+      "means": {
+        "en": "An alert cognitive state in which you are aware of yourself and your situation",
+        "zh": "连接形状"
+      }
+    },
+    {
+      "word": {
+        "en": "consecutive",
+        "laos": "ຕິດກັນ",
+        "jp": "連続した",
+        "vie": "liên tiếp",
+        "en_pronunciation": "/kənˈsɛkjətɪv/",
+        "laos_pronunciation": "tidkan",
+        "jp_pronunciation": "renzoku shita",
+        "vie_pronunciation": "lien tiep"
+      },
+      "means": {
+        "en": "One after the other",
+        "zh": "为了确定表达式的引用，您必须了解什么"
+      }
+    },
+    {
+      "word": {
+        "en": "consensus",
+        "laos": "ຄວາມເຫັນດີເຫັນພ້ອມ",
+        "jp": "コンセンサス",
+        "vie": "sự đồng thuận",
+        "en_pronunciation": "/kənˈsɛnsəs/",
+        "laos_pronunciation": "khuaamhen dihenphom",
+        "jp_pronunciation": "konsensasu",
+        "vie_pronunciation": "su dong thuan"
+      },
+      "means": {
+        "en": "Agreement in the judgment or opinion reached by a group as a whole",
+        "zh": "以武力或权威压制"
+      }
+    },
+    {
+      "word": {
+        "en": "consent",
+        "laos": "ການຢິນຢອມ",
+        "jp": "同意",
+        "vie": "sự đồng ý",
+        "en_pronunciation": "/kənˈsɛnt/",
+        "laos_pronunciation": "kan yinyom",
+        "jp_pronunciation": "doui",
+        "vie_pronunciation": "su dong y"
+      },
+      "means": {
+        "en": "Permission to do something",
+        "zh": "靠武力取得胜利的人"
+      }
+    },
+    {
+      "word": {
+        "en": "consequence",
+        "laos": "ຜົນລະກັມ",
+        "jp": "結果",
+        "vie": "hậu quả",
+        "en_pronunciation": "/ˈkɑnsəkwəns/",
+        "laos_pronunciation": "phonlakam",
+        "jp_pronunciation": "kekka",
+        "vie_pronunciation": "hau qua"
+      },
+      "means": {
+        "en": "A phenomenon that follows and is caused by some previous phenomenon",
+        "zh": "征服的举动"
+      }
+    },
+    {
+      "word": {
+        "en": "consequent",
+        "laos": "ຜົນສະທ້ອນ",
+        "jp": "結果としての",
+        "vie": "hậu quả",
+        "en_pronunciation": "/ˈkɑnsəkwənt/",
+        "laos_pronunciation": "phonsathon",
+        "jp_pronunciation": "kekka toshiteno",
+        "vie_pronunciation": "hau qua"
+      },
+      "means": {
+        "en": "Following or accompanying as a consequence",
+        "zh": "从逻辑上源自支配一个人的思想和行为的伦理或道德原则的动机"
+      }
+    },
+    {
+      "word": {
+        "en": "consequently",
+        "laos": "ສະນັ້ນ",
+        "jp": "したがって",
+        "vie": "do đó",
+        "en_pronunciation": "/ˈkɑnsəkˌwɛntli/",
+        "laos_pronunciation": "sanan",
+        "jp_pronunciation": "shitagatte",
+        "vie_pronunciation": "do do"
+      },
+      "means": {
+        "en": "(sentence connectors) because of the reason given",
+        "zh": "特点是极其细心和付出巨大的努力"
+      }
+    },
+    {
+      "word": {
+        "en": "conservative",
+        "laos": "ທີ່ອະນຸລັກ",
+        "jp": "保守的",
+        "vie": "bảo thủ",
+        "en_pronunciation": "/kənˈsərvətɪv/",
+        "laos_pronunciation": "thioanulak",
+        "jp_pronunciation": "hoshuteki",
+        "vie_pronunciation": "bao thu"
+      },
+      "means": {
+        "en": "A person who is reluctant to accept changes and new ideas",
+        "zh": "有意构想"
+      }
+    },
+    {
+      "word": {
+        "en": "conserve",
+        "laos": "ຮັກສາ",
+        "jp": "節約する",
+        "vie": "bảo tồn",
+        "en_pronunciation": "/kənˈsərv/",
+        "laos_pronunciation": "haksa",
+        "jp_pronunciation": "setsuyaku suru",
+        "vie_pronunciation": "bao ton"
+      },
+      "means": {
+        "en": "Fruit preserved by cooking with sugar",
+        "zh": "一种警觉的认知状态，您了解自己和自己的处境"
+      }
+    },
+    {
+      "word": {
+        "en": "conservation",
+        "laos": "ການອະນຸລັກ",
+        "jp": "保全",
+        "vie": "bảo tồn",
+        "en_pronunciation": "/ˌkɑnsərˈveɪʃən/",
+        "laos_pronunciation": "kanoanulak",
+        "jp_pronunciation": "hozen",
+        "vie_pronunciation": "bao ton"
+      },
+      "means": {
+        "en": "An occurrence of improvement by virtue of preventing loss or injury or other change",
+        "zh": "一个接一个"
+      }
+    },
+    {
+      "word": {
+        "en": "consider",
+        "laos": "ພິຈາລະນາ",
+        "jp": "検討する",
+        "vie": "xem xét",
+        "en_pronunciation": "/kənˈsɪdər/",
+        "laos_pronunciation": "phichalana",
+        "jp_pronunciation": "kentousu ru",
+        "vie_pronunciation": "xem xet"
+      },
+      "means": {
+        "en": "Deem to be",
+        "zh": "集体所达成的判断或意见的一致"
+      }
+    },
+    {
+      "word": {
+        "en": "consideration",
+        "laos": "ການພິຈາລະນາ",
+        "jp": "考慮",
+        "vie": "xem xét",
+        "en_pronunciation": "/kənˌsɪdərˈeɪʃən/",
+        "laos_pronunciation": "kanphichalana",
+        "jp_pronunciation": "kouryo",
+        "vie_pronunciation": "xem xet"
+      },
+      "means": {
+        "en": "The process of giving careful thought to something",
+        "zh": "允许做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "considering",
+        "laos": "ພິຈາລະນາ",
+        "jp": "検討中",
+        "vie": "xem xét",
+        "en_pronunciation": "/kənˈsɪdərɪŋ/",
+        "laos_pronunciation": "phichalana",
+        "jp_pronunciation": "kentouchuu",
+        "vie_pronunciation": "xem xet"
+      },
+      "means": {
+        "en": "Deem to be",
+        "zh": "跟随某种先前现象并由某种先前现象引起的现象"
+      }
+    },
+    {
+      "word": {
+        "en": "considerable",
+        "laos": "ທີ່ແນ່ນອນ",
+        "jp": "かなりの",
+        "vie": "đáng kể",
+        "en_pronunciation": "/kənˈsɪdərəbəl/",
+        "laos_pronunciation": "thiaennon",
+        "jp_pronunciation": "kanarino",
+        "vie_pronunciation": "dang ke"
+      },
+      "means": {
+        "en": "Large or relatively large in number or amount or extent or degree",
+        "zh": "作为结果跟随或伴随"
+      }
+    },
+    {
+      "word": {
+        "en": "considerate",
+        "laos": "ທີ່ໃຫ້ຄວາມ",
+        "jp": "思いやりのある",
+        "vie": "ân cần",
+        "en_pronunciation": "/kənˈsɪdərət/",
+        "laos_pronunciation": "thihaikhuaam",
+        "jp_pronunciation": "omoiyari noaru",
+        "vie_pronunciation": "an can"
+      },
+      "means": {
+        "en": "Showing concern for the rights and feelings of others",
+        "zh": "（句子连接词）因为给出的原因"
+      }
+    },
+    {
+      "word": {
+        "en": "consist",
+        "laos": "ປະກອບດ້ວຍ",
+        "jp": "構成される",
+        "vie": "bao gồm",
+        "en_pronunciation": "/kənˈsɪst/",
+        "laos_pronunciation": "pakobduany",
+        "jp_pronunciation": "kousei sareru",
+        "vie_pronunciation": "bao gom"
+      },
+      "means": {
+        "en": "Originate (in)",
+        "zh": "不愿意接受改变和新想法的人"
+      }
+    },
+    {
+      "word": {
+        "en": "consistent",
+        "laos": "ສອດສະຫນິດສະຫນົມ",
+        "jp": "一貫した",
+        "vie": "nhất quán",
+        "en_pronunciation": "/kənˈsɪstənt/",
+        "laos_pronunciation": "sod sanid sanom",
+        "jp_pronunciation": "ikkan shita",
+        "vie_pronunciation": "nhat quan"
+      },
+      "means": {
+        "en": "(sometimes followed by `with') in agreement or consistent or reliable; ; - FDR",
+        "zh": "水果加糖腌制"
+      }
+    },
+    {
+      "word": {
+        "en": "consistency",
+        "laos": "ຄວາມສອດຄ່ອງ",
+        "jp": "一貫性",
+        "vie": "tính nhất quán",
+        "en_pronunciation": "/kənˈsɪstənsi/",
+        "laos_pronunciation": "khuaamsodkhong",
+        "jp_pronunciation": "ikkansei",
+        "vie_pronunciation": "tinh nhat quan"
+      },
+      "means": {
+        "en": "The property of holding together and retaining its shape",
+        "zh": "通过防止损失或伤害或其他变化而发生的改进"
+      }
+    },
+    {
+      "word": {
+        "en": "console",
+        "laos": "ປອບໂຍນ",
+        "jp": "コンソール",
+        "vie": "bảng điều khiển",
+        "en_pronunciation": "/ˈkɑnsoʊl/",
+        "laos_pronunciation": "pobonyn",
+        "jp_pronunciation": "konsooru",
+        "vie_pronunciation": "bang dieu khien"
+      },
+      "means": {
+        "en": "A small table fixed to a wall or designed to stand against a wall",
+        "zh": "认为是"
+      }
+    },
+    {
+      "word": {
+        "en": "consolation",
+        "laos": "ການປອບໂຍນ",
+        "jp": "慰め",
+        "vie": "sự an ủi",
+        "en_pronunciation": "/ˌkɑnsəˈleɪʃən/",
+        "laos_pronunciation": "kan pobonyn",
+        "jp_pronunciation": "nagusame",
+        "vie_pronunciation": "su an ui"
+      },
+      "means": {
+        "en": "The comfort you feel when consoled in times of disappointment",
+        "zh": "仔细思考某事的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "consolidate",
+        "laos": "ລວມ",
+        "jp": "統合する",
+        "vie": "củng cố",
+        "en_pronunciation": "/kənˈsɑlɪˌdeɪt/",
+        "laos_pronunciation": "luam",
+        "jp_pronunciation": "tougou suru",
+        "vie_pronunciation": "cung co"
+      },
+      "means": {
+        "en": "Unite into one",
+        "zh": "认为是"
+      }
+    },
+    {
+      "word": {
+        "en": "consolidation",
+        "laos": "ການຮວບຮວມ",
+        "jp": "統合",
+        "vie": "sự hợp nhất",
+        "en_pronunciation": "/kənˌsɑləˈdeɪʃən/",
+        "laos_pronunciation": "kan huabhuam",
+        "jp_pronunciation": "tougou",
+        "vie_pronunciation": "su hop nhat"
+      },
+      "means": {
+        "en": "Combining into a solid mass",
+        "zh": "数量、金额、范围或程度大或相对大"
+      }
+    },
+    {
+      "word": {
+        "en": "conspicuous",
+        "laos": "ທີ່ຊັດເຈນ",
+        "jp": "目立つ",
+        "vie": "dễ thấy",
+        "en_pronunciation": "/kənˈspɪkjuəs/",
+        "laos_pronunciation": "thisadchen",
+        "jp_pronunciation": "medatsu",
+        "vie_pronunciation": "de thay"
+      },
+      "means": {
+        "en": "Obvious to the eye or mind",
+        "zh": "关心他人的权利和感受"
+      }
+    },
+    {
+      "word": {
+        "en": "conspire",
+        "laos": "ສົມຮູ້ຮ່ວມຄິດ",
+        "jp": "共謀する",
+        "vie": "âm mưu",
+        "en_pronunciation": "/kənˈspaɪər/",
+        "laos_pronunciation": "somhuhuamkhid",
+        "jp_pronunciation": "kyoubou suru",
+        "vie_pronunciation": "am muu"
+      },
+      "means": {
+        "en": "Engage in plotting or enter into a conspiracy, swear together",
+        "zh": "起源（中）"
+      }
+    },
+    {
+      "word": {
+        "en": "conspiracy",
+        "laos": "ການສົມຮູ້ຮ່ວມຄິດ",
+        "jp": "陰謀",
+        "vie": "âm mưu",
+        "en_pronunciation": "/kənˈspɪrəsi/",
+        "laos_pronunciation": "kansomhuhuamkhid",
+        "jp_pronunciation": "inbou",
+        "vie_pronunciation": "am muu"
+      },
+      "means": {
+        "en": "A secret agreement between two or more people to perform an unlawful act",
+        "zh": "（有时后跟“与”）一致或一致或可靠；"
+      }
+    },
+    {
+      "word": {
+        "en": "constant",
+        "laos": "ສະເຫມີ",
+        "jp": "定数",
+        "vie": "hằng số",
+        "en_pronunciation": "/ˈkɑnstənt/",
+        "laos_pronunciation": "sahemi",
+        "jp_pronunciation": "teisuu",
+        "vie_pronunciation": "hang so"
+      },
+      "means": {
+        "en": "A quantity that does not vary",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "constituent",
+        "laos": "ສ່ວນປະກອບ",
+        "jp": "構成要素",
+        "vie": "thành phần",
+        "en_pronunciation": "/kənˈstɪʧuənt/",
+        "laos_pronunciation": "suanpakob",
+        "jp_pronunciation": "kouseiyouso",
+        "vie_pronunciation": "thanh phan"
+      },
+      "means": {
+        "en": "An artifact that is one of the individual parts of which a composite entity is made up; especially a part that can be separated from or attached to a system",
+        "zh": "- 罗斯福"
+      }
+    },
+    {
+      "word": {
+        "en": "constituency",
+        "laos": "ເຂດເລືອກຕັ້ງ",
+        "jp": "選挙区",
+        "vie": "khu vực bầu cử",
+        "en_pronunciation": "/kənˈstɪʧuənsi/",
+        "laos_pronunciation": "khedleuoktang",
+        "jp_pronunciation": "senkyoku",
+        "vie_pronunciation": "khu vuc bau cu"
+      },
+      "means": {
+        "en": "The body of voters who elect a representative for their area",
+        "zh": "结合在一起并保持其形状的特性"
+      }
+    },
+    {
+      "word": {
+        "en": "constitute",
+        "laos": "ຜະເລກ",
+        "jp": "構成する",
+        "vie": "cấu thành",
+        "en_pronunciation": "/ˈkɑnstəˌtut/",
+        "laos_pronunciation": "phalek",
+        "jp_pronunciation": "kousei suru",
+        "vie_pronunciation": "cau thanh"
+      },
+      "means": {
+        "en": "Form or compose",
+        "zh": "固定在墙上或设计成靠墙站立的小桌子"
+      }
+    },
+    {
+      "word": {
+        "en": "constitution",
+        "laos": "ລັດຖະທໍາມະນູນ",
+        "jp": "憲法",
+        "vie": "hiến pháp",
+        "en_pronunciation": "/ˌkɑnstəˈtuʃən/",
+        "laos_pronunciation": "ladthathoamanun",
+        "jp_pronunciation": "kenpou",
+        "vie_pronunciation": "hien phap"
+      },
+      "means": {
+        "en": "Law determining the fundamental political principles of a government",
+        "zh": "当你在失望的时候得到安慰时所感受到的安慰"
+      }
+    },
+    {
+      "word": {
+        "en": "constitutional",
+        "laos": "ລັດຖະທໍາມະນູນ",
+        "jp": "憲法上の",
+        "vie": "hiến pháp",
+        "en_pronunciation": "/ˌkɑnstəˈtuʃənəl/",
+        "laos_pronunciation": "ladthathoamanun",
+        "jp_pronunciation": "kenpou ueno",
+        "vie_pronunciation": "hien phap"
+      },
+      "means": {
+        "en": "A regular walk taken as a form of exercise",
+        "zh": "合而为一"
+      }
+    },
+    {
+      "word": {
+        "en": "constrain",
+        "laos": "ລ້ອມຮອບ",
+        "jp": "制約する",
+        "vie": "hạn chế",
+        "en_pronunciation": "/kənˈstreɪn/",
+        "laos_pronunciation": "lomhob",
+        "jp_pronunciation": "seiyaku suru",
+        "vie_pronunciation": "han che"
+      },
+      "means": {
+        "en": "Hold back",
+        "zh": "结合成固体"
+      }
+    },
+    {
+      "word": {
+        "en": "constraint",
+        "laos": "ຂືນໃຈ",
+        "jp": "制約",
+        "vie": "hạn chế",
+        "en_pronunciation": "/kənˈstreɪnt/",
+        "laos_pronunciation": "khunchai",
+        "jp_pronunciation": "seiyaku",
+        "vie_pronunciation": "han che"
+      },
+      "means": {
+        "en": "The state of being physically constrained",
+        "zh": "肉眼或心灵显而易见"
+      }
+    },
+    {
+      "word": {
+        "en": "construct",
+        "laos": "ສ້າງສັນ",
+        "jp": "構築する",
+        "vie": "xây dựng",
+        "en_pronunciation": "/ˈkɑnstrəkt/",
+        "laos_pronunciation": "sangsan",
+        "jp_pronunciation": "kouchiku suru",
+        "vie_pronunciation": "xay dung"
+      },
+      "means": {
+        "en": "An abstract or general idea inferred or derived from specific instances",
+        "zh": "搞阴谋，一起发誓"
+      }
+    },
+    {
+      "word": {
+        "en": "construction",
+        "laos": "ການກໍ່ສ້າງ",
+        "jp": "建設",
+        "vie": "xây dựng",
+        "en_pronunciation": "/kənˈstrəkʃən/",
+        "laos_pronunciation": "kankosang",
+        "jp_pronunciation": "kensetsu",
+        "vie_pronunciation": "xay dung"
+      },
+      "means": {
+        "en": "The act of constructing something",
+        "zh": "两人或多人之间达成的一项非法行为的秘密协议"
+      }
+    },
+    {
+      "word": {
+        "en": "consulate",
+        "laos": "ສະຖານກົງສຸນ",
+        "jp": "領事館",
+        "vie": "lãnh sự quán",
+        "en_pronunciation": "/ˈkɑnsələt/",
+        "laos_pronunciation": "sathankongsun",
+        "jp_pronunciation": "ryoujikan",
+        "vie_pronunciation": "lanh su quan"
+      },
+      "means": {
+        "en": "Diplomatic building that serves as the residence or workplace of a consul",
+        "zh": "数量不变"
+      }
+    },
+    {
+      "word": {
+        "en": "consul",
+        "laos": "ກົງສູນ",
+        "jp": "領事",
+        "vie": "lãnh sự",
+        "en_pronunciation": "/ˈkɑnsəl/",
+        "laos_pronunciation": "kongsun",
+        "jp_pronunciation": "ryouji",
+        "vie_pronunciation": "lanh su"
+      },
+      "means": {
+        "en": "A diplomat appointed by a government to protect its commercial interests and help its citizens in a foreign country",
+        "zh": "一种工件，是组成复合实体的各个部分之一；"
+      }
+    },
+    {
+      "word": {
+        "en": "consult",
+        "laos": "ປຶກສາ",
+        "jp": "相談する",
+        "vie": "tham khảo ý kiến",
+        "en_pronunciation": "/kənˈsəlt/",
+        "laos_pronunciation": "puksa",
+        "jp_pronunciation": "soudan suru",
+        "vie_pronunciation": "tham khao y kien"
+      },
+      "means": {
+        "en": "Get or ask advice from",
+        "zh": "尤其是可以与系统分离或连接到系统的部件"
+      }
+    },
+    {
+      "word": {
+        "en": "consultation",
+        "laos": "ການປຶກສາຫາລື",
+        "jp": "相談",
+        "vie": "tư vấn",
+        "en_pronunciation": "/ˌkɑnsəlˈteɪʃən/",
+        "laos_pronunciation": "kanpuksahalu",
+        "jp_pronunciation": "soudan",
+        "vie_pronunciation": "tu van"
+      },
+      "means": {
+        "en": "A conference (usually with someone important)",
+        "zh": "选举本地区代表的选民团体"
+      }
+    },
+    {
+      "word": {
+        "en": "consultative",
+        "laos": "ທີ່ປຶກສາ",
+        "jp": "相談的な",
+        "vie": "tư vấn",
+        "en_pronunciation": "/kənˈsəltətɪv/",
+        "laos_pronunciation": "thipuksa",
+        "jp_pronunciation": "soudan tekina",
+        "vie_pronunciation": "tu van"
+      },
+      "means": {
+        "en": "Giving advice; ,",
+        "zh": "形成或撰写"
+      }
+    },
+    {
+      "word": {
+        "en": "consultant",
+        "laos": "ທີ່ປຶກສາ",
+        "jp": "コンサルタント",
+        "vie": "nhà tư vấn",
+        "en_pronunciation": "/kənˈsəltənt/",
+        "laos_pronunciation": "thipuksa",
+        "jp_pronunciation": "konsarutanto",
+        "vie_pronunciation": "nha tu van"
+      },
+      "means": {
+        "en": "An expert who gives advice",
+        "zh": "决定政府基本政治原则的法律"
+      }
+    },
+    {
+      "word": {
+        "en": "consume",
+        "laos": "ບໍລິໂພກ",
+        "jp": "消費する",
+        "vie": "tiêu thụ",
+        "en_pronunciation": "/kənˈsum/",
+        "laos_pronunciation": "boliophk",
+        "jp_pronunciation": "shouhi suru",
+        "vie_pronunciation": "tieu thu"
+      },
+      "means": {
+        "en": "Eat immoderately",
+        "zh": "定期散步作为一种锻炼形式"
+      }
+    },
+    {
+      "word": {
+        "en": "consumer",
+        "laos": "ຜູ້ບໍລິໂພກ",
+        "jp": "消費者",
+        "vie": "người tiêu dùng",
+        "en_pronunciation": "/kənˈsumər/",
+        "laos_pronunciation": "phuboliophk",
+        "jp_pronunciation": "shouhisha",
+        "vie_pronunciation": "nguoi tieu dung"
+      },
+      "means": {
+        "en": "A person who uses goods or services",
+        "zh": "阻止"
+      }
+    },
+    {
+      "word": {
+        "en": "consumption",
+        "laos": "ການບໍລິໂພກ",
+        "jp": "消費",
+        "vie": "tiêu thụ",
+        "en_pronunciation": "/kənˈsəmʃən/",
+        "laos_pronunciation": "kanboliophk",
+        "jp_pronunciation": "shouhi",
+        "vie_pronunciation": "tieu thu"
+      },
+      "means": {
+        "en": "The process of taking food into the body through the mouth (as by eating)",
+        "zh": "身体受到限制的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "contact",
+        "laos": "ຕິດຕໍ່",
+        "jp": "連絡先",
+        "vie": "liên hệ",
+        "en_pronunciation": "/ˈkɑnˌtækt/",
+        "laos_pronunciation": "tidto",
+        "jp_pronunciation": "renrakusaki",
+        "vie_pronunciation": "lien he"
+      },
+      "means": {
+        "en": "Close interaction",
+        "zh": "从具体实例推断或得出的抽象或一般想法"
+      }
+    },
+    {
+      "word": {
+        "en": "contagious",
+        "laos": "​ພະ​ຍາດຕິດ​ຕໍ່",
+        "jp": "伝染性の",
+        "vie": "truyền nhiễm",
+        "en_pronunciation": "/kənˈteɪʤəs/",
+        "laos_pronunciation": "pha nyad tidto",
+        "jp_pronunciation": "densen sei no",
+        "vie_pronunciation": "truyen nhiem"
+      },
+      "means": {
+        "en": "Easily diffused or spread as from one person to another",
+        "zh": "建造某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "contain",
+        "laos": "ບັນຈຸ",
+        "jp": "含む",
+        "vie": "chứa đựng",
+        "en_pronunciation": "/kənˈteɪn/",
+        "laos_pronunciation": "banchu",
+        "jp_pronunciation": "fukumu",
+        "vie_pronunciation": "chua dung"
+      },
+      "means": {
+        "en": "Include or contain; have as a component",
+        "zh": "作为领事官邸或工作场所的外交建筑"
+      }
+    },
+    {
+      "word": {
+        "en": "container",
+        "laos": "ພາຊະນະ",
+        "jp": "コンテナ",
+        "vie": "thùng chứa",
+        "en_pronunciation": "/kənˈteɪnər/",
+        "laos_pronunciation": "phasana",
+        "jp_pronunciation": "kontena",
+        "vie_pronunciation": "thung chua"
+      },
+      "means": {
+        "en": "Any object that can be used to hold things (especially a large metal boxlike object of standardized dimensions that can be loaded from one form of transport to another)",
+        "zh": "政府任命的外交官，负责保护其商业利益并帮助其在外国的公民"
+      }
+    },
+    {
+      "word": {
+        "en": "containment",
+        "laos": "ປະວັດ",
+        "jp": "封じ込め",
+        "vie": "ngăn chặn",
+        "en_pronunciation": "/kənˈteɪnmənt/",
+        "laos_pronunciation": "pavad",
+        "jp_pronunciation": "fuuji kome",
+        "vie_pronunciation": "ngan chan"
+      },
+      "means": {
+        "en": "A policy of creating strategic alliances in order to check the expansion of a hostile power or ideology or to force it to negotiate peacefully",
+        "zh": "获取或寻求建议"
+      }
+    },
+    {
+      "word": {
+        "en": "contaminate",
+        "laos": "ປົນເປື້ອນ",
+        "jp": "汚染する",
+        "vie": "làm ô uế",
+        "en_pronunciation": "/kənˈtæməˌneɪt/",
+        "laos_pronunciation": "ponpeuon",
+        "jp_pronunciation": "osen suru",
+        "vie_pronunciation": "lam o ue"
+      },
+      "means": {
+        "en": "Make impure",
+        "zh": "会议（通常是与重要的人）"
+      }
+    },
+    {
+      "word": {
+        "en": "contamination",
+        "laos": "ການປົນເປື້ອນ",
+        "jp": "汚染",
+        "vie": "ô nhiễm",
+        "en_pronunciation": "/kənˌtæməˈneɪʃən/",
+        "laos_pronunciation": "kan ponpeuon",
+        "jp_pronunciation": "osen",
+        "vie_pronunciation": "o nhiem"
+      },
+      "means": {
+        "en": "The state of being contaminated",
+        "zh": "提供建议；"
+      }
+    },
+    {
+      "word": {
+        "en": "contemplate",
+        "laos": "ຮ່ໍາເພິງ",
+        "jp": "熟考する",
+        "vie": "suy ngẫm",
+        "en_pronunciation": "/ˈkɑntəmˌpleɪt/",
+        "laos_pronunciation": "hoaphoeng",
+        "jp_pronunciation": "jukkou suru",
+        "vie_pronunciation": "suy ngam"
+      },
+      "means": {
+        "en": "Look at thoughtfully; observe deep in thought",
+        "zh": ","
+      }
+    },
+    {
+      "word": {
+        "en": "contemplation",
+        "laos": "ການຄິດໄລ່",
+        "jp": "熟考",
+        "vie": "suy ngẫm",
+        "en_pronunciation": "/ˌkɑntəmˈpleɪʃən/",
+        "laos_pronunciation": "kankhidlai",
+        "jp_pronunciation": "jukkou",
+        "vie_pronunciation": "suy ngam"
+      },
+      "means": {
+        "en": "A long and thoughtful observation",
+        "zh": "提供建议的专家"
+      }
+    },
+    {
+      "word": {
+        "en": "contemplative",
+        "laos": "ຄິດໃຈ",
+        "jp": "瞑想的な",
+        "vie": "chiêm nghiệm",
+        "en_pronunciation": "/kənˈtɛmplətɪv/",
+        "laos_pronunciation": "khidchai",
+        "jp_pronunciation": "meisouteki na",
+        "vie_pronunciation": "chiem nghiem"
+      },
+      "means": {
+        "en": "A person devoted to the contemplative life",
+        "zh": "饮食无节制"
+      }
+    },
+    {
+      "word": {
+        "en": "contemporary",
+        "laos": "ປະທານ",
+        "jp": "現代的な",
+        "vie": "đương đại",
+        "en_pronunciation": "/kənˈtɛmpərˌɛri/",
+        "laos_pronunciation": "pathan",
+        "jp_pronunciation": "gendaiteki na",
+        "vie_pronunciation": "duong dai"
+      },
+      "means": {
+        "en": "A person of nearly the same age as another",
+        "zh": "使用商品或服务的人"
+      }
+    },
+    {
+      "word": {
+        "en": "contempt",
+        "laos": "ດູຖູກ",
+        "jp": "軽蔑する",
+        "vie": "khinh miệt",
+        "en_pronunciation": "/kənˈtɛmpt/",
+        "laos_pronunciation": "duthuk",
+        "jp_pronunciation": "keibetsu suru",
+        "vie_pronunciation": "khinh miet"
+      },
+      "means": {
+        "en": "Lack of respect accompanied by a feeling of intense dislike",
+        "zh": "通过口腔将食物摄入体内的过程（如通过进食）"
+      }
+    }
+  ]
+}

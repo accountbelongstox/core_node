@@ -43,8 +43,13 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/linux_applications_list.sh"
-source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/super_launch_helper.sh"
+
+# Clear old NPM environment variable immediately
+if [ -n "$NPM_CONFIG_PREFIX" ]; then
+    unset NPM_CONFIG_PREFIX
+fi
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
@@ -445,6 +450,23 @@ Keywords=${exec_name};
     log_message "Launcher: /usr/local/super_scripts/${exec_name}.sh"
     log_message "Command: $exec_name"
 
+    # Fix permissions for AppImage installation directory
+    if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
+        log_message "Fixing permissions for AppImage installation: $install_dir"
+        fix_installation_permissions_from_common_functions "$install_dir" "755" "true" 2>&1 | while IFS= read -r line; do
+            log_message "$line"
+        done
+    fi
+
+    # Fix permissions for wrapper script
+    if [ -f "$wrapper_script" ]; then
+        if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
+            fix_installation_permissions_from_common_functions "$wrapper_script" "755" "true" 2>&1 | while IFS= read -r line; do
+                log_message "$line"
+            done
+        fi
+    fi
+
     return 0
 }
 
@@ -487,20 +509,27 @@ install_via_web() {
 # Function to fix npm global binary permissions
 fix_npm_permissions() {
     log_message "Fixing npm global binary permissions..."
-    
+
     # Get npm global bin directory
     local npm_global_bin
     npm_global_bin=$(npm config get prefix 2>/dev/null)
-    
+
     if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
         # Set executable permissions for all binaries in npm global bin directory
         $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
         log_message "Fixed executable permissions for all binaries in: $npm_global_bin/bin"
-        
+
         # Count how many binaries were fixed
         local binary_count=$(find "$npm_global_bin/bin" -type f -name "*" 2>/dev/null | wc -l)
         log_message "Fixed permissions for $binary_count npm global binaries"
-        
+
+        # Use new comprehensive permission fix function
+        if command -v fix_npm_global_permissions_from_common_functions >/dev/null 2>&1; then
+            fix_npm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
+                log_message "$line"
+            done
+        fi
+
         return 0
     else
         log_message "Warning: Could not determine npm global bin directory"
@@ -512,19 +541,31 @@ fix_npm_permissions() {
 install_via_npm() {
     local package_id="$1"
     local app_name="$2"
-    
+
     if ! command_exists npm; then
         log_message "npm is not installed. Cannot install $app_name"
         return 1
     fi
-    
+
     log_message "Installing $app_name via npm: $package_id"
     if timeout 300 npm install -g "$package_id"; then
         log_message "Successfully installed $app_name via npm"
-        
+
         # Fix permissions for npm global binaries
         fix_npm_permissions
-        
+
+        # Get npm global prefix and fix permissions for the specific package
+        local npm_global_prefix=$(npm config get prefix 2>/dev/null)
+        if [ -n "$npm_global_prefix" ]; then
+            # Fix permissions for the entire npm installation
+            if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
+                log_message "Fixing permissions for npm installation at: $npm_global_prefix"
+                fix_installation_permissions_from_common_functions "$npm_global_prefix" "755" "true" 2>&1 | while IFS= read -r line; do
+                    log_message "$line"
+                done
+            fi
+        fi
+
         return 0
     else
         log_message "Failed to install $app_name via npm"
@@ -719,7 +760,6 @@ install_application() {
     exec_name=$(get_app_property "$lookup_app" "exec")
     install_method=$(get_install_method "$lookup_app")
     package_id=$(get_package_id "$lookup_app")
-    launch_command=$(get_launch_command "$lookup_app")
     super_command=$(get_app_property "$lookup_app" "super")
     snap_confinement=$(get_snap_confinement "$lookup_app")
 
@@ -763,13 +803,7 @@ install_application() {
             create_launch_script "$lookup_app"
         fi
 
-        # Setup super launch if applicable
-        if [ "$should_use_super" = true ]; then
-            log_message "Setting up super launch for $exec_name"
-            setup_super_launch "$exec_name" "$super_command" "log_message"
-        fi
-
-        # For npm packages, also refresh the launch script and symlink
+        # For npm packages, refresh the symlink to point directly to npm binary
         if [ "$install_method" = "npm" ]; then
             log_message "Refreshing npm package links for $display_name"
             refresh_npm_package_links "$exec_name" "$lookup_app"
@@ -814,16 +848,15 @@ install_application() {
         return 0
     fi
 
-    # Create launch script if installation was successful and launch command exists
-    if [ $install_result -eq 0 ] && [ -n "$launch_command" ]; then
+    # Create direct symlink if installation was successful
+    if [ $install_result -eq 0 ]; then
         log_message "Creating launch script for $display_name"
         create_launch_script "$lookup_app"
-    fi
-
-    # Setup super launch if applicable
-    if [ $install_result -eq 0 ] && [ "$should_use_super" = true ]; then
-        log_message "Setting up super launch for $exec_name"
-        setup_super_launch "$exec_name" "$super_command" "log_message"
+        
+        # For npm packages, also refresh the direct symlink
+        if [ "$install_method" = "npm" ]; then
+            refresh_npm_package_links "$exec_name" "$lookup_app"
+        fi
     fi
 
     # Verify installation
@@ -1043,21 +1076,6 @@ print_installation_report() {
     fi
 
     log_message ""
-    if [ -d "/usr/local/super_scripts" ]; then
-        local super_script_files=($(ls -1 /usr/local/super_scripts 2>/dev/null || echo ""))
-        if [ ${#super_script_files[@]} -gt 0 ]; then
-            log_message "  Scripts in /usr/local/super_scripts (${#super_script_files[@]}):"
-            for file in "${super_script_files[@]}"; do
-                log_message "    - $file"
-            done
-        else
-            log_message "  /usr/local/super_scripts is empty"
-        fi
-    else
-        log_message "  /usr/local/super_scripts does not exist"
-    fi
-
-    log_message ""
     log_message "=========================================="
     
     # Refresh environment variables and shell configuration
@@ -1072,93 +1090,46 @@ refresh_npm_package_links() {
     
     # Get npm global bin directory
     local npm_global_bin=$(npm config get prefix 2>/dev/null)
-    if [ -z "$npm_global_bin" ] || [ ! -d "$npm_global_bin/bin" ]; then
-        log_message "Warning: Could not determine npm global bin directory for $exec_name"
-        return 1
+    local binary_path=""
+    
+    if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+        binary_path="$npm_global_bin/bin/$exec_name"
     fi
     
-    # Get application properties
-    local launch_command=$(get_launch_command "$lookup_app")
-    local package_id=$(get_package_id "$lookup_app")
-    
-    if [ -z "$launch_command" ]; then
-        log_message "No launch command found for $lookup_app, skipping link refresh"
-        return 0
-    fi
-    
-    # Check if the binary exists in npm global bin
-    local binary_path="$npm_global_bin/bin/$exec_name"
-    if [ ! -f "$binary_path" ]; then
-        log_message "Binary not found: $binary_path, skipping link refresh"
-        return 1
+    # Fallback to which if npm bin directory not available
+    if [ -z "$binary_path" ] || [ ! -e "$binary_path" ]; then
+        binary_path=$(which "$exec_name" 2>/dev/null)
+        if [ -z "$binary_path" ]; then
+            log_message "Warning: Could not find binary for $exec_name"
+            return 1
+        fi
     fi
     
     log_message "Refreshing links for npm package: $exec_name"
     
-    # Create super_scripts directory if it doesn't exist
-    if [ ! -d "/usr/local/super_scripts" ]; then
-        $USE_SUDO mkdir -p "/usr/local/super_scripts"
-        $USE_SUDO chmod 755 "/usr/local/super_scripts"
-    fi
+    # Create symbolic link in /usr/local/bin pointing directly to npm binary
+    local link_path="/usr/local/bin/$exec_name"
     
-    # Extract the actual command from launch_command (remove "which exec && $USE_SUDO")
-    local actual_command=$(echo "$launch_command" | sed 's/which [^&]* && \$USE_SUDO //')
-    
-    # For npm packages, replace relative paths with absolute paths
-    local processed_command="$actual_command"
-    if [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
-        # Extract the executable name after "node"
-        local node_exec=$(echo "$actual_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
-        if [ -n "$node_exec" ]; then
-            # Use absolute path to the npm binary (without $@ here, it will be added below)
-            processed_command="node $binary_path"
+    # Check if link already points to correct target
+    if [ -L "$link_path" ]; then
+        local current_target=$(readlink -f "$link_path")
+        local real_binary=$(readlink -f "$binary_path")
+        
+        if [ "$current_target" = "$real_binary" ]; then
+            log_message "Link already correct: $link_path -> $binary_path"
+            return 0
         fi
     fi
     
-    # Get itemkey if it exists (optional command argument)
-    local itemkey=$(get_itemkey "$lookup_app")
-    local final_command="$processed_command"
-    
-    # If itemkey exists, prepend it before user arguments
-    if [ -n "$itemkey" ]; then
-        # Add itemkey before user arguments ($@)
-        final_command="$processed_command $itemkey"
-    fi
-    
-    # Create launch script in super_scripts
-    local script_path="/usr/local/super_scripts/$exec_name"
-    
-    # Create the script content
-    cat > "/tmp/$exec_name" << EOF
-#!/bin/bash
-# Launch script for $lookup_app
-# Generated by 120_install_desktop_applications.sh
-# Package: $package_id
-
-# Add npm global bin to PATH
-export PATH="\$PATH:$npm_global_bin/bin"
-
-# Execute the launch command
-$final_command "\$@"
-EOF
-    
-    # Move script to super_scripts and make executable
-    $USE_SUDO mv "/tmp/$exec_name" "$script_path"
-    $USE_SUDO chmod +x "$script_path"
-    log_message "Created/updated script: $script_path"
-    
-    # Create symbolic link in /usr/local/bin
-    local link_path="/usr/local/bin/$exec_name"
-    
-    # Remove existing link if it exists
-    if [ -L "$link_path" ] || [ -f "$link_path" ]; then
+    # Remove existing link/file if it exists
+    if [ -e "$link_path" ] || [ -L "$link_path" ]; then
         $USE_SUDO rm -f "$link_path"
-        log_message "Removed existing link: $link_path"
+        log_message "Removed existing link/file: $link_path"
     fi
     
-    # Create new symbolic link
-    $USE_SUDO ln -s "$script_path" "$link_path"
-    log_message "Created/updated symbolic link: $link_path -> $script_path"
+    # Create new symbolic link directly to npm binary
+    $USE_SUDO ln -sf "$binary_path" "$link_path"
+    log_message "Created symbolic link: $link_path -> $binary_path"
     
     return 0
 }
@@ -1526,6 +1497,16 @@ handle_cleanup() {
 main() {
     local param1="$1"
     local param2="$2"
+
+    # Remove old installation directory
+    if command -v migrate_all_old_installations_from_common_functions >/dev/null 2>&1; then
+        log_message "=========================================="
+        log_message "Checking for old installations to migrate..."
+        log_message "=========================================="
+        migrate_all_old_installations_from_common_functions 2>&1 | while IFS= read -r line; do
+            log_message "$line"
+        done
+    fi
 
     # Always fix npm permissions first (regardless of what the script does)
     log_message "=========================================="

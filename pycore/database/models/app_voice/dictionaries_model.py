@@ -71,10 +71,10 @@ class VoiceDictionariesModel(BaseModel):
             sqlalchemy.Column('translation', sqlalchemy.JSON, nullable=True),
             sqlalchemy.Column('is_translation', sqlalchemy.Boolean, default=False, nullable=True),
             sqlalchemy.Column('translation_provider', sqlalchemy.Integer, default=0, nullable=True),
-            sqlalchemy.Column('last_modified', sqlalchemy.DateTime, default=datetime.utcnow, nullable=True),
-            sqlalchemy.Column('last_insert_time', sqlalchemy.DateTime, default=datetime.utcnow, nullable=True),
-            sqlalchemy.Column('last_update_time', sqlalchemy.DateTime, default=datetime.utcnow, nullable=True),
-            sqlalchemy.Column('last_query_time', sqlalchemy.DateTime, default=datetime.utcnow, nullable=True),
+            sqlalchemy.Column('last_modified', sqlalchemy.String(50), nullable=True),
+            sqlalchemy.Column('last_insert_time', sqlalchemy.String(50), nullable=True),
+            sqlalchemy.Column('last_update_time', sqlalchemy.String(50), nullable=True),
+            sqlalchemy.Column('last_query_time', sqlalchemy.String(50), nullable=True),
             sqlalchemy.Column('query_count', sqlalchemy.Integer, default=0, nullable=True),
             sqlalchemy.Column('us_phonetic', sqlalchemy.Text, nullable=True),
             sqlalchemy.Column('uk_phonetic', sqlalchemy.Text, nullable=True),
@@ -86,7 +86,7 @@ class VoiceDictionariesModel(BaseModel):
             sqlalchemy.Column('has_operations', sqlalchemy.Boolean, default=True, nullable=True),
             sqlalchemy.Column('is_valid', sqlalchemy.Boolean, nullable=True),
             sqlalchemy.Column('valid_provider', sqlalchemy.String(50), nullable=True),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
+            sqlalchemy.Column('created_at', sqlalchemy.String(50), nullable=False),
         )
 
     @classmethod

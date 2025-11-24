@@ -23,22 +23,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AppQyV1')->create('app_qy_v1_personal_dictionaries', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('uid')->comment('User ID');
-            $table->json('personal_dicts')->nullable()->comment('Personal Words Collection');
-            $table->timestamps();
-            $table->softDeletes();
+        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_personal_dictionaries')) {
+            Schema::connection('appqyv1')->create('app_qy_v1_personal_dictionaries', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('uid')->comment('User ID');
+                $table->json('personal_dicts')->nullable()->comment('Personal Words Collection');
+                $table->timestamps();
+                $table->softDeletes();
 
-            // Indexes
-            $table->index('uid');
+                // Indexes
+                $table->index('uid');
 
-            // Foreign key constraint
-            $table->foreign('uid')
-                  ->references('id')
-                  ->on('users')
-                  ->onDelete('cascade');
-        });
+                // Foreign key constraint
+                $table->foreign('uid')
+                      ->references('id')
+                      ->on('users')
+                      ->onDelete('cascade');
+            });
+        }
     }
 
     /**
@@ -46,6 +48,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_personal_dictionaries');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_personal_dictionaries');
     }
 };

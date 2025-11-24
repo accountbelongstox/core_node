@@ -179,35 +179,56 @@ check_directory_processing_cache() {
     local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
     local cache_expiry_seconds=86400  # 24 hours
     local current_time=$(date +%s)
-    
+
     if [ ! -d "$cache_dir" ]; then
         $sudo mkdir -p "$cache_dir"
         return 1
     fi
-    
+
     # Create cache key from directory path
     local cache_key=$(echo "$dir_path" | sha256sum | cut -d' ' -f1)
     local cache_file="$cache_dir/${cache_key}.dirprocessed"
-    
+
     if [ -s "$cache_file" ]; then
         local cache_timestamp=$(cat "$cache_file" 2>/dev/null)
         if [ -z "$cache_timestamp" ]; then
             cache_timestamp="0"
         fi
         local cache_age=$((current_time - cache_timestamp))
-        
-        # Check if cache is still valid
+
+        # Check if cache is still valid (not expired)
         if [ "$cache_age" -le "$cache_expiry_seconds" ]; then
-            # Also check if directory modification time hasn't changed
-            local current_dir_mtime=$(stat -c %Y "$dir_path" 2>/dev/null || echo "0")
-            local cached_dir_mtime=$(cat "$cache_dir/${cache_key}.dirmtime" 2>/dev/null || echo "0")
-            
-            if [ "$current_dir_mtime" = "$cached_dir_mtime" ]; then
-                return 0  # Cache hit - directory already processed and unchanged
+            # Smart file comparison: check if any .sh file is newer than cache
+            local newer_files_found=false
+            local newer_files_count=0
+
+            # Find all .sh files in directory (recursively)
+            while IFS= read -r -d '' sh_file; do
+                local file_mtime=$(stat -c %Y "$sh_file" 2>/dev/null || echo "0")
+                # If file modification time is greater than cache timestamp, need reprocessing
+                if [ "$file_mtime" -gt "$cache_timestamp" ]; then
+                    if [ "$newer_files_found" = false ]; then
+                        echo -e "\033[33m[CACHE INVALIDATED] Found files newer than cache:\033[0m"
+                        newer_files_found=true
+                    fi
+                    echo -e "\033[33m  - $(basename "$sh_file") (modified $(date -d @$file_mtime '+%Y-%m-%d %H:%M:%S'))\033[0m"
+                    ((newer_files_count++))
+                fi
+            done < <(find "$dir_path" -type f -name "*.sh" -print0 2>/dev/null)
+
+            if [ "$newer_files_found" = true ]; then
+                echo -e "\033[33m[CACHE MISS] $newer_files_count file(s) modified after cache - reprocessing needed\033[0m"
+                return 1  # Need to reprocess
+            else
+                local cache_date=$(date -d @$cache_timestamp '+%Y-%m-%d %H:%M:%S')
+                echo -e "\033[32m[CACHE HIT] All .sh files older than cache ($cache_date) - skipping dos2unix\033[0m"
+                return 0  # Cache hit - no files newer than cache
             fi
+        else
+            echo -e "\033[33m[CACHE EXPIRED] Cache age: ${cache_age}s (max: ${cache_expiry_seconds}s)\033[0m"
         fi
     fi
-    
+
     return 1  # Cache miss - directory needs processing
 }
 

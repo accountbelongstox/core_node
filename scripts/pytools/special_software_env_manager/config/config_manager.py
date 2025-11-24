@@ -39,12 +39,6 @@ class ConfigManager:
                         'Description': 'Anthropic API Key',
                         'Required': True
                     },
-                    {
-                        'Name': 'DISABLE_AUTOUPDATER',
-                        'Description': 'Disable Claude Code automatic updates (set to 1 to disable)',
-                        'Required': False,
-                        'DefaultValue': '1'
-                    }
                 ],
                 'MCPSupport': {
                     'Enabled': True,
@@ -368,6 +362,175 @@ class ConfigManager:
                 ],
                 'MCPSupport': {
                     'Enabled': True
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+<<<<<<< HEAD
+            'Local Test Credentials': {
+                'Common': 'local_test',
+                'DisplayName': 'Local Test Credentials',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'LOCAL_TEST_PASSWORD',
+                        'DisplayName': 'Local Test Password',
+                        'Description': 'Password for local testing environment',
+                        'InputType': 'Password',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_API_KEY',
+                        'DisplayName': 'Local Test API Key',
+                        'Description': 'API Key for local testing',
+=======
+            'DeepSeek': {
+                'Common': 'deepseek',
+                'DisplayName': 'DeepSeek',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'DEEPSEEK_API_KEY',
+                        'DisplayName': 'DeepSeek API Key',
+                        'Description': 'DeepSeek API Key',
+>>>>>>> e1d7e95da15e2eabf7ad0ba93803100cd03e534c
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+<<<<<<< HEAD
+                        'Name': 'LOCAL_TEST_SECRET_KEY',
+                        'DisplayName': 'Local Test Secret Key',
+                        'Description': 'Secret Key for local testing',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_ENCRYPTION_KEY',
+                        'DisplayName': 'Local Test Encryption Key',
+                        'Description': 'Encryption Key for local testing (32 bytes hex)',
+                        'InputType': 'Token',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_JWT_SECRET',
+                        'DisplayName': 'Local Test JWT Secret',
+                        'Description': 'JWT Secret for local testing authentication',
+                        'InputType': 'Token',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'LOCAL_TEST_DB_PASSWORD',
+                        'DisplayName': 'Local Test Database Password',
+                        'Description': 'Database password for local testing',
+                        'InputType': 'Password',
+=======
+                        'Name': 'DEEPSEEK_BASE_URL',
+                        'DisplayName': 'DeepSeek Base URL',
+                        'Description': 'DeepSeek API Base URL (default: https://api.deepseek.com)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Google AI Studio': {
+                'Common': 'google_aistudio',
+                'DisplayName': 'Google AI Studio',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'GOOGLE_API_KEY',
+                        'DisplayName': 'Google API Key',
+                        'Description': 'Google AI Studio API Key (Gemini)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'GOOGLE_PROJECT_NAME',
+                        'DisplayName': 'Google Project Name',
+                        'Description': 'Google Cloud Project Name (e.g., projects/556092724464)',
+                        'InputType': 'Text',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'GOOGLE_PROJECT_NUMBER',
+                        'DisplayName': 'Google Project Number',
+                        'Description': 'Google Cloud Project Number (e.g., 556092724464)',
+                        'InputType': 'Text',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'GOOGLE_BASE_URL',
+                        'DisplayName': 'Google AI Studio Base URL',
+                        'Description': 'Google AI Studio API Base URL',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'DuGouGole': {
+                'Common': 'dugougole',
+                'DisplayName': 'DuGouGole',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'DUGOUGOLE_API_KEY',
+                        'DisplayName': 'DuGouGole API Key',
+                        'Description': 'DuGouGole API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'DUGOUGOLE_BASE_URL',
+                        'DisplayName': 'DuGouGole Base URL',
+                        'Description': 'DuGouGole API Base URL',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Poxie': {
+                'Common': 'poxie',
+                'DisplayName': 'Poxie',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'POXIE_API_KEY',
+                        'DisplayName': 'Poxie API Key',
+                        'Description': 'Poxie API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'POXIE_BASE_URL',
+                        'DisplayName': 'Poxie Base URL',
+                        'Description': 'Poxie API Base URL',
+                        'InputType': 'Url',
+>>>>>>> e1d7e95da15e2eabf7ad0ba93803100cd03e534c
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
                 },
                 'SmartRecognition': {
                     'Enabled': False

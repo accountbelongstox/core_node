@@ -914,6 +914,9 @@ GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 
 # Function to map paths based on environment (using get_base_data_directory)
+# SYNC WARNING: This function MUST be kept in sync with:
+# - Python version: pycore/pyfoundations/system_paths.py::map_web_path()
+# - All mappings must produce identical results across Shell and Python
 map_web_path() {
     local path_key="$1"
     local sub_path="$2"
@@ -942,6 +945,12 @@ map_web_path() {
         "wwwroot")
             mapped_path="$base_path/wwwroot"
             ;;
+        "pycore_db")
+            mapped_path="$base_path/wwwroot/pycore_db"
+            ;;
+        "laravel_db")
+            mapped_path="$base_path/wwwroot/laravel_db"
+            ;;
         "nginxconfig")
             mapped_path="$base_path/nginxconfig"
             ;;
@@ -956,36 +965,23 @@ map_web_path() {
             ;;
         "compile_dir")
             # Compile directory for development languages
-            # Development (WSL/Desktop/NTFS): base_dir/_system_version (with underscore prefix)
-            # Production server: /usr/system_version
-            # Format: _ubuntu_24, _debian_12, _centos_8 (development) or ubuntu_24, debian_12 (production)
+            # All environments: _system_version (with underscore prefix)
+            # Format: _ubuntu_24, _debian_12, _centos_8
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-
-            # Check if this is development environment (same logic as get_core_node_project_root)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                # Development: base_dir/_system_version (with underscore prefix)
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/_${sys_name}_${sys_version}"
-            else
-                # Production server without desktop/NTFS: /usr/system_version
-                mapped_path="/usr/${sys_name}_${sys_version}"
-            fi
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}"
             ;;
         "applications_dir")
             # Applications directory - same location as compile_dir for consistency
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-
-            # Check if this is development environment (same logic as compile_dir)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                # Development: base_dir/_system_version/applications (with underscore prefix)
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
-            else
-                # Production server without desktop/NTFS: /usr/_core_node/applications
-                mapped_path="/usr/_core_node/applications"
-            fi
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version/applications for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
             ;;
         "nginx")
             # Keep /etc/nginx in Linux filesystem
@@ -1011,23 +1007,19 @@ map_web_path() {
             # NPM global packages directory (in compile_dir)
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
-            else
-                mapped_path="/usr/${sys_name}_${sys_version}/npm-global"
-            fi
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version/npm-global for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
             ;;
         "dev_system")
             # Development system directory (same as compile_dir)
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/_${sys_name}_${sys_version}"
-            else
-                mapped_path="/usr/${sys_name}_${sys_version}"
-            fi
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}"
             ;;
         "dev_system_old")
             # Old development system directory naming (dev_ubuntu24 style - no underscore prefix)
@@ -1661,8 +1653,8 @@ COMPILE_DIR=$(map_web_path "compile_dir")
 POETRY_HOME="$COMPILE_DIR/poetry"
 POETRY_LINK="$COMPILE_DIR/bin/poetry"
 NODE_INSTALL_DIR="$COMPILE_DIR/node"
-NODE_SHORT_VERSION="22"
-NODE_VERSION="v22.21.0"
+NODE_SHORT_VERSION="24"
+NODE_VERSION="v24.11.1"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
 NODE_BIN="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/node"
 

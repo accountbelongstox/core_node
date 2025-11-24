@@ -78,8 +78,7 @@ class DatabaseManager:
 
         # Auto-generate SQLite connection string if not provided
         if connection_string is None:
-            db_dir = map_web_path("www", "pycore_db")
-            db_dir.mkdir(parents=True, exist_ok=True)
+            db_dir = map_web_path("pycore_db")
             db_path = db_dir / f"{database_name}.db"
             connection_string = f"sqlite:///{db_path}"
 

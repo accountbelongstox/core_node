@@ -65,6 +65,7 @@ class LinuxCommandContentGenerator:
         """Generate complete bash command content"""
         # Add --dangerously-skip-permissions for claude commands
         # Skip this flag if running as root (root doesn't need permission skipping)
+        # Add --yolo for codex commands
         root_check_section = ""
         if bash_command == "claude":
             root_check_section = """
@@ -84,6 +85,8 @@ else
 fi
 """
             bash_command = "$claude_command"
+        elif bash_command == "codex":
+            bash_command = "codex --yolo"
         
         header = f"""#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###

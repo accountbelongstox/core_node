@@ -13,6 +13,7 @@
 'use strict';
 
 const logger = require('#@logger');
+const urlTool = require('#@ncore/foundation/utilities/urltool.js');
 
 class BaseUtils {
     constructor() {
@@ -82,14 +83,6 @@ class BaseUtils {
         );
     }
 
-    isValidUrl(url) {
-        try {
-            new URL(url);
-            return true;
-        } catch {
-            return false;
-        }
-    }
 
     sanitizeSelector(selector) {
         if (typeof selector !== 'string') {
@@ -144,6 +137,60 @@ class BaseUtils {
                 setTimeout(() => inThrottle = false, limit);
             }
         };
+    }
+
+    normalizeUrl(url) {
+        return urlTool.normalizeUrl(url);
+    }
+
+    isValidUrl(url) {
+        return urlTool.isHttpUrl(url);
+    }
+
+    generateFileName(url, options = {}) {
+        const prefix = options.prefix || 'file';
+        const extension = options.extension || '';
+        const timestamp = options.timestamp !== false;
+
+        let filename = urlTool.tofile(url, 'filename');
+
+        if (extension && !filename.endsWith(extension)) {
+            const dotExt = extension.startsWith('.') ? extension : `.${extension}`;
+            filename = filename.replace(/\.[^.]+$/, '') + dotExt;
+        }
+
+        if (timestamp) {
+            const timestampStr = Date.now();
+            const parts = filename.split('.');
+            if (parts.length > 1) {
+                const ext = parts.pop();
+                filename = parts.join('.') + `_${timestampStr}.${ext}`;
+            } else {
+                filename = `${filename}_${timestampStr}`;
+            }
+        }
+
+        return filename || `${prefix}_${Date.now()}${extension}`;
+    }
+
+    escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    parseContentType(contentType) {
+        if (!contentType) return { type: '', charset: '' };
+
+        const parts = contentType.split(';').map(p => p.trim());
+        const type = parts[0] || '';
+        const charsetMatch = contentType.match(/charset=([^;]+)/i);
+        const charset = charsetMatch ? charsetMatch[1].trim() : '';
+
+        return { type, charset };
+    }
+
+    getExtensionFromContentType(contentType) {
+        const { type } = this.parseContentType(contentType);
+        return urlTool.mimeToExtMap[type] || '';
     }
 }
 

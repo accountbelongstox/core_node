@@ -8,7 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('VipClubV1')->create('vipclubv1_bookings', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_bookings')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_bookings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('facility_id')->constrained('vipclubv1_facilities')->onDelete('cascade');
@@ -29,10 +30,11 @@ return new class extends Migration
             $table->index('booking_date');
             $table->index('status');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_bookings');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_bookings');
     }
 };

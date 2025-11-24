@@ -23,7 +23,6 @@ Supported MCP Servers:
 - MCPUnifiedServer: Unified MCP server (stdio transport)
 """
 
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -31,15 +30,13 @@ from typing import Dict, List, Optional
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# Add pycore to path for secret_manager
-sys.path.insert(0, str(PROJECT_ROOT / 'pycore'))
-
 
 def get_secret_value(key_name: str) -> Optional[str]:
     """Get secret value from secret manager"""
     try:
-        from pyfoundations.secret_manager import get_secret_key
-        return get_secret_key(key_name)
+        from .secret_manager import get_secret_key
+        value = get_secret_key(key_name)
+        return value if value else None
     except Exception as e:
         print(f"[WARNING] Could not load secret {key_name}: {e}")
         return None
@@ -75,31 +72,46 @@ class MCPConfigProvider:
         return PROJECT_ROOT
 
     @staticmethod
-    def get_context7_config() -> Optional[MCPConfig]:
+    def get_context7_config(target: str = "claude") -> Optional[MCPConfig]:
         """
-        Get Context7 MCP configuration (HTTP transport)
+        Get Context7 MCP configuration
+
+        Args:
+            target: Target AI tool (claude uses HTTP, codex uses stdio with npx)
 
         Returns:
-            MCPConfig if API key is available, None otherwise
+            MCPConfig with API key (if found) or empty string
         """
-        context7_api_key = get_secret_value("CONTEXT7_API_KEY")
+        context7_api_key = get_secret_value("CONTEXT7_API_KEY_1")
 
         if not context7_api_key:
             print(f"[WARNING] CONTEXT7_API_KEY not found in secret manager")
-            print(f"[INFO] Skipping Context7 MCP configuration")
-            return None
+            print(f"[INFO] Adding Context7 MCP with empty API key (can be configured later)")
+            context7_api_key = ""
+        else:
+            print(f"[INFO] Context7 API key loaded successfully")
 
-        print(f"[INFO] Context7 API key loaded successfully")
-
-        return MCPConfig(
-            name="context7",
-            transport_type="http",
-            url="https://mcp.context7.com/mcp",
-            headers={
-                "CONTEXT7_API_KEY": context7_api_key,
-                "Accept": "application/json, text/event-stream"
-            }
-        )
+        # Codex uses stdio with npx, Claude uses HTTP
+        if target.lower() == "codex":
+            # Codex format: codex mcp add context7 -- npx -y @upstash/context7-mcp
+            return MCPConfig(
+                name="context7",
+                transport_type="stdio",
+                command="npx",
+                args=["-y", "@upstash/context7-mcp"],
+                env={"CONTEXT7_API_KEY": context7_api_key} if context7_api_key else {}
+            )
+        else:
+            # Claude format: HTTP transport with headers
+            return MCPConfig(
+                name="context7",
+                transport_type="http",
+                url="https://mcp.context7.com/mcp",
+                headers={
+                    "CONTEXT7_API_KEY": context7_api_key,
+                    "Accept": "application/json, text/event-stream"
+                }
+            )
 
     @staticmethod
     def get_unified_server_config() -> MCPConfig:
@@ -112,14 +124,18 @@ class MCPConfigProvider:
         Returns:
             MCPConfig with relative path configuration
         """
-        # Use relative path from PROJECT_ROOT
-        # When executed from PROJECT_ROOT, this becomes: python3 pymain.py app=mcp
+        import sys
+
+        # Use current Python interpreter path
+        python_executable = sys.executable
+
+        # Use relative path for pymain.py (will be resolved to absolute by claude_sync_mcp_servers.py)
         pymain_relative = "pymain.py"
 
         return MCPConfig(
             name="unified",
             transport_type="stdio",
-            command="python3",
+            command=python_executable,
             args=[pymain_relative, "app=mcp"],
             env={"MCP_ALLOW_ALL_PATHS": "true"}
         )
@@ -140,8 +156,8 @@ class MCPConfigProvider:
         print(f"[INFO] Loading MCP configurations for {target}...")
         print()
 
-        # Context7 MCP (HTTP transport)
-        context7_config = cls.get_context7_config()
+        # Context7 MCP (HTTP for Claude, stdio with npx for Codex)
+        context7_config = cls.get_context7_config(target)
         if context7_config:
             configs.append(context7_config)
 

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.275076+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "community",
+        "laos": "ສັງຄົມ",
+        "jp": "コミュニティ",
+        "vie": "cộng đồng",
+        "en_pronunciation": "/kəmˈjunɪti/",
+        "laos_pronunciation": "sangkhom",
+        "jp_pronunciation": "komyunitei",
+        "vie_pronunciation": "cong dong"
+      },
+      "means": {
+        "en": "A group of people living in a particular local area",
+        "zh": "居住在特定地区的一群人"
+      }
+    },
+    {
+      "word": {
+        "en": "commute",
+        "laos": "ການເດີນທາງ",
+        "jp": "通勤",
+        "vie": "đi lại",
+        "en_pronunciation": "/kəmˈjut/",
+        "laos_pronunciation": "kandoenthang",
+        "jp_pronunciation": "tsuukin",
+        "vie_pronunciation": "di lai"
+      },
+      "means": {
+        "en": "A regular journey of some distance to and from your place of work",
+        "zh": "往返工作地点一段距离的定期旅行"
+      }
+    },
+    {
+      "word": {
+        "en": "commuter",
+        "laos": "ກອນ",
+        "jp": "通勤者",
+        "vie": "người đi lại",
+        "en_pronunciation": "/kəmˈjutər/",
+        "laos_pronunciation": "kon",
+        "jp_pronunciation": "tsuukinsha",
+        "vie_pronunciation": "nguoi di lai"
+      },
+      "means": {
+        "en": "A passenger train that is ridden primarily by passengers who travel regularly from one place to another",
+        "zh": "主要由定期从一个地方前往另一个地方的乘客乘坐的客运列车"
+      }
+    },
+    {
+      "word": {
+        "en": "compact",
+        "laos": "ປະສົມ",
+        "jp": "コンパクト",
+        "vie": "nhỏ gọn",
+        "en_pronunciation": "/ˈkɑmpækt/",
+        "laos_pronunciation": "pasom",
+        "jp_pronunciation": "konpakuto",
+        "vie_pronunciation": "nho gon"
+      },
+      "means": {
+        "en": "A small cosmetics case with a mirror; to be carried in a woman's purse",
+        "zh": "带镜子的小化妆盒；"
+      }
+    },
+    {
+      "word": {
+        "en": "companion",
+        "laos": "ສັມພັດ",
+        "jp": "仲間",
+        "vie": "bạn đồng hành",
+        "en_pronunciation": "/kəmˈpænjən/",
+        "laos_pronunciation": "samphad",
+        "jp_pronunciation": "nakama",
+        "vie_pronunciation": "ban dong hanh"
+      },
+      "means": {
+        "en": "A friend who is frequently in the company of another",
+        "zh": "放在女人的钱包里"
+      }
+    },
+    {
+      "word": {
+        "en": "companionship",
+        "laos": "ຄວາມເປັນເພື່ອນ",
+        "jp": "交友関係",
+        "vie": "tình bạn",
+        "en_pronunciation": "/kəmˈpænjənˌʃɪp/",
+        "laos_pronunciation": "khuaampenpheuon",
+        "jp_pronunciation": "kouyuukankei",
+        "vie_pronunciation": "tinh ban"
+      },
+      "means": {
+        "en": "The state of being with someone",
+        "zh": "经常与另一个人在一起的朋友"
+      }
+    },
+    {
+      "word": {
+        "en": "company",
+        "laos": "ປະຣິມານ",
+        "jp": "会社",
+        "vie": "công ty",
+        "en_pronunciation": "/ˈkəmpəˌni/",
+        "laos_pronunciation": "pariman",
+        "jp_pronunciation": "kaisha",
+        "vie_pronunciation": "cong ty"
+      },
+      "means": {
+        "en": "An institution created to conduct business",
+        "zh": "和某人在一起的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "compare",
+        "laos": "ປຽບທຽບ",
+        "jp": "比較する",
+        "vie": "so sánh",
+        "en_pronunciation": "/kəmˈpɛr/",
+        "laos_pronunciation": "piabthiab",
+        "jp_pronunciation": "hikaku suru",
+        "vie_pronunciation": "so sanh"
+      },
+      "means": {
+        "en": "Qualities that are comparable",
+        "zh": "为开展业务而设立的机构"
+      }
+    },
+    {
+      "word": {
+        "en": "comparison",
+        "laos": "ການປຽບທຽບ",
+        "jp": "比較",
+        "vie": "so sánh",
+        "en_pronunciation": "/kəmˈpɛrəsən/",
+        "laos_pronunciation": "kanpiabthiab",
+        "jp_pronunciation": "hikaku",
+        "vie_pronunciation": "so sanh"
+      },
+      "means": {
+        "en": "The act of examining resemblances",
+        "zh": "具有可比性的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "comparative",
+        "laos": "ລາຍລະອຽດ",
+        "jp": "比較",
+        "vie": "so sánh",
+        "en_pronunciation": "/kəmˈpærətɪv/",
+        "laos_pronunciation": "lailaoiad",
+        "jp_pronunciation": "hikaku",
+        "vie_pronunciation": "so sanh"
+      },
+      "means": {
+        "en": "The comparative form of an adjective or adverb",
+        "zh": "检查相似性的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "comparable",
+        "laos": "ທີ່ປຽບທຽບໄດ້",
+        "jp": "匹敵する",
+        "vie": "so sánh được",
+        "en_pronunciation": "/ˈkɑmprəbəl/",
+        "laos_pronunciation": "thi piabthiabdai",
+        "jp_pronunciation": "hitteki suru",
+        "vie_pronunciation": "so sanh duoc"
+      },
+      "means": {
+        "en": "Able to be compared or worthy of comparison",
+        "zh": "形容词或副词的比较级形式"
+      }
+    },
+    {
+      "word": {
+        "en": "compartment",
+        "laos": "ເຄື່ອງສໍາອາງ",
+        "jp": "コンパートメント",
+        "vie": "ngăn",
+        "en_pronunciation": "/kəmˈpɑrtmənt/",
+        "laos_pronunciation": "kheuongsoaoang",
+        "jp_pronunciation": "konpaatomento",
+        "vie_pronunciation": "ngan"
+      },
+      "means": {
+        "en": "A space into which an area is subdivided",
+        "zh": "能够比较或值得比较"
+      }
+    },
+    {
+      "word": {
+        "en": "compass",
+        "laos": "ເຂັມທິດ",
+        "jp": "コンパス",
+        "vie": "la bàn",
+        "en_pronunciation": "/ˈkəmpəs/",
+        "laos_pronunciation": "khemthid",
+        "jp_pronunciation": "konpasu",
+        "vie_pronunciation": "la ban"
+      },
+      "means": {
+        "en": "Navigational instrument for finding directions",
+        "zh": "区域被细分成的空间"
+      }
+    },
+    {
+      "word": {
+        "en": "compassion",
+        "laos": "ຄວາມເປັນໃຈ",
+        "jp": "思いやり",
+        "vie": "lòng trắc ẩn",
+        "en_pronunciation": "/kəmˈpæʃən/",
+        "laos_pronunciation": "khuaampenchai",
+        "jp_pronunciation": "omoiyari",
+        "vie_pronunciation": "long trac an"
+      },
+      "means": {
+        "en": "A deep awareness of and sympathy for another's suffering",
+        "zh": "用于寻找方向的导航仪器"
+      }
+    },
+    {
+      "word": {
+        "en": "compassionate",
+        "laos": "ຄວາມເຫັນອົກເຫັນໃຈ",
+        "jp": "思いやりのある",
+        "vie": "từ bi",
+        "en_pronunciation": "/kəmˈpæʃənət/",
+        "laos_pronunciation": "khuaamhen okhenchai",
+        "jp_pronunciation": "omoiyari noaru",
+        "vie_pronunciation": "tu bi"
+      },
+      "means": {
+        "en": "Share the suffering of",
+        "zh": "对他人痛苦的深刻认识和同情"
+      }
+    },
+    {
+      "word": {
+        "en": "compatible",
+        "laos": "ເຂົ້າກັນໄດ້",
+        "jp": "互換性のある",
+        "vie": "tương thích",
+        "en_pronunciation": "/kəmˈpætəbəl/",
+        "laos_pronunciation": "khaokandai",
+        "jp_pronunciation": "gokansei noaru",
+        "vie_pronunciation": "tuong thich"
+      },
+      "means": {
+        "en": "Able to exist and perform in harmonious or agreeable combination",
+        "zh": "分担痛苦"
+      }
+    },
+    {
+      "word": {
+        "en": "compatibility",
+        "laos": "ຄວາມເຂົ້າກັນໄດ້",
+        "jp": "互換性",
+        "vie": "khả năng tương thích",
+        "en_pronunciation": "/kəmˌpætəˈbɪləˌti/",
+        "laos_pronunciation": "khuaam khaokandai",
+        "jp_pronunciation": "gokansei",
+        "vie_pronunciation": "kha nang tuong thich"
+      },
+      "means": {
+        "en": "A feeling of sympathetic understanding",
+        "zh": "能够以和谐或愉快的组合存在和表现"
+      }
+    },
+    {
+      "word": {
+        "en": "compel",
+        "laos": "ບັງຄັບບັງ",
+        "jp": "強制する",
+        "vie": "ép buộc",
+        "en_pronunciation": "/kəmˈpɛl/",
+        "laos_pronunciation": "bangkhabbang",
+        "jp_pronunciation": "kyousei suru",
+        "vie_pronunciation": "ep buoc"
+      },
+      "means": {
+        "en": "Force somebody to do something",
+        "zh": "一种同情理解的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "compelling",
+        "laos": "ບັງຄັບ",
+        "jp": "説得力のある",
+        "vie": "thuyết phục",
+        "en_pronunciation": "/kəmˈpɛlɪŋ/",
+        "laos_pronunciation": "bangkhab",
+        "jp_pronunciation": "settokuryoku noaru",
+        "vie_pronunciation": "thuyet phuc"
+      },
+      "means": {
+        "en": "Force somebody to do something",
+        "zh": "强迫某人做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "compensate",
+        "laos": "ຊົດເຊີຍ",
+        "jp": "補償する",
+        "vie": "bù đắp",
+        "en_pronunciation": "/ˈkɑmpənˌseɪt/",
+        "laos_pronunciation": "sodsoeny",
+        "jp_pronunciation": "hoshou suru",
+        "vie_pronunciation": "bu dap"
+      },
+      "means": {
+        "en": "Adjust for",
+        "zh": "强迫某人做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "compensation",
+        "laos": "ການຊົດເຊີຍ",
+        "jp": "補償",
+        "vie": "bồi thường",
+        "en_pronunciation": "/ˌkɑmpənˈseɪʃən/",
+        "laos_pronunciation": "kansodsoeny",
+        "jp_pronunciation": "hoshou",
+        "vie_pronunciation": "boi thuong"
+      },
+      "means": {
+        "en": "Something (such as money) given or received as payment or reparation (as for a service or loss or injury)",
+        "zh": "调整为"
+      }
+    },
+    {
+      "word": {
+        "en": "compensatory",
+        "laos": "ຊົດເຊີຍ",
+        "jp": "代償的な",
+        "vie": "sự đền bù",
+        "en_pronunciation": "/kəmˈpɛnsəˌtɔri/",
+        "laos_pronunciation": "sodsoeny",
+        "jp_pronunciation": "daishou tekina",
+        "vie_pronunciation": "su den bu"
+      },
+      "means": {
+        "en": "Compensatory is an English word referring to 'compensatory'.",
+        "zh": "作为付款或赔偿（如服务或损失或伤害）而给予或收到的东西（例如金钱）"
+      }
+    },
+    {
+      "word": {
+        "en": "compete",
+        "laos": "ແຂ່ງຂັນ",
+        "jp": "競争する",
+        "vie": "cạnh tranh",
+        "en_pronunciation": "/kəmˈpit/",
+        "laos_pronunciation": "aekhngkhan",
+        "jp_pronunciation": "kyousou suru",
+        "vie_pronunciation": "canh tranh"
+      },
+      "means": {
+        "en": "Compete for something; engage in a contest; measure oneself against others",
+        "zh": "Compensatory是一个英文单词，意为“补偿”。"
+      }
+    },
+    {
+      "word": {
+        "en": "competition",
+        "laos": "ການແຂ່ງຂັນ",
+        "jp": "競争",
+        "vie": "sự cạnh tranh",
+        "en_pronunciation": "/ˌkɑmpəˈtɪʃən/",
+        "laos_pronunciation": "kanaekhngkhan",
+        "jp_pronunciation": "kyousou",
+        "vie_pronunciation": "su canh tranh"
+      },
+      "means": {
+        "en": "A business relation in which two parties compete to gain customers",
+        "zh": "为某事而竞争；"
+      }
+    },
+    {
+      "word": {
+        "en": "competitive",
+        "laos": "ການແຂ່ງຂັນ",
+        "jp": "競争力のある",
+        "vie": "cạnh tranh",
+        "en_pronunciation": "/kəmˈpɛtɪtɪv/",
+        "laos_pronunciation": "kanaekhngkhan",
+        "jp_pronunciation": "kyousouryoku noaru",
+        "vie_pronunciation": "canh tranh"
+      },
+      "means": {
+        "en": "Involving competition or competitiveness",
+        "zh": "参加比赛；"
+      }
+    },
+    {
+      "word": {
+        "en": "competitor",
+        "laos": "ຜູ່ຢິງແຂ່ງກັນ",
+        "jp": "競争相手",
+        "vie": "đối thủ cạnh tranh",
+        "en_pronunciation": "/kəmˈpɛtɪtər/",
+        "laos_pronunciation": "phu yingaekhngkan",
+        "jp_pronunciation": "kyousouaite",
+        "vie_pronunciation": "doi thu canh tranh"
+      },
+      "means": {
+        "en": "The contestant you hope to defeat",
+        "zh": "衡量自己与他人的比较"
+      }
+    },
+    {
+      "word": {
+        "en": "competent",
+        "laos": "ທີ່ມີຄວາມສາມາດ",
+        "jp": "有能な",
+        "vie": "có thẩm quyền",
+        "en_pronunciation": "/ˈkɑmpətɪnt/",
+        "laos_pronunciation": "thimikhuaamsamad",
+        "jp_pronunciation": "yuunou na",
+        "vie_pronunciation": "co tham quyen"
+      },
+      "means": {
+        "en": "Properly or sufficiently qualified or capable or efficient",
+        "zh": "两方竞争赢得客户的业务关系"
+      }
+    },
+    {
+      "word": {
+        "en": "competence",
+        "laos": "ຄວາມສາມາດ",
+        "jp": "能力",
+        "vie": "năng lực",
+        "en_pronunciation": "/ˈkɑmpətɪns/",
+        "laos_pronunciation": "khuaamsamad",
+        "jp_pronunciation": "nouryoku",
+        "vie_pronunciation": "nang luc"
+      },
+      "means": {
+        "en": "The quality of being adequately or well qualified physically and intellectually",
+        "zh": "涉及竞争或竞争"
+      }
+    },
+    {
+      "word": {
+        "en": "compile",
+        "laos": "ລວບລວມ",
+        "jp": "コンパイルする",
+        "vie": "biên soạn",
+        "en_pronunciation": "/kəmˈpaɪl/",
+        "laos_pronunciation": "luabluam",
+        "jp_pronunciation": "konpairu suru",
+        "vie_pronunciation": "bien soan"
+      },
+      "means": {
+        "en": "Get or gather together",
+        "zh": "你希望击败的参赛者"
+      }
+    },
+    {
+      "word": {
+        "en": "compilation",
+        "laos": "ການສະສົມ",
+        "jp": "編集",
+        "vie": "biên soạn",
+        "en_pronunciation": "/ˌkɑmpəˈleɪʃən/",
+        "laos_pronunciation": "kansasom",
+        "jp_pronunciation": "henshuu",
+        "vie_pronunciation": "bien soan"
+      },
+      "means": {
+        "en": "Something that is compiled (as into a single book or file)",
+        "zh": "适当或充分合格或有能力或高效"
+      }
+    },
+    {
+      "word": {
+        "en": "complacent",
+        "laos": "ທີ່ອິ່ມໃຈ",
+        "jp": "満足した",
+        "vie": "tự mãn",
+        "en_pronunciation": "/kəmˈpleɪsənt/",
+        "laos_pronunciation": "thi imchai",
+        "jp_pronunciation": "manzoku shita",
+        "vie_pronunciation": "tu man"
+      },
+      "means": {
+        "en": "Contented to a fault with oneself or one's actions",
+        "zh": "身体和智力上充分或良好的素质"
+      }
+    },
+    {
+      "word": {
+        "en": "complacency",
+        "laos": "ຄວາມອິ່ມໃຈ",
+        "jp": "自己満足",
+        "vie": "sự tự mãn",
+        "en_pronunciation": "/kəmˈpleɪsənsi/",
+        "laos_pronunciation": "khuaam imchai",
+        "jp_pronunciation": "jikomanzoku",
+        "vie_pronunciation": "su tu man"
+      },
+      "means": {
+        "en": "The feeling you have when you are satisfied with yourself",
+        "zh": "获得或聚集在一起"
+      }
+    },
+    {
+      "word": {
+        "en": "complain",
+        "laos": "ຮ້ອງທຸກ",
+        "jp": "不平を言う",
+        "vie": "phàn nàn",
+        "en_pronunciation": "/kəmˈpleɪn/",
+        "laos_pronunciation": "hongthuk",
+        "jp_pronunciation": "fuhei wo iu",
+        "vie_pronunciation": "phan nan"
+      },
+      "means": {
+        "en": "Express complaints, discontent, displeasure, or unhappiness",
+        "zh": "被编译的东西（如一本书或文件）"
+      }
+    },
+    {
+      "word": {
+        "en": "complaint",
+        "laos": "ຄໍາຮ້ອງທຸກ",
+        "jp": "苦情",
+        "vie": "phàn nàn",
+        "en_pronunciation": "/kəmˈpleɪnt/",
+        "laos_pronunciation": "khoahongthuk",
+        "jp_pronunciation": "kujou",
+        "vie_pronunciation": "phan nan"
+      },
+      "means": {
+        "en": "An often persistent bodily disorder or disease; a cause for complaining",
+        "zh": "对自己或他人的行为有过错感到满意"
+      }
+    },
+    {
+      "word": {
+        "en": "complement",
+        "laos": "ລາຍລະອຽດ",
+        "jp": "補完する",
+        "vie": "bổ sung",
+        "en_pronunciation": "/ˈkɑmpləmənt/",
+        "laos_pronunciation": "lailaoiad",
+        "jp_pronunciation": "hokan suru",
+        "vie_pronunciation": "bo sung"
+      },
+      "means": {
+        "en": "A word or phrase used to complete a grammatical construction",
+        "zh": "当你对自己感到满意时的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "complementary",
+        "laos": "ການປະກັນ",
+        "jp": "補完的な",
+        "vie": "bổ sung",
+        "en_pronunciation": "/ˌkɑmpləˈmɛnʧi/",
+        "laos_pronunciation": "kanpakan",
+        "jp_pronunciation": "hokanteki na",
+        "vie_pronunciation": "bo sung"
+      },
+      "means": {
+        "en": "Either one of two chromatic colors that when mixed together give white (in the case of lights) or grey (in the case of pigments)",
+        "zh": "表达抱怨、不满、不满或不高兴"
+      }
+    },
+    {
+      "word": {
+        "en": "complete",
+        "laos": "ສົມບູນ",
+        "jp": "完了",
+        "vie": "hoàn thành",
+        "en_pronunciation": "/kəmˈplit/",
+        "laos_pronunciation": "sombun",
+        "jp_pronunciation": "kanryou",
+        "vie_pronunciation": "hoan thanh"
+      },
+      "means": {
+        "en": "Come or bring to a finish or an end",
+        "zh": "经常持续存在的身体失调或疾病；"
+      }
+    },
+    {
+      "word": {
+        "en": "completion",
+        "laos": "ການສໍາເລັດ",
+        "jp": "完成",
+        "vie": "hoàn thành",
+        "en_pronunciation": "/kəmˈpliʃən/",
+        "laos_pronunciation": "kansoaled",
+        "jp_pronunciation": "kansei",
+        "vie_pronunciation": "hoan thanh"
+      },
+      "means": {
+        "en": "(American football) a successful forward pass in football",
+        "zh": "抱怨的理由"
+      }
+    },
+    {
+      "word": {
+        "en": "complex",
+        "laos": "ສະລັບສັບຊ້ອນ",
+        "jp": "複雑な",
+        "vie": "phức tạp",
+        "en_pronunciation": "/ˈkɑmplɛks/",
+        "laos_pronunciation": "sa labsabson",
+        "jp_pronunciation": "fukuzatsu na",
+        "vie_pronunciation": "phuc tap"
+      },
+      "means": {
+        "en": "A conceptual whole made up of complicated and related parts",
+        "zh": "用于完成语法结构的单词或短语"
+      }
+    },
+    {
+      "word": {
+        "en": "complexity",
+        "laos": "ຄວາມສັບສົນ",
+        "jp": "複雑さ",
+        "vie": "sự phức tạp",
+        "en_pronunciation": "/kəmˈplɛksɪti/",
+        "laos_pronunciation": "khuaamsabson",
+        "jp_pronunciation": "fukuzatsusa",
+        "vie_pronunciation": "su phuc tap"
+      },
+      "means": {
+        "en": "The quality of being intricate and compounded",
+        "zh": "两种彩色中的一种，混合在一起时会产生白色（在灯光的情况下）或灰色（在颜料的情况下）"
+      }
+    },
+    {
+      "word": {
+        "en": "complexion",
+        "laos": "ຜິວພັນ",
+        "jp": "顔色",
+        "vie": "nước da",
+        "en_pronunciation": "/kəmˈplɛkʃən/",
+        "laos_pronunciation": "phiuaphan",
+        "jp_pronunciation": "kaoiro",
+        "vie_pronunciation": "nuoc da"
+      },
+      "means": {
+        "en": "The coloring of a person's face",
+        "zh": "来或结束或结束"
+      }
+    },
+    {
+      "word": {
+        "en": "complicate",
+        "laos": "ເຮັດໃຫ້ຫຢົ້ງ",
+        "jp": "複雑にする",
+        "vie": "làm phức tạp",
+        "en_pronunciation": "/ˈkɑmpləˌkeɪt/",
+        "laos_pronunciation": "hedhai hyong",
+        "jp_pronunciation": "fukuzatsu nisuru",
+        "vie_pronunciation": "lam phuc tap"
+      },
+      "means": {
+        "en": "Make more complicated",
+        "zh": "（美式橄榄球）橄榄球运动中成功的前传"
+      }
+    },
+    {
+      "word": {
+        "en": "complicated",
+        "laos": "ສັບສົນ",
+        "jp": "複雑な",
+        "vie": "phức tạp",
+        "en_pronunciation": "/ˈkɑmpləˌkeɪtəd/",
+        "laos_pronunciation": "sabson",
+        "jp_pronunciation": "fukuzatsu na",
+        "vie_pronunciation": "phuc tap"
+      },
+      "means": {
+        "en": "Make more complicated",
+        "zh": "由复杂且相关的部分组成的概念整体"
+      }
+    },
+    {
+      "word": {
+        "en": "complication",
+        "laos": "ການເຮັດໃຫ້ຫຢົ້ງ",
+        "jp": "合併症",
+        "vie": "sự phức tạp",
+        "en_pronunciation": "/ˌkɑmpləˈkeɪʃən/",
+        "laos_pronunciation": "kanhedhai hyong",
+        "jp_pronunciation": "gappeishou",
+        "vie_pronunciation": "su phuc tap"
+      },
+      "means": {
+        "en": "The act or process of complicating",
+        "zh": "错综复杂的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "compliment",
+        "laos": "ການຍ້ອງຍໍ",
+        "jp": "褒める",
+        "vie": "khen ngợi",
+        "en_pronunciation": "/ˈkɑmpləmɛnt/",
+        "laos_pronunciation": "kannyongnyo",
+        "jp_pronunciation": "home ru",
+        "vie_pronunciation": "khen ngoi"
+      },
+      "means": {
+        "en": "A remark (or act) expressing praise and admiration",
+        "zh": "人脸的颜色"
+      }
+    },
+    {
+      "word": {
+        "en": "complimentary",
+        "laos": "ການຍ້ອງຍໍ",
+        "jp": "無料",
+        "vie": "miễn phí",
+        "en_pronunciation": "/ˌkɑmpləˈmɛntəri/",
+        "laos_pronunciation": "kannyongnyo",
+        "jp_pronunciation": "muryou",
+        "vie_pronunciation": "mien phi"
+      },
+      "means": {
+        "en": "Conveying or resembling a compliment",
+        "zh": "让事情变得更复杂"
+      }
+    },
+    {
+      "word": {
+        "en": "comply",
+        "laos": "ພໍດີຮູ້",
+        "jp": "従う",
+        "vie": "tuân theo",
+        "en_pronunciation": "/kəmˈplaɪ/",
+        "laos_pronunciation": "phodihu",
+        "jp_pronunciation": "shitagau",
+        "vie_pronunciation": "tuan theo"
+      },
+      "means": {
+        "en": "Act in accordance with someone's rules, commands, or wishes",
+        "zh": "让事情变得更复杂"
+      }
+    },
+    {
+      "word": {
+        "en": "compliance",
+        "laos": "ການປະຕິບັດຕາມ",
+        "jp": "コンプライアンス",
+        "vie": "tuân thủ",
+        "en_pronunciation": "/kəmˈplaɪəns/",
+        "laos_pronunciation": "kanpatibadtam",
+        "jp_pronunciation": "konpuraiansu",
+        "vie_pronunciation": "tuan thu"
+      },
+      "means": {
+        "en": "Acting according to certain accepted standards",
+        "zh": "使事情复杂化的行为或过程"
+      }
+    },
+    {
+      "word": {
+        "en": "component",
+        "laos": "ສ່ວນປະກອບ",
+        "jp": "コンポーネント",
+        "vie": "thành phần",
+        "en_pronunciation": "/kəmˈpoʊnənt/",
+        "laos_pronunciation": "suanpakob",
+        "jp_pronunciation": "konpoonento",
+        "vie_pronunciation": "thanh phan"
+      },
+      "means": {
+        "en": "An abstract part of something",
+        "zh": "表达赞扬和钦佩的言论（或行为）"
+      }
+    },
+    {
+      "word": {
+        "en": "compose",
+        "laos": "ປະຣິໂພກ",
+        "jp": "作曲する",
+        "vie": "soạn",
+        "en_pronunciation": "/kəmˈpoʊz/",
+        "laos_pronunciation": "pariophk",
+        "jp_pronunciation": "sakkyoku suru",
+        "vie_pronunciation": "soan"
+      },
+      "means": {
+        "en": "Form the substance of",
+        "zh": "传达或类似赞美"
+      }
+    },
+    {
+      "word": {
+        "en": "composition",
+        "laos": "ການປະກອບ",
+        "jp": "構成",
+        "vie": "thành phần",
+        "en_pronunciation": "/ˌkɑmpəˈzɪʃən/",
+        "laos_pronunciation": "kanpakob",
+        "jp_pronunciation": "kousei",
+        "vie_pronunciation": "thanh phan"
+      },
+      "means": {
+        "en": "The spatial property resulting from the arrangement of parts in relation to each other and to the whole",
+        "zh": "按照某人的规则、命令或愿望行事"
+      }
+    },
+    {
+      "word": {
+        "en": "composer",
+        "laos": "ປະດາ",
+        "jp": "作曲家",
+        "vie": "nhà soạn nhạc",
+        "en_pronunciation": "/kəmˈpoʊzər/",
+        "laos_pronunciation": "pada",
+        "jp_pronunciation": "sakkyokuka",
+        "vie_pronunciation": "nha soan nhac"
+      },
+      "means": {
+        "en": "Someone who composes music as a profession",
+        "zh": "根据某些公认的标准行事"
+      }
+    },
+    {
+      "word": {
+        "en": "composite",
+        "laos": "ປະສົມ",
+        "jp": "複合材",
+        "vie": "tổng hợp",
+        "en_pronunciation": "/kəmˈpɑzət/",
+        "laos_pronunciation": "pasom",
+        "jp_pronunciation": "fukugouzai",
+        "vie_pronunciation": "tong hop"
+      },
+      "means": {
+        "en": "A conceptual whole made up of complicated and related parts",
+        "zh": "某物的抽象部分"
+      }
+    },
+    {
+      "word": {
+        "en": "compound",
+        "laos": "ປະສົມ",
+        "jp": "化合物",
+        "vie": "hợp chất",
+        "en_pronunciation": "/ˈkɑmpaʊnd/",
+        "laos_pronunciation": "pasom",
+        "jp_pronunciation": "kagoubutsu",
+        "vie_pronunciation": "hop chat"
+      },
+      "means": {
+        "en": "A whole formed by a union of two or more elements or parts",
+        "zh": "形成以下物质"
+      }
+    },
+    {
+      "word": {
+        "en": "comprehend",
+        "laos": "ເຂົ້າໃຈ",
+        "jp": "理解する",
+        "vie": "hiểu",
+        "en_pronunciation": "/ˌkɑmpriˈhɛnd/",
+        "laos_pronunciation": "khaochai",
+        "jp_pronunciation": "rikai suru",
+        "vie_pronunciation": "hieu"
+      },
+      "means": {
+        "en": "Get the meaning of something",
+        "zh": "部分相对于彼此以及相对于整体的排列所产生的空间属性"
+      }
+    },
+    {
+      "word": {
+        "en": "comprehension",
+        "laos": "ຄວາມເຂົ້າໃຈ",
+        "jp": "理解",
+        "vie": "sự hiểu biết",
+        "en_pronunciation": "/ˌkɑmpriˈhɛnʃən/",
+        "laos_pronunciation": "khuaamkhaochai",
+        "jp_pronunciation": "rikai",
+        "vie_pronunciation": "su hieu biet"
+      },
+      "means": {
+        "en": "An ability to understand the meaning or importance of something (or the knowledge acquired as a result)",
+        "zh": "以作曲为职业的人"
+      }
+    },
+    {
+      "word": {
+        "en": "comprehensive",
+        "laos": "ທີ່ສົມບູນແບບ",
+        "jp": "包括的な",
+        "vie": "toàn diện",
+        "en_pronunciation": "/ˌkɑmpriˈhɛnsɪv/",
+        "laos_pronunciation": "thisombunaebb",
+        "jp_pronunciation": "houkatsuteki na",
+        "vie_pronunciation": "toan dien"
+      },
+      "means": {
+        "en": "An intensive examination testing a student's proficiency in some special field of knowledge",
+        "zh": "由复杂且相关的部分组成的概念整体"
+      }
+    },
+    {
+      "word": {
+        "en": "compress",
+        "laos": "ບີບນົມ",
+        "jp": "圧縮する",
+        "vie": "nén",
+        "en_pronunciation": "/ˈkɑmprɛs/",
+        "laos_pronunciation": "bibnom",
+        "jp_pronunciation": "asshuku suru",
+        "vie_pronunciation": "nen"
+      },
+      "means": {
+        "en": "A cloth pad or dressing (with or without medication) applied firmly to some part of the body (to relieve discomfort or reduce fever)",
+        "zh": "由两个或多个元素或部分联合形成的整体"
+      }
+    },
+    {
+      "word": {
+        "en": "compression",
+        "laos": "ການບີບອັດ",
+        "jp": "圧縮",
+        "vie": "nén",
+        "en_pronunciation": "/kəmˈprɛʃən/",
+        "laos_pronunciation": "kan bibad",
+        "jp_pronunciation": "asshuku",
+        "vie_pronunciation": "nen"
+      },
+      "means": {
+        "en": "An increase in the density of something",
+        "zh": "获得某事的意义"
+      }
+    },
+    {
+      "word": {
+        "en": "comprise",
+        "laos": "ປະກອບ",
+        "jp": "含む",
+        "vie": "bao gồm",
+        "en_pronunciation": "/kəmˈpraɪz/",
+        "laos_pronunciation": "pakob",
+        "jp_pronunciation": "fukumu",
+        "vie_pronunciation": "bao gom"
+      },
+      "means": {
+        "en": "Be composed of",
+        "zh": "理解某事物的意义或重要性（或由此获得的知识）的能力"
+      }
+    },
+    {
+      "word": {
+        "en": "compromise",
+        "laos": "ການປະນອມກັນ",
+        "jp": "妥協",
+        "vie": "thỏa hiệp",
+        "en_pronunciation": "/ˈkɑmprəˌmaɪz/",
+        "laos_pronunciation": "kan pa nomkan",
+        "jp_pronunciation": "dakyou",
+        "vie_pronunciation": "thoa hiep"
+      },
+      "means": {
+        "en": "A middle way between two extremes",
+        "zh": "测试学生在某些特殊领域知识的熟练程度的强化考试"
+      }
+    },
+    {
+      "word": {
+        "en": "compulsory",
+        "laos": "ບັງຄັບ",
+        "jp": "強制的",
+        "vie": "bắt buộc",
+        "en_pronunciation": "/kəmˈpəlsəri/",
+        "laos_pronunciation": "bangkhab",
+        "jp_pronunciation": "kyouseiteki",
+        "vie_pronunciation": "bat buoc"
+      },
+      "means": {
+        "en": "Required by rule",
+        "zh": "将布垫或敷料（含或不含药物）牢固地涂在身体的某些部位（以缓解不适或退烧）"
+      }
+    },
+    {
+      "word": {
+        "en": "compute",
+        "laos": "ຄໍາຄິດ",
+        "jp": "計算する",
+        "vie": "tính toán",
+        "en_pronunciation": "/kəmˈpjut/",
+        "laos_pronunciation": "khoakhid",
+        "jp_pronunciation": "keisan suru",
+        "vie_pronunciation": "tinh toan"
+      },
+      "means": {
+        "en": "Make a mathematical calculation or computation",
+        "zh": "某物密度的增加"
+      }
+    },
+    {
+      "word": {
+        "en": "computer",
+        "laos": "ຫ້ອງຄອມພິວເຕີ",
+        "jp": "コンピュータ",
+        "vie": "máy tính",
+        "en_pronunciation": "/kəmˈpjutər/",
+        "laos_pronunciation": "hongkhomphiuatoe",
+        "jp_pronunciation": "konpyuuta",
+        "vie_pronunciation": "may tinh"
+      },
+      "means": {
+        "en": "A machine for performing calculations automatically",
+        "zh": "组成为"
+      }
+    },
+    {
+      "word": {
+        "en": "computerize",
+        "laos": "ຄອມພິວເຕີໃນຄອມພີວເຕີ້",
+        "jp": "コンピュータ化する",
+        "vie": "vi tính hóa",
+        "en_pronunciation": "/kəmˈpjutərˌaɪz/",
+        "laos_pronunciation": "khomphiuatoe naikhomphiuatoe",
+        "jp_pronunciation": "konpyuuta kasu ru",
+        "vie_pronunciation": "vi tinh hoa"
+      },
+      "means": {
+        "en": "Provide with computers",
+        "zh": "两个极端之间的中间道路"
+      }
+    },
+    {
+      "word": {
+        "en": "computerise",
+        "laos": "ຄອມພິວເຕີໃນຄອມພີວເຕີ້",
+        "jp": "コンピュータ化する",
+        "vie": "vi tính hóa",
+        "en_pronunciation": "/computerise/",
+        "laos_pronunciation": "khomphiuatoe naikhomphiuatoe",
+        "jp_pronunciation": "konpyuuta kasu ru",
+        "vie_pronunciation": "vi tinh hoa"
+      },
+      "means": {
+        "en": "Provide with computers",
+        "zh": "按规则要求"
+      }
+    },
+    {
+      "word": {
+        "en": "computation",
+        "laos": "ຄະຄິດ",
+        "jp": "計算",
+        "vie": "tính toán",
+        "en_pronunciation": "/ˌkɑmpjəˈteɪʃən/",
+        "laos_pronunciation": "khakhid",
+        "jp_pronunciation": "keisan",
+        "vie_pronunciation": "tinh toan"
+      },
+      "means": {
+        "en": "The procedure of calculating; determining something by mathematical or logical methods",
+        "zh": "进行数学计算或计算"
+      }
+    },
+    {
+      "word": {
+        "en": "comrade",
+        "laos": "ເພື່ອນ",
+        "jp": "同志",
+        "vie": "đồng chí",
+        "en_pronunciation": "/ˈkɑmˌræd/",
+        "laos_pronunciation": "pheuon",
+        "jp_pronunciation": "doushi",
+        "vie_pronunciation": "dong chi"
+      },
+      "means": {
+        "en": "A friend who is frequently in the company of another",
+        "zh": "自动执行计算的机器"
+      }
+    },
+    {
+      "word": {
+        "en": "conceal",
+        "laos": "ງໍາ",
+        "jp": "隠す",
+        "vie": "che giấu",
+        "en_pronunciation": "/kənˈsil/",
+        "laos_pronunciation": "ngoa",
+        "jp_pronunciation": "kakusu",
+        "vie_pronunciation": "che giau"
+      },
+      "means": {
+        "en": "Prevent from being seen or discovered",
+        "zh": "提供电脑"
+      }
+    },
+    {
+      "word": {
+        "en": "concealment",
+        "laos": "ການປິດບັງ",
+        "jp": "隠蔽",
+        "vie": "sự che giấu",
+        "en_pronunciation": "/kənˈsilmənt/",
+        "laos_pronunciation": "kanpidbang",
+        "jp_pronunciation": "inpei",
+        "vie_pronunciation": "su che giau"
+      },
+      "means": {
+        "en": "The condition of being concealed or hidden",
+        "zh": "提供电脑"
+      }
+    },
+    {
+      "word": {
+        "en": "concede",
+        "laos": "ຢອມຮັບ",
+        "jp": "譲歩する",
+        "vie": "thừa nhận",
+        "en_pronunciation": "/kənˈsid/",
+        "laos_pronunciation": "yomhab",
+        "jp_pronunciation": "jouho suru",
+        "vie_pronunciation": "thua nhan"
+      },
+      "means": {
+        "en": "Admit (to a wrongdoing)",
+        "zh": "计算过程；"
+      }
+    },
+    {
+      "word": {
+        "en": "concession",
+        "laos": "ສໍາປະທານ",
+        "jp": "譲歩",
+        "vie": "nhượng bộ",
+        "en_pronunciation": "/kənˈsɛʃən/",
+        "laos_pronunciation": "soapathan",
+        "jp_pronunciation": "jouho",
+        "vie_pronunciation": "nhuong bo"
+      },
+      "means": {
+        "en": "A contract granting the right to operate a subsidiary business",
+        "zh": "用数学或逻辑方法确定某事"
+      }
+    },
+    {
+      "word": {
+        "en": "conceit",
+        "laos": "ສັບສົນ",
+        "jp": "うぬぼれ",
+        "vie": "tự phụ",
+        "en_pronunciation": "/kənˈsit/",
+        "laos_pronunciation": "sabson",
+        "jp_pronunciation": "unubore",
+        "vie_pronunciation": "tu phu"
+      },
+      "means": {
+        "en": "Feelings of excessive pride",
+        "zh": "经常与另一个人在一起的朋友"
+      }
+    },
+    {
+      "word": {
+        "en": "conceited",
+        "laos": "ທີ່ອວດດີ",
+        "jp": "うぬぼれている",
+        "vie": "tự phụ",
+        "en_pronunciation": "/kənˈsitəd/",
+        "laos_pronunciation": "thi vddi",
+        "jp_pronunciation": "unuboreteiru",
+        "vie_pronunciation": "tu phu"
+      },
+      "means": {
+        "en": "Characteristic of false pride; having an exaggerated sense of self-importance",
+        "zh": "防止被看见或发现"
+      }
+    },
+    {
+      "word": {
+        "en": "conceive",
+        "laos": "ຄິດວ່າ",
+        "jp": "妊娠する",
+        "vie": "thụ thai",
+        "en_pronunciation": "/kənˈsiv/",
+        "laos_pronunciation": "khidva",
+        "jp_pronunciation": "ninshin suru",
+        "vie_pronunciation": "thu thai"
+      },
+      "means": {
+        "en": "Have the idea for",
+        "zh": "被隐藏或隐藏的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "conception",
+        "laos": "ແນວຄວາມຄິດ",
+        "jp": "受胎",
+        "vie": "quan niệm",
+        "en_pronunciation": "/kənˈsɛpʃən/",
+        "laos_pronunciation": "aenuakhuaamkhid",
+        "jp_pronunciation": "jutai",
+        "vie_pronunciation": "quan niem"
+      },
+      "means": {
+        "en": "An abstract or general idea inferred or derived from specific instances",
+        "zh": "承认（错误行为）"
+      }
+    },
+    {
+      "word": {
+        "en": "concentrate",
+        "laos": "ທີ່ເຂົ້າໃຈໃສ່",
+        "jp": "集中する",
+        "vie": "tập trung",
+        "en_pronunciation": "/ˈkɑnsənˌtreɪt/",
+        "laos_pronunciation": "thikhaochaisai",
+        "jp_pronunciation": "shuuchuu suru",
+        "vie_pronunciation": "tap trung"
+      },
+      "means": {
+        "en": "The desired mineral that is left after impurities have been removed from mined ore",
+        "zh": "授予子公司经营权的合同"
+      }
+    },
+    {
+      "word": {
+        "en": "concentration",
+        "laos": "ຄວາມດົ້ວ",
+        "jp": "集中力",
+        "vie": "sự tập trung",
+        "en_pronunciation": "/ˌkɑnsənˈtreɪʃən/",
+        "laos_pronunciation": "khuaam dov",
+        "jp_pronunciation": "shuuchuuryoku",
+        "vie_pronunciation": "su tap trung"
+      },
+      "means": {
+        "en": "The strength of a solution; number of molecules of a substance in a given volume",
+        "zh": "过度骄傲的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "concept",
+        "laos": "ຄວາມຄິດ",
+        "jp": "コンセプト",
+        "vie": "khái niệm",
+        "en_pronunciation": "/ˈkɑnsɛpt/",
+        "laos_pronunciation": "khuaamkhid",
+        "jp_pronunciation": "konseputo",
+        "vie_pronunciation": "khai niem"
+      },
+      "means": {
+        "en": "An abstract or general idea inferred or derived from specific instances",
+        "zh": "虚假骄傲的特征；"
+      }
+    },
+    {
+      "word": {
+        "en": "conceptual",
+        "laos": "ແນວຄິດ",
+        "jp": "概念的な",
+        "vie": "khái niệm",
+        "en_pronunciation": "/kənˈsɛpʧuəl/",
+        "laos_pronunciation": "aenuakhid",
+        "jp_pronunciation": "gainenteki na",
+        "vie_pronunciation": "khai niem"
+      },
+      "means": {
+        "en": "Being or characterized by concepts or their formation",
+        "zh": "有过分的自我重要感"
+      }
+    },
+    {
+      "word": {
+        "en": "concern",
+        "laos": "ຄວາມກັງວົນໃຈ",
+        "jp": "懸念",
+        "vie": "mối quan tâm",
+        "en_pronunciation": "/kənˈsərn/",
+        "laos_pronunciation": "khuaam kangvonchai",
+        "jp_pronunciation": "kenen",
+        "vie_pronunciation": "moi quan tam"
+      },
+      "means": {
+        "en": "Something that interests you because it is important or affects you",
+        "zh": "有想法"
+      }
+    },
+    {
+      "word": {
+        "en": "concerned",
+        "laos": "ທີ່ກ່ຽວຂ້ອງ",
+        "jp": "関係する",
+        "vie": "liên quan",
+        "en_pronunciation": "/kənˈsərnd/",
+        "laos_pronunciation": "thikiauakhong",
+        "jp_pronunciation": "kankei suru",
+        "vie_pronunciation": "lien quan"
+      },
+      "means": {
+        "en": "Be relevant to",
+        "zh": "从具体实例推断或得出的抽象或一般想法"
+      }
+    },
+    {
+      "word": {
+        "en": "concerning",
+        "laos": "ກ່ຽວກັບ",
+        "jp": "について",
+        "vie": "liên quan đến",
+        "en_pronunciation": "/kənˈsərnɪŋ/",
+        "laos_pronunciation": "kiauakab",
+        "jp_pronunciation": "nitsuite",
+        "vie_pronunciation": "lien quan den"
+      },
+      "means": {
+        "en": "Be relevant to",
+        "zh": "从开采的矿石中去除杂质后留下的所需矿物"
+      }
+    },
+    {
+      "word": {
+        "en": "concert",
+        "laos": "ການສະແດງຄອນເສີດ",
+        "jp": "コンサート",
+        "vie": "buổi hòa nhạc",
+        "en_pronunciation": "/ˈkɑnsərt/",
+        "laos_pronunciation": "kansaaedng khonsoed",
+        "jp_pronunciation": "konsaato",
+        "vie_pronunciation": "buoi hoa nhac"
+      },
+      "means": {
+        "en": "A performance of music by players or singers not involving theatrical staging",
+        "zh": "解决方案的强度；"
+      }
+    },
+    {
+      "word": {
+        "en": "concerted",
+        "laos": "ທີ່ຄິດໃສ່",
+        "jp": "協調した",
+        "vie": "phối hợp",
+        "en_pronunciation": "/kənˈsərtɪd/",
+        "laos_pronunciation": "thi khidsai",
+        "jp_pronunciation": "kyouchou shita",
+        "vie_pronunciation": "phoi hop"
+      },
+      "means": {
+        "en": "Contrive (a plan) by mutual agreement",
+        "zh": "给定体积内物质的分子数"
+      }
+    },
+    {
+      "word": {
+        "en": "concise",
+        "laos": "ຫຢໍ້",
+        "jp": "簡潔な",
+        "vie": "ngắn gọn",
+        "en_pronunciation": "/kənˈsaɪs/",
+        "laos_pronunciation": "hyo",
+        "jp_pronunciation": "kanketsu na",
+        "vie_pronunciation": "ngan gon"
+      },
+      "means": {
+        "en": "Expressing much in few words",
+        "zh": "从具体实例推断或得出的抽象或一般想法"
+      }
+    },
+    {
+      "word": {
+        "en": "conclude",
+        "laos": "ສະຫຼຸບ",
+        "jp": "結論付ける",
+        "vie": "kết luận",
+        "en_pronunciation": "/kənˈklud/",
+        "laos_pronunciation": "sarub",
+        "jp_pronunciation": "ketsuron tsukeru",
+        "vie_pronunciation": "ket luan"
+      },
+      "means": {
+        "en": "Decide by reasoning; draw or come to a conclusion",
+        "zh": "由概念或其形成构成或表征"
+      }
+    },
+    {
+      "word": {
+        "en": "conclusion",
+        "laos": "ສະຫຼຸບ",
+        "jp": "結論",
+        "vie": "kết luận",
+        "en_pronunciation": "/kənˈkluʒən/",
+        "laos_pronunciation": "sarub",
+        "jp_pronunciation": "ketsuron",
+        "vie_pronunciation": "ket luan"
+      },
+      "means": {
+        "en": "A position or opinion or judgment reached after consideration",
+        "zh": "您感兴趣的事物，因为它很重要或影响您"
+      }
+    },
+    {
+      "word": {
+        "en": "conclusive",
+        "laos": "ທ້າຢ",
+        "jp": "決定的な",
+        "vie": "kết luận",
+        "en_pronunciation": "/kənˈklusɪv/",
+        "laos_pronunciation": "thay",
+        "jp_pronunciation": "ketteiteki na",
+        "vie_pronunciation": "ket luan"
+      },
+      "means": {
+        "en": "Forming an end or termination; especially putting an end to doubt or question",
+        "zh": "与以下内容相关"
+      }
+    },
+    {
+      "word": {
+        "en": "concrete",
+        "laos": "ຄອນກີດ",
+        "jp": "コンクリート",
+        "vie": "bê tông",
+        "en_pronunciation": "/ˈkɑnkrit/",
+        "laos_pronunciation": "khonkid",
+        "jp_pronunciation": "konkuriito",
+        "vie_pronunciation": "be tong"
+      },
+      "means": {
+        "en": "A strong hard building material composed of sand and gravel and cement and water",
+        "zh": "与以下内容相关"
+      }
+    },
+    {
+      "word": {
+        "en": "concurrent",
+        "laos": "ສະສົມ",
+        "jp": "同時",
+        "vie": "đồng thời",
+        "en_pronunciation": "/kənˈkərənt/",
+        "laos_pronunciation": "sasom",
+        "jp_pronunciation": "douji",
+        "vie_pronunciation": "dong thoi"
+      },
+      "means": {
+        "en": "Occurring or operating at the same time",
+        "zh": "由演奏者或歌手进行的不涉及戏剧舞台的音乐表演"
+      }
+    },
+    {
+      "word": {
+        "en": "condemn",
+        "laos": "ປະນາມ",
+        "jp": "非難する",
+        "vie": "lên án",
+        "en_pronunciation": "/kənˈdɛm/",
+        "laos_pronunciation": "panam",
+        "jp_pronunciation": "hinan suru",
+        "vie_pronunciation": "len an"
+      },
+      "means": {
+        "en": "Express strong disapproval of",
+        "zh": "经双方同意制定（计划）"
+      }
+    },
+    {
+      "word": {
+        "en": "condemnation",
+        "laos": "ການກ່າວຫາ",
+        "jp": "非難",
+        "vie": "lên án",
+        "en_pronunciation": "/ˌkɑndəmˈneɪʃən/",
+        "laos_pronunciation": "kankauaha",
+        "jp_pronunciation": "hinan",
+        "vie_pronunciation": "len an"
+      },
+      "means": {
+        "en": "An expression of strong disapproval; pronouncing as wrong or morally culpable",
+        "zh": "用很少的言语表达很多内容"
+      }
+    },
+    {
+      "word": {
+        "en": "condense",
+        "laos": "ເຮັດໃຫ້ຂົ້ນ",
+        "jp": "凝縮する",
+        "vie": "ngưng tụ",
+        "en_pronunciation": "/kənˈdɛns/",
+        "laos_pronunciation": "hedhai khon",
+        "jp_pronunciation": "gyoushuku suru",
+        "vie_pronunciation": "ngung tu"
+      },
+      "means": {
+        "en": "Undergo condensation; change from a gaseous to a liquid state and fall in drops",
+        "zh": "通过推理做出决定；"
+      }
+    },
+    {
+      "word": {
+        "en": "condensation",
+        "laos": "ອະທິບາຍ",
+        "jp": "結露",
+        "vie": "sự ngưng tụ",
+        "en_pronunciation": "/ˌkɑndənˈseɪʃən/",
+        "laos_pronunciation": "athibai",
+        "jp_pronunciation": "ketsuro",
+        "vie_pronunciation": "su ngung tu"
+      },
+      "means": {
+        "en": "(psychoanalysis) an unconscious process whereby two ideas or images combine into a single symbol; especially in dreams",
+        "zh": "得出或得出结论"
+      }
+    },
+    {
+      "word": {
+        "en": "condition",
+        "laos": "ສະພາບ",
+        "jp": "状態",
+        "vie": "tình trạng",
+        "en_pronunciation": "/kənˈdɪʃən/",
+        "laos_pronunciation": "saphab",
+        "jp_pronunciation": "joutai",
+        "vie_pronunciation": "tinh trang"
+      },
+      "means": {
+        "en": "A state at a particular time",
+        "zh": "经过考虑后达成的立场、意见或判断"
+      }
+    },
+    {
+      "word": {
+        "en": "conditional",
+        "laos": "ທີ່ມີເງື່ອນໄຂ",
+        "jp": "条件付き",
+        "vie": "có điều kiện",
+        "en_pronunciation": "/kənˈdɪʃənəl/",
+        "laos_pronunciation": "thimingeuonkhai",
+        "jp_pronunciation": "joukentsuki",
+        "vie_pronunciation": "co dieu kien"
+      },
+      "means": {
+        "en": "Qualified by reservations",
+        "zh": "形成结束或终止；"
+      }
+    },
+    {
+      "word": {
+        "en": "conditioner",
+        "laos": "ຜູ້ນໍາ",
+        "jp": "コンディショナー",
+        "vie": "dầu xả",
+        "en_pronunciation": "/kənˈdɪʃənər/",
+        "laos_pronunciation": "phunoa",
+        "jp_pronunciation": "kondishonaa",
+        "vie_pronunciation": "dau xa"
+      },
+      "means": {
+        "en": "Exercise that conditions the body",
+        "zh": "尤其是结束怀疑或疑问"
+      }
+    },
+    {
+      "word": {
+        "en": "condolence",
+        "laos": "ຄວາມເສັຍໃຈ",
+        "jp": "お悔やみ",
+        "vie": "lời chia buồn",
+        "en_pronunciation": "/kənˈdoʊləns/",
+        "laos_pronunciation": "khuaam senychai",
+        "jp_pronunciation": "o kuya mi",
+        "vie_pronunciation": "loi chia buon"
+      },
+      "means": {
+        "en": "An expression of sympathy with another's grief",
+        "zh": "由沙子、砾石、水泥和水组成的坚固坚硬的建筑材料"
+      }
+    },
+    {
+      "word": {
+        "en": "conducive",
+        "laos": "ຜົນປະໂຫຍດ",
+        "jp": "助かる",
+        "vie": "thuận lợi",
+        "en_pronunciation": "/kənˈdusɪv/",
+        "laos_pronunciation": "phonpaojd",
+        "jp_pronunciation": "tasuka ru",
+        "vie_pronunciation": "thuan loi"
+      },
+      "means": {
+        "en": "Tending to bring about; being partly responsible for",
+        "zh": "同时发生或同时进行"
+      }
+    }
+  ]
+}

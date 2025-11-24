@@ -29,6 +29,9 @@ from typing import List, Optional
 # Import from common provider
 from mcp_config_provider import MCPConfig, get_mcp_configs, get_project_root
 
+# Determine if running on Windows
+IS_WINDOWS = sys.platform == "win32"
+
 
 def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) -> bool:
     """Run a shell command and return success status"""
@@ -43,7 +46,8 @@ def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) ->
             capture_output=True,
             text=True,
             timeout=30,
-            cwd=str(cwd) if cwd else None
+            cwd=str(cwd) if cwd else None,
+            shell=IS_WINDOWS
         )
 
         if result.stdout:
@@ -78,7 +82,7 @@ def configure_droid_mcp() -> int:
 
     # Check if droid command exists
     check_cmd = ["droid", "--version"]
-    result = subprocess.run(check_cmd, capture_output=True, text=True)
+    result = subprocess.run(check_cmd, capture_output=True, text=True, shell=IS_WINDOWS)
     if result.returncode != 0:
         print("[ERROR] 'droid' command not found. Please install Droid Code first.")
         return 1

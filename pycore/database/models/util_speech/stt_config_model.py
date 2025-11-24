@@ -30,6 +30,6 @@ class SpeechSTTConfigModel(SpeechConfigBaseModel):
             sqlalchemy.Column("value", sqlalchemy.Text, nullable=False),
             sqlalchemy.Column("value_type", sqlalchemy.String(50), nullable=False, default="string"),
             sqlalchemy.Column("description", sqlalchemy.String(500), nullable=True),
-            sqlalchemy.Column("created_at", sqlalchemy.DateTime, nullable=False),
-            sqlalchemy.Column("updated_at", sqlalchemy.DateTime, nullable=False),
+            sqlalchemy.Column("created_at", sqlalchemy.String(50), nullable=False),
+            sqlalchemy.Column("updated_at", sqlalchemy.String(50), nullable=False),
         )

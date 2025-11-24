@@ -1,0 +1,48 @@
+{
+  "marketplace": "Marketplace",
+  "projects": "Projects",
+  "developers": "Developers",
+  "tasks": "Tasks",
+  "my_projects": "My Projects",
+  "my_tasks": "My Tasks",
+  "browse_projects": "Browse Projects",
+  "browse_developers": "Browse Developers",
+  
+  "submit_project": "Submit Project",
+  "hire_developer": "Hire Developer",
+  "apply_task": "Apply for Task",
+  "create_task": "Create Task",
+  
+  "project_details": "Project Details",
+  "project_title": "Project Title",
+  "project_description": "Project Description",
+  "project_budget": "Budget",
+  "project_deadline": "Deadline",
+  "project_requirements": "Requirements",
+  "project_status": "Status",
+  
+  "developer_profile": "Developer Profile",
+  "developer_skills": "Skills",
+  "developer_experience": "Experience",
+  "developer_rating": "Rating",
+  "developer_portfolio": "Portfolio",
+  
+  "task_title": "Task Title",
+  "task_description": "Task Description",
+  "task_payment": "Payment",
+  "task_duration": "Duration",
+  
+  "registration": "Registration",
+  "register_as_developer": "Register as Developer",
+  "register_as_client": "Register as Client",
+  
+  "payment": "Payment",
+  "payment_method": "Payment Method",
+  "payment_history": "Payment History",
+  "make_payment": "Make Payment",
+  
+  "status_pending": "Pending",
+  "status_in_progress": "In Progress",
+  "status_completed": "Completed",
+  "status_cancelled": "Cancelled"
+}

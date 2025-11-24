@@ -65,9 +65,8 @@ class CookieManager:
         if storage_dir:
             self.storage_dir = Path(storage_dir)
         else:
-            # Use map_web_path to get wwwr/pycore_db/cookies/
-            base_path = map_web_path('www', 'pycore_db')
-            self.storage_dir = base_path / 'cookies'
+            # Use map_web_path to get pycore_db/cookies/
+            self.storage_dir = map_web_path('pycore_db') / 'cookies'
 
         # Create storage directory
         self.storage_dir.mkdir(parents=True, exist_ok=True)

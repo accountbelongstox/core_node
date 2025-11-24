@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.406682+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "seem",
+        "laos": "ເບິ່ງຄື",
+        "jp": "どうやら",
+        "vie": "dường như",
+        "en_pronunciation": "/sim/",
+        "laos_pronunciation": "boengkhu",
+        "jp_pronunciation": "douyara",
+        "vie_pronunciation": "duong nhu"
+      },
+      "means": {
+        "en": "Give a certain impression or have a certain outward aspect",
+        "zh": "给人一定的印象或有一定的外在特征"
+      }
+    },
+    {
+      "word": {
+        "en": "segment",
+        "laos": "ສ່ວນ",
+        "jp": "セグメント",
+        "vie": "đoạn",
+        "en_pronunciation": "/ˌsɛgˈmɛnt/",
+        "laos_pronunciation": "suan",
+        "jp_pronunciation": "segumento",
+        "vie_pronunciation": "doan"
+      },
+      "means": {
+        "en": "One of several parts or pieces that fit with others to constitute a whole object",
+        "zh": "与其他部件或部件配合构成整个物体的几个部件或部件之一"
+      }
+    },
+    {
+      "word": {
+        "en": "segregate",
+        "laos": "ແບ່ງແຢກ",
+        "jp": "隔離する",
+        "vie": "tách biệt",
+        "en_pronunciation": "/ˈsɛgrəˌgeɪt/",
+        "laos_pronunciation": "aebng aeyk",
+        "jp_pronunciation": "kakuri suru",
+        "vie_pronunciation": "tach biet"
+      },
+      "means": {
+        "en": "Someone who is or has been segregated",
+        "zh": "正在或已经被隔离的人"
+      }
+    },
+    {
+      "word": {
+        "en": "seize",
+        "laos": "ດົ້ວ",
+        "jp": "つかむ",
+        "vie": "nắm bắt",
+        "en_pronunciation": "/siz/",
+        "laos_pronunciation": "dov",
+        "jp_pronunciation": "tsukamu",
+        "vie_pronunciation": "nam bat"
+      },
+      "means": {
+        "en": "Take hold of; grab",
+        "zh": "抓住；"
+      }
+    },
+    {
+      "word": {
+        "en": "seeming",
+        "laos": "ຈິນ",
+        "jp": "どうやら",
+        "vie": "dường như",
+        "en_pronunciation": "/ˈsimɪŋ/",
+        "laos_pronunciation": "chin",
+        "jp_pronunciation": "douyara",
+        "vie_pronunciation": "duong nhu"
+      },
+      "means": {
+        "en": "Give a certain impression or have a certain outward aspect",
+        "zh": "抢"
+      }
+    },
+    {
+      "word": {
+        "en": "segmental",
+        "laos": "ວາງຊິ້ນ",
+        "jp": "部分的な",
+        "vie": "phân đoạn",
+        "en_pronunciation": "/segmental/",
+        "laos_pronunciation": "vangsin",
+        "jp_pronunciation": "bubunteki na",
+        "vie_pronunciation": "phan doan"
+      },
+      "means": {
+        "en": "Divided or organized into speech segments or isolable speech sounds",
+        "zh": "给人一定的印象或有一定的外在特征"
+      }
+    },
+    {
+      "word": {
+        "en": "segregation",
+        "laos": "ການແບ່ງແຍກ",
+        "jp": "隔離",
+        "vie": "sự phân chia",
+        "en_pronunciation": "/ˌsɛgrəˈgeɪʃən/",
+        "laos_pronunciation": "kanaebngaenyk",
+        "jp_pronunciation": "kakuri",
+        "vie_pronunciation": "su phan chia"
+      },
+      "means": {
+        "en": "(genetics) the separation of paired alleles during meiosis so that members of each pair of alleles appear in different gametes",
+        "zh": "划分或组织成语音片段或可分离的语音"
+      }
+    },
+    {
+      "word": {
+        "en": "seizure",
+        "laos": "ການຖືເອົາ",
+        "jp": "発作",
+        "vie": "cơn động kinh",
+        "en_pronunciation": "/ˈsiʒər/",
+        "laos_pronunciation": "kanthuoao",
+        "jp_pronunciation": "hossa",
+        "vie_pronunciation": "con dong kinh"
+      },
+      "means": {
+        "en": "A sudden occurrence (or recurrence) of a disease",
+        "zh": "（遗传学）减数分裂过程中配对等位基因的分离，以便每对等位基因的成员出现在不同的配子中"
+      }
+    },
+    {
+      "word": {
+        "en": "seemingly",
+        "laos": "ເບິ່ງຄືວ່າ",
+        "jp": "どうやら",
+        "vie": "dường như",
+        "en_pronunciation": "/ˈsimɪŋli/",
+        "laos_pronunciation": "boengkhuva",
+        "jp_pronunciation": "douyara",
+        "vie_pronunciation": "duong nhu"
+      },
+      "means": {
+        "en": "From appearances alone; ; ; -Thomas Hardy",
+        "zh": "疾病突然发生（或复发）"
+      }
+    },
+    {
+      "word": {
+        "en": "seldom",
+        "laos": "ບໍ່ໄຄ່",
+        "jp": "めったにない",
+        "vie": "hiếm khi",
+        "en_pronunciation": "/ˈsɛldəm/",
+        "laos_pronunciation": "bokhai",
+        "jp_pronunciation": "mettaninai",
+        "vie_pronunciation": "hiem khi"
+      },
+      "means": {
+        "en": "Not often",
+        "zh": "仅从外表来看；"
+      }
+    },
+    {
+      "word": {
+        "en": "select",
+        "laos": "ເລືອກ",
+        "jp": "選択する",
+        "vie": "chọn",
+        "en_pronunciation": "/səˈlɛkt/",
+        "laos_pronunciation": "leuok",
+        "jp_pronunciation": "sentakusu ru",
+        "vie_pronunciation": "chon"
+      },
+      "means": {
+        "en": "Pick out, select, or choose from a number of alternatives",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "selection",
+        "laos": "ການເລືອກ",
+        "jp": "選択",
+        "vie": "lựa chọn",
+        "en_pronunciation": "/səˈlɛkʃən/",
+        "laos_pronunciation": "kanleuok",
+        "jp_pronunciation": "sentaku",
+        "vie_pronunciation": "lua chon"
+      },
+      "means": {
+        "en": "The act of choosing or selecting",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "selective",
+        "laos": "ຄັດເລືອກ",
+        "jp": "選択的",
+        "vie": "chọn lọc",
+        "en_pronunciation": "/səˈlɛktɪv/",
+        "laos_pronunciation": "khadleuok",
+        "jp_pronunciation": "sentakuteki",
+        "vie_pronunciation": "chon loc"
+      },
+      "means": {
+        "en": "Tending to select; characterized by careful choice; - John Mason Brown",
+        "zh": "——托马斯·哈代"
+      }
+    },
+    {
+      "word": {
+        "en": "self",
+        "laos": "ຕົນເອງ",
+        "jp": "自分自身",
+        "vie": "tự",
+        "en_pronunciation": "/sɛlf/",
+        "laos_pronunciation": "tonoeng",
+        "jp_pronunciation": "jibunjishin",
+        "vie_pronunciation": "tu"
+      },
+      "means": {
+        "en": "Your consciousness of your own identity",
+        "zh": "不经常"
+      }
+    },
+    {
+      "word": {
+        "en": "selfish",
+        "laos": "ເຫັນແກ່ຕົວ",
+        "jp": "利己的な",
+        "vie": "ích kỷ",
+        "en_pronunciation": "/ˈsɛlfɪʃ/",
+        "laos_pronunciation": "henaektua",
+        "jp_pronunciation": "rikoteki na",
+        "vie_pronunciation": "ich ky"
+      },
+      "means": {
+        "en": "Concerned chiefly or only with yourself and your advantage to the exclusion of others; - Maria Weston Chapman",
+        "zh": "从众多备选方案中挑选、选择或选择"
+      }
+    },
+    {
+      "word": {
+        "en": "selfless",
+        "laos": "ບໍ່ເຫັນແກ່ຕົວ",
+        "jp": "無私の",
+        "vie": "vị tha",
+        "en_pronunciation": "/ˈsɛlfləs/",
+        "laos_pronunciation": "bohenaektua",
+        "jp_pronunciation": "mushi no",
+        "vie_pronunciation": "vi tha"
+      },
+      "means": {
+        "en": "Showing unselfish concern for the welfare of others",
+        "zh": "选择或选择的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "sell",
+        "laos": "ຂາຍ",
+        "jp": "売る",
+        "vie": "bán",
+        "en_pronunciation": "/sɛl/",
+        "laos_pronunciation": "khai",
+        "jp_pronunciation": "uru",
+        "vie_pronunciation": "ban"
+      },
+      "means": {
+        "en": "The activity of persuading someone to buy",
+        "zh": "倾向于选择；"
+      }
+    },
+    {
+      "word": {
+        "en": "semester",
+        "laos": "ພາກຮຽນ",
+        "jp": "学期",
+        "vie": "học kỳ",
+        "en_pronunciation": "/səˈmɛstər/",
+        "laos_pronunciation": "phakhian",
+        "jp_pronunciation": "gakki",
+        "vie_pronunciation": "hoc ky"
+      },
+      "means": {
+        "en": "One of two divisions of an academic year",
+        "zh": "特点是谨慎选择；"
+      }
+    },
+    {
+      "word": {
+        "en": "seminar",
+        "laos": "ການສໍາມະນາ",
+        "jp": "セミナー",
+        "vie": "hội thảo",
+        "en_pronunciation": "/ˈsɛməˌnɑr/",
+        "laos_pronunciation": "kansoamana",
+        "jp_pronunciation": "seminaa",
+        "vie_pronunciation": "hoi thao"
+      },
+      "means": {
+        "en": "Any meeting for an exchange of ideas",
+        "zh": "——约翰·梅森·布朗"
+      }
+    },
+    {
+      "word": {
+        "en": "senate",
+        "laos": "ຊູເກົ້າ",
+        "jp": "上院",
+        "vie": "thượng viện",
+        "en_pronunciation": "/ˈsɛnɪt/",
+        "laos_pronunciation": "sukao",
+        "jp_pronunciation": "jouin",
+        "vie_pronunciation": "thuong vien"
+      },
+      "means": {
+        "en": "Assembly possessing high legislative powers",
+        "zh": "你对自己身份的意识"
+      }
+    },
+    {
+      "word": {
+        "en": "senator",
+        "laos": "ສະມາຊິກສະພາສູງ",
+        "jp": "上院議員",
+        "vie": "thượng nghị sĩ",
+        "en_pronunciation": "/ˈsɛnətər/",
+        "laos_pronunciation": "samasiksaphasung",
+        "jp_pronunciation": "jouin giin",
+        "vie_pronunciation": "thuong nghi si"
+      },
+      "means": {
+        "en": "A member of a senate",
+        "zh": "主要或仅关心您自己和您的利益，而排除他人；"
+      }
+    },
+    {
+      "word": {
+        "en": "send",
+        "laos": "ສົ່ງ",
+        "jp": "送信する",
+        "vie": "gửi",
+        "en_pronunciation": "/sɛnd/",
+        "laos_pronunciation": "song",
+        "jp_pronunciation": "soushin suru",
+        "vie_pronunciation": "gui"
+      },
+      "means": {
+        "en": "Cause to go somewhere",
+        "zh": "——玛丽亚·韦斯顿·查普曼"
+      }
+    },
+    {
+      "word": {
+        "en": "senior",
+        "laos": "ຜູ້ອາວຸໂສ",
+        "jp": "先輩",
+        "vie": "cao cấp",
+        "en_pronunciation": "/ˈsinjər/",
+        "laos_pronunciation": "phuoavuos",
+        "jp_pronunciation": "senpai",
+        "vie_pronunciation": "cao cap"
+      },
+      "means": {
+        "en": "An undergraduate student during the year preceding graduation",
+        "zh": "无私地关心他人的福祉"
+      }
+    },
+    {
+      "word": {
+        "en": "sensation",
+        "laos": "ຄວາມຮູ້ສຶກ",
+        "jp": "感覚",
+        "vie": "cảm giác",
+        "en_pronunciation": "/sɛnˈseɪʃən/",
+        "laos_pronunciation": "khuaamhusuk",
+        "jp_pronunciation": "kankaku",
+        "vie_pronunciation": "cam giac"
+      },
+      "means": {
+        "en": "An unelaborated elementary awareness of stimulation",
+        "zh": "说服某人购买的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "seniority",
+        "laos": "ຜູ້ອາວຸໂສ",
+        "jp": "年功序列",
+        "vie": "thâm niên",
+        "en_pronunciation": "/sinˈjɔrɪti/",
+        "laos_pronunciation": "phuoavuos",
+        "jp_pronunciation": "nenkoujoretsu",
+        "vie_pronunciation": "tham nien"
+      },
+      "means": {
+        "en": "Higher rank than that of others especially by reason of longer service",
+        "zh": "一学年的两个部分之一"
+      }
+    },
+    {
+      "word": {
+        "en": "sensational",
+        "laos": "ຄວາມຮູ້ສຶກ",
+        "jp": "センセーショナルな",
+        "vie": "giật gân",
+        "en_pronunciation": "/sɛnˈseɪʃənəl/",
+        "laos_pronunciation": "khuaamhusuk",
+        "jp_pronunciation": "senseeshonaru na",
+        "vie_pronunciation": "giat gan"
+      },
+      "means": {
+        "en": "Causing intense interest, curiosity, or emotion",
+        "zh": "任何交流想法的会议"
+      }
+    },
+    {
+      "word": {
+        "en": "sense",
+        "laos": "ຄວາມຮູ້ສຶກ",
+        "jp": "感覚",
+        "vie": "giác quan",
+        "en_pronunciation": "/sɛns/",
+        "laos_pronunciation": "khuaamhusuk",
+        "jp_pronunciation": "kankaku",
+        "vie_pronunciation": "giac quan"
+      },
+      "means": {
+        "en": "A general conscious awareness",
+        "zh": "议会拥有高度立法权"
+      }
+    },
+    {
+      "word": {
+        "en": "sensible",
+        "laos": "ມີຄວາມຮູ້ສຶກ",
+        "jp": "賢明な",
+        "vie": "hợp lý",
+        "en_pronunciation": "/ˈsɛnsəbəl/",
+        "laos_pronunciation": "mikhuaamhusuk",
+        "jp_pronunciation": "kenmei na",
+        "vie_pronunciation": "hop ly"
+      },
+      "means": {
+        "en": "Showing reason or sound judgment",
+        "zh": "参议院议员"
+      }
+    },
+    {
+      "word": {
+        "en": "sensor",
+        "laos": "ເຊັນເຊີ",
+        "jp": "センサー",
+        "vie": "cảm biến",
+        "en_pronunciation": "/ˈsɛnsər/",
+        "laos_pronunciation": "sensoe",
+        "jp_pronunciation": "sensaa",
+        "vie_pronunciation": "cam bien"
+      },
+      "means": {
+        "en": "Any device that receives a signal or stimulus (as heat or pressure or light or motion etc.) and responds to it in a distinctive manner",
+        "zh": "因为要去某个地方"
+      }
+    },
+    {
+      "word": {
+        "en": "sensitive",
+        "laos": "ໃຈອ່ອນ",
+        "jp": "敏感な",
+        "vie": "nhạy cảm",
+        "en_pronunciation": "/ˈsɛnsɪtɪv/",
+        "laos_pronunciation": "chaion",
+        "jp_pronunciation": "binkan na",
+        "vie_pronunciation": "nhay cam"
+      },
+      "means": {
+        "en": "Someone who serves as an intermediary between the living and the dead",
+        "zh": "毕业前一年的本科生"
+      }
+    },
+    {
+      "word": {
+        "en": "sentence",
+        "laos": "ປະໂຫຍກ",
+        "jp": "文",
+        "vie": "câu",
+        "en_pronunciation": "/ˈsɛntəns/",
+        "laos_pronunciation": "paojk",
+        "jp_pronunciation": "bun",
+        "vie_pronunciation": "cau"
+      },
+      "means": {
+        "en": "A string of words satisfying the grammatical rules of a language",
+        "zh": "对刺激的未经加工的基本意识"
+      }
+    },
+    {
+      "word": {
+        "en": "sensitivity",
+        "laos": "ຄວາມອ່ອນເພຍ",
+        "jp": "感度",
+        "vie": "sự nhạy cảm",
+        "en_pronunciation": "/ˌsɛnsɪˈtɪvɪti/",
+        "laos_pronunciation": "khuaam nphia",
+        "jp_pronunciation": "kando",
+        "vie_pronunciation": "su nhay cam"
+      },
+      "means": {
+        "en": "(physiology) responsiveness to external stimuli; the faculty of sensation",
+        "zh": "比其他人更高的军衔，尤其是由于服务时间较长"
+      }
+    },
+    {
+      "word": {
+        "en": "sentiment",
+        "laos": "ຄວາມຮູ້ສຶກ",
+        "jp": "感情",
+        "vie": "tình cảm",
+        "en_pronunciation": "/ˈsɛnəmənt/",
+        "laos_pronunciation": "khuaamhusuk",
+        "jp_pronunciation": "kanjou",
+        "vie_pronunciation": "tinh cam"
+      },
+      "means": {
+        "en": "Tender, romantic, or nostalgic feeling or emotion",
+        "zh": "引起强烈的兴趣、好奇心或情感"
+      }
+    },
+    {
+      "word": {
+        "en": "sentimental",
+        "laos": "ມີຄວາມຮູ້ສຶກຕ່ໍຄວາມຮັກ",
+        "jp": "感傷的な",
+        "vie": "đa cảm",
+        "en_pronunciation": "/ˌsɛnəˈmɛnəl/",
+        "laos_pronunciation": "mikhuaamhusuk tokhuaamhak",
+        "jp_pronunciation": "kanshouteki na",
+        "vie_pronunciation": "da cam"
+      },
+      "means": {
+        "en": "Given to or marked by sentiment or sentimentality",
+        "zh": "普遍意识"
+      }
+    },
+    {
+      "word": {
+        "en": "separate",
+        "laos": "ແຍກອອກ",
+        "jp": "別々の",
+        "vie": "riêng biệt",
+        "en_pronunciation": "/ˈsɛpərˌeɪt/",
+        "laos_pronunciation": "aenykook",
+        "jp_pronunciation": "betsubetsu no",
+        "vie_pronunciation": "rieng biet"
+      },
+      "means": {
+        "en": "A separately printed article that originally appeared in a larger publication",
+        "zh": "表现出理由或合理的判断"
+      }
+    },
+    {
+      "word": {
+        "en": "september",
+        "laos": "ເດືອນກັນຍາ",
+        "jp": "9月",
+        "vie": "tháng chín",
+        "en_pronunciation": "/sɛpˈtɛmbər/",
+        "laos_pronunciation": "deuonknaia",
+        "jp_pronunciation": "9 gatsu",
+        "vie_pronunciation": "thang chin"
+      },
+      "means": {
+        "en": "The month following August and preceding October",
+        "zh": "任何接收信号或刺激（如热、压力、光或运动等）并以独特方式对其做出响应的设备"
+      }
+    },
+    {
+      "word": {
+        "en": "sequence",
+        "laos": "ລໍາດັບ",
+        "jp": "シーケンス",
+        "vie": "trình tự",
+        "en_pronunciation": "/ˈsikwəns/",
+        "laos_pronunciation": "loadab",
+        "jp_pronunciation": "shiikensu",
+        "vie_pronunciation": "trinh tu"
+      },
+      "means": {
+        "en": "Serial arrangement in which things follow in logical order or a recurrent pattern",
+        "zh": "充当生者与死者之间中介的人"
+      }
+    },
+    {
+      "word": {
+        "en": "sergeant",
+        "laos": "ຈ່າຢົນ",
+        "jp": "軍曹",
+        "vie": "trung sĩ",
+        "en_pronunciation": "/ˈsɑrʤənt/",
+        "laos_pronunciation": "cha yon",
+        "jp_pronunciation": "gunsou",
+        "vie_pronunciation": "trung si"
+      },
+      "means": {
+        "en": "Any of several noncommissioned officer ranks in the Army or Air Force or Marines ranking above a corporal",
+        "zh": "满足某种语言语法规则的一串单词"
+      }
+    },
+    {
+      "word": {
+        "en": "serial",
+        "laos": "ເຄື່ອງປັບ",
+        "jp": "シリアル",
+        "vie": "nối tiếp",
+        "en_pronunciation": "/ˈsɪˌriəl/",
+        "laos_pronunciation": "kheuongpab",
+        "jp_pronunciation": "shiriaru",
+        "vie_pronunciation": "noi tiep"
+      },
+      "means": {
+        "en": "A serialized set of programs",
+        "zh": "（生理学）对外部刺激的反应；"
+      }
+    },
+    {
+      "word": {
+        "en": "separation",
+        "laos": "ການແຢກອອກ",
+        "jp": "分離",
+        "vie": "sự tách biệt",
+        "en_pronunciation": "/ˌsɛpərˈeɪʃən/",
+        "laos_pronunciation": "kan aeykook",
+        "jp_pronunciation": "bunri",
+        "vie_pronunciation": "su tach biet"
+      },
+      "means": {
+        "en": "The state of lacking unity",
+        "zh": "感觉能力"
+      }
+    },
+    {
+      "word": {
+        "en": "sequential",
+        "laos": "ເປັນລໍາດັບ",
+        "jp": "順次",
+        "vie": "tuần tự",
+        "en_pronunciation": "/səkˈwɛnʃəl/",
+        "laos_pronunciation": "penloadab",
+        "jp_pronunciation": "junji",
+        "vie_pronunciation": "tuan tu"
+      },
+      "means": {
+        "en": "In regular succession without gaps",
+        "zh": "温柔、浪漫或怀旧的感觉或情感"
+      }
+    },
+    {
+      "word": {
+        "en": "separatist",
+        "laos": "ພາກແຍກ",
+        "jp": "分離主義者",
+        "vie": "người ly khai",
+        "en_pronunciation": "/ˈsɛpərətɪst/",
+        "laos_pronunciation": "phakaenyk",
+        "jp_pronunciation": "bunri shugisha",
+        "vie_pronunciation": "nguoi ly khai"
+      },
+      "means": {
+        "en": "An advocate of secession or separation from a larger group (such as an established church or a national union)",
+        "zh": "赋予或以情感或感伤为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "series",
+        "laos": "ຖ້ອງ",
+        "jp": "シリーズ",
+        "vie": "loạt",
+        "en_pronunciation": "/ˈsɪriz/",
+        "laos_pronunciation": "thong",
+        "jp_pronunciation": "shiriizu",
+        "vie_pronunciation": "loat"
+      },
+      "means": {
+        "en": "Similar things placed in order or happening one after another",
+        "zh": "最初出现在较大出版物中的单独印刷的文章"
+      }
+    },
+    {
+      "word": {
+        "en": "serious",
+        "laos": "ຮ້າຍແຮງ",
+        "jp": "深刻な",
+        "vie": "nghiêm trọng",
+        "en_pronunciation": "/ˈsɪriəs/",
+        "laos_pronunciation": "haiaehng",
+        "jp_pronunciation": "shinkoku na",
+        "vie_pronunciation": "nghiem trong"
+      },
+      "means": {
+        "en": "Concerned with work or important matters rather than play or trivialities",
+        "zh": "8 月之后和 10 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "servant",
+        "laos": "ຜູ້ຮັບໃຊ້",
+        "jp": "使用人",
+        "vie": "người hầu",
+        "en_pronunciation": "/ˈsərvənt/",
+        "laos_pronunciation": "phuhabsai",
+        "jp_pronunciation": "shiyounin",
+        "vie_pronunciation": "nguoi hau"
+      },
+      "means": {
+        "en": "A person working in the service of another (especially in the household)",
+        "zh": "串行排列，其中事物按逻辑顺序或循环模式排列"
+      }
+    },
+    {
+      "word": {
+        "en": "serve",
+        "laos": "ຮັບໃຊ້",
+        "jp": "奉仕する",
+        "vie": "phục vụ",
+        "en_pronunciation": "/sərv/",
+        "laos_pronunciation": "habsai",
+        "jp_pronunciation": "houshi suru",
+        "vie_pronunciation": "phuc vu"
+      },
+      "means": {
+        "en": "(sports) a stroke that puts the ball in play",
+        "zh": "陆军、空军或海军陆战队中军衔高于下士的任何士官军衔"
+      }
+    },
+    {
+      "word": {
+        "en": "session",
+        "laos": "ເວລາປະຊຸມ",
+        "jp": "セッション",
+        "vie": "phiên",
+        "en_pronunciation": "/ˈsɛʃən/",
+        "laos_pronunciation": "velapasum",
+        "jp_pronunciation": "sesshon",
+        "vie_pronunciation": "phien"
+      },
+      "means": {
+        "en": "A meeting for execution of a group's functions",
+        "zh": "一组序列化的程序"
+      }
+    },
+    {
+      "word": {
+        "en": "service",
+        "laos": "ການບໍລິການ",
+        "jp": "サービス",
+        "vie": "dịch vụ",
+        "en_pronunciation": "/ˈsərvɪs/",
+        "laos_pronunciation": "kanbolikan",
+        "jp_pronunciation": "saabisu",
+        "vie_pronunciation": "dich vu"
+      },
+      "means": {
+        "en": "Work done by one person or group that benefits another",
+        "zh": "缺乏团结的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "serving",
+        "laos": "ການບໍລິການ",
+        "jp": "給仕",
+        "vie": "phục vụ",
+        "en_pronunciation": "/ˈsərvɪŋ/",
+        "laos_pronunciation": "kanbolikan",
+        "jp_pronunciation": "kyuuji",
+        "vie_pronunciation": "phuc vu"
+      },
+      "means": {
+        "en": "An individual quantity of food or drink taken as part of a meal",
+        "zh": "有规律地连续，没有间隙"
+      }
+    },
+    {
+      "word": {
+        "en": "set",
+        "laos": "ກໍານົດ",
+        "jp": "セット",
+        "vie": "đặt",
+        "en_pronunciation": "/sɛt/",
+        "laos_pronunciation": "koanod",
+        "jp_pronunciation": "setto",
+        "vie_pronunciation": "dat"
+      },
+      "means": {
+        "en": "A group of things of the same kind that belong together and are so used",
+        "zh": "主张脱离或脱离较大团体（例如已建立的教会或国家联盟）的人"
+      }
+    },
+    {
+      "word": {
+        "en": "setback",
+        "laos": "ລ່າວ",
+        "jp": "挫折",
+        "vie": "sự thụt lùi",
+        "en_pronunciation": "/ˈsɛtˌbæk/",
+        "laos_pronunciation": "lav",
+        "jp_pronunciation": "zasetsu",
+        "vie_pronunciation": "su thut lui"
+      },
+      "means": {
+        "en": "An unfortunate happening that hinders or impedes; something that is thwarting or frustrating",
+        "zh": "类似的事情按顺序排列或相继发生"
+      }
+    },
+    {
+      "word": {
+        "en": "setting",
+        "laos": "ການຕັ້ງຄ່າ",
+        "jp": "設定",
+        "vie": "thiết lập",
+        "en_pronunciation": "/ˈsɛtɪŋ/",
+        "laos_pronunciation": "kantangkha",
+        "jp_pronunciation": "settei",
+        "vie_pronunciation": "thiet lap"
+      },
+      "means": {
+        "en": "The context and environment in which something is set",
+        "zh": "关心工作或重要事务而不是娱乐或琐事"
+      }
+    },
+    {
+      "word": {
+        "en": "settle",
+        "laos": "ຕັ້ງຖິ່ນຕັ້ງຖິ່ນຖານ",
+        "jp": "解決する",
+        "vie": "giải quyết",
+        "en_pronunciation": "/ˈsɛtəl/",
+        "laos_pronunciation": "tang thintangthinthan",
+        "jp_pronunciation": "kaiketsu suru",
+        "vie_pronunciation": "giai quyet"
+      },
+      "means": {
+        "en": "A long wooden bench with a back",
+        "zh": "为他人服务的人（尤其是在家里）"
+      }
+    },
+    {
+      "word": {
+        "en": "settlement",
+        "laos": "ການຕັ້ງຖິ່ນຖານ",
+        "jp": "決済",
+        "vie": "giải quyết",
+        "en_pronunciation": "/ˈsɛtəlmənt/",
+        "laos_pronunciation": "kantangthinthan",
+        "jp_pronunciation": "kessai",
+        "vie_pronunciation": "giai quyet"
+      },
+      "means": {
+        "en": "A body of people who settle far from home but maintain ties with their homeland; inhabitants remain nationals of their home state but are not literally under the home state's system of government",
+        "zh": "（体育）使球进入比赛状态的击球"
+      }
+    },
+    {
+      "word": {
+        "en": "seven",
+        "laos": "ເຈັດ",
+        "jp": "7",
+        "vie": "bảy",
+        "en_pronunciation": "/ˈsɛvən/",
+        "laos_pronunciation": "ched",
+        "jp_pronunciation": "7",
+        "vie_pronunciation": "bay"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of six and one",
+        "zh": "执行小组职能的会议"
+      }
+    },
+    {
+      "word": {
+        "en": "seventeen",
+        "laos": "ສິບເຈັດ",
+        "jp": "17",
+        "vie": "mười bảy",
+        "en_pronunciation": "/ˈsɛvənˈtin/",
+        "laos_pronunciation": "sibched",
+        "jp_pronunciation": "17",
+        "vie_pronunciation": "muoi bay"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of sixteen and one",
+        "zh": "一个人或团体所做的有利于另一个人的工作"
+      }
+    },
+    {
+      "word": {
+        "en": "seventy",
+        "laos": "ເຈັບສິບ",
+        "jp": "70",
+        "vie": "bảy mươi",
+        "en_pronunciation": "/ˈsɛvənti/",
+        "laos_pronunciation": "chebsib",
+        "jp_pronunciation": "70",
+        "vie_pronunciation": "bay muoi"
+      },
+      "means": {
+        "en": "The cardinal number that is the product of ten and seven",
+        "zh": "作为膳食一部分的单独数量的食物或饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "several",
+        "laos": "ຫຼາຢ",
+        "jp": "いくつかの",
+        "vie": "một số",
+        "en_pronunciation": "/ˈsɛvərəl/",
+        "laos_pronunciation": "ray",
+        "jp_pronunciation": "ikutsukano",
+        "vie_pronunciation": "mot so"
+      },
+      "means": {
+        "en": "(used with count nouns) of an indefinite number more than 2 or 3 but not many",
+        "zh": "一组同类的东西属于在一起并如此使用"
+      }
+    },
+    {
+      "word": {
+        "en": "severe",
+        "laos": "ຮ້າຍແຮງ",
+        "jp": "厳しい",
+        "vie": "nghiêm trọng",
+        "en_pronunciation": "/səˈvɪr/",
+        "laos_pronunciation": "haiaehng",
+        "jp_pronunciation": "ikameshii",
+        "vie_pronunciation": "nghiem trong"
+      },
+      "means": {
+        "en": "Intensely or extremely bad or unpleasant in degree or quality",
+        "zh": "阻碍或妨碍的不幸事件；"
+      }
+    },
+    {
+      "word": {
+        "en": "severity",
+        "laos": "ຄວາມຮຸນແຮງ",
+        "jp": "重大度",
+        "vie": "mức độ nghiêm trọng",
+        "en_pronunciation": "/sɪˈvɛrɪti/",
+        "laos_pronunciation": "khuaamhunaehng",
+        "jp_pronunciation": "juudai do",
+        "vie_pronunciation": "muc do nghiem trong"
+      },
+      "means": {
+        "en": "Used of the degree of something undesirable e.g. pain or weather",
+        "zh": "阻碍或令人沮丧的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "sew",
+        "laos": "Sew",
+        "jp": "縫う",
+        "vie": "khâu",
+        "en_pronunciation": "/soʊ/",
+        "laos_pronunciation": "Sew",
+        "jp_pronunciation": "nuu",
+        "vie_pronunciation": "khau"
+      },
+      "means": {
+        "en": "Fasten by sewing; do needlework",
+        "zh": "设置某事物的上下文和环境"
+      }
+    },
+    {
+      "word": {
+        "en": "sex",
+        "laos": "ກາມມະລົມ",
+        "jp": "セックス",
+        "vie": "tình dục",
+        "en_pronunciation": "/sɛks/",
+        "laos_pronunciation": "kam malom",
+        "jp_pronunciation": "sekkusu",
+        "vie_pronunciation": "tinh duc"
+      },
+      "means": {
+        "en": "Activities associated with sexual intercourse",
+        "zh": "一张有靠背的长木凳"
+      }
+    },
+    {
+      "word": {
+        "en": "sexy",
+        "laos": "ຊ້ໍາ",
+        "jp": "セクシーな",
+        "vie": "gợi cảm",
+        "en_pronunciation": "/ˈsɛksi/",
+        "laos_pronunciation": "soa",
+        "jp_pronunciation": "sekushii na",
+        "vie_pronunciation": "goi cam"
+      },
+      "means": {
+        "en": "Marked by or tending to arouse sexual desire or interest",
+        "zh": "一群远离家乡定居但与祖国保持联系的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "sexual",
+        "laos": "ແຫ່ງກາມມະລົມ",
+        "jp": "性的な",
+        "vie": "tình dục",
+        "en_pronunciation": "/ˈsɛkʃuəl/",
+        "laos_pronunciation": "aehng kam malom",
+        "jp_pronunciation": "seiteki na",
+        "vie_pronunciation": "tinh duc"
+      },
+      "means": {
+        "en": "Of or relating to or characterized by sexuality",
+        "zh": "居民仍然是其祖国的国民，但实际上并不受其祖国的政府体系管辖"
+      }
+    },
+    {
+      "word": {
+        "en": "shabby",
+        "laos": "ຂີ້ລັກ",
+        "jp": "みすぼらしい",
+        "vie": "tồi tàn",
+        "en_pronunciation": "/ˈʃæbi/",
+        "laos_pronunciation": "khilak",
+        "jp_pronunciation": "misuborashii",
+        "vie_pronunciation": "toi tan"
+      },
+      "means": {
+        "en": "Showing signs of wear and tear",
+        "zh": "六加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "shade",
+        "laos": "ຮົ່ມ",
+        "jp": "日陰",
+        "vie": "bóng râm",
+        "en_pronunciation": "/ʃeɪd/",
+        "laos_pronunciation": "hom",
+        "jp_pronunciation": "hikage",
+        "vie_pronunciation": "bong ram"
+      },
+      "means": {
+        "en": "Relative darkness caused by light rays being intercepted by an opaque body",
+        "zh": "十六加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "shady",
+        "laos": "ທີ່ຮົ່ມເຢັນ",
+        "jp": "日陰の",
+        "vie": "râm mát",
+        "en_pronunciation": "/ˈʃeɪdi/",
+        "laos_pronunciation": "thi homyen",
+        "jp_pronunciation": "hikage no",
+        "vie_pronunciation": "ram mat"
+      },
+      "means": {
+        "en": "(of businesses and businessmen) unscrupulous",
+        "zh": "十和七的乘积的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "shadow",
+        "laos": "ເງົາ",
+        "jp": "影",
+        "vie": "cái bóng",
+        "en_pronunciation": "/ˈʃæˌdoʊ/",
+        "laos_pronunciation": "ngao",
+        "jp_pronunciation": "kage",
+        "vie_pronunciation": "cai bong"
+      },
+      "means": {
+        "en": "Shade within clear boundaries",
+        "zh": "（与可数名词一起使用）超过 2 或 3 但不多的不定数"
+      }
+    },
+    {
+      "word": {
+        "en": "shaft",
+        "laos": "ເພົາ",
+        "jp": "シャフト",
+        "vie": "trục",
+        "en_pronunciation": "/ʃæft/",
+        "laos_pronunciation": "phao",
+        "jp_pronunciation": "shafuto",
+        "vie_pronunciation": "truc"
+      },
+      "means": {
+        "en": "A line that forms the length of an arrow pointer",
+        "zh": "程度或质量严重或极差或令人不快"
+      }
+    },
+    {
+      "word": {
+        "en": "shake",
+        "laos": "ສັ່ນ",
+        "jp": "振る",
+        "vie": "lắc",
+        "en_pronunciation": "/ʃeɪk/",
+        "laos_pronunciation": "san",
+        "jp_pronunciation": "furu",
+        "vie_pronunciation": "lac"
+      },
+      "means": {
+        "en": "Building material used as siding or roofing",
+        "zh": "用于表示不受欢迎的事物的程度，例如"
+      }
+    },
+    {
+      "word": {
+        "en": "shaky",
+        "laos": "ຊ່ວຢ",
+        "jp": "不安定な",
+        "vie": "run rẩy",
+        "en_pronunciation": "/ˈʃeɪki/",
+        "laos_pronunciation": "suay",
+        "jp_pronunciation": "fuantei na",
+        "vie_pronunciation": "run ray"
+      },
+      "means": {
+        "en": "Inclined to shake as from weakness or defect",
+        "zh": "疼痛或天气"
+      }
+    },
+    {
+      "word": {
+        "en": "shall",
+        "laos": "ຈະ",
+        "jp": "するだろう",
+        "vie": "sẽ",
+        "en_pronunciation": "/ʃæl/",
+        "laos_pronunciation": "cha",
+        "jp_pronunciation": "surudarou",
+        "vie_pronunciation": "se"
+      },
+      "means": {
+        "en": "Shall is an English word referring to 'shall'.",
+        "zh": "通过缝纫固定；"
+      }
+    },
+    {
+      "word": {
+        "en": "shallow",
+        "laos": "ຕື້ນ",
+        "jp": "浅い",
+        "vie": "cạn",
+        "en_pronunciation": "/ˈʃæloʊ/",
+        "laos_pronunciation": "tun",
+        "jp_pronunciation": "asai",
+        "vie_pronunciation": "can"
+      },
+      "means": {
+        "en": "A stretch of shallow water",
+        "zh": "做针线活"
+      }
+    },
+    {
+      "word": {
+        "en": "shame",
+        "laos": "ຄວາມອາຍ",
+        "jp": "恥",
+        "vie": "xấu hổ",
+        "en_pronunciation": "/ʃeɪm/",
+        "laos_pronunciation": "khuaamoai",
+        "jp_pronunciation": "haji",
+        "vie_pronunciation": "xau ho"
+      },
+      "means": {
+        "en": "A painful emotion resulting from an awareness of inadequacy or guilt",
+        "zh": "与性交有关的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "shameful",
+        "laos": "ທີ່ອາຍ",
+        "jp": "恥ずかしい",
+        "vie": "đáng xấu hổ",
+        "en_pronunciation": "/ˈʃeɪmfəl/",
+        "laos_pronunciation": "thioai",
+        "jp_pronunciation": "hazukashii",
+        "vie_pronunciation": "dang xau ho"
+      },
+      "means": {
+        "en": "(used of conduct or character) deserving or bringing disgrace or shame; - Rachel Carson",
+        "zh": "以性欲或兴趣为特征或倾向于引起性欲或兴趣"
+      }
+    },
+    {
+      "word": {
+        "en": "shameless",
+        "laos": "ອະນາແພງ",
+        "jp": "恥知らずな",
+        "vie": "không biết xấu hổ",
+        "en_pronunciation": "/ˈʃeɪmləs/",
+        "laos_pronunciation": "anaaephng",
+        "jp_pronunciation": "haji shirazu na",
+        "vie_pronunciation": "khong biet xau ho"
+      },
+      "means": {
+        "en": "Feeling no shame",
+        "zh": "属于或与性有关或以性为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "shape",
+        "laos": "ຮູບຮ່າງ",
+        "jp": "形",
+        "vie": "hình dạng",
+        "en_pronunciation": "/ʃeɪp/",
+        "laos_pronunciation": "hubhang",
+        "jp_pronunciation": "katachi",
+        "vie_pronunciation": "hinh dang"
+      },
+      "means": {
+        "en": "Any spatial attributes (especially as defined by outline)",
+        "zh": "有磨损迹象"
+      }
+    },
+    {
+      "word": {
+        "en": "share",
+        "laos": "ສ່ວນ",
+        "jp": "シェアする",
+        "vie": "chia sẻ",
+        "en_pronunciation": "/ʃɛr/",
+        "laos_pronunciation": "suan",
+        "jp_pronunciation": "shiea suru",
+        "vie_pronunciation": "chia se"
+      },
+      "means": {
+        "en": "Assets belonging to or due to or contributed by an individual person or group",
+        "zh": "由于光线被不透明物体拦截而导致相对黑暗"
+      }
+    },
+    {
+      "word": {
+        "en": "shark",
+        "laos": "ປາສະຫລາມ",
+        "jp": "サメ",
+        "vie": "cá mập",
+        "en_pronunciation": "/ʃɑrk/",
+        "laos_pronunciation": "pasalam",
+        "jp_pronunciation": "same",
+        "vie_pronunciation": "ca map"
+      },
+      "means": {
+        "en": "Any of numerous elongate mostly marine carnivorous fishes with heterocercal caudal fins and tough skin covered with small toothlike scales",
+        "zh": "（企业和商人）不道德的"
+      }
+    },
+    {
+      "word": {
+        "en": "sharp",
+        "laos": "ຈິ່ງ",
+        "jp": "鋭い",
+        "vie": "nhọn",
+        "en_pronunciation": "/ʃɑrp/",
+        "laos_pronunciation": "ching",
+        "jp_pronunciation": "surudoi",
+        "vie_pronunciation": "nhon"
+      },
+      "means": {
+        "en": "A musical notation indicating one half step higher than the note named",
+        "zh": "清晰边界内的阴影"
+      }
+    },
+    {
+      "word": {
+        "en": "sharpen",
+        "laos": "ສ່ຽມ",
+        "jp": "研ぐ",
+        "vie": "làm sắc nét",
+        "en_pronunciation": "/ˈʃɑrpən/",
+        "laos_pronunciation": "siam",
+        "jp_pronunciation": "togu",
+        "vie_pronunciation": "lam sac net"
+      },
+      "means": {
+        "en": "Make sharp or sharper",
+        "zh": "形成箭头指针长度的线"
+      }
+    },
+    {
+      "word": {
+        "en": "shatter",
+        "laos": "ທາບທົວ",
+        "jp": "砕け散る",
+        "vie": "đập vỡ",
+        "en_pronunciation": "/ˈʃætər/",
+        "laos_pronunciation": "thabthua",
+        "jp_pronunciation": "kudake chiru",
+        "vie_pronunciation": "dap vo"
+      },
+      "means": {
+        "en": "Break into many pieces",
+        "zh": "用作壁板或屋顶的建筑材料"
+      }
+    },
+    {
+      "word": {
+        "en": "shave",
+        "laos": "ແຖ",
+        "jp": "剃る",
+        "vie": "cạo râu",
+        "en_pronunciation": "/ʃeɪv/",
+        "laos_pronunciation": "aeth",
+        "jp_pronunciation": "soru",
+        "vie_pronunciation": "cao rau"
+      },
+      "means": {
+        "en": "The act of removing hair with a razor",
+        "zh": "由于弱点或缺陷而容易动摇"
+      }
+    },
+    {
+      "word": {
+        "en": "shaver",
+        "laos": "ເສື້ອກັນຫນາວ",
+        "jp": "シェーバー",
+        "vie": "máy cạo râu",
+        "en_pronunciation": "/ˈʃeɪvər/",
+        "laos_pronunciation": "seu kannav",
+        "jp_pronunciation": "shieebaa",
+        "vie_pronunciation": "may cao rau"
+      },
+      "means": {
+        "en": "An adult male who shaves",
+        "zh": "Shall 是一个英文单词，指的是“shall”。"
+      }
+    },
+    {
+      "word": {
+        "en": "she",
+        "laos": "ນາງ",
+        "jp": "彼女",
+        "vie": "cô ấy",
+        "en_pronunciation": "/ʃi/",
+        "laos_pronunciation": "nang",
+        "jp_pronunciation": "kanojo",
+        "vie_pronunciation": "co ay"
+      },
+      "means": {
+        "en": "She is an English word referring to 'she'.",
+        "zh": "一片浅水区"
+      }
+    },
+    {
+      "word": {
+        "en": "shed",
+        "laos": "ຫຼົ່ນລົງ",
+        "jp": "小屋",
+        "vie": "đổ ra",
+        "en_pronunciation": "/ʃɛd/",
+        "laos_pronunciation": "ronlong",
+        "jp_pronunciation": "koya",
+        "vie_pronunciation": "do ra"
+      },
+      "means": {
+        "en": "An outbuilding with a single story; used for shelter or storage",
+        "zh": "由于意识到自己的不足或内疚而产生的痛苦情绪"
+      }
+    },
+    {
+      "word": {
+        "en": "sheep",
+        "laos": "ແກະ",
+        "jp": "羊",
+        "vie": "cừu",
+        "en_pronunciation": "/ʃip/",
+        "laos_pronunciation": "kae",
+        "jp_pronunciation": "hitsuji",
+        "vie_pronunciation": "cuu"
+      },
+      "means": {
+        "en": "Woolly usually horned ruminant mammal related to the goat",
+        "zh": "（用于行为或品格）值得或带来耻辱或耻辱；"
+      }
+    },
+    {
+      "word": {
+        "en": "sheer",
+        "laos": "ນາງ",
+        "jp": "薄手の",
+        "vie": "tuyệt đối",
+        "en_pronunciation": "/ʃɪr/",
+        "laos_pronunciation": "nang",
+        "jp_pronunciation": "usude no",
+        "vie_pronunciation": "tuyet doi"
+      },
+      "means": {
+        "en": "Turn sharply; change direction abruptly",
+        "zh": "- 雷切尔·卡森"
+      }
+    },
+    {
+      "word": {
+        "en": "sheet",
+        "laos": "ແຜ່ນ",
+        "jp": "シート",
+        "vie": "tấm",
+        "en_pronunciation": "/ʃit/",
+        "laos_pronunciation": "aephn",
+        "jp_pronunciation": "shiito",
+        "vie_pronunciation": "tam"
+      },
+      "means": {
+        "en": "Any broad thin expanse or surface",
+        "zh": "感觉没有羞耻感"
+      }
+    },
+    {
+      "word": {
+        "en": "shelf",
+        "laos": "ຖ້ານ",
+        "jp": "棚",
+        "vie": "kệ",
+        "en_pronunciation": "/ʃɛlf/",
+        "laos_pronunciation": "than",
+        "jp_pronunciation": "tana",
+        "vie_pronunciation": "ke"
+      },
+      "means": {
+        "en": "A support that consists of a horizontal surface for holding objects",
+        "zh": "任何空间属性（尤其是由轮廓定义的）"
+      }
+    },
+    {
+      "word": {
+        "en": "shell",
+        "laos": "ເປືອກ",
+        "jp": "シェル",
+        "vie": "vỏ",
+        "en_pronunciation": "/ʃɛl/",
+        "laos_pronunciation": "peuok",
+        "jp_pronunciation": "shieru",
+        "vie_pronunciation": "vo"
+      },
+      "means": {
+        "en": "Ammunition consisting of a cylindrical metal casing containing an explosive charge and a projectile; fired from a large gun",
+        "zh": "属于个人或团体、属于个人或团体或由个人或团体贡献的资产"
+      }
+    },
+    {
+      "word": {
+        "en": "shelter",
+        "laos": "ທີ່ພັກອາໄສ",
+        "jp": "シェルター",
+        "vie": "nơi trú ẩn",
+        "en_pronunciation": "/ˈʃɛltər/",
+        "laos_pronunciation": "thiphkoasai",
+        "jp_pronunciation": "shierutaa",
+        "vie_pronunciation": "noi tru an"
+      },
+      "means": {
+        "en": "A structure that provides privacy and protection from danger",
+        "zh": "众多细长的海洋肉食性鱼类中的一种，具有异尾鳍和覆盖有小齿状鳞片的坚韧皮肤"
+      }
+    },
+    {
+      "word": {
+        "en": "shepherd",
+        "laos": "ຜູ້ລ້ຽງແກະ",
+        "jp": "羊飼い",
+        "vie": "người chăn cừu",
+        "en_pronunciation": "/ˈʃɛpərd/",
+        "laos_pronunciation": "phu liangkae",
+        "jp_pronunciation": "hitsujikai",
+        "vie_pronunciation": "nguoi chan cuu"
+      },
+      "means": {
+        "en": "A clergyman who watches over a group of people",
+        "zh": "一种乐谱，表示比指定音符高半音"
+      }
+    },
+    {
+      "word": {
+        "en": "shield",
+        "laos": "ໄສ້",
+        "jp": "盾",
+        "vie": "cái khiên",
+        "en_pronunciation": "/ʃild/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "tate",
+        "vie_pronunciation": "cai khien"
+      },
+      "means": {
+        "en": "A protective covering or structure",
+        "zh": "变得锋利或更锋利"
+      }
+    },
+    {
+      "word": {
+        "en": "shift",
+        "laos": "ປ່ຽນໄປ",
+        "jp": "シフト",
+        "vie": "sự thay đổi",
+        "en_pronunciation": "/ʃɪft/",
+        "laos_pronunciation": "pianpai",
+        "jp_pronunciation": "shifuto",
+        "vie_pronunciation": "su thay doi"
+      },
+      "means": {
+        "en": "An event in which something is displaced without rotation",
+        "zh": "分成许多块"
+      }
+    },
+    {
+      "word": {
+        "en": "shine",
+        "laos": "ສ່ອງແສງ",
+        "jp": "輝く",
+        "vie": "tỏa sáng",
+        "en_pronunciation": "/ʃaɪn/",
+        "laos_pronunciation": "songaesng",
+        "jp_pronunciation": "kagayaku",
+        "vie_pronunciation": "toa sang"
+      },
+      "means": {
+        "en": "The quality of being bright and sending out rays of light",
+        "zh": "用剃刀去除毛发的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "shiny",
+        "laos": "ເຫລື້ອມ",
+        "jp": "光沢のある",
+        "vie": "sáng bóng",
+        "en_pronunciation": "/ˈʃaɪni/",
+        "laos_pronunciation": "heluom",
+        "jp_pronunciation": "koutaku noaru",
+        "vie_pronunciation": "sang bong"
+      },
+      "means": {
+        "en": "Reflecting light",
+        "zh": "刮胡子的成年男性"
+      }
+    },
+    {
+      "word": {
+        "en": "ship",
+        "laos": "ກໍາປັ່ນ",
+        "jp": "船",
+        "vie": "tàu",
+        "en_pronunciation": "/ʃɪp/",
+        "laos_pronunciation": "koapan",
+        "jp_pronunciation": "fune",
+        "vie_pronunciation": "tau"
+      },
+      "means": {
+        "en": "A vessel that carries passengers or freight",
+        "zh": "她是一个英语单词，指的是“她”。"
+      }
+    },
+    {
+      "word": {
+        "en": "shipping",
+        "laos": "ການຂົນສົ່ງ",
+        "jp": "送料",
+        "vie": "vận chuyển",
+        "en_pronunciation": "/ˈʃɪpɪŋ/",
+        "laos_pronunciation": "kankhonsong",
+        "jp_pronunciation": "souryou",
+        "vie_pronunciation": "van chuyen"
+      },
+      "means": {
+        "en": "The commercial enterprise of moving goods and materials",
+        "zh": "单层附属建筑；"
+      }
+    },
+    {
+      "word": {
+        "en": "shipment",
+        "laos": "ການຂົນສົ່ງ",
+        "jp": "出荷",
+        "vie": "lô hàng",
+        "en_pronunciation": "/ˈʃɪpmənt/",
+        "laos_pronunciation": "kankhonsong",
+        "jp_pronunciation": "shukka",
+        "vie_pronunciation": "lo hang"
+      },
+      "means": {
+        "en": "Goods carried by a large vehicle",
+        "zh": "用于庇护或储存"
+      }
+    }
+  ]
+}

@@ -134,8 +134,16 @@ get_service_status() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local total_count=$(systemctl list-units --type=service --all | grep -c "octane-.*\.service" || echo "0")
-        local running_count=$(systemctl list-units --type=service --state=active | grep -c "octane-.*\.service" || echo "0")
+        local total_count=$(systemctl list-units --type=service --all 2>/dev/null | grep -c "octane-.*\.service" || echo "0")
+        local running_count=$(systemctl list-units --type=service --state=active 2>/dev/null | grep -c "octane-.*\.service" || echo "0")
+
+        # Clean up: ensure single line numeric value
+        total_count=$(printf "%s" "$total_count" | tr -cd '0-9' | head -c 10)
+        running_count=$(printf "%s" "$running_count" | tr -cd '0-9' | head -c 10)
+
+        # Default to 0 if empty
+        total_count=${total_count:-0}
+        running_count=${running_count:-0}
 
         if [ "$total_count" -eq 0 ]; then
             echo "NOT_INSTALLED"

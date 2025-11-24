@@ -9,12 +9,12 @@ import sys
 from typing import Union, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL, get_third_package_cv2
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
-numpy = get_third_package_numpy()
-PIL = get_third_package_PIL()
+np = get_third_package_numpy()
+PIL_Image = get_third_package_PIL_Image()
 cv2 = get_third_package_cv2()
-PILImage = PIL.Image
+PILImage = PIL_Image
 
 
 class ImageComparator:

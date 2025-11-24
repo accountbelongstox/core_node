@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.263690+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "by",
+        "laos": "ໂດຍ",
+        "jp": "によって",
+        "vie": "bởi",
+        "en_pronunciation": "/baɪ/",
+        "laos_pronunciation": "odny",
+        "jp_pronunciation": "niyotte",
+        "vie_pronunciation": "boi"
+      },
+      "means": {
+        "en": "So as to pass a given point",
+        "zh": "从而通过给定点"
+      }
+    },
+    {
+      "word": {
+        "en": "bypass",
+        "laos": "ອະສິ",
+        "jp": "バイパス",
+        "vie": "bỏ qua",
+        "en_pronunciation": "/ˈbaɪˌpæs/",
+        "laos_pronunciation": "asi",
+        "jp_pronunciation": "baipasu",
+        "vie_pronunciation": "bo qua"
+      },
+      "means": {
+        "en": "A highway that encircles an urban area so that traffic does not have to pass through the center",
+        "zh": "环绕市区的高速公路，交通不必经过市中心"
+      }
+    },
+    {
+      "word": {
+        "en": "bystander",
+        "laos": "ພະຢານ",
+        "jp": "傍観者",
+        "vie": "người ngoài cuộc",
+        "en_pronunciation": "/ˈbaɪˌstændər/",
+        "laos_pronunciation": "phayan",
+        "jp_pronunciation": "boukansha",
+        "vie_pronunciation": "nguoi ngoai cuoc"
+      },
+      "means": {
+        "en": "A nonparticipant spectator",
+        "zh": "一个不参与的旁观者"
+      }
+    },
+    {
+      "word": {
+        "en": "cab",
+        "laos": "ຕູ້",
+        "jp": "タクシー",
+        "vie": "taxi",
+        "en_pronunciation": "/kæb/",
+        "laos_pronunciation": "tu",
+        "jp_pronunciation": "takushii",
+        "vie_pronunciation": "taxi"
+      },
+      "means": {
+        "en": "A compartment at the front of a motor vehicle or locomotive where driver sits",
+        "zh": "机动车辆或机车前部供驾驶员乘坐的车厢"
+      }
+    },
+    {
+      "word": {
+        "en": "cabbage",
+        "laos": "ຜັກກະລໍາປີ",
+        "jp": "キャベツ",
+        "vie": "bắp cải",
+        "en_pronunciation": "/ˈkæbɪʤ/",
+        "laos_pronunciation": "phak ka loapi",
+        "jp_pronunciation": "kyabetsu",
+        "vie_pronunciation": "bap cai"
+      },
+      "means": {
+        "en": "Any of various types of cabbage",
+        "zh": "任何各种类型的卷心菜"
+      }
+    },
+    {
+      "word": {
+        "en": "cabin",
+        "laos": "ກະທ່ອມ",
+        "jp": "キャビン",
+        "vie": "cabin",
+        "en_pronunciation": "/ˈkæbən/",
+        "laos_pronunciation": "ka thom",
+        "jp_pronunciation": "kyabin",
+        "vie_pronunciation": "cabin"
+      },
+      "means": {
+        "en": "Small room on a ship or boat where people sleep",
+        "zh": "船上或船上人们睡觉的小房间"
+      }
+    },
+    {
+      "word": {
+        "en": "cabinet",
+        "laos": "ຄະນະລັດຖະມົນຕີ",
+        "jp": "キャビネット",
+        "vie": "tủ",
+        "en_pronunciation": "/ˈkæbənət/",
+        "laos_pronunciation": "khanaladthamonti",
+        "jp_pronunciation": "kyabinetto",
+        "vie_pronunciation": "tu"
+      },
+      "means": {
+        "en": "A piece of furniture resembling a cupboard with doors and shelves and drawers; for storage or display",
+        "zh": "一件类似橱柜的家具，有门、架子和抽屉；"
+      }
+    },
+    {
+      "word": {
+        "en": "cable",
+        "laos": "ສາຍໄຟ",
+        "jp": "ケーブル",
+        "vie": "cáp",
+        "en_pronunciation": "/ˈkeɪbəl/",
+        "laos_pronunciation": "saifai",
+        "jp_pronunciation": "keeburu",
+        "vie_pronunciation": "cap"
+      },
+      "means": {
+        "en": "A telegram sent abroad",
+        "zh": "用于存储或显示"
+      }
+    },
+    {
+      "word": {
+        "en": "cafe",
+        "laos": "ຄາເຟ",
+        "jp": "カフェ",
+        "vie": "quán cà phê",
+        "en_pronunciation": "/kəˈfeɪ/",
+        "laos_pronunciation": "khafe",
+        "jp_pronunciation": "kafe",
+        "vie_pronunciation": "quan ca phe"
+      },
+      "means": {
+        "en": "A small restaurant where drinks and snacks are sold",
+        "zh": "一封电报发往国外"
+      }
+    },
+    {
+      "word": {
+        "en": "cafeteria",
+        "laos": "ໂຮງອາຫານ",
+        "jp": "カフェテリア",
+        "vie": "quán ăn tự phục vụ",
+        "en_pronunciation": "/ˌkæfəˈtɪriə/",
+        "laos_pronunciation": "ohngoahan",
+        "jp_pronunciation": "kafeteria",
+        "vie_pronunciation": "quan an tu phuc vu"
+      },
+      "means": {
+        "en": "A restaurant where you serve yourself and pay a cashier",
+        "zh": "一家小餐馆，出售饮料和小吃"
+      }
+    },
+    {
+      "word": {
+        "en": "cage",
+        "laos": "ຂັງໄວ້",
+        "jp": "ケージ",
+        "vie": "cái lồng",
+        "en_pronunciation": "/keɪʤ/",
+        "laos_pronunciation": "khanguaai",
+        "jp_pronunciation": "keeji",
+        "vie_pronunciation": "cai long"
+      },
+      "means": {
+        "en": "An enclosure made or wire or metal bars in which birds or animals can be kept",
+        "zh": "一家餐厅，您可以自己服务并支付收银员费用"
+      }
+    },
+    {
+      "word": {
+        "en": "cake",
+        "laos": "ຂະຫນົມ",
+        "jp": "ケーキ",
+        "vie": "bánh ngọt",
+        "en_pronunciation": "/keɪk/",
+        "laos_pronunciation": "khanom",
+        "jp_pronunciation": "keeki",
+        "vie_pronunciation": "banh ngot"
+      },
+      "means": {
+        "en": "A block of solid substance (such as soap or wax)",
+        "zh": "可以在其中饲养鸟类或动物的由金属丝或金属条制成的外壳"
+      }
+    },
+    {
+      "word": {
+        "en": "calcium",
+        "laos": "ແຄວຊ້ຽມ",
+        "jp": "カルシウム",
+        "vie": "canxi",
+        "en_pronunciation": "/ˈkælsiəm/",
+        "laos_pronunciation": "aekhv siam",
+        "jp_pronunciation": "karushiumu",
+        "vie_pronunciation": "canxi"
+      },
+      "means": {
+        "en": "A white metallic element that burns with a brilliant light; the fifth most abundant element in the earth's crust; an important component of most plants and animals",
+        "zh": "一块固体物质（例如肥皂或蜡）"
+      }
+    },
+    {
+      "word": {
+        "en": "calculate",
+        "laos": "ຄິດໄລ່",
+        "jp": "計算する",
+        "vie": "tính toán",
+        "en_pronunciation": "/ˈkælkjəˌleɪt/",
+        "laos_pronunciation": "khidlai",
+        "jp_pronunciation": "keisan suru",
+        "vie_pronunciation": "tinh toan"
+      },
+      "means": {
+        "en": "Make a mathematical calculation or computation",
+        "zh": "一种白色金属元素，燃烧时发出耀眼的光芒；"
+      }
+    },
+    {
+      "word": {
+        "en": "calculation",
+        "laos": "ການຄິດໄລ່",
+        "jp": "計算",
+        "vie": "tính toán",
+        "en_pronunciation": "/ˌkælkjəˈleɪʃən/",
+        "laos_pronunciation": "kankhidlai",
+        "jp_pronunciation": "keisan",
+        "vie_pronunciation": "tinh toan"
+      },
+      "means": {
+        "en": "The procedure of calculating; determining something by mathematical or logical methods",
+        "zh": "地壳中第五丰富的元素；"
+      }
+    },
+    {
+      "word": {
+        "en": "calculator",
+        "laos": "ເຄື່ອງຄິດເລກ",
+        "jp": "電卓",
+        "vie": "máy tính",
+        "en_pronunciation": "/ˈkælkjəˌleɪtər/",
+        "laos_pronunciation": "kheuong khidlek",
+        "jp_pronunciation": "dentaku",
+        "vie_pronunciation": "may tinh"
+      },
+      "means": {
+        "en": "An expert at calculation (or at operating calculating machines)",
+        "zh": "大多数植物和动物的重要组成部分"
+      }
+    },
+    {
+      "word": {
+        "en": "calculating",
+        "laos": "ການຄິດໄລ່",
+        "jp": "計算する",
+        "vie": "tính toán",
+        "en_pronunciation": "/ˈkælkjəˌleɪtɪŋ/",
+        "laos_pronunciation": "kankhidlai",
+        "jp_pronunciation": "keisan suru",
+        "vie_pronunciation": "tinh toan"
+      },
+      "means": {
+        "en": "Make a mathematical calculation or computation",
+        "zh": "进行数学计算或计算"
+      }
+    },
+    {
+      "word": {
+        "en": "calendar",
+        "laos": "ປະຕິທິນ",
+        "jp": "カレンダー",
+        "vie": "lịch",
+        "en_pronunciation": "/ˈkæləndər/",
+        "laos_pronunciation": "patithin",
+        "jp_pronunciation": "karendaa",
+        "vie_pronunciation": "lich"
+      },
+      "means": {
+        "en": "A system of timekeeping that defines the beginning and length and divisions of the year",
+        "zh": "计算过程；"
+      }
+    },
+    {
+      "word": {
+        "en": "calf",
+        "laos": "ລູກງົວ",
+        "jp": "ふくらはぎ",
+        "vie": "bắp chân",
+        "en_pronunciation": "/kæf/",
+        "laos_pronunciation": "lukngua",
+        "jp_pronunciation": "fukurahagi",
+        "vie_pronunciation": "bap chan"
+      },
+      "means": {
+        "en": "Young of domestic cattle",
+        "zh": "用数学或逻辑方法确定某事"
+      }
+    },
+    {
+      "word": {
+        "en": "call",
+        "laos": "ຮຽກຮ້ອງ",
+        "jp": "電話する",
+        "vie": "gọi",
+        "en_pronunciation": "/kɔl/",
+        "laos_pronunciation": "hiakhong",
+        "jp_pronunciation": "denwa suru",
+        "vie_pronunciation": "goi"
+      },
+      "means": {
+        "en": "A telephone connection",
+        "zh": "计算专家（或操作计算机器）"
+      }
+    },
+    {
+      "word": {
+        "en": "calling",
+        "laos": "ການໂທ",
+        "jp": "電話をかける",
+        "vie": "đang gọi điện",
+        "en_pronunciation": "/ˈkɔlɪŋ/",
+        "laos_pronunciation": "kanoth",
+        "jp_pronunciation": "denwa wokakeru",
+        "vie_pronunciation": "dang goi dien"
+      },
+      "means": {
+        "en": "The particular occupation for which you are trained",
+        "zh": "进行数学计算或计算"
+      }
+    },
+    {
+      "word": {
+        "en": "calm",
+        "laos": "ສະຫງົບ",
+        "jp": "穏やかな",
+        "vie": "bình tĩnh",
+        "en_pronunciation": "/kɑm/",
+        "laos_pronunciation": "sangob",
+        "jp_pronunciation": "odaya kana",
+        "vie_pronunciation": "binh tinh"
+      },
+      "means": {
+        "en": "Steadiness of mind under stress",
+        "zh": "定义一年的开始、长度和划分的计时系统"
+      }
+    },
+    {
+      "word": {
+        "en": "calorie",
+        "laos": "ກາລໍຣີ",
+        "jp": "カロリー",
+        "vie": "calo",
+        "en_pronunciation": "/ˈkælɔˌri/",
+        "laos_pronunciation": "ka lori",
+        "jp_pronunciation": "karorii",
+        "vie_pronunciation": "calo"
+      },
+      "means": {
+        "en": "A unit of heat equal to the amount of heat required to raise the temperature of one kilogram of water by one degree at one atmosphere pressure; used by nutritionists to characterize the energy-producing potential in food",
+        "zh": "年轻的家牛"
+      }
+    },
+    {
+      "word": {
+        "en": "camel",
+        "laos": "ລູດ",
+        "jp": "ラクダ",
+        "vie": "lạc đà",
+        "en_pronunciation": "/ˈkæməl/",
+        "laos_pronunciation": "lud",
+        "jp_pronunciation": "rakuda",
+        "vie_pronunciation": "lac da"
+      },
+      "means": {
+        "en": "Cud-chewing mammal used as a draft or saddle animal in desert regions",
+        "zh": "电话连接"
+      }
+    },
+    {
+      "word": {
+        "en": "camera",
+        "laos": "ກ້ອງຖ່າຍຮູບ",
+        "jp": "カメラ",
+        "vie": "máy ảnh",
+        "en_pronunciation": "/ˈkæmərə/",
+        "laos_pronunciation": "kongthaihub",
+        "jp_pronunciation": "kamera",
+        "vie_pronunciation": "may anh"
+      },
+      "means": {
+        "en": "Equipment for taking photographs (usually consisting of a lightproof box with a lens at one end and light-sensitive film at the other)",
+        "zh": "您接受培训的特定职业"
+      }
+    },
+    {
+      "word": {
+        "en": "camp",
+        "laos": "ເຂົ້າໂກນ",
+        "jp": "キャンプ",
+        "vie": "trại",
+        "en_pronunciation": "/kæmp/",
+        "laos_pronunciation": "khaookn",
+        "jp_pronunciation": "kyanpu",
+        "vie_pronunciation": "trai"
+      },
+      "means": {
+        "en": "Temporary living quarters specially built by the army for soldiers",
+        "zh": "压力下心态稳定"
+      }
+    },
+    {
+      "word": {
+        "en": "campaign",
+        "laos": "ໂຄສະນາ",
+        "jp": "キャンペーン",
+        "vie": "chiến dịch",
+        "en_pronunciation": "/kæmˈpeɪn/",
+        "laos_pronunciation": "okhsana",
+        "jp_pronunciation": "kyanpeen",
+        "vie_pronunciation": "chien dich"
+      },
+      "means": {
+        "en": "A race between candidates for elective office",
+        "zh": "热量单位，等于一公斤水在一个大气压下升高一度所需的热量；"
+      }
+    },
+    {
+      "word": {
+        "en": "campus",
+        "laos": "ວິທະຍາເຂດ",
+        "jp": "キャンパス",
+        "vie": "khuôn viên trường",
+        "en_pronunciation": "/ˈkæmpəs/",
+        "laos_pronunciation": "vithanyakhed",
+        "jp_pronunciation": "kyanpasu",
+        "vie_pronunciation": "khuon vien truong"
+      },
+      "means": {
+        "en": "A field on which the buildings of a university are situated",
+        "zh": "营养学家用来描述食物中产生能量的潜力"
+      }
+    },
+    {
+      "word": {
+        "en": "can",
+        "laos": "ໄດ້",
+        "jp": "できる",
+        "vie": "có thể",
+        "en_pronunciation": "/kən/",
+        "laos_pronunciation": "dai",
+        "jp_pronunciation": "dekiru",
+        "vie_pronunciation": "co the"
+      },
+      "means": {
+        "en": "Airtight sealed metal container for food or drink or paint etc.",
+        "zh": "反刍动物，在沙漠地区用作役畜或骑乘动物"
+      }
+    },
+    {
+      "word": {
+        "en": "canal",
+        "laos": "ຄອງ",
+        "jp": "運河",
+        "vie": "con kênh",
+        "en_pronunciation": "/kəˈnæl/",
+        "laos_pronunciation": "khong",
+        "jp_pronunciation": "unga",
+        "vie_pronunciation": "con kenh"
+      },
+      "means": {
+        "en": "(astronomy) an indistinct surface feature of Mars once thought to be a system of channels; they are now believed to be an optical illusion",
+        "zh": "拍照设备（通常由一端装有镜头、另一端装有感光胶片的遮光盒组成）"
+      }
+    },
+    {
+      "word": {
+        "en": "cancel",
+        "laos": "ຍົກເລີກ",
+        "jp": "キャンセル",
+        "vie": "hủy bỏ",
+        "en_pronunciation": "/ˈkænsəl/",
+        "laos_pronunciation": "nyokloek",
+        "jp_pronunciation": "kyanseru",
+        "vie_pronunciation": "huy bo"
+      },
+      "means": {
+        "en": "A notation cancelling a previous sharp or flat",
+        "zh": "军队专门为士兵修建的临时宿舍"
+      }
+    },
+    {
+      "word": {
+        "en": "cancellation",
+        "laos": "ການຢົກເລີກ",
+        "jp": "キャンセル",
+        "vie": "hủy bỏ",
+        "en_pronunciation": "/ˌkænsəˈleɪʃən/",
+        "laos_pronunciation": "kan yokloek",
+        "jp_pronunciation": "kyanseru",
+        "vie_pronunciation": "huy bo"
+      },
+      "means": {
+        "en": "The act of cancelling; calling off some arrangement",
+        "zh": "选举公职候选人之间的竞赛"
+      }
+    },
+    {
+      "word": {
+        "en": "cancer",
+        "laos": "ມະເລັງ",
+        "jp": "がん",
+        "vie": "ung thư",
+        "en_pronunciation": "/ˈkænsər/",
+        "laos_pronunciation": "maleng",
+        "jp_pronunciation": "gan",
+        "vie_pronunciation": "ung thu"
+      },
+      "means": {
+        "en": "Any malignant growth or tumor caused by abnormal and uncontrolled cell division; it may spread to other parts of the body through the lymphatic system or the blood stream",
+        "zh": "大学建筑所在的场地"
+      }
+    },
+    {
+      "word": {
+        "en": "candidate",
+        "laos": "ຜູ້ຢິງສະຫມັກຮັບເລືອກ",
+        "jp": "候補者",
+        "vie": "ứng cử viên",
+        "en_pronunciation": "/ˈkænədɪt/",
+        "laos_pronunciation": "phu ying samak hableuok",
+        "jp_pronunciation": "kouhosha",
+        "vie_pronunciation": "ung cu vien"
+      },
+      "means": {
+        "en": "A politician who is running for public office",
+        "zh": "用于食品、饮料或油漆等的气密密封金属容器。"
+      }
+    },
+    {
+      "word": {
+        "en": "candidacy",
+        "laos": "ຜູ້ສະຫນອງທີ່ຕ້ອງການ",
+        "jp": "立候補",
+        "vie": "ứng cử",
+        "en_pronunciation": "/ˈkændɪdəsi/",
+        "laos_pronunciation": "phu sanongthitongkan",
+        "jp_pronunciation": "rikkouho",
+        "vie_pronunciation": "ung cu"
+      },
+      "means": {
+        "en": "The campaign of a candidate to be elected",
+        "zh": "（天文学）火星的一种模糊的表面特征，曾经被认为是一个通道系统；"
+      }
+    },
+    {
+      "word": {
+        "en": "candle",
+        "laos": "ທຽນ",
+        "jp": "キャンドル",
+        "vie": "nến",
+        "en_pronunciation": "/ˈkændəl/",
+        "laos_pronunciation": "thian",
+        "jp_pronunciation": "kyandoru",
+        "vie_pronunciation": "nen"
+      },
+      "means": {
+        "en": "Stick of wax with a wick in the middle",
+        "zh": "它们现在被认为是一种视错觉"
+      }
+    },
+    {
+      "word": {
+        "en": "candy",
+        "laos": "ເຂົ້າຫນົມ",
+        "jp": "キャンディー",
+        "vie": "kẹo",
+        "en_pronunciation": "/ˈkændi/",
+        "laos_pronunciation": "khaonom",
+        "jp_pronunciation": "kyandii",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "A rich sweet made of flavored sugar and often combined with fruit or nuts",
+        "zh": "取消先前的升号或降号的记谱法"
+      }
+    },
+    {
+      "word": {
+        "en": "cane",
+        "laos": "ໄມ້ເທົ້າ",
+        "jp": "杖",
+        "vie": "mía",
+        "en_pronunciation": "/keɪn/",
+        "laos_pronunciation": "maithao",
+        "jp_pronunciation": "tsue",
+        "vie_pronunciation": "mia"
+      },
+      "means": {
+        "en": "A stick that people can lean on to help them walk",
+        "zh": "取消行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "cannon",
+        "laos": "ປືນໃຫຍ່",
+        "jp": "大砲",
+        "vie": "pháo",
+        "en_pronunciation": "/ˈkænən/",
+        "laos_pronunciation": "punhainy",
+        "jp_pronunciation": "taihou",
+        "vie_pronunciation": "phao"
+      },
+      "means": {
+        "en": "A large artillery gun that is usually on wheels",
+        "zh": "取消一些安排"
+      }
+    },
+    {
+      "word": {
+        "en": "canoe",
+        "laos": "ລະຫວ່າງ",
+        "jp": "カヌー",
+        "vie": "ca nô",
+        "en_pronunciation": "/kəˈnu/",
+        "laos_pronunciation": "lavang",
+        "jp_pronunciation": "kanuu",
+        "vie_pronunciation": "ca no"
+      },
+      "means": {
+        "en": "Small and light boat; pointed at both ends; propelled with a paddle",
+        "zh": "由异常和不受控制的细胞分裂引起的任何恶性生长或肿瘤；"
+      }
+    },
+    {
+      "word": {
+        "en": "canteen",
+        "laos": "ອະໄວຍະວະ",
+        "jp": "食堂",
+        "vie": "căng tin",
+        "en_pronunciation": "/kænˈtin/",
+        "laos_pronunciation": "auaainyauaa",
+        "jp_pronunciation": "shokudou",
+        "vie_pronunciation": "cang tin"
+      },
+      "means": {
+        "en": "A flask for carrying water; used by soldiers or travelers",
+        "zh": "它可能通过淋巴系统或血流扩散到身体的其他部位"
+      }
+    },
+    {
+      "word": {
+        "en": "canvas",
+        "laos": "ຜ້າ",
+        "jp": "キャンバス",
+        "vie": "vải vẽ",
+        "en_pronunciation": "/ˈkænvəs/",
+        "laos_pronunciation": "pha",
+        "jp_pronunciation": "kyanbasu",
+        "vie_pronunciation": "vai ve"
+      },
+      "means": {
+        "en": "A heavy, closely woven fabric (used for clothing or chairs or sails or tents)",
+        "zh": "竞选公职的政治家"
+      }
+    },
+    {
+      "word": {
+        "en": "cap",
+        "laos": "ຫລວງ",
+        "jp": "キャップ",
+        "vie": "mũ lưỡi trai",
+        "en_pronunciation": "/kæp/",
+        "laos_pronunciation": "luang",
+        "jp_pronunciation": "kyappu",
+        "vie_pronunciation": "mu luoi trai"
+      },
+      "means": {
+        "en": "A tight-fitting headdress",
+        "zh": "当选候选人的竞选活动"
+      }
+    },
+    {
+      "word": {
+        "en": "capable",
+        "laos": "ສາມາດ",
+        "jp": "有能な",
+        "vie": "có khả năng",
+        "en_pronunciation": "/ˈkeɪpəbəl/",
+        "laos_pronunciation": "samad",
+        "jp_pronunciation": "yuunou na",
+        "vie_pronunciation": "co kha nang"
+      },
+      "means": {
+        "en": "(usually followed by `of') having capacity or ability",
+        "zh": "中间有灯芯的蜡棒"
+      }
+    },
+    {
+      "word": {
+        "en": "capability",
+        "laos": "ຄວາມສາມາດ",
+        "jp": "能力",
+        "vie": "khả năng",
+        "en_pronunciation": "/ˌkeɪpəˈbɪləti/",
+        "laos_pronunciation": "khuaamsamad",
+        "jp_pronunciation": "nouryoku",
+        "vie_pronunciation": "kha nang"
+      },
+      "means": {
+        "en": "The quality of being capable -- physically or intellectually or legally",
+        "zh": "一种由调味糖制成的浓郁糖果，通常与水果或坚果混合"
+      }
+    },
+    {
+      "word": {
+        "en": "capacity",
+        "laos": "ຄວາມສາມາດ",
+        "jp": "容量",
+        "vie": "công suất",
+        "en_pronunciation": "/kəˈpæsɪti/",
+        "laos_pronunciation": "khuaamsamad",
+        "jp_pronunciation": "youryou",
+        "vie_pronunciation": "cong suat"
+      },
+      "means": {
+        "en": "Capability to perform or produce",
+        "zh": "人们可以依靠来帮助他们行走的棍子"
+      }
+    },
+    {
+      "word": {
+        "en": "cape",
+        "laos": "ການຸໂຍກ",
+        "jp": "岬",
+        "vie": "mũi",
+        "en_pronunciation": "/keɪp/",
+        "laos_pronunciation": "ka nuonyk",
+        "jp_pronunciation": "misaki",
+        "vie_pronunciation": "mui"
+      },
+      "means": {
+        "en": "A strip of land projecting into a body of water",
+        "zh": "通常装在轮子上的大型火炮"
+      }
+    },
+    {
+      "word": {
+        "en": "capital",
+        "laos": "ທຶນຮອນ",
+        "jp": "資本金",
+        "vie": "vốn",
+        "en_pronunciation": "/ˈkæpɪtəl/",
+        "laos_pronunciation": "thunhon",
+        "jp_pronunciation": "shihonkin",
+        "vie_pronunciation": "von"
+      },
+      "means": {
+        "en": "Assets available for use in the production of further assets",
+        "zh": "小而轻的船；"
+      }
+    },
+    {
+      "word": {
+        "en": "capitalist",
+        "laos": "ຜູ້ຊາຢທຶນ",
+        "jp": "資本家",
+        "vie": "nhà tư bản",
+        "en_pronunciation": "/ˈkæpətəlɪst/",
+        "laos_pronunciation": "phu saythun",
+        "jp_pronunciation": "shihonka",
+        "vie_pronunciation": "nha tu ban"
+      },
+      "means": {
+        "en": "A conservative advocate of capitalism",
+        "zh": "两端都指向；"
+      }
+    },
+    {
+      "word": {
+        "en": "capitalism",
+        "laos": "ນະຄອນຫຼວງ",
+        "jp": "資本主義",
+        "vie": "chủ nghĩa tư bản",
+        "en_pronunciation": "/ˈkæpɪtəˌlɪzəm/",
+        "laos_pronunciation": "nakhonruang",
+        "jp_pronunciation": "shihonshugi",
+        "vie_pronunciation": "chu nghia tu ban"
+      },
+      "means": {
+        "en": "An economic system based on private ownership of capital",
+        "zh": "用桨推动"
+      }
+    },
+    {
+      "word": {
+        "en": "capsule",
+        "laos": "ຫມາກແຫ້ງໄຂໄດ້",
+        "jp": "カプセル",
+        "vie": "viên nang",
+        "en_pronunciation": "/ˈkæpsəl/",
+        "laos_pronunciation": "mak aehng khaidai",
+        "jp_pronunciation": "kapuseru",
+        "vie_pronunciation": "vien nang"
+      },
+      "means": {
+        "en": "A small container",
+        "zh": "一个装水的烧瓶；"
+      }
+    },
+    {
+      "word": {
+        "en": "captain",
+        "laos": "ເປີບໄປ",
+        "jp": "船長",
+        "vie": "đội trưởng",
+        "en_pronunciation": "/ˈkæptən/",
+        "laos_pronunciation": "poebpai",
+        "jp_pronunciation": "senchou",
+        "vie_pronunciation": "doi truong"
+      },
+      "means": {
+        "en": "An officer holding a rank below a major but above a lieutenant",
+        "zh": "士兵或旅行者使用"
+      }
+    },
+    {
+      "word": {
+        "en": "caption",
+        "laos": "ຄໍາບັນຍາຍ",
+        "jp": "キャプション",
+        "vie": "chú thích",
+        "en_pronunciation": "/ˈkæpʃən/",
+        "laos_pronunciation": "khoabnaiai",
+        "jp_pronunciation": "kyapushon",
+        "vie_pronunciation": "chu thich"
+      },
+      "means": {
+        "en": "Taking exception; especially a quibble based on a captious argument",
+        "zh": "一种厚重、紧密编织的织物（用于衣服、椅子、帆或帐篷）"
+      }
+    },
+    {
+      "word": {
+        "en": "captive",
+        "laos": "ຜູ້ເສັຽ",
+        "jp": "捕虜",
+        "vie": "bị giam cầm",
+        "en_pronunciation": "/ˈkæptɪv/",
+        "laos_pronunciation": "phuseia",
+        "jp_pronunciation": "horyo",
+        "vie_pronunciation": "bi giam cam"
+      },
+      "means": {
+        "en": "A person who is confined; especially a prisoner of war",
+        "zh": "紧身头饰"
+      }
+    },
+    {
+      "word": {
+        "en": "capture",
+        "laos": "ຈັບພາບ",
+        "jp": "キャプチャ",
+        "vie": "bắt giữ",
+        "en_pronunciation": "/ˈkæpʧər/",
+        "laos_pronunciation": "chabphab",
+        "jp_pronunciation": "kyapucha",
+        "vie_pronunciation": "bat giu"
+      },
+      "means": {
+        "en": "The act of forcibly dispossessing an owner of property",
+        "zh": "（通常后面跟“of”）有能力或能力"
+      }
+    },
+    {
+      "word": {
+        "en": "car",
+        "laos": "ລົດຢົນ",
+        "jp": "車",
+        "vie": "xe hơi",
+        "en_pronunciation": "/kɑr/",
+        "laos_pronunciation": "lod yon",
+        "jp_pronunciation": "kuruma",
+        "vie_pronunciation": "xe hoi"
+      },
+      "means": {
+        "en": "A motor vehicle with four wheels; usually propelled by an internal combustion engine",
+        "zh": "有能力的品质——身体上、智力上或法律上"
+      }
+    },
+    {
+      "word": {
+        "en": "caravan",
+        "laos": "ຂະບວນແຫ່",
+        "jp": "キャラバン",
+        "vie": "đoàn lữ hành",
+        "en_pronunciation": "/ˈkɛrəˌvæn/",
+        "laos_pronunciation": "khabuanaeh",
+        "jp_pronunciation": "kyaraban",
+        "vie_pronunciation": "doan lu hanh"
+      },
+      "means": {
+        "en": "A procession (of wagons or mules or camels) traveling together in single file",
+        "zh": "执行或生产能力"
+      }
+    },
+    {
+      "word": {
+        "en": "carbohydrate",
+        "laos": "ຄາໂບໄຮເດຣດ",
+        "jp": "炭水化物",
+        "vie": "cacbohydrat",
+        "en_pronunciation": "/ˌkɑrboʊˈhaɪˌdreɪt/",
+        "laos_pronunciation": "kha ob hai derd",
+        "jp_pronunciation": "tansuikabutsu",
+        "vie_pronunciation": "cacbohydrat"
+      },
+      "means": {
+        "en": "An essential structural component of living cells and source of energy for animals; includes simple sugars with small molecules as well as macromolecular substances; are classified according to the number of monosaccharide groups they contain",
+        "zh": "伸入水体的一片土地"
+      }
+    },
+    {
+      "word": {
+        "en": "carbon",
+        "laos": "ກາກບອນ",
+        "jp": "カーボン",
+        "vie": "cacbon",
+        "en_pronunciation": "/ˈkɑrbən/",
+        "laos_pronunciation": "kakbon",
+        "jp_pronunciation": "kaabon",
+        "vie_pronunciation": "cacbon"
+      },
+      "means": {
+        "en": "An abundant nonmetallic tetravalent element occurring in three allotropic forms: amorphous carbon and graphite and diamond; occurs in all organic compounds",
+        "zh": "可用于生产更多资产的资产"
+      }
+    },
+    {
+      "word": {
+        "en": "card",
+        "laos": "ໄພ້ຫລີ້ນ",
+        "jp": "カード",
+        "vie": "thẻ",
+        "en_pronunciation": "/kɑrd/",
+        "laos_pronunciation": "phailin",
+        "jp_pronunciation": "kaado",
+        "vie_pronunciation": "the"
+      },
+      "means": {
+        "en": "One of a set of small pieces of stiff paper marked in various ways and used for playing games or for telling fortunes",
+        "zh": "资本主义的保守派拥护者"
+      }
+    },
+    {
+      "word": {
+        "en": "cardboard",
+        "laos": "ແຜ່ນແພຫລວງ",
+        "jp": "段ボール",
+        "vie": "bìa cứng",
+        "en_pronunciation": "/ˈkɑrdˌbɔrd/",
+        "laos_pronunciation": "aephn aephluang",
+        "jp_pronunciation": "danbooru",
+        "vie_pronunciation": "bia cung"
+      },
+      "means": {
+        "en": "A stiff moderately thick paper",
+        "zh": "以资本私有制为基础的经济制度"
+      }
+    },
+    {
+      "word": {
+        "en": "cardinal",
+        "laos": "ທີ່ເຮັດສໍາຄັນ",
+        "jp": "枢機卿",
+        "vie": "hồng y",
+        "en_pronunciation": "/ˈkɑrdɪnəl/",
+        "laos_pronunciation": "thi hedsoakhan",
+        "jp_pronunciation": "suukikyou",
+        "vie_pronunciation": "hong y"
+      },
+      "means": {
+        "en": "(Roman Catholic Church) one of a group of more than 100 prominent bishops in the Sacred College who advise the Pope and elect new Popes",
+        "zh": "一个小容器"
+      }
+    },
+    {
+      "word": {
+        "en": "care",
+        "laos": "ການເອົາໃຈໃສ່",
+        "jp": "ケア",
+        "vie": "quan tâm",
+        "en_pronunciation": "/kɛr/",
+        "laos_pronunciation": "kanoaochaisai",
+        "jp_pronunciation": "kea",
+        "vie_pronunciation": "quan tam"
+      },
+      "means": {
+        "en": "The work of providing treatment for or attending to someone or something",
+        "zh": "军衔低于少校但高于中尉的军官"
+      }
+    },
+    {
+      "word": {
+        "en": "careful",
+        "laos": "ລະມັດລະວັງ",
+        "jp": "注意深い",
+        "vie": "cẩn thận",
+        "en_pronunciation": "/ˈkɛrfəl/",
+        "laos_pronunciation": "lamadlavang",
+        "jp_pronunciation": "chuuibukai",
+        "vie_pronunciation": "can than"
+      },
+      "means": {
+        "en": "Exercising caution or showing care or attention",
+        "zh": "例外；"
+      }
+    },
+    {
+      "word": {
+        "en": "careless",
+        "laos": "ອະນາທອນ",
+        "jp": "不注意な",
+        "vie": "bất cẩn",
+        "en_pronunciation": "/ˈkɛrlɛs/",
+        "laos_pronunciation": "anathon",
+        "jp_pronunciation": "fuchuui na",
+        "vie_pronunciation": "bat can"
+      },
+      "means": {
+        "en": "Marked by lack of attention or consideration or forethought or thoroughness; not careful",
+        "zh": "尤其是基于挑剔论点的狡辩"
+      }
+    },
+    {
+      "word": {
+        "en": "career",
+        "laos": "ອາຊີບ",
+        "jp": "キャリア",
+        "vie": "sự nghiệp",
+        "en_pronunciation": "/kərɪr/",
+        "laos_pronunciation": "asib",
+        "jp_pronunciation": "kyaria",
+        "vie_pronunciation": "su nghiep"
+      },
+      "means": {
+        "en": "The particular occupation for which you are trained",
+        "zh": "被限制的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "cargo",
+        "laos": "ເຄື່ອງສິນຄ້າ",
+        "jp": "貨物",
+        "vie": "hàng hóa",
+        "en_pronunciation": "/ˈkɑrˌgoʊ/",
+        "laos_pronunciation": "kheuongsinkha",
+        "jp_pronunciation": "kamotsu",
+        "vie_pronunciation": "hang hoa"
+      },
+      "means": {
+        "en": "Goods carried by a large vehicle",
+        "zh": "尤其是战俘"
+      }
+    },
+    {
+      "word": {
+        "en": "carpenter",
+        "laos": "ຊ່າງໄມ້",
+        "jp": "大工",
+        "vie": "thợ mộc",
+        "en_pronunciation": "/ˈkɑrpəntər/",
+        "laos_pronunciation": "sangmai",
+        "jp_pronunciation": "daiku",
+        "vie_pronunciation": "tho moc"
+      },
+      "means": {
+        "en": "A woodworker who makes or repairs wooden objects",
+        "zh": "强行剥夺所有者财产的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "carpet",
+        "laos": "ພົມ",
+        "jp": "カーペット",
+        "vie": "thảm",
+        "en_pronunciation": "/ˈkɑrpət/",
+        "laos_pronunciation": "phom",
+        "jp_pronunciation": "kaapetto",
+        "vie_pronunciation": "tham"
+      },
+      "means": {
+        "en": "Floor covering consisting of a piece of thick heavy fabric (usually with nap or pile)",
+        "zh": "四轮机动车辆；"
+      }
+    },
+    {
+      "word": {
+        "en": "carriage",
+        "laos": "ການຂົນສົ່ງ",
+        "jp": "馬車",
+        "vie": "vận chuyển",
+        "en_pronunciation": "/ˈkɛrəʤ/",
+        "laos_pronunciation": "kankhonsong",
+        "jp_pronunciation": "basha",
+        "vie_pronunciation": "van chuyen"
+      },
+      "means": {
+        "en": "A railcar where passengers ride",
+        "zh": "通常由内燃机驱动"
+      }
+    },
+    {
+      "word": {
+        "en": "carrier",
+        "laos": "ຜູ້ຂົນສົ່ງ",
+        "jp": "キャリア",
+        "vie": "người chuyên chở",
+        "en_pronunciation": "/ˈkɛriər/",
+        "laos_pronunciation": "phukhonsong",
+        "jp_pronunciation": "kyaria",
+        "vie_pronunciation": "nguoi chuyen cho"
+      },
+      "means": {
+        "en": "Someone whose employment involves carrying something",
+        "zh": "（由马车、骡子或骆驼组成的）排成一列行进的队伍"
+      }
+    },
+    {
+      "word": {
+        "en": "carrot",
+        "laos": "ກະຣົດ",
+        "jp": "ニンジン",
+        "vie": "cà rốt",
+        "en_pronunciation": "/ˈkɛrət/",
+        "laos_pronunciation": "karod",
+        "jp_pronunciation": "ninjin",
+        "vie_pronunciation": "ca rot"
+      },
+      "means": {
+        "en": "Deep orange edible root of the cultivated carrot plant",
+        "zh": "活细胞的重要结构成分和动物的能量来源；"
+      }
+    },
+    {
+      "word": {
+        "en": "carry",
+        "laos": "ປະຕິບັດ",
+        "jp": "運ぶ",
+        "vie": "mang theo",
+        "en_pronunciation": "/ˈkɛri/",
+        "laos_pronunciation": "patibad",
+        "jp_pronunciation": "hakobu",
+        "vie_pronunciation": "mang theo"
+      },
+      "means": {
+        "en": "The act of carrying something",
+        "zh": "包括小分子单糖和大分子物质；"
+      }
+    },
+    {
+      "word": {
+        "en": "cart",
+        "laos": "ລົດເຂັນ",
+        "jp": "カート",
+        "vie": "xe đẩy",
+        "en_pronunciation": "/kɑrt/",
+        "laos_pronunciation": "lodkhen",
+        "jp_pronunciation": "kaato",
+        "vie_pronunciation": "xe day"
+      },
+      "means": {
+        "en": "A heavy open wagon usually having two wheels and drawn by an animal",
+        "zh": "根据所含单糖基团的数量进行分类"
+      }
+    },
+    {
+      "word": {
+        "en": "carton",
+        "laos": "ກ່ອງ",
+        "jp": "カートン",
+        "vie": "thùng carton",
+        "en_pronunciation": "/ˈkɑrtən/",
+        "laos_pronunciation": "kong",
+        "jp_pronunciation": "kaaton",
+        "vie_pronunciation": "thung carton"
+      },
+      "means": {
+        "en": "The quantity contained in a carton",
+        "zh": "一种丰富的非金属四价元素，以三种同素异形体形式存在：无定形碳、石墨和金刚石；"
+      }
+    },
+    {
+      "word": {
+        "en": "cartoon",
+        "laos": "ຮູບຟ້າ",
+        "jp": "漫画",
+        "vie": "phim hoạt hình",
+        "en_pronunciation": "/kɑrˈtun/",
+        "laos_pronunciation": "hubfa",
+        "jp_pronunciation": "manga",
+        "vie_pronunciation": "phim hoat hinh"
+      },
+      "means": {
+        "en": "A humorous or satirical drawing published in a newspaper or magazine",
+        "zh": "存在于所有有机化合物中"
+      }
+    },
+    {
+      "word": {
+        "en": "cartoonist",
+        "laos": "ຮູບກາຕູນ",
+        "jp": "漫画家",
+        "vie": "họa sĩ truyện tranh",
+        "en_pronunciation": "/kɑrˈtunəst/",
+        "laos_pronunciation": "hubkatun",
+        "jp_pronunciation": "mangaka",
+        "vie_pronunciation": "hoa si truyen tranh"
+      },
+      "means": {
+        "en": "A person who draws cartoons",
+        "zh": "一组小片硬纸中的一张，以各种方式标记，用于玩游戏或算命"
+      }
+    },
+    {
+      "word": {
+        "en": "carve",
+        "laos": "ຈໍາຫລັກ",
+        "jp": "彫る",
+        "vie": "khắc",
+        "en_pronunciation": "/kɑrv/",
+        "laos_pronunciation": "choalak",
+        "jp_pronunciation": "horu",
+        "vie_pronunciation": "khac"
+      },
+      "means": {
+        "en": "Form by carving",
+        "zh": "一张硬硬的、厚度适中的纸"
+      }
+    },
+    {
+      "word": {
+        "en": "carving",
+        "laos": "ການແກະສະຫຼັກ",
+        "jp": "彫刻",
+        "vie": "chạm khắc",
+        "en_pronunciation": "/ˈkɑrvɪŋ/",
+        "laos_pronunciation": "kan kaesarak",
+        "jp_pronunciation": "choukoku",
+        "vie_pronunciation": "cham khac"
+      },
+      "means": {
+        "en": "A sculpture created by removing material (as wood or ivory or stone) in order to create a desired shape",
+        "zh": "（罗马天主教堂）圣学院 100 多名著名主教中的一位，他们为教皇提供建议并选举新教皇"
+      }
+    },
+    {
+      "word": {
+        "en": "case",
+        "laos": "ກໍລະນີ",
+        "jp": "ケース",
+        "vie": "trường hợp",
+        "en_pronunciation": "/keɪs/",
+        "laos_pronunciation": "kolani",
+        "jp_pronunciation": "keesu",
+        "vie_pronunciation": "truong hop"
+      },
+      "means": {
+        "en": "An occurrence of something",
+        "zh": "为某人或某事提供治疗或照顾的工作"
+      }
+    },
+    {
+      "word": {
+        "en": "cash",
+        "laos": "ເງິນສົດ",
+        "jp": "現金",
+        "vie": "tiền mặt",
+        "en_pronunciation": "/kæʃ/",
+        "laos_pronunciation": "ngoensod",
+        "jp_pronunciation": "genkin",
+        "vie_pronunciation": "tien mat"
+      },
+      "means": {
+        "en": "Money in the form of bills or coins",
+        "zh": "谨慎行事或表现出关心或关注"
+      }
+    },
+    {
+      "word": {
+        "en": "cashier",
+        "laos": "ເຄື່ອງເກັບເງິນສົດ",
+        "jp": "レジ係",
+        "vie": "nhân viên thu ngân",
+        "en_pronunciation": "/kæˈʃɪr/",
+        "laos_pronunciation": "kheuong kebngoensod",
+        "jp_pronunciation": "reji kakari",
+        "vie_pronunciation": "nhan vien thu ngan"
+      },
+      "means": {
+        "en": "An employee of a bank who receives and pays out money",
+        "zh": "以缺乏关注、考虑、深思熟虑或彻底性为标志；"
+      }
+    },
+    {
+      "word": {
+        "en": "casino",
+        "laos": "ຂ່ອຍ",
+        "jp": "カジノ",
+        "vie": "sòng bạc",
+        "en_pronunciation": "/kəˈsinoʊ/",
+        "laos_pronunciation": "khony",
+        "jp_pronunciation": "kajino",
+        "vie_pronunciation": "song bac"
+      },
+      "means": {
+        "en": "A public building for gambling and entertainment",
+        "zh": "不小心"
+      }
+    },
+    {
+      "word": {
+        "en": "cast",
+        "laos": "ສຽງໂຫ່",
+        "jp": "キャスト",
+        "vie": "đúc",
+        "en_pronunciation": "/kæst/",
+        "laos_pronunciation": "siangoh",
+        "jp_pronunciation": "kyasuto",
+        "vie_pronunciation": "duc"
+      },
+      "means": {
+        "en": "The actors in a play",
+        "zh": "您接受培训的特定职业"
+      }
+    },
+    {
+      "word": {
+        "en": "castle",
+        "laos": "Castle",
+        "jp": "城",
+        "vie": "lâu đài",
+        "en_pronunciation": "/ˈkæsəl/",
+        "laos_pronunciation": "Castle",
+        "jp_pronunciation": "shiro",
+        "vie_pronunciation": "lau dai"
+      },
+      "means": {
+        "en": "A large and stately mansion",
+        "zh": "大型车辆运载的货物"
+      }
+    },
+    {
+      "word": {
+        "en": "casual",
+        "laos": "ທໍາມະດາ",
+        "jp": "カジュアルな",
+        "vie": "bình thường",
+        "en_pronunciation": "/ˈkæʒəwəl/",
+        "laos_pronunciation": "thoamada",
+        "jp_pronunciation": "kajuaru na",
+        "vie_pronunciation": "binh thuong"
+      },
+      "means": {
+        "en": "Marked by blithe unconcern",
+        "zh": "制造或修理木制品的木工"
+      }
+    },
+    {
+      "word": {
+        "en": "casualty",
+        "laos": "ຜູ້ເສຍຊີວິດ",
+        "jp": "死傷者",
+        "vie": "tai nạn",
+        "en_pronunciation": "/ˈkæʒəwəlti/",
+        "laos_pronunciation": "phusiasivid",
+        "jp_pronunciation": "shishousha",
+        "vie_pronunciation": "tai nan"
+      },
+      "means": {
+        "en": "Someone injured or killed or captured or missing in a military engagement",
+        "zh": "由一块厚重织物组成的地板覆盖物（通常有绒毛或绒毛）"
+      }
+    },
+    {
+      "word": {
+        "en": "cat",
+        "laos": "ແມວ",
+        "jp": "猫",
+        "vie": "con mèo",
+        "en_pronunciation": "/kæt/",
+        "laos_pronunciation": "aemv",
+        "jp_pronunciation": "neko",
+        "vie_pronunciation": "con meo"
+      },
+      "means": {
+        "en": "Feline mammal usually having thick soft fur and no ability to roar: domestic cats; wildcats",
+        "zh": "乘客乘坐的有轨电车"
+      }
+    },
+    {
+      "word": {
+        "en": "catalog",
+        "laos": "ລາຍການ",
+        "jp": "カタログ",
+        "vie": "danh mục",
+        "en_pronunciation": "/ˈkætəlɔg/",
+        "laos_pronunciation": "laikan",
+        "jp_pronunciation": "katarogu",
+        "vie_pronunciation": "danh muc"
+      },
+      "means": {
+        "en": "A book or pamphlet containing an enumeration of things",
+        "zh": "工作涉及搬运物品的人"
+      }
+    },
+    {
+      "word": {
+        "en": "catalogue",
+        "laos": "ລາຍການ",
+        "jp": "カタログ",
+        "vie": "danh mục",
+        "en_pronunciation": "/ˈkætəˌlɔg/",
+        "laos_pronunciation": "laikan",
+        "jp_pronunciation": "katarogu",
+        "vie_pronunciation": "danh muc"
+      },
+      "means": {
+        "en": "A complete list of things; usually arranged systematically",
+        "zh": "栽培胡萝卜植物的深橙色食用根"
+      }
+    },
+    {
+      "word": {
+        "en": "catastrophe",
+        "laos": "ໄພພິບັດ",
+        "jp": "大惨事",
+        "vie": "thảm họa",
+        "en_pronunciation": "/kəˈtæstrəfi/",
+        "laos_pronunciation": "phaiphibad",
+        "jp_pronunciation": "daisanji",
+        "vie_pronunciation": "tham hoa"
+      },
+      "means": {
+        "en": "An event resulting in great loss and misfortune",
+        "zh": "携带某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "catastrophic",
+        "laos": "ໄພຮ້າຍແຮງ",
+        "jp": "壊滅的な",
+        "vie": "thảm họa",
+        "en_pronunciation": "/ˌkætəˈstrɑfɪk/",
+        "laos_pronunciation": "phaihaiaehng",
+        "jp_pronunciation": "kaimetsuteki na",
+        "vie_pronunciation": "tham hoa"
+      },
+      "means": {
+        "en": "Extremely harmful; bringing physical or financial ruin",
+        "zh": "重型敞篷马车，通常有两个轮子，由动物拉动"
+      }
+    },
+    {
+      "word": {
+        "en": "catch",
+        "laos": "ຈັບ",
+        "jp": "キャッチ",
+        "vie": "bắt",
+        "en_pronunciation": "/kæʧ/",
+        "laos_pronunciation": "chab",
+        "jp_pronunciation": "kyatchi",
+        "vie_pronunciation": "bat"
+      },
+      "means": {
+        "en": "A drawback or difficulty that is not readily evident",
+        "zh": "纸箱内所含数量"
+      }
+    },
+    {
+      "word": {
+        "en": "category",
+        "laos": "ປະເພດ",
+        "jp": "カテゴリ",
+        "vie": "thể loại",
+        "en_pronunciation": "/ˈkætəˌgɔri/",
+        "laos_pronunciation": "paphed",
+        "jp_pronunciation": "kategori",
+        "vie_pronunciation": "the loai"
+      },
+      "means": {
+        "en": "A collection of things sharing a common attribute",
+        "zh": "报纸或杂志上发表的幽默或讽刺图画"
+      }
+    },
+    {
+      "word": {
+        "en": "cater",
+        "laos": "ເຂີມ",
+        "jp": "ケータリング",
+        "vie": "phục vụ",
+        "en_pronunciation": "/ˈkeɪtər/",
+        "laos_pronunciation": "khoem",
+        "jp_pronunciation": "keetaringu",
+        "vie_pronunciation": "phuc vu"
+      },
+      "means": {
+        "en": "Give what is desired or needed, especially support, food or sustenance",
+        "zh": "一个画漫画的人"
+      }
+    },
+    {
+      "word": {
+        "en": "cathedral",
+        "laos": "ໂບດ",
+        "jp": "大聖堂",
+        "vie": "thánh đường",
+        "en_pronunciation": "/kəˈθidrəl/",
+        "laos_pronunciation": "obd",
+        "jp_pronunciation": "daiseidou",
+        "vie_pronunciation": "thanh duong"
+      },
+      "means": {
+        "en": "Any large and important church",
+        "zh": "雕刻形式"
+      }
+    },
+    {
+      "word": {
+        "en": "catholic",
+        "laos": "ກາໂຕລິກ",
+        "jp": "カトリックの",
+        "vie": "công giáo",
+        "en_pronunciation": "/ˈkæθlɪk/",
+        "laos_pronunciation": "ka otlik",
+        "jp_pronunciation": "katorikku no",
+        "vie_pronunciation": "cong giao"
+      },
+      "means": {
+        "en": "A member of a Catholic church",
+        "zh": "通过去除材料（如木材、象牙或石头）以形成所需形状而制成的雕塑"
+      }
+    },
+    {
+      "word": {
+        "en": "cattle",
+        "laos": "ງົວ",
+        "jp": "牛",
+        "vie": "gia súc",
+        "en_pronunciation": "/ˈkætəl/",
+        "laos_pronunciation": "ngua",
+        "jp_pronunciation": "ushi",
+        "vie_pronunciation": "gia suc"
+      },
+      "means": {
+        "en": "Domesticated bovine animals as a group regardless of sex or age; ; ; - Bible",
+        "zh": "某事的发生"
+      }
+    },
+    {
+      "word": {
+        "en": "cauliflower",
+        "laos": "ກະຫລໍາດອກໄມ້",
+        "jp": "カリフラワー",
+        "vie": "súp lơ",
+        "en_pronunciation": "/ˈkɑləˌflaʊər/",
+        "laos_pronunciation": "ka loadokmai",
+        "jp_pronunciation": "karifurawaa",
+        "vie_pronunciation": "sup lo"
+      },
+      "means": {
+        "en": "A plant having a large edible head of crowded white flower buds",
+        "zh": "纸币或硬币形式的货币"
+      }
+    },
+    {
+      "word": {
+        "en": "cause",
+        "laos": "ປ້ອຍ",
+        "jp": "原因",
+        "vie": "nguyên nhân",
+        "en_pronunciation": "/kɔz/",
+        "laos_pronunciation": "pony",
+        "jp_pronunciation": "gen'in",
+        "vie_pronunciation": "nguyen nhan"
+      },
+      "means": {
+        "en": "Events that provide the generative force that is the origin of something",
+        "zh": "银行雇员，负责收款和付款"
+      }
+    }
+  ]
+}
