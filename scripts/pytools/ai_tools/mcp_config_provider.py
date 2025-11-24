@@ -23,7 +23,6 @@ Supported MCP Servers:
 - MCPUnifiedServer: Unified MCP server (stdio transport)
 """
 
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -31,15 +30,11 @@ from typing import Dict, List, Optional
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# Add project root to path so pycore can be imported
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 
 def get_secret_value(key_name: str) -> Optional[str]:
     """Get secret value from secret manager"""
     try:
-        from pycore.pyfoundations.secret_manager import get_secret_key
+        from .secret_manager import get_secret_key
         value = get_secret_key(key_name)
         return value if value else None
     except Exception as e:

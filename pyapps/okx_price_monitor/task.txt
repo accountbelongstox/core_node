@@ -1,0 +1,51 @@
+
+[Mode1] Batch 2/31: 25 currencies
+[Mode1] Batch 3/31: 25 currencies
+[Mode1] Batch 4/31: 25 currencies
+[Mode1] Batch 5/31: 25 currencies
+[Mode1] Batch 6/31: 25 currencies
+[Mode1] Batch 7/31: 25 currencies
+[Mode1] Batch 8/31: 25 currencies
+[Mode1] Batch 9/31: 25 currencies
+[Mode1] Batch 10/31: 25 currencies
+[Mode1] Batch 11/31: 25 currencies
+[Mode1] Batch 12/31: 25 currencies
+[Mode1] Batch 13/31: 25 currencies
+[Mode1] Batch 14/31: 25 currencies
+[Mode1] Batch 15/31: 25 currencies
+[Mode1] Batch 16/31: 25 currencies
+[Mode1] Batch 17/31: 25 currencies
+[Mode1] Batch 18/31: 25 currencies
+[Mode1] Batch 19/31: 25 currencies
+[Mode1] Batch 20/31: 25 currencies
+[Mode1] Batch 21/31: 25 currencies
+[Mode1] Batch 22/31: 25 currencies
+[Mode1] Batch 23/31: 25 currencies
+[Mode1] Batch 24/31: 25 currencies
+[Mode1] Batch 25/31: 25 currencies
+[Mode1] Batch 26/31: 25 currencies
+[Mode1] Batch 27/31: 25 currencies
+[Mode1] Batch 28/31: 25 currencies
+[Mode1] Batch 29/31: 25 currencies
+[Mode1] Batch 30/31: 25 currencies
+[Mode1] Batch 31/31: 11 currencies 
+这样获取太慢了，但后端 puppeteer_spider_v2 却可以一次性请求，
+现在，修改为一次性批量请求所有页，并得出全部数据合并，扩展该 puppeteer_spider_v2 接口，注意你要全面深入扫描，复用代码。
+
+同时获取的格式为  
+{
+    "code": "0",
+    "msg": "",
+    "data": [
+        {
+            "currency": "TAKI",
+            "trend": []
+        },
+        {
+            "currency": "TAMA",
+            "trend": []
+        },
+        {
+            "currency": "TAO",
+            "trend": [
+如果data下有数据，同时提示获取成功。

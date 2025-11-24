@@ -155,6 +155,8 @@ DEPENDENCY_MAP = {
 OPTIONAL_PACKAGES = {
     # For Edge TTS (Microsoft Edge Text-to-Speech - optional)
     "edge_tts": "edge-tts",
+    # For Whisper STT (OpenAI Whisper Speech-to-Text - optional)
+    "whisper": "openai-whisper",
 }
 
 # Windows-only packages
@@ -1030,6 +1032,19 @@ def get_third_package_vosk():
     return _PACKAGE_CACHE['vosk']
 
 
+def get_third_package_whisper():
+    """Get OpenAI Whisper package (lazy load, optional)"""
+    if 'whisper' not in _PACKAGE_CACHE:
+        try:
+            import whisper
+            _PACKAGE_CACHE['whisper'] = whisper
+        except ImportError:
+            ColorPrint.yellow("[WARNING] Whisper not available")
+            ColorPrint.yellow("[WARNING] Install with: pip install -U openai-whisper")
+            _PACKAGE_CACHE['whisper'] = None
+    return _PACKAGE_CACHE['whisper']
+
+
 # Audio packages
 def get_third_package_pyaudio():
     """Get pyaudio package (lazy load, may be None if not installed)"""
@@ -1203,6 +1218,8 @@ __all__ = [
     # Optional packages
     'get_third_package_speechsdk',
     'get_third_package_edge_tts',
+    'get_third_package_vosk',
+    'get_third_package_whisper',
     # Audio packages
     'get_third_package_pyaudio',
     # Windows-only packages

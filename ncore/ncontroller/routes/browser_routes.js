@@ -112,6 +112,44 @@ const browserRoutes = {
     },
 
     /**
+     * Inject batch API requests in page (concurrent)
+     * params: {
+     *   pageId: string,
+     *   apiUrls: string[],
+     *   method?: string,
+     *   headers?: object,
+     *   responseType?: 'json'|'text'|'binary',
+     *   concurrency?: number (default: 10)
+     * }
+     */
+    'browser/injectBatchAPIRequests': async (params) => {
+        const { pageId, apiUrls, ...options } = params || {};
+        if (!pageId || !apiUrls || !Array.isArray(apiUrls)) {
+            return { success: false, error: 'pageId and apiUrls (array) are required' };
+        }
+        return ncoreController.browserManager.injectBatchAPIRequests(pageId, apiUrls, options);
+    },
+
+    /**
+     * Inject batch API requests and merge results
+     * params: {
+     *   pageId: string,
+     *   apiUrls: string[],
+     *   method?: string,
+     *   headers?: object,
+     *   responseType?: 'json'|'text'|'binary',
+     *   concurrency?: number (default: 10)
+     * }
+     */
+    'browser/injectBatchAPIRequestsAndMerge': async (params) => {
+        const { pageId, apiUrls, ...options } = params || {};
+        if (!pageId || !apiUrls || !Array.isArray(apiUrls)) {
+            return { success: false, error: 'pageId and apiUrls (array) are required' };
+        }
+        return ncoreController.browserManager.injectBatchAPIRequestsAndMerge(pageId, apiUrls, options);
+    },
+
+    /**
      * Close tab by URL
      * params: { url: string }
      */

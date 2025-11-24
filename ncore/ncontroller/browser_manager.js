@@ -18,6 +18,7 @@ const path = require('path');
 const fs = require('fs');
 const EnhancedPage = require('#@ncore/utils/puppeteer_spider_v2/src/implementations/pages/EnhancedPage.js');
 const UnifiedRequestUtils = require('#@ncore/utils/puppeteer_spider_v2/src/utils/request/UnifiedRequestUtils.js');
+const ResourceInterceptor = require('#@ncore/utils/puppeteer_spider_v2/src/utils/download/ResourceInterceptor.js');
 
 class BrowserManager {
     constructor() {
@@ -26,6 +27,7 @@ class BrowserManager {
         this.browserType = 'edge';
         this.enhancedPage = null;
         this.requestUtils = new Map(); // Map pageId -> UnifiedRequestUtils
+        this.interceptors = new Map(); // Map pageId -> ResourceInterceptor
     }
 
     async launch(options = {}) {
@@ -144,6 +146,18 @@ class BrowserManager {
             }
             this.pages.set(pageId, page);
 
+            // Optional: Enable request interception
+            if (options.enableInterception) {
+                const interceptor = new ResourceInterceptor(page, {
+                    resourceTypes: options.interceptResourceTypes || ['xhr', 'fetch'],
+                    includeFailedRequests: options.interceptIncludeFailedRequests !== false,
+                    computeHash: options.interceptComputeHash === true
+                });
+                await interceptor.enable();
+                this.interceptors.set(pageId, interceptor);
+                logger.success(`[BrowserManager] Request interception enabled for ${pageId}`);
+            }
+
             logger.success(`[BrowserManager] Page opened successfully: ${pageId} (action: ${navResult.action})`);
             return result;
 
@@ -191,14 +205,169 @@ class BrowserManager {
         }
     }
 
+    /**
+     * Inject and execute batch API requests in page context (concurrent)
+     * @param {string} pageId - Page identifier
+     * @param {Array<string>} apiUrls - Array of API URLs to request
+     * @param {Object} options - Request options
+     */
+    async injectBatchAPIRequests(pageId, apiUrls, options = {}) {
+        try {
+            const requestUtils = this.requestUtils.get(pageId);
+            if (!requestUtils) {
+                throw new Error(`No request utils found for pageId: ${pageId}`);
+            }
+
+            logger.info(`[BrowserManager] Injecting batch API requests: ${apiUrls.length} URLs`);
+
+            const result = await requestUtils.fetchBatch(apiUrls, {
+                method: options.method || 'GET',
+                headers: options.headers || {},
+                responseType: options.responseType || 'json',
+                timeout: options.timeout || 30000,
+                concurrency: options.concurrency || 10
+            });
+
+            logger.success(`[BrowserManager] Batch API requests completed: ${result.successful}/${result.total}`);
+            return result;
+
+        } catch (error) {
+            logger.error(`[BrowserManager] Failed to inject batch API requests: ${error.message}`);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Inject batch API requests and merge results
+     * @param {string} pageId - Page identifier
+     * @param {Array<string>} apiUrls - Array of API URLs to request
+     * @param {Object} options - Request options
+     */
+    async injectBatchAPIRequestsAndMerge(pageId, apiUrls, options = {}) {
+        try {
+            const requestUtils = this.requestUtils.get(pageId);
+            if (!requestUtils) {
+                throw new Error(`No request utils found for pageId: ${pageId}`);
+            }
+
+            logger.info(`[BrowserManager] Injecting batch API requests with merge: ${apiUrls.length} URLs`);
+
+            const result = await requestUtils.fetchBatchAndMerge(apiUrls, {
+                method: options.method || 'GET',
+                headers: options.headers || {},
+                responseType: options.responseType || 'json',
+                timeout: options.timeout || 30000,
+                concurrency: options.concurrency || 10
+            });
+
+            logger.success(`[BrowserManager] Batch API requests merged: ${result.mergedCount} items from ${result.successful}/${result.total} requests`);
+            return result;
+
+        } catch (error) {
+            logger.error(`[BrowserManager] Failed to inject batch API requests and merge: ${error.message}`);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
     getPage(pageId) {
         return this.pages?.get(pageId) || null;
+    }
+
+    /**
+     * Get intercepted resources from a page
+     * @param {string} pageId - Page identifier
+     * @param {Object} options - Filter options
+     * @returns {Array} Intercepted resources
+     */
+    getInterceptedResources(pageId, options = {}) {
+        try {
+            const interceptor = this.interceptors.get(pageId);
+            if (!interceptor) {
+                logger.warn(`[BrowserManager] No interceptor found for pageId: ${pageId}`);
+                return [];
+            }
+
+            let resources = interceptor.getInterceptedResources(options.resourceType);
+
+            // Filter by URL prefix
+            if (options.urlPrefix) {
+                resources = resources.filter(r => r.url.startsWith(options.urlPrefix));
+            }
+
+            // Filter by URL pattern
+            if (options.urlPattern) {
+                const regex = new RegExp(options.urlPattern);
+                resources = resources.filter(r => regex.test(r.url));
+            }
+
+            logger.info(`[BrowserManager] Retrieved ${resources.length} intercepted resources for ${pageId}`);
+            return resources;
+
+        } catch (error) {
+            logger.error(`[BrowserManager] Failed to get intercepted resources: ${error.message}`);
+            return [];
+        }
+    }
+
+    /**
+     * Get interception statistics
+     * @param {string} pageId - Page identifier
+     * @returns {Object} Statistics
+     */
+    getInterceptionStats(pageId) {
+        try {
+            const interceptor = this.interceptors.get(pageId);
+            if (!interceptor) {
+                return null;
+            }
+
+            return interceptor.getStats();
+
+        } catch (error) {
+            logger.error(`[BrowserManager] Failed to get interception stats: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Clear intercepted resources
+     * @param {string} pageId - Page identifier
+     */
+    clearInterceptedResources(pageId) {
+        try {
+            const interceptor = this.interceptors.get(pageId);
+            if (interceptor) {
+                interceptor.clear();
+                logger.info(`[BrowserManager] Cleared intercepted resources for ${pageId}`);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            logger.error(`[BrowserManager] Failed to clear intercepted resources: ${error.message}`);
+            return false;
+        }
     }
 
     async closePage(pageId) {
         try {
             const page = this.getPage(pageId);
             if (page) {
+                // Cleanup interceptor
+                const interceptor = this.interceptors.get(pageId);
+                if (interceptor) {
+                    await interceptor.disable();
+                    this.interceptors.delete(pageId);
+                }
+
+                // Cleanup request utils
+                this.requestUtils.delete(pageId);
+
                 await page.close();
                 this.pages.delete(pageId);
                 logger.info(`[BrowserManager] Page closed: ${pageId}`);

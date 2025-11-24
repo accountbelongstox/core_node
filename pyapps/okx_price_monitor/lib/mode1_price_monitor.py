@@ -160,7 +160,7 @@ class Mode1PriceMonitor:
 
     def fetch_all_batches(self, page_id):
         """
-        Fetch all batches to complete one tick
+        Fetch all batches to complete one tick (SEQUENTIAL)
 
         All batches fetched = 1 complete tick.
 
@@ -178,7 +178,7 @@ class Mode1PriceMonitor:
         all_data = []
         batch_delay = config.get_batch_delay_seconds()
 
-        ColorPrint.blue(f"[Mode1] Starting tick #{self.tick_count + 1}: {total_batches} batch(es), {len(self.currencies)} currencies")
+        ColorPrint.blue(f"[Mode1] Starting tick #{self.tick_count + 1}: {total_batches} batch(es), {len(self.currencies)} currencies (SEQUENTIAL)")
 
         for batch_idx in range(total_batches):
             batch_currencies = self._get_batch_currencies(batch_idx)
@@ -201,6 +201,77 @@ class Mode1PriceMonitor:
         ColorPrint.green(f"[Mode1] Tick #{self.tick_count} complete: {len(all_data)} price records")
 
         return {'data': all_data, 'tick': self.tick_count}
+
+    def fetch_all_batches_concurrent(self, page_id, concurrency=10):
+        """
+        Fetch all batches concurrently (PARALLEL)
+
+        Uses browser's batch API to fetch all batches in parallel.
+        Much faster than sequential fetching.
+
+        Args:
+            page_id (str): Page ID from browser manager
+            concurrency (int): Number of concurrent requests (default: 10)
+
+        Returns:
+            dict: Combined price data with all currencies
+        """
+        if not self.currencies:
+            ColorPrint.red("[Mode1] No currencies configured")
+            return None
+
+        total_batches = self._get_total_batches()
+        timestamp = self._get_timestamp()
+        period = config.DEFAULT_PERIOD
+
+        # Build all batch URLs
+        batch_urls = []
+        for batch_idx in range(total_batches):
+            batch_currencies = self._get_batch_currencies(batch_idx)
+            currencies_param = '%2C'.join(batch_currencies)
+            api_url = f"{config.PRICE_TREND_API_URL}?currencies={currencies_param}&period={period}&t={timestamp}"
+            batch_urls.append(api_url)
+
+        ColorPrint.blue(f"[Mode1] Starting tick #{self.tick_count + 1}: {total_batches} batch(es), {len(self.currencies)} currencies (CONCURRENT, concurrency={concurrency})")
+
+        # Use RPC batch API
+        rpc_url = f"{self.rpc_base_url}/rpc/browser/injectBatchAPIRequestsAndMerge"
+        payload = {
+            'pageId': page_id,
+            'apiUrls': batch_urls,
+            'method': 'GET',
+            'responseType': 'json',
+            'timeout': 30000,
+            'concurrency': concurrency
+        }
+
+        response = requests.post(rpc_url, json=payload, timeout=60)
+        response.raise_for_status()
+        result = response.json()
+
+        if result.get('success') and result.get('result'):
+            batch_result = result['result']
+
+            # Extract merged data
+            merged_data = batch_result.get('data', [])
+
+            self.tick_count += 1
+
+            ColorPrint.green(f"[Mode1] Tick #{self.tick_count} complete (CONCURRENT): "
+                           f"{batch_result.get('mergedCount', 0)} price records from "
+                           f"{batch_result.get('successful', 0)}/{batch_result.get('total', 0)} successful requests")
+
+            return {
+                'data': merged_data,
+                'tick': self.tick_count,
+                'method': 'concurrent',
+                'total_requests': batch_result.get('total', 0),
+                'successful_requests': batch_result.get('successful', 0),
+                'failed_requests': batch_result.get('failed', 0)
+            }
+        else:
+            ColorPrint.red(f"[Mode1] Concurrent batch fetch failed: {result.get('error', 'Unknown error')}")
+            return None
 
     def print_prices(self, price_data):
         """

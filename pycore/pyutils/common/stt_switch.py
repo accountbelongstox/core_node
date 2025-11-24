@@ -19,6 +19,7 @@ from pycore.pyutils.common.speech_switch import (
 
 class STTProvider(Enum):
     """Backward-compatible provider enum."""
+    WHISPER = "whisper"
     AZURE = "azure"
     LOCAL = "local"
     AUTO = "auto"

@@ -128,6 +128,21 @@ class SpeechSwitch:
 
     def _initialize_stt_providers(self):
         """Initialize STT provider implementations"""
+        # Whisper STT
+        if self._provider_status.is_available('stt', 'whisper'):
+            try:
+                from pycore.pyutils.whisper_stt import WhisperSTTProvider
+                provider = WhisperSTTProvider()
+                # Initialize provider to load model
+                if provider.initialize():
+                    self._stt_providers['whisper'] = provider
+                    ColorPrint.green("[SpeechSwitch] ✓ Whisper STT provider initialized")
+                else:
+                    raise Exception("Whisper STT initialization failed")
+            except Exception as e:
+                ColorPrint.red(f"[SpeechSwitch] ✗ Whisper STT init failed: {e}")
+                self._provider_status.mark_unavailable('stt', 'whisper', str(e))
+
         # Azure STT
         if self._provider_status.is_available('stt', 'azure'):
             try:
@@ -143,11 +158,11 @@ class SpeechSwitch:
                 ColorPrint.red(f"[SpeechSwitch] ✗ Azure STT init failed: {e}")
                 self._provider_status.mark_unavailable('stt', 'azure', str(e))
 
-        # Local STT
+        # Local STT (Vosk)
         if self._provider_status.is_available('stt', 'local'):
             try:
                 # Local STT provider would be initialized here
-                ColorPrint.yellow("[SpeechSwitch] Local STT provider not yet implemented")
+                ColorPrint.yellow("[SpeechSwitch] Local STT (Vosk) provider not yet implemented")
             except Exception as e:
                 ColorPrint.red(f"[SpeechSwitch] ✗ Local STT init failed: {e}")
                 self._provider_status.mark_unavailable('stt', 'local', str(e))
@@ -362,7 +377,22 @@ class SpeechSwitch:
 
             # Call provider
             try:
-                if provider_name == 'azure':
+                if provider_name == 'whisper':
+                    # Whisper STT processing
+                    result = self._process_whisper_stt(provider, audio_path, language)
+
+                    # Call callback if provided
+                    if callback and result:
+                        callback(STTTaskResult(
+                            success=result.get('success', False),
+                            text=result.get('text', ''),
+                            provider=provider_name,
+                            error=result.get('error')
+                        ))
+
+                    return result.get('success', False)
+
+                elif provider_name == 'azure':
                     # Azure STT processing
                     result = self._process_azure_stt(provider, audio_path, language)
 
@@ -410,6 +440,30 @@ class SpeechSwitch:
                 self._stats['stt_failed'] += 1
             return False
 
+    def _process_whisper_stt(self, provider, audio_path: str, language: str) -> Dict[str, Any]:
+        """
+        Process Whisper STT request
+
+        Args:
+            provider: WhisperSTTProvider instance
+            audio_path: Path to audio file
+            language: Language code
+
+        Returns:
+            Dict with recognition result (success, text, confidence, error)
+        """
+        ColorPrint.blue(f"[SpeechSwitch] Processing with Whisper STT: {audio_path}")
+
+        # Call Whisper provider
+        result = provider.recognize_from_file(Path(audio_path), language)
+
+        if result.get('success'):
+            ColorPrint.green(f"[SpeechSwitch] Whisper STT success: {result.get('text', '')[:50]}...")
+        else:
+            ColorPrint.red(f"[SpeechSwitch] Whisper STT failed: {result.get('error', 'Unknown error')}")
+
+        return result
+
     def _process_azure_stt(self, provider, audio_path: str, language: str) -> Optional[str]:
         """
         Process Azure STT request
@@ -422,15 +476,19 @@ class SpeechSwitch:
         Returns:
             Recognized text or None on failure
         """
-        # Azure STT processing
-        # This is simplified - actual implementation depends on provider API
+        ColorPrint.blue(f"[SpeechSwitch] Processing with Azure STT: {audio_path}")
 
-        # For now, just log that we would process it
-        ColorPrint.green(f"[SpeechSwitch] Azure STT would process: {audio_path}")
+        # Call Azure provider
+        result = provider.recognize_from_file(Path(audio_path), language)
 
-        # Return mock result
-        # In real implementation, call provider.recognize() or similar
-        return "Mock transcription result"
+        if result.get('success'):
+            text = result.get('text', '')
+            ColorPrint.green(f"[SpeechSwitch] Azure STT success: {text[:50]}...")
+            return text
+        else:
+            error = result.get('error', 'Unknown error')
+            ColorPrint.red(f"[SpeechSwitch] Azure STT failed: {error}")
+            raise Exception(error)
 
     def accept_task(self, task: Task) -> bool:
         """

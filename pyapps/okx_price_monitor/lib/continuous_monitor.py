@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PROJECT_ROOT
+from pyapps.okx_price_monitor.lib.config import config
 
 
 class ContinuousMonitor:
@@ -20,13 +21,18 @@ class ContinuousMonitor:
     Continuous Price Monitor
 
     Monitors prices continuously with configurable fetch interval.
+    All batches complete = 1 tick.
     """
 
-    def __init__(self, mode1_monitor, fetch_interval=1000, max_history=1000, save_to_file=True):
+    def __init__(self, mode1_monitor, fetch_interval=None, max_history=None, save_to_file=None, use_concurrent=True, concurrency=10):
         self.mode1_monitor = mode1_monitor
-        self.fetch_interval = fetch_interval / 1000.0
-        self.max_history = max_history
-        self.save_to_file = save_to_file
+
+        # Use config values if not specified
+        self.fetch_interval = (fetch_interval or config.FETCH_INTERVAL_MS) / 1000.0
+        self.max_history = max_history if max_history is not None else config.MAX_HISTORY
+        self.save_to_file = save_to_file if save_to_file is not None else config.SAVE_TO_FILE
+        self.use_concurrent = use_concurrent
+        self.concurrency = concurrency
 
         self.is_running = False
         self.is_initialized = False
@@ -34,7 +40,7 @@ class ContinuousMonitor:
         self.price_history = []
         self.last_fetch_time = None
         self.last_fetch_data = None
-        self.fetch_count = 0
+        self.tick_count = 0
 
         self.monitor_thread = None
         self.stop_event = threading.Event()
@@ -74,13 +80,17 @@ class ContinuousMonitor:
 
     def _fetch_once(self):
         """
-        Fetch price data once
+        Fetch price data once (one complete tick = all batches)
         """
         if not self.page_id:
             ColorPrint.red("[ContinuousMonitor] Page not initialized")
             return
 
-        price_data = self.mode1_monitor.fetch_prices(self.page_id)
+        # Use concurrent or sequential fetching
+        if self.use_concurrent:
+            price_data = self.mode1_monitor.fetch_all_batches_concurrent(self.page_id, self.concurrency)
+        else:
+            price_data = self.mode1_monitor.fetch_all_batches(self.page_id)
 
         if not price_data:
             ColorPrint.red("[ContinuousMonitor] Failed to fetch price data")
@@ -89,17 +99,19 @@ class ContinuousMonitor:
         fetch_time = datetime.now().isoformat()
         self.last_fetch_time = fetch_time
         self.last_fetch_data = price_data
-        self.fetch_count += 1
+        self.tick_count += 1
 
         self.price_history.append({
             'timestamp': fetch_time,
+            'tick': self.tick_count,
             'data': price_data
         })
 
         if len(self.price_history) > self.max_history:
             self.price_history.pop(0)
 
-        ColorPrint.green(f"[ContinuousMonitor] Fetch #{self.fetch_count} at {fetch_time}")
+        data_count = len(price_data.get('data', [])) if isinstance(price_data, dict) else 0
+        ColorPrint.green(f"[ContinuousMonitor] Tick #{self.tick_count} complete at {fetch_time} ({data_count} records)")
 
         if self.save_to_file:
             self._save_to_file(fetch_time, price_data)

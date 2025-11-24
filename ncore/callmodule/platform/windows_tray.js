@@ -76,11 +76,15 @@ function createLock() {
  * @param {string} options.host - Host to bind to
  * @param {number} options.port - Port to bind to
  * @param {boolean} options.debug - Enable debug mode
+ * @param {boolean} options.noBrowser - Disable auto browser launch
+ * @param {string} options.browserType - Browser type to launch
  */
 async function launchWindowsTray(options = {}) {
     const host = options.host || '0.0.0.0';
     const port = options.port || 58000;
     const debug = options.debug || false;
+    const noBrowser = options.noBrowser || false;
+    const browserType = options.browserType || 'edge';
 
     console.log('[Tray] Starting Windows tray mode...');
 
@@ -104,7 +108,9 @@ async function launchWindowsTray(options = {}) {
         ncoreRoot: NCORE_ROOT,
         httpPort: port,
         host: host,
-        debug: debug
+        debug: debug,
+        autoLaunchBrowser: !noBrowser,
+        browserType: browserType
     });
 
     // Create and start app
