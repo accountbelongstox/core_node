@@ -330,4 +330,223 @@ class UserSyncService
         
         return $results;
     }
+
+    public static function ensureMultilingualWordTablesExist(): array
+    {
+        $results = [];
+        $connection = 'appqyv1';
+        
+        $languages = [
+            'lao' => 'Lao',
+            'japanese' => 'Japanese', 
+            'vietnamese' => 'Vietnamese',
+            'english' => 'English',
+            'chinese' => 'Chinese',
+        ];
+        
+        foreach ($languages as $langKey => $langName) {
+            $tableName = "app_qy_v1_words_{$langKey}";
+            
+            try {
+                DB::connection($connection)->statement("
+                    CREATE TABLE IF NOT EXISTS {$tableName} (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        word_id INTEGER NOT NULL,
+                        word TEXT NOT NULL,
+                        pronunciation TEXT,
+                        meaning_en TEXT,
+                        meaning_zh TEXT,
+                        ai_reviewed INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ");
+                
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langKey}_word_id ON {$tableName}(word_id)
+                ");
+                
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langKey}_word ON {$tableName}(word)
+                ");
+                
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langKey}_ai_reviewed ON {$tableName}(ai_reviewed)
+                ");
+                
+                $results[$tableName] = 'created';
+                
+            } catch (\Exception $e) {
+                Log::error("[UserSync] Failed to create {$tableName}: " . $e->getMessage());
+                $results[$tableName] = 'error: ' . $e->getMessage();
+            }
+        }
+        
+        return $results;
+    }
+
+    public static function importMultilingualWordsFromMd(): array
+    {
+        $results = [
+            'total_files' => 0,
+            'total_words' => 0,
+            'imported' => 0,
+            'errors' => [],
+        ];
+        
+        $connection = 'appqyv1';
+        $dataDir = base_path('init_data/AppQyV1/Multilingual_basic_data/Inspection_table');
+        
+        if (!is_dir($dataDir)) {
+            $results['errors'][] = "Directory not found: {$dataDir}";
+            return $results;
+        }
+        
+        $mdFiles = glob("{$dataDir}/*.md");
+        $results['total_files'] = count($mdFiles);
+        
+        $existingCount = DB::connection($connection)->table('app_qy_v1_words_english')->count();
+        if ($existingCount > 0) {
+            $results['skipped'] = true;
+            $results['message'] = "Tables already have {$existingCount} records, skipping import";
+            return $results;
+        }
+        
+        $laoData = [];
+        $japaneseData = [];
+        $vietnameseData = [];
+        $englishData = [];
+        $chineseData = [];
+        
+        foreach ($mdFiles as $file) {
+            $content = file_get_contents($file);
+            $lines = explode("\n", $content);
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                
+                if (empty($line) || strpos($line, '| #') === 0 || strpos($line, '|---') === 0 || strpos($line, '# ') === 0) {
+                    continue;
+                }
+                
+                if (strpos($line, '|') !== 0) {
+                    continue;
+                }
+                
+                $parts = array_map('trim', explode('|', $line));
+                array_shift($parts);
+                array_pop($parts);
+                
+                if (count($parts) < 10) {
+                    continue;
+                }
+                
+                $wordId = intval($parts[0]);
+                if ($wordId <= 0) {
+                    continue;
+                }
+                
+                $english = $parts[1];
+                $lao = $parts[2];
+                $laoPronunciation = $parts[3];
+                $japanese = $parts[4];
+                $japanesePronunciation = $parts[5];
+                $vietnamese = $parts[6];
+                $vietnamesePronunciation = $parts[7];
+                $meaningEn = $parts[8];
+                $meaningZh = $parts[9];
+                
+                $now = now();
+                
+                $englishData[] = [
+                    'word_id' => $wordId,
+                    'word' => $english,
+                    'pronunciation' => null,
+                    'meaning_en' => $meaningEn,
+                    'meaning_zh' => $meaningZh,
+                    'ai_reviewed' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                
+                $laoData[] = [
+                    'word_id' => $wordId,
+                    'word' => $lao,
+                    'pronunciation' => $laoPronunciation,
+                    'meaning_en' => $meaningEn,
+                    'meaning_zh' => $meaningZh,
+                    'ai_reviewed' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                
+                $japaneseData[] = [
+                    'word_id' => $wordId,
+                    'word' => $japanese,
+                    'pronunciation' => $japanesePronunciation,
+                    'meaning_en' => $meaningEn,
+                    'meaning_zh' => $meaningZh,
+                    'ai_reviewed' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                
+                $vietnameseData[] = [
+                    'word_id' => $wordId,
+                    'word' => $vietnamese,
+                    'pronunciation' => $vietnamesePronunciation,
+                    'meaning_en' => $meaningEn,
+                    'meaning_zh' => $meaningZh,
+                    'ai_reviewed' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                
+                $chineseData[] = [
+                    'word_id' => $wordId,
+                    'word' => $meaningZh,
+                    'pronunciation' => null,
+                    'meaning_en' => $meaningEn,
+                    'meaning_zh' => $meaningZh,
+                    'ai_reviewed' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                
+                $results['total_words']++;
+            }
+        }
+        
+        try {
+            $chunkSize = 500;
+            
+            foreach (array_chunk($englishData, $chunkSize) as $chunk) {
+                DB::connection($connection)->table('app_qy_v1_words_english')->insert($chunk);
+            }
+            
+            foreach (array_chunk($laoData, $chunkSize) as $chunk) {
+                DB::connection($connection)->table('app_qy_v1_words_lao')->insert($chunk);
+            }
+            
+            foreach (array_chunk($japaneseData, $chunkSize) as $chunk) {
+                DB::connection($connection)->table('app_qy_v1_words_japanese')->insert($chunk);
+            }
+            
+            foreach (array_chunk($vietnameseData, $chunkSize) as $chunk) {
+                DB::connection($connection)->table('app_qy_v1_words_vietnamese')->insert($chunk);
+            }
+            
+            foreach (array_chunk($chineseData, $chunkSize) as $chunk) {
+                DB::connection($connection)->table('app_qy_v1_words_chinese')->insert($chunk);
+            }
+            
+            $results['imported'] = $results['total_words'];
+            
+        } catch (\Exception $e) {
+            Log::error("[UserSync] Failed to import multilingual words: " . $e->getMessage());
+            $results['errors'][] = $e->getMessage();
+        }
+        
+        return $results;
+    }
 }
