@@ -38,6 +38,7 @@ class PageCollector {
         this.consoleLogs = new Map();
         this.pageResources = new Map();
         this.interceptedApiUrls = new Map();
+        this.setupPages = new WeakSet(); // Track which pages have been setup
     }
 
     /**
@@ -46,12 +47,22 @@ class PageCollector {
      * @param {string} pageId - Page identifier
      */
     setupPageCollectors(page, pageId) {
+        // Check if this page already has collectors setup
+        if (this.setupPages.has(page)) {
+            logger.debug(`[PageCollector] Page already has collectors, skipping setup for: ${pageId}`);
+            return;
+        }
+
         if (!this.consoleLogs.has(pageId)) {
             this.consoleLogs.set(pageId, []);
         }
 
         if (!this.pageResources.has(pageId)) {
             this.pageResources.set(pageId, []);
+        }
+
+        if (!this.interceptedApiUrls.has(pageId)) {
+            this.interceptedApiUrls.set(pageId, []);
         }
 
         page.on('console', (msg) => {
@@ -87,9 +98,12 @@ class PageCollector {
                     timestamp: Date.now()
                 });
                 this.interceptedApiUrls.set(pageId, apiUrls);
-                logger.info(`[PageCollector] Intercepted batch-currency-trend URL: ${url.substring(0, 150)}...`);
+                logger.info(`[PageCollector] Intercepted batch-currency-trend URL for pageId=${pageId}: ${url.substring(0, 120)}...`);
             }
         });
+
+        // Mark this page as setup
+        this.setupPages.add(page);
 
         logger.info(`[PageCollector] Setup collectors for page: ${pageId}`);
     }

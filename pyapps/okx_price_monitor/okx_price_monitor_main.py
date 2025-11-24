@@ -96,7 +96,7 @@ def start():
 
     page_ids = []
     for i, page_url in enumerate(config.BASE_PAGES, 1):
-        ColorPrint.yellow(f"[Step 1.{i}] Opening page: {page_url}")
+        ColorPrint.yellow(f"\n[Step 1.{i}] Opening page: {page_url}")
         open_result = call_rpc_browser_open(page_url)
 
         page_id = open_result.get('pageId')
@@ -105,6 +105,22 @@ def start():
 
         ColorPrint.green(f"  Page ID: {page_id}, Tab Action: {tab_action}")
         time.sleep(3)  # Wait for page to load and URLs to be intercepted
+
+        # Check intercepted URLs for this page
+        rpc_url = f"{config.RPC_BASE_URL}/rpc/browser/getInterceptedApiUrls"
+        payload = {'pageId': page_id, 'clearAfterGet': False}
+        response = requests.post(rpc_url, json=payload, timeout=30)
+        result = response.json()
+
+        if result.get('success'):
+            urls = result.get('urls', [])
+            ColorPrint.blue(f"  ✅ Intercepted {len(urls)} URLs so far:")
+            for j, url_obj in enumerate(urls[-3:], 1):  # Show last 3 URLs
+                url = url_obj.get('url', '')
+                status = url_obj.get('status', 'N/A')
+                ColorPrint.yellow(f"    [{j}] Status {status}: {url[:120]}...")
+        else:
+            ColorPrint.red(f"  ❌ Failed to get intercepted URLs: {result.get('error')}")
 
     ColorPrint.green(f"[Step 1] All pages opened successfully")
     ColorPrint.green(f"  Total pages: {len(page_ids)}")
