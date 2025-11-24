@@ -49,9 +49,21 @@ class PageCollector {
     setupPageCollectors(page, pageId) {
         // Check if this page already has collectors setup
         if (this.setupPages.has(page)) {
-            logger.debug(`[PageCollector] Page already has collectors, skipping setup for: ${pageId}`);
+            logger.info(`[PageCollector] Page already has collectors, reusing existing setup (pageId: ${pageId})`);
+            // Still ensure Map entries exist for this pageId
+            if (!this.consoleLogs.has(pageId)) {
+                this.consoleLogs.set(pageId, []);
+            }
+            if (!this.pageResources.has(pageId)) {
+                this.pageResources.set(pageId, []);
+            }
+            if (!this.interceptedApiUrls.has(pageId)) {
+                this.interceptedApiUrls.set(pageId, []);
+            }
             return;
         }
+
+        logger.info(`[PageCollector] Setting up NEW collectors for pageId: ${pageId}`);
 
         if (!this.consoleLogs.has(pageId)) {
             this.consoleLogs.set(pageId, []);
@@ -133,9 +145,17 @@ class PageCollector {
      * @returns {Array}
      */
     getInterceptedApiUrls(pageId, clearAfterGet = false) {
+        logger.info(`[PageCollector] getInterceptedApiUrls called for pageId="${pageId}"`);
+        logger.info(`[PageCollector] Available pageIds in interceptedApiUrls Map: [${Array.from(this.interceptedApiUrls.keys()).join(', ')}]`);
+
         const urls = this.interceptedApiUrls.get(pageId) || [];
+
+        logger.info(`[PageCollector] Returning ${urls.length} URLs for pageId="${pageId}", clearAfterGet=${clearAfterGet}`);
+
         if (clearAfterGet) {
+            logger.warn(`[PageCollector] ⚠️ CLEARING ${urls.length} URLs for pageId="${pageId}"`);
             this.interceptedApiUrls.set(pageId, []);
+            logger.info(`[PageCollector] ✅ Cleared URLs for pageId="${pageId}"`);
         }
         return urls;
     }
