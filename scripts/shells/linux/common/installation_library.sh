@@ -25,9 +25,7 @@ SCRIPT_INDEX="[INSTALL_LIB]"
 
 # Source required files - use dynamic relative path
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
-PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 # Logging function
 log_install() {
@@ -328,23 +326,100 @@ install_via_flatpak() {
     if ! command_exists flatpak; then
         log_install "Installing flatpak first..."
         $USE_SUDO apt update
-        if $USE_SUDO apt install -y flatpak; then
-            log_success "flatpak installed successfully"
-            # Add flathub repository
-            $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || log_warning "Failed to add flathub repository"
-        else
+        if ! $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y flatpak gnome-software-plugin-flatpak; then
             log_error "Failed to install flatpak"
+            return 1
+        fi
+        log_success "flatpak installed successfully"
+    fi
+
+    # Ensure flathub repository is properly configured (system-wide)
+    log_install "Configuring flathub repository (system-wide)..."
+
+    # Remove existing flathub if it's corrupted
+    $USE_SUDO flatpak remote-delete flathub 2>/dev/null || true
+
+    # Add flathub repository system-wide
+    if ! $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+        log_warning "Failed to add flathub repository system-wide, trying direct method..."
+
+        # Try alternative method with GPG key
+        if ! $USE_SUDO flatpak remote-add --if-not-exists --gpg-import=https://flathub.org/repo/flathub.gpg flathub https://flathub.org/repo/flathub.flatpakrepo; then
+            log_error "Failed to add flathub repository with all methods"
             return 1
         fi
     fi
 
-    # Install flatpak package
+    # Verify flathub repository is accessible
+    if ! $USE_SUDO flatpak remote-ls flathub >/dev/null 2>&1; then
+        log_warning "Flathub repository not accessible, refreshing..."
+        $USE_SUDO flatpak update --appstream 2>/dev/null || true
+        sleep 2
+
+        # Try again
+        if ! $USE_SUDO flatpak remote-ls flathub >/dev/null 2>&1; then
+            log_error "Flathub repository still not accessible after refresh"
+        fi
+    fi
+
+    log_success "Flathub repository configured successfully"
+
+    # Try to install flatpak package (system-wide first)
+    log_install "Installing $app_name from flathub (system-wide)..."
     if $USE_SUDO flatpak install -y flathub "$package_id"; then
-        log_success "Successfully installed $app_name via FLATPAK"
+        log_success "Successfully installed $app_name via FLATPAK (system-wide)"
+
+        # Fix XDG_DATA_DIRS issue
+        log_install "Updating XDG_DATA_DIRS environment..."
+        local flatpak_exports="/var/lib/flatpak/exports/share"
+        if [ -d "$flatpak_exports" ]; then
+            # Add to /etc/environment
+            if ! grep -q "$flatpak_exports" /etc/environment 2>/dev/null; then
+                log_install "Adding $flatpak_exports to /etc/environment"
+                if grep -q "XDG_DATA_DIRS=" /etc/environment 2>/dev/null; then
+                    $USE_SUDO sed -i "s|XDG_DATA_DIRS=|XDG_DATA_DIRS=$flatpak_exports:|" /etc/environment
+                else
+                    echo "XDG_DATA_DIRS=$flatpak_exports:/usr/local/share:/usr/share" | $USE_SUDO tee -a /etc/environment > /dev/null
+                fi
+            fi
+        fi
+
+        # Fix permissions for flatpak installation
+        if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
+            log_install "Fixing permissions for flatpak installation"
+            # Fix system flatpak directory
+            if [ -d "/var/lib/flatpak/app/$package_id" ]; then
+                fix_installation_permissions_from_common_functions "/var/lib/flatpak/app/$package_id" "755" "true" 2>&1 | while IFS= read -r line; do
+                    log_install "$line"
+                done
+            fi
+        fi
+
         return 0
     else
-        log_error "Failed to install $app_name via FLATPAK"
-        return 1
+        log_warning "Failed to install $app_name via FLATPAK (system), trying user mode..."
+
+        # Configure flathub for user mode
+        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+
+        # Try user mode installation
+        if flatpak install --user -y flathub "$package_id"; then
+            log_success "Successfully installed $app_name via FLATPAK (user mode)"
+
+            # Fix XDG_DATA_DIRS for user installation
+            local user_flatpak_exports="$HOME/.local/share/flatpak/exports/share"
+            if [ -d "$user_flatpak_exports" ]; then
+                log_install "Adding $user_flatpak_exports to XDG_DATA_DIRS"
+                if ! grep -q "$user_flatpak_exports" ~/.profile 2>/dev/null; then
+                    echo "export XDG_DATA_DIRS=\"$user_flatpak_exports:\$XDG_DATA_DIRS\"" >> ~/.profile
+                fi
+            fi
+
+            return 0
+        else
+            log_error "Failed to install $app_name via FLATPAK (both system and user mode)"
+            return 1
+        fi
     fi
 }
 
@@ -729,45 +804,100 @@ universal_install() {
         sleep 2
     fi
 
+    local install_result=0
+
     case "$method" in
         "apt")
             install_via_apt "$package_id" "$app_name"
+            install_result=$?
             ;;
         "snap")
             install_via_snap "$package_id" "$app_name"
+            install_result=$?
             ;;
         "flatpak")
             install_via_flatpak "$package_id" "$app_name"
+            install_result=$?
             ;;
         "web")
             install_via_web "$package_id" "$app_name"
+            install_result=$?
             ;;
         "npm")
             install_via_npm "$package_id" "$app_name"
+            install_result=$?
+            # Fix NPM permissions after installation
+            if [ $install_result -eq 0 ] && command -v fix_npm_global_permissions_from_common_functions >/dev/null 2>&1; then
+                log_install "Fixing NPM permissions after installation"
+                fix_npm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
+                    log_install "$line"
+                done
+            fi
             ;;
         "pipx")
             install_via_pipx "$package_id" "$app_name"
+            install_result=$?
             ;;
         "uv")
             install_via_uv "$package_id" "$app_name"
+            install_result=$?
             ;;
         "uv_tool")
             install_via_uv_tool "$package_id" "$app_name"
+            install_result=$?
             ;;
         "uvx")
             install_via_uvx "$package_id" "$app_name"
+            install_result=$?
             ;;
         "curl")
             install_via_curl "$package_id" "$app_name"
+            install_result=$?
             ;;
         "microsoft_apt")
             install_via_microsoft_apt "$package_id" "$app_name"
+            install_result=$?
             ;;
         *)
             log_error "Unknown installation method: $method"
             return 1
             ;;
     esac
+
+    # Fix permissions for installed application if successful
+    if [ $install_result -eq 0 ]; then
+        # Try to find installation directory and fix permissions
+        if [ -n "$exec_name" ] && command -v "$exec_name" >/dev/null 2>&1; then
+            local exec_path=$(command -v "$exec_name" 2>/dev/null)
+            if [ -n "$exec_path" ] && [ -f "$exec_path" ]; then
+                # Fix permissions for the executable
+                if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
+                    log_install "Fixing permissions for: $exec_path"
+                    fix_installation_permissions_from_common_functions "$exec_path" "755" "true" 2>&1 | while IFS= read -r line; do
+                        log_install "$line"
+                    done
+                fi
+
+                # If it's a symlink, also fix the target
+                if [ -L "$exec_path" ]; then
+                    local target_path=$(readlink -f "$exec_path" 2>/dev/null)
+                    if [ -n "$target_path" ] && [ -e "$target_path" ]; then
+                        local target_dir=$(dirname "$target_path")
+                        if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
+                            log_install "Fixing permissions for target directory: $target_dir"
+                            fix_installation_permissions_from_common_functions "$target_dir" "755" "true" 2>&1 | while IFS= read -r line; do
+                                log_install "$line"
+                            done
+                        fi
+                    fi
+                fi
+            fi
+        fi
+
+        log_success "Installation completed successfully: $app_name"
+    fi
+
+    return $install_result
 }
 
 # Export functions for use by other scripts

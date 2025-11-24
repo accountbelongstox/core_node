@@ -8,7 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('VipClubV1')->create('vipclubv1_points_transactions', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_points_transactions')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_points_transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->integer('points');
@@ -21,10 +22,11 @@ return new class extends Migration
             $table->index('type');
             $table->index('created_at');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_points_transactions');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_points_transactions');
     }
 };

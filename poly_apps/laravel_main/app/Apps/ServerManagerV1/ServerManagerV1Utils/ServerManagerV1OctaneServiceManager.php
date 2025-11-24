@@ -439,6 +439,8 @@ class ServerManagerV1OctaneServiceManager
         $externalPaths = self::getExternalWritePaths($laravelPath);
         $readWritePaths = "{$laravelPath}/storage {$laravelPath}/bootstrap/cache " . implode(' ', $externalPaths);
 
+        $phpBinary = PathMapper::getPhpBinaryPath();
+
         return <<<EOF
 [Unit]
 Description=Laravel Octane Server for path {$pathHash} on port {$port}{$descLine}
@@ -450,7 +452,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart=/usr/bin/php {$laravelPath}/artisan octane:start --host={$host} --port={$port} --workers={$workers}
+ExecStart={$phpBinary} {$laravelPath}/artisan octane:start --host={$host} --port={$port} --workers={$workers}
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -525,6 +527,8 @@ EOF;
         $memoryLimitKB = (int)($totalMemoryKB * 0.2); // 20% of total memory
         $memoryLimitMB = (int)($memoryLimitKB / 1024);
 
+        $phpBinary = PathMapper::getPhpBinaryPath();
+
         return <<<EOF
 [Unit]
 Description=Laravel Octane Server for {$domain} on port {$port}
@@ -536,7 +540,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart=/usr/bin/php {$laravelPath}/artisan octane:start --host=0.0.0.0 --port={$port} --workers={$workers}
+ExecStart={$phpBinary} {$laravelPath}/artisan octane:start --host=0.0.0.0 --port={$port} --workers={$workers}
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration

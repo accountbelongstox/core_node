@@ -111,6 +111,7 @@ require_once __DIR__ . '/VipClubV1Router/api.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
 
 // McpV1 routes - MCP application
 require_once __DIR__ . '/McpV1Router/api.php';

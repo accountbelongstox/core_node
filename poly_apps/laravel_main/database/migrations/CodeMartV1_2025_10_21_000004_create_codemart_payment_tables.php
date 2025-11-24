@@ -9,7 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         // Wallets table
-        Schema::connection('CodeMartV1')->create('codemart_v1_wallets', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_wallets')) {
+        Schema::connection('codemartv1')->create('codemart_v1_wallets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->unique()->constrained('users')->onDelete('cascade');
             $table->decimal('balance', 15, 2)->default(0);
@@ -19,9 +20,11 @@ return new class extends Migration
             $table->timestamps();
             $table->index('user_id');
         });
+        }
 
         // Wallet transactions
-        Schema::connection('CodeMartV1')->create('codemart_v1_wallet_transactions', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_wallet_transactions')) {
+        Schema::connection('codemartv1')->create('codemart_v1_wallet_transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('wallet_id')->constrained('codemart_v1_wallets')->onDelete('cascade');
             $table->enum('type', ['deposit', 'withdrawal', 'payment', 'refund', 'earning', 'escrow_hold', 'escrow_release'])->default('payment');
@@ -35,9 +38,11 @@ return new class extends Migration
             $table->index('type');
             $table->index('status');
         });
+        }
 
         // Payments table
-        Schema::connection('CodeMartV1')->create('codemart_v1_payments', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_payments')) {
+        Schema::connection('codemartv1')->create('codemart_v1_payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('payer_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('payee_id')->constrained('users')->onDelete('cascade');
@@ -57,9 +62,11 @@ return new class extends Migration
             $table->index('project_id');
             $table->index('status');
         });
+        }
 
         // Escrow accounts
-        Schema::connection('CodeMartV1')->create('codemart_v1_escrows', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_escrows')) {
+        Schema::connection('codemartv1')->create('codemart_v1_escrows', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->foreignId('payer_id')->constrained('users')->onDelete('cascade');
@@ -75,9 +82,11 @@ return new class extends Migration
             $table->index('payee_id');
             $table->index('status');
         });
+        }
 
         // Invoices
-        Schema::connection('CodeMartV1')->create('codemart_v1_invoices', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_invoices')) {
+        Schema::connection('codemartv1')->create('codemart_v1_invoices', function (Blueprint $table) {
             $table->id();
             $table->foreignId('payment_id')->constrained('codemart_v1_payments')->onDelete('cascade');
             $table->string('invoice_number')->unique();
@@ -96,9 +105,11 @@ return new class extends Migration
             $table->index('invoice_number');
             $table->index('status');
         });
+        }
 
         // Refunds
-        Schema::connection('CodeMartV1')->create('codemart_v1_refunds', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_refunds')) {
+        Schema::connection('codemartv1')->create('codemart_v1_refunds', function (Blueprint $table) {
             $table->id();
             $table->foreignId('payment_id')->constrained('codemart_v1_payments')->onDelete('cascade');
             $table->decimal('amount', 15, 2);
@@ -111,15 +122,16 @@ return new class extends Migration
             $table->index('payment_id');
             $table->index('status');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_refunds');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_invoices');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_escrows');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_payments');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_wallet_transactions');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_wallets');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_refunds');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_invoices');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_escrows');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_payments');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_wallet_transactions');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_wallets');
     }
 };

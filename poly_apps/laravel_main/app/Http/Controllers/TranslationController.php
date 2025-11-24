@@ -7,6 +7,13 @@ use App\Services\Translation\TranslationTaskManager;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
+/**
+ * @deprecated This controller is deprecated. Use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController instead.
+ * All translation APIs have been moved to AppQyV1 with database-backed caching.
+ * 
+ * Old endpoints: /translation/*
+ * New endpoints: /app_qy_v1/ai_tools/translation/*
+ */
 class TranslationController extends Controller
 {
     private $translationService;
@@ -27,7 +34,7 @@ class TranslationController extends Controller
         return $passcode === $expectedPasscode;
     }
     
-    private function resolveModelId(?int $modelIndex): ?string
+    private function resolveModelId(?int $modelIndex): ?array
     {
         if ($modelIndex === null) {
             return null;
@@ -42,7 +49,10 @@ class TranslationController extends Controller
         $mappingData = json_decode(file_get_contents($mappingFile), true);
         
         if ($mappingData && isset($mappingData['mapping'][$modelIndex])) {
-            return $mappingData['mapping'][$modelIndex];
+            return [
+                'model' => $mappingData['mapping'][$modelIndex],
+                'provider' => $mappingData['provider_mapping'][$modelIndex] ?? 'openrouter',
+            ];
         }
         
         return null;
@@ -64,13 +74,14 @@ class TranslationController extends Controller
             'model' => 'nullable|integer',
         ]);
         
-        $modelId = $this->resolveModelId($request->input('model'));
+        $modelInfo = $this->resolveModelId($request->input('model'));
         
         $result = $this->translationService->translate(
             text: $request->input('text'),
             targetLanguage: $request->input('target_language'),
             type: $request->input('type', 'general'),
-            model: $modelId
+            model: $modelInfo['model'] ?? null,
+            provider: $modelInfo['provider'] ?? 'openrouter'
         );
         
         return response()->json($result);
@@ -93,13 +104,14 @@ class TranslationController extends Controller
             'model' => 'nullable|integer',
         ]);
         
-        $modelId = $this->resolveModelId($request->input('model'));
+        $modelInfo = $this->resolveModelId($request->input('model'));
         
         $results = $this->translationService->batchTranslate(
             texts: $request->input('texts'),
             targetLanguage: $request->input('target_language'),
             type: $request->input('type', 'general'),
-            model: $modelId
+            model: $modelInfo['model'] ?? null,
+            provider: $modelInfo['provider'] ?? 'openrouter'
         );
         
         return response()->json([
@@ -123,12 +135,13 @@ class TranslationController extends Controller
             'model' => 'nullable|integer',
         ]);
         
-        $modelId = $this->resolveModelId($request->input('model'));
+        $modelInfo = $this->resolveModelId($request->input('model'));
         
         $result = $this->translationService->detectAndTranslate(
             text: $request->input('text'),
             targetLanguage: $request->input('target_language'),
-            model: $modelId
+            model: $modelInfo['model'] ?? null,
+            provider: $modelInfo['provider'] ?? 'openrouter'
         );
         
         return response()->json($result);
@@ -150,21 +163,29 @@ class TranslationController extends Controller
         ]);
     }
     
+    public function getLanguageTemplates(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'templates' => $this->translationService->getLanguageTemplates(),
+        ]);
+    }
+    
     public function getModels(Request $request): JsonResponse
     {
-        $hardcodedModels = [
-            [
-                'id' => 'tngtech/deepseek-r1t2-chimera:free',
-                'name' => 'DeepSeek R1T2 Chimera (Free)',
-                'free' => true,
-                'context_length' => 8192,
-            ],
-        ];
+        $openrouterClient = new \App\Services\OpenRouterClient();
+        $deepseekClient = new \App\Services\DeepSeekClient();
+        $geminiClient = new \App\Services\GeminiClient();
         
-        $client = new \App\Services\OpenRouterClient();
-        $freeModels = $client->getFreeModels();
+        $openrouterModels = $openrouterClient->getFreeModels();
+        foreach ($openrouterModels as &$model) {
+            $model['provider'] = 'openrouter';
+        }
         
-        $allModels = array_merge($hardcodedModels, $freeModels);
+        $deepseekModels = $deepseekClient->getModels();
+        $geminiModels = $geminiClient->getModels();
+        
+        $allModels = array_merge($deepseekModels, $geminiModels, $openrouterModels);
         
         $seen = [];
         $uniqueModels = [];
@@ -176,8 +197,10 @@ class TranslationController extends Controller
         }
         
         $modelMapping = [];
+        $providerMapping = [];
         foreach ($uniqueModels as $index => $model) {
             $modelMapping[$index] = $model['id'];
+            $providerMapping[$index] = $model['provider'] ?? 'openrouter';
         }
         
         $mappingFile = \App\Providers\PathMapper::getLaravelDatabaseDir() . '/translation_tasks/model_mapping.json';
@@ -190,6 +213,7 @@ class TranslationController extends Controller
         file_put_contents($mappingFile, json_encode([
             'timestamp' => time(),
             'mapping' => $modelMapping,
+            'provider_mapping' => $providerMapping,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         
         return response()->json([
@@ -219,22 +243,14 @@ class TranslationController extends Controller
         ]);
         
         $modelIndex = $request->input('model');
-        $modelId = null;
-        
-        $mappingFile = \App\Providers\PathMapper::getLaravelDatabaseDir() . '/translation_tasks/model_mapping.json';
-        
-        if (file_exists($mappingFile)) {
-            $mappingData = json_decode(file_get_contents($mappingFile), true);
-            if ($mappingData && isset($mappingData['mapping'][$modelIndex])) {
-                $modelId = $mappingData['mapping'][$modelIndex];
-            }
-        }
+        $modelInfo = $this->resolveModelId($modelIndex);
         
         $params = [
             'text' => $request->input('text'),
             'target_languages' => $request->input('target_languages'),
             'options' => $request->input('options', []),
-            'model' => $modelId,
+            'model' => $modelInfo['model'] ?? null,
+            'provider' => $modelInfo['provider'] ?? 'openrouter',
             'generate_audio' => $request->input('generate_audio', false),
             'translation_method' => $request->input('translation_method', 'ai'),
             'timeout' => $request->input('timeout', 300),
@@ -255,15 +271,13 @@ class TranslationController extends Controller
             ]);
         }
         
-        $prompts = [];
+        $prompt = null;
         if ($params['translation_method'] === 'ai') {
-            foreach ($params['target_languages'] as $lang) {
-                $prompts[$lang] = $this->translationService->buildPrompt(
-                    $params['text'],
-                    $lang,
-                    $params['options']
-                );
-            }
+            $prompt = $this->translationService->buildMultiLanguagePrompt(
+                $params['text'],
+                $params['target_languages'],
+                $params['options']
+            );
         }
         
         return response()->json([
@@ -271,7 +285,7 @@ class TranslationController extends Controller
             'task_id' => $taskId,
             'status' => 'pending',
             'message' => 'Task created, please poll for status',
-            'prompts' => $prompts,
+            'prompt' => $prompt,
         ]);
     }
     
@@ -367,6 +381,7 @@ class TranslationController extends Controller
                 targetLanguages: $task['params']['target_languages'],
                 options: $task['params']['options'] ?? [],
                 model: $task['params']['model'] ?? null,
+                provider: $task['params']['provider'] ?? 'openrouter',
                 generateAudio: $task['params']['generate_audio'] ?? false,
                 translationMethod: $task['params']['translation_method'] ?? 'ai',
                 timeout: $task['params']['timeout'] ?? 300

@@ -29,7 +29,7 @@ NODE_DOWNLOAD_URLS=(
     "$NODE_DOWNLOAD_URL"
 )
 # Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_22")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_24")
 TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64.tar.xz"
 EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64"
 NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"
@@ -44,9 +44,46 @@ echo "SELECTED_REGION: $SELECTED_REGION"
 echo "NODE_VERSION: $NODE_VERSION"
 echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
 
+# Function to migrate from old directory structure
+migrate_old_nodejs_installation() {
+    local old_base_dir=$(map_web_path "dev_system_old")
+    
+    if [ ! -d "$old_base_dir" ]; then
+        return 0
+    fi
+    
+    echo "Detected old installation directory: $old_base_dir"
+    echo "Removing old directory completely..."
+    
+    if [ -f /etc/environment ]; then
+        echo "Cleaning old directory references from /etc/environment..."
+        $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
+    fi
+    
+    for binary in node npm npx; do
+        local link_path="/usr/local/bin/$binary"
+        if [ -L "$link_path" ]; then
+            local target=$(readlink "$link_path")
+            if [[ "$target" == *"$old_base_dir"* ]]; then
+                echo "Removing symlink pointing to old directory: $link_path"
+                $USE_SUDO rm -f "$link_path"
+            fi
+        fi
+    done
+    
+    echo "Removing old base directory: $old_base_dir"
+    $USE_SUDO rm -rf "$old_base_dir"
+    
+    echo "Old directory removal completed"
+    return 0
+}
+
 # Function to detect and fix previous installation issues
 detect_and_fix_previous_issues() {
     echo "Detecting and fixing previous installation issues..."
+    
+    # First, migrate from old directory structure if needed
+    migrate_old_nodejs_installation
     
     # 1. Fix broken environment variables from previous runs
     echo "Checking /etc/environment for broken entries..."
@@ -135,13 +172,20 @@ detect_and_fix_previous_issues() {
 configure_npm_settings() {
     local npm_bin="$NODE_BIN_DIR/npm"
 
-    # Check if npm binary exists
     if [ ! -f "$npm_bin" ]; then
         echo "Warning: npm binary not found at $npm_bin, trying system npm..."
         npm_bin=$(which npm 2>/dev/null)
         if [ -z "$npm_bin" ]; then
             echo "Error: npm not found in system PATH"
             return 1
+        fi
+    fi
+    
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        echo "Clearing NPM_CONFIG_PREFIX environment variable"
+        unset NPM_CONFIG_PREFIX
+        if [ -f /etc/environment ]; then
+            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
         fi
     fi
 
@@ -473,7 +517,6 @@ setup_environment() {
     # Set environment variables using the proper function from gvar_common.sh
     set_env_and_var "NODE_HOME" "$actual_node_home"
     set_env_and_var "NODE_PATH" "$actual_node_path"
-    set_env_and_var "NPM_CONFIG_PREFIX" "$actual_node_home"
     
     # Use Node.js installation directory for npm globals (npm-global not needed)
     echo "NPM will use default global directory within Node.js installation: $actual_node_home"
@@ -497,7 +540,6 @@ setup_environment() {
     echo "Environment variables configured:"
     echo "  NODE_HOME: $actual_node_home"
     echo "  NODE_PATH: $actual_node_path"
-    echo "  NPM_CONFIG_PREFIX: $actual_node_home"
     echo "  Updated PATH with: $npm_global_bin"
     
     return 0
@@ -550,7 +592,7 @@ case $installation_result in
         echo "=================================================="
         echo "Node.js $NODE_VERSION is already installed"
         echo "=================================================="
-        echo "Skipping installation, Node.js version is already >= $NODE_SHORT_VERSION"
+        echo "Verifying and fixing configuration if needed..."
         echo ""
         ;;
     2)

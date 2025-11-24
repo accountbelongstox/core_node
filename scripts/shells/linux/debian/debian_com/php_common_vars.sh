@@ -30,6 +30,7 @@ CORE_EXTENSIONS=(
     "php8.4-common"
     "php8.4-opcache"
     "php8.4-mysql"
+    "php8.4-sqlite3"
     "php8.4-xml"
     "php8.4-curl"
     "php8.4-zip"
@@ -47,12 +48,13 @@ declare -A EXTENSION_MAP=(
     ["zip"]="zip"
     ["gd"]="gd"
     ["mysql"]="mysqli"
+    ["sqlite3"]="sqlite3"
     ["opcache"]="Zend OPcache"
     ["intl"]="intl"
     ["bcmath"]="bcmath"
 )
 
-REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "opcache" "intl" "bcmath")
+REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "sqlite3" "opcache" "intl" "bcmath")
 
 # Laravel Octane Support - PECL Extensions
 OCTANE_PECL_EXTENSIONS=(

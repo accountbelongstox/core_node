@@ -8,7 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('VipClubV1')->create('vipclubv1_support_messages', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_support_messages')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_support_messages', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->text('message');
@@ -21,8 +22,10 @@ return new class extends Migration
             $table->index('is_read');
             $table->index('created_at');
         });
+        }
 
-        Schema::connection('VipClubV1')->create('vipclubv1_support_config', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_support_config')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_support_config', function (Blueprint $table) {
             $table->id();
             $table->string('phone')->nullable();
             $table->string('email')->nullable();
@@ -31,11 +34,12 @@ return new class extends Migration
             $table->string('hours')->default('Mon-Fri: 9AM-6PM');
             $table->timestamps();
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_support_messages');
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_support_config');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_support_messages');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_support_config');
     }
 };
