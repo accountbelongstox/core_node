@@ -24,24 +24,56 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            // Add AwyV0 specific fields to users table
-            $table->string('bio')->nullable();
-            $table->string('location')->nullable();
-            $table->string('avatar')->nullable();
-            $table->timestamp('last_login_at')->nullable();
-            $table->timestamp('phone_verified_at')->nullable();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password_reset_token')->nullable();
-            $table->timestamp('password_reset_expires_at')->nullable();
-            $table->string('status')->default('active'); // active, inactive, suspended
-            $table->boolean('is_online')->default(false);
-            $table->timestamp('last_seen_at')->nullable();
-
-            // Indexes
-            $table->index('status', 'users_status');
-            $table->index('is_online', 'users_online');
-            $table->index('last_seen_at', 'users_last_seen');
+            if (!Schema::hasColumn('users', 'bio')) {
+                $table->string('bio')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'location')) {
+                $table->string('location')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'avatar')) {
+                $table->string('avatar')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'last_login_at')) {
+                $table->timestamp('last_login_at')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'phone_verified_at')) {
+                $table->timestamp('phone_verified_at')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'email_verified_at')) {
+                $table->timestamp('email_verified_at')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'password_reset_token')) {
+                $table->string('password_reset_token')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'password_reset_expires_at')) {
+                $table->timestamp('password_reset_expires_at')->nullable();
+            }
+            if (!Schema::hasColumn('users', 'status')) {
+                $table->string('status')->default('active');
+            }
+            if (!Schema::hasColumn('users', 'is_online')) {
+                $table->boolean('is_online')->default(false);
+            }
+            if (!Schema::hasColumn('users', 'last_seen_at')) {
+                $table->timestamp('last_seen_at')->nullable();
+            }
         });
+
+        if (!Schema::hasIndex('users', 'users_status')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->index('status', 'users_status');
+            });
+        }
+        if (!Schema::hasIndex('users', 'users_online')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->index('is_online', 'users_online');
+            });
+        }
+        if (!Schema::hasIndex('users', 'users_last_seen')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->index('last_seen_at', 'users_last_seen');
+            });
+        }
     }
 
     /**
@@ -50,17 +82,39 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('bio');
-            $table->dropColumn('location');
-            $table->dropColumn('avatar');
-            $table->dropColumn('last_login_at');
-            $table->dropColumn('phone_verified_at');
-            $table->dropColumn('email_verified_at');
-            $table->dropColumn('password_reset_token');
-            $table->dropColumn('password_reset_expires_at');
-            $table->dropColumn('status');
-            $table->dropColumn('is_online');
-            $table->dropColumn('last_seen_at');
+            if (Schema::hasColumn('users', 'bio')) {
+                $table->dropColumn('bio');
+            }
+            if (Schema::hasColumn('users', 'location')) {
+                $table->dropColumn('location');
+            }
+            if (Schema::hasColumn('users', 'avatar')) {
+                $table->dropColumn('avatar');
+            }
+            if (Schema::hasColumn('users', 'last_login_at')) {
+                $table->dropColumn('last_login_at');
+            }
+            if (Schema::hasColumn('users', 'phone_verified_at')) {
+                $table->dropColumn('phone_verified_at');
+            }
+            if (Schema::hasColumn('users', 'email_verified_at')) {
+                $table->dropColumn('email_verified_at');
+            }
+            if (Schema::hasColumn('users', 'password_reset_token')) {
+                $table->dropColumn('password_reset_token');
+            }
+            if (Schema::hasColumn('users', 'password_reset_expires_at')) {
+                $table->dropColumn('password_reset_expires_at');
+            }
+            if (Schema::hasColumn('users', 'status')) {
+                $table->dropColumn('status');
+            }
+            if (Schema::hasColumn('users', 'is_online')) {
+                $table->dropColumn('is_online');
+            }
+            if (Schema::hasColumn('users', 'last_seen_at')) {
+                $table->dropColumn('last_seen_at');
+            }
         });
     }
 };

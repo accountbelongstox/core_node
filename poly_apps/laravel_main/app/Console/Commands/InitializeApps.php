@@ -16,7 +16,7 @@ class InitializeApps extends Command
     {
         $this->info('Initializing system...');
         $this->newLine();
-        
+
         $this->info('Creating external storage directories...');
         $directories = [
             'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
@@ -27,7 +27,7 @@ class InitializeApps extends Command
             'sessions' => \App\Providers\PathMapper::getLaravelSessionsDir(),
             'tmp' => \App\Providers\PathMapper::getLaravelTmpDir(),
         ];
-        
+
         foreach ($directories as $name => $path) {
             if (!file_exists($path)) {
                 mkdir($path, 0755, true);
@@ -37,7 +37,11 @@ class InitializeApps extends Command
             }
         }
         $this->newLine();
-        
+
+        $this->info('Running migrations (safe mode - only new tables)...');
+        $this->runSafeMigrations();
+        $this->newLine();
+
         $results = \App\Services\UserSyncService::ensureUserTablesExist();
         
         $this->info('Database initialization results:');
@@ -59,26 +63,19 @@ class InitializeApps extends Command
                             $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
                             $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
                             
-                            $this->line("   • <fg=cyan;options=bold>{$tableName}</> (" . count($structure) . " columns, {$count} rows)");
-                            
-                            if (!empty($structure)) {
-                                $this->line("     <fg=yellow>Columns:</>");
-                                foreach ($structure as $col) {
-                                    $pkMark = $col['pk'] ? ' <fg=red>[PK]</>' : '';
-                                    $defaultInfo = $col['default'] ? " DEFAULT {$col['default']}" : '';
-                                    $this->line("       - {$col['name']}: {$col['type']} {$col['notnull']}{$defaultInfo}{$pkMark}");
-                                }
+                            $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
+                            $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
+
+                            $output = "   • <fg=cyan;options=bold>{$tableName}</>";
+                            if ($colNames) {
+                                $output .= " | Cols: {$colNames}";
                             }
-                            
-                            if (!empty($indexes)) {
-                                $this->line("     <fg=yellow>Indexes:</>");
-                                foreach ($indexes as $idx) {
-                                    $uniqueMark = $idx['unique'] ? ' <fg=green>[UNIQUE]</>' : '';
-                                    $this->line("       - {$idx['name']}: ({$idx['columns']}){$uniqueMark}");
-                                }
+                            if ($idxNames) {
+                                $output .= " | Idx: {$idxNames}";
                             }
-                            
-                            $this->newLine();
+                            $output .= " | {$count} rows";
+
+                            $this->line($output);
                         }
                     } else {
                         $this->line("   <fg=gray>No tables</>");
@@ -343,6 +340,27 @@ class InitializeApps extends Command
         
         if (isset($result['error'])) {
             $this->error("  Error: {$result['error']}");
+        }
+    }
+
+    private function runSafeMigrations()
+    {
+        try {
+            $this->line("  <fg=cyan>Running database migrations with refresh and seed</>");
+
+            $exitCode = $this->call('migrate:refresh', [
+                '--force' => true,
+                '--seed' => true,
+            ]);
+
+            if ($exitCode === 0) {
+                $this->line("  ✅ Database migrations and seeding completed successfully");
+            } else {
+                $this->warn("  ⚠️  Some migrations encountered issues");
+            }
+
+        } catch (\Exception $e) {
+            $this->error("  ❌ Migration error: " . $e->getMessage());
         }
     }
 }

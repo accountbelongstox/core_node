@@ -12,12 +12,11 @@ const AuthHelper = {
     async loadInvitationCode() {
         try {
             const response = await fetch('/api/app_qy_v1/invitation-code', {
-                credentials: 'include',
                 headers: {
                     'Accept': 'application/json'
                 }
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.masked_code) {
@@ -31,21 +30,28 @@ const AuthHelper = {
     
     async checkAuthStatus() {
         try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                return false;
+            }
+
             const response = await fetch('/api/user', {
-                credentials: 'include',
                 headers: {
                     'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Authorization': `Bearer ${token}`
                 }
             });
-            
+
             if (response.ok) {
                 this.currentUser = await response.json();
                 return true;
+            } else {
+                localStorage.removeItem('auth_token');
+                return false;
             }
-            return false;
         } catch (error) {
             console.error('Auth check failed:', error);
+            localStorage.removeItem('auth_token');
             return false;
         }
     },
@@ -68,8 +74,8 @@ const AuthHelper = {
                         <h3>Login to Continue</h3>
                         <form id="login-form" onsubmit="AuthHelper.handleLogin(event)">
                             <div class="auth-form-group">
-                                <label>Email:</label>
-                                <input type="email" id="login-email" required class="auth-input" placeholder="your@email.com">
+                                <label>Username:</label>
+                                <input type="text" id="login-username" required class="auth-input" placeholder="your username">
                             </div>
                             <div class="auth-form-group">
                                 <label>Password:</label>
@@ -295,78 +301,85 @@ const AuthHelper = {
     
     async handleLogin(event) {
         event.preventDefault();
-        
-        const email = document.getElementById('login-email').value;
+
+        const username = document.getElementById('login-username').value;
         const password = document.getElementById('login-password').value;
         const errorDiv = document.getElementById('login-error');
-        
+
         errorDiv.style.display = 'none';
-        
+
         try {
-            await this.getCsrfToken();
-            
-            const response = await fetch('/api/login', {
+            const response = await fetch('/api/dict/v1/login', {
                 method: 'POST',
-                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Accept': 'application/json'
                 },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({ username, password })
             });
-            
+
             const data = await response.json();
-            
-            if (response.ok) {
-                this.currentUser = data.user || { email };
+
+            if (response.ok && data.success) {
+                this.currentUser = data.data?.user || data.user || { username };
+                const loginToken = data.data?.login_token || data.token || data.login_token;
+
+                if (loginToken) {
+                    localStorage.setItem('auth_token', loginToken);
+                }
+
+                alert(`Login successful! Welcome, ${this.currentUser.username || this.currentUser.email || username}!`);
                 this.closeAuthModal();
                 window.location.reload();
             } else {
-                errorDiv.textContent = data.message || 'Login failed';
+                const errorMessage = data.message || 'Login failed';
+                alert(`Login failed: ${errorMessage}`);
+                errorDiv.textContent = errorMessage;
                 errorDiv.style.display = 'block';
             }
         } catch (error) {
             console.error('Login error:', error);
-            errorDiv.textContent = 'Network error. Please try again.';
+            const errorMessage = 'Network error. Please try again.';
+            alert(`Login error: ${errorMessage}`);
+            errorDiv.textContent = errorMessage;
             errorDiv.style.display = 'block';
         }
     },
     
     async handleRegister(event) {
         event.preventDefault();
-        
+
         const username = document.getElementById('register-username').value;
         const name = document.getElementById('register-name').value;
         const password = document.getElementById('register-password').value;
         const passwordConfirm = document.getElementById('register-password-confirm').value;
         const invitationCode = document.getElementById('register-invitation').value;
         const errorDiv = document.getElementById('register-error');
-        
+
         errorDiv.style.display = 'none';
-        
+
         if (password !== passwordConfirm) {
-            errorDiv.textContent = 'Passwords do not match';
+            const errorMessage = 'Passwords do not match';
+            alert(`Registration failed: ${errorMessage}`);
+            errorDiv.textContent = errorMessage;
             errorDiv.style.display = 'block';
             return;
         }
-        
+
         if (invitationCode !== 'APPQY2025') {
-            errorDiv.textContent = 'Invalid invitation code';
+            const errorMessage = 'Invalid invitation code';
+            alert(`Registration failed: ${errorMessage}`);
+            errorDiv.textContent = errorMessage;
             errorDiv.style.display = 'block';
             return;
         }
-        
+
         try {
-            await this.getCsrfToken();
-            
-            const response = await fetch('/api/register', {
+            const response = await fetch('/api/dict/v1/register', {
                 method: 'POST',
-                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     username,
@@ -376,54 +389,63 @@ const AuthHelper = {
                     invitation_code: invitationCode
                 })
             });
-            
+
             const data = await response.json();
-            
-            if (response.ok) {
-                this.currentUser = data.user || { email };
+
+            if (response.ok && data.success) {
+                this.currentUser = data.data?.user || data.user || { username };
+                const loginToken = data.data?.login_token || data.token || data.login_token;
+
+                if (loginToken) {
+                    localStorage.setItem('auth_token', loginToken);
+                }
+
+                alert(`Registration successful! Welcome, ${this.currentUser.username || this.currentUser.email || username}!`);
                 this.closeAuthModal();
                 window.location.reload();
             } else {
                 const errors = data.errors || {};
                 const errorMessages = Object.values(errors).flat();
-                errorDiv.textContent = errorMessages.join(', ') || data.message || 'Registration failed';
+                const errorMessage = errorMessages.join(', ') || data.message || 'Registration failed';
+                alert(`Registration failed: ${errorMessage}`);
+                errorDiv.textContent = errorMessage;
                 errorDiv.style.display = 'block';
             }
         } catch (error) {
             console.error('Register error:', error);
-            errorDiv.textContent = 'Network error. Please try again.';
+            const errorMessage = 'Network error. Please try again.';
+            alert(`Registration error: ${errorMessage}`);
+            errorDiv.textContent = errorMessage;
             errorDiv.style.display = 'block';
         }
     },
     
-    async getCsrfToken() {
-        try {
-            await fetch('/sanctum/csrf-cookie', {
-                credentials: 'include'
-            });
-        } catch (error) {
-            console.error('CSRF token fetch failed:', error);
-        }
-    },
-    
     async makeAuthenticatedRequest(url, options = {}) {
-        const defaultOptions = {
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                ...options.headers
-            }
+        const token = localStorage.getItem('auth_token');
+        const headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            ...options.headers
         };
-        
-        const response = await fetch(url, { ...options, ...defaultOptions });
-        
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const defaultOptions = {
+            ...options,
+            headers
+        };
+
+        const response = await fetch(url, defaultOptions);
+
         if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            this.currentUser = null;
             this.showAuthModal();
             throw new Error('Authentication required');
         }
-        
+
         return response;
     }
 };

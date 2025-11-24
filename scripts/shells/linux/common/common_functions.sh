@@ -932,7 +932,7 @@ get_real_user_from_common_functions() {
     return 0
 }
 
-# Migrate from old directory (dev_ubuntu24) to new directory (_ubuntu_24) (from common_functions.sh)
+# Migrate from old directory to new directory (from common_functions.sh)
 migrate_old_to_new_directory_from_common_functions() {
     local old_base_pattern="$1"  # e.g., "dev_ubuntu24" or "/www/dev_ubuntu24"
     local new_base_pattern="$2"  # e.g., "_ubuntu_24" or "/www/_ubuntu_24"
@@ -1056,88 +1056,54 @@ ensure_directory_permissions_from_common_functions() {
     return 0
 }
 
-# Migrate all old dev_ubuntu24 installations to new _ubuntu_24 structure (from common_functions.sh)
+# Remove old installation directory (from common_functions.sh)
 migrate_all_old_installations_from_common_functions() {
-    print_header_from_common_functions "Migrating Old Installations to New Directory Structure"
+    print_header_from_common_functions "Removing Old Installation Directory"
 
-    local old_base="dev_ubuntu24"
-    local new_base="_ubuntu_24"
+    local old_base_dir=$(map_web_path "dev_system_old")
 
-    # Check if old base directory exists
-    if [ ! -d "/www/$old_base" ]; then
-        print_info_from_common_functions "No old installation directory found at /www/$old_base"
+    if [ ! -d "$old_base_dir" ]; then
+        print_info_from_common_functions "No old installation directory found"
         return 0
     fi
 
-    print_info_from_common_functions "Found old installation directory: /www/$old_base"
-    print_info_from_common_functions "Target directory: /www/$new_base"
-
-    # Migrate specific subdirectories
-    local subdirs=(
-        "nodejs"
-        "npm-global"
-        "applications"
-        "python3.12_env"
-        "go"
-        "ruby"
-        "flutter"
-        "android-sdk"
-        "mcp_server"
-        "code-server"
-        "bin"
-    )
-
-    for subdir in "${subdirs[@]}"; do
-        if [ -d "/www/$old_base/$subdir" ]; then
-            migrate_old_to_new_directory_from_common_functions "$old_base" "$new_base" "$subdir"
-
-            # Fix permissions after migration
-            if [ -d "/www/$new_base/$subdir" ]; then
-                fix_installation_permissions_from_common_functions "/www/$new_base/$subdir" "755" "true"
+    print_info_from_common_functions "Found old installation directory: $old_base_dir"
+    print_info_from_common_functions "Removing old directory..."
+    
+    if command -v npm >/dev/null 2>&1; then
+        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
+        if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
+            print_info_from_common_functions "Clearing npm prefix pointing to old directory"
+            npm config delete prefix
+        fi
+    fi
+    
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        print_info_from_common_functions "Clearing NPM_CONFIG_PREFIX environment variable"
+        unset NPM_CONFIG_PREFIX
+    fi
+    
+    if [ -f /etc/environment ]; then
+        print_info_from_common_functions "Cleaning old directory references from /etc/environment..."
+        $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
+    fi
+    
+    for binary in node npm npx; do
+        local link_path="/usr/local/bin/$binary"
+        if [ -L "$link_path" ]; then
+            local target=$(readlink "$link_path")
+            if [[ "$target" == *"$old_base_dir"* ]]; then
+                print_info_from_common_functions "Removing symlink pointing to old directory: $link_path"
+                $USE_SUDO rm -f "$link_path"
             fi
         fi
     done
-
-    if [ -d "/www/$old_base" ]; then
-        print_info_from_common_functions "Removing old directory: /www/$old_base"
-        $USE_SUDO rm -rf "/www/$old_base"
-        print_success_from_common_functions "Removed old directory: /www/$old_base"
-    fi
-
-    # Update npm global prefix if it points to old directory
-    if command -v npm >/dev/null 2>&1; then
-        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
-        if [[ "$current_npm_prefix" == *"$old_base"* ]]; then
-            local new_npm_prefix="${current_npm_prefix/$old_base/$new_base}"
-            print_info_from_common_functions "Updating npm prefix: $current_npm_prefix -> $new_npm_prefix"
-            npm config set prefix "$new_npm_prefix"
-            print_success_from_common_functions "Updated npm configuration"
-        fi
-    fi
     
-    # Update current shell environment variables
-    print_info_from_common_functions "Updating current shell environment variables..."
-    if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"$old_base"* ]]; then
-        export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX/$old_base/$new_base}"
-        print_info_from_common_functions "Updated NPM_CONFIG_PREFIX: $NPM_CONFIG_PREFIX"
-    fi
+    print_info_from_common_functions "Removing old directory: $old_base_dir"
+    $USE_SUDO rm -rf "$old_base_dir"
+    print_success_from_common_functions "Removed old directory"
     
-    if [ -n "$NODE_HOME" ] && [[ "$NODE_HOME" == *"$old_base"* ]]; then
-        export NODE_HOME="${NODE_HOME/$old_base/$new_base}"
-        print_info_from_common_functions "Updated NODE_HOME: $NODE_HOME"
-    fi
-    
-    if [ -n "$NODE_PATH" ] && [[ "$NODE_PATH" == *"$old_base"* ]]; then
-        export NODE_PATH="${NODE_PATH/$old_base/$new_base}"
-        print_info_from_common_functions "Updated NODE_PATH: $NODE_PATH"
-    fi
-    
-    if [[ "$PATH" == *"$old_base"* ]]; then
-        export PATH="${PATH//$old_base/$new_base}"
-        print_info_from_common_functions "Updated PATH"
-    fi
-
-    print_success_from_common_functions "Migration complete"
+    print_success_from_common_functions "Old directory cleanup complete"
     return 0
 }
 
@@ -1176,7 +1142,7 @@ fix_npm_global_permissions_from_common_functions() {
 # Update wrapper scripts to use new directory paths (from common_functions.sh)
 update_wrapper_script_paths_from_common_functions() {
     local wrapper_dir="${1:-/usr/local/super_scripts}"
-    local old_pattern="${2:-dev_ubuntu24}"
+    local old_pattern="${2:-}"
     local new_pattern="${3:-_ubuntu_24}"
 
     if [ ! -d "$wrapper_dir" ]; then
@@ -1209,3 +1175,4 @@ update_wrapper_script_paths_from_common_functions() {
     print_success_from_common_functions "Updated $updated_count wrapper scripts"
     return 0
 }
+

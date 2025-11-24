@@ -8,7 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('VipClubV1')->create('vipclubv1_payments', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_payments')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('booking_id')->nullable()->constrained('vipclubv1_bookings')->onDelete('set null');
@@ -31,10 +32,11 @@ return new class extends Migration
             $table->index('payment_status');
             $table->index('payment_type');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_payments');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_payments');
     }
 };

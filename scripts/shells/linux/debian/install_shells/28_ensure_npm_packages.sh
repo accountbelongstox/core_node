@@ -31,53 +31,38 @@ fi
 CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 
 migrate_old_npm_installation() {
-    local old_base_dir="/www/dev_ubuntu24"
-    local new_base_dir="/www/_ubuntu_24"
+    local old_base_dir=$(map_web_path "dev_system_old")
     
-    echo "[$SCRIPT_INDEX] Checking for old npm installation references..."
+    echo "[$SCRIPT_INDEX] Checking for old installation references..."
     
     if command -v npm >/dev/null 2>&1; then
         local current_npm_prefix=$(npm config get prefix 2>/dev/null)
         
         if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
-            local new_npm_prefix="${current_npm_prefix/$old_base_dir/$new_base_dir}"
-            echo "[$SCRIPT_INDEX] Migrating npm prefix: $current_npm_prefix -> $new_npm_prefix"
-            npm config set prefix "$new_npm_prefix"
+            echo "[$SCRIPT_INDEX] Clearing npm prefix pointing to old directory"
+            npm config delete prefix
         fi
     fi
     
-    if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"$old_base_dir"* ]]; then
-        export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX/$old_base_dir/$new_base_dir}"
-        echo "[$SCRIPT_INDEX] Updated NPM_CONFIG_PREFIX in current shell: $NPM_CONFIG_PREFIX"
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        echo "[$SCRIPT_INDEX] Clearing NPM_CONFIG_PREFIX: $NPM_CONFIG_PREFIX"
+        unset NPM_CONFIG_PREFIX
     fi
     
     if [ -f /etc/environment ]; then
         if grep -q "$old_base_dir" /etc/environment; then
-            echo "[$SCRIPT_INDEX] Updating /etc/environment references..."
-            $USE_SUDO sed -i "s|$old_base_dir|$new_base_dir|g" /etc/environment
+            echo "[$SCRIPT_INDEX] Removing old directory references from /etc/environment..."
+            $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
+        fi
+        if grep -q "NPM_CONFIG_PREFIX" /etc/environment; then
+            echo "[$SCRIPT_INDEX] Removing NPM_CONFIG_PREFIX from /etc/environment..."
+            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
         fi
     fi
     
     if [ -d "$old_base_dir" ]; then
-        if [ -d "$old_base_dir/nodejs" ]; then
-            echo "[$SCRIPT_INDEX] Migrating nodejs directory..."
-            if [ ! -d "$new_base_dir" ]; then
-                $USE_SUDO mkdir -p "$new_base_dir"
-            fi
-            
-            if [ -d "$new_base_dir/nodejs" ]; then
-                $USE_SUDO rsync -a --ignore-existing "$old_base_dir/nodejs/" "$new_base_dir/nodejs/"
-            else
-                $USE_SUDO mv "$old_base_dir/nodejs" "$new_base_dir/nodejs"
-            fi
-            
-            $USE_SUDO rm -rf "$old_base_dir/nodejs"
-        fi
-        
-        if [ -z "$(ls -A "$old_base_dir" 2>/dev/null)" ]; then
-            echo "[$SCRIPT_INDEX] Removing empty old directory: $old_base_dir"
-            $USE_SUDO rm -rf "$old_base_dir"
-        fi
+        echo "[$SCRIPT_INDEX] Removing old base directory: $old_base_dir"
+        $USE_SUDO rm -rf "$old_base_dir"
     fi
     
     echo "[$SCRIPT_INDEX] Migration check completed"

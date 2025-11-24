@@ -23,22 +23,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AppQyV1')->create('app_qy_v1_word_groups', function (Blueprint $table) {
-            $table->id();
-            $table->string('gid')->unique()->comment('Group ID');
-            $table->string('username')->nullable()->comment('Username');
-            $table->unsignedBigInteger('uid')->comment('User ID');
-            $table->text('gname')->comment('Group Name');
-            $table->text('gcontent')->nullable()->comment('Group Content');
-            $table->json('gwords')->nullable()->comment('Group Words');
-            $table->json('words_frequency')->nullable()->comment('Words Frequency');
-            $table->timestamps();
-            $table->softDeletes();
+        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_word_groups')) {
+            Schema::connection('appqyv1')->create('app_qy_v1_word_groups', function (Blueprint $table) {
+                $table->id();
+                $table->string('gid')->unique()->comment('Group ID');
+                $table->string('username')->nullable()->comment('Username');
+                $table->unsignedBigInteger('uid')->comment('User ID');
+                $table->text('gname')->comment('Group Name');
+                $table->text('gcontent')->nullable()->comment('Group Content');
+                $table->json('gwords')->nullable()->comment('Group Words');
+                $table->json('words_frequency')->nullable()->comment('Words Frequency');
+                $table->timestamps();
+                $table->softDeletes();
 
-            // Indexes
-            $table->index('uid');
-            $table->index('gname');
-        });
+                // Indexes
+                $table->index('uid');
+                $table->index('gname');
+            });
+        }
     }
 
     /**
@@ -46,6 +48,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_word_groups');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_word_groups');
     }
 };

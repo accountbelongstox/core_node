@@ -43,8 +43,13 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/linux_applications_list.sh"
-source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/super_launch_helper.sh"
+
+# Clear old NPM environment variable immediately
+if [ -n "$NPM_CONFIG_PREFIX" ]; then
+    unset NPM_CONFIG_PREFIX
+fi
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
@@ -1493,7 +1498,7 @@ main() {
     local param1="$1"
     local param2="$2"
 
-    # Migrate old installations from dev_ubuntu24 to _ubuntu_24
+    # Remove old installation directory
     if command -v migrate_all_old_installations_from_common_functions >/dev/null 2>&1; then
         log_message "=========================================="
         log_message "Checking for old installations to migrate..."
