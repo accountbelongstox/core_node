@@ -322,13 +322,19 @@ APP_LOGS_DIR = get_app_logs_dir()
 
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     """
-    Map web path based on environment (similar to gvar_common.sh map_web_path)
+    Map web path based on environment
+
+    SYNC WARNING: This function MUST be kept in sync with:
+    - Shell version: scripts/shells/linux/common/gvar_common.sh::map_web_path()
+    - All mappings must produce identical results across Python and Shell
 
     Windows mappings:
     - applications -> d:\\applications
     - programing -> d:\\programing
     - www -> d:\\www
     - wwwroot -> d:\\www\\wwwroot
+    - pycore_db -> d:\\www\\wwwroot\\pycore_db
+    - laravel_db -> d:\\www\\wwwroot\\laravel_db
     - compile_dir -> d:\\_win11 or d:\\_win10
     - old_compile_dir -> d:\\dev_win11 or d:\\dev_win10
 
@@ -336,11 +342,13 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     - WSL: Uses /mnt/d (or largest mounted drive)
     - Desktop: Uses largest /mnt/* drive if available, else /www
     - Server: Uses /www
+    - pycore_db -> /www/wwwroot/pycore_db
+    - laravel_db -> /www/wwwroot/laravel_db
     - compile_dir -> /mnt/d/_ubuntu24 (or _{distro}{version})
     - old_compile_dir -> /mnt/d/dev_ubuntu24 (or dev_{distro}{version})
 
     Args:
-        path_key: Path key (e.g., 'wwwroot', 'applications', 'programing', 'compile_dir', 'old_compile_dir')
+        path_key: Path key (e.g., 'wwwroot', 'pycore_db', 'laravel_db')
         sub_path: Optional sub-path to append
 
     Returns:
@@ -366,6 +374,8 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'programing': base_d / 'programing',
             'www': base_d / 'www',
             'wwwroot': base_d / 'www' / 'wwwroot',
+            'pycore_db': base_d / 'www' / 'wwwroot' / 'pycore_db',
+            'laravel_db': base_d / 'www' / 'wwwroot' / 'laravel_db',
             'compile_dir': base_d / f'_{win_suffix}',
             'old_compile_dir': base_d / f'dev_{win_suffix}',
         }
@@ -390,20 +400,30 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
                 # No mounted drives, use /www
                 base_path = Path('/www')
         else:
-            # Server: Use /www
-            base_path = Path('/www')
+            # Server: Use root path
+            base_path = Path('/')
 
         # Get distro info for compile_dir naming
         distro_name, distro_version = _get_linux_distro_info()
         distro_suffix = f'{distro_name}{distro_version}' if distro_version else distro_name
 
+        # Check if base_path already points to /www (to avoid /www/www duplication)
+        if base_path == Path('/www'):
+            # base_path is already /www, use it directly
+            www_base = base_path
+        else:
+            # base_path is /mnt/d or /, need to add www subdirectory
+            www_base = base_path / 'www'
+
         mappings = {
-            'applications': base_path / 'applications',
-            'programing': base_path / 'programing',
-            'www': base_path / 'www',
-            'wwwroot': base_path / 'www' / 'wwwroot',
-            'compile_dir': base_path / f'_{distro_suffix}',
-            'old_compile_dir': base_path / f'dev_{distro_suffix}',
+            'applications': www_base / 'applications',
+            'programing': www_base / 'programing',
+            'www': www_base,
+            'wwwroot': www_base / 'wwwroot',
+            'pycore_db': www_base / 'wwwroot' / 'pycore_db',
+            'laravel_db': www_base / 'wwwroot' / 'laravel_db',
+            'compile_dir': base_path / 'mnt' / 'd' / f'_{distro_suffix}' if base_path == Path('/') else base_path / f'_{distro_suffix}',
+            'old_compile_dir': base_path / 'mnt' / 'd' / f'dev_{distro_suffix}' if base_path == Path('/') else base_path / f'dev_{distro_suffix}',
         }
 
     # Get mapped path
@@ -415,7 +435,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         mapped_path = mapped_path / sub_path
 
     # Create directory if it doesn't exist (only for web-related paths)
-    if path_key in ['wwwroot', 'www', 'applications']:
+    if path_key in ['wwwroot', 'www', 'applications', 'pycore_db', 'laravel_db']:
         mapped_path.mkdir(parents=True, exist_ok=True)
 
     return mapped_path

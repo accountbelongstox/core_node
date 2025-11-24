@@ -23,7 +23,8 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::connection('AppQyV1')->create('app_qy_v1_dictionaries', function (Blueprint $table) {
+        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_dictionaries')) {
+            Schema::connection('appqyv1')->create('app_qy_v1_dictionaries', function (Blueprint $table) {
             $table->id();  // Same as auto-incrementing primary key
             
             $table->text('content')->nullable(false);
@@ -54,6 +55,7 @@ return new class extends Migration
             // If you need to keep your original createdAt field
             $table->dateTime('createdAt')->default(DB::raw('CURRENT_TIMESTAMP'))->nullable();
         });
+        }
     }
 
     /**
@@ -61,6 +63,6 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_dictionaries');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_dictionaries');
     }
 };

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.377033+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "perception",
+        "laos": "ຄວາມຮັບຮູ້",
+        "jp": "認識",
+        "vie": "nhận thức",
+        "en_pronunciation": "/pərˈsɛpʃən/",
+        "laos_pronunciation": "khuaamhabhu",
+        "jp_pronunciation": "ninshiki",
+        "vie_pronunciation": "nhan thuc"
+      },
+      "means": {
+        "en": "The representation of what is perceived; basic component in the formation of a concept",
+        "zh": "所感知事物的表征；"
+      }
+    },
+    {
+      "word": {
+        "en": "perceptive",
+        "laos": "ທີ່ເຂົ້າໃຈເຫັນ",
+        "jp": "知覚的な",
+        "vie": "sâu sắc",
+        "en_pronunciation": "/pərˈsɛptɪv/",
+        "laos_pronunciation": "thikhaochaihen",
+        "jp_pronunciation": "chikakuteki na",
+        "vie_pronunciation": "sau sac"
+      },
+      "means": {
+        "en": "Of or relating to perception",
+        "zh": "概念形成的基本组成部分"
+      }
+    },
+    {
+      "word": {
+        "en": "percent",
+        "laos": "ເປີເຊັນ",
+        "jp": "パーセント",
+        "vie": "phần trăm",
+        "en_pronunciation": "/pərˈsɛnt/",
+        "laos_pronunciation": "poesen",
+        "jp_pronunciation": "paasento",
+        "vie_pronunciation": "phan tram"
+      },
+      "means": {
+        "en": "A proportion in relation to a whole (which is usually the amount per hundred)",
+        "zh": "属于或关于感知的"
+      }
+    },
+    {
+      "word": {
+        "en": "percentage",
+        "laos": "ອັດຕາສ່ວນຮ້ອຍ",
+        "jp": "割合",
+        "vie": "phần trăm",
+        "en_pronunciation": "/pərˈsɛnɪʤ/",
+        "laos_pronunciation": "adtasuanhony",
+        "jp_pronunciation": "wariai",
+        "vie_pronunciation": "phan tram"
+      },
+      "means": {
+        "en": "A proportion in relation to a whole (which is usually the amount per hundred)",
+        "zh": "相对于整体的比例（通常是每百的数量）"
+      }
+    },
+    {
+      "word": {
+        "en": "perch",
+        "laos": "ຂັ້ນພ່ໍາ",
+        "jp": "止まり木",
+        "vie": "cá rô",
+        "en_pronunciation": "/pərʧ/",
+        "laos_pronunciation": "khan ph oa",
+        "jp_pronunciation": "domari ki",
+        "vie_pronunciation": "ca ro"
+      },
+      "means": {
+        "en": "Support consisting of a branch or rod that serves as a resting place (especially for a bird)",
+        "zh": "相对于整体的比例（通常是每百的数量）"
+      }
+    },
+    {
+      "word": {
+        "en": "perfect",
+        "laos": "ຜ່ອງແຜ້ວ",
+        "jp": "完璧な",
+        "vie": "hoàn hảo",
+        "en_pronunciation": "/ˈpərˌfɪkt/",
+        "laos_pronunciation": "phong aephv",
+        "jp_pronunciation": "kanpeki na",
+        "vie_pronunciation": "hoan hao"
+      },
+      "means": {
+        "en": "A tense of verbs used in describing action that has been completed (sometimes regarded as perfective aspect)",
+        "zh": "由树枝或杆组成的支撑物，用作休息的地方（特别是对于鸟类而言）"
+      }
+    },
+    {
+      "word": {
+        "en": "perfection",
+        "laos": "ທີ່ສົມບູນແບບ",
+        "jp": "完璧",
+        "vie": "sự hoàn hảo",
+        "en_pronunciation": "/pərˈfɛkʃən/",
+        "laos_pronunciation": "thisombunaebb",
+        "jp_pronunciation": "kanpeki",
+        "vie_pronunciation": "su hoan hao"
+      },
+      "means": {
+        "en": "The state of being without a flaw or defect",
+        "zh": "用于描述已完成动作的动词时态（有时被视为完成体）"
+      }
+    },
+    {
+      "word": {
+        "en": "perform",
+        "laos": "ປະຕິບັດ",
+        "jp": "実行する",
+        "vie": "biểu diễn",
+        "en_pronunciation": "/pərˈfɔrm/",
+        "laos_pronunciation": "patibad",
+        "jp_pronunciation": "jikkou suru",
+        "vie_pronunciation": "bieu dien"
+      },
+      "means": {
+        "en": "Carry out or perform an action",
+        "zh": "没有瑕疵或缺陷的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "performance",
+        "laos": "ການປະຕິບັດ",
+        "jp": "パフォーマンス",
+        "vie": "hiệu suất",
+        "en_pronunciation": "/pərˈfɔrməns/",
+        "laos_pronunciation": "kanpatibad",
+        "jp_pronunciation": "pafoomansu",
+        "vie_pronunciation": "hieu suat"
+      },
+      "means": {
+        "en": "A dramatic or musical entertainment",
+        "zh": "执行或执行某项动作"
+      }
+    },
+    {
+      "word": {
+        "en": "performer",
+        "laos": "ຜູ້ຊາຢສະແດງ",
+        "jp": "出演者",
+        "vie": "người biểu diễn",
+        "en_pronunciation": "/pərˈfɔrmər/",
+        "laos_pronunciation": "phu saysaaedng",
+        "jp_pronunciation": "shutsuensha",
+        "vie_pronunciation": "nguoi bieu dien"
+      },
+      "means": {
+        "en": "An entertainer who performs a dramatic or musical work for an audience",
+        "zh": "戏剧或音乐娱乐"
+      }
+    },
+    {
+      "word": {
+        "en": "perfume",
+        "laos": "ນ້ໍາຫອມ",
+        "jp": "香水",
+        "vie": "nước hoa",
+        "en_pronunciation": "/pərfˈjum/",
+        "laos_pronunciation": "noahom",
+        "jp_pronunciation": "kousui",
+        "vie_pronunciation": "nuoc hoa"
+      },
+      "means": {
+        "en": "A distinctive odor that is pleasant",
+        "zh": "为观众表演戏剧或音乐作品的艺人"
+      }
+    },
+    {
+      "word": {
+        "en": "perhaps",
+        "laos": "ບາງທີ",
+        "jp": "おそらく",
+        "vie": "có lẽ",
+        "en_pronunciation": "/pərˈhæps/",
+        "laos_pronunciation": "bangthi",
+        "jp_pronunciation": "osoraku",
+        "vie_pronunciation": "co le"
+      },
+      "means": {
+        "en": "By chance",
+        "zh": "独特的气味令人愉悦"
+      }
+    },
+    {
+      "word": {
+        "en": "peril",
+        "laos": "ອັນຕະລາຍ",
+        "jp": "危険",
+        "vie": "sự nguy hiểm",
+        "en_pronunciation": "/ˈpɛrəl/",
+        "laos_pronunciation": "antalai",
+        "jp_pronunciation": "kiken",
+        "vie_pronunciation": "su nguy hiem"
+      },
+      "means": {
+        "en": "A source of danger; a possibility of incurring loss or misfortune",
+        "zh": "偶然"
+      }
+    },
+    {
+      "word": {
+        "en": "perilous",
+        "laos": "ອັນດິ້ງ",
+        "jp": "危険な",
+        "vie": "nguy hiểm",
+        "en_pronunciation": "/ˈpɛrələs/",
+        "laos_pronunciation": "an ding",
+        "jp_pronunciation": "kiken na",
+        "vie_pronunciation": "nguy hiem"
+      },
+      "means": {
+        "en": "Fraught with danger",
+        "zh": "危险源；"
+      }
+    },
+    {
+      "word": {
+        "en": "period",
+        "laos": "ໄລຍະ",
+        "jp": "期間",
+        "vie": "thời kỳ",
+        "en_pronunciation": "/ˈpɪriəd/",
+        "laos_pronunciation": "lainya",
+        "jp_pronunciation": "kikan",
+        "vie_pronunciation": "thoi ky"
+      },
+      "means": {
+        "en": "An amount of time",
+        "zh": "遭受损失或不幸的可能性"
+      }
+    },
+    {
+      "word": {
+        "en": "periodic",
+        "laos": "ວາລະສານ",
+        "jp": "定期的な",
+        "vie": "định kỳ",
+        "en_pronunciation": "/ˌpɪriˈɑdɪk/",
+        "laos_pronunciation": "valasan",
+        "jp_pronunciation": "teikiteki na",
+        "vie_pronunciation": "dinh ky"
+      },
+      "means": {
+        "en": "Happening or recurring at regular intervals",
+        "zh": "充满危险"
+      }
+    },
+    {
+      "word": {
+        "en": "periodical",
+        "laos": "ແຕ່ລະໄລຍະ",
+        "jp": "定期的な",
+        "vie": "định kỳ",
+        "en_pronunciation": "/ˌpɪriˈɑdɪkəl/",
+        "laos_pronunciation": "aetlalainya",
+        "jp_pronunciation": "teikiteki na",
+        "vie_pronunciation": "dinh ky"
+      },
+      "means": {
+        "en": "A publication that appears at fixed intervals",
+        "zh": "一定的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "perish",
+        "laos": "ຕາຍຕ່ໍາ",
+        "jp": "滅びる",
+        "vie": "diệt vong",
+        "en_pronunciation": "/ˈpɛrɪʃ/",
+        "laos_pronunciation": "taitoa",
+        "jp_pronunciation": "horobi ru",
+        "vie_pronunciation": "diet vong"
+      },
+      "means": {
+        "en": "Pass from physical life and lose all bodily attributes and functions necessary to sustain life",
+        "zh": "定期发生或重复发生"
+      }
+    },
+    {
+      "word": {
+        "en": "permanent",
+        "laos": "ຖາວອນ",
+        "jp": "永久的な",
+        "vie": "vĩnh viễn",
+        "en_pronunciation": "/ˈpərmɑˌnɛnt/",
+        "laos_pronunciation": "thauaon",
+        "jp_pronunciation": "eikyuuteki na",
+        "vie_pronunciation": "vinh vien"
+      },
+      "means": {
+        "en": "A series of waves in the hair made by applying heat and chemicals",
+        "zh": "定期出版的出版物"
+      }
+    },
+    {
+      "word": {
+        "en": "permanence",
+        "laos": "ຄວາມຫມັ້ນຄົງ",
+        "jp": "永続性",
+        "vie": "sự thường trực",
+        "en_pronunciation": "/ˈpərmənəns/",
+        "laos_pronunciation": "khuaammankhong",
+        "jp_pronunciation": "eizokusei",
+        "vie_pronunciation": "su thuong truc"
+      },
+      "means": {
+        "en": "The property of being able to exist for an indefinite duration",
+        "zh": "脱离肉体生命并失去维持生命所需的所有身体属性和功能"
+      }
+    },
+    {
+      "word": {
+        "en": "permeate",
+        "laos": "ຜະນາມ",
+        "jp": "浸透する",
+        "vie": "thấm vào",
+        "en_pronunciation": "/ˈpərmiˌeɪt/",
+        "laos_pronunciation": "phanam",
+        "jp_pronunciation": "shintou suru",
+        "vie_pronunciation": "tham vao"
+      },
+      "means": {
+        "en": "Spread or diffuse through",
+        "zh": "通过加热和化学物质在头发中形成一系列波浪"
+      }
+    },
+    {
+      "word": {
+        "en": "permeation",
+        "laos": "ການຂຶ້ນໄປ",
+        "jp": "浸透",
+        "vie": "sự thẩm thấu",
+        "en_pronunciation": "/permeation/",
+        "laos_pronunciation": "kankhunpai",
+        "jp_pronunciation": "shintou",
+        "vie_pronunciation": "su tham thau"
+      },
+      "means": {
+        "en": "The process of permeating or infusing something with a substance",
+        "zh": "能够无限期存在的属性"
+      }
+    },
+    {
+      "word": {
+        "en": "permit",
+        "laos": "ອະນຸຍາດ",
+        "jp": "許可する",
+        "vie": "giấy phép",
+        "en_pronunciation": "/ˈpərˌmɪt/",
+        "laos_pronunciation": "anunyad",
+        "jp_pronunciation": "kyoka suru",
+        "vie_pronunciation": "giay phep"
+      },
+      "means": {
+        "en": "A legal document giving official permission to do something",
+        "zh": "通过传播或扩散"
+      }
+    },
+    {
+      "word": {
+        "en": "permission",
+        "laos": "ອະນຸຍາດແຈ້ງການ",
+        "jp": "許可",
+        "vie": "sự cho phép",
+        "en_pronunciation": "/pərˈmɪʃən/",
+        "laos_pronunciation": "anunyadaechngkan",
+        "jp_pronunciation": "kyoka",
+        "vie_pronunciation": "su cho phep"
+      },
+      "means": {
+        "en": "Approval to do something",
+        "zh": "用某种物质渗透或注入某物的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "permissible",
+        "laos": "ທີ່ອະນຸຍາດ",
+        "jp": "許容できる",
+        "vie": "được phép",
+        "en_pronunciation": "/pərˈmɪsəbəl/",
+        "laos_pronunciation": "thioanunyad",
+        "jp_pronunciation": "kyoyou dekiru",
+        "vie_pronunciation": "duoc phep"
+      },
+      "means": {
+        "en": "That may be permitted especially as according to rule",
+        "zh": "正式许可做某事的法律文件"
+      }
+    },
+    {
+      "word": {
+        "en": "permissive",
+        "laos": "ອະນຸຍາດ",
+        "jp": "寛容な",
+        "vie": "dễ dãi",
+        "en_pronunciation": "/pərˈmɪsɪv/",
+        "laos_pronunciation": "anunyad",
+        "jp_pronunciation": "kanyou na",
+        "vie_pronunciation": "de dai"
+      },
+      "means": {
+        "en": "Not preventive",
+        "zh": "批准做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "perpetual",
+        "laos": "ຕະຫລອດການ",
+        "jp": "永久的な",
+        "vie": "vĩnh viễn",
+        "en_pronunciation": "/pərˈpɛʧuəl/",
+        "laos_pronunciation": "talodkan",
+        "jp_pronunciation": "eikyuuteki na",
+        "vie_pronunciation": "vinh vien"
+      },
+      "means": {
+        "en": "Continuing forever or indefinitely",
+        "zh": "这可能是允许的，特别是根据规则"
+      }
+    },
+    {
+      "word": {
+        "en": "perpetuate",
+        "laos": "ກະທໍາ",
+        "jp": "永続する",
+        "vie": "kéo dài mãi",
+        "en_pronunciation": "/pərˈpɛʧəˌweɪt/",
+        "laos_pronunciation": "kathoa",
+        "jp_pronunciation": "eizoku suru",
+        "vie_pronunciation": "keo dai mai"
+      },
+      "means": {
+        "en": "Cause to continue or prevail",
+        "zh": "不具有预防性"
+      }
+    },
+    {
+      "word": {
+        "en": "perplex",
+        "laos": "ຕ່ໍາກວ່າ",
+        "jp": "当惑する",
+        "vie": "bối rối",
+        "en_pronunciation": "/pərˈplɛks/",
+        "laos_pronunciation": "toakva",
+        "jp_pronunciation": "touwaku suru",
+        "vie_pronunciation": "boi roi"
+      },
+      "means": {
+        "en": "Be a mystery or bewildering to",
+        "zh": "永远持续或无限期持续"
+      }
+    },
+    {
+      "word": {
+        "en": "perplexity",
+        "laos": "ຄວາມກະລຸນາ",
+        "jp": "困惑",
+        "vie": "sự bối rối",
+        "en_pronunciation": "/pərˈplɛksəti/",
+        "laos_pronunciation": "khuaamkaluna",
+        "jp_pronunciation": "konwaku",
+        "vie_pronunciation": "su boi roi"
+      },
+      "means": {
+        "en": "Trouble or confusion resulting from complexity",
+        "zh": "导致继续或占上风"
+      }
+    },
+    {
+      "word": {
+        "en": "persecute",
+        "laos": "ບຽດບຽນ",
+        "jp": "迫害する",
+        "vie": "bắt bớ",
+        "en_pronunciation": "/ˈpərsəˌkjut/",
+        "laos_pronunciation": "biadbian",
+        "jp_pronunciation": "hakugai suru",
+        "vie_pronunciation": "bat bo"
+      },
+      "means": {
+        "en": "Cause to suffer",
+        "zh": "变得神秘或令人困惑"
+      }
+    },
+    {
+      "word": {
+        "en": "persecution",
+        "laos": "ການບຽດບຽນ",
+        "jp": "迫害",
+        "vie": "sự đàn áp",
+        "en_pronunciation": "/ˌpərsəˈkjuʃən/",
+        "laos_pronunciation": "kan biadbian",
+        "jp_pronunciation": "hakugai",
+        "vie_pronunciation": "su dan ap"
+      },
+      "means": {
+        "en": "The act of persecuting (especially on the basis of race or religion)",
+        "zh": "复杂性导致的麻烦或混乱"
+      }
+    },
+    {
+      "word": {
+        "en": "persevere",
+        "laos": "ບາກບັ່ນ",
+        "jp": "耐える",
+        "vie": "kiên trì",
+        "en_pronunciation": "/pərsəˈvɪr/",
+        "laos_pronunciation": "bak ban",
+        "jp_pronunciation": "tae ru",
+        "vie_pronunciation": "kien tri"
+      },
+      "means": {
+        "en": "Be persistent, refuse to stop",
+        "zh": "导致受苦"
+      }
+    },
+    {
+      "word": {
+        "en": "perseverance",
+        "laos": "ສັມພາທະມິດ",
+        "jp": "忍耐力",
+        "vie": "sự kiên trì",
+        "en_pronunciation": "/ˌpərsəˈvɪrəns/",
+        "laos_pronunciation": "sam pha thamid",
+        "jp_pronunciation": "nintairyoku",
+        "vie_pronunciation": "su kien tri"
+      },
+      "means": {
+        "en": "Persistent determination",
+        "zh": "迫害行为（尤其是基于种族或宗教的迫害）"
+      }
+    },
+    {
+      "word": {
+        "en": "persist",
+        "laos": "ຍືນຍັນ",
+        "jp": "持続する",
+        "vie": "kiên trì",
+        "en_pronunciation": "/pərˈsɪst/",
+        "laos_pronunciation": "nyunnyan",
+        "jp_pronunciation": "jizoku suru",
+        "vie_pronunciation": "kien tri"
+      },
+      "means": {
+        "en": "Continue to exist",
+        "zh": "坚持不懈，拒绝停下来"
+      }
+    },
+    {
+      "word": {
+        "en": "persistent",
+        "laos": "ດື້ດຶງ",
+        "jp": "しつこい",
+        "vie": "kiên trì",
+        "en_pronunciation": "/pərˈsɪstənt/",
+        "laos_pronunciation": "dudung",
+        "jp_pronunciation": "shitsukoi",
+        "vie_pronunciation": "kien tri"
+      },
+      "means": {
+        "en": "Never-ceasing",
+        "zh": "坚持不懈的决心"
+      }
+    },
+    {
+      "word": {
+        "en": "persistence",
+        "laos": "ການຍືນຍັນ",
+        "jp": "持続性",
+        "vie": "kiên trì",
+        "en_pronunciation": "/pərˈsɪstəns/",
+        "laos_pronunciation": "kannyunnyan",
+        "jp_pronunciation": "jizokusei",
+        "vie_pronunciation": "kien tri"
+      },
+      "means": {
+        "en": "The property of a continuous and connected period of time",
+        "zh": "继续存在"
+      }
+    },
+    {
+      "word": {
+        "en": "person",
+        "laos": "ບຸກຄົນ",
+        "jp": "人",
+        "vie": "người",
+        "en_pronunciation": "/ˈpərsən/",
+        "laos_pronunciation": "bukkhon",
+        "jp_pronunciation": "nin",
+        "vie_pronunciation": "nguoi"
+      },
+      "means": {
+        "en": "A human being",
+        "zh": "永不止息"
+      }
+    },
+    {
+      "word": {
+        "en": "personal",
+        "laos": "ສ່ວນຕົວ",
+        "jp": "個人的な",
+        "vie": "cá nhân",
+        "en_pronunciation": "/ˈpərsɪnəl/",
+        "laos_pronunciation": "suantua",
+        "jp_pronunciation": "kojintekina",
+        "vie_pronunciation": "ca nhan"
+      },
+      "means": {
+        "en": "A short newspaper article about a particular person or group",
+        "zh": "连续且相连的时间段的属性"
+      }
+    },
+    {
+      "word": {
+        "en": "personally",
+        "laos": "ສ່ວນຕົວ",
+        "jp": "個人的に",
+        "vie": "cá nhân",
+        "en_pronunciation": "/ˈpərsənəli/",
+        "laos_pronunciation": "suantua",
+        "jp_pronunciation": "kojinteki ni",
+        "vie_pronunciation": "ca nhan"
+      },
+      "means": {
+        "en": "As yourself",
+        "zh": "一个人"
+      }
+    },
+    {
+      "word": {
+        "en": "personality",
+        "laos": "ຕົວຕົນ",
+        "jp": "性格",
+        "vie": "cá tính",
+        "en_pronunciation": "/ˌpərsəˈnælɪti/",
+        "laos_pronunciation": "tuaton",
+        "jp_pronunciation": "seikaku",
+        "vie_pronunciation": "ca tinh"
+      },
+      "means": {
+        "en": "The complex of all the attributes--behavioral, temperamental, emotional and mental--that characterize a unique individual",
+        "zh": "关于特定个人或团体的简短报纸文章"
+      }
+    },
+    {
+      "word": {
+        "en": "personnel",
+        "laos": "ບຸກຄະລາກອນ",
+        "jp": "人員",
+        "vie": "nhân sự",
+        "en_pronunciation": "/ˌpərsəˈnɛl/",
+        "laos_pronunciation": "bukkhalakon",
+        "jp_pronunciation": "jin'in",
+        "vie_pronunciation": "nhan su"
+      },
+      "means": {
+        "en": "Group of people willing to obey orders",
+        "zh": "作为你自己"
+      }
+    },
+    {
+      "word": {
+        "en": "perspective",
+        "laos": "ຕາຢ",
+        "jp": "視点",
+        "vie": "quan điểm",
+        "en_pronunciation": "/pərˈspɛktɪv/",
+        "laos_pronunciation": "tay",
+        "jp_pronunciation": "shiten",
+        "vie_pronunciation": "quan diem"
+      },
+      "means": {
+        "en": "A way of regarding situations or topics etc.",
+        "zh": "行为、气质、情感和心理等所有属性的综合体，构成了一个独特个体的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "persuade",
+        "laos": "ຊັກຊວນ",
+        "jp": "説得する",
+        "vie": "thuyết phục",
+        "en_pronunciation": "/pərsˈweɪd/",
+        "laos_pronunciation": "saksuan",
+        "jp_pronunciation": "settoku suru",
+        "vie_pronunciation": "thuyet phuc"
+      },
+      "means": {
+        "en": "Win approval or support for",
+        "zh": "一群愿意服从命令的人"
+      }
+    },
+    {
+      "word": {
+        "en": "persuasion",
+        "laos": "ການຊັກຊວນ",
+        "jp": "説得",
+        "vie": "sự thuyết phục",
+        "en_pronunciation": "/pərsˈweɪʒən/",
+        "laos_pronunciation": "kansaksuan",
+        "jp_pronunciation": "settoku",
+        "vie_pronunciation": "su thuyet phuc"
+      },
+      "means": {
+        "en": "The act of persuading (or attempting to persuade); communication intended to induce belief or action",
+        "zh": "一种看待情境或话题等的方式。"
+      }
+    },
+    {
+      "word": {
+        "en": "persuasive",
+        "laos": "ຜູກນ້ໍາໃຈ",
+        "jp": "説得力のある",
+        "vie": "thuyết phục",
+        "en_pronunciation": "/pərsˈweɪsɪv/",
+        "laos_pronunciation": "phuk noachai",
+        "jp_pronunciation": "settokuryoku noaru",
+        "vie_pronunciation": "thuyet phuc"
+      },
+      "means": {
+        "en": "Intended or having the power to induce action or belief",
+        "zh": "赢得认可或支持"
+      }
+    },
+    {
+      "word": {
+        "en": "pessimism",
+        "laos": "ຄວາມສົງສານ",
+        "jp": "悲観主義",
+        "vie": "sự bi quan",
+        "en_pronunciation": "/ˈpɛsəˌmɪzəm/",
+        "laos_pronunciation": "khuaamsongsan",
+        "jp_pronunciation": "hikan shugi",
+        "vie_pronunciation": "su bi quan"
+      },
+      "means": {
+        "en": "The feeling that things will turn out badly",
+        "zh": "说服（或试图说服）的行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "pessimistic",
+        "laos": "ທີ່ຝ່າຝືນ",
+        "jp": "悲観的",
+        "vie": "bi quan",
+        "en_pronunciation": "/ˌpɛsəˈmɪstɪk/",
+        "laos_pronunciation": "thi fafun",
+        "jp_pronunciation": "hikanteki",
+        "vie_pronunciation": "bi quan"
+      },
+      "means": {
+        "en": "Expecting the worst possible outcome",
+        "zh": "旨在引发信念或行动的沟通"
+      }
+    },
+    {
+      "word": {
+        "en": "pessimist",
+        "laos": "pessimist",
+        "jp": "悲観主義者",
+        "vie": "người bi quan",
+        "en_pronunciation": "/ˈpɛsəməst/",
+        "laos_pronunciation": "pessimist",
+        "jp_pronunciation": "hikan shugisha",
+        "vie_pronunciation": "nguoi bi quan"
+      },
+      "means": {
+        "en": "A person who expects the worst",
+        "zh": "有意或有能力引发行动或信念"
+      }
+    },
+    {
+      "word": {
+        "en": "pest",
+        "laos": "ສັດຕູພືດ",
+        "jp": "害虫",
+        "vie": "côn trùng gây hại",
+        "en_pronunciation": "/pɛst/",
+        "laos_pronunciation": "sadtuphud",
+        "jp_pronunciation": "gaichuu",
+        "vie_pronunciation": "con trung gay hai"
+      },
+      "means": {
+        "en": "A serious (sometimes fatal) infection of rodents caused by Yersinia pestis and accidentally transmitted to humans by the bite of a flea that has bitten an infected animal",
+        "zh": "感觉事情会变得很糟糕"
+      }
+    },
+    {
+      "word": {
+        "en": "pesticide",
+        "laos": "ຢາຂ້າແມງໄມ້",
+        "jp": "殺虫剤",
+        "vie": "thuốc trừ sâu",
+        "en_pronunciation": "/ˈpɛstəˌsaɪd/",
+        "laos_pronunciation": "yakhaaemngmai",
+        "jp_pronunciation": "satchuuzai",
+        "vie_pronunciation": "thuoc tru sau"
+      },
+      "means": {
+        "en": "A chemical used to kill pests (as rodents or insects)",
+        "zh": "期待最坏的结果"
+      }
+    },
+    {
+      "word": {
+        "en": "pet",
+        "laos": "ລູບໄລ້",
+        "jp": "ペット",
+        "vie": "thú cưng",
+        "en_pronunciation": "/pɛt/",
+        "laos_pronunciation": "lublai",
+        "jp_pronunciation": "petto",
+        "vie_pronunciation": "thu cung"
+      },
+      "means": {
+        "en": "A domesticated animal kept for companionship or amusement",
+        "zh": "一个做最坏打算的人"
+      }
+    },
+    {
+      "word": {
+        "en": "petition",
+        "laos": "ຄໍາຮ້ອງ",
+        "jp": "嘆願書",
+        "vie": "lời thỉnh cầu",
+        "en_pronunciation": "/pəˈtɪʃən/",
+        "laos_pronunciation": "khoahong",
+        "jp_pronunciation": "tangansho",
+        "vie_pronunciation": "loi thinh cau"
+      },
+      "means": {
+        "en": "A formal message requesting something that is submitted to an authority",
+        "zh": "由鼠疫耶尔森氏菌引起的啮齿动物严重（有时致命）感染，并通过咬伤受感染动物的跳蚤叮咬意外传播给人类"
+      }
+    },
+    {
+      "word": {
+        "en": "petitioner",
+        "laos": "ຜູ້ຮ້ອງຂໍ",
+        "jp": "請願者",
+        "vie": "người thỉnh cầu",
+        "en_pronunciation": "/pəˈtɪʃənər/",
+        "laos_pronunciation": "phuhongkho",
+        "jp_pronunciation": "seigan mono",
+        "vie_pronunciation": "nguoi thinh cau"
+      },
+      "means": {
+        "en": "One praying humbly for something",
+        "zh": "用于杀死害虫（如啮齿动物或昆虫）的化学品"
+      }
+    },
+    {
+      "word": {
+        "en": "petrochemical",
+        "laos": "ເຄຊັນ",
+        "jp": "石油化学",
+        "vie": "hóa dầu",
+        "en_pronunciation": "/ˌpɛtroʊˈkɛmɪkəl/",
+        "laos_pronunciation": "khesan",
+        "jp_pronunciation": "sekiyu kagaku",
+        "vie_pronunciation": "hoa dau"
+      },
+      "means": {
+        "en": "Any compound obtained from petroleum or natural gas",
+        "zh": "为陪伴或娱乐而饲养的动物"
+      }
+    },
+    {
+      "word": {
+        "en": "petrol",
+        "laos": "ນ້ໍາມັນ",
+        "jp": "ガソリン",
+        "vie": "xăng dầu",
+        "en_pronunciation": "/ˈpɛtroʊl/",
+        "laos_pronunciation": "noaman",
+        "jp_pronunciation": "gasorin",
+        "vie_pronunciation": "xang dau"
+      },
+      "means": {
+        "en": "A volatile flammable mixture of hydrocarbons (hexane and heptane and octane etc.) derived from petroleum; used mainly as a fuel in internal-combustion engines",
+        "zh": "请求提交给权威机构的正式消息"
+      }
+    },
+    {
+      "word": {
+        "en": "petroleum",
+        "laos": "ໄມ້ທິປະໄຕ",
+        "jp": "石油",
+        "vie": "xăng dầu",
+        "en_pronunciation": "/pəˈtroʊliəm/",
+        "laos_pronunciation": "maithipatai",
+        "jp_pronunciation": "sekiyu",
+        "vie_pronunciation": "xang dau"
+      },
+      "means": {
+        "en": "A dark oil consisting mainly of hydrocarbons",
+        "zh": "一个人谦卑地为某事祈祷"
+      }
+    },
+    {
+      "word": {
+        "en": "petty",
+        "laos": "ອະໄວຍະວະ",
+        "jp": "つまらない",
+        "vie": "nhỏ mọn",
+        "en_pronunciation": "/ˈpɛˌti/",
+        "laos_pronunciation": "auaainyauaa",
+        "jp_pronunciation": "tsumaranai",
+        "vie_pronunciation": "nho mon"
+      },
+      "means": {
+        "en": "Larceny of property having a value less than some amount (the amount varies by locale)",
+        "zh": "从石油或天然气中获得的任何化合物"
+      }
+    },
+    {
+      "word": {
+        "en": "pharmacy",
+        "laos": "ຮ້ານຂາຍຢາ",
+        "jp": "薬局",
+        "vie": "hiệu thuốc",
+        "en_pronunciation": "/ˈfɑrməsi/",
+        "laos_pronunciation": "hankhaiya",
+        "jp_pronunciation": "yakkyoku",
+        "vie_pronunciation": "hieu thuoc"
+      },
+      "means": {
+        "en": "The art and science of preparing and dispensing drugs and medicines,",
+        "zh": "从石油中提取的烃类（己烷、庚烷、辛烷等）的挥发性易燃混合物；"
+      }
+    },
+    {
+      "word": {
+        "en": "pharmaceutical",
+        "laos": "ຢາປອງ",
+        "jp": "製薬",
+        "vie": "dược phẩm",
+        "en_pronunciation": "/ˌfɑrməˈsutɪkəl/",
+        "laos_pronunciation": "yapong",
+        "jp_pronunciation": "seiyaku",
+        "vie_pronunciation": "duoc pham"
+      },
+      "means": {
+        "en": "Drug or medicine that is prepared or dispensed in pharmacies and used in medical treatment",
+        "zh": "主要用作内燃机的燃料"
+      }
+    },
+    {
+      "word": {
+        "en": "phase",
+        "laos": "ໄລຢະວະໄລ",
+        "jp": "位相",
+        "vie": "giai đoạn",
+        "en_pronunciation": "/feɪz/",
+        "laos_pronunciation": "lai ya valai",
+        "jp_pronunciation": "isou",
+        "vie_pronunciation": "giai doan"
+      },
+      "means": {
+        "en": "Any distinct time period in a sequence of events",
+        "zh": "主要由碳氢化合物组成的深色油"
+      }
+    },
+    {
+      "word": {
+        "en": "phenomenon",
+        "laos": "ປະກົດການ",
+        "jp": "現象",
+        "vie": "hiện tượng",
+        "en_pronunciation": "/fəˈnɑməˌnɑn/",
+        "laos_pronunciation": "pakodkan",
+        "jp_pronunciation": "genshou",
+        "vie_pronunciation": "hien tuong"
+      },
+      "means": {
+        "en": "Any state or process known through the senses rather than by intuition or reasoning",
+        "zh": "盗窃价值低于一定金额的财产（金额因地区而异）"
+      }
+    },
+    {
+      "word": {
+        "en": "philosophy",
+        "laos": "ປະຊະຍາ",
+        "jp": "哲学",
+        "vie": "triết học",
+        "en_pronunciation": "/fəˈlɑsəfi/",
+        "laos_pronunciation": "pa sanya",
+        "jp_pronunciation": "tetsugaku",
+        "vie_pronunciation": "triet hoc"
+      },
+      "means": {
+        "en": "A belief (or system of beliefs) accepted as authoritative by some group or school",
+        "zh": "准备和分配药品的艺术和科学，"
+      }
+    },
+    {
+      "word": {
+        "en": "philosophical",
+        "laos": "ປັດຊະດົນ",
+        "jp": "哲学的な",
+        "vie": "triết học",
+        "en_pronunciation": "/ˌfɪləˈsɑfɪkəl/",
+        "laos_pronunciation": "pad sadon",
+        "jp_pronunciation": "tetsugakuteki na",
+        "vie_pronunciation": "triet hoc"
+      },
+      "means": {
+        "en": "Of or relating to philosophy or philosophers",
+        "zh": "在药房配制或配制并用于医疗的药物或药品"
+      }
+    },
+    {
+      "word": {
+        "en": "philosopher",
+        "laos": "ປັດພີເມັນ",
+        "jp": "哲学者",
+        "vie": "triết gia",
+        "en_pronunciation": "/fəˈlɑsəfər/",
+        "laos_pronunciation": "pad phimen",
+        "jp_pronunciation": "tetsugakusha",
+        "vie_pronunciation": "triet gia"
+      },
+      "means": {
+        "en": "A specialist in philosophy",
+        "zh": "一系列事件中的任何不同时间段"
+      }
+    },
+    {
+      "word": {
+        "en": "photo",
+        "laos": "ຮູບພາບ",
+        "jp": "写真",
+        "vie": "bức ảnh",
+        "en_pronunciation": "/ˈfoʊˌtoʊ/",
+        "laos_pronunciation": "hubphab",
+        "jp_pronunciation": "shashin",
+        "vie_pronunciation": "buc anh"
+      },
+      "means": {
+        "en": "A representation of a person or scene in the form of a print or transparent slide; recorded by a camera on light-sensitive material",
+        "zh": "通过感官而非直觉或推理得知的任何状态或过程"
+      }
+    },
+    {
+      "word": {
+        "en": "photograph",
+        "laos": "ການຖ່າຍຮູບ",
+        "jp": "写真",
+        "vie": "bức ảnh",
+        "en_pronunciation": "/ˈfoʊtəˌgræf/",
+        "laos_pronunciation": "kanthaihub",
+        "jp_pronunciation": "shashin",
+        "vie_pronunciation": "buc anh"
+      },
+      "means": {
+        "en": "A representation of a person or scene in the form of a print or transparent slide; recorded by a camera on light-sensitive material",
+        "zh": "被某些团体或学校视为权威的信仰（或信仰体系）"
+      }
+    },
+    {
+      "word": {
+        "en": "photographic",
+        "laos": "ການຖ່າຍຮູບ",
+        "jp": "写真の",
+        "vie": "nhiếp ảnh",
+        "en_pronunciation": "/ˌfoʊtəˈgræfɪk/",
+        "laos_pronunciation": "kanthaihub",
+        "jp_pronunciation": "shashin no",
+        "vie_pronunciation": "nhiep anh"
+      },
+      "means": {
+        "en": "Relating to photography or obtained by using photography",
+        "zh": "属于或关于哲学或哲学家的"
+      }
+    },
+    {
+      "word": {
+        "en": "photographer",
+        "laos": "ຊ່າງຖ່າຍຮູບ",
+        "jp": "写真家",
+        "vie": "nhiếp ảnh gia",
+        "en_pronunciation": "/fəˈtɑgrəfər/",
+        "laos_pronunciation": "sangthaihub",
+        "jp_pronunciation": "shashinka",
+        "vie_pronunciation": "nhiep anh gia"
+      },
+      "means": {
+        "en": "Someone who takes photographs professionally",
+        "zh": "哲学专家"
+      }
+    },
+    {
+      "word": {
+        "en": "photography",
+        "laos": "ການຖ່າຍຮູບ",
+        "jp": "写真撮影",
+        "vie": "nhiếp ảnh",
+        "en_pronunciation": "/fəˈtɑgrəfi/",
+        "laos_pronunciation": "kanthaihub",
+        "jp_pronunciation": "shashinsatsuei",
+        "vie_pronunciation": "nhiep anh"
+      },
+      "means": {
+        "en": "The act of taking and printing photographs",
+        "zh": "以印刷品或透明幻灯片的形式表现人物或场景；"
+      }
+    },
+    {
+      "word": {
+        "en": "phrase",
+        "laos": "ປະໂຍກ",
+        "jp": "フレーズ",
+        "vie": "cụm từ",
+        "en_pronunciation": "/freɪz/",
+        "laos_pronunciation": "paonyk",
+        "jp_pronunciation": "fureezu",
+        "vie_pronunciation": "cum tu"
+      },
+      "means": {
+        "en": "An expression consisting of one or more words forming a grammatical constituent of a sentence",
+        "zh": "由相机记录在光敏材料上"
+      }
+    },
+    {
+      "word": {
+        "en": "phrasal",
+        "laos": "ເທບພະຍາ",
+        "jp": "句法",
+        "vie": "cụm từ",
+        "en_pronunciation": "/phrasal/",
+        "laos_pronunciation": "thebphanya",
+        "jp_pronunciation": "kuhou",
+        "vie_pronunciation": "cum tu"
+      },
+      "means": {
+        "en": "Of or relating to or functioning as a phrase",
+        "zh": "以印刷品或透明幻灯片的形式表现人物或场景；"
+      }
+    },
+    {
+      "word": {
+        "en": "physical",
+        "laos": "ຮ່າງກາຍ",
+        "jp": "物理的な",
+        "vie": "thể chất",
+        "en_pronunciation": "/ˈfɪzɪkəl/",
+        "laos_pronunciation": "hangkai",
+        "jp_pronunciation": "butsuriteki na",
+        "vie_pronunciation": "the chat"
+      },
+      "means": {
+        "en": "Involving the body as distinguished from the mind or spirit",
+        "zh": "由相机记录在光敏材料上"
+      }
+    },
+    {
+      "word": {
+        "en": "physician",
+        "laos": "ທ່ານຫມໍ",
+        "jp": "医師",
+        "vie": "bác sĩ",
+        "en_pronunciation": "/fəˈzɪʃən/",
+        "laos_pronunciation": "thanmo",
+        "jp_pronunciation": "ishi",
+        "vie_pronunciation": "bac si"
+      },
+      "means": {
+        "en": "A licensed medical practitioner",
+        "zh": "与摄影有关或通过摄影获得的"
+      }
+    },
+    {
+      "word": {
+        "en": "physics",
+        "laos": "ຟີຊິກ",
+        "jp": "物理学",
+        "vie": "vật lý",
+        "en_pronunciation": "/ˈfɪzɪks/",
+        "laos_pronunciation": "fisik",
+        "jp_pronunciation": "butsurigaku",
+        "vie_pronunciation": "vat ly"
+      },
+      "means": {
+        "en": "The science of matter and energy and their interactions",
+        "zh": "专业拍照的人"
+      }
+    },
+    {
+      "word": {
+        "en": "physicist",
+        "laos": "ຟີຊິກ",
+        "jp": "物理学者",
+        "vie": "nhà vật lý",
+        "en_pronunciation": "/ˈfɪzɪsɪst/",
+        "laos_pronunciation": "fisik",
+        "jp_pronunciation": "butsurigakusha",
+        "vie_pronunciation": "nha vat ly"
+      },
+      "means": {
+        "en": "A scientist trained in physics",
+        "zh": "拍摄和打印照片的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "physiological",
+        "laos": "Physiological",
+        "jp": "生理学的",
+        "vie": "sinh lý",
+        "en_pronunciation": "/ˌfɪziəˈlɑʤɪkəl/",
+        "laos_pronunciation": "Physiological",
+        "jp_pronunciation": "seirigakuteki",
+        "vie_pronunciation": "sinh ly"
+      },
+      "means": {
+        "en": "Of or relating to the biological study of physiology",
+        "zh": "由一个或多个单词组成的表达式，构成句子的语法成分"
+      }
+    },
+    {
+      "word": {
+        "en": "piano",
+        "laos": "ເປຍໂນ",
+        "jp": "ピアノ",
+        "vie": "đàn piano",
+        "en_pronunciation": "/piˈænə/",
+        "laos_pronunciation": "piaon",
+        "jp_pronunciation": "piano",
+        "vie_pronunciation": "dan piano"
+      },
+      "means": {
+        "en": "A keyboard instrument that is played by depressing keys that cause hammers to strike tuned strings and produce sounds",
+        "zh": "属于或关于或用作短语"
+      }
+    },
+    {
+      "word": {
+        "en": "pianist",
+        "laos": "ຜູ້ຊາຍ",
+        "jp": "ピアニスト",
+        "vie": "nghệ sĩ dương cầm",
+        "en_pronunciation": "/ˈpiənɪst/",
+        "laos_pronunciation": "phusai",
+        "jp_pronunciation": "pianisuto",
+        "vie_pronunciation": "nghe si duong cam"
+      },
+      "means": {
+        "en": "A person who plays the piano",
+        "zh": "身体的参与不同于思想或精神"
+      }
+    },
+    {
+      "word": {
+        "en": "pick",
+        "laos": "ເລືອກເອົາ",
+        "jp": "選ぶ",
+        "vie": "chọn",
+        "en_pronunciation": "/pɪk/",
+        "laos_pronunciation": "leuokoao",
+        "jp_pronunciation": "erabu",
+        "vie_pronunciation": "chon"
+      },
+      "means": {
+        "en": "The person or thing chosen or selected",
+        "zh": "持有执照的医生"
+      }
+    },
+    {
+      "word": {
+        "en": "picky",
+        "laos": "ພິກງ",
+        "jp": "うるさい",
+        "vie": "kén chọn",
+        "en_pronunciation": "/ˈpɪki/",
+        "laos_pronunciation": "phikng",
+        "jp_pronunciation": "urusai",
+        "vie_pronunciation": "ken chon"
+      },
+      "means": {
+        "en": "Exacting especially about details",
+        "zh": "物质和能量及其相互作用的科学"
+      }
+    },
+    {
+      "word": {
+        "en": "picnic",
+        "laos": "ປິກນິກ",
+        "jp": "ピクニック",
+        "vie": "dã ngoại",
+        "en_pronunciation": "/ˈpɪkˌnɪk/",
+        "laos_pronunciation": "piknik",
+        "jp_pronunciation": "pikunikku",
+        "vie_pronunciation": "da ngoai"
+      },
+      "means": {
+        "en": "A day devoted to an outdoor social gathering",
+        "zh": "受过物理学训练的科学家"
+      }
+    },
+    {
+      "word": {
+        "en": "picture",
+        "laos": "ຮູບ",
+        "jp": "絵",
+        "vie": "bức tranh",
+        "en_pronunciation": "/ˈpɪkʧər/",
+        "laos_pronunciation": "hub",
+        "jp_pronunciation": "e",
+        "vie_pronunciation": "buc tranh"
+      },
+      "means": {
+        "en": "A visual representation (of an object or scene or person or abstraction) produced on a surface",
+        "zh": "生理学的生物学研究的或与之相关的"
+      }
+    },
+    {
+      "word": {
+        "en": "picturesque",
+        "laos": "pictureque",
+        "jp": "絵のように美しい",
+        "vie": "đẹp như tranh vẽ",
+        "en_pronunciation": "/ˈpɪkʧərəsk/",
+        "laos_pronunciation": "pictureque",
+        "jp_pronunciation": "e noyouni utsukushii",
+        "vie_pronunciation": "dep nhu tranh ve"
+      },
+      "means": {
+        "en": "Suggesting or suitable for a picture; pretty as a picture",
+        "zh": "一种键盘乐器，通过按下琴键使琴槌敲击调好的琴弦并发出声音来演奏"
+      }
+    },
+    {
+      "word": {
+        "en": "pie",
+        "laos": "ຂະຫນົມ",
+        "jp": "パイ",
+        "vie": "chiếc bánh",
+        "en_pronunciation": "/paɪ/",
+        "laos_pronunciation": "khanom",
+        "jp_pronunciation": "pai",
+        "vie_pronunciation": "chiec banh"
+      },
+      "means": {
+        "en": "Dish baked in pastry-lined pan often with a pastry top",
+        "zh": "一个弹钢琴的人"
+      }
+    },
+    {
+      "word": {
+        "en": "piece",
+        "laos": "ປ່ຽງ",
+        "jp": "ピース",
+        "vie": "mảnh",
+        "en_pronunciation": "/pis/",
+        "laos_pronunciation": "piang",
+        "jp_pronunciation": "piisu",
+        "vie_pronunciation": "manh"
+      },
+      "means": {
+        "en": "A separate part of a whole",
+        "zh": "所选择的人或事"
+      }
+    },
+    {
+      "word": {
+        "en": "pierce",
+        "laos": "ເຈາະ",
+        "jp": "ピアス",
+        "vie": "đâm thủng",
+        "en_pronunciation": "/pɪrs/",
+        "laos_pronunciation": "cho",
+        "jp_pronunciation": "piasu",
+        "vie_pronunciation": "dam thung"
+      },
+      "means": {
+        "en": "14th President of the United States (1804-1869)",
+        "zh": "尤其对细节要求严格"
+      }
+    },
+    {
+      "word": {
+        "en": "pig",
+        "laos": "ຫມູ",
+        "jp": "豚",
+        "vie": "con lợn",
+        "en_pronunciation": "/pɪg/",
+        "laos_pronunciation": "mu",
+        "jp_pronunciation": "buta",
+        "vie_pronunciation": "con lon"
+      },
+      "means": {
+        "en": "Domestic swine",
+        "zh": "专门用于户外社交聚会的一天"
+      }
+    },
+    {
+      "word": {
+        "en": "pigeon",
+        "laos": "ກາງແກ",
+        "jp": "鳩",
+        "vie": "chim bồ câu",
+        "en_pronunciation": "/ˈpɪʤɪn/",
+        "laos_pronunciation": "kangaek",
+        "jp_pronunciation": "hato",
+        "vie_pronunciation": "chim bo cau"
+      },
+      "means": {
+        "en": "Wild and domesticated birds having a heavy body and short legs",
+        "zh": "在表面上产生的视觉表示（对象、场景、人或抽象）"
+      }
+    },
+    {
+      "word": {
+        "en": "pile",
+        "laos": "ກອງ",
+        "jp": "パイル",
+        "vie": "đống",
+        "en_pronunciation": "/paɪl/",
+        "laos_pronunciation": "kong",
+        "jp_pronunciation": "pairu",
+        "vie_pronunciation": "dong"
+      },
+      "means": {
+        "en": "A collection of objects laid on top of each other",
+        "zh": "建议或适合的图片；"
+      }
+    },
+    {
+      "word": {
+        "en": "pilgrim",
+        "laos": "ຜູ້ຊາຢສະແຫວງບົນ",
+        "jp": "巡礼者",
+        "vie": "người hành hương",
+        "en_pronunciation": "/ˈpɪlgrɪm/",
+        "laos_pronunciation": "phu say saaevngbon",
+        "jp_pronunciation": "junrei mono",
+        "vie_pronunciation": "nguoi hanh huong"
+      },
+      "means": {
+        "en": "Someone who journeys in foreign lands",
+        "zh": "漂亮如画"
+      }
+    },
+    {
+      "word": {
+        "en": "pilgrimage",
+        "laos": "ການພະຍາຍາມ",
+        "jp": "巡礼",
+        "vie": "hành hương",
+        "en_pronunciation": "/ˈpɪlgrəmɪʤ/",
+        "laos_pronunciation": "kanphanyaiam",
+        "jp_pronunciation": "junrei",
+        "vie_pronunciation": "hanh huong"
+      },
+      "means": {
+        "en": "A journey to a sacred place",
+        "zh": "在衬有糕点的平底锅中烘烤的菜肴，通常带有糕点顶部"
+      }
+    },
+    {
+      "word": {
+        "en": "pill",
+        "laos": "ຢາເມັດ",
+        "jp": "錠剤",
+        "vie": "viên thuốc",
+        "en_pronunciation": "/pɪl/",
+        "laos_pronunciation": "yamed",
+        "jp_pronunciation": "jouzai",
+        "vie_pronunciation": "vien thuoc"
+      },
+      "means": {
+        "en": "Something that resembles a tablet of medicine in shape or size",
+        "zh": "整体的单独部分"
+      }
+    },
+    {
+      "word": {
+        "en": "pillar",
+        "laos": "ເສົາ",
+        "jp": "柱",
+        "vie": "trụ cột",
+        "en_pronunciation": "/ˈpɪlər/",
+        "laos_pronunciation": "sao",
+        "jp_pronunciation": "hashira",
+        "vie_pronunciation": "tru cot"
+      },
+      "means": {
+        "en": "A fundamental principle or practice",
+        "zh": "美国第十四任总统（1804-1869）"
+      }
+    },
+    {
+      "word": {
+        "en": "pillow",
+        "laos": "ຫມອນ",
+        "jp": "枕",
+        "vie": "cái gối",
+        "en_pronunciation": "/ˈpɪloʊ/",
+        "laos_pronunciation": "mon",
+        "jp_pronunciation": "makura",
+        "vie_pronunciation": "cai goi"
+      },
+      "means": {
+        "en": "A cushion to support the head of a sleeping person",
+        "zh": "家猪"
+      }
+    },
+    {
+      "word": {
+        "en": "pilot",
+        "laos": "ການທົດລອງ",
+        "jp": "パイロット",
+        "vie": "phi công",
+        "en_pronunciation": "/ˈpaɪlət/",
+        "laos_pronunciation": "kanthodlong",
+        "jp_pronunciation": "pairotto",
+        "vie_pronunciation": "phi cong"
+      },
+      "means": {
+        "en": "Someone who is licensed to operate an aircraft in flight",
+        "zh": "野生和家养鸟类身体沉重，腿短"
+      }
+    },
+    {
+      "word": {
+        "en": "pin",
+        "laos": "ເຂັມ PIN",
+        "jp": "ピン",
+        "vie": "ghim",
+        "en_pronunciation": "/pɪn/",
+        "laos_pronunciation": "khem PIN",
+        "jp_pronunciation": "pin",
+        "vie_pronunciation": "ghim"
+      },
+      "means": {
+        "en": "A piece of jewelry that is pinned onto the wearer's garment",
+        "zh": "相互叠放的对象的集合"
+      }
+    },
+    {
+      "word": {
+        "en": "pinch",
+        "laos": "ເຂົ້ານິນ",
+        "jp": "ピンチ",
+        "vie": "nhéo",
+        "en_pronunciation": "/pɪnʧ/",
+        "laos_pronunciation": "khaonin",
+        "jp_pronunciation": "pinchi",
+        "vie_pronunciation": "nheo"
+      },
+      "means": {
+        "en": "A painful or straitened circumstance",
+        "zh": "一个在异国他乡旅行的人"
+      }
+    },
+    {
+      "word": {
+        "en": "pine",
+        "laos": "ພິນນ້ໍາແປກ",
+        "jp": "松",
+        "vie": "cây thông",
+        "en_pronunciation": "/paɪn/",
+        "laos_pronunciation": "phin noaaepk",
+        "jp_pronunciation": "matsu",
+        "vie_pronunciation": "cay thong"
+      },
+      "means": {
+        "en": "A coniferous tree",
+        "zh": "前往圣地的旅程"
+      }
+    },
+    {
+      "word": {
+        "en": "pink",
+        "laos": "ສີບົວ",
+        "jp": "ピンク",
+        "vie": "màu hồng",
+        "en_pronunciation": "/pɪŋk/",
+        "laos_pronunciation": "si bua",
+        "jp_pronunciation": "pinku",
+        "vie_pronunciation": "mau hong"
+      },
+      "means": {
+        "en": "A light shade of red",
+        "zh": "形状或大小类似于药片的东西"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.309217+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "examiner",
+        "laos": "ຊ່າງ",
+        "jp": "試験官",
+        "vie": "giám khảo",
+        "en_pronunciation": "/ɪgˈzæmənər/",
+        "laos_pronunciation": "sang",
+        "jp_pronunciation": "shikenkan",
+        "vie_pronunciation": "giam khao"
+      },
+      "means": {
+        "en": "Someone who administers a test to determine your qualifications",
+        "zh": "进行测试以确定您的资格的人"
+      }
+    },
+    {
+      "word": {
+        "en": "examinee",
+        "laos": "ຜູ້ກວດສອບ",
+        "jp": "受験生",
+        "vie": "thí sinh",
+        "en_pronunciation": "/examinee/",
+        "laos_pronunciation": "phukuadsob",
+        "jp_pronunciation": "jukensei",
+        "vie_pronunciation": "thi sinh"
+      },
+      "means": {
+        "en": "Someone who is tested (as by an intelligence test or an academic examination)",
+        "zh": "接受测试的人（例如通过智力测试或学术考试）"
+      }
+    },
+    {
+      "word": {
+        "en": "example",
+        "laos": "ສະບັບ",
+        "jp": "例",
+        "vie": "ví dụ",
+        "en_pronunciation": "/ɪgˈzæmpəl/",
+        "laos_pronunciation": "sabab",
+        "jp_pronunciation": "rei",
+        "vie_pronunciation": "vi du"
+      },
+      "means": {
+        "en": "An item of information that is typical of a class or group",
+        "zh": "一个类别或群体的典型信息项"
+      }
+    },
+    {
+      "word": {
+        "en": "exemplary",
+        "laos": "ແບບຢ່າງ",
+        "jp": "模範的な",
+        "vie": "mẫu mực",
+        "en_pronunciation": "/ɪgˈzɛmpləri/",
+        "laos_pronunciation": "aebbyang",
+        "jp_pronunciation": "mohanteki na",
+        "vie_pronunciation": "mau muc"
+      },
+      "means": {
+        "en": "Worthy of imitation",
+        "zh": "值得效仿"
+      }
+    },
+    {
+      "word": {
+        "en": "exemplify",
+        "laos": "ຍົກຕົວຢ່າງ",
+        "jp": "例証する",
+        "vie": "làm gương mẫu",
+        "en_pronunciation": "/ɪgˈzɛmpləˌfaɪ/",
+        "laos_pronunciation": "nyoktuayang",
+        "jp_pronunciation": "reishou suru",
+        "vie_pronunciation": "lam guong mau"
+      },
+      "means": {
+        "en": "Be characteristic of",
+        "zh": "具有以下特点"
+      }
+    },
+    {
+      "word": {
+        "en": "exceed",
+        "laos": "ເກີນໄປ",
+        "jp": "超える",
+        "vie": "vượt quá",
+        "en_pronunciation": "/ɪkˈsid/",
+        "laos_pronunciation": "koenpai",
+        "jp_pronunciation": "koe ru",
+        "vie_pronunciation": "vuot qua"
+      },
+      "means": {
+        "en": "Be greater in scope or size than some standard",
+        "zh": "范围或规模大于某些标准"
+      }
+    },
+    {
+      "word": {
+        "en": "exceedingly",
+        "laos": "ຢ່າງຍິ່ງ",
+        "jp": "非常に",
+        "vie": "cực kỳ",
+        "en_pronunciation": "/ɪkˈsidɪŋli/",
+        "laos_pronunciation": "yangnying",
+        "jp_pronunciation": "hijouni",
+        "vie_pronunciation": "cuc ky"
+      },
+      "means": {
+        "en": "To an extreme degree",
+        "zh": "到了一个极端的程度"
+      }
+    },
+    {
+      "word": {
+        "en": "excel",
+        "laos": "ປະສົມ",
+        "jp": "エクセル",
+        "vie": "vượt trội",
+        "en_pronunciation": "/ɪkˈsɛl/",
+        "laos_pronunciation": "pasom",
+        "jp_pronunciation": "ekuseru",
+        "vie_pronunciation": "vuot troi"
+      },
+      "means": {
+        "en": "Distinguish oneself",
+        "zh": "脱颖而出"
+      }
+    },
+    {
+      "word": {
+        "en": "excellent",
+        "laos": "ດີເລີດ",
+        "jp": "素晴らしい",
+        "vie": "xuất sắc",
+        "en_pronunciation": "/ˈɛksələnt/",
+        "laos_pronunciation": "diloed",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "xuat sac"
+      },
+      "means": {
+        "en": "Very good;of the highest quality",
+        "zh": "非常好；最高品质"
+      }
+    },
+    {
+      "word": {
+        "en": "excellence",
+        "laos": "ຄວາມດີເລີດ",
+        "jp": "卓越性",
+        "vie": "sự xuất sắc",
+        "en_pronunciation": "/ˈɛksələns/",
+        "laos_pronunciation": "khuaamdiloed",
+        "jp_pronunciation": "takuetsu sei",
+        "vie_pronunciation": "su xuat sac"
+      },
+      "means": {
+        "en": "The quality of excelling; possessing good qualities in high degree",
+        "zh": "品质卓越；"
+      }
+    },
+    {
+      "word": {
+        "en": "except",
+        "laos": "ຍົກເວັ້ນ",
+        "jp": "除いて",
+        "vie": "ngoại trừ",
+        "en_pronunciation": "/ɪkˈsɛpt/",
+        "laos_pronunciation": "nyokuaen",
+        "jp_pronunciation": "nozoi te",
+        "vie_pronunciation": "ngoai tru"
+      },
+      "means": {
+        "en": "Take exception to",
+        "zh": "具备高度的良好品质"
+      }
+    },
+    {
+      "word": {
+        "en": "exception",
+        "laos": "ຂໍ້ຍົກເວັ້ນ",
+        "jp": "例外",
+        "vie": "ngoại lệ",
+        "en_pronunciation": "/ɪkˈsɛpʃən/",
+        "laos_pronunciation": "khonyokuaen",
+        "jp_pronunciation": "reigai",
+        "vie_pronunciation": "ngoai le"
+      },
+      "means": {
+        "en": "A deliberate act of omission",
+        "zh": "例外"
+      }
+    },
+    {
+      "word": {
+        "en": "excerpt",
+        "laos": "ຄັດ",
+        "jp": "抜粋",
+        "vie": "đoạn trích",
+        "en_pronunciation": "/ˈɛksərpt/",
+        "laos_pronunciation": "khad",
+        "jp_pronunciation": "bassui",
+        "vie_pronunciation": "doan trich"
+      },
+      "means": {
+        "en": "A passage selected from a larger work",
+        "zh": "故意不作为"
+      }
+    },
+    {
+      "word": {
+        "en": "excess",
+        "laos": "ເກີນກໍານົດ",
+        "jp": "余分な",
+        "vie": "dư thừa",
+        "en_pronunciation": "/ˈɛkˌsɛs/",
+        "laos_pronunciation": "koenkoanod",
+        "jp_pronunciation": "yobun na",
+        "vie_pronunciation": "du thua"
+      },
+      "means": {
+        "en": "A quantity much larger than is needed",
+        "zh": "选自较大作品中的一段"
+      }
+    },
+    {
+      "word": {
+        "en": "exceptional",
+        "laos": "ເປັນພິເສດ",
+        "jp": "例外的な",
+        "vie": "đặc biệt",
+        "en_pronunciation": "/ɪkˈsɛpʃənəl/",
+        "laos_pronunciation": "penphised",
+        "jp_pronunciation": "reigaiteki na",
+        "vie_pronunciation": "dac biet"
+      },
+      "means": {
+        "en": "Far beyond what is usual in magnitude or degree",
+        "zh": "数量远大于需要的数量"
+      }
+    },
+    {
+      "word": {
+        "en": "excessive",
+        "laos": "ເກີນກໍານົດ",
+        "jp": "過剰な",
+        "vie": "quá mức",
+        "en_pronunciation": "/ɪkˈsɛsɪv/",
+        "laos_pronunciation": "koenkoanod",
+        "jp_pronunciation": "kajou na",
+        "vie_pronunciation": "qua muc"
+      },
+      "means": {
+        "en": "Beyond normal limits",
+        "zh": "远远超出了通常的幅度或程度"
+      }
+    },
+    {
+      "word": {
+        "en": "exchange",
+        "laos": "ແລກກັນ",
+        "jp": "交換",
+        "vie": "trao đổi",
+        "en_pronunciation": "/ɪksˈʧeɪnʤ/",
+        "laos_pronunciation": "aelkkan",
+        "jp_pronunciation": "koukan",
+        "vie_pronunciation": "trao doi"
+      },
+      "means": {
+        "en": "Chemical process in which one atom or ion or group changes places with another",
+        "zh": "超出正常限度"
+      }
+    },
+    {
+      "word": {
+        "en": "excite",
+        "laos": "ເຮັດໃຫ້ຕື່ນເຕັ້ນ",
+        "jp": "興奮する",
+        "vie": "kích động",
+        "en_pronunciation": "/ɪkˈsaɪt/",
+        "laos_pronunciation": "hedhaitunten",
+        "jp_pronunciation": "koufun suru",
+        "vie_pronunciation": "kich dong"
+      },
+      "means": {
+        "en": "Arouse or elicit a feeling",
+        "zh": "一个原子或离子或基团与另一个原子或离子或基团交换位置的化学过程"
+      }
+    },
+    {
+      "word": {
+        "en": "exciting",
+        "laos": "ຕື່ນເຕັ້ນ",
+        "jp": "刺激的な",
+        "vie": "thú vị",
+        "en_pronunciation": "/ɪkˈsaɪtɪŋ/",
+        "laos_pronunciation": "tunten",
+        "jp_pronunciation": "shigekiteki na",
+        "vie_pronunciation": "thu vi"
+      },
+      "means": {
+        "en": "Arouse or elicit a feeling",
+        "zh": "唤起或引起某种感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "excitement",
+        "laos": "ຄວາມຕື່ນຕົກໃຈ",
+        "jp": "興奮",
+        "vie": "sự phấn khích",
+        "en_pronunciation": "/ɪkˈsaɪtmənt/",
+        "laos_pronunciation": "khuaam tuntokchai",
+        "jp_pronunciation": "koufun",
+        "vie_pronunciation": "su phan khich"
+      },
+      "means": {
+        "en": "The feeling of lively and cheerful joy",
+        "zh": "唤起或引起某种感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "exclaim",
+        "laos": "ຮ້ອງຂໍ",
+        "jp": "叫ぶ",
+        "vie": "kêu lên",
+        "en_pronunciation": "/ɪkˈskleɪm/",
+        "laos_pronunciation": "hongkho",
+        "jp_pronunciation": "sakebu",
+        "vie_pronunciation": "keu len"
+      },
+      "means": {
+        "en": "Utter aloud; often with surprise, horror, or joy",
+        "zh": "活泼开朗喜悦的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "exclamation",
+        "laos": "ການອອກສຽງ",
+        "jp": "感嘆符",
+        "vie": "cảm thán",
+        "en_pronunciation": "/ˌɛkskləˈmeɪʃən/",
+        "laos_pronunciation": "kanooksiang",
+        "jp_pronunciation": "kantanfu",
+        "vie_pronunciation": "cam than"
+      },
+      "means": {
+        "en": "An abrupt excited utterance",
+        "zh": "大声说出来；"
+      }
+    },
+    {
+      "word": {
+        "en": "exclamatory",
+        "laos": "ການອອກສຽງ",
+        "jp": "感嘆詞",
+        "vie": "cảm thán",
+        "en_pronunciation": "/exclamatory/",
+        "laos_pronunciation": "kanooksiang",
+        "jp_pronunciation": "kantan shi",
+        "vie_pronunciation": "cam than"
+      },
+      "means": {
+        "en": "Sudden and strong",
+        "zh": "常常带着惊讶、恐惧或喜悦"
+      }
+    },
+    {
+      "word": {
+        "en": "exclude",
+        "laos": "ຍົກເວັ້ນ",
+        "jp": "除外する",
+        "vie": "loại trừ",
+        "en_pronunciation": "/ɪkˈsklud/",
+        "laos_pronunciation": "nyokuaen",
+        "jp_pronunciation": "jogai suru",
+        "vie_pronunciation": "loai tru"
+      },
+      "means": {
+        "en": "Prevent from being included or considered or accepted",
+        "zh": "突然兴奋的话语"
+      }
+    },
+    {
+      "word": {
+        "en": "exclusion",
+        "laos": "ການຢົກເວັ້ນ",
+        "jp": "除外",
+        "vie": "loại trừ",
+        "en_pronunciation": "/ɪkˈskluʒən/",
+        "laos_pronunciation": "kan yokuaen",
+        "jp_pronunciation": "jogai",
+        "vie_pronunciation": "loai tru"
+      },
+      "means": {
+        "en": "The state of being excluded",
+        "zh": "突然而强烈"
+      }
+    },
+    {
+      "word": {
+        "en": "exclusive",
+        "laos": "ສະເພາະ",
+        "jp": "独占的な",
+        "vie": "độc quyền",
+        "en_pronunciation": "/ɪkˈsklusɪv/",
+        "laos_pronunciation": "sapho",
+        "jp_pronunciation": "dokusenteki na",
+        "vie_pronunciation": "doc quyen"
+      },
+      "means": {
+        "en": "A news report that is reported first by one news organization",
+        "zh": "防止被包括或考虑或接受"
+      }
+    },
+    {
+      "word": {
+        "en": "excursion",
+        "laos": "ທັງການສັກຢາ",
+        "jp": "遠足",
+        "vie": "chuyến tham quan",
+        "en_pronunciation": "/ɪkˈskərʒən/",
+        "laos_pronunciation": "thang kansakya",
+        "jp_pronunciation": "ensoku",
+        "vie_pronunciation": "chuyen tham quan"
+      },
+      "means": {
+        "en": "A journey taken for pleasure",
+        "zh": "被排除的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "excuse",
+        "laos": "ຂໍໂທດ",
+        "jp": "言い訳",
+        "vie": "xin lỗi",
+        "en_pronunciation": "/ɪkˈskjuz/",
+        "laos_pronunciation": "khoothd",
+        "jp_pronunciation": "iiwake",
+        "vie_pronunciation": "xin loi"
+      },
+      "means": {
+        "en": "A defense of some offensive behavior or some failure to keep a promise etc.",
+        "zh": "由一家新闻机构首先报道的新闻报道"
+      }
+    },
+    {
+      "word": {
+        "en": "execute",
+        "laos": "ປະຫານຊີວິດ",
+        "jp": "実行する",
+        "vie": "thi hành",
+        "en_pronunciation": "/ˈɛksəˌkjut/",
+        "laos_pronunciation": "pahansivid",
+        "jp_pronunciation": "jikkou suru",
+        "vie_pronunciation": "thi hanh"
+      },
+      "means": {
+        "en": "Kill as a means of socially sanctioned punishment",
+        "zh": "为快乐而进行的旅程"
+      }
+    },
+    {
+      "word": {
+        "en": "execution",
+        "laos": "ການປະຫານຊີວິດ",
+        "jp": "実行",
+        "vie": "thi hành án",
+        "en_pronunciation": "/ˌɛksəˈkjuʃən/",
+        "laos_pronunciation": "kanpahansivid",
+        "jp_pronunciation": "jikkou",
+        "vie_pronunciation": "thi hanh an"
+      },
+      "means": {
+        "en": "Putting a condemned person to death",
+        "zh": "对某些冒犯行为或未能遵守承诺等的辩护。"
+      }
+    },
+    {
+      "word": {
+        "en": "executive",
+        "laos": "ຜູ້ບໍລິຫານ",
+        "jp": "エグゼクティブ",
+        "vie": "điều hành",
+        "en_pronunciation": "/ɪgˈzɛkjətɪv/",
+        "laos_pronunciation": "phubolihan",
+        "jp_pronunciation": "eguzekuteibu",
+        "vie_pronunciation": "dieu hanh"
+      },
+      "means": {
+        "en": "A person responsible for the administration of a business",
+        "zh": "杀戮作为社会认可的惩罚手段"
+      }
+    },
+    {
+      "word": {
+        "en": "exempt",
+        "laos": "ທີ່ປົດຈາກ",
+        "jp": "免除される",
+        "vie": "miễn trừ",
+        "en_pronunciation": "/ɪgˈzɛmpt/",
+        "laos_pronunciation": "thi podchak",
+        "jp_pronunciation": "menjo sareru",
+        "vie_pronunciation": "mien tru"
+      },
+      "means": {
+        "en": "Grant relief or an exemption from a rule or requirement to",
+        "zh": "将一个被判死刑的人处死"
+      }
+    },
+    {
+      "word": {
+        "en": "exemption",
+        "laos": "ການຍົກເວັ້ນ",
+        "jp": "免除",
+        "vie": "miễn trừ",
+        "en_pronunciation": "/ɪgˈzɛmpʃən/",
+        "laos_pronunciation": "kannyokuaen",
+        "jp_pronunciation": "menjo",
+        "vie_pronunciation": "mien tru"
+      },
+      "means": {
+        "en": "Immunity from an obligation or duty",
+        "zh": "负责企业管理的人"
+      }
+    },
+    {
+      "word": {
+        "en": "exercise",
+        "laos": "ການຝຶກຫັດ",
+        "jp": "運動する",
+        "vie": "tập thể dục",
+        "en_pronunciation": "/ˈɛksərˌsaɪz/",
+        "laos_pronunciation": "kanfukhad",
+        "jp_pronunciation": "undou suru",
+        "vie_pronunciation": "tap the duc"
+      },
+      "means": {
+        "en": "The activity of exerting your muscles in various ways to keep fit",
+        "zh": "给予规则或要求的救济或豁免"
+      }
+    },
+    {
+      "word": {
+        "en": "exert",
+        "laos": "ຜະລິດ",
+        "jp": "力を発揮する",
+        "vie": "gắng sức",
+        "en_pronunciation": "/ɪgˈzərt/",
+        "laos_pronunciation": "phalid",
+        "jp_pronunciation": "chikara wo hakki suru",
+        "vie_pronunciation": "gang suc"
+      },
+      "means": {
+        "en": "Put to use",
+        "zh": "免除义务或责任"
+      }
+    },
+    {
+      "word": {
+        "en": "exertion",
+        "laos": "ການຢອອກ",
+        "jp": "努力",
+        "vie": "gắng sức",
+        "en_pronunciation": "/ɪgˈzərʃən/",
+        "laos_pronunciation": "kan yook",
+        "jp_pronunciation": "doryoku",
+        "vie_pronunciation": "gang suc"
+      },
+      "means": {
+        "en": "Use of physical or mental energy; hard work",
+        "zh": "以各种方式锻炼肌肉以保持健康的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "exhaust",
+        "laos": "ທໍ່",
+        "jp": "排気",
+        "vie": "xả",
+        "en_pronunciation": "/ɪgˈzɔst/",
+        "laos_pronunciation": "tho",
+        "jp_pronunciation": "haiki",
+        "vie_pronunciation": "xa"
+      },
+      "means": {
+        "en": "Gases ejected from an engine as waste products",
+        "zh": "投入使用"
+      }
+    },
+    {
+      "word": {
+        "en": "exhaustion",
+        "laos": "ຄວາມອິດເມື່ອຍ",
+        "jp": "疲労困憊",
+        "vie": "kiệt sức",
+        "en_pronunciation": "/ɪgˈzɔsʧən/",
+        "laos_pronunciation": "khuaam idmeuony",
+        "jp_pronunciation": "hiroukonpai",
+        "vie_pronunciation": "kiet suc"
+      },
+      "means": {
+        "en": "Extreme fatigue",
+        "zh": "使用体力或精神能量；"
+      }
+    },
+    {
+      "word": {
+        "en": "exhaustive",
+        "laos": "ອະນິດຈັງ",
+        "jp": "徹底的な",
+        "vie": "đầy đủ",
+        "en_pronunciation": "/ɪgˈzɔstɪv/",
+        "laos_pronunciation": "anidchang",
+        "jp_pronunciation": "tetteiteki na",
+        "vie_pronunciation": "day du"
+      },
+      "means": {
+        "en": "Performed comprehensively and completely",
+        "zh": "努力工作"
+      }
+    },
+    {
+      "word": {
+        "en": "exhibit",
+        "laos": "ການວາງສະແດງ",
+        "jp": "展示する",
+        "vie": "triển lãm",
+        "en_pronunciation": "/ɪgˈzɪbɪt/",
+        "laos_pronunciation": "kanuaangsaaedng",
+        "jp_pronunciation": "tenji suru",
+        "vie_pronunciation": "trien lam"
+      },
+      "means": {
+        "en": "An object or statement produced before a court of law and referred to while giving evidence",
+        "zh": "作为废物从发动机中喷出的气体"
+      }
+    },
+    {
+      "word": {
+        "en": "exhibition",
+        "laos": "ການວາງສະແດງ",
+        "jp": "展示会",
+        "vie": "triển lãm",
+        "en_pronunciation": "/ˌɛksəˈbɪʃən/",
+        "laos_pronunciation": "kanuaangsaaedng",
+        "jp_pronunciation": "tenjikai",
+        "vie_pronunciation": "trien lam"
+      },
+      "means": {
+        "en": "The act of exhibiting",
+        "zh": "极度疲劳"
+      }
+    },
+    {
+      "word": {
+        "en": "exile",
+        "laos": "ເນຣະເທດ",
+        "jp": "追放する",
+        "vie": "lưu đày",
+        "en_pronunciation": "/ˈɛkˌsaɪl/",
+        "laos_pronunciation": "nerathed",
+        "jp_pronunciation": "tsuihou suru",
+        "vie_pronunciation": "luu day"
+      },
+      "means": {
+        "en": "A person who is voluntarily absent from home or country",
+        "zh": "表现全面、完整"
+      }
+    },
+    {
+      "word": {
+        "en": "exist",
+        "laos": "ຍູ່",
+        "jp": "存在する",
+        "vie": "tồn tại",
+        "en_pronunciation": "/ɪgˈzɪst/",
+        "laos_pronunciation": "nyu",
+        "jp_pronunciation": "sonzai suru",
+        "vie_pronunciation": "ton tai"
+      },
+      "means": {
+        "en": "Have an existence, be extant",
+        "zh": "在法庭上出示并在作证时提及的物品或声明"
+      }
+    },
+    {
+      "word": {
+        "en": "existence",
+        "laos": "ຊີບ",
+        "jp": "存在",
+        "vie": "sự tồn tại",
+        "en_pronunciation": "/ɪgˈzɪstəns/",
+        "laos_pronunciation": "sib",
+        "jp_pronunciation": "sonzai",
+        "vie_pronunciation": "su ton tai"
+      },
+      "means": {
+        "en": "The state or fact of existing",
+        "zh": "展示行为"
+      }
+    },
+    {
+      "word": {
+        "en": "existent",
+        "laos": "ອະນັນ",
+        "jp": "存在する",
+        "vie": "tồn tại",
+        "en_pronunciation": "/ɛgˈzɪstənt/",
+        "laos_pronunciation": "anan",
+        "jp_pronunciation": "sonzai suru",
+        "vie_pronunciation": "ton tai"
+      },
+      "means": {
+        "en": "Having existence or being or actuality",
+        "zh": "自愿离开家乡或国家的人"
+      }
+    },
+    {
+      "word": {
+        "en": "existing",
+        "laos": "ໃຊ່",
+        "jp": "既存の",
+        "vie": "hiện có",
+        "en_pronunciation": "/ɪgˈzɪstɪŋ/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "kizon no",
+        "vie_pronunciation": "hien co"
+      },
+      "means": {
+        "en": "Have an existence, be extant",
+        "zh": "存在，存在"
+      }
+    },
+    {
+      "word": {
+        "en": "exit",
+        "laos": "ອອກໄປ",
+        "jp": "出る",
+        "vie": "lối ra",
+        "en_pronunciation": "/ˈɛksət/",
+        "laos_pronunciation": "kpai",
+        "jp_pronunciation": "deru",
+        "vie_pronunciation": "loi ra"
+      },
+      "means": {
+        "en": "An opening that permits escape or release",
+        "zh": "现有的状态或事实"
+      }
+    },
+    {
+      "word": {
+        "en": "exotic",
+        "laos": "ເປັນລື່ນ",
+        "jp": "エキゾチックな",
+        "vie": "kỳ lạ",
+        "en_pronunciation": "/ɪgˈzɑtɪk/",
+        "laos_pronunciation": "penlun",
+        "jp_pronunciation": "ekizochikku na",
+        "vie_pronunciation": "ky la"
+      },
+      "means": {
+        "en": "Being or from or characteristic of another place or part of the world",
+        "zh": "存在或存在或现实"
+      }
+    },
+    {
+      "word": {
+        "en": "expand",
+        "laos": "ພອງຕົວ",
+        "jp": "拡大する",
+        "vie": "mở rộng",
+        "en_pronunciation": "/ɪkˈspænd/",
+        "laos_pronunciation": "phongtua",
+        "jp_pronunciation": "kakudai suru",
+        "vie_pronunciation": "mo rong"
+      },
+      "means": {
+        "en": "Extend in one or more directions",
+        "zh": "存在，存在"
+      }
+    },
+    {
+      "word": {
+        "en": "expansion",
+        "laos": "ການຢ້າງ",
+        "jp": "拡張",
+        "vie": "mở rộng",
+        "en_pronunciation": "/ɪkˈspænʧən/",
+        "laos_pronunciation": "kanyang",
+        "jp_pronunciation": "kakuchou",
+        "vie_pronunciation": "mo rong"
+      },
+      "means": {
+        "en": "The act of increasing (something) in size or volume or quantity or scope",
+        "zh": "允许逃脱或释放的开口"
+      }
+    },
+    {
+      "word": {
+        "en": "expansive",
+        "laos": "ທີ່ຂະຫຍາຍຕົວ",
+        "jp": "広大な",
+        "vie": "mở rộng",
+        "en_pronunciation": "/ɪkˈspænsɪv/",
+        "laos_pronunciation": "thikhajaitua",
+        "jp_pronunciation": "koudai na",
+        "vie_pronunciation": "mo rong"
+      },
+      "means": {
+        "en": "Able or tending to expand or characterized by expansion",
+        "zh": "存在于世界的另一个地方或部分或来自另一个地方或世界的一部分或具有其特征"
+      }
+    },
+    {
+      "word": {
+        "en": "expect",
+        "laos": "ຄາດຫວັງ",
+        "jp": "期待する",
+        "vie": "mong đợi",
+        "en_pronunciation": "/ɪkˈspɛkt/",
+        "laos_pronunciation": "khadvang",
+        "jp_pronunciation": "kitaisu ru",
+        "vie_pronunciation": "mong doi"
+      },
+      "means": {
+        "en": "Regard something as probable or likely",
+        "zh": "向一个或多个方向延伸"
+      }
+    },
+    {
+      "word": {
+        "en": "expectation",
+        "laos": "ຄວາມຄາດຫວັງ",
+        "jp": "期待",
+        "vie": "sự mong đợi",
+        "en_pronunciation": "/ˌɛkspɛkˈteɪʃən/",
+        "laos_pronunciation": "khuaamkhadvang",
+        "jp_pronunciation": "kitai",
+        "vie_pronunciation": "su mong doi"
+      },
+      "means": {
+        "en": "Belief about (or mental picture of) the future",
+        "zh": "增加（某物）大小、体积、数量或范围的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "expectancy",
+        "laos": "ຄວາມຄາດຫວັງ",
+        "jp": "期待",
+        "vie": "kỳ vọng",
+        "en_pronunciation": "/ɪkˈspɛktənsi/",
+        "laos_pronunciation": "khuaamkhadvang",
+        "jp_pronunciation": "kitai",
+        "vie_pronunciation": "ky vong"
+      },
+      "means": {
+        "en": "An expectation",
+        "zh": "能够或倾向于扩张或以扩张为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "expedition",
+        "laos": "ການວິວາດ",
+        "jp": "遠征",
+        "vie": "cuộc thám hiểm",
+        "en_pronunciation": "/ˌɛkspəˈdɪʃən/",
+        "laos_pronunciation": "kan viuaad",
+        "jp_pronunciation": "ensei",
+        "vie_pronunciation": "cuoc tham hiem"
+      },
+      "means": {
+        "en": "A military campaign designed to achieve a specific objective in a foreign country",
+        "zh": "认为某事是可能的或可能的"
+      }
+    },
+    {
+      "word": {
+        "en": "expel",
+        "laos": "ໄລ່ອອກ",
+        "jp": "追放する",
+        "vie": "trục xuất",
+        "en_pronunciation": "/ɪkˈspɛl/",
+        "laos_pronunciation": "laiook",
+        "jp_pronunciation": "tsuihou suru",
+        "vie_pronunciation": "truc xuat"
+      },
+      "means": {
+        "en": "Force to leave or move out",
+        "zh": "对未来的信念（或心理图景）"
+      }
+    },
+    {
+      "word": {
+        "en": "expend",
+        "laos": "ໃຊ້ຈ່າຍ",
+        "jp": "費やす",
+        "vie": "chi tiêu",
+        "en_pronunciation": "/ɪkˈspɛnd/",
+        "laos_pronunciation": "saichai",
+        "jp_pronunciation": "tsuiyasu",
+        "vie_pronunciation": "chi tieu"
+      },
+      "means": {
+        "en": "Use up, consume fully",
+        "zh": "一种期待"
+      }
+    },
+    {
+      "word": {
+        "en": "expenditure",
+        "laos": "ເງິນຈ່າຢ",
+        "jp": "支出",
+        "vie": "chi tiêu",
+        "en_pronunciation": "/ɪkˈspɛndɪʧər/",
+        "laos_pronunciation": "ngoen chay",
+        "jp_pronunciation": "shishutsu",
+        "vie_pronunciation": "chi tieu"
+      },
+      "means": {
+        "en": "Money paid out; an amount spent",
+        "zh": "旨在在外国实现特定目标的军事行动"
+      }
+    },
+    {
+      "word": {
+        "en": "expense",
+        "laos": "ຄ່າໃຊ້ຈ່າຍ",
+        "jp": "経費",
+        "vie": "chi phí",
+        "en_pronunciation": "/ɪkˈspɛns/",
+        "laos_pronunciation": "khasaichai",
+        "jp_pronunciation": "keihi",
+        "vie_pronunciation": "chi phi"
+      },
+      "means": {
+        "en": "Amounts paid for goods and services that may be currently tax deductible (as opposed to capital expenditures)",
+        "zh": "强制离开或搬出"
+      }
+    },
+    {
+      "word": {
+        "en": "expensive",
+        "laos": "ແພງ",
+        "jp": "高価な",
+        "vie": "đắt tiền",
+        "en_pronunciation": "/ɪkˈspɛnsɪv/",
+        "laos_pronunciation": "aephng",
+        "jp_pronunciation": "kouka na",
+        "vie_pronunciation": "dat tien"
+      },
+      "means": {
+        "en": "High in price or charging high prices",
+        "zh": "用尽，充分消耗"
+      }
+    },
+    {
+      "word": {
+        "en": "experience",
+        "laos": "ປະສົບການ",
+        "jp": "経験",
+        "vie": "kinh nghiệm",
+        "en_pronunciation": "/ɪkˈspɪriəns/",
+        "laos_pronunciation": "pasobkan",
+        "jp_pronunciation": "keiken",
+        "vie_pronunciation": "kinh nghiem"
+      },
+      "means": {
+        "en": "The accumulation of knowledge or skill that results from direct participation in events or activities",
+        "zh": "钱已支付；"
+      }
+    },
+    {
+      "word": {
+        "en": "experienced",
+        "laos": "ມີຢູ່",
+        "jp": "経験豊富な",
+        "vie": "có kinh nghiệm",
+        "en_pronunciation": "/ɪkˈspɪriənst/",
+        "laos_pronunciation": "miyu",
+        "jp_pronunciation": "keikenhoufu na",
+        "vie_pronunciation": "co kinh nghiem"
+      },
+      "means": {
+        "en": "Go or live through",
+        "zh": "花费的金额"
+      }
+    },
+    {
+      "word": {
+        "en": "experiment",
+        "laos": "ທົດລອງ",
+        "jp": "実験",
+        "vie": "thí nghiệm",
+        "en_pronunciation": "/ɪkˈspɛrəmənt/",
+        "laos_pronunciation": "thodlong",
+        "jp_pronunciation": "jikken",
+        "vie_pronunciation": "thi nghiem"
+      },
+      "means": {
+        "en": "The act of conducting a controlled test or investigation",
+        "zh": "目前可以免税的商品和服务支付的金额（与资本支出相对）"
+      }
+    },
+    {
+      "word": {
+        "en": "experimental",
+        "laos": "ແບບທົດລອງ",
+        "jp": "実験的な",
+        "vie": "thực nghiệm",
+        "en_pronunciation": "/ɪkˌspɛrɪˈmɛntəl/",
+        "laos_pronunciation": "aebbthodlong",
+        "jp_pronunciation": "jikkenteki na",
+        "vie_pronunciation": "thuc nghiem"
+      },
+      "means": {
+        "en": "Relating to or based on experiment",
+        "zh": "价格高或收取高价"
+      }
+    },
+    {
+      "word": {
+        "en": "expert",
+        "laos": "ຜູ້ຊ່ຽວຊານ",
+        "jp": "専門家",
+        "vie": "chuyên gia",
+        "en_pronunciation": "/ˈɛkspərt/",
+        "laos_pronunciation": "phusiauasan",
+        "jp_pronunciation": "senmonka",
+        "vie_pronunciation": "chuyen gia"
+      },
+      "means": {
+        "en": "A person with special knowledge or ability who performs skillfully",
+        "zh": "通过直接参与事件或活动而积累的知识或技能"
+      }
+    },
+    {
+      "word": {
+        "en": "expertise",
+        "laos": "ອະພິຜົນ",
+        "jp": "専門知識",
+        "vie": "chuyên môn",
+        "en_pronunciation": "/ˌɛkspərˈtiz/",
+        "laos_pronunciation": "aphiphon",
+        "jp_pronunciation": "senmonchishiki",
+        "vie_pronunciation": "chuyen mon"
+      },
+      "means": {
+        "en": "Skillfulness by virtue of possessing special knowledge",
+        "zh": "去或经历"
+      }
+    },
+    {
+      "word": {
+        "en": "expire",
+        "laos": "ສິ້ນກໍານົດ",
+        "jp": "期限切れになる",
+        "vie": "hết hạn",
+        "en_pronunciation": "/ɪkˈspaɪr/",
+        "laos_pronunciation": "sinkoanod",
+        "jp_pronunciation": "kigengire reninaru",
+        "vie_pronunciation": "het han"
+      },
+      "means": {
+        "en": "Lose validity",
+        "zh": "进行受控测试或调查的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "expiration",
+        "laos": "ສິ້ນລົມ",
+        "jp": "有効期限",
+        "vie": "hết hạn",
+        "en_pronunciation": "/ˌɛkspərˈeɪʃən/",
+        "laos_pronunciation": "sinlom",
+        "jp_pronunciation": "yuukoukigen",
+        "vie_pronunciation": "het han"
+      },
+      "means": {
+        "en": "A coming to an end of a contract period",
+        "zh": "与实验相关或基于实验"
+      }
+    },
+    {
+      "word": {
+        "en": "explain",
+        "laos": "ອະທິບາຍ",
+        "jp": "説明する",
+        "vie": "giải thích",
+        "en_pronunciation": "/ɪkˈspleɪn/",
+        "laos_pronunciation": "athibai",
+        "jp_pronunciation": "setsumeisu ru",
+        "vie_pronunciation": "giai thich"
+      },
+      "means": {
+        "en": "Make plain and comprehensible",
+        "zh": "具有特殊知识或能力且表现熟练的人"
+      }
+    },
+    {
+      "word": {
+        "en": "explanation",
+        "laos": "ຄໍາອະທິບາຍ",
+        "jp": "説明",
+        "vie": "lời giải thích",
+        "en_pronunciation": "/ˌɛkspləˈneɪʃən/",
+        "laos_pronunciation": "khoaoathibai",
+        "jp_pronunciation": "setsumei",
+        "vie_pronunciation": "loi giai thich"
+      },
+      "means": {
+        "en": "A statement that makes something comprehensible by describing the relevant structure or operation or circumstances etc.",
+        "zh": "凭借拥有专门知识而获得的技能"
+      }
+    },
+    {
+      "word": {
+        "en": "explanatory",
+        "laos": "ຄໍາອະທິບາຍ",
+        "jp": "説明的な",
+        "vie": "giải thích",
+        "en_pronunciation": "/ɪkˈsplænəˌtɔri/",
+        "laos_pronunciation": "khoaoathibai",
+        "jp_pronunciation": "setsumeiteki na",
+        "vie_pronunciation": "giai thich"
+      },
+      "means": {
+        "en": "Serving or intended to explain or make clear",
+        "zh": "失去有效性"
+      }
+    },
+    {
+      "word": {
+        "en": "explicit",
+        "laos": "ຢ່າງຊັດເຈນ",
+        "jp": "明示的な",
+        "vie": "rõ ràng",
+        "en_pronunciation": "/ɪkˈsplɪsət/",
+        "laos_pronunciation": "yangsadchen",
+        "jp_pronunciation": "meijiteki na",
+        "vie_pronunciation": "ro rang"
+      },
+      "means": {
+        "en": "Precisely and clearly expressed or readily observable; leaving nothing to implication",
+        "zh": "A 合同期即将结束"
+      }
+    },
+    {
+      "word": {
+        "en": "explode",
+        "laos": "ລະເບີດ",
+        "jp": "爆発する",
+        "vie": "nổ tung",
+        "en_pronunciation": "/ɪkˈsploʊd/",
+        "laos_pronunciation": "laboed",
+        "jp_pronunciation": "bakuhatsu suru",
+        "vie_pronunciation": "no tung"
+      },
+      "means": {
+        "en": "Cause to burst with a violent release of energy",
+        "zh": "使内容简单易懂"
+      }
+    },
+    {
+      "word": {
+        "en": "explosion",
+        "laos": "ການລະເບີດ",
+        "jp": "爆発",
+        "vie": "vụ nổ",
+        "en_pronunciation": "/ɪkˈsploʊʒən/",
+        "laos_pronunciation": "kanlaboed",
+        "jp_pronunciation": "bakuhatsu",
+        "vie_pronunciation": "vu no"
+      },
+      "means": {
+        "en": "A violent release of energy caused by a chemical or nuclear reaction",
+        "zh": "通过描述相关结构、操作或情况等使某些内容易于理解的陈述。"
+      }
+    },
+    {
+      "word": {
+        "en": "explosive",
+        "laos": "ທີ່ລະເບີດ",
+        "jp": "爆発物",
+        "vie": "chất nổ",
+        "en_pronunciation": "/ɪkˈsploʊsɪv/",
+        "laos_pronunciation": "thilaboed",
+        "jp_pronunciation": "bakuhatsubutsu",
+        "vie_pronunciation": "chat no"
+      },
+      "means": {
+        "en": "A chemical substance that undergoes a rapid chemical change (with the production of gas) on being heated or struck",
+        "zh": "服务或旨在解释或阐明"
+      }
+    },
+    {
+      "word": {
+        "en": "exploit",
+        "laos": "ຂູດຮີດ",
+        "jp": "エクスプロイト",
+        "vie": "khai thác",
+        "en_pronunciation": "/ˌɛkˈsplɔɪt/",
+        "laos_pronunciation": "khudhid",
+        "jp_pronunciation": "ekusupuroito",
+        "vie_pronunciation": "khai thac"
+      },
+      "means": {
+        "en": "A notable achievement",
+        "zh": "准确、清晰地表达或易于观察；"
+      }
+    },
+    {
+      "word": {
+        "en": "exploitation",
+        "laos": "ການຂູດຮີດ",
+        "jp": "搾取",
+        "vie": "bóc lột",
+        "en_pronunciation": "/ˌɛkˌsplɔɪˈteɪʃən/",
+        "laos_pronunciation": "kankhudhid",
+        "jp_pronunciation": "sakushu",
+        "vie_pronunciation": "boc lot"
+      },
+      "means": {
+        "en": "The act of making some area of land or water more profitable or productive or useful",
+        "zh": "没有留下任何暗示"
+      }
+    },
+    {
+      "word": {
+        "en": "explore",
+        "laos": "ຄົ້ນຄ້ົວ",
+        "jp": "探検する",
+        "vie": "khám phá",
+        "en_pronunciation": "/ɪkˈsplɔr/",
+        "laos_pronunciation": "khon khua",
+        "jp_pronunciation": "tanken suru",
+        "vie_pronunciation": "kham pha"
+      },
+      "means": {
+        "en": "Inquire into",
+        "zh": "导致爆炸并剧烈释放能量"
+      }
+    },
+    {
+      "word": {
+        "en": "exploration",
+        "laos": "ການຄົ້ນຫາ",
+        "jp": "探検",
+        "vie": "thăm dò",
+        "en_pronunciation": "/ˌɛksplərˈeɪʃən/",
+        "laos_pronunciation": "kankhonha",
+        "jp_pronunciation": "tanken",
+        "vie_pronunciation": "tham do"
+      },
+      "means": {
+        "en": "To travel for the purpose of discovery",
+        "zh": "由化学或核反应引起的剧烈能量释放"
+      }
+    },
+    {
+      "word": {
+        "en": "exponent",
+        "laos": "ອະເບນ",
+        "jp": "指数",
+        "vie": "số mũ",
+        "en_pronunciation": "/ˈɛkˌspoʊnənt/",
+        "laos_pronunciation": "aben",
+        "jp_pronunciation": "shisuu",
+        "vie_pronunciation": "so mu"
+      },
+      "means": {
+        "en": "A person who pleads for a cause or propounds an idea",
+        "zh": "受热或撞击时发生快速化学变化（产生气体）的化学物质"
+      }
+    },
+    {
+      "word": {
+        "en": "export",
+        "laos": "ສົ່ງອອກ",
+        "jp": "輸出",
+        "vie": "xuất khẩu",
+        "en_pronunciation": "/ˈɛkspɔrt/",
+        "laos_pronunciation": "songook",
+        "jp_pronunciation": "yushutsu",
+        "vie_pronunciation": "xuat khau"
+      },
+      "means": {
+        "en": "Commodities (goods or services) sold to a foreign country",
+        "zh": "一项显着的成就"
+      }
+    },
+    {
+      "word": {
+        "en": "exportation",
+        "laos": "ການສົ່ງອອກ",
+        "jp": "輸出",
+        "vie": "xuất khẩu",
+        "en_pronunciation": "/exportation/",
+        "laos_pronunciation": "kansongook",
+        "jp_pronunciation": "yushutsu",
+        "vie_pronunciation": "xuat khau"
+      },
+      "means": {
+        "en": "Commodities (goods or services) sold to a foreign country",
+        "zh": "使某些区域的土地或水域更有利可图、更有生产力或更有用的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "expose",
+        "laos": "ລົນໄຟ",
+        "jp": "暴露する",
+        "vie": "vạch trần",
+        "en_pronunciation": "/ɪkˈspoʊz/",
+        "laos_pronunciation": "lonfai",
+        "jp_pronunciation": "bakuro suru",
+        "vie_pronunciation": "vach tran"
+      },
+      "means": {
+        "en": "The exposure of an impostor or a fraud",
+        "zh": "探究"
+      }
+    },
+    {
+      "word": {
+        "en": "exposure",
+        "laos": "​ການ​ສຳ​ຜັດ​ເຊື້ອ",
+        "jp": "露出",
+        "vie": "tiếp xúc",
+        "en_pronunciation": "/ɪkˈspoʊʒər/",
+        "laos_pronunciation": "kan sam phadseu",
+        "jp_pronunciation": "roshutsu",
+        "vie_pronunciation": "tiep xuc"
+      },
+      "means": {
+        "en": "Vulnerability to the elements; to the action of heat or cold or wind or rain;  or",
+        "zh": "以发现为目的的旅行"
+      }
+    },
+    {
+      "word": {
+        "en": "exposition",
+        "laos": "ການສະມາດ",
+        "jp": "博覧会",
+        "vie": "sự trình bày",
+        "en_pronunciation": "/ˌɛkspəˈzɪʃən/",
+        "laos_pronunciation": "kansamad",
+        "jp_pronunciation": "hakurankai",
+        "vie_pronunciation": "su trinh bay"
+      },
+      "means": {
+        "en": "A systematic interpretation or explanation (usually written) of a specific topic",
+        "zh": "为某项事业辩护或提出想法的人"
+      }
+    },
+    {
+      "word": {
+        "en": "express",
+        "laos": "ພໍ້",
+        "jp": "特急",
+        "vie": "thể hiện",
+        "en_pronunciation": "/ɪkˈsprɛs/",
+        "laos_pronunciation": "pho",
+        "jp_pronunciation": "tokkyuu",
+        "vie_pronunciation": "the hien"
+      },
+      "means": {
+        "en": "Mail that is distributed by a rapid and efficient system",
+        "zh": "销往国外的商品（商品或服务）"
+      }
+    },
+    {
+      "word": {
+        "en": "expression",
+        "laos": "ການສະແດງອອກ",
+        "jp": "表現",
+        "vie": "biểu hiện",
+        "en_pronunciation": "/ɪkˈsprɛʃən/",
+        "laos_pronunciation": "kansaaedngook",
+        "jp_pronunciation": "hyougen",
+        "vie_pronunciation": "bieu hien"
+      },
+      "means": {
+        "en": "The feelings expressed on a person's face",
+        "zh": "销往国外的商品（商品或服务）"
+      }
+    },
+    {
+      "word": {
+        "en": "expressive",
+        "laos": "ທີ່ສະແດງອອກ",
+        "jp": "表現力豊かな",
+        "vie": "biểu cảm",
+        "en_pronunciation": "/ɪkˈsprɛsɪv/",
+        "laos_pronunciation": "thisaaedngook",
+        "jp_pronunciation": "hyougenryoku yutaka na",
+        "vie_pronunciation": "bieu cam"
+      },
+      "means": {
+        "en": "Characterized by expression",
+        "zh": "冒名顶替者或欺诈行为的曝光"
+      }
+    },
+    {
+      "word": {
+        "en": "expressway",
+        "laos": "ທາງດ່ວນ",
+        "jp": "高速道路",
+        "vie": "đường cao tốc",
+        "en_pronunciation": "/ɪkˈsprɛsˌweɪ/",
+        "laos_pronunciation": "thangduan",
+        "jp_pronunciation": "kousokudouro",
+        "vie_pronunciation": "duong cao toc"
+      },
+      "means": {
+        "en": "A broad highway designed for high-speed traffic",
+        "zh": "易受自然因素影响；"
+      }
+    },
+    {
+      "word": {
+        "en": "exquisite",
+        "laos": "ສໍານຶກດີທີ່ສຸດ",
+        "jp": "絶妙な",
+        "vie": "tinh tế",
+        "en_pronunciation": "/ˈɛkskwəzət/",
+        "laos_pronunciation": "soanukdithisud",
+        "jp_pronunciation": "zetsumyou na",
+        "vie_pronunciation": "tinh te"
+      },
+      "means": {
+        "en": "Intense or sharp",
+        "zh": "热或冷或风或雨的作用；"
+      }
+    },
+    {
+      "word": {
+        "en": "extend",
+        "laos": "ຂະຍັບ",
+        "jp": "延長する",
+        "vie": "mở rộng",
+        "en_pronunciation": "/ɪkˈstɛnd/",
+        "laos_pronunciation": "khanyab",
+        "jp_pronunciation": "enchou suru",
+        "vie_pronunciation": "mo rong"
+      },
+      "means": {
+        "en": "Extend in scope or range or area",
+        "zh": "或"
+      }
+    },
+    {
+      "word": {
+        "en": "extent",
+        "laos": "ຂອບເຂດ",
+        "jp": "範囲",
+        "vie": "phạm vi",
+        "en_pronunciation": "/ɪkˈstɛnt/",
+        "laos_pronunciation": "khobkhed",
+        "jp_pronunciation": "han'i",
+        "vie_pronunciation": "pham vi"
+      },
+      "means": {
+        "en": "The point or degree to which something extends",
+        "zh": "对特定主题的系统解释或解释（通常是书面的）"
+      }
+    },
+    {
+      "word": {
+        "en": "exterior",
+        "laos": "ພາຍຫນ້າ",
+        "jp": "外装",
+        "vie": "ngoại thất",
+        "en_pronunciation": "/ɪkˈstɪriər/",
+        "laos_pronunciation": "phaina",
+        "jp_pronunciation": "gaisou",
+        "vie_pronunciation": "ngoai that"
+      },
+      "means": {
+        "en": "The region that is outside of something",
+        "zh": "由快速高效的系统分发的邮件"
+      }
+    },
+    {
+      "word": {
+        "en": "external",
+        "laos": "ຍູ່ນອກ",
+        "jp": "外部",
+        "vie": "bên ngoài",
+        "en_pronunciation": "/ɪkˈstərnəl/",
+        "laos_pronunciation": "nyunok",
+        "jp_pronunciation": "gaibu",
+        "vie_pronunciation": "ben ngoai"
+      },
+      "means": {
+        "en": "Outward features",
+        "zh": "一个人脸上所表达的感情"
+      }
+    },
+    {
+      "word": {
+        "en": "extinct",
+        "laos": "ລຸຍ",
+        "jp": "絶滅した",
+        "vie": "tuyệt chủng",
+        "en_pronunciation": "/ɪkˈstɪŋkt/",
+        "laos_pronunciation": "luny",
+        "jp_pronunciation": "zetsumetsu shita",
+        "vie_pronunciation": "tuyet chung"
+      },
+      "means": {
+        "en": "No longer in existence; lost or especially having died out leaving no living representatives",
+        "zh": "以表达为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "extinguish",
+        "laos": "ມອດ",
+        "jp": "消す",
+        "vie": "dập tắt",
+        "en_pronunciation": "/ɪkˈstɪŋgwɪʃ/",
+        "laos_pronunciation": "mod",
+        "jp_pronunciation": "kesu",
+        "vie_pronunciation": "dap tat"
+      },
+      "means": {
+        "en": "Put an end to; kill",
+        "zh": "专为高速交通而设计的宽阔高速公路"
+      }
+    },
+    {
+      "word": {
+        "en": "extension",
+        "laos": "ການແຜ່ຂະຫຍາຍ",
+        "jp": "拡張子",
+        "vie": "phần mở rộng",
+        "en_pronunciation": "/ɪkˈstɛnʃən/",
+        "laos_pronunciation": "kanaephkhajai",
+        "jp_pronunciation": "kakuchoushi",
+        "vie_pronunciation": "phan mo rong"
+      },
+      "means": {
+        "en": "A mutually agreed delay in the date set for the completion of a job or payment of a debt",
+        "zh": "强烈或尖锐"
+      }
+    },
+    {
+      "word": {
+        "en": "extinction",
+        "laos": "ການສູນພັນ",
+        "jp": "絶滅",
+        "vie": "sự tuyệt chủng",
+        "en_pronunciation": "/ɪkˈstɪŋʃən/",
+        "laos_pronunciation": "kansunphan",
+        "jp_pronunciation": "zetsumetsu",
+        "vie_pronunciation": "su tuyet chung"
+      },
+      "means": {
+        "en": "No longer active; extinguished",
+        "zh": "扩大范围或范围或区域"
+      }
+    },
+    {
+      "word": {
+        "en": "extensive",
+        "laos": "ຢືດຢຸ່ນ",
+        "jp": "広範囲にわたる",
+        "vie": "rộng rãi",
+        "en_pronunciation": "/ɪkˈstɛnsɪv/",
+        "laos_pronunciation": "yudyun",
+        "jp_pronunciation": "kouhan'i niwataru",
+        "vie_pronunciation": "rong rai"
+      },
+      "means": {
+        "en": "Large in spatial extent or range or scope or quantity",
+        "zh": "某物延伸的点或程度"
+      }
+    },
+    {
+      "word": {
+        "en": "extended",
+        "laos": "ຂະຫຍາຍຂະຍັນ",
+        "jp": "延長された",
+        "vie": "mở rộng",
+        "en_pronunciation": "/ɪkˈstɛndɪd/",
+        "laos_pronunciation": "khajai kha nyan",
+        "jp_pronunciation": "enchou sareta",
+        "vie_pronunciation": "mo rong"
+      },
+      "means": {
+        "en": "Extend in scope or range or area",
+        "zh": "某物之外的区域"
+      }
+    }
+  ]
+}

@@ -401,7 +401,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
         $packageManager = $this->detectPackageManager();
         $pmPath = match($packageManager) {
-            'pnpm' => '/usr/local/bin/pnpm',
+            'pnpm' => PathMapper::getPnpmBinaryPath(),
             'yarn' => 'yarn',
             default => 'npm'
         };

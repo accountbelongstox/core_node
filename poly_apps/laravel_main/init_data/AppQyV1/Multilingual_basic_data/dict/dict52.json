@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.371797+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "outdoor",
+        "laos": "ກາງແຈ້ງ",
+        "jp": "屋外",
+        "vie": "ngoài trời",
+        "en_pronunciation": "/ˈaʊtˌdɔr/",
+        "laos_pronunciation": "kangaechng",
+        "jp_pronunciation": "okugai",
+        "vie_pronunciation": "ngoai troi"
+      },
+      "means": {
+        "en": "Located, suited for, or taking place in the open air",
+        "zh": "位于、适合于或在露天进行"
+      }
+    },
+    {
+      "word": {
+        "en": "outdoors",
+        "laos": "ທາງນອກ",
+        "jp": "屋外で",
+        "vie": "ngoài trời",
+        "en_pronunciation": "/ˈaʊtˈdɔrz/",
+        "laos_pronunciation": "thangnok",
+        "jp_pronunciation": "okugai de",
+        "vie_pronunciation": "ngoai troi"
+      },
+      "means": {
+        "en": "Where the air is unconfined",
+        "zh": "空气不受限制的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "outer",
+        "laos": "ນອກ",
+        "jp": "外側",
+        "vie": "bên ngoài",
+        "en_pronunciation": "/ˈaʊtər/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "sotogawa",
+        "vie_pronunciation": "ben ngoai"
+      },
+      "means": {
+        "en": "Being on the outside or further from a center",
+        "zh": "位于外部或距离中心较远"
+      }
+    },
+    {
+      "word": {
+        "en": "outfit",
+        "laos": "ເຄື່ອງແຕ່ງກາຍ",
+        "jp": "服装",
+        "vie": "trang phục",
+        "en_pronunciation": "/ˈaʊtˌfɪt/",
+        "laos_pronunciation": "kheuongaetngkai",
+        "jp_pronunciation": "fukusou",
+        "vie_pronunciation": "trang phuc"
+      },
+      "means": {
+        "en": "Any cohesive unit such as a military company",
+        "zh": "任何有凝聚力的单位，例如军事连"
+      }
+    },
+    {
+      "word": {
+        "en": "outgoing",
+        "laos": "ເປັນຂາ",
+        "jp": "発信",
+        "vie": "hướng ngoại",
+        "en_pronunciation": "/ˈaʊtˌgoʊɪŋ/",
+        "laos_pronunciation": "penkha",
+        "jp_pronunciation": "hasshin",
+        "vie_pronunciation": "huong ngoai"
+      },
+      "means": {
+        "en": "Be or do something to a greater degree",
+        "zh": "更大程度地成为或做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "outing",
+        "laos": "ນອກ",
+        "jp": "外出",
+        "vie": "chuyến đi chơi",
+        "en_pronunciation": "/ˈaʊtɪŋ/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "gaishutsu",
+        "vie_pronunciation": "chuyen di choi"
+      },
+      "means": {
+        "en": "A journey taken for pleasure",
+        "zh": "为快乐而进行的旅程"
+      }
+    },
+    {
+      "word": {
+        "en": "outlaw",
+        "laos": "ກົດງ່າ",
+        "jp": "無法者",
+        "vie": "ngoài vòng pháp luật",
+        "en_pronunciation": "/ˈaʊˌtlɔ/",
+        "laos_pronunciation": "kodnga",
+        "jp_pronunciation": "muhousha",
+        "vie_pronunciation": "ngoai vong phap luat"
+      },
+      "means": {
+        "en": "Someone who has committed a crime or has been legally convicted of a crime",
+        "zh": "犯罪或被依法定罪的人"
+      }
+    },
+    {
+      "word": {
+        "en": "outlet",
+        "laos": "ທາງອອກ",
+        "jp": "アウトレット",
+        "vie": "ổ cắm",
+        "en_pronunciation": "/ˈaʊˌtlɛt/",
+        "laos_pronunciation": "thangook",
+        "jp_pronunciation": "autoretto",
+        "vie_pronunciation": "o cam"
+      },
+      "means": {
+        "en": "A place of business for retailing goods",
+        "zh": "零售商品的营业场所"
+      }
+    },
+    {
+      "word": {
+        "en": "outline",
+        "laos": "ຜົນ",
+        "jp": "概要",
+        "vie": "phác thảo",
+        "en_pronunciation": "/ˈaʊˌtlaɪn/",
+        "laos_pronunciation": "phon",
+        "jp_pronunciation": "gaiyou",
+        "vie_pronunciation": "phac thao"
+      },
+      "means": {
+        "en": "The line that appears to bound an object",
+        "zh": "看似束缚物体的线"
+      }
+    },
+    {
+      "word": {
+        "en": "outlook",
+        "laos": "ການຄາດຄະເນ",
+        "jp": "見通し",
+        "vie": "triển vọng",
+        "en_pronunciation": "/ˈaʊˌtlʊk/",
+        "laos_pronunciation": "kankhadkhane",
+        "jp_pronunciation": "mitooshi",
+        "vie_pronunciation": "trien vong"
+      },
+      "means": {
+        "en": "A habitual or characteristic mental attitude that determines how you will interpret and respond to situations",
+        "zh": "决定您如何解释和应对情况的习惯性或特有的心理态度"
+      }
+    },
+    {
+      "word": {
+        "en": "output",
+        "laos": "ຜົນໄດ້ຮັບ",
+        "jp": "出力",
+        "vie": "đầu ra",
+        "en_pronunciation": "/ˈaʊtˌpʊt/",
+        "laos_pronunciation": "phondaihab",
+        "jp_pronunciation": "shutsuryoku",
+        "vie_pronunciation": "dau ra"
+      },
+      "means": {
+        "en": "Final product; the things produced",
+        "zh": "最终产品；"
+      }
+    },
+    {
+      "word": {
+        "en": "outrage",
+        "laos": "ຄວາມຄຽດແຄ້ນ",
+        "jp": "怒り",
+        "vie": "phẫn nộ",
+        "en_pronunciation": "/ˈaʊˌtreɪʤ/",
+        "laos_pronunciation": "khuaamkhiadaekhn",
+        "jp_pronunciation": "ikari",
+        "vie_pronunciation": "phan no"
+      },
+      "means": {
+        "en": "A feeling of righteous anger",
+        "zh": "所产生的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "outset",
+        "laos": "ຊົດເຊີຍ",
+        "jp": "始まり",
+        "vie": "sự khởi đầu",
+        "en_pronunciation": "/ˈaʊtˌsɛt/",
+        "laos_pronunciation": "sodsoeny",
+        "jp_pronunciation": "hajimari",
+        "vie_pronunciation": "su khoi dau"
+      },
+      "means": {
+        "en": "The time at which something is supposed to begin",
+        "zh": "一种正义的愤怒的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "outside",
+        "laos": "ນອກ",
+        "jp": "外",
+        "vie": "bên ngoài",
+        "en_pronunciation": "/ˈaʊtˈsaɪd/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "soto",
+        "vie_pronunciation": "ben ngoai"
+      },
+      "means": {
+        "en": "The region that is outside of something",
+        "zh": "某事应该开始的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "outskirts",
+        "laos": "Outskirths",
+        "jp": "郊外",
+        "vie": "vùng ngoại ô",
+        "en_pronunciation": "/ˈaʊtˌskərts/",
+        "laos_pronunciation": "Outskirths",
+        "jp_pronunciation": "kougai",
+        "vie_pronunciation": "vung ngoai o"
+      },
+      "means": {
+        "en": "Outlying areas (as of a city or town)",
+        "zh": "某物之外的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "outstanding",
+        "laos": "ພົ້ນເດັ່ນ",
+        "jp": "優れた",
+        "vie": "xuất sắc",
+        "en_pronunciation": "/ˌaʊtˈstændɪŋ/",
+        "laos_pronunciation": "phonden",
+        "jp_pronunciation": "masare ta",
+        "vie_pronunciation": "xuat sac"
+      },
+      "means": {
+        "en": "Distinguished from others in excellence",
+        "zh": "边远地区（如城市或城镇）"
+      }
+    },
+    {
+      "word": {
+        "en": "outward",
+        "laos": "ພາຍນອກ",
+        "jp": "外側へ",
+        "vie": "hướng ngoại",
+        "en_pronunciation": "/ˈaʊtwərd/",
+        "laos_pronunciation": "phainok",
+        "jp_pronunciation": "sotogawa he",
+        "vie_pronunciation": "huong ngoai"
+      },
+      "means": {
+        "en": "Relating to physical reality rather than with thoughts or the mind",
+        "zh": "因卓越而区别于他人"
+      }
+    },
+    {
+      "word": {
+        "en": "oval",
+        "laos": "ເປັນຮູບໄຂ່",
+        "jp": "楕円形",
+        "vie": "hình bầu dục",
+        "en_pronunciation": "/ˈoʊvəl/",
+        "laos_pronunciation": "penhubkhai",
+        "jp_pronunciation": "daenkei",
+        "vie_pronunciation": "hinh bau duc"
+      },
+      "means": {
+        "en": "A closed plane curve resulting from the intersection of a circular cone and a plane cutting completely through it",
+        "zh": "与物理现实相关，而不是与思想或心灵相关"
+      }
+    },
+    {
+      "word": {
+        "en": "oven",
+        "laos": "ເຕົາອົບ",
+        "jp": "オーブン",
+        "vie": "lò nướng",
+        "en_pronunciation": "/ˈəvən/",
+        "laos_pronunciation": "taoob",
+        "jp_pronunciation": "oobun",
+        "vie_pronunciation": "lo nuong"
+      },
+      "means": {
+        "en": "Kitchen appliance used for baking or roasting",
+        "zh": "由圆锥与完全穿过圆锥的平面相交而形成的闭合平面曲线"
+      }
+    },
+    {
+      "word": {
+        "en": "over",
+        "laos": "ລື່ນ",
+        "jp": "終わった",
+        "vie": "kết thúc",
+        "en_pronunciation": "/ˈoʊvər/",
+        "laos_pronunciation": "lun",
+        "jp_pronunciation": "owa tta",
+        "vie_pronunciation": "ket thuc"
+      },
+      "means": {
+        "en": "(cricket) the division of play during which six balls are bowled at the batsman by one player from the other team from the same end of the pitch",
+        "zh": "用于烘烤或烘烤的厨房用具"
+      }
+    },
+    {
+      "word": {
+        "en": "overall",
+        "laos": "ໂດຍລວມ",
+        "jp": "全体的に",
+        "vie": "tổng thể",
+        "en_pronunciation": "/ˈoʊvərˌɔl/",
+        "laos_pronunciation": "odnyluam",
+        "jp_pronunciation": "zentaiteki ni",
+        "vie_pronunciation": "tong the"
+      },
+      "means": {
+        "en": "(usually plural) work clothing consisting of denim trousers (usually with a bib and shoulder straps)",
+        "zh": "（板球）比赛的划分，由另一队的一名球员从球场同一端向击球手投出六个球"
+      }
+    },
+    {
+      "word": {
+        "en": "overcoat",
+        "laos": "ເສື້ອກັນຫນາວ",
+        "jp": "オーバーコート",
+        "vie": "áo khoác ngoài",
+        "en_pronunciation": "/ˈoʊvərˌkoʊt/",
+        "laos_pronunciation": "seu kannav",
+        "jp_pronunciation": "oobaakooto",
+        "vie_pronunciation": "ao khoac ngoai"
+      },
+      "means": {
+        "en": "A heavy coat worn over clothes in winter",
+        "zh": "（通常为复数）由牛仔长裤组成的工作服（通常带有围兜和肩带）"
+      }
+    },
+    {
+      "word": {
+        "en": "overcome",
+        "laos": "ຝ່າຟັນ",
+        "jp": "克服する",
+        "vie": "vượt qua",
+        "en_pronunciation": "/ˈoʊvərˌkəm/",
+        "laos_pronunciation": "fafan",
+        "jp_pronunciation": "kokufuku suru",
+        "vie_pronunciation": "vuot qua"
+      },
+      "means": {
+        "en": "Win a victory over",
+        "zh": "冬天穿在衣服外面的厚外套"
+      }
+    },
+    {
+      "word": {
+        "en": "overdue",
+        "laos": "ເກີນກໍານົດ",
+        "jp": "期限を過ぎた",
+        "vie": "quá hạn",
+        "en_pronunciation": "/ˈoʊvərˈdu/",
+        "laos_pronunciation": "koenkoanod",
+        "jp_pronunciation": "kigen wo sugi ta",
+        "vie_pronunciation": "qua han"
+      },
+      "means": {
+        "en": "Past due; not paid at the scheduled time",
+        "zh": "取得胜利"
+      }
+    },
+    {
+      "word": {
+        "en": "overflow",
+        "laos": "ລົ້ນ",
+        "jp": "オーバーフロー",
+        "vie": "tràn",
+        "en_pronunciation": "/ˌoʊvərˈfloʊ/",
+        "laos_pronunciation": "lon",
+        "jp_pronunciation": "oobaafuroo",
+        "vie_pronunciation": "tran"
+      },
+      "means": {
+        "en": "A large flow",
+        "zh": "逾期；"
+      }
+    },
+    {
+      "word": {
+        "en": "overhaul",
+        "laos": "ອະນຸໂລມ",
+        "jp": "オーバーホール",
+        "vie": "đại tu",
+        "en_pronunciation": "/ˈoʊvərˌhɔl/",
+        "laos_pronunciation": "anuolm",
+        "jp_pronunciation": "oobaahooru",
+        "vie_pronunciation": "dai tu"
+      },
+      "means": {
+        "en": "Periodic maintenance on a car or machine",
+        "zh": "未在预定时间付款"
+      }
+    },
+    {
+      "word": {
+        "en": "overhead",
+        "laos": "ຂ້າມຜ່ານ",
+        "jp": "オーバーヘッド",
+        "vie": "trên cao",
+        "en_pronunciation": "/ˈoʊvərˈhɛd/",
+        "laos_pronunciation": "khamphan",
+        "jp_pronunciation": "oobaaheddo",
+        "vie_pronunciation": "tren cao"
+      },
+      "means": {
+        "en": "The expense of maintaining property (e.g., paying property taxes and utilities and insurance); it does not include depreciation or the cost of financing or income taxes",
+        "zh": "流量大"
+      }
+    },
+    {
+      "word": {
+        "en": "overhear",
+        "laos": "ສອດຮູ້",
+        "jp": "立ち聞きする",
+        "vie": "nghe lỏm được",
+        "en_pronunciation": "/ˈoʊvərˈhir/",
+        "laos_pronunciation": "sodhu",
+        "jp_pronunciation": "tachigiki suru",
+        "vie_pronunciation": "nghe lom duoc"
+      },
+      "means": {
+        "en": "Hear, usually without the knowledge of the speakers",
+        "zh": "汽车或机器的定期维护"
+      }
+    },
+    {
+      "word": {
+        "en": "outrageous",
+        "laos": "ທີ່ຄຽດຮ້າຍ",
+        "jp": "法外な",
+        "vie": "thái quá",
+        "en_pronunciation": "/aʊˈtreɪʤəs/",
+        "laos_pronunciation": "thi khiadhai",
+        "jp_pronunciation": "hougai na",
+        "vie_pronunciation": "thai qua"
+      },
+      "means": {
+        "en": "Grossly offensive to decency or morality; causing horror",
+        "zh": "维护财产的费用（例如缴纳财产税、水电费和保险）；"
+      }
+    },
+    {
+      "word": {
+        "en": "outsider",
+        "laos": "ຄົນພາຍນອກ",
+        "jp": "部外者",
+        "vie": "người ngoài cuộc",
+        "en_pronunciation": "/aʊtˈsaɪdər/",
+        "laos_pronunciation": "khonphainok",
+        "jp_pronunciation": "bugaisha",
+        "vie_pronunciation": "nguoi ngoai cuoc"
+      },
+      "means": {
+        "en": "Someone who is excluded from or is not a member of a group",
+        "zh": "它不包括折旧或融资成本或所得税"
+      }
+    },
+    {
+      "word": {
+        "en": "outwards",
+        "laos": "ໄປທາງນອກ",
+        "jp": "外側へ",
+        "vie": "hướng ngoại",
+        "en_pronunciation": "/ˈaʊtwərdz/",
+        "laos_pronunciation": "paithangnok",
+        "jp_pronunciation": "sotogawa he",
+        "vie_pronunciation": "huong ngoai"
+      },
+      "means": {
+        "en": "Toward the outside",
+        "zh": "听到，通常是在说话者不知情的情况下"
+      }
+    },
+    {
+      "word": {
+        "en": "overlap",
+        "laos": "ຊ້ອນກັນ",
+        "jp": "重なり合う",
+        "vie": "chồng chéo",
+        "en_pronunciation": "/ˈoʊvərˌlæp/",
+        "laos_pronunciation": "sonkan",
+        "jp_pronunciation": "kasanari au",
+        "vie_pronunciation": "chong cheo"
+      },
+      "means": {
+        "en": "A representation of common ground between theories or phenomena",
+        "zh": "严重冒犯正派或道德；"
+      }
+    },
+    {
+      "word": {
+        "en": "overlook",
+        "laos": "ເບິ່ງຂ້າມ",
+        "jp": "見落とす",
+        "vie": "bỏ qua",
+        "en_pronunciation": "/ˈoʊvərˌlʊk/",
+        "laos_pronunciation": "boengkham",
+        "jp_pronunciation": "mioto su",
+        "vie_pronunciation": "bo qua"
+      },
+      "means": {
+        "en": "A high place affording a good view",
+        "zh": "造成恐怖"
+      }
+    },
+    {
+      "word": {
+        "en": "overnight",
+        "laos": "ຄ່ໍາຄືນ",
+        "jp": "一晩中",
+        "vie": "qua đêm",
+        "en_pronunciation": "/ˈoʊvərˈnaɪt/",
+        "laos_pronunciation": "khoakhun",
+        "jp_pronunciation": "hitobanjuu",
+        "vie_pronunciation": "qua dem"
+      },
+      "means": {
+        "en": "Lasting, open, or operating through the whole night",
+        "zh": "被排除在群体之外或不是群体成员的人"
+      }
+    },
+    {
+      "word": {
+        "en": "override",
+        "laos": "ລົ້ນ",
+        "jp": "オーバーライド",
+        "vie": "ghi đè",
+        "en_pronunciation": "/ˈoʊvərˌraɪd/",
+        "laos_pronunciation": "lon",
+        "jp_pronunciation": "oobaaraido",
+        "vie_pronunciation": "ghi de"
+      },
+      "means": {
+        "en": "A manually operated device to correct the operation of an automatic device",
+        "zh": "向着外面"
+      }
+    },
+    {
+      "word": {
+        "en": "overseas",
+        "laos": "ຢູ່ຕ່າງປະເທດ",
+        "jp": "海外",
+        "vie": "ở nước ngoài",
+        "en_pronunciation": "/ˈoʊvərˈsiz/",
+        "laos_pronunciation": "yutangpathed",
+        "jp_pronunciation": "kaigai",
+        "vie_pronunciation": "o nuoc ngoai"
+      },
+      "means": {
+        "en": "In a foreign country",
+        "zh": "理论或现象之间共同点的表示"
+      }
+    },
+    {
+      "word": {
+        "en": "oversee",
+        "laos": "ຢອຍ",
+        "jp": "監督する",
+        "vie": "giám sát",
+        "en_pronunciation": "/ˈoʊvərˌsi/",
+        "laos_pronunciation": "yony",
+        "jp_pronunciation": "kantoku suru",
+        "vie_pronunciation": "giam sat"
+      },
+      "means": {
+        "en": "Watch and direct",
+        "zh": "地势高，视野好"
+      }
+    },
+    {
+      "word": {
+        "en": "oversight",
+        "laos": "ການເບິ່ງແຍງ",
+        "jp": "監督",
+        "vie": "giám sát",
+        "en_pronunciation": "/ˈoʊvərˌsaɪt/",
+        "laos_pronunciation": "kanboengaenyng",
+        "jp_pronunciation": "kantoku",
+        "vie_pronunciation": "giam sat"
+      },
+      "means": {
+        "en": "An unintentional omission resulting from failure to notice something",
+        "zh": "持久、开放或整晚持续运作"
+      }
+    },
+    {
+      "word": {
+        "en": "overstate",
+        "laos": "ເກີນກໍານົດ",
+        "jp": "誇張する",
+        "vie": "cường điệu hóa",
+        "en_pronunciation": "/ˈoʊvərˌsteɪt/",
+        "laos_pronunciation": "koenkoanod",
+        "jp_pronunciation": "kochou suru",
+        "vie_pronunciation": "cuong dieu hoa"
+      },
+      "means": {
+        "en": "To enlarge beyond bounds or the truth",
+        "zh": "一种用于纠正自动装置操作的手动操作装置"
+      }
+    },
+    {
+      "word": {
+        "en": "overt",
+        "laos": "ຕ່ໍາກວ່າ",
+        "jp": "あからさまな",
+        "vie": "công khai",
+        "en_pronunciation": "/ˈoʊvərt/",
+        "laos_pronunciation": "toakva",
+        "jp_pronunciation": "akarasamana",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "Open and observable; not secret or hidden",
+        "zh": "在国外"
+      }
+    },
+    {
+      "word": {
+        "en": "overtake",
+        "laos": "ເດີນໂລຫະ",
+        "jp": "追い越す",
+        "vie": "vượt qua",
+        "en_pronunciation": "/ˈoʊvərˌteɪk/",
+        "laos_pronunciation": "doenolha",
+        "jp_pronunciation": "oikosu",
+        "vie_pronunciation": "vuot qua"
+      },
+      "means": {
+        "en": "Catch up with and possibly overtake",
+        "zh": "观看并指挥"
+      }
+    },
+    {
+      "word": {
+        "en": "overthrow",
+        "laos": "ລົ້ມລົງ",
+        "jp": "打倒する",
+        "vie": "lật đổ",
+        "en_pronunciation": "/ˈoʊvərθˌroʊ/",
+        "laos_pronunciation": "lomlong",
+        "jp_pronunciation": "datou suru",
+        "vie_pronunciation": "lat do"
+      },
+      "means": {
+        "en": "The termination of a ruler or institution (especially by force)",
+        "zh": "由于没有注意到某事而导致的无意遗漏"
+      }
+    },
+    {
+      "word": {
+        "en": "overtime",
+        "laos": "ເຮັດໃຊ້ເວລາພັກລ່ວງເວລາ",
+        "jp": "残業",
+        "vie": "làm thêm giờ",
+        "en_pronunciation": "/ˈoʊvərˌtaɪm/",
+        "laos_pronunciation": "hed saiuaela phak luanguaela",
+        "jp_pronunciation": "zangyou",
+        "vie_pronunciation": "lam them gio"
+      },
+      "means": {
+        "en": "Work done in addition to regular working hours",
+        "zh": "超越界限或真相"
+      }
+    },
+    {
+      "word": {
+        "en": "overturn",
+        "laos": "ຂ້າມໄປ",
+        "jp": "ひっくり返す",
+        "vie": "lật đổ",
+        "en_pronunciation": "/ˈoʊvərˌtərn/",
+        "laos_pronunciation": "khampai",
+        "jp_pronunciation": "hikkuri kaesu",
+        "vie_pronunciation": "lat do"
+      },
+      "means": {
+        "en": "The act of upsetting something",
+        "zh": "开放、可观察；"
+      }
+    },
+    {
+      "word": {
+        "en": "overwhelm",
+        "laos": "ຊະເລີຍ",
+        "jp": "圧倒する",
+        "vie": "áp đảo",
+        "en_pronunciation": "/ˌoʊvərˈwɛlm/",
+        "laos_pronunciation": "saloeny",
+        "jp_pronunciation": "attou suru",
+        "vie_pronunciation": "ap dao"
+      },
+      "means": {
+        "en": "Overcome, as with emotions or perceptual stimuli",
+        "zh": "不是秘密或隐藏的"
+      }
+    },
+    {
+      "word": {
+        "en": "overwhelming",
+        "laos": "ລົ້ນເຫລືອ",
+        "jp": "圧倒的な",
+        "vie": "áp đảo",
+        "en_pronunciation": "/ˌoʊvərˈwɛlmɪŋ/",
+        "laos_pronunciation": "lonhelu",
+        "jp_pronunciation": "attouteki na",
+        "vie_pronunciation": "ap dao"
+      },
+      "means": {
+        "en": "Overcome, as with emotions or perceptual stimuli",
+        "zh": "赶上并可能超越"
+      }
+    },
+    {
+      "word": {
+        "en": "overwhelmingly",
+        "laos": "ລົ້ນເຫລືອ",
+        "jp": "圧倒的に",
+        "vie": "áp đảo",
+        "en_pronunciation": "/ˌoʊvərˈwɛlmɪŋli/",
+        "laos_pronunciation": "lonhelu",
+        "jp_pronunciation": "attouteki ni",
+        "vie_pronunciation": "ap dao"
+      },
+      "means": {
+        "en": "Incapable of being resisted",
+        "zh": "统治者或机构的终止（尤其是通过武力）"
+      }
+    },
+    {
+      "word": {
+        "en": "owe",
+        "laos": "ຕິດຫນີ້",
+        "jp": "借りがある",
+        "vie": "nợ",
+        "en_pronunciation": "/oʊ/",
+        "laos_pronunciation": "tidni",
+        "jp_pronunciation": "kari gaaru",
+        "vie_pronunciation": "no"
+      },
+      "means": {
+        "en": "Be obliged to pay or repay",
+        "zh": "正常工作时间之外完成的工作"
+      }
+    },
+    {
+      "word": {
+        "en": "owing to",
+        "laos": "ເປັນເຈົ້າຂອງ",
+        "jp": "のせいで",
+        "vie": "nhờ vào",
+        "en_pronunciation": "/oʊɪŋ tɪ/",
+        "laos_pronunciation": "penchaokhong",
+        "jp_pronunciation": "noseide",
+        "vie_pronunciation": "nho vao"
+      },
+      "means": {
+        "en": "Owing to is an English word referring to 'owing to'.",
+        "zh": "扰乱某事的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "owl",
+        "laos": "ນົກເຄົ້າ",
+        "jp": "フクロウ",
+        "vie": "cú",
+        "en_pronunciation": "/aʊl/",
+        "laos_pronunciation": "nokkhao",
+        "jp_pronunciation": "fukurou",
+        "vie_pronunciation": "cu"
+      },
+      "means": {
+        "en": "Nocturnal bird of prey with hawk-like beak and claws and large head with front-facing eyes",
+        "zh": "克服情绪或感知刺激"
+      }
+    },
+    {
+      "word": {
+        "en": "own",
+        "laos": "ເປັນເຈົ້າຂອງ",
+        "jp": "自分の",
+        "vie": "sở hữu",
+        "en_pronunciation": "/oʊn/",
+        "laos_pronunciation": "penchaokhong",
+        "jp_pronunciation": "jibun no",
+        "vie_pronunciation": "so huu"
+      },
+      "means": {
+        "en": "Have ownership or possession of",
+        "zh": "克服情绪或感知刺激"
+      }
+    },
+    {
+      "word": {
+        "en": "owner",
+        "laos": "ເຈົ້າຂອງ",
+        "jp": "所有者",
+        "vie": "chủ sở hữu",
+        "en_pronunciation": "/ˈoʊnər/",
+        "laos_pronunciation": "chaokhong",
+        "jp_pronunciation": "shoyuusha",
+        "vie_pronunciation": "chu so huu"
+      },
+      "means": {
+        "en": "(law) someone who owns (is legal possessor of) a business",
+        "zh": "无法抵抗"
+      }
+    },
+    {
+      "word": {
+        "en": "ownership",
+        "laos": "ຄວາມເປັນເຈົ້າຂອງ",
+        "jp": "所有権",
+        "vie": "quyền sở hữu",
+        "en_pronunciation": "/ˈoʊnərˌʃɪp/",
+        "laos_pronunciation": "khuaampenchaokhong",
+        "jp_pronunciation": "shoyuuken",
+        "vie_pronunciation": "quyen so huu"
+      },
+      "means": {
+        "en": "The relation of an owner to the thing possessed; possession with the right to transfer possession to others",
+        "zh": "有义务支付或偿还"
+      }
+    },
+    {
+      "word": {
+        "en": "ox",
+        "laos": "ບ້ຽວ",
+        "jp": "牛",
+        "vie": "con bò",
+        "en_pronunciation": "/ɑks/",
+        "laos_pronunciation": "biav",
+        "jp_pronunciation": "ushi",
+        "vie_pronunciation": "con bo"
+      },
+      "means": {
+        "en": "An adult castrated bull of the genus Bos; especially Bos taurus",
+        "zh": "Owing to 是一个英语单词，指的是“由于”。"
+      }
+    },
+    {
+      "word": {
+        "en": "oxide",
+        "laos": "ຜຸພັງ",
+        "jp": "酸化物",
+        "vie": "oxit",
+        "en_pronunciation": "/ˈɑkˌsaɪd/",
+        "laos_pronunciation": "phuphang",
+        "jp_pronunciation": "sankabutsu",
+        "vie_pronunciation": "oxit"
+      },
+      "means": {
+        "en": "Any compound of oxygen with another element or a radical",
+        "zh": "夜间活动的猛禽，有鹰一样的喙和爪子，头很大，眼睛朝前"
+      }
+    },
+    {
+      "word": {
+        "en": "oxygen",
+        "laos": "ເຂົ້າອົກຊີເຈນ",
+        "jp": "酸素",
+        "vie": "oxy",
+        "en_pronunciation": "/ˈɑksɪʤən/",
+        "laos_pronunciation": "khaook sichen",
+        "jp_pronunciation": "sanso",
+        "vie_pronunciation": "oxy"
+      },
+      "means": {
+        "en": "A nonmetallic bivalent element that is normally a colorless odorless tasteless nonflammable diatomic gas; constitutes 21 percent of the atmosphere by volume; the most abundant element in the earth's crust",
+        "zh": "拥有或占有"
+      }
+    },
+    {
+      "word": {
+        "en": "ozone",
+        "laos": "ໂອໂຊ",
+        "jp": "オゾン",
+        "vie": "ozon",
+        "en_pronunciation": "/ˈoʊˌzoʊn/",
+        "laos_pronunciation": "ooos",
+        "jp_pronunciation": "ozon",
+        "vie_pronunciation": "ozon"
+      },
+      "means": {
+        "en": "A colorless gas (O3) soluble in alkalis and cold water; a strong oxidizing agent; can be produced by electric discharge in oxygen or by the action of ultraviolet radiation on oxygen in the stratosphere (where it acts as a screen for ultraviolet radiation)",
+        "zh": "（法律）拥有企业（合法拥有人）的人"
+      }
+    },
+    {
+      "word": {
+        "en": "pace",
+        "laos": "ຈັງກັດ",
+        "jp": "ペース",
+        "vie": "tốc độ",
+        "en_pronunciation": "/peɪs/",
+        "laos_pronunciation": "changkad",
+        "jp_pronunciation": "peesu",
+        "vie_pronunciation": "toc do"
+      },
+      "means": {
+        "en": "The rate of moving (especially walking or running)",
+        "zh": "所有者与所拥有的物品的关系；"
+      }
+    },
+    {
+      "word": {
+        "en": "pack",
+        "laos": "ບັນຈຸ",
+        "jp": "パックする",
+        "vie": "gói",
+        "en_pronunciation": "/pæk/",
+        "laos_pronunciation": "banchu",
+        "jp_pronunciation": "pakku suru",
+        "vie_pronunciation": "goi"
+      },
+      "means": {
+        "en": "A large indefinite number",
+        "zh": "占有并有权将占有转让给他人"
+      }
+    },
+    {
+      "word": {
+        "en": "package",
+        "laos": "ຫໍ່",
+        "jp": "パッケージ",
+        "vie": "gói",
+        "en_pronunciation": "/ˈpækɪʤ/",
+        "laos_pronunciation": "ho",
+        "jp_pronunciation": "pakkeeji",
+        "vie_pronunciation": "goi"
+      },
+      "means": {
+        "en": "A collection of things wrapped or boxed together",
+        "zh": "成年阉割的牛属公牛；"
+      }
+    },
+    {
+      "word": {
+        "en": "packet",
+        "laos": "ຫຸ້ມຫໍ່",
+        "jp": "パケット",
+        "vie": "gói",
+        "en_pronunciation": "/ˈpækɪt/",
+        "laos_pronunciation": "humho",
+        "jp_pronunciation": "paketto",
+        "vie_pronunciation": "goi"
+      },
+      "means": {
+        "en": "A collection of things wrapped or boxed together",
+        "zh": "尤其是金牛座"
+      }
+    },
+    {
+      "word": {
+        "en": "pact",
+        "laos": "ປັນຍັດ",
+        "jp": "協定",
+        "vie": "hiệp ước",
+        "en_pronunciation": "/pækt/",
+        "laos_pronunciation": "pnaiad",
+        "jp_pronunciation": "kyoutei",
+        "vie_pronunciation": "hiep uoc"
+      },
+      "means": {
+        "en": "A written agreement between two states or sovereigns",
+        "zh": "氧与另一种元素或自由基的任何化合物"
+      }
+    },
+    {
+      "word": {
+        "en": "pad",
+        "laos": "ແຜ່ນຮອງ",
+        "jp": "パッド",
+        "vie": "đệm",
+        "en_pronunciation": "/pæd/",
+        "laos_pronunciation": "aephnhong",
+        "jp_pronunciation": "paddo",
+        "vie_pronunciation": "dem"
+      },
+      "means": {
+        "en": "A number of sheets of paper fastened together along one edge",
+        "zh": "一种非金属二价元素，通常是无色无臭无味的不可燃双原子气体；"
+      }
+    },
+    {
+      "word": {
+        "en": "paddy",
+        "laos": "ເຂົ້າເປືອກ",
+        "jp": "水田",
+        "vie": "thóc",
+        "en_pronunciation": "/ˈpædi/",
+        "laos_pronunciation": "khaopeuok",
+        "jp_pronunciation": "suiden",
+        "vie_pronunciation": "thoc"
+      },
+      "means": {
+        "en": "(ethnic slur) offensive term for a person of Irish descent",
+        "zh": "按体积计占大气的 21%；"
+      }
+    },
+    {
+      "word": {
+        "en": "page",
+        "laos": "ຫນ້າ",
+        "jp": "ページ",
+        "vie": "trang",
+        "en_pronunciation": "/peɪʤ/",
+        "laos_pronunciation": "na",
+        "jp_pronunciation": "peeji",
+        "vie_pronunciation": "trang"
+      },
+      "means": {
+        "en": "One side of one leaf (of a book or magazine or newspaper or letter etc.) or the written or pictorial matter it contains",
+        "zh": "地壳中最丰富的元素"
+      }
+    },
+    {
+      "word": {
+        "en": "pain",
+        "laos": "ເຈັບປວດ",
+        "jp": "痛み",
+        "vie": "đau đớn",
+        "en_pronunciation": "/peɪn/",
+        "laos_pronunciation": "chebpuad",
+        "jp_pronunciation": "itami",
+        "vie_pronunciation": "dau don"
+      },
+      "means": {
+        "en": "A symptom of some physical hurt or disorder",
+        "zh": "无色气体（O3），溶于碱和冷水；"
+      }
+    },
+    {
+      "word": {
+        "en": "painful",
+        "laos": "ທີ່ເຈັບປວດ",
+        "jp": "痛い",
+        "vie": "đau đớn",
+        "en_pronunciation": "/ˈpeɪnfəl/",
+        "laos_pronunciation": "thichebpuad",
+        "jp_pronunciation": "itai",
+        "vie_pronunciation": "dau don"
+      },
+      "means": {
+        "en": "Causing physical or psychological pain",
+        "zh": "强氧化剂；"
+      }
+    },
+    {
+      "word": {
+        "en": "paint",
+        "laos": "ທາສີ",
+        "jp": "ペイント",
+        "vie": "sơn",
+        "en_pronunciation": "/peɪnt/",
+        "laos_pronunciation": "thasi",
+        "jp_pronunciation": "peinto",
+        "vie_pronunciation": "son"
+      },
+      "means": {
+        "en": "A substance used as a coating to protect or decorate a surface (especially a mixture of pigment suspended in a liquid); dries to form a hard coating",
+        "zh": "可以通过氧气中的放电或紫外线辐射对平流层中的氧气的作用产生（在平流层中它充当紫外线辐射的屏障）"
+      }
+    },
+    {
+      "word": {
+        "en": "painting",
+        "laos": "ການແຕ້ມຮູບ",
+        "jp": "絵を描く",
+        "vie": "bức tranh",
+        "en_pronunciation": "/ˈpeɪnɪŋ/",
+        "laos_pronunciation": "kanaetmhub",
+        "jp_pronunciation": "e wo egaku",
+        "vie_pronunciation": "buc tranh"
+      },
+      "means": {
+        "en": "Graphic art consisting of an artistic composition made by applying paints to a surface",
+        "zh": "移动速度（尤其是步行或跑步）"
+      }
+    },
+    {
+      "word": {
+        "en": "painter",
+        "laos": "ຊ່າງແຕ້ມ",
+        "jp": "画家",
+        "vie": "họa sĩ",
+        "en_pronunciation": "/ˈpeɪnər/",
+        "laos_pronunciation": "sangaetm",
+        "jp_pronunciation": "gaka",
+        "vie_pronunciation": "hoa si"
+      },
+      "means": {
+        "en": "An artist who paints",
+        "zh": "一个大的不定数"
+      }
+    },
+    {
+      "word": {
+        "en": "pair",
+        "laos": "ຄູ່",
+        "jp": "ペア",
+        "vie": "cặp",
+        "en_pronunciation": "/pɛr/",
+        "laos_pronunciation": "khu",
+        "jp_pronunciation": "pea",
+        "vie_pronunciation": "cap"
+      },
+      "means": {
+        "en": "A set of two similar things considered as a unit",
+        "zh": "包裹或装箱在一起的物品的集合"
+      }
+    },
+    {
+      "word": {
+        "en": "palace",
+        "laos": "ວັງ",
+        "jp": "宮殿",
+        "vie": "cung điện",
+        "en_pronunciation": "/ˈpæləs/",
+        "laos_pronunciation": "vang",
+        "jp_pronunciation": "kyuuden",
+        "vie_pronunciation": "cung dien"
+      },
+      "means": {
+        "en": "A large and stately mansion",
+        "zh": "包裹或装箱在一起的物品的集合"
+      }
+    },
+    {
+      "word": {
+        "en": "pale",
+        "laos": "ເຊວິດ",
+        "jp": "青白い",
+        "vie": "nhợt nhạt",
+        "en_pronunciation": "/peɪl/",
+        "laos_pronunciation": "sevid",
+        "jp_pronunciation": "aojiroi",
+        "vie_pronunciation": "nhot nhat"
+      },
+      "means": {
+        "en": "A wooden strip forming part of a fence",
+        "zh": "两个国家或主权国家之间的书面协议"
+      }
+    },
+    {
+      "word": {
+        "en": "palm",
+        "laos": "ຝ່າ",
+        "jp": "手のひら",
+        "vie": "lòng bàn tay",
+        "en_pronunciation": "/pɑm/",
+        "laos_pronunciation": "fa",
+        "jp_pronunciation": "teno hira",
+        "vie_pronunciation": "long ban tay"
+      },
+      "means": {
+        "en": "The inner surface of the hand from the wrist to the base of the fingers",
+        "zh": "多张纸沿一个边缘固定在一起"
+      }
+    },
+    {
+      "word": {
+        "en": "pamphlet",
+        "laos": "PAMMHET",
+        "jp": "パンフレット",
+        "vie": "cuốn sách nhỏ",
+        "en_pronunciation": "/ˈpæmflət/",
+        "laos_pronunciation": "PAMMHET",
+        "jp_pronunciation": "panfuretto",
+        "vie_pronunciation": "cuon sach nho"
+      },
+      "means": {
+        "en": "A small book usually having a paper cover",
+        "zh": "（种族诽谤）对爱尔兰血统的人的冒犯性术语"
+      }
+    },
+    {
+      "word": {
+        "en": "pan",
+        "laos": "ແດກ",
+        "jp": "パン",
+        "vie": "chảo",
+        "en_pronunciation": "/pæn/",
+        "laos_pronunciation": "aedk",
+        "jp_pronunciation": "pan",
+        "vie_pronunciation": "chao"
+      },
+      "means": {
+        "en": "Cooking utensil consisting of a wide metal vessel",
+        "zh": "（一本书或杂志或报纸或信件等）的一页或其包含的书面或图片内容的一侧"
+      }
+    },
+    {
+      "word": {
+        "en": "panda",
+        "laos": "ເຮືອໃບ",
+        "jp": "パンダ",
+        "vie": "gấu trúc",
+        "en_pronunciation": "/ˈpændə/",
+        "laos_pronunciation": "heuobai",
+        "jp_pronunciation": "panda",
+        "vie_pronunciation": "gau truc"
+      },
+      "means": {
+        "en": "Large black-and-white herbivorous mammal of bamboo forests of China and Tibet; in some classifications considered a member of the bear family or of a separate family Ailuropodidae",
+        "zh": "某些身体伤害或疾病的症状"
+      }
+    },
+    {
+      "word": {
+        "en": "panel",
+        "laos": "ແປ້ນ",
+        "jp": "パネル",
+        "vie": "bảng điều khiển",
+        "en_pronunciation": "/ˈpænəl/",
+        "laos_pronunciation": "aepn",
+        "jp_pronunciation": "paneru",
+        "vie_pronunciation": "bang dieu khien"
+      },
+      "means": {
+        "en": "Sheet that forms a distinct (usually flat and rectangular) section or component of something",
+        "zh": "造成身体或心理痛苦"
+      }
+    },
+    {
+      "word": {
+        "en": "panic",
+        "laos": "ຄວາມ​ຕື່​ນ​ຕົກ​ໃຈ",
+        "jp": "パニック",
+        "vie": "hoảng loạn",
+        "en_pronunciation": "/ˈpænɪk/",
+        "laos_pronunciation": "khuaam tu n tokchai",
+        "jp_pronunciation": "panikku",
+        "vie_pronunciation": "hoang loan"
+      },
+      "means": {
+        "en": "An overwhelming feeling of fear and anxiety",
+        "zh": "用作涂层以保护或装饰表面的物质（特别是悬浮在液体中的颜料混合物）；"
+      }
+    },
+    {
+      "word": {
+        "en": "panorama",
+        "laos": "ທິວທັດ",
+        "jp": "パノラマ",
+        "vie": "bức tranh toàn cảnh",
+        "en_pronunciation": "/ˌpænərˈæmə/",
+        "laos_pronunciation": "thiuathad",
+        "jp_pronunciation": "panorama",
+        "vie_pronunciation": "buc tranh toan canh"
+      },
+      "means": {
+        "en": "The visual percept of a region",
+        "zh": "干燥形成硬质涂层"
+      }
+    },
+    {
+      "word": {
+        "en": "panoramic",
+        "laos": "ສະຫງົບ",
+        "jp": "パノラマ",
+        "vie": "toàn cảnh",
+        "en_pronunciation": "/ˌpænərˈæmɪk/",
+        "laos_pronunciation": "sangob",
+        "jp_pronunciation": "panorama",
+        "vie_pronunciation": "toan canh"
+      },
+      "means": {
+        "en": "As from an altitude or distance",
+        "zh": "图形艺术由通过在表面上涂漆而制成的艺术作品组成"
+      }
+    },
+    {
+      "word": {
+        "en": "pant",
+        "laos": "ເປັຽ",
+        "jp": "パンツ",
+        "vie": "quần",
+        "en_pronunciation": "/pænt/",
+        "laos_pronunciation": "peia",
+        "jp_pronunciation": "pantsu",
+        "vie_pronunciation": "quan"
+      },
+      "means": {
+        "en": "The noise made by a short puff of steam (as from an engine)",
+        "zh": "一个会画画的艺术家"
+      }
+    },
+    {
+      "word": {
+        "en": "pants",
+        "laos": "ກາງເກງ",
+        "jp": "パンツ",
+        "vie": "quần",
+        "en_pronunciation": "/pænts/",
+        "laos_pronunciation": "kangkeng",
+        "jp_pronunciation": "pantsu",
+        "vie_pronunciation": "quan"
+      },
+      "means": {
+        "en": "Underpants worn by women",
+        "zh": "两个相似事物的集合被视为一个单元"
+      }
+    },
+    {
+      "word": {
+        "en": "paper",
+        "laos": "ເຈ້ຍ",
+        "jp": "紙",
+        "vie": "giấy",
+        "en_pronunciation": "/ˈpeɪpər/",
+        "laos_pronunciation": "cheny",
+        "jp_pronunciation": "kami",
+        "vie_pronunciation": "giay"
+      },
+      "means": {
+        "en": "A material made of cellulose pulp derived mainly from wood or rags or certain grasses",
+        "zh": "一座大而庄严的宅邸"
+      }
+    },
+    {
+      "word": {
+        "en": "paperback",
+        "laos": "ລູກປືນ",
+        "jp": "ペーパーバック",
+        "vie": "bìa mềm",
+        "en_pronunciation": "/ˈpeɪpərˌbæk/",
+        "laos_pronunciation": "lukpun",
+        "jp_pronunciation": "peepaabakku",
+        "vie_pronunciation": "bia mem"
+      },
+      "means": {
+        "en": "A book with paper covers",
+        "zh": "形成栅栏一部分的木条"
+      }
+    },
+    {
+      "word": {
+        "en": "parachute",
+        "laos": "ຈ້ອງ",
+        "jp": "パラシュート",
+        "vie": "dù",
+        "en_pronunciation": "/ˈpɛrəˌʃut/",
+        "laos_pronunciation": "chong",
+        "jp_pronunciation": "parashuuto",
+        "vie_pronunciation": "du"
+      },
+      "means": {
+        "en": "Rescue equipment consisting of a device that fills with air and retards your fall",
+        "zh": "手的内表面从手腕到手指根部"
+      }
+    },
+    {
+      "word": {
+        "en": "parade",
+        "laos": "ການແຫ່ຂະບວນ",
+        "jp": "パレード",
+        "vie": "cuộc diễu hành",
+        "en_pronunciation": "/pəreɪd/",
+        "laos_pronunciation": "kan aehkhabuan",
+        "jp_pronunciation": "pareedo",
+        "vie_pronunciation": "cuoc dieu hanh"
+      },
+      "means": {
+        "en": "A ceremonial procession including people marching",
+        "zh": "通常有纸质封面的小书"
+      }
+    },
+    {
+      "word": {
+        "en": "paradigm",
+        "laos": "ແບບ Parsterm",
+        "jp": "パラダイム",
+        "vie": "khuôn mẫu",
+        "en_pronunciation": "/ˈpɛrəˌdaɪm/",
+        "laos_pronunciation": "aebb Parsterm",
+        "jp_pronunciation": "paradaimu",
+        "vie_pronunciation": "khuon mau"
+      },
+      "means": {
+        "en": "Systematic arrangement of all the inflected forms of a word",
+        "zh": "由宽金属容器组成的炊具"
+      }
+    },
+    {
+      "word": {
+        "en": "paradise",
+        "laos": "ສຸຄະຕິ",
+        "jp": "楽園",
+        "vie": "thiên đường",
+        "en_pronunciation": "/ˈpɛrəˌdaɪs/",
+        "laos_pronunciation": "sukhati",
+        "jp_pronunciation": "rakuen",
+        "vie_pronunciation": "thien duong"
+      },
+      "means": {
+        "en": "Any place of complete bliss and delight and peace",
+        "zh": "中国和西藏竹林中的大型黑白草食哺乳动物；"
+      }
+    },
+    {
+      "word": {
+        "en": "paradox",
+        "laos": "ຄວາມແປກປະຫຼາດ",
+        "jp": "パラドックス",
+        "vie": "nghịch lý",
+        "en_pronunciation": "/ˈpɛrəˌdɑks/",
+        "laos_pronunciation": "khuaam aepkparad",
+        "jp_pronunciation": "paradokkusu",
+        "vie_pronunciation": "nghich ly"
+      },
+      "means": {
+        "en": "(logic) a statement that contradicts itself",
+        "zh": "在某些分类中被认为是熊科或独立科大熊猫科的成员"
+      }
+    },
+    {
+      "word": {
+        "en": "paragraph",
+        "laos": "ວັກ",
+        "jp": "段落",
+        "vie": "đoạn văn",
+        "en_pronunciation": "/ˈpɛrəˌgræf/",
+        "laos_pronunciation": "vak",
+        "jp_pronunciation": "danraku",
+        "vie_pronunciation": "doan van"
+      },
+      "means": {
+        "en": "One of several distinct subdivisions of a text intended to separate ideas; the beginning is usually marked by a new indented line",
+        "zh": "形成某物的独特（通常是平坦和矩形）截面或组件的板材"
+      }
+    },
+    {
+      "word": {
+        "en": "parallel",
+        "laos": "ຂະຫນານ",
+        "jp": "平行",
+        "vie": "song song",
+        "en_pronunciation": "/ˈpɛrəˌlɛl/",
+        "laos_pronunciation": "khanan",
+        "jp_pronunciation": "heikou",
+        "vie_pronunciation": "song song"
+      },
+      "means": {
+        "en": "Something having the property of being analogous to something else",
+        "zh": "一种压倒性的恐惧和焦虑感"
+      }
+    },
+    {
+      "word": {
+        "en": "paradoxical",
+        "laos": "ສາທາ",
+        "jp": "逆説的な",
+        "vie": "nghịch lý",
+        "en_pronunciation": "/ˌpɛrəˈdɑksɪkəl/",
+        "laos_pronunciation": "satha",
+        "jp_pronunciation": "gyakusetsuteki na",
+        "vie_pronunciation": "nghich ly"
+      },
+      "means": {
+        "en": "Seemingly contradictory but nonetheless possibly true",
+        "zh": "一个地区的视觉感受"
+      }
+    },
+    {
+      "word": {
+        "en": "paralyze",
+        "laos": "ເປັ້ຽ",
+        "jp": "麻痺させる",
+        "vie": "làm tê liệt",
+        "en_pronunciation": "/ˈpɛrəˌlaɪz/",
+        "laos_pronunciation": "peia",
+        "jp_pronunciation": "mahi saseru",
+        "vie_pronunciation": "lam te liet"
+      },
+      "means": {
+        "en": "Make powerless and unable to function",
+        "zh": "从某个高度或距离"
+      }
+    },
+    {
+      "word": {
+        "en": "paralyse",
+        "laos": "ເປັ້ຽ",
+        "jp": "麻痺させる",
+        "vie": "làm tê liệt",
+        "en_pronunciation": "/paralyse/",
+        "laos_pronunciation": "peia",
+        "jp_pronunciation": "mahi saseru",
+        "vie_pronunciation": "lam te liet"
+      },
+      "means": {
+        "en": "Make powerless and unable to function",
+        "zh": "一阵短促的蒸汽发出的噪音（如发动机发出的噪音）"
+      }
+    },
+    {
+      "word": {
+        "en": "paralysis",
+        "laos": "ໂລກເປັນເປ້ັຽ",
+        "jp": "麻痺",
+        "vie": "sự tê liệt",
+        "en_pronunciation": "/pərˈælɪsɪs/",
+        "laos_pronunciation": "olk pen peaia",
+        "jp_pronunciation": "mahi",
+        "vie_pronunciation": "su te liet"
+      },
+      "means": {
+        "en": "Loss of the ability to move a body part",
+        "zh": "女性穿的内裤"
+      }
+    },
+    {
+      "word": {
+        "en": "parameter",
+        "laos": "ພາລາມິເຕີ",
+        "jp": "パラメータ",
+        "vie": "tham số",
+        "en_pronunciation": "/pərˈæmətər/",
+        "laos_pronunciation": "phala mitoe",
+        "jp_pronunciation": "parameeta",
+        "vie_pronunciation": "tham so"
+      },
+      "means": {
+        "en": "A constant in the equation of a curve that can be varied to yield a family of similar curves",
+        "zh": "由主要来自木材、碎布或某些草的纤维素纸浆制成的材料"
+      }
+    },
+    {
+      "word": {
+        "en": "parasite",
+        "laos": "ແມ່ໃຕ້",
+        "jp": "寄生虫",
+        "vie": "ký sinh trùng",
+        "en_pronunciation": "/ˈpɛrəˌsaɪt/",
+        "laos_pronunciation": "aemtai",
+        "jp_pronunciation": "kiseichuu",
+        "vie_pronunciation": "ky sinh trung"
+      },
+      "means": {
+        "en": "An animal or plant that lives in or on a host (another animal or plant); it obtains nourishment from the host without benefiting or killing the host",
+        "zh": "一本有纸封面的书"
+      }
+    },
+    {
+      "word": {
+        "en": "parcel",
+        "laos": "ນົກ",
+        "jp": "小包",
+        "vie": "bưu kiện",
+        "en_pronunciation": "/ˈpɑrsəl/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "kozutsumi",
+        "vie_pronunciation": "buu kien"
+      },
+      "means": {
+        "en": "A wrapped container",
+        "zh": "救援设备由充满空气并阻止坠落的装置组成"
+      }
+    },
+    {
+      "word": {
+        "en": "pardon",
+        "laos": "ການຢົກໂທດ",
+        "jp": "許してください",
+        "vie": "tha thứ",
+        "en_pronunciation": "/ˈpɑrdən/",
+        "laos_pronunciation": "kan yok othd",
+        "jp_pronunciation": "yurushi tekudasai",
+        "vie_pronunciation": "tha thu"
+      },
+      "means": {
+        "en": "The act of excusing a mistake or offense",
+        "zh": "包括人们游行在内的仪式游行"
+      }
+    }
+  ]
+}

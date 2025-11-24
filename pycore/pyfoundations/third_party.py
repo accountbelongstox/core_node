@@ -139,15 +139,15 @@ DEPENDENCY_MAP = {
     # For offline STT (local provider)
     "vosk": "vosk",
 
-    # For audio input/output (cross-platform)
-    # Standard PyAudio for Linux/macOS
-    "pyaudio": "pyaudio",
-
     # For global hotkey listening (keyboard and mouse)
     "pynput": "pynput",
 
     # For clipboard operations (cross-platform)
     "pyperclip": "pyperclip",
+    
+    # For Google Translate API (unofficial)
+    "googletrans": "googletrans",
+    "httpx": "httpx",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -155,6 +155,8 @@ DEPENDENCY_MAP = {
 OPTIONAL_PACKAGES = {
     # For Edge TTS (Microsoft Edge Text-to-Speech - optional)
     "edge_tts": "edge-tts",
+    # For Whisper STT (OpenAI Whisper Speech-to-Text - optional)
+    "whisper": "openai-whisper",
 }
 
 # Windows-only packages
@@ -178,6 +180,9 @@ WINDOWS_ONLY_PACKAGES = {
 
     # For audio with WASAPI loopback support (Windows-specific)
     "pyaudiowpatch": "pyaudiowpatch",
+    
+    # For audio input/output (Windows-only due to portaudio dependency issues on Linux)
+    "pyaudio": "pyaudio",
 }
 
 # System packages required for Python packages (Debian/Ubuntu only)
@@ -191,7 +196,6 @@ SYSTEM_PACKAGES = [
     "python3-gi-cairo",         # Required for Cairo graphics with GObject
     "python3-pil",              # Required for PIL/Pillow image processing
     "python3-pil.imagetk",      # Required for PIL/Pillow with Tkinter support
-    "portaudio19-dev",          # Required for pyaudio (audio input/output)
 ]
 
 
@@ -603,14 +607,19 @@ def check_and_install_dependencies():
 # Auto-check dependencies when module is imported
 # This ensures dependencies are available for all modules using third-party packages
 # Uses ENCYCLOPEDIA for global caching - only runs once per Python process
+# Can be disabled by setting PYCORE_SKIP_DEP_CHECK environment variable
 
-try:
-    check_and_install_dependencies()
-except Exception as e:
-    ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
-    ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
-    # Ensure checking flag is cleared even on error
-    ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
+if os.environ.get('PYCORE_SKIP_DEP_CHECK') != '1':
+    try:
+        check_and_install_dependencies()
+    except Exception as e:
+        ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
+        ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
+        # Ensure checking flag is cleared even on error
+        ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
+else:
+    ColorPrint.blue("[INFO] Dependency check skipped (PYCORE_SKIP_DEP_CHECK=1)")
+    ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
 
 
 # ============================================================================
@@ -884,6 +893,25 @@ def get_third_package_pyperclip():
     return _lazy_import('pyperclip', 'import pyperclip')
 
 
+# Google Translate API packages
+def get_third_package_googletrans():
+    """Get googletrans package (lazy load)"""
+    return _lazy_import('googletrans', 'import googletrans')
+
+
+def get_third_package_googletrans_Translator():
+    """Get googletrans.Translator class (lazy load)"""
+    if 'googletrans_Translator' not in _PACKAGE_CACHE:
+        from googletrans import Translator as googletrans_Translator
+        _PACKAGE_CACHE['googletrans_Translator'] = googletrans_Translator
+    return _PACKAGE_CACHE['googletrans_Translator']
+
+
+def get_third_package_httpx():
+    """Get httpx package (lazy load) - Required by googletrans"""
+    return _lazy_import('httpx', 'import httpx')
+
+
 # Document processing packages
 def get_third_package_pypdf():
     """Get pypdf package (lazy load)"""
@@ -1002,6 +1030,19 @@ def get_third_package_vosk():
             ColorPrint.yellow("[WARNING] Vosk not available")
             _PACKAGE_CACHE['vosk'] = None
     return _PACKAGE_CACHE['vosk']
+
+
+def get_third_package_whisper():
+    """Get OpenAI Whisper package (lazy load, optional)"""
+    if 'whisper' not in _PACKAGE_CACHE:
+        try:
+            import whisper
+            _PACKAGE_CACHE['whisper'] = whisper
+        except ImportError:
+            ColorPrint.yellow("[WARNING] Whisper not available")
+            ColorPrint.yellow("[WARNING] Install with: pip install -U openai-whisper")
+            _PACKAGE_CACHE['whisper'] = None
+    return _PACKAGE_CACHE['whisper']
 
 
 # Audio packages
@@ -1154,6 +1195,10 @@ __all__ = [
     'get_third_package_cnocr',
     'get_third_package_pynput',
     'get_third_package_pyperclip',
+    # Google Translate API
+    'get_third_package_googletrans',
+    'get_third_package_googletrans_Translator',
+    'get_third_package_httpx',
     # Document processing packages
     'get_third_package_pypdf',
     'get_third_package_pdfplumber',
@@ -1173,6 +1218,8 @@ __all__ = [
     # Optional packages
     'get_third_package_speechsdk',
     'get_third_package_edge_tts',
+    'get_third_package_vosk',
+    'get_third_package_whisper',
     # Audio packages
     'get_third_package_pyaudio',
     # Windows-only packages

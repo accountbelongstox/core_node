@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Http\Common\CommonAuthService;
 use App\Http\Common\CommonUserGen;
 use App\Apps\AwyV0\AwyV0Gvar\AwyV0Gvar;
+use App\Services\UnifiedAuthService;
 
 class AwyV0AuthCtl extends Controller
 {
@@ -52,8 +53,7 @@ class AwyV0AuthCtl extends Controller
         $password = $request->input('password');
         $name = $request->input('name', '');
 
-        // Create user using CommonUserGen
-        $userData = CommonUserGen::createUser($username, $password, $email, '', $name);
+        $userData = CommonUserGen::createUser($username, $password, $email, '', $name, 'awyv0');
         
         if (!$userData) {
             return response()->json([
@@ -63,7 +63,6 @@ class AwyV0AuthCtl extends Controller
             ], 400);
         }
 
-        // Generate user_token using CommonAuthService
         $tokenData = CommonAuthService::generateUserToken($userData['user']->id, 'AwyV0');
 
         return response()->json([
@@ -103,24 +102,22 @@ class AwyV0AuthCtl extends Controller
         $username = $request->input('username');
         $password = $request->input('password');
 
-        // Find user by username or email
-        $user = User::where('username', $username)
-                   ->orWhere('email', $username)
-                   ->first();
-
-        if (!$user || !Hash::check($password, $user->password)) {
+        $authResult = UnifiedAuthService::login($username, $password, 'awyv0');
+        
+        if (!$authResult['success']) {
             return response()->json([
                 'success' => false,
                 'error' => 'INVALID_CREDENTIALS',
-                'message' => 'Invalid username or password',
+                'message' => $authResult['error'],
                 'data' => null
             ], 401);
         }
 
-        // Generate user_token using CommonAuthService
+        $user = $authResult['user'];
+        $subAppUser = $authResult['sub_app_user'];
+
         $tokenData = CommonAuthService::generateUserToken($user->id, 'AwyV0');
 
-        // Update last login timestamp
         $user->last_login_at = now();
         $user->save();
 
@@ -328,8 +325,17 @@ class AwyV0AuthCtl extends Controller
             ], 400);
         }
 
-        // Update password
-        $user->password = Hash::make($password);
+        $resetResult = UnifiedAuthService::resetPassword($user->username, $password);
+        
+        if (!$resetResult['success']) {
+            return response()->json([
+                'success' => false,
+                'error' => 'PASSWORD_RESET_FAILED',
+                'message' => $resetResult['error'],
+                'data' => null
+            ], 400);
+        }
+
         $user->password_reset_token = null;
         $user->password_reset_expires_at = null;
         $user->save();

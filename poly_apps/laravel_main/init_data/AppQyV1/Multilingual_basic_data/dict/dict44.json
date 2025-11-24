@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.351243+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "lobbyist",
+        "laos": "lobbyist",
+        "jp": "ロビイスト",
+        "vie": "người vận động hành lang",
+        "en_pronunciation": "/ˈlɑbiəst/",
+        "laos_pronunciation": "lobbyist",
+        "jp_pronunciation": "robiisuto",
+        "vie_pronunciation": "nguoi van dong hanh lang"
+      },
+      "means": {
+        "en": "Someone who is employed to persuade legislators to vote for legislation that favors the lobbyist's employer",
+        "zh": "受雇说服立法者投票支持有利于游说者雇主的立法的人"
+      }
+    },
+    {
+      "word": {
+        "en": "local",
+        "laos": "ທ້ອງຖິ່ນ",
+        "jp": "地元の",
+        "vie": "địa phương",
+        "en_pronunciation": "/ˈloʊkəl/",
+        "laos_pronunciation": "thongthin",
+        "jp_pronunciation": "jimoto no",
+        "vie_pronunciation": "dia phuong"
+      },
+      "means": {
+        "en": "Public transport consisting of a bus or train that stops at all stations or stops",
+        "zh": "公共交通包括在所有车站或车站停靠的公共汽车或火车"
+      }
+    },
+    {
+      "word": {
+        "en": "locality",
+        "laos": "ທ້ອງນຽບ",
+        "jp": "地域性",
+        "vie": "địa phương",
+        "en_pronunciation": "/loʊˈkæləti/",
+        "laos_pronunciation": "thong niab",
+        "jp_pronunciation": "chiikisei",
+        "vie_pronunciation": "dia phuong"
+      },
+      "means": {
+        "en": "A surrounding or nearby region",
+        "zh": "周围或附近地区"
+      }
+    },
+    {
+      "word": {
+        "en": "locate",
+        "laos": "ຊອກຫາສະຖານ",
+        "jp": "見つける",
+        "vie": "xác định vị trí",
+        "en_pronunciation": "/ˈloʊˌkeɪt/",
+        "laos_pronunciation": "sokhasathan",
+        "jp_pronunciation": "mitsu keru",
+        "vie_pronunciation": "xac dinh vi tri"
+      },
+      "means": {
+        "en": "Discover the location of; determine the place of; find by searching or examining",
+        "zh": "发现以下地点；"
+      }
+    },
+    {
+      "word": {
+        "en": "location",
+        "laos": "ທີ່ຕັ້ງ",
+        "jp": "場所",
+        "vie": "vị trí",
+        "en_pronunciation": "/loʊˈkeɪʃən/",
+        "laos_pronunciation": "thitang",
+        "jp_pronunciation": "basho",
+        "vie_pronunciation": "vi tri"
+      },
+      "means": {
+        "en": "A point or extent in space",
+        "zh": "确定地点；"
+      }
+    },
+    {
+      "word": {
+        "en": "lock",
+        "laos": "ກະແຈ",
+        "jp": "ロック",
+        "vie": "khóa",
+        "en_pronunciation": "/lɑk/",
+        "laos_pronunciation": "kaaech",
+        "jp_pronunciation": "rokku",
+        "vie_pronunciation": "khoa"
+      },
+      "means": {
+        "en": "A fastener fitted to a door or drawer to keep it firmly closed",
+        "zh": "通过搜索或检查找到"
+      }
+    },
+    {
+      "word": {
+        "en": "locker",
+        "laos": "ບັນທຶກ",
+        "jp": "ロッカー",
+        "vie": "tủ đựng đồ",
+        "en_pronunciation": "/ˈlɑkər/",
+        "laos_pronunciation": "banthuk",
+        "jp_pronunciation": "rokkaa",
+        "vie_pronunciation": "tu dung do"
+      },
+      "means": {
+        "en": "A storage compartment for clothes and valuables; usually it has a lock",
+        "zh": "空间中的一个点或范围"
+      }
+    },
+    {
+      "word": {
+        "en": "locomotive",
+        "laos": "ຜູ້ຢິງສະຫຼັກ",
+        "jp": "機関車",
+        "vie": "đầu máy xe lửa",
+        "en_pronunciation": "/ˌloʊkəˈmoʊtɪv/",
+        "laos_pronunciation": "phu yingsarak",
+        "jp_pronunciation": "kikansha",
+        "vie_pronunciation": "dau may xe lua"
+      },
+      "means": {
+        "en": "A wheeled vehicle consisting of a self-propelled engine that is used to draw trains along railway tracks",
+        "zh": "安装在门或抽屉上以使其牢固关闭的紧固件"
+      }
+    },
+    {
+      "word": {
+        "en": "lodge",
+        "laos": "ທີ່ຢູ່",
+        "jp": "ロッジ",
+        "vie": "nhà nghỉ",
+        "en_pronunciation": "/lɑʤ/",
+        "laos_pronunciation": "thiyu",
+        "jp_pronunciation": "rojji",
+        "vie_pronunciation": "nha nghi"
+      },
+      "means": {
+        "en": "English physicist who studied electromagnetic radiation and was a pioneer of radiotelegraphy (1851-1940)",
+        "zh": "用于存放衣服和贵重物品的储藏室；"
+      }
+    },
+    {
+      "word": {
+        "en": "lodging",
+        "laos": "ບ່ອນພັກ",
+        "jp": "宿泊",
+        "vie": "chỗ ở",
+        "en_pronunciation": "/ˈlɑʤɪŋ/",
+        "laos_pronunciation": "bonphak",
+        "jp_pronunciation": "shukuhaku",
+        "vie_pronunciation": "cho o"
+      },
+      "means": {
+        "en": "Structures collectively in which people are housed",
+        "zh": "通常它有一个锁"
+      }
+    },
+    {
+      "word": {
+        "en": "lofty",
+        "laos": "ສູງປ່ຽວ",
+        "jp": "高尚な",
+        "vie": "cao cả",
+        "en_pronunciation": "/ˈlɔfti/",
+        "laos_pronunciation": "sungpiav",
+        "jp_pronunciation": "koushou na",
+        "vie_pronunciation": "cao ca"
+      },
+      "means": {
+        "en": "Of high moral or intellectual value; elevated in nature or style; ; - Oliver Franks",
+        "zh": "一种由自走式发动机组成的轮式车辆，用于沿着铁轨牵引火车"
+      }
+    },
+    {
+      "word": {
+        "en": "log",
+        "laos": "ໄມ້ທ່ອນ",
+        "jp": "ログ",
+        "vie": "nhật ký",
+        "en_pronunciation": "/lɔg/",
+        "laos_pronunciation": "maithon",
+        "jp_pronunciation": "rogu",
+        "vie_pronunciation": "nhat ky"
+      },
+      "means": {
+        "en": "A segment of the trunk of a tree when stripped of branches",
+        "zh": "研究电磁辐射的英国物理学家，无线电报术的先驱（1851-1940）"
+      }
+    },
+    {
+      "word": {
+        "en": "logic",
+        "laos": "ຕາມເຫດຜົນ",
+        "jp": "ロジック",
+        "vie": "logic",
+        "en_pronunciation": "/ˈlɑʤɪk/",
+        "laos_pronunciation": "tamhedphon",
+        "jp_pronunciation": "rojikku",
+        "vie_pronunciation": "logic"
+      },
+      "means": {
+        "en": "The branch of philosophy that analyzes inference",
+        "zh": "人们居住的集体建筑"
+      }
+    },
+    {
+      "word": {
+        "en": "logistics",
+        "laos": "ການຂົນສົ່ງ",
+        "jp": "物流",
+        "vie": "hậu cần",
+        "en_pronunciation": "/ləˈʤɪstɪks/",
+        "laos_pronunciation": "kankhonsong",
+        "jp_pronunciation": "butsuryuu",
+        "vie_pronunciation": "hau can"
+      },
+      "means": {
+        "en": "Handling an operation that involves providing labor and materials be supplied as needed",
+        "zh": "具有崇高的道德或智力价值；"
+      }
+    },
+    {
+      "word": {
+        "en": "logo",
+        "laos": "ໂລໂກ້",
+        "jp": "ロゴ",
+        "vie": "biểu tượng",
+        "en_pronunciation": "/ˈloʊgoʊ/",
+        "laos_pronunciation": "olok",
+        "jp_pronunciation": "rogo",
+        "vie_pronunciation": "bieu tuong"
+      },
+      "means": {
+        "en": "A company emblem or device",
+        "zh": "本质或风格上的提升；"
+      }
+    },
+    {
+      "word": {
+        "en": "logical",
+        "laos": "ຍ່າງເປັນຕິຖານ",
+        "jp": "論理的な",
+        "vie": "logic",
+        "en_pronunciation": "/ˈlɑʤɪkəl/",
+        "laos_pronunciation": "nyang pen tithan",
+        "jp_pronunciation": "ronriteki na",
+        "vie_pronunciation": "logic"
+      },
+      "means": {
+        "en": "Capable of or reflecting the capability for correct and valid reasoning",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "logistic",
+        "laos": "ຜູ້ລົງທຸລະກິດ",
+        "jp": "ロジスティック",
+        "vie": "hậu cần",
+        "en_pronunciation": "/ləˈʤɪstɪk/",
+        "laos_pronunciation": "phu longthulakid",
+        "jp_pronunciation": "rojisuteikku",
+        "vie_pronunciation": "hau can"
+      },
+      "means": {
+        "en": "Of or relating to logistics",
+        "zh": "——奥利弗·弗兰克斯"
+      }
+    },
+    {
+      "word": {
+        "en": "logistical",
+        "laos": "ແສ້ວພາບ",
+        "jp": "物流的な",
+        "vie": "hậu cần",
+        "en_pronunciation": "/ləˈʤɪstɪkəl/",
+        "laos_pronunciation": "aesuaphab",
+        "jp_pronunciation": "butsuryuu tekina",
+        "vie_pronunciation": "hau can"
+      },
+      "means": {
+        "en": "Of or relating to logistics",
+        "zh": "树干被剥去树枝后的一段"
+      }
+    },
+    {
+      "word": {
+        "en": "lonely",
+        "laos": "ປ່ຽວໃຈ",
+        "jp": "寂しい",
+        "vie": "cô đơn",
+        "en_pronunciation": "/ˈloʊnli/",
+        "laos_pronunciation": "piauachai",
+        "jp_pronunciation": "sabishii",
+        "vie_pronunciation": "co don"
+      },
+      "means": {
+        "en": "Lacking companions or companionship",
+        "zh": "分析推理的哲学分支"
+      }
+    },
+    {
+      "word": {
+        "en": "loneliness",
+        "laos": "ຄວາມໂດດດ່ຽວ",
+        "jp": "孤独",
+        "vie": "sự cô đơn",
+        "en_pronunciation": "/ˈloʊnlinəs/",
+        "laos_pronunciation": "khuaam odddiav",
+        "jp_pronunciation": "kodoku",
+        "vie_pronunciation": "su co don"
+      },
+      "means": {
+        "en": "The state of being alone in solitary isolation",
+        "zh": "处理涉及根据需要提供劳动力和材料的操作"
+      }
+    },
+    {
+      "word": {
+        "en": "long",
+        "laos": "ຢາວ",
+        "jp": "長い",
+        "vie": "dài",
+        "en_pronunciation": "/lɔŋ/",
+        "laos_pronunciation": "yav",
+        "jp_pronunciation": "nagai",
+        "vie_pronunciation": "dai"
+      },
+      "means": {
+        "en": "Desire strongly or persistently",
+        "zh": "公司标志或标志"
+      }
+    },
+    {
+      "word": {
+        "en": "length",
+        "laos": "ຄວາມຍາວ",
+        "jp": "長さ",
+        "vie": "chiều dài",
+        "en_pronunciation": "/lɛŋθ/",
+        "laos_pronunciation": "khuaamnyav",
+        "jp_pronunciation": "nagasa",
+        "vie_pronunciation": "chieu dai"
+      },
+      "means": {
+        "en": "The linear extent in space from one end to the other; the longest dimension of something that is fixed in place",
+        "zh": "能够或反映正确有效推理的能力"
+      }
+    },
+    {
+      "word": {
+        "en": "lengthy",
+        "laos": "ທີ່ຍາວນານ",
+        "jp": "長い",
+        "vie": "dài dòng",
+        "en_pronunciation": "/ˈlɛŋθi/",
+        "laos_pronunciation": "thinyauanan",
+        "jp_pronunciation": "nagai",
+        "vie_pronunciation": "dai dong"
+      },
+      "means": {
+        "en": "Relatively long in duration; tediously protracted",
+        "zh": "物流的或与物流有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "longevity",
+        "laos": "ມີອາຍຸຕ່ໍາ",
+        "jp": "長寿",
+        "vie": "tuổi thọ",
+        "en_pronunciation": "/lɔnˈʤɛvəti/",
+        "laos_pronunciation": "mioaiutoa",
+        "jp_pronunciation": "chouju",
+        "vie_pronunciation": "tuoi tho"
+      },
+      "means": {
+        "en": "Duration of service",
+        "zh": "物流的或与物流有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "longitude",
+        "laos": "ເສ້ັນເດີນທາງ",
+        "jp": "経度",
+        "vie": "kinh độ",
+        "en_pronunciation": "/ˈlɑnʤəˌtud/",
+        "laos_pronunciation": "se andoenthang",
+        "jp_pronunciation": "keido",
+        "vie_pronunciation": "kinh do"
+      },
+      "means": {
+        "en": "The angular distance between a point on any meridian and the prime meridian at Greenwich",
+        "zh": "缺少同伴或陪伴"
+      }
+    },
+    {
+      "word": {
+        "en": "longitudinal",
+        "laos": "ຕາມລວງຍາວ",
+        "jp": "縦方向の",
+        "vie": "theo chiều dọc",
+        "en_pronunciation": "/ˌlɑnʤəˈtudənəl/",
+        "laos_pronunciation": "tam luangnyav",
+        "jp_pronunciation": "tatehoukou no",
+        "vie_pronunciation": "theo chieu doc"
+      },
+      "means": {
+        "en": "Of or relating to lines of longitude",
+        "zh": "独处独处的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "look",
+        "laos": "ເບິ່ງ",
+        "jp": "見てください",
+        "vie": "nhìn",
+        "en_pronunciation": "/lʊk/",
+        "laos_pronunciation": "boeng",
+        "jp_pronunciation": "mite kudasai",
+        "vie_pronunciation": "nhin"
+      },
+      "means": {
+        "en": "The feelings expressed on a person's face",
+        "zh": "强烈或持久的渴望"
+      }
+    },
+    {
+      "word": {
+        "en": "loom",
+        "laos": "ໂລໂກ້",
+        "jp": "織機",
+        "vie": "khung cửi",
+        "en_pronunciation": "/lum/",
+        "laos_pronunciation": "olok",
+        "jp_pronunciation": "shokki",
+        "vie_pronunciation": "khung cui"
+      },
+      "means": {
+        "en": "A textile machine for weaving yarn into a textile",
+        "zh": "从一端到另一端的空间线性范围；"
+      }
+    },
+    {
+      "word": {
+        "en": "loop",
+        "laos": "loop loop",
+        "jp": "ループ",
+        "vie": "vòng lặp",
+        "en_pronunciation": "/lup/",
+        "laos_pronunciation": "loop loop",
+        "jp_pronunciation": "ruupu",
+        "vie_pronunciation": "vong lap"
+      },
+      "means": {
+        "en": "Fastener consisting of a metal ring for lining a small hole to permit the attachment of cords or lines",
+        "zh": "固定在适当位置的物体的最长尺寸"
+      }
+    },
+    {
+      "word": {
+        "en": "loophole",
+        "laos": "ຊ່ອງ",
+        "jp": "抜け穴",
+        "vie": "lỗ hổng",
+        "en_pronunciation": "/ˈluˌphoʊl/",
+        "laos_pronunciation": "song",
+        "jp_pronunciation": "nukeana",
+        "vie_pronunciation": "lo hong"
+      },
+      "means": {
+        "en": "An ambiguity (especially one in the text of a law or contract) that makes it possible to evade a difficulty or obligation",
+        "zh": "持续时间相对较长；"
+      }
+    },
+    {
+      "word": {
+        "en": "loose",
+        "laos": "ຮ່ອນ",
+        "jp": "緩い",
+        "vie": "lỏng lẻo",
+        "en_pronunciation": "/lus/",
+        "laos_pronunciation": "hon",
+        "jp_pronunciation": "yurui",
+        "vie_pronunciation": "long leo"
+      },
+      "means": {
+        "en": "Grant freedom to; free from confinement",
+        "zh": "冗长乏味"
+      }
+    },
+    {
+      "word": {
+        "en": "loosen",
+        "laos": "ພວນ",
+        "jp": "緩める",
+        "vie": "nới lỏng",
+        "en_pronunciation": "/ˈlusən/",
+        "laos_pronunciation": "phuan",
+        "jp_pronunciation": "yurume ru",
+        "vie_pronunciation": "noi long"
+      },
+      "means": {
+        "en": "Make loose or looser",
+        "zh": "服务期限"
+      }
+    },
+    {
+      "word": {
+        "en": "loot",
+        "laos": "loot",
+        "jp": "戦利品",
+        "vie": "cướp bóc",
+        "en_pronunciation": "/lut/",
+        "laos_pronunciation": "loot",
+        "jp_pronunciation": "senrihin",
+        "vie_pronunciation": "cuop boc"
+      },
+      "means": {
+        "en": "Goods or money obtained illegally",
+        "zh": "任意子午线上的一点与格林威治本初子午线之间的角距离"
+      }
+    },
+    {
+      "word": {
+        "en": "lord",
+        "laos": "ພະຍາ",
+        "jp": "主君",
+        "vie": "chúa tể",
+        "en_pronunciation": "/lɔrd/",
+        "laos_pronunciation": "phanya",
+        "jp_pronunciation": "shukun",
+        "vie_pronunciation": "chua te"
+      },
+      "means": {
+        "en": "Terms referring to the Judeo-Christian God",
+        "zh": "属于或关于经度线"
+      }
+    },
+    {
+      "word": {
+        "en": "lorry",
+        "laos": "ລົດບັນທົກ",
+        "jp": "トラック",
+        "vie": "xe tải",
+        "en_pronunciation": "/ˈlɔri/",
+        "laos_pronunciation": "lod banthok",
+        "jp_pronunciation": "torakku",
+        "vie_pronunciation": "xe tai"
+      },
+      "means": {
+        "en": "A large low horse-drawn wagon without sides",
+        "zh": "一个人脸上所表达的感情"
+      }
+    },
+    {
+      "word": {
+        "en": "lose",
+        "laos": "ເສຽໄປ",
+        "jp": "負ける",
+        "vie": "thua",
+        "en_pronunciation": "/luz/",
+        "laos_pronunciation": "seiapai",
+        "jp_pronunciation": "make ru",
+        "vie_pronunciation": "thua"
+      },
+      "means": {
+        "en": "Fail to keep or to maintain; cease to have, either physically or in an abstract sense",
+        "zh": "用于将纱线织成纺织品的纺织机"
+      }
+    },
+    {
+      "word": {
+        "en": "loss",
+        "laos": "ການສູນເສຍ",
+        "jp": "損失",
+        "vie": "mất mát",
+        "en_pronunciation": "/lɔs/",
+        "laos_pronunciation": "kansunsia",
+        "jp_pronunciation": "sonshitsu",
+        "vie_pronunciation": "mat mat"
+      },
+      "means": {
+        "en": "Something that is lost",
+        "zh": "由金属环组成的紧固件，用于衬里小孔以允许连接绳索或电线"
+      }
+    },
+    {
+      "word": {
+        "en": "lot",
+        "laos": "ກ່າຍ",
+        "jp": "ロット",
+        "vie": "rất nhiều",
+        "en_pronunciation": "/lɔt/",
+        "laos_pronunciation": "kai",
+        "jp_pronunciation": "rotto",
+        "vie_pronunciation": "rat nhieu"
+      },
+      "means": {
+        "en": "(often followed by `of') a large number or amount or extent",
+        "zh": "一种模糊性（尤其是法律或合同文本中的模糊性），使得逃避困难或义务成为可能"
+      }
+    },
+    {
+      "word": {
+        "en": "lotion",
+        "laos": "ນ້ໍາແບ້ນ",
+        "jp": "ローション",
+        "vie": "kem dưỡng da",
+        "en_pronunciation": "/ˈloʊʃən/",
+        "laos_pronunciation": "noaaebn",
+        "jp_pronunciation": "rooshon",
+        "vie_pronunciation": "kem duong da"
+      },
+      "means": {
+        "en": "Any of various cosmetic preparations that are applied to the skin",
+        "zh": "授予自由；"
+      }
+    },
+    {
+      "word": {
+        "en": "lottery",
+        "laos": "ການຈັບສະເດັດ",
+        "jp": "宝くじ",
+        "vie": "xổ số",
+        "en_pronunciation": "/ˈlɑtəri/",
+        "laos_pronunciation": "kan chabsaded",
+        "jp_pronunciation": "takarakuji",
+        "vie_pronunciation": "xo so"
+      },
+      "means": {
+        "en": "Something that is regarded as a chance event",
+        "zh": "不受束缚"
+      }
+    },
+    {
+      "word": {
+        "en": "loud",
+        "laos": "ດັງ",
+        "jp": "大声で",
+        "vie": "ồn ào",
+        "en_pronunciation": "/laʊd/",
+        "laos_pronunciation": "dang",
+        "jp_pronunciation": "oogoe de",
+        "vie_pronunciation": "on ao"
+      },
+      "means": {
+        "en": "Characterized by or producing sound of great volume or intensity",
+        "zh": "变得宽松或者更宽松"
+      }
+    },
+    {
+      "word": {
+        "en": "loudly",
+        "laos": "ດັງໆ",
+        "jp": "大声で",
+        "vie": "lớn tiếng",
+        "en_pronunciation": "/ˈlaʊdli/",
+        "laos_pronunciation": "dang",
+        "jp_pronunciation": "oogoe de",
+        "vie_pronunciation": "lon tieng"
+      },
+      "means": {
+        "en": "With relatively high volume",
+        "zh": "非法获得的物品或金钱"
+      }
+    },
+    {
+      "word": {
+        "en": "lounge",
+        "laos": "ຕ້ອນ",
+        "jp": "ラウンジ",
+        "vie": "phòng chờ",
+        "en_pronunciation": "/laʊnʤ/",
+        "laos_pronunciation": "ton",
+        "jp_pronunciation": "raunji",
+        "vie_pronunciation": "phong cho"
+      },
+      "means": {
+        "en": "An upholstered seat for more than one person",
+        "zh": "涉及犹太基督教上帝的术语"
+      }
+    },
+    {
+      "word": {
+        "en": "love",
+        "laos": "ຮັກ",
+        "jp": "愛",
+        "vie": "tình yêu",
+        "en_pronunciation": "/ləv/",
+        "laos_pronunciation": "hak",
+        "jp_pronunciation": "ai",
+        "vie_pronunciation": "tinh yeu"
+      },
+      "means": {
+        "en": "A strong positive emotion of regard and affection",
+        "zh": "大型低矮无侧马车"
+      }
+    },
+    {
+      "word": {
+        "en": "lovely",
+        "laos": "ແປກ",
+        "jp": "素敵な",
+        "vie": "đáng yêu",
+        "en_pronunciation": "/ˈləvli/",
+        "laos_pronunciation": "aepk",
+        "jp_pronunciation": "suteki na",
+        "vie_pronunciation": "dang yeu"
+      },
+      "means": {
+        "en": "A very pretty girl who works as a photographer's model",
+        "zh": "未能保存或维持；"
+      }
+    },
+    {
+      "word": {
+        "en": "lover",
+        "laos": "ຄົນຮັກ",
+        "jp": "恋人",
+        "vie": "người yêu",
+        "en_pronunciation": "/ˈləvər/",
+        "laos_pronunciation": "khonhak",
+        "jp_pronunciation": "koibito",
+        "vie_pronunciation": "nguoi yeu"
+      },
+      "means": {
+        "en": "A person who loves someone or is loved by someone",
+        "zh": "无论是在物理上还是在抽象意义上都不再具有"
+      }
+    },
+    {
+      "word": {
+        "en": "low",
+        "laos": "ຕ່ໍາ",
+        "jp": "低い",
+        "vie": "thấp",
+        "en_pronunciation": "/loʊ/",
+        "laos_pronunciation": "toa",
+        "jp_pronunciation": "hikui",
+        "vie_pronunciation": "thap"
+      },
+      "means": {
+        "en": "An air mass of lower pressure; often brings precipitation",
+        "zh": "失去的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "lower",
+        "laos": "ຕ່ໍາກວ່າ",
+        "jp": "低い",
+        "vie": "thấp hơn",
+        "en_pronunciation": "/loʊər/",
+        "laos_pronunciation": "toakva",
+        "jp_pronunciation": "hikui",
+        "vie_pronunciation": "thap hon"
+      },
+      "means": {
+        "en": "The lower of two berths",
+        "zh": "（通常后跟“of”）大量、数量或范围"
+      }
+    },
+    {
+      "word": {
+        "en": "loyal",
+        "laos": "ຈົງຮັກພັກດີ",
+        "jp": "忠実な",
+        "vie": "trung thành",
+        "en_pronunciation": "/lɔɪəl/",
+        "laos_pronunciation": "chonghakphakdi",
+        "jp_pronunciation": "chuujitsu na",
+        "vie_pronunciation": "trung thanh"
+      },
+      "means": {
+        "en": "Steadfast in allegiance or duty",
+        "zh": "任何应用于皮肤的各种化妆品制剂"
+      }
+    },
+    {
+      "word": {
+        "en": "loyalty",
+        "laos": "ຄວາມຈົງຮັກພັກດີ",
+        "jp": "忠誠心",
+        "vie": "lòng trung thành",
+        "en_pronunciation": "/ˈlɔɪəlti/",
+        "laos_pronunciation": "khuaam chonghakphakdi",
+        "jp_pronunciation": "chuuseishin",
+        "vie_pronunciation": "long trung thanh"
+      },
+      "means": {
+        "en": "The quality of being loyal",
+        "zh": "被视为偶然事件的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "lubricate",
+        "laos": "ຢອດນ້ໍາມັນ",
+        "jp": "潤滑する",
+        "vie": "bôi trơn",
+        "en_pronunciation": "/ˈlubrɪˌkeɪt/",
+        "laos_pronunciation": "yodnoaman",
+        "jp_pronunciation": "junkatsu suru",
+        "vie_pronunciation": "boi tron"
+      },
+      "means": {
+        "en": "Have lubricating properties",
+        "zh": "以产生大音量或强度的声音为特征或产生大音量或强度的声音"
+      }
+    },
+    {
+      "word": {
+        "en": "luck",
+        "laos": "ໂຊກກັບ",
+        "jp": "運",
+        "vie": "may mắn",
+        "en_pronunciation": "/lək/",
+        "laos_pronunciation": "oskkab",
+        "jp_pronunciation": "un",
+        "vie_pronunciation": "may man"
+      },
+      "means": {
+        "en": "Your overall circumstances or condition in life (including everything that happens to you)",
+        "zh": "具有相对较高的成交量"
+      }
+    },
+    {
+      "word": {
+        "en": "lubrication",
+        "laos": "ການຫົດນ້ໍາ",
+        "jp": "潤滑",
+        "vie": "bôi trơn",
+        "en_pronunciation": "/ˌlubrɪˈkeɪʃən/",
+        "laos_pronunciation": "kanhodnoa",
+        "jp_pronunciation": "junkatsu",
+        "vie_pronunciation": "boi tron"
+      },
+      "means": {
+        "en": "The condition of having been made smooth or slippery by the application of a lubricant",
+        "zh": "可供多人使用的软垫座椅"
+      }
+    },
+    {
+      "word": {
+        "en": "lucky",
+        "laos": "ໂຊກດີ",
+        "jp": "幸運な",
+        "vie": "may mắn",
+        "en_pronunciation": "/ˈləki/",
+        "laos_pronunciation": "oskdi",
+        "jp_pronunciation": "kouun na",
+        "vie_pronunciation": "may man"
+      },
+      "means": {
+        "en": "Occurring by chance",
+        "zh": "强烈的尊重和喜爱的积极情绪"
+      }
+    },
+    {
+      "word": {
+        "en": "lucrative",
+        "laos": "ເຊີງກໍາ",
+        "jp": "儲かる",
+        "vie": "sinh lời",
+        "en_pronunciation": "/ˈlukrətɪv/",
+        "laos_pronunciation": "soengkoa",
+        "jp_pronunciation": "mouka ru",
+        "vie_pronunciation": "sinh loi"
+      },
+      "means": {
+        "en": "Producing a sizeable profit",
+        "zh": "一个非常漂亮的女孩，担任摄影师模特"
+      }
+    },
+    {
+      "word": {
+        "en": "luggage",
+        "laos": "ກະເປົາ",
+        "jp": "荷物",
+        "vie": "hành lý",
+        "en_pronunciation": "/ˈləgɪʤ/",
+        "laos_pronunciation": "kapao",
+        "jp_pronunciation": "nimotsu",
+        "vie_pronunciation": "hanh ly"
+      },
+      "means": {
+        "en": "Cases used to carry belongings when traveling",
+        "zh": "爱某人或被某人爱的人"
+      }
+    },
+    {
+      "word": {
+        "en": "luminous",
+        "laos": "ສະຫວ່າງ",
+        "jp": "明るい",
+        "vie": "sáng",
+        "en_pronunciation": "/ˈlumənəs/",
+        "laos_pronunciation": "savang",
+        "jp_pronunciation": "akarui",
+        "vie_pronunciation": "sang"
+      },
+      "means": {
+        "en": "Softly bright or radiant",
+        "zh": "气压较低的气团；"
+      }
+    },
+    {
+      "word": {
+        "en": "lump",
+        "laos": "ກ້ອນ",
+        "jp": "しこり",
+        "vie": "một cục",
+        "en_pronunciation": "/ləmp/",
+        "laos_pronunciation": "kon",
+        "jp_pronunciation": "shikori",
+        "vie_pronunciation": "mot cuc"
+      },
+      "means": {
+        "en": "A compact mass",
+        "zh": "常常带来降水"
+      }
+    },
+    {
+      "word": {
+        "en": "lunar",
+        "laos": "ສຸພັນ",
+        "jp": "月の",
+        "vie": "mặt trăng",
+        "en_pronunciation": "/ˈlunər/",
+        "laos_pronunciation": "suphan",
+        "jp_pronunciation": "gatsu no",
+        "vie_pronunciation": "mat trang"
+      },
+      "means": {
+        "en": "Of or relating to or associated with the moon",
+        "zh": "两个铺位中较低的一个"
+      }
+    },
+    {
+      "word": {
+        "en": "lunch",
+        "laos": "ອາຫານທ່ຽງ",
+        "jp": "昼食",
+        "vie": "bữa trưa",
+        "en_pronunciation": "/lənʧ/",
+        "laos_pronunciation": "ahanthiang",
+        "jp_pronunciation": "chuushoku",
+        "vie_pronunciation": "bua trua"
+      },
+      "means": {
+        "en": "A midday meal",
+        "zh": "坚定的忠诚或责任"
+      }
+    },
+    {
+      "word": {
+        "en": "luncheon",
+        "laos": "ສິງ",
+        "jp": "昼食会",
+        "vie": "bữa trưa",
+        "en_pronunciation": "/ˈlənʧən/",
+        "laos_pronunciation": "sing",
+        "jp_pronunciation": "chuushokukai",
+        "vie_pronunciation": "bua trua"
+      },
+      "means": {
+        "en": "A midday meal",
+        "zh": "忠诚的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "lung",
+        "laos": "ປອດ",
+        "jp": "肺",
+        "vie": "phổi",
+        "en_pronunciation": "/ləŋ/",
+        "laos_pronunciation": "pod",
+        "jp_pronunciation": "hai",
+        "vie_pronunciation": "phoi"
+      },
+      "means": {
+        "en": "Either of two saclike respiratory organs in the chest of vertebrates; serves to remove carbon dioxide and provide oxygen to the blood",
+        "zh": "具有润滑性能"
+      }
+    },
+    {
+      "word": {
+        "en": "lure",
+        "laos": "ຊັກຊວນ",
+        "jp": "ルアー",
+        "vie": "thu hút",
+        "en_pronunciation": "/lʊr/",
+        "laos_pronunciation": "saksuan",
+        "jp_pronunciation": "ruaa",
+        "vie_pronunciation": "thu hut"
+      },
+      "means": {
+        "en": "Qualities that attract by seeming to promise some kind of reward",
+        "zh": "您的整体情况或生活状况（包括发生在您身上的一切）"
+      }
+    },
+    {
+      "word": {
+        "en": "luxury",
+        "laos": "ແບບຫລູຫລາ",
+        "jp": "贅沢な",
+        "vie": "sang trọng",
+        "en_pronunciation": "/ˈləgʒəri/",
+        "laos_pronunciation": "aebblula",
+        "jp_pronunciation": "zeitaku na",
+        "vie_pronunciation": "sang trong"
+      },
+      "means": {
+        "en": "Something that is an indulgence rather than a necessity",
+        "zh": "通过使用润滑剂而变得光滑或光滑的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "luxurious",
+        "laos": "ຟູມເຟືອຍ",
+        "jp": "豪華な",
+        "vie": "sang trọng",
+        "en_pronunciation": "/ləgˈʒəriəs/",
+        "laos_pronunciation": "fum feuony",
+        "jp_pronunciation": "gouka na",
+        "vie_pronunciation": "sang trong"
+      },
+      "means": {
+        "en": "Displaying luxury and furnishing gratification to the senses",
+        "zh": "偶然发生"
+      }
+    },
+    {
+      "word": {
+        "en": "lyric",
+        "laos": "ເນື້ອເຍີ",
+        "jp": "歌詞",
+        "vie": "lời bài hát",
+        "en_pronunciation": "/ˈlɪrɪk/",
+        "laos_pronunciation": "neuonyoe",
+        "jp_pronunciation": "kashi",
+        "vie_pronunciation": "loi bai hat"
+      },
+      "means": {
+        "en": "The text of a popular song or musical-comedy number",
+        "zh": "产生可观的利润"
+      }
+    },
+    {
+      "word": {
+        "en": "lyrical",
+        "laos": "ຕະຕິຍະ",
+        "jp": "抒情的な",
+        "vie": "trữ tình",
+        "en_pronunciation": "/ˈlɪrɪkəl/",
+        "laos_pronunciation": "ta tinya",
+        "jp_pronunciation": "jojou tekina",
+        "vie_pronunciation": "tru tinh"
+      },
+      "means": {
+        "en": "Suitable for or suggestive of singing",
+        "zh": "旅行时用于携带物品的箱子"
+      }
+    },
+    {
+      "word": {
+        "en": "machine",
+        "laos": "ເຄື່ອງຈັກ",
+        "jp": "機械",
+        "vie": "máy móc",
+        "en_pronunciation": "/məˈʃin/",
+        "laos_pronunciation": "kheuongchak",
+        "jp_pronunciation": "kikai",
+        "vie_pronunciation": "may moc"
+      },
+      "means": {
+        "en": "Any mechanical or electrical device that transmits or modifies energy to perform or assist in the performance of human tasks",
+        "zh": "柔和明亮或容光焕发"
+      }
+    },
+    {
+      "word": {
+        "en": "machinery",
+        "laos": "ເຄື່ອງກົນຈັກ",
+        "jp": "機械",
+        "vie": "máy móc",
+        "en_pronunciation": "/məˈʃinəri/",
+        "laos_pronunciation": "kheuongkonchak",
+        "jp_pronunciation": "kikai",
+        "vie_pronunciation": "may moc"
+      },
+      "means": {
+        "en": "Machines or machine systems collectively",
+        "zh": "紧凑的质量"
+      }
+    },
+    {
+      "word": {
+        "en": "mad",
+        "laos": "ບ້າ",
+        "jp": "狂った",
+        "vie": "điên",
+        "en_pronunciation": "/mæd/",
+        "laos_pronunciation": "ba",
+        "jp_pronunciation": "kurutsu ta",
+        "vie_pronunciation": "dien"
+      },
+      "means": {
+        "en": "Roused to anger; - Mark Twain",
+        "zh": "属于月球的或与月球有关的或与月球有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "madden",
+        "laos": "ແມດ",
+        "jp": "狂った",
+        "vie": "điên cuồng",
+        "en_pronunciation": "/ˈmædən/",
+        "laos_pronunciation": "aemd",
+        "jp_pronunciation": "kurutsu ta",
+        "vie_pronunciation": "dien cuong"
+      },
+      "means": {
+        "en": "Cause to go crazy; cause to lose one's mind",
+        "zh": "中午一顿饭"
+      }
+    },
+    {
+      "word": {
+        "en": "madam",
+        "laos": "ບ້ານາມ",
+        "jp": "マダム",
+        "vie": "bà",
+        "en_pronunciation": "/ˈmædəm/",
+        "laos_pronunciation": "banam",
+        "jp_pronunciation": "madamu",
+        "vie_pronunciation": "ba"
+      },
+      "means": {
+        "en": "A woman of refinement",
+        "zh": "中午一顿饭"
+      }
+    },
+    {
+      "word": {
+        "en": "magazine",
+        "laos": "ວາລະສານ",
+        "jp": "雑誌",
+        "vie": "tạp chí",
+        "en_pronunciation": "/ˈmægəˌzin/",
+        "laos_pronunciation": "valasan",
+        "jp_pronunciation": "zasshi",
+        "vie_pronunciation": "tap chi"
+      },
+      "means": {
+        "en": "A periodic publication containing pictures and stories and articles of interest to those who purchase it or subscribe to it",
+        "zh": "脊椎动物胸部的两个囊状呼吸器官之一；"
+      }
+    },
+    {
+      "word": {
+        "en": "magic",
+        "laos": "ວິທະຍຸ",
+        "jp": "魔法",
+        "vie": "ma thuật",
+        "en_pronunciation": "/ˈmæʤɪk/",
+        "laos_pronunciation": "vithanyu",
+        "jp_pronunciation": "mahou",
+        "vie_pronunciation": "ma thuat"
+      },
+      "means": {
+        "en": "Any art that invokes supernatural powers",
+        "zh": "用于去除二氧化碳并为血液提供氧气"
+      }
+    },
+    {
+      "word": {
+        "en": "magical",
+        "laos": "magicalay",
+        "jp": "魔法の",
+        "vie": "huyền diệu",
+        "en_pronunciation": "/ˈmæʤɪkəl/",
+        "laos_pronunciation": "magicalay",
+        "jp_pronunciation": "mahou no",
+        "vie_pronunciation": "huyen dieu"
+      },
+      "means": {
+        "en": "Possessing or using or characteristic of or appropriate to supernatural powers; ; ; ; - Shakespeare",
+        "zh": "通过似乎承诺某种奖励而吸引人的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "magistrate",
+        "laos": "ຜູ້ພິພາກສາ",
+        "jp": "判事",
+        "vie": "quan tòa",
+        "en_pronunciation": "/ˈmæʤɪˌstreɪt/",
+        "laos_pronunciation": "phuphiphaksa",
+        "jp_pronunciation": "hanji",
+        "vie_pronunciation": "quan toa"
+      },
+      "means": {
+        "en": "A lay judge or civil authority who administers the law (especially one who conducts a court dealing with minor offenses)",
+        "zh": "这是一种放纵而不是必需的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "magnet",
+        "laos": "ແມ່ເຫລັກ",
+        "jp": "磁石",
+        "vie": "nam châm",
+        "en_pronunciation": "/ˈmægnət/",
+        "laos_pronunciation": "aemhelak",
+        "jp_pronunciation": "jishaku",
+        "vie_pronunciation": "nam cham"
+      },
+      "means": {
+        "en": "(physics) a device that attracts iron and produces a magnetic field",
+        "zh": "展现奢华，提供感官满足"
+      }
+    },
+    {
+      "word": {
+        "en": "magnetic",
+        "laos": "ແມ່ເຫລັກ",
+        "jp": "磁気",
+        "vie": "từ tính",
+        "en_pronunciation": "/mægˈnɛtɪk/",
+        "laos_pronunciation": "aemhelak",
+        "jp_pronunciation": "jiki",
+        "vie_pronunciation": "tu tinh"
+      },
+      "means": {
+        "en": "Of or relating to or caused by magnetism",
+        "zh": "流行歌曲或音乐喜剧的文本"
+      }
+    },
+    {
+      "word": {
+        "en": "magnificent",
+        "laos": "ສະຫງ່າ",
+        "jp": "素晴らしい",
+        "vie": "tráng lệ",
+        "en_pronunciation": "/mægˈnɪfɪsənt/",
+        "laos_pronunciation": "sanga",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "trang le"
+      },
+      "means": {
+        "en": "Characterized by grandeur",
+        "zh": "适合或暗示唱歌"
+      }
+    },
+    {
+      "word": {
+        "en": "magnificence",
+        "laos": "ວາຍມະຄຸນ",
+        "jp": "素晴らしさ",
+        "vie": "sự tráng lệ",
+        "en_pronunciation": "/magnificence/",
+        "laos_pronunciation": "vai makhun",
+        "jp_pronunciation": "subarashisa",
+        "vie_pronunciation": "su trang le"
+      },
+      "means": {
+        "en": "Splendid or imposing in size or appearance",
+        "zh": "任何传输或修改能量以执行或协助执行人类任务的机械或电气设备"
+      }
+    },
+    {
+      "word": {
+        "en": "magnify",
+        "laos": "ຂະຫຍາຍການ",
+        "jp": "拡大する",
+        "vie": "phóng đại",
+        "en_pronunciation": "/ˈmægnəˌfaɪ/",
+        "laos_pronunciation": "khajaikan",
+        "jp_pronunciation": "kakudai suru",
+        "vie_pronunciation": "phong dai"
+      },
+      "means": {
+        "en": "Increase in size, volume or significance",
+        "zh": "机器或机器系统的统称"
+      }
+    },
+    {
+      "word": {
+        "en": "magnitude",
+        "laos": "ຂະຫນາດ",
+        "jp": "大きさ",
+        "vie": "độ lớn",
+        "en_pronunciation": "/ˈmægnəˌtud/",
+        "laos_pronunciation": "khanad",
+        "jp_pronunciation": "ookisa",
+        "vie_pronunciation": "do lon"
+      },
+      "means": {
+        "en": "The property of relative size or extent (whether large or small)",
+        "zh": "勃然大怒；"
+      }
+    },
+    {
+      "word": {
+        "en": "maid",
+        "laos": "ແມະ",
+        "jp": "メイド",
+        "vie": "người giúp việc",
+        "en_pronunciation": "/meɪd/",
+        "laos_pronunciation": "mae",
+        "jp_pronunciation": "meido",
+        "vie_pronunciation": "nguoi giup viec"
+      },
+      "means": {
+        "en": "A female domestic",
+        "zh": "——马克·吐温"
+      }
+    },
+    {
+      "word": {
+        "en": "maiden",
+        "laos": "ຜູ້ຢິງຂ້າເຕາະ",
+        "jp": "乙女",
+        "vie": "thiếu nữ",
+        "en_pronunciation": "/ˈmeɪdən/",
+        "laos_pronunciation": "phu ying khato",
+        "jp_pronunciation": "otome",
+        "vie_pronunciation": "thieu nu"
+      },
+      "means": {
+        "en": "An unmarried girl (especially a virgin)",
+        "zh": "导致发疯；"
+      }
+    },
+    {
+      "word": {
+        "en": "mail",
+        "laos": "ຈົດຫມາຍຈົດຫມາຍ",
+        "jp": "メール",
+        "vie": "thư",
+        "en_pronunciation": "/meɪl/",
+        "laos_pronunciation": "chodmaichodmai",
+        "jp_pronunciation": "meeru",
+        "vie_pronunciation": "thu"
+      },
+      "means": {
+        "en": "The bags of letters and packages that are transported by the postal service",
+        "zh": "导致失去理智"
+      }
+    },
+    {
+      "word": {
+        "en": "main",
+        "laos": "ດິນຫຼັກ",
+        "jp": "メイン",
+        "vie": "chính",
+        "en_pronunciation": "/meɪn/",
+        "laos_pronunciation": "dinrak",
+        "jp_pronunciation": "mein",
+        "vie_pronunciation": "chinh"
+      },
+      "means": {
+        "en": "Any very large body of (salt) water",
+        "zh": "一个精致的女人"
+      }
+    },
+    {
+      "word": {
+        "en": "mainland",
+        "laos": "ແຜ່ນດິນໃຫຍ່",
+        "jp": "本土",
+        "vie": "đất liền",
+        "en_pronunciation": "/ˈmeɪnˌlænd/",
+        "laos_pronunciation": "aephndinhainy",
+        "jp_pronunciation": "hondo",
+        "vie_pronunciation": "dat lien"
+      },
+      "means": {
+        "en": "The main land mass of a country or continent; as distinguished from an island or peninsula",
+        "zh": "包含购买或订阅者感兴趣的图片、故事和文章的定期出版物"
+      }
+    },
+    {
+      "word": {
+        "en": "mainstream",
+        "laos": "ກະຈໍ່",
+        "jp": "主流",
+        "vie": "chủ đạo",
+        "en_pronunciation": "/ˈmeɪnˌstrim/",
+        "laos_pronunciation": "kacho",
+        "jp_pronunciation": "shuryuu",
+        "vie_pronunciation": "chu dao"
+      },
+      "means": {
+        "en": "The prevailing current of thought",
+        "zh": "任何唤起超自然力量的艺术"
+      }
+    },
+    {
+      "word": {
+        "en": "maintain",
+        "laos": "ຮັກສາໄວ້",
+        "jp": "維持する",
+        "vie": "duy trì",
+        "en_pronunciation": "/meɪnˈteɪn/",
+        "laos_pronunciation": "haksauaai",
+        "jp_pronunciation": "ijisu ru",
+        "vie_pronunciation": "duy tri"
+      },
+      "means": {
+        "en": "Keep in a certain state, position, or activity; e.g.,",
+        "zh": "拥有或使用超自然力量或具有超自然力量特征或适合超自然力量；"
+      }
+    },
+    {
+      "word": {
+        "en": "maintenance",
+        "laos": "ການບໍາລຸງຮັກສາ",
+        "jp": "メンテナンス",
+        "vie": "bảo trì",
+        "en_pronunciation": "/ˈmeɪntənəns/",
+        "laos_pronunciation": "kanboalunghaksa",
+        "jp_pronunciation": "mentenansu",
+        "vie_pronunciation": "bao tri"
+      },
+      "means": {
+        "en": "Activity involved in maintaining something in good working order",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "majesty",
+        "laos": "ວັງເພຍ",
+        "jp": "威厳",
+        "vie": "uy nghiêm",
+        "en_pronunciation": "/ˈmæʤəsti/",
+        "laos_pronunciation": "vangphia",
+        "jp_pronunciation": "igen",
+        "vie_pronunciation": "uy nghiem"
+      },
+      "means": {
+        "en": "Impressiveness in scale or proportion",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "majestic",
+        "laos": "ສະງ່າລາສີ",
+        "jp": "雄大な",
+        "vie": "hùng vĩ",
+        "en_pronunciation": "/məˈʤɛstɪk/",
+        "laos_pronunciation": "sa ngalasi",
+        "jp_pronunciation": "yuudai na",
+        "vie_pronunciation": "hung vi"
+      },
+      "means": {
+        "en": "Majestic in manner or bearing; superior to mundane matters",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "major",
+        "laos": "ພັນຕີ",
+        "jp": "メジャー",
+        "vie": "chính",
+        "en_pronunciation": "/ˈmeɪʤər/",
+        "laos_pronunciation": "phanti",
+        "jp_pronunciation": "mejaa",
+        "vie_pronunciation": "chinh"
+      },
+      "means": {
+        "en": "A commissioned military officer in the United States Army or Air Force or Marines; below lieutenant colonel and above captain",
+        "zh": "——莎士比亚"
+      }
+    },
+    {
+      "word": {
+        "en": "majority",
+        "laos": "ສ່ວນໃຫຢ່",
+        "jp": "大多数",
+        "vie": "đa số",
+        "en_pronunciation": "/məˈʤɔrəti/",
+        "laos_pronunciation": "suan haiy",
+        "jp_pronunciation": "daitasuu",
+        "vie_pronunciation": "da so"
+      },
+      "means": {
+        "en": "The property resulting from being or relating to the greater in number of two parts; the main part",
+        "zh": "负责执法的非专业法官或民事当局（尤其是负责审理轻微罪行的法庭的法官或民事当局）"
+      }
+    },
+    {
+      "word": {
+        "en": "make",
+        "laos": "ເຮັດ",
+        "jp": "作る",
+        "vie": "làm",
+        "en_pronunciation": "/meɪk/",
+        "laos_pronunciation": "hed",
+        "jp_pronunciation": "tsukuru",
+        "vie_pronunciation": "lam"
+      },
+      "means": {
+        "en": "A recognizable kind",
+        "zh": "（物理学）吸引铁并产生磁场的装置"
+      }
+    },
+    {
+      "word": {
+        "en": "makeup",
+        "laos": "ການແຕ່ງຫນ້າ",
+        "jp": "メイクアップ",
+        "vie": "trang điểm",
+        "en_pronunciation": "/ˈmeɪˌkəp/",
+        "laos_pronunciation": "kanaetngna",
+        "jp_pronunciation": "meikuappu",
+        "vie_pronunciation": "trang diem"
+      },
+      "means": {
+        "en": "Cosmetics applied to the face to improve or change your appearance",
+        "zh": "属于磁力或与磁力相关或由磁力引起"
+      }
+    },
+    {
+      "word": {
+        "en": "male",
+        "laos": "ຜູ້ຊາຍ",
+        "jp": "男性",
+        "vie": "nam giới",
+        "en_pronunciation": "/meɪl/",
+        "laos_pronunciation": "phusai",
+        "jp_pronunciation": "dansei",
+        "vie_pronunciation": "nam gioi"
+      },
+      "means": {
+        "en": "An animal that produces gametes (spermatozoa) that can fertilize female gametes (ova)",
+        "zh": "特点是气势磅礴"
+      }
+    },
+    {
+      "word": {
+        "en": "malice",
+        "laos": "ຄວາມຄິດຮ້າຢ",
+        "jp": "悪意",
+        "vie": "ác tâm",
+        "en_pronunciation": "/ˈmælɪs/",
+        "laos_pronunciation": "khuaamkhid hay",
+        "jp_pronunciation": "akui",
+        "vie_pronunciation": "ac tam"
+      },
+      "means": {
+        "en": "Feeling a need to see others suffer",
+        "zh": "规模或外观辉煌或雄伟"
+      }
+    },
+    {
+      "word": {
+        "en": "malicious",
+        "laos": "ທີ່ເປັນອັນຕະລາຍ",
+        "jp": "悪意のある",
+        "vie": "độc hại",
+        "en_pronunciation": "/məˈlɪʃəs/",
+        "laos_pronunciation": "thipenantalai",
+        "jp_pronunciation": "akui noaru",
+        "vie_pronunciation": "doc hai"
+      },
+      "means": {
+        "en": "Having the nature of or resulting from malice; ; - Rudyard Kipling",
+        "zh": "尺寸、体积或重要性的增加"
+      }
+    },
+    {
+      "word": {
+        "en": "malignant",
+        "laos": "ຫຢາບຊ້າ",
+        "jp": "悪性の",
+        "vie": "ác tính",
+        "en_pronunciation": "/məˈlɪgnənt/",
+        "laos_pronunciation": "hyab sa",
+        "jp_pronunciation": "akusei no",
+        "vie_pronunciation": "ac tinh"
+      },
+      "means": {
+        "en": "Dangerous to health; characterized by progressive and uncontrolled growth (especially of a tumor)",
+        "zh": "相对大小或范围的属性（无论大还是小）"
+      }
+    }
+  ]
+}

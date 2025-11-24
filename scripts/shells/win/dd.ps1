@@ -1239,6 +1239,47 @@ function Show-WSLUbuntuSubMenu {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
 }
 
+function Set-CommonEnvironmentVariables {
+    <#
+    .SYNOPSIS
+        Sets common environment variables for Claude Code and other AI tools
+    
+    .DESCRIPTION
+        This function sets essential environment variables to prevent Claude Code 
+        auto-updates and configure other AI tools properly. It's called during 
+        dd.ps1 initialization to ensure consistent environment across all tools.
+    #>
+    Write-ColorMessage -Message "Setting common environment variables..." -Type "Info"
+    
+    try {
+        # Claude Code configuration - disable auto-updates
+        $env:DISABLE_AUTOUPDATER = "1"
+        $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+        Write-ColorMessage -Message "Set DISABLE_AUTOUPDATER=1 (Claude Code auto-update disabled)" -Type "Success"
+        Write-ColorMessage -Message "Set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1" -Type "Success"
+        
+        # Python UTF-8 configuration
+        $env:PYTHONIOENCODING = "utf-8"
+        $env:PYTHONUTF8 = "1"
+        Write-ColorMessage -Message "Set Python UTF-8 encoding variables" -Type "Success"
+        
+        # Locale configuration
+        $env:LC_ALL = "C.UTF-8"
+        Write-ColorMessage -Message "Set LC_ALL=C.UTF-8" -Type "Success"
+        
+        # Add project root to environment if not already set
+        if (-not $env:CORE_NODE_PROJECT_ROOT -and $Global:CORE_NODE_DIR) {
+            $env:CORE_NODE_PROJECT_ROOT = $Global:CORE_NODE_DIR
+            Write-ColorMessage -Message "Set CORE_NODE_PROJECT_ROOT=$($Global:CORE_NODE_DIR)" -Type "Success"
+        }
+        
+        Write-ColorMessage -Message "Common environment variables configured successfully" -Type "Success"
+        
+    } catch {
+        Write-ColorMessage -Message "Warning: Failed to set some environment variables: $($_.Exception.Message)" -Type "Warning"
+    }
+}
+
 function Show-SpecialSoftwareEnvMenu {
     $specialEnvManagerScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\dd.ps1"
     Write-ColorMessage -Message "Launching Special Software Environment Variables Manager..." -Type "Info"
@@ -1250,6 +1291,7 @@ function Show-SpecialSoftwareEnvMenu {
 
 #region Main Execution
 Initialize-Environment
+Set-CommonEnvironmentVariables
 Check-AdminPrivileges
 
 # Load common functions
@@ -1267,7 +1309,7 @@ if (-not $SkipInitialization) {
     Store-GlobalPaths
     Make-PsExecutable
     Create-Symlink
-    
+
     # Check and ensure desktop shortcut exists
     $shortcutCheckScript = Join-Path $Global:CORE_NODE_DIR "pycore\pyutils\launcher\shortcut_check.ps1"
     if (Test-Path $shortcutCheckScript) {
@@ -1284,6 +1326,14 @@ if (-not $SkipInitialization) {
         }
     } else {
         Write-ColorMessage -Message "Shortcut check script not found: $shortcutCheckScript" -Type "Warning"
+    }
+
+    # Check for encrypted secrets and prompt for decryption
+    $secretDecryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretDecryptionCheck.ps1"
+    try {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $secretDecryptCheckScript
+    } catch {
+        Write-ColorMessage -Message "Failed to check encrypted secrets: $($_.Exception.Message)" -Type "Warning"
     }
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"

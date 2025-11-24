@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.252540+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "aviation",
+        "laos": "ການບິນ",
+        "jp": "航空",
+        "vie": "hàng không",
+        "en_pronunciation": "/ˌeɪviˈeɪʃən/",
+        "laos_pronunciation": "kanbin",
+        "jp_pronunciation": "koukuu",
+        "vie_pronunciation": "hang khong"
+      },
+      "means": {
+        "en": "The aggregation of a country's military aircraft",
+        "zh": "一个国家军用飞机的聚集"
+      }
+    },
+    {
+      "word": {
+        "en": "avoid",
+        "laos": "ແຈ້ງ",
+        "jp": "避ける",
+        "vie": "tránh",
+        "en_pronunciation": "/əˈvɔɪd/",
+        "laos_pronunciation": "aechng",
+        "jp_pronunciation": "sake ru",
+        "vie_pronunciation": "tranh"
+      },
+      "means": {
+        "en": "Stay clear from; keep away from; keep out of the way of someone or something",
+        "zh": "远离；"
+      }
+    },
+    {
+      "word": {
+        "en": "avoidance",
+        "laos": "ການຫລີກລ້ຽງ",
+        "jp": "回避",
+        "vie": "tránh né",
+        "en_pronunciation": "/əˈvɔɪdəns/",
+        "laos_pronunciation": "kanlikliang",
+        "jp_pronunciation": "kaihi",
+        "vie_pronunciation": "tranh ne"
+      },
+      "means": {
+        "en": "Deliberately avoiding; keeping away from or preventing from happening",
+        "zh": "远离；"
+      }
+    },
+    {
+      "word": {
+        "en": "await",
+        "laos": "ຄອຍຕົວ",
+        "jp": "待つ",
+        "vie": "chờ đợi",
+        "en_pronunciation": "/əˈweɪt/",
+        "laos_pronunciation": "khonytua",
+        "jp_pronunciation": "matsu",
+        "vie_pronunciation": "cho doi"
+      },
+      "means": {
+        "en": "Look forward to the probable occurrence of",
+        "zh": "不妨碍某人或某事"
+      }
+    },
+    {
+      "word": {
+        "en": "awake",
+        "laos": "ຕື່ນ",
+        "jp": "起きている",
+        "vie": "thức dậy",
+        "en_pronunciation": "/əˈweɪk/",
+        "laos_pronunciation": "tun",
+        "jp_pronunciation": "oki teiru",
+        "vie_pronunciation": "thuc day"
+      },
+      "means": {
+        "en": "Stop sleeping",
+        "zh": "故意回避；"
+      }
+    },
+    {
+      "word": {
+        "en": "award",
+        "laos": "ລາງວັນ",
+        "jp": "賞を受賞",
+        "vie": "giải thưởng",
+        "en_pronunciation": "/əˈwɔrd/",
+        "laos_pronunciation": "langvan",
+        "jp_pronunciation": "shou wo jushou",
+        "vie_pronunciation": "giai thuong"
+      },
+      "means": {
+        "en": "A grant made by a law court",
+        "zh": "避免或防止发生"
+      }
+    },
+    {
+      "word": {
+        "en": "aware",
+        "laos": "ຈົ່ງຮູ້",
+        "jp": "気づいている",
+        "vie": "nhận thức được",
+        "en_pronunciation": "/əˈwɛr/",
+        "laos_pronunciation": "chonghu",
+        "jp_pronunciation": "kizu iteiru",
+        "vie_pronunciation": "nhan thuc duoc"
+      },
+      "means": {
+        "en": "(sometimes followed by `of') having or showing knowledge or understanding or realization or perception",
+        "zh": "期待可能发生的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "awareness",
+        "laos": "ຄວາມຮັບຮູ້",
+        "jp": "意識",
+        "vie": "nhận thức",
+        "en_pronunciation": "/əˈwɛrnəs/",
+        "laos_pronunciation": "khuaamhabhu",
+        "jp_pronunciation": "ishiki",
+        "vie_pronunciation": "nhan thuc"
+      },
+      "means": {
+        "en": "Having knowledge of",
+        "zh": "别再睡觉了"
+      }
+    },
+    {
+      "word": {
+        "en": "away",
+        "laos": "ໄກ",
+        "jp": "離れて",
+        "vie": "đi xa",
+        "en_pronunciation": "/əˈweɪ/",
+        "laos_pronunciation": "kai",
+        "jp_pronunciation": "hanare te",
+        "vie_pronunciation": "di xa"
+      },
+      "means": {
+        "en": "Not present; having left",
+        "zh": "法院授予的补助金"
+      }
+    },
+    {
+      "word": {
+        "en": "awe",
+        "laos": "ຢໍາ",
+        "jp": "畏怖の念",
+        "vie": "kinh ngạc",
+        "en_pronunciation": "/ɔ/",
+        "laos_pronunciation": "yoa",
+        "jp_pronunciation": "ifu no nen",
+        "vie_pronunciation": "kinh ngac"
+      },
+      "means": {
+        "en": "An overwhelming feeling of wonder or admiration",
+        "zh": "（有时后跟“of”）拥有或表现出知识或理解或实现或感知"
+      }
+    },
+    {
+      "word": {
+        "en": "awesome",
+        "laos": "ປະຣິຜົນ",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/ˈɔsəm/",
+        "laos_pronunciation": "pariphon",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "Inspiring awe or admiration or wonder; ; ; ; - Melville",
+        "zh": "具备以下知识"
+      }
+    },
+    {
+      "word": {
+        "en": "awful",
+        "laos": "ເຮັດໃຫ້ເກງໃຈ",
+        "jp": "ひどい",
+        "vie": "khủng khiếp",
+        "en_pronunciation": "/ˈɔfəl/",
+        "laos_pronunciation": "hedhaikengchai",
+        "jp_pronunciation": "hidoi",
+        "vie_pronunciation": "khung khiep"
+      },
+      "means": {
+        "en": "Exceptionally bad or displeasing",
+        "zh": "不在场；"
+      }
+    },
+    {
+      "word": {
+        "en": "awkward",
+        "laos": "ງຸ່ມ",
+        "jp": "厄介な",
+        "vie": "vụng về",
+        "en_pronunciation": "/ˈɔkwərd/",
+        "laos_pronunciation": "ngum",
+        "jp_pronunciation": "yakkai na",
+        "vie_pronunciation": "vung ve"
+      },
+      "means": {
+        "en": "Causing inconvenience",
+        "zh": "离开了"
+      }
+    },
+    {
+      "word": {
+        "en": "ax",
+        "laos": "ຕັດທອນ",
+        "jp": "斧",
+        "vie": "rìu",
+        "en_pronunciation": "/æks/",
+        "laos_pronunciation": "tadthon",
+        "jp_pronunciation": "ono",
+        "vie_pronunciation": "riu"
+      },
+      "means": {
+        "en": "An edge tool with a heavy bladed head mounted across a handle",
+        "zh": "一种压倒性的惊奇或钦佩的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "axe",
+        "laos": "ຕັດທອນ",
+        "jp": "斧",
+        "vie": "rìu",
+        "en_pronunciation": "/æks/",
+        "laos_pronunciation": "tadthon",
+        "jp_pronunciation": "ono",
+        "vie_pronunciation": "riu"
+      },
+      "means": {
+        "en": "An edge tool with a heavy bladed head mounted across a handle",
+        "zh": "激发敬畏、钦佩或惊奇；"
+      }
+    },
+    {
+      "word": {
+        "en": "axis",
+        "laos": "ແກນ",
+        "jp": "軸",
+        "vie": "trục",
+        "en_pronunciation": "/ˈæksəs/",
+        "laos_pronunciation": "aekn",
+        "jp_pronunciation": "jiku",
+        "vie_pronunciation": "truc"
+      },
+      "means": {
+        "en": "A straight line through a body or figure that satisfies certain conditions",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "baby",
+        "laos": "ລູກເຕົ້າ",
+        "jp": "赤ちゃん",
+        "vie": "em bé",
+        "en_pronunciation": "/ˈbeɪbi/",
+        "laos_pronunciation": "luktao",
+        "jp_pronunciation": "akachan",
+        "vie_pronunciation": "em be"
+      },
+      "means": {
+        "en": "A very young child (birth to 1 year) who has not yet begun to walk or talk",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "babyboom",
+        "laos": "BabyBoom",
+        "jp": "団塊の世代",
+        "vie": "babyboom",
+        "en_pronunciation": "/babyboom/",
+        "laos_pronunciation": "BabyBoom",
+        "jp_pronunciation": "dankai no sedai",
+        "vie_pronunciation": "babyboom"
+      },
+      "means": {
+        "en": "Babyboom is an English word referring to 'babyboom'.",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "babyboomer",
+        "laos": "Babysboomer",
+        "jp": "団塊の世代",
+        "vie": "người bùng nổ trẻ em",
+        "en_pronunciation": "/babyboomer/",
+        "laos_pronunciation": "Babysboomer",
+        "jp_pronunciation": "dankai no sedai",
+        "vie_pronunciation": "nguoi bung no tre em"
+      },
+      "means": {
+        "en": "Babyboomer is an English word referring to 'babyboomer'.",
+        "zh": "——梅尔维尔"
+      }
+    },
+    {
+      "word": {
+        "en": "bachelor",
+        "laos": "ງິງ",
+        "jp": "独身者",
+        "vie": "cử nhân",
+        "en_pronunciation": "/ˈbæʧələr/",
+        "laos_pronunciation": "nging",
+        "jp_pronunciation": "dokushinsha",
+        "vie_pronunciation": "cu nhan"
+      },
+      "means": {
+        "en": "A man who has never been married",
+        "zh": "特别糟糕或令人不快"
+      }
+    },
+    {
+      "word": {
+        "en": "back",
+        "laos": "ກັບຄືນໄປບ່ອນ",
+        "jp": "戻る",
+        "vie": "trở lại",
+        "en_pronunciation": "/bæk/",
+        "laos_pronunciation": "kabkhunpaibon",
+        "jp_pronunciation": "modoru",
+        "vie_pronunciation": "tro lai"
+      },
+      "means": {
+        "en": "The posterior part of a human (or animal) body from the neck to the end of the spine",
+        "zh": "造成不便"
+      }
+    },
+    {
+      "word": {
+        "en": "background",
+        "laos": "ພື້ນຫລັງ",
+        "jp": "背景",
+        "vie": "nền",
+        "en_pronunciation": "/ˈbækˌgraʊnd/",
+        "laos_pronunciation": "phunlang",
+        "jp_pronunciation": "haikei",
+        "vie_pronunciation": "nen"
+      },
+      "means": {
+        "en": "A person's social heritage: previous experience or training",
+        "zh": "一种边缘工具，带有安装在手柄上的重型刀片头"
+      }
+    },
+    {
+      "word": {
+        "en": "backup",
+        "laos": "ສໍາຮອງ",
+        "jp": "バックアップ",
+        "vie": "sao lưu",
+        "en_pronunciation": "/ˈbæˌkəp/",
+        "laos_pronunciation": "soahong",
+        "jp_pronunciation": "bakkuappu",
+        "vie_pronunciation": "sao luu"
+      },
+      "means": {
+        "en": "An accumulation caused by clogging or a stoppage",
+        "zh": "一种边缘工具，带有安装在手柄上的重型刀片头"
+      }
+    },
+    {
+      "word": {
+        "en": "backward",
+        "laos": "ຖອຍຫລັງ",
+        "jp": "後ろ向き",
+        "vie": "lạc hậu",
+        "en_pronunciation": "/ˈbækwərd/",
+        "laos_pronunciation": "thonylang",
+        "jp_pronunciation": "ushiromuki",
+        "vie_pronunciation": "lac hau"
+      },
+      "means": {
+        "en": "Directed or facing toward the back or rear",
+        "zh": "穿过身体或图形且满足一定条件的直线"
+      }
+    },
+    {
+      "word": {
+        "en": "backwards",
+        "laos": "ດ້ານຫຼັງ",
+        "jp": "後ろ向きに",
+        "vie": "ngược lại",
+        "en_pronunciation": "/ˈbækwərdz/",
+        "laos_pronunciation": "danrang",
+        "jp_pronunciation": "ushiromuki ni",
+        "vie_pronunciation": "nguoc lai"
+      },
+      "means": {
+        "en": "At or to or toward the back or rear",
+        "zh": "尚未开始走路或说话的非常年幼的孩子（出生至 1 岁）"
+      }
+    },
+    {
+      "word": {
+        "en": "backyard",
+        "laos": "ຫລັງມືດ",
+        "jp": "裏庭",
+        "vie": "sân sau",
+        "en_pronunciation": "/ˈbæˌkjɑrd/",
+        "laos_pronunciation": "langmud",
+        "jp_pronunciation": "uraniwa",
+        "vie_pronunciation": "san sau"
+      },
+      "means": {
+        "en": "The grounds in back of a house",
+        "zh": "Babyboom 是一个英文单词，指的是“babyboom”。"
+      }
+    },
+    {
+      "word": {
+        "en": "bacon",
+        "laos": "ແກງຟ້າ",
+        "jp": "ベーコン",
+        "vie": "thịt xông khói",
+        "en_pronunciation": "/ˈbeɪkən/",
+        "laos_pronunciation": "aekngfa",
+        "jp_pronunciation": "beekon",
+        "vie_pronunciation": "thit xong khoi"
+      },
+      "means": {
+        "en": "Back and sides of a hog salted and dried or smoked; usually sliced thin and fried",
+        "zh": "Babyboomer 是一个英语单词，指的是“婴儿潮一代”。"
+      }
+    },
+    {
+      "word": {
+        "en": "bacteria",
+        "laos": "ແບັກທີເຣຍ",
+        "jp": "細菌",
+        "vie": "vi khuẩn",
+        "en_pronunciation": "/bækˈtɪriə/",
+        "laos_pronunciation": "baek thiria",
+        "jp_pronunciation": "saikin",
+        "vie_pronunciation": "vi khuan"
+      },
+      "means": {
+        "en": "(microbiology) single-celled or noncellular spherical or spiral or rod-shaped organisms lacking chlorophyll that reproduce by fission; important as pathogens and for biochemical properties; taxonomy is difficult; often considered to be plants",
+        "zh": "一个从未结过婚的男人"
+      }
+    },
+    {
+      "word": {
+        "en": "bad",
+        "laos": "ຊົ່ວ",
+        "jp": "悪い",
+        "vie": "tệ",
+        "en_pronunciation": "/bæd/",
+        "laos_pronunciation": "sov",
+        "jp_pronunciation": "warui",
+        "vie_pronunciation": "te"
+      },
+      "means": {
+        "en": "That which is below standard or expectations as of ethics or decency",
+        "zh": "人体（或动物）身体的后部，从颈部到脊柱末端"
+      }
+    },
+    {
+      "word": {
+        "en": "badge",
+        "laos": "ຄໍາ",
+        "jp": "バッジ",
+        "vie": "huy hiệu",
+        "en_pronunciation": "/bæʤ/",
+        "laos_pronunciation": "khoa",
+        "jp_pronunciation": "bajji",
+        "vie_pronunciation": "huy hieu"
+      },
+      "means": {
+        "en": "An emblem (a small piece of plastic or cloth or metal) that signifies your status (rank or membership or affiliation etc.)",
+        "zh": "一个人的社会遗产：以前的经验或培训"
+      }
+    },
+    {
+      "word": {
+        "en": "badly",
+        "laos": "ບໍ່ດີ",
+        "jp": "ひどく",
+        "vie": "tệ quá",
+        "en_pronunciation": "/ˈbædli/",
+        "laos_pronunciation": "bodi",
+        "jp_pronunciation": "hidoku",
+        "vie_pronunciation": "te qua"
+      },
+      "means": {
+        "en": "To a severe or serious degree",
+        "zh": "由于堵塞或停工而造成的堆积"
+      }
+    },
+    {
+      "word": {
+        "en": "badminton",
+        "laos": "ຕີດອກປີກໄກ່",
+        "jp": "バドミントン",
+        "vie": "cầu lông",
+        "en_pronunciation": "/ˈbædˌmɪntən/",
+        "laos_pronunciation": "ti dokpikkai",
+        "jp_pronunciation": "badominton",
+        "vie_pronunciation": "cau long"
+      },
+      "means": {
+        "en": "A game played on a court with light long-handled rackets used to volley a shuttlecock over a net",
+        "zh": "指向或面向后面或后方"
+      }
+    },
+    {
+      "word": {
+        "en": "baffle",
+        "laos": "ສົງຄາມ",
+        "jp": "バッフル",
+        "vie": "vách ngăn",
+        "en_pronunciation": "/ˈbæfəl/",
+        "laos_pronunciation": "songkham",
+        "jp_pronunciation": "baffuru",
+        "vie_pronunciation": "vach ngan"
+      },
+      "means": {
+        "en": "A flat plate that controls or directs the flow of fluid or energy",
+        "zh": "在后面或后面或朝向后面或后方"
+      }
+    },
+    {
+      "word": {
+        "en": "bag",
+        "laos": "ຖົງ",
+        "jp": "バッグ",
+        "vie": "túi",
+        "en_pronunciation": "/bæg/",
+        "laos_pronunciation": "thong",
+        "jp_pronunciation": "baggu",
+        "vie_pronunciation": "tui"
+      },
+      "means": {
+        "en": "A flexible container with a single opening",
+        "zh": "房子后面的空地"
+      }
+    },
+    {
+      "word": {
+        "en": "baggage",
+        "laos": "ກະເປົາ",
+        "jp": "手荷物",
+        "vie": "hành lý",
+        "en_pronunciation": "/ˈbægɪʤ/",
+        "laos_pronunciation": "kapao",
+        "jp_pronunciation": "tenimotsu",
+        "vie_pronunciation": "hanh ly"
+      },
+      "means": {
+        "en": "Cases used to carry belongings when traveling",
+        "zh": "腌制、干燥或熏制的猪的背部和侧面；"
+      }
+    },
+    {
+      "word": {
+        "en": "bail",
+        "laos": "ການປະກັນ",
+        "jp": "保釈金",
+        "vie": "tại ngoại",
+        "en_pronunciation": "/beɪl/",
+        "laos_pronunciation": "kanpakan",
+        "jp_pronunciation": "hoshaku kin",
+        "vie_pronunciation": "tai ngoai"
+      },
+      "means": {
+        "en": "(criminal law) money that must be forfeited by the bondsman if an accused person fails to appear in court for trial",
+        "zh": "通常切成薄片并油炸"
+      }
+    },
+    {
+      "word": {
+        "en": "bait",
+        "laos": "ເບັດ",
+        "jp": "餌",
+        "vie": "mồi",
+        "en_pronunciation": "/beɪt/",
+        "laos_pronunciation": "bed",
+        "jp_pronunciation": "esa",
+        "vie_pronunciation": "moi"
+      },
+      "means": {
+        "en": "Anything that serves as an enticement",
+        "zh": "（微生物学）缺乏叶绿素、通过裂变繁殖的单细胞或非细胞球形或螺旋形或棒状生物体；"
+      }
+    },
+    {
+      "word": {
+        "en": "bake",
+        "laos": "ອົບ",
+        "jp": "焼く",
+        "vie": "nướng",
+        "en_pronunciation": "/beɪk/",
+        "laos_pronunciation": "ob",
+        "jp_pronunciation": "yaku",
+        "vie_pronunciation": "nuong"
+      },
+      "means": {
+        "en": "Cook and make edible by putting in a hot oven",
+        "zh": "作为病原体和生化特性很重要；"
+      }
+    },
+    {
+      "word": {
+        "en": "bakery",
+        "laos": "ຮ້ານຂາຍເຂົ້າຈີ່",
+        "jp": "パン屋さん",
+        "vie": "tiệm bánh",
+        "en_pronunciation": "/ˈbeɪkəri/",
+        "laos_pronunciation": "hankhaikhaochi",
+        "jp_pronunciation": "pan ya san",
+        "vie_pronunciation": "tiem banh"
+      },
+      "means": {
+        "en": "A workplace where baked goods (breads and cakes and pastries) are produced or sold",
+        "zh": "分类很困难；"
+      }
+    },
+    {
+      "word": {
+        "en": "balance",
+        "laos": "ຕົບ",
+        "jp": "バランス",
+        "vie": "cân đối",
+        "en_pronunciation": "/ˈbæləns/",
+        "laos_pronunciation": "tob",
+        "jp_pronunciation": "baransu",
+        "vie_pronunciation": "can doi"
+      },
+      "means": {
+        "en": "A state of equilibrium",
+        "zh": "通常被认为是植物"
+      }
+    },
+    {
+      "word": {
+        "en": "balcony",
+        "laos": "ລະບຽງ",
+        "jp": "バルコニー",
+        "vie": "ban công",
+        "en_pronunciation": "/ˈbælkəni/",
+        "laos_pronunciation": "labiang",
+        "jp_pronunciation": "barukonii",
+        "vie_pronunciation": "ban cong"
+      },
+      "means": {
+        "en": "An upper floor projecting from the rear over the main floor in an auditorium",
+        "zh": "道德或正派方面低于标准或期望的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "bald",
+        "laos": "ກະແດ້ງ",
+        "jp": "ハゲた",
+        "vie": "hói",
+        "en_pronunciation": "/bɔld/",
+        "laos_pronunciation": "ka aedng",
+        "jp_pronunciation": "hage ta",
+        "vie_pronunciation": "hoi"
+      },
+      "means": {
+        "en": "Grow bald; lose hair on one's head",
+        "zh": "象征您的身份（等级、会员资格或隶属关系等）的徽章（一小块塑料、布或金属）"
+      }
+    },
+    {
+      "word": {
+        "en": "ball",
+        "laos": "ບານ",
+        "jp": "ボール",
+        "vie": "trái bóng",
+        "en_pronunciation": "/bɔl/",
+        "laos_pronunciation": "ban",
+        "jp_pronunciation": "booru",
+        "vie_pronunciation": "trai bong"
+      },
+      "means": {
+        "en": "Round object that is hit or thrown or kicked in games",
+        "zh": "严重或严重程度"
+      }
+    },
+    {
+      "word": {
+        "en": "ballet",
+        "laos": "ບໍາ",
+        "jp": "バレエ",
+        "vie": "múa ba lê",
+        "en_pronunciation": "/bæˈleɪ/",
+        "laos_pronunciation": "boa",
+        "jp_pronunciation": "baree",
+        "vie_pronunciation": "mua ba le"
+      },
+      "means": {
+        "en": "A theatrical representation of a story that is performed to music by trained dancers",
+        "zh": "在球场上进行的一种游戏，用轻型长柄球拍将毽子击过网"
+      }
+    },
+    {
+      "word": {
+        "en": "balloon",
+        "laos": "ປູມເປົ້າ",
+        "jp": "風船",
+        "vie": "bong bóng",
+        "en_pronunciation": "/bəˈlun/",
+        "laos_pronunciation": "pumpao",
+        "jp_pronunciation": "fuusen",
+        "vie_pronunciation": "bong bong"
+      },
+      "means": {
+        "en": "Large tough nonrigid bag filled with gas or heated air",
+        "zh": "控制或引导流体或能量流动的平板"
+      }
+    },
+    {
+      "word": {
+        "en": "ballot",
+        "laos": "ປ່ອນບັດ",
+        "jp": "投票用紙",
+        "vie": "lá phiếu",
+        "en_pronunciation": "/ˈbælət/",
+        "laos_pronunciation": "ponbad",
+        "jp_pronunciation": "touhyouyoushi",
+        "vie_pronunciation": "la phieu"
+      },
+      "means": {
+        "en": "A document listing the alternatives that is used in voting",
+        "zh": "具有单个开口的柔性容器"
+      }
+    },
+    {
+      "word": {
+        "en": "bamboo",
+        "laos": "ໄມ້ໄຜ່",
+        "jp": "竹",
+        "vie": "tre",
+        "en_pronunciation": "/bæmˈbu/",
+        "laos_pronunciation": "maiphai",
+        "jp_pronunciation": "take",
+        "vie_pronunciation": "tre"
+      },
+      "means": {
+        "en": "The hard woody stems of bamboo plants; used in construction and crafts and fishing poles",
+        "zh": "旅行时用于携带物品的箱子"
+      }
+    },
+    {
+      "word": {
+        "en": "ban",
+        "laos": "ປະກາດຫ້າມ",
+        "jp": "禁止",
+        "vie": "lệnh cấm",
+        "en_pronunciation": "/bæn/",
+        "laos_pronunciation": "pakadham",
+        "jp_pronunciation": "kinshi",
+        "vie_pronunciation": "lenh cam"
+      },
+      "means": {
+        "en": "A decree that prohibits something",
+        "zh": "（刑法）如果被告未能出庭受审，担保人必须没收的金钱"
+      }
+    },
+    {
+      "word": {
+        "en": "banana",
+        "laos": "ກ້ວຍ",
+        "jp": "バナナ",
+        "vie": "chuối",
+        "en_pronunciation": "/bəˈnænə/",
+        "laos_pronunciation": "kuany",
+        "jp_pronunciation": "banana",
+        "vie_pronunciation": "chuoi"
+      },
+      "means": {
+        "en": "Any of several tropical and subtropical treelike herbs of the genus Musa having a terminal crown of large entire leaves and usually bearing hanging clusters of elongated fruits",
+        "zh": "任何具有诱惑作用的事物"
+      }
+    },
+    {
+      "word": {
+        "en": "band",
+        "laos": "ວົງດົນຕີ",
+        "jp": "バンド",
+        "vie": "ban nhạc",
+        "en_pronunciation": "/bænd/",
+        "laos_pronunciation": "vongdonti",
+        "jp_pronunciation": "bando",
+        "vie_pronunciation": "ban nhac"
+      },
+      "means": {
+        "en": "An unofficial association of people or groups",
+        "zh": "放入热烤箱中烹饪并食用"
+      }
+    },
+    {
+      "word": {
+        "en": "bandage",
+        "laos": "ຜ້າພັນບາດ",
+        "jp": "包帯",
+        "vie": "băng bó",
+        "en_pronunciation": "/ˈbændɪʤ/",
+        "laos_pronunciation": "phaphanbad",
+        "jp_pronunciation": "houtai",
+        "vie_pronunciation": "bang bo"
+      },
+      "means": {
+        "en": "A piece of soft material that covers and protects an injured part of the body",
+        "zh": "生产或销售烘焙食品（面包、蛋糕和糕点）的工作场所"
+      }
+    },
+    {
+      "word": {
+        "en": "bang",
+        "laos": "ສຽງປັ້ງ",
+        "jp": "強打",
+        "vie": "bang",
+        "en_pronunciation": "/bæŋ/",
+        "laos_pronunciation": "siang pang",
+        "jp_pronunciation": "kyouda",
+        "vie_pronunciation": "bang"
+      },
+      "means": {
+        "en": "A vigorous blow",
+        "zh": "平衡状态"
+      }
+    },
+    {
+      "word": {
+        "en": "bank",
+        "laos": "ທະນາຄານ",
+        "jp": "銀行",
+        "vie": "ngân hàng",
+        "en_pronunciation": "/bæŋk/",
+        "laos_pronunciation": "thanakhan",
+        "jp_pronunciation": "ginkou",
+        "vie_pronunciation": "ngan hang"
+      },
+      "means": {
+        "en": "Sloping land (especially the slope beside a body of water)",
+        "zh": "礼堂内从后部伸出主楼层的上层"
+      }
+    },
+    {
+      "word": {
+        "en": "banking",
+        "laos": "ການທະນາຄານ",
+        "jp": "銀行業",
+        "vie": "ngân hàng",
+        "en_pronunciation": "/ˈbæŋkɪŋ/",
+        "laos_pronunciation": "kanthanakhan",
+        "jp_pronunciation": "ginkou gyou",
+        "vie_pronunciation": "ngan hang"
+      },
+      "means": {
+        "en": "Engaging in the business of keeping money for savings and checking accounts or for exchange or for issuing loans and credit etc.",
+        "zh": "秃头；"
+      }
+    },
+    {
+      "word": {
+        "en": "banker",
+        "laos": "ທະນາຄານ",
+        "jp": "銀行家",
+        "vie": "chủ ngân hàng",
+        "en_pronunciation": "/ˈbæŋkər/",
+        "laos_pronunciation": "thanakhan",
+        "jp_pronunciation": "ginkou ie",
+        "vie_pronunciation": "chu ngan hang"
+      },
+      "means": {
+        "en": "A financier who owns or is an executive in a bank",
+        "zh": "脱发"
+      }
+    },
+    {
+      "word": {
+        "en": "banknote",
+        "laos": "ທະນະບັດ",
+        "jp": "紙幣",
+        "vie": "tiền giấy",
+        "en_pronunciation": "/ˈbæŋkˌnoʊt/",
+        "laos_pronunciation": "thanabad",
+        "jp_pronunciation": "shihei",
+        "vie_pronunciation": "tien giay"
+      },
+      "means": {
+        "en": "A piece of paper money (especially one issued by a central bank)",
+        "zh": "游戏中被击中、投掷或踢的圆形物体"
+      }
+    },
+    {
+      "word": {
+        "en": "bankrupt",
+        "laos": "ການລົ້ມລະລາຍ",
+        "jp": "破産した",
+        "vie": "phá sản",
+        "en_pronunciation": "/ˈbæŋkrəpt/",
+        "laos_pronunciation": "kanlomlalai",
+        "jp_pronunciation": "hasan shita",
+        "vie_pronunciation": "pha san"
+      },
+      "means": {
+        "en": "Someone who has insufficient assets to cover their debts",
+        "zh": "由训练有素的舞者随着音乐表演的故事的戏剧表演"
+      }
+    },
+    {
+      "word": {
+        "en": "bankruptcy",
+        "laos": "ການປົກຄອງ",
+        "jp": "破産",
+        "vie": "phá sản",
+        "en_pronunciation": "/ˈbæŋkrəptsi/",
+        "laos_pronunciation": "kanpokkhong",
+        "jp_pronunciation": "hasan",
+        "vie_pronunciation": "pha san"
+      },
+      "means": {
+        "en": "A state of complete lack of some abstract property",
+        "zh": "充满气体或加热空气的大而坚韧的非刚性袋子"
+      }
+    },
+    {
+      "word": {
+        "en": "banner",
+        "laos": "ທຸງ",
+        "jp": "バナー",
+        "vie": "biểu ngữ",
+        "en_pronunciation": "/ˈbænər/",
+        "laos_pronunciation": "thung",
+        "jp_pronunciation": "banaa",
+        "vie_pronunciation": "bieu ngu"
+      },
+      "means": {
+        "en": "Long strip of cloth or paper used for decoration or advertising",
+        "zh": "列出投票中使用的替代方案的文件"
+      }
+    },
+    {
+      "word": {
+        "en": "banquet",
+        "laos": "ສົມໂພດ",
+        "jp": "宴会",
+        "vie": "bữa tiệc",
+        "en_pronunciation": "/ˈbæŋkwət/",
+        "laos_pronunciation": "somophd",
+        "jp_pronunciation": "enkai",
+        "vie_pronunciation": "bua tiec"
+      },
+      "means": {
+        "en": "A ceremonial dinner party for many people",
+        "zh": "竹类植物坚硬的木质茎；"
+      }
+    },
+    {
+      "word": {
+        "en": "bar",
+        "laos": "ຂວາງ",
+        "jp": "バー",
+        "vie": "thanh",
+        "en_pronunciation": "/bɑr/",
+        "laos_pronunciation": "khuaang",
+        "jp_pronunciation": "baa",
+        "vie_pronunciation": "thanh"
+      },
+      "means": {
+        "en": "A room or establishment where alcoholic drinks are served over a counter",
+        "zh": "用于建筑、工艺品和钓鱼竿"
+      }
+    },
+    {
+      "word": {
+        "en": "barbecue",
+        "laos": "ບາບີຄິວ",
+        "jp": "バーベキュー",
+        "vie": "thịt nướng",
+        "en_pronunciation": "/ˈbɑrbɪˌkju/",
+        "laos_pronunciation": "ba bikhiv",
+        "jp_pronunciation": "baabekyuu",
+        "vie_pronunciation": "thit nuong"
+      },
+      "means": {
+        "en": "Meat that has been barbecued or grilled in a highly seasoned sauce",
+        "zh": "禁止某事的法令"
+      }
+    },
+    {
+      "word": {
+        "en": "bbq",
+        "laos": "ທຸຣະ",
+        "jp": "バーベキュー",
+        "vie": "thịt nướng",
+        "en_pronunciation": "/ˈbɑrbɪˌkju/",
+        "laos_pronunciation": "thura",
+        "jp_pronunciation": "baabekyuu",
+        "vie_pronunciation": "thit nuong"
+      },
+      "means": {
+        "en": "Bbq is an English word referring to 'bbq'.",
+        "zh": "芭蕉属几种热带和亚热带树状草本植物的任一种，具有大而完整的叶子的顶冠，通常结有悬挂的细长果实簇"
+      }
+    },
+    {
+      "word": {
+        "en": "barber",
+        "laos": "ຊ່າງຕັດຜົມ",
+        "jp": "理容師",
+        "vie": "thợ cắt tóc",
+        "en_pronunciation": "/ˈbɑrbər/",
+        "laos_pronunciation": "sangtadphom",
+        "jp_pronunciation": "riyoushi",
+        "vie_pronunciation": "tho cat toc"
+      },
+      "means": {
+        "en": "United States composer (1910-1981)",
+        "zh": "个人或团体的非官方协会"
+      }
+    },
+    {
+      "word": {
+        "en": "bare",
+        "laos": "ເປົ່າປ່ຽວ",
+        "jp": "裸の",
+        "vie": "trần trụi",
+        "en_pronunciation": "/bɛr/",
+        "laos_pronunciation": "peoapiav",
+        "jp_pronunciation": "hadaka no",
+        "vie_pronunciation": "tran trui"
+      },
+      "means": {
+        "en": "Lay bare",
+        "zh": "一块覆盖并保护身体受伤部位的柔软材料"
+      }
+    },
+    {
+      "word": {
+        "en": "barely",
+        "laos": "ເປົ່າຫຼາ່",
+        "jp": "かろうじて",
+        "vie": "hầu như không",
+        "en_pronunciation": "/ˈbɛrli/",
+        "laos_pronunciation": "peoa ra",
+        "jp_pronunciation": "karoujite",
+        "vie_pronunciation": "hau nhu khong"
+      },
+      "means": {
+        "en": "Only a very short time before; ; ; ; ; - W.B.Yeats",
+        "zh": "猛烈的一击"
+      }
+    },
+    {
+      "word": {
+        "en": "bargain",
+        "laos": "ການຕໍ່ລອງ",
+        "jp": "バーゲン",
+        "vie": "mặc cả",
+        "en_pronunciation": "/ˈbɑrgɪn/",
+        "laos_pronunciation": "kan tolong",
+        "jp_pronunciation": "baagen",
+        "vie_pronunciation": "mac ca"
+      },
+      "means": {
+        "en": "An agreement between parties (usually arrived at after discussion) fixing obligations of each",
+        "zh": "坡地（尤其是水体旁边的斜坡）"
+      }
+    },
+    {
+      "word": {
+        "en": "barge",
+        "laos": "ເຮືອບັນທົກ",
+        "jp": "バージ",
+        "vie": "xà lan",
+        "en_pronunciation": "/bɑrʤ/",
+        "laos_pronunciation": "heu banthok",
+        "jp_pronunciation": "baaji",
+        "vie_pronunciation": "xa lan"
+      },
+      "means": {
+        "en": "A flatbottom boat for carrying heavy loads (especially on canals)",
+        "zh": "从事储蓄、支票账户、兑换、发放贷款和信贷等存钱业务。"
+      }
+    },
+    {
+      "word": {
+        "en": "bark",
+        "laos": "ເປືອກ",
+        "jp": "樹皮を剥ぐ",
+        "vie": "vỏ cây",
+        "en_pronunciation": "/bɑrk/",
+        "laos_pronunciation": "peuok",
+        "jp_pronunciation": "juhi wo hagu",
+        "vie_pronunciation": "vo cay"
+      },
+      "means": {
+        "en": "Tough protective covering of the woody stems and roots of trees and other woody plants",
+        "zh": "拥有银行或担任银行高管的金融家"
+      }
+    },
+    {
+      "word": {
+        "en": "barn",
+        "laos": "ກະຫມາດ",
+        "jp": "納屋",
+        "vie": "chuồng ngựa",
+        "en_pronunciation": "/bɑrn/",
+        "laos_pronunciation": "kamad",
+        "jp_pronunciation": "naya",
+        "vie_pronunciation": "chuong ngua"
+      },
+      "means": {
+        "en": "An outlying farm building for storing grain or animal feed and housing farm animals",
+        "zh": "一张纸币（尤其是由中央银行发行的纸币）"
+      }
+    },
+    {
+      "word": {
+        "en": "barometer",
+        "laos": "ອະເຈລະສົນ",
+        "jp": "気圧計",
+        "vie": "phong vũ biểu",
+        "en_pronunciation": "/bərˈɑmɪtər/",
+        "laos_pronunciation": "a chelason",
+        "jp_pronunciation": "kiatsukei",
+        "vie_pronunciation": "phong vu bieu"
+      },
+      "means": {
+        "en": "An instrument that measures atmospheric pressure",
+        "zh": "资产不足以偿还债务的人"
+      }
+    },
+    {
+      "word": {
+        "en": "barracks",
+        "laos": "ຂັດຂວາງ",
+        "jp": "兵舎",
+        "vie": "doanh trại",
+        "en_pronunciation": "/ˈbɛrəks/",
+        "laos_pronunciation": "khadkhuaang",
+        "jp_pronunciation": "heisha",
+        "vie_pronunciation": "doanh trai"
+      },
+      "means": {
+        "en": "A building or group of buildings used to house military personnel",
+        "zh": "完全缺乏某种抽象属性的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "barrel",
+        "laos": "ໄມ້ເທົ້າ",
+        "jp": "バレル",
+        "vie": "thùng",
+        "en_pronunciation": "/ˈbɛrəl/",
+        "laos_pronunciation": "maithao",
+        "jp_pronunciation": "bareru",
+        "vie_pronunciation": "thung"
+      },
+      "means": {
+        "en": "A tube through which a bullet travels when a gun is fired",
+        "zh": "用于装饰或广告的长条布或纸"
+      }
+    },
+    {
+      "word": {
+        "en": "barren",
+        "laos": "ໄມ້ວິກ",
+        "jp": "不毛の地",
+        "vie": "cằn cỗi",
+        "en_pronunciation": "/ˈbɛrən/",
+        "laos_pronunciation": "maivik",
+        "jp_pronunciation": "fumou no chi",
+        "vie_pronunciation": "can coi"
+      },
+      "means": {
+        "en": "An uninhabited wilderness that is worthless for cultivation",
+        "zh": "为多人举办的隆重晚宴"
+      }
+    },
+    {
+      "word": {
+        "en": "barrier",
+        "laos": "ອຸປະສັກ",
+        "jp": "バリア",
+        "vie": "rào cản",
+        "en_pronunciation": "/ˈbɛriər/",
+        "laos_pronunciation": "upasak",
+        "jp_pronunciation": "baria",
+        "vie_pronunciation": "rao can"
+      },
+      "means": {
+        "en": "A structure or object that impedes free movement",
+        "zh": "在柜台上提供酒精饮料的房间或场所"
+      }
+    },
+    {
+      "word": {
+        "en": "base",
+        "laos": "ຖານ",
+        "jp": "ベース",
+        "vie": "cơ sở",
+        "en_pronunciation": "/beɪs/",
+        "laos_pronunciation": "than",
+        "jp_pronunciation": "beesu",
+        "vie_pronunciation": "co so"
+      },
+      "means": {
+        "en": "Installation from which a military force initiates operations",
+        "zh": "烧烤或用调味酱烤过的肉"
+      }
+    },
+    {
+      "word": {
+        "en": "baseball",
+        "laos": "ເບດບານ",
+        "jp": "野球",
+        "vie": "bóng chày",
+        "en_pronunciation": "/ˈbeɪsˈbɔl/",
+        "laos_pronunciation": "bedban",
+        "jp_pronunciation": "yakyuu",
+        "vie_pronunciation": "bong chay"
+      },
+      "means": {
+        "en": "A ball game played with a bat and ball between two teams of nine players; teams take turns at bat trying to score runs",
+        "zh": "Bbq 是一个英语单词，指的是“bbq”。"
+      }
+    },
+    {
+      "word": {
+        "en": "basement",
+        "laos": "ຊັ້ນໃຕ້ດິນ",
+        "jp": "地下室",
+        "vie": "tầng hầm",
+        "en_pronunciation": "/ˈbeɪsmənt/",
+        "laos_pronunciation": "santaidin",
+        "jp_pronunciation": "chikashitsu",
+        "vie_pronunciation": "tang ham"
+      },
+      "means": {
+        "en": "The lowermost portion of a structure partly or wholly below ground level; often used for storage",
+        "zh": "美国作曲家（1910-1981）"
+      }
+    },
+    {
+      "word": {
+        "en": "basic",
+        "laos": "ພື້ນຖານ",
+        "jp": "基本的な",
+        "vie": "cơ bản",
+        "en_pronunciation": "/ˈbeɪsɪk/",
+        "laos_pronunciation": "phunthan",
+        "jp_pronunciation": "kihonteki na",
+        "vie_pronunciation": "co ban"
+      },
+      "means": {
+        "en": "A popular programming language that is relatively easy to learn; an acronym for beginner's all-purpose symbolic instruction code; no longer in general use",
+        "zh": "裸露"
+      }
+    },
+    {
+      "word": {
+        "en": "basically",
+        "laos": "ໂດຍພື້ນຖານແລ້ວ",
+        "jp": "基本的に",
+        "vie": "về cơ bản",
+        "en_pronunciation": "/ˈbeɪsɪkli/",
+        "laos_pronunciation": "odnyphunthanaelv",
+        "jp_pronunciation": "kihonteki ni",
+        "vie_pronunciation": "ve co ban"
+      },
+      "means": {
+        "en": "In essence; at bottom or by one's (or its) very nature",
+        "zh": "就在不久之前；"
+      }
+    },
+    {
+      "word": {
+        "en": "basin",
+        "laos": "ອ່າງນ້ໍາ",
+        "jp": "盆地",
+        "vie": "lưu vực",
+        "en_pronunciation": "/ˈbeɪsən/",
+        "laos_pronunciation": "angnoa",
+        "jp_pronunciation": "bonchi",
+        "vie_pronunciation": "luu vuc"
+      },
+      "means": {
+        "en": "A bowl-shaped vessel; usually used for holding food or liquids",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "basis",
+        "laos": "ພື້ນຖານ",
+        "jp": "基礎",
+        "vie": "cơ sở",
+        "en_pronunciation": "/ˈbeɪsɪs/",
+        "laos_pronunciation": "phunthan",
+        "jp_pronunciation": "kiso",
+        "vie_pronunciation": "co so"
+      },
+      "means": {
+        "en": "A relation that provides the foundation for something",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "basket",
+        "laos": "ກະຕ່າ",
+        "jp": "バスケット",
+        "vie": "cái giỏ",
+        "en_pronunciation": "/ˈbæskət/",
+        "laos_pronunciation": "kata",
+        "jp_pronunciation": "basuketto",
+        "vie_pronunciation": "cai gio"
+      },
+      "means": {
+        "en": "A container that is usually woven and has handles",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "basketball",
+        "laos": "ການແຂ່ງຂັນບານບ້ວງ",
+        "jp": "バスケットボール",
+        "vie": "bóng rổ",
+        "en_pronunciation": "/ˈbæskətˌbɔl/",
+        "laos_pronunciation": "kanaekhngkhan banbuang",
+        "jp_pronunciation": "basukettobooru",
+        "vie_pronunciation": "bong ro"
+      },
+      "means": {
+        "en": "A game played on a court by two opposing teams of 5 players; points are scored by throwing the ball through an elevated horizontal hoop",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "bass",
+        "laos": "ເບດ",
+        "jp": "低音",
+        "vie": "âm trầm",
+        "en_pronunciation": "/bæs/",
+        "laos_pronunciation": "bed",
+        "jp_pronunciation": "teion",
+        "vie_pronunciation": "am tram"
+      },
+      "means": {
+        "en": "The lowest part of the musical range",
+        "zh": "——叶芝"
+      }
+    },
+    {
+      "word": {
+        "en": "bat",
+        "laos": "ເປາະ",
+        "jp": "コウモリ",
+        "vie": "dơi",
+        "en_pronunciation": "/bæt/",
+        "laos_pronunciation": "po",
+        "jp_pronunciation": "koumori",
+        "vie_pronunciation": "doi"
+      },
+      "means": {
+        "en": "Nocturnal mouselike mammal with forelimbs modified to form membranous wings and anatomical adaptations for echolocation by which they navigate",
+        "zh": "双方之间确定各方义务的协议（通常经过讨论达成）"
+      }
+    },
+    {
+      "word": {
+        "en": "batch",
+        "laos": "ເບ່ງ",
+        "jp": "バッチ",
+        "vie": "lô",
+        "en_pronunciation": "/bæʧ/",
+        "laos_pronunciation": "beng",
+        "jp_pronunciation": "batchi",
+        "vie_pronunciation": "lo"
+      },
+      "means": {
+        "en": "All the loaves of bread baked at the same time",
+        "zh": "用于承载重物的平底船（特别是在运河上）"
+      }
+    },
+    {
+      "word": {
+        "en": "bath",
+        "laos": "ຮົ່ມ",
+        "jp": "お風呂",
+        "vie": "tắm",
+        "en_pronunciation": "/bæθ/",
+        "laos_pronunciation": "hom",
+        "jp_pronunciation": "o furo",
+        "vie_pronunciation": "tam"
+      },
+      "means": {
+        "en": "A vessel containing liquid in which something is immersed (as to process it or to maintain it at a constant temperature or to lubricate it)",
+        "zh": "树木和其他木本植物的木本茎和根的坚固保护层"
+      }
+    },
+    {
+      "word": {
+        "en": "bathe",
+        "laos": "ອາບນ້ໍາ",
+        "jp": "入浴する",
+        "vie": "tắm",
+        "en_pronunciation": "/beɪð/",
+        "laos_pronunciation": "abnoa",
+        "jp_pronunciation": "nyuuyoku suru",
+        "vie_pronunciation": "tam"
+      },
+      "means": {
+        "en": "The act of swimming",
+        "zh": "用于储存谷物或动物饲料以及饲养农场动物的边远农场建筑"
+      }
+    },
+    {
+      "word": {
+        "en": "bathroom",
+        "laos": "ຫ້ອງນໍ້າ",
+        "jp": "バスルーム",
+        "vie": "phòng tắm",
+        "en_pronunciation": "/ˈbæθˌrum/",
+        "laos_pronunciation": "hongnoa",
+        "jp_pronunciation": "basuruumu",
+        "vie_pronunciation": "phong tam"
+      },
+      "means": {
+        "en": "A room (as in a residence) containing a bathtub or shower and usually a washbasin and toilet",
+        "zh": "测量大气压的仪器"
+      }
+    },
+    {
+      "word": {
+        "en": "battalion",
+        "laos": "ກອງພັນ",
+        "jp": "大隊",
+        "vie": "tiểu đoàn",
+        "en_pronunciation": "/bəˈtæljən/",
+        "laos_pronunciation": "kongphan",
+        "jp_pronunciation": "daitai",
+        "vie_pronunciation": "tieu doan"
+      },
+      "means": {
+        "en": "An army unit usually consisting of a headquarters and three or more companies",
+        "zh": "用于安置军事人员的建筑物或建筑物群"
+      }
+    },
+    {
+      "word": {
+        "en": "batter",
+        "laos": "ແບດເຕີ",
+        "jp": "バッター",
+        "vie": "bột",
+        "en_pronunciation": "/ˈbætər/",
+        "laos_pronunciation": "aebdtoe",
+        "jp_pronunciation": "battaa",
+        "vie_pronunciation": "bot"
+      },
+      "means": {
+        "en": "(baseball) a ballplayer who is batting",
+        "zh": "开枪时子弹穿过的管子"
+      }
+    },
+    {
+      "word": {
+        "en": "battery",
+        "laos": "ແບດເຕີລີ່",
+        "jp": "バッテリー",
+        "vie": "pin",
+        "en_pronunciation": "/ˈbætəri/",
+        "laos_pronunciation": "aebd toeli",
+        "jp_pronunciation": "batterii",
+        "vie_pronunciation": "pin"
+      },
+      "means": {
+        "en": "Group of guns or missile launchers operated together at one place",
+        "zh": "无人居住、毫无耕种价值的荒野"
+      }
+    },
+    {
+      "word": {
+        "en": "battle",
+        "laos": "ການຕໍ່ສູ້",
+        "jp": "戦い",
+        "vie": "trận chiến",
+        "en_pronunciation": "/ˈbætəl/",
+        "laos_pronunciation": "kantosu",
+        "jp_pronunciation": "tatakai",
+        "vie_pronunciation": "tran chien"
+      },
+      "means": {
+        "en": "A hostile meeting of opposing military forces in the course of a war",
+        "zh": "阻碍自由移动的结构或物体"
+      }
+    },
+    {
+      "word": {
+        "en": "bay",
+        "laos": "ອ່າວ",
+        "jp": "湾",
+        "vie": "vịnh",
+        "en_pronunciation": "/beɪ/",
+        "laos_pronunciation": "av",
+        "jp_pronunciation": "wan",
+        "vie_pronunciation": "vinh"
+      },
+      "means": {
+        "en": "An indentation of a shoreline larger than a cove but smaller than a gulf",
+        "zh": "军队从中发起行动的设施"
+      }
+    },
+    {
+      "word": {
+        "en": "be",
+        "laos": "ຈົ່ງ",
+        "jp": "なる",
+        "vie": "được",
+        "en_pronunciation": "/bi/",
+        "laos_pronunciation": "chong",
+        "jp_pronunciation": "naru",
+        "vie_pronunciation": "duoc"
+      },
+      "means": {
+        "en": "A light strong brittle grey toxic bivalent metallic element",
+        "zh": "两队九名球员之间用球棒和球进行的球类比赛；"
+      }
+    },
+    {
+      "word": {
+        "en": "beach",
+        "laos": "ຫາດຊາຍ",
+        "jp": "ビーチ",
+        "vie": "bãi biển",
+        "en_pronunciation": "/biʧ/",
+        "laos_pronunciation": "hadsai",
+        "jp_pronunciation": "biichi",
+        "vie_pronunciation": "bai bien"
+      },
+      "means": {
+        "en": "An area of sand sloping down to the water of a sea or lake",
+        "zh": "球队轮流击球试图得分"
+      }
+    },
+    {
+      "word": {
+        "en": "bead",
+        "laos": "ບັ້ງງ",
+        "jp": "ビーズ",
+        "vie": "hạt",
+        "en_pronunciation": "/bid/",
+        "laos_pronunciation": "bangng",
+        "jp_pronunciation": "biizu",
+        "vie_pronunciation": "hat"
+      },
+      "means": {
+        "en": "A small ball with a hole through the middle",
+        "zh": "部分或全部低于地面的结构的最低部分；"
+      }
+    },
+    {
+      "word": {
+        "en": "beak",
+        "laos": "ນົກ",
+        "jp": "くちばし",
+        "vie": "mỏ",
+        "en_pronunciation": "/bik/",
+        "laos_pronunciation": "nok",
+        "jp_pronunciation": "kuchibashi",
+        "vie_pronunciation": "mo"
+      },
+      "means": {
+        "en": "Beaklike mouth of animals other than birds (e.g., turtles)",
+        "zh": "常用于存储"
+      }
+    },
+    {
+      "word": {
+        "en": "beam",
+        "laos": "ຂື່",
+        "jp": "ビーム",
+        "vie": "chùm tia",
+        "en_pronunciation": "/bim/",
+        "laos_pronunciation": "khu",
+        "jp_pronunciation": "biimu",
+        "vie_pronunciation": "chum tia"
+      },
+      "means": {
+        "en": "A signal transmitted along a narrow path; guides airplane pilots in darkness or bad weather",
+        "zh": "一种比较容易学习的流行编程语言；"
+      }
+    }
+  ]
+}

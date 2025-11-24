@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.348671+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "legal",
+        "laos": "ຖືກຕາມກົດຫມາຢ",
+        "jp": "法的な",
+        "vie": "hợp pháp",
+        "en_pronunciation": "/ˈligəl/",
+        "laos_pronunciation": "thuk tamkodmay",
+        "jp_pronunciation": "houteki na",
+        "vie_pronunciation": "hop phap"
+      },
+      "means": {
+        "en": "Established by or founded upon law or official or accepted rules",
+        "zh": "由法律或官方或公认的规则建立或建立"
+      }
+    },
+    {
+      "word": {
+        "en": "legalize",
+        "laos": "ເປັນກົດຫມາຍ",
+        "jp": "合法化する",
+        "vie": "hợp pháp hoá",
+        "en_pronunciation": "/ˈligəˌlaɪz/",
+        "laos_pronunciation": "penkodmai",
+        "jp_pronunciation": "gouhouka suru",
+        "vie_pronunciation": "hop phap hoa"
+      },
+      "means": {
+        "en": "Make legal",
+        "zh": "合法化"
+      }
+    },
+    {
+      "word": {
+        "en": "legalise",
+        "laos": "ເປັນກົດຫມາຍ",
+        "jp": "合法化する",
+        "vie": "hợp pháp hóa",
+        "en_pronunciation": "/legalise/",
+        "laos_pronunciation": "penkodmai",
+        "jp_pronunciation": "gouhouka suru",
+        "vie_pronunciation": "hop phap hoa"
+      },
+      "means": {
+        "en": "Make legal",
+        "zh": "合法化"
+      }
+    },
+    {
+      "word": {
+        "en": "legend",
+        "laos": "ເລື້ອງ",
+        "jp": "伝説",
+        "vie": "truyền thuyết",
+        "en_pronunciation": "/ˈlɛʤənd/",
+        "laos_pronunciation": "leuong",
+        "jp_pronunciation": "densetsu",
+        "vie_pronunciation": "truyen thuyet"
+      },
+      "means": {
+        "en": "A story about mythical or supernatural beings or events",
+        "zh": "关于神话或超自然生物或事件的故事"
+      }
+    },
+    {
+      "word": {
+        "en": "legendary",
+        "laos": "ນຽມນິຣະບູງ",
+        "jp": "伝説の",
+        "vie": "huyền thoại",
+        "en_pronunciation": "/ˈlɛʤənˌdɛri/",
+        "laos_pronunciation": "niam ni ra bung",
+        "jp_pronunciation": "densetsu no",
+        "vie_pronunciation": "huyen thoai"
+      },
+      "means": {
+        "en": "So celebrated as to having taken on the nature of a legend",
+        "zh": "如此庆祝，以至于呈现出传奇的本质"
+      }
+    },
+    {
+      "word": {
+        "en": "legislate",
+        "laos": "ສະກົດ",
+        "jp": "立法する",
+        "vie": "lập pháp",
+        "en_pronunciation": "/ˈlɛʤɪsˌleɪt/",
+        "laos_pronunciation": "sakod",
+        "jp_pronunciation": "rippou suru",
+        "vie_pronunciation": "lap phap"
+      },
+      "means": {
+        "en": "Make laws, bills, etc. or bring into effect by legislation",
+        "zh": "制定法律、法案等或通过立法使其生效"
+      }
+    },
+    {
+      "word": {
+        "en": "legislation",
+        "laos": "ນິຕິບັນຍັດ",
+        "jp": "法律",
+        "vie": "pháp luật",
+        "en_pronunciation": "/ˌlɛʤəsˈleɪʃən/",
+        "laos_pronunciation": "nitibnaiad",
+        "jp_pronunciation": "houritsu",
+        "vie_pronunciation": "phap luat"
+      },
+      "means": {
+        "en": "Law enacted by a legislative body",
+        "zh": "立法机构制定的法律"
+      }
+    },
+    {
+      "word": {
+        "en": "legislative",
+        "laos": "ນິສາສະຖິຕິ",
+        "jp": "立法的な",
+        "vie": "lập pháp",
+        "en_pronunciation": "/ˈlɛʤəsˌleɪtɪv/",
+        "laos_pronunciation": "ni sasathiti",
+        "jp_pronunciation": "rippou tekina",
+        "vie_pronunciation": "lap phap"
+      },
+      "means": {
+        "en": "Relating to a legislature or composed of members of a legislature",
+        "zh": "与立法机关有关或由立法机关成员组成"
+      }
+    },
+    {
+      "word": {
+        "en": "legislator",
+        "laos": "ສະມາຊິກສະພາແຫ່ງຊາດ",
+        "jp": "議員",
+        "vie": "nhà lập pháp",
+        "en_pronunciation": "/ˈlɛʤəsˌleɪtər/",
+        "laos_pronunciation": "samasiksaphaaehngsad",
+        "jp_pronunciation": "giin",
+        "vie_pronunciation": "nha lap phap"
+      },
+      "means": {
+        "en": "Someone who makes or enacts laws",
+        "zh": "制定或颁布法律的人"
+      }
+    },
+    {
+      "word": {
+        "en": "legitimate",
+        "laos": "ຖືກຕ້ອງ",
+        "jp": "合法的な",
+        "vie": "hợp pháp",
+        "en_pronunciation": "/ləˈʤɪtəmət/",
+        "laos_pronunciation": "thuktong",
+        "jp_pronunciation": "gouhouteki na",
+        "vie_pronunciation": "hop phap"
+      },
+      "means": {
+        "en": "Make legal",
+        "zh": "合法化"
+      }
+    },
+    {
+      "word": {
+        "en": "legitimacy",
+        "laos": "ຄວາມຖືກຕ້ອງຊອບທໍາ",
+        "jp": "正当性",
+        "vie": "tính hợp pháp",
+        "en_pronunciation": "/lɪˈʤɪtəməsi/",
+        "laos_pronunciation": "khuaam thuktong sobthoa",
+        "jp_pronunciation": "seitousei",
+        "vie_pronunciation": "tinh hop phap"
+      },
+      "means": {
+        "en": "Lawfulness by virtue of being authorized or in accordance with law",
+        "zh": "经授权或依法而合法"
+      }
+    },
+    {
+      "word": {
+        "en": "leisure",
+        "laos": "ເວລາຫວ່າງ",
+        "jp": "余暇",
+        "vie": "giải trí",
+        "en_pronunciation": "/ˈlɛʒər/",
+        "laos_pronunciation": "velavang",
+        "jp_pronunciation": "yoka",
+        "vie_pronunciation": "giai tri"
+      },
+      "means": {
+        "en": "Time available for ease and relaxation",
+        "zh": "有时间放松身心"
+      }
+    },
+    {
+      "word": {
+        "en": "leisurely",
+        "laos": "ສົດຫຼາຢ",
+        "jp": "のんびり",
+        "vie": "nhàn nhã",
+        "en_pronunciation": "/ˈlizərli/",
+        "laos_pronunciation": "sod ray",
+        "jp_pronunciation": "nonbiri",
+        "vie_pronunciation": "nhan nha"
+      },
+      "means": {
+        "en": "Not hurried or forced",
+        "zh": "不匆忙或强迫"
+      }
+    },
+    {
+      "word": {
+        "en": "lemon",
+        "laos": "ນາວ",
+        "jp": "レモン",
+        "vie": "chanh",
+        "en_pronunciation": "/ˈlɛmən/",
+        "laos_pronunciation": "nav",
+        "jp_pronunciation": "remon",
+        "vie_pronunciation": "chanh"
+      },
+      "means": {
+        "en": "Yellow oval fruit with juicy acidic flesh",
+        "zh": "黄色椭圆形水果，果肉呈酸性多汁"
+      }
+    },
+    {
+      "word": {
+        "en": "lemonade",
+        "laos": "ນ້ໍາຫມາກນາວ",
+        "jp": "レモネード",
+        "vie": "nước chanh",
+        "en_pronunciation": "/ˈlɛməˈneɪd/",
+        "laos_pronunciation": "noamaknav",
+        "jp_pronunciation": "remoneedo",
+        "vie_pronunciation": "nuoc chanh"
+      },
+      "means": {
+        "en": "Sweetened beverage of diluted lemon juice",
+        "zh": "稀释柠檬汁甜味饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "lend",
+        "laos": "ປ່ອຍເງິນ",
+        "jp": "貸す",
+        "vie": "cho mượn",
+        "en_pronunciation": "/lɛnd/",
+        "laos_pronunciation": "ponyngoen",
+        "jp_pronunciation": "kasu",
+        "vie_pronunciation": "cho muon"
+      },
+      "means": {
+        "en": "Bestow a quality on",
+        "zh": "赋予品质"
+      }
+    },
+    {
+      "word": {
+        "en": "lenient",
+        "laos": "ອ່ອນ",
+        "jp": "寛大な",
+        "vie": "khoan dung",
+        "en_pronunciation": "/ˈlinjənt/",
+        "laos_pronunciation": "n",
+        "jp_pronunciation": "kandai na",
+        "vie_pronunciation": "khoan dung"
+      },
+      "means": {
+        "en": "Tolerant or lenient",
+        "zh": "宽容或宽容"
+      }
+    },
+    {
+      "word": {
+        "en": "leniency",
+        "laos": "ອະນິຣະຊົນ",
+        "jp": "寛大さ",
+        "vie": "sự khoan dung",
+        "en_pronunciation": "/ˈlinjənsi/",
+        "laos_pronunciation": "anirason",
+        "jp_pronunciation": "kandai sa",
+        "vie_pronunciation": "su khoan dung"
+      },
+      "means": {
+        "en": "Mercifulness as a consequence of being lenient or tolerant",
+        "zh": "仁慈是宽大或宽容的结果"
+      }
+    },
+    {
+      "word": {
+        "en": "lens",
+        "laos": "ເລນ",
+        "jp": "レンズ",
+        "vie": "ống kính",
+        "en_pronunciation": "/lɛnz/",
+        "laos_pronunciation": "len",
+        "jp_pronunciation": "renzu",
+        "vie_pronunciation": "ong kinh"
+      },
+      "means": {
+        "en": "A transparent optical device used to converge or diverge transmitted light and to form images",
+        "zh": "用于会聚或发散透射光并形成图像的透明光学装置"
+      }
+    },
+    {
+      "word": {
+        "en": "lesbian",
+        "laos": "ຍິງມັກຍິງ",
+        "jp": "レズビアン",
+        "vie": "đồng tính nữ",
+        "en_pronunciation": "/ˈlɛzbiən/",
+        "laos_pronunciation": "nying mkaiing",
+        "jp_pronunciation": "rezubian",
+        "vie_pronunciation": "dong tinh nu"
+      },
+      "means": {
+        "en": "A female homosexual",
+        "zh": "一名女同性恋者"
+      }
+    },
+    {
+      "word": {
+        "en": "less",
+        "laos": "ຫນ້ອຍ",
+        "jp": "少ない",
+        "vie": "ít hơn",
+        "en_pronunciation": "/lɛs/",
+        "laos_pronunciation": "nony",
+        "jp_pronunciation": "sukunai",
+        "vie_pronunciation": "it hon"
+      },
+      "means": {
+        "en": "(comparative of `little' usually used with mass nouns) a quantifier meaning not as great in amount or degree",
+        "zh": "（“little”的比较级，通常与质量名词一起使用）量词，意思是数量或程度不那么大"
+      }
+    },
+    {
+      "word": {
+        "en": "lesson",
+        "laos": "ບົດຮຽນ",
+        "jp": "レッスン",
+        "vie": "bài học",
+        "en_pronunciation": "/ˈlɛsən/",
+        "laos_pronunciation": "bodhian",
+        "jp_pronunciation": "ressun",
+        "vie_pronunciation": "bai hoc"
+      },
+      "means": {
+        "en": "A unit of instruction",
+        "zh": "一个教学单元"
+      }
+    },
+    {
+      "word": {
+        "en": "lest",
+        "laos": "ທີ່ຄ້າງ",
+        "jp": "そうならないように",
+        "vie": "kẻo",
+        "en_pronunciation": "/lɛst/",
+        "laos_pronunciation": "thikhang",
+        "jp_pronunciation": "sounaranaiyouni",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "Being ten more than forty",
+        "zh": "十比四十多"
+      }
+    },
+    {
+      "word": {
+        "en": "let",
+        "laos": "ປ່ອຍໃຫ້",
+        "jp": "させてください",
+        "vie": "hãy để",
+        "en_pronunciation": "/lɛt/",
+        "laos_pronunciation": "ponyhai",
+        "jp_pronunciation": "sasetekudasai",
+        "vie_pronunciation": "hay de"
+      },
+      "means": {
+        "en": "A brutal terrorist group active in Kashmir; fights against India with the goal of restoring Islamic rule of India",
+        "zh": "活跃在克什米尔的残暴恐怖组织；"
+      }
+    },
+    {
+      "word": {
+        "en": "letter",
+        "laos": "ຈົດຫມາຍ",
+        "jp": "手紙",
+        "vie": "lá thư",
+        "en_pronunciation": "/ˈlɛtər/",
+        "laos_pronunciation": "chodmai",
+        "jp_pronunciation": "tegami",
+        "vie_pronunciation": "la thu"
+      },
+      "means": {
+        "en": "A written message addressed to a person or organization",
+        "zh": "与印度作战，目标是恢复印度的伊斯兰统治"
+      }
+    },
+    {
+      "word": {
+        "en": "level",
+        "laos": "ລະດັບ",
+        "jp": "レベル",
+        "vie": "cấp độ",
+        "en_pronunciation": "/ˈlɛvəl/",
+        "laos_pronunciation": "ladab",
+        "jp_pronunciation": "reberu",
+        "vie_pronunciation": "cap do"
+      },
+      "means": {
+        "en": "A position on a scale of intensity or amount or quality",
+        "zh": "写给个人或组织的书面消息"
+      }
+    },
+    {
+      "word": {
+        "en": "lever",
+        "laos": "ເຊົ່າ",
+        "jp": "レバー",
+        "vie": "đòn bẩy",
+        "en_pronunciation": "/ˈlɛvər/",
+        "laos_pronunciation": "seoa",
+        "jp_pronunciation": "rebaa",
+        "vie_pronunciation": "don bay"
+      },
+      "means": {
+        "en": "A rigid bar pivoted about a fulcrum",
+        "zh": "强度、数量或质量的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "leverage",
+        "laos": "ຄວາມຮ້ອນ",
+        "jp": "レバレッジ",
+        "vie": "đòn bẩy",
+        "en_pronunciation": "/ˈlɛvərɪʤ/",
+        "laos_pronunciation": "khuaamhon",
+        "jp_pronunciation": "rebarejji",
+        "vie_pronunciation": "don bay"
+      },
+      "means": {
+        "en": "The mechanical advantage gained by being in a position to use a lever",
+        "zh": "绕支点旋转的刚性杆"
+      }
+    },
+    {
+      "word": {
+        "en": "levy",
+        "laos": "ຄວາມຕ່ໍາສຸດ",
+        "jp": "徴収する",
+        "vie": "thu thuế",
+        "en_pronunciation": "/ˈlɛvi/",
+        "laos_pronunciation": "khuaamtoasud",
+        "jp_pronunciation": "choushuu suru",
+        "vie_pronunciation": "thu thue"
+      },
+      "means": {
+        "en": "A charge imposed and collected",
+        "zh": "通过使用杠杆获得的机械优势"
+      }
+    },
+    {
+      "word": {
+        "en": "liable",
+        "laos": "ທີ່ຮັບຜິດຊອບ",
+        "jp": "責任がある",
+        "vie": "chịu trách nhiệm",
+        "en_pronunciation": "/ˈlaɪəbəl/",
+        "laos_pronunciation": "thihabphidsob",
+        "jp_pronunciation": "sekinin gaaru",
+        "vie_pronunciation": "chiu trach nhiem"
+      },
+      "means": {
+        "en": "At risk of or subject to experiencing something usually unpleasant",
+        "zh": "征收和收取的费用"
+      }
+    },
+    {
+      "word": {
+        "en": "liability",
+        "laos": "ຄວາມຮັບຜິດຊອບ",
+        "jp": "責任",
+        "vie": "trách nhiệm pháp lý",
+        "en_pronunciation": "/ˌlaɪəˈbɪlɪti/",
+        "laos_pronunciation": "khuaamhabphidsob",
+        "jp_pronunciation": "sekinin",
+        "vie_pronunciation": "trach nhiem phap ly"
+      },
+      "means": {
+        "en": "The state of being legally obliged and responsible",
+        "zh": "有风险或可能经历通常不愉快的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "liberal",
+        "laos": "ເສລີ",
+        "jp": "リベラルな",
+        "vie": "tự do",
+        "en_pronunciation": "/ˈlɪˌbərəl/",
+        "laos_pronunciation": "seli",
+        "jp_pronunciation": "riberaru na",
+        "vie_pronunciation": "tu do"
+      },
+      "means": {
+        "en": "A person who favors a political philosophy of progress and reform and the protection of civil liberties",
+        "zh": "承担法律义务和责任的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "liberate",
+        "laos": "ໂຜດ",
+        "jp": "解放する",
+        "vie": "giải phóng",
+        "en_pronunciation": "/ˈlɪˌbərˌeɪt/",
+        "laos_pronunciation": "ophd",
+        "jp_pronunciation": "kaihou suru",
+        "vie_pronunciation": "giai phong"
+      },
+      "means": {
+        "en": "Give equal rights to; of women and minorities",
+        "zh": "拥护进步和改革政治哲学以及保护公民自由的人"
+      }
+    },
+    {
+      "word": {
+        "en": "liberty",
+        "laos": "ເສຣີພາບ",
+        "jp": "自由",
+        "vie": "tự do",
+        "en_pronunciation": "/ˈlɪbərˌti/",
+        "laos_pronunciation": "seriphab",
+        "jp_pronunciation": "jiyuu",
+        "vie_pronunciation": "tu do"
+      },
+      "means": {
+        "en": "Immunity from arbitrary exercise of authority: political independence",
+        "zh": "给予平等权利；"
+      }
+    },
+    {
+      "word": {
+        "en": "liberation",
+        "laos": "ລີເສລີ",
+        "jp": "解放",
+        "vie": "giải phóng",
+        "en_pronunciation": "/ˌlɪˌbərˈeɪʃən/",
+        "laos_pronunciation": "liseli",
+        "jp_pronunciation": "kaihou",
+        "vie_pronunciation": "giai phong"
+      },
+      "means": {
+        "en": "The act of liberating someone or something",
+        "zh": "妇女和少数族裔"
+      }
+    },
+    {
+      "word": {
+        "en": "library",
+        "laos": "ຫໍສະຫມຸດ",
+        "jp": "図書館",
+        "vie": "thư viện",
+        "en_pronunciation": "/ˈlaɪbrɛˌri/",
+        "laos_pronunciation": "hosamud",
+        "jp_pronunciation": "toshokan",
+        "vie_pronunciation": "thu vien"
+      },
+      "means": {
+        "en": "A room where books are kept",
+        "zh": "免受任意行使权力的影响：政治独立"
+      }
+    },
+    {
+      "word": {
+        "en": "license",
+        "laos": "ໃບອະນຸກົດ",
+        "jp": "ライセンス",
+        "vie": "giấy phép",
+        "en_pronunciation": "/ˈlaɪsəns/",
+        "laos_pronunciation": "bai anukod",
+        "jp_pronunciation": "raisensu",
+        "vie_pronunciation": "giay phep"
+      },
+      "means": {
+        "en": "A legal document giving official permission to do something",
+        "zh": "解放某人或某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "licence",
+        "laos": "ໃບອະນຸກົດ",
+        "jp": "ライセンス",
+        "vie": "giấy phép",
+        "en_pronunciation": "/ˈlaɪsəns/",
+        "laos_pronunciation": "bai anukod",
+        "jp_pronunciation": "raisensu",
+        "vie_pronunciation": "giay phep"
+      },
+      "means": {
+        "en": "Excessive freedom; lack of due restraint; - Will Durant; - Edmund Burke",
+        "zh": "放书的房间"
+      }
+    },
+    {
+      "word": {
+        "en": "librarian",
+        "laos": "ຜູ້ຊາຢມາເລີມ",
+        "jp": "図書館員",
+        "vie": "thủ thư",
+        "en_pronunciation": "/laɪˈbrɛˌriən/",
+        "laos_pronunciation": "phu say maloem",
+        "jp_pronunciation": "toshokan'in",
+        "vie_pronunciation": "thu thu"
+      },
+      "means": {
+        "en": "A professional person trained in library science and engaged in library services",
+        "zh": "正式许可做某事的法律文件"
+      }
+    },
+    {
+      "word": {
+        "en": "lick",
+        "laos": "ເລັຍ",
+        "jp": "なめる",
+        "vie": "liếm",
+        "en_pronunciation": "/lɪk/",
+        "laos_pronunciation": "leny",
+        "jp_pronunciation": "nameru",
+        "vie_pronunciation": "liem"
+      },
+      "means": {
+        "en": "A salt deposit that animals regularly lick",
+        "zh": "过度自由；"
+      }
+    },
+    {
+      "word": {
+        "en": "lid",
+        "laos": "ຝາອັດ",
+        "jp": "蓋",
+        "vie": "nắp",
+        "en_pronunciation": "/lɪd/",
+        "laos_pronunciation": "faad",
+        "jp_pronunciation": "futa",
+        "vie_pronunciation": "nap"
+      },
+      "means": {
+        "en": "Either of two folds of skin that can be moved to cover or open the eye",
+        "zh": "缺乏应有的克制；"
+      }
+    },
+    {
+      "word": {
+        "en": "lie",
+        "laos": "ຕົວະ",
+        "jp": "嘘をつく",
+        "vie": "nói dối",
+        "en_pronunciation": "/laɪ/",
+        "laos_pronunciation": "tuaa",
+        "jp_pronunciation": "uso wotsuku",
+        "vie_pronunciation": "noi doi"
+      },
+      "means": {
+        "en": "A statement that deviates from or perverts the truth",
+        "zh": "——威尔·杜兰特；"
+      }
+    },
+    {
+      "word": {
+        "en": "liar",
+        "laos": "ຄົນຂີ້ຕົວະ",
+        "jp": "嘘つき",
+        "vie": "kẻ nói dối",
+        "en_pronunciation": "/laɪər/",
+        "laos_pronunciation": "khonkhituaa",
+        "jp_pronunciation": "usotsuki",
+        "vie_pronunciation": "ke noi doi"
+      },
+      "means": {
+        "en": "A person who has lied or who lies repeatedly",
+        "zh": "——埃德蒙·伯克"
+      }
+    },
+    {
+      "word": {
+        "en": "lieutenant",
+        "laos": "ນາຢທັບ",
+        "jp": "中尉",
+        "vie": "trung úy",
+        "en_pronunciation": "/luˈtɛnənt/",
+        "laos_pronunciation": "naythab",
+        "jp_pronunciation": "chuui",
+        "vie_pronunciation": "trung uy"
+      },
+      "means": {
+        "en": "A commissioned military officer",
+        "zh": "接受过图书馆学培训并从事图书馆服务的专业人员"
+      }
+    },
+    {
+      "word": {
+        "en": "life",
+        "laos": "ຊີວິດ",
+        "jp": "人生",
+        "vie": "cuộc sống",
+        "en_pronunciation": "/laɪf/",
+        "laos_pronunciation": "sivid",
+        "jp_pronunciation": "jinsei",
+        "vie_pronunciation": "cuoc song"
+      },
+      "means": {
+        "en": "A characteristic state or mode of living",
+        "zh": "动物经常舔舐的盐矿"
+      }
+    },
+    {
+      "word": {
+        "en": "lift",
+        "laos": "ຍົກ",
+        "jp": "リフト",
+        "vie": "nâng",
+        "en_pronunciation": "/lɪft/",
+        "laos_pronunciation": "nyok",
+        "jp_pronunciation": "rifuto",
+        "vie_pronunciation": "nang"
+      },
+      "means": {
+        "en": "The act of giving temporary assistance",
+        "zh": "可以移动以遮盖或睁开眼睛的两个皮肤褶皱中的任何一个"
+      }
+    },
+    {
+      "word": {
+        "en": "light",
+        "laos": "ແສງສະຫວ່າງ",
+        "jp": "光",
+        "vie": "ánh sáng",
+        "en_pronunciation": "/laɪt/",
+        "laos_pronunciation": "aesngsavang",
+        "jp_pronunciation": "hikari",
+        "vie_pronunciation": "anh sang"
+      },
+      "means": {
+        "en": "(physics) electromagnetic radiation that can produce a visual sensation",
+        "zh": "偏离或歪曲事实的陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "lighting",
+        "laos": "ເຮັດໃຫ້ມີແສງ",
+        "jp": "照明",
+        "vie": "thắp sáng",
+        "en_pronunciation": "/ˈlaɪtɪŋ/",
+        "laos_pronunciation": "hedhaimiaesng",
+        "jp_pronunciation": "shoumei",
+        "vie_pronunciation": "thap sang"
+      },
+      "means": {
+        "en": "Having abundant light or illumination",
+        "zh": "曾说过谎或反复说谎的人"
+      }
+    },
+    {
+      "word": {
+        "en": "lightning",
+        "laos": "ຟ້າຜ່າ",
+        "jp": "稲妻",
+        "vie": "tia sét",
+        "en_pronunciation": "/ˈlaɪtnɪŋ/",
+        "laos_pronunciation": "fapha",
+        "jp_pronunciation": "inazuma",
+        "vie_pronunciation": "tia set"
+      },
+      "means": {
+        "en": "Abrupt electric discharge from cloud to cloud or from cloud to earth accompanied by the emission of light",
+        "zh": "一名军官"
+      }
+    },
+    {
+      "word": {
+        "en": "like",
+        "laos": "ມັກ",
+        "jp": "好き",
+        "vie": "thích",
+        "en_pronunciation": "/laɪk/",
+        "laos_pronunciation": "mak",
+        "jp_pronunciation": "suki",
+        "vie_pronunciation": "thich"
+      },
+      "means": {
+        "en": "A similar kind; ,",
+        "zh": "一种典型的生活方式或状态"
+      }
+    },
+    {
+      "word": {
+        "en": "likely",
+        "laos": "ອາດຈະເປັນໄດ້",
+        "jp": "おそらく",
+        "vie": "có thể",
+        "en_pronunciation": "/ˈlaɪkli/",
+        "laos_pronunciation": "adchapendai",
+        "jp_pronunciation": "osoraku",
+        "vie_pronunciation": "co the"
+      },
+      "means": {
+        "en": "Has a good chance of being the case or of coming about",
+        "zh": "提供临时援助的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "likelihood",
+        "laos": "ການເປັນໄປໄດ້",
+        "jp": "可能性",
+        "vie": "khả năng xảy ra",
+        "en_pronunciation": "/ˈlaɪkliˌhʊd/",
+        "laos_pronunciation": "kanpenpaidai",
+        "jp_pronunciation": "kanousei",
+        "vie_pronunciation": "kha nang xay ra"
+      },
+      "means": {
+        "en": "The probability of a specified outcome",
+        "zh": "（物理学）可以产生视觉感觉的电磁辐射"
+      }
+    },
+    {
+      "word": {
+        "en": "likewise",
+        "laos": "ເຊັ່ນດຽວກັນ",
+        "jp": "同様に",
+        "vie": "tương tự như vậy",
+        "en_pronunciation": "/ˈlaɪkˌwaɪz/",
+        "laos_pronunciation": "sendiauakan",
+        "jp_pronunciation": "douyou ni",
+        "vie_pronunciation": "tuong tu nhu vay"
+      },
+      "means": {
+        "en": "In like or similar manner; ; - Samuel Johnson",
+        "zh": "有充足的光线或照明"
+      }
+    },
+    {
+      "word": {
+        "en": "lily",
+        "laos": "ດອກລີ້ນ",
+        "jp": "ユリ",
+        "vie": "hoa huệ",
+        "en_pronunciation": "/ˈlɪli/",
+        "laos_pronunciation": "doklin",
+        "jp_pronunciation": "yuri",
+        "vie_pronunciation": "hoa hue"
+      },
+      "means": {
+        "en": "Any liliaceous plant of the genus Lilium having showy pendulous flowers",
+        "zh": "从云到云或从云到地球的突然放电并伴随着光的发射"
+      }
+    },
+    {
+      "word": {
+        "en": "limb",
+        "laos": "ແຂນຂາ",
+        "jp": "手足",
+        "vie": "chân tay",
+        "en_pronunciation": "/lɪm/",
+        "laos_pronunciation": "aekhnkha",
+        "jp_pronunciation": "teashi",
+        "vie_pronunciation": "chan tay"
+      },
+      "means": {
+        "en": "One of the jointed appendages of an animal used for locomotion or grasping: arm; leg; wing; flipper",
+        "zh": "类似的一种；"
+      }
+    },
+    {
+      "word": {
+        "en": "lime",
+        "laos": "ປູນຂາວ",
+        "jp": "ライム",
+        "vie": "vôi",
+        "en_pronunciation": "/laɪm/",
+        "laos_pronunciation": "punkhav",
+        "jp_pronunciation": "raimu",
+        "vie_pronunciation": "voi"
+      },
+      "means": {
+        "en": "A caustic substance produced by heating limestone",
+        "zh": ","
+      }
+    },
+    {
+      "word": {
+        "en": "limelight",
+        "laos": "Limelight",
+        "jp": "脚光を浴びる",
+        "vie": "ánh đèn sân khấu",
+        "en_pronunciation": "/ˈlaɪmˌlaɪt/",
+        "laos_pronunciation": "Limelight",
+        "jp_pronunciation": "kyakkou wo abi ru",
+        "vie_pronunciation": "anh den san khau"
+      },
+      "means": {
+        "en": "A focus of public attention",
+        "zh": "有很好的机会成为这种情况或发生"
+      }
+    },
+    {
+      "word": {
+        "en": "limit",
+        "laos": "ຈໍາກັດ",
+        "jp": "限界",
+        "vie": "giới hạn",
+        "en_pronunciation": "/ˈlɪmət/",
+        "laos_pronunciation": "choakad",
+        "jp_pronunciation": "genkai",
+        "vie_pronunciation": "gioi han"
+      },
+      "means": {
+        "en": "The greatest possible degree of something",
+        "zh": "特定结果的概率"
+      }
+    },
+    {
+      "word": {
+        "en": "limitation",
+        "laos": "ຂໍ້ຈໍາກັດ",
+        "jp": "制限",
+        "vie": "giới hạn",
+        "en_pronunciation": "/ˌlɪmɪˈteɪʃən/",
+        "laos_pronunciation": "khochoakad",
+        "jp_pronunciation": "seigen",
+        "vie_pronunciation": "gioi han"
+      },
+      "means": {
+        "en": "A principle that limits the extent of something",
+        "zh": "以相同或相似的方式；"
+      }
+    },
+    {
+      "word": {
+        "en": "limited",
+        "laos": "ຈໍາກັດ",
+        "jp": "限られた",
+        "vie": "hạn chế",
+        "en_pronunciation": "/ˈlɪmɪtɪd/",
+        "laos_pronunciation": "choakad",
+        "jp_pronunciation": "kagira reta",
+        "vie_pronunciation": "han che"
+      },
+      "means": {
+        "en": "Public transport consisting of a fast train or bus that makes only a few scheduled stops",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "limp",
+        "laos": "ເລື້ອ",
+        "jp": "ぐったりしている",
+        "vie": "khập khiễng",
+        "en_pronunciation": "/lɪmp/",
+        "laos_pronunciation": "leu",
+        "jp_pronunciation": "guttarishiteiru",
+        "vie_pronunciation": "khap khieng"
+      },
+      "means": {
+        "en": "The uneven manner of walking that results from an injured leg",
+        "zh": "- 塞缪尔·约翰逊"
+      }
+    },
+    {
+      "word": {
+        "en": "line",
+        "laos": "ເສັ້ນ",
+        "jp": "ライン",
+        "vie": "dòng",
+        "en_pronunciation": "/laɪn/",
+        "laos_pronunciation": "sen",
+        "jp_pronunciation": "rain",
+        "vie_pronunciation": "dong"
+      },
+      "means": {
+        "en": "A formation of people or things one beside another",
+        "zh": "任何具有艳丽下垂花朵的百合属百合植物"
+      }
+    },
+    {
+      "word": {
+        "en": "linear",
+        "laos": "ເສັ້ນພາສີ",
+        "jp": "線形",
+        "vie": "tuyến tính",
+        "en_pronunciation": "/ˈlɪniər/",
+        "laos_pronunciation": "senphasi",
+        "jp_pronunciation": "senkei",
+        "vie_pronunciation": "tuyen tinh"
+      },
+      "means": {
+        "en": "Designating or involving an equation whose terms are of the first degree",
+        "zh": "动物用于运动或抓握的有关节的附属物之一：手臂；"
+      }
+    },
+    {
+      "word": {
+        "en": "linen",
+        "laos": "ຜ້າແພ",
+        "jp": "リネン",
+        "vie": "vải lanh",
+        "en_pronunciation": "/ˈlɪnən/",
+        "laos_pronunciation": "phaaeph",
+        "jp_pronunciation": "rinen",
+        "vie_pronunciation": "vai lanh"
+      },
+      "means": {
+        "en": "A fabric woven with fibers from the flax plant",
+        "zh": "腿;"
+      }
+    },
+    {
+      "word": {
+        "en": "liner",
+        "laos": "ເສຍ",
+        "jp": "ライナー",
+        "vie": "lớp lót",
+        "en_pronunciation": "/ˈlaɪnər/",
+        "laos_pronunciation": "sia",
+        "jp_pronunciation": "rainaa",
+        "vie_pronunciation": "lop lot"
+      },
+      "means": {
+        "en": "(baseball) a hit that flies straight out from the batter",
+        "zh": "翼;"
+      }
+    },
+    {
+      "word": {
+        "en": "linger",
+        "laos": "ເລັຽ",
+        "jp": "長引く",
+        "vie": "nán lại",
+        "en_pronunciation": "/ˈlɪŋər/",
+        "laos_pronunciation": "leia",
+        "jp_pronunciation": "nagabiku",
+        "vie_pronunciation": "nan lai"
+      },
+      "means": {
+        "en": "Remain present although waning or gradually dying",
+        "zh": "脚蹼"
+      }
+    },
+    {
+      "word": {
+        "en": "linguistic",
+        "laos": "ພາສາ",
+        "jp": "言語的な",
+        "vie": "ngôn ngữ học",
+        "en_pronunciation": "/lɪŋgˈwɪstɪk/",
+        "laos_pronunciation": "phasa",
+        "jp_pronunciation": "gengoteki na",
+        "vie_pronunciation": "ngon ngu hoc"
+      },
+      "means": {
+        "en": "Consisting of or related to language",
+        "zh": "加热石灰石产生的腐蚀性物质"
+      }
+    },
+    {
+      "word": {
+        "en": "linguistics",
+        "laos": "ພາສາສາດ",
+        "jp": "言語学",
+        "vie": "ngôn ngữ học",
+        "en_pronunciation": "/lɪŋgˈwɪstɪks/",
+        "laos_pronunciation": "phasasad",
+        "jp_pronunciation": "gengogaku",
+        "vie_pronunciation": "ngon ngu hoc"
+      },
+      "means": {
+        "en": "The scientific study of language",
+        "zh": "成为公众关注的焦点"
+      }
+    },
+    {
+      "word": {
+        "en": "link",
+        "laos": "ການເຊື່ອມໂຍງ",
+        "jp": "リンク",
+        "vie": "liên kết",
+        "en_pronunciation": "/lɪŋk/",
+        "laos_pronunciation": "kanseuomonyng",
+        "jp_pronunciation": "rinku",
+        "vie_pronunciation": "lien ket"
+      },
+      "means": {
+        "en": "The means of connection between things linked in series",
+        "zh": "某事物的最大可能程度"
+      }
+    },
+    {
+      "word": {
+        "en": "linkage",
+        "laos": "ການເຊື່ອມຕໍ່",
+        "jp": "リンケージ",
+        "vie": "sự liên kết",
+        "en_pronunciation": "/ˈlɪŋkɪʤ/",
+        "laos_pronunciation": "kanseuomto",
+        "jp_pronunciation": "rinkeeji",
+        "vie_pronunciation": "su lien ket"
+      },
+      "means": {
+        "en": "An associative relation",
+        "zh": "限制某事物范围的原则"
+      }
+    },
+    {
+      "word": {
+        "en": "lion",
+        "laos": "ສິງຫະ",
+        "jp": "ライオン",
+        "vie": "sư tử",
+        "en_pronunciation": "/laɪən/",
+        "laos_pronunciation": "singha",
+        "jp_pronunciation": "raion",
+        "vie_pronunciation": "su tu"
+      },
+      "means": {
+        "en": "Large gregarious predatory feline of Africa and India having a tawny coat with a shaggy mane in the male",
+        "zh": "公共交通包括快速火车或巴士，仅停靠几个预定站点"
+      }
+    },
+    {
+      "word": {
+        "en": "lioness",
+        "laos": "ສິງຫະ",
+        "jp": "雌ライオン",
+        "vie": "sư tử cái",
+        "en_pronunciation": "/lioness/",
+        "laos_pronunciation": "singha",
+        "jp_pronunciation": "mesu raion",
+        "vie_pronunciation": "su tu cai"
+      },
+      "means": {
+        "en": "A female lion",
+        "zh": "腿部受伤导致的行走方式不均匀"
+      }
+    },
+    {
+      "word": {
+        "en": "lip",
+        "laos": "ຮິມ",
+        "jp": "唇",
+        "vie": "môi",
+        "en_pronunciation": "/lɪp/",
+        "laos_pronunciation": "him",
+        "jp_pronunciation": "kuchibiru",
+        "vie_pronunciation": "moi"
+      },
+      "means": {
+        "en": "Either of two fleshy folds of tissue that surround the mouth and play a role in speaking",
+        "zh": "一组人或物彼此相邻的排列"
+      }
+    },
+    {
+      "word": {
+        "en": "lipstick",
+        "laos": "ລິບສະຕິກ",
+        "jp": "口紅",
+        "vie": "son môi",
+        "en_pronunciation": "/ˈlɪpˌstɪk/",
+        "laos_pronunciation": "libsatik",
+        "jp_pronunciation": "kuchibeni",
+        "vie_pronunciation": "son moi"
+      },
+      "means": {
+        "en": "Makeup that is used to color the lips",
+        "zh": "指定或涉及项为一次的方程"
+      }
+    },
+    {
+      "word": {
+        "en": "liquid",
+        "laos": "ຂອງແຫຼວ",
+        "jp": "液体",
+        "vie": "chất lỏng",
+        "en_pronunciation": "/ˈlɪkwɪd/",
+        "laos_pronunciation": "khongaerv",
+        "jp_pronunciation": "ekitai",
+        "vie_pronunciation": "chat long"
+      },
+      "means": {
+        "en": "A substance that is liquid at room temperature and pressure",
+        "zh": "用亚麻植物的纤维编织而成的织物"
+      }
+    },
+    {
+      "word": {
+        "en": "liquor",
+        "laos": "ສຸຣາ",
+        "jp": "酒",
+        "vie": "rượu",
+        "en_pronunciation": "/ˈlɪkər/",
+        "laos_pronunciation": "sura",
+        "jp_pronunciation": "sake",
+        "vie_pronunciation": "ruou"
+      },
+      "means": {
+        "en": "An alcoholic beverage that is distilled rather than fermented",
+        "zh": "（棒球）击球手直接飞出的击球"
+      }
+    },
+    {
+      "word": {
+        "en": "list",
+        "laos": "ລາຍຊື່",
+        "jp": "リスト",
+        "vie": "danh sách",
+        "en_pronunciation": "/lɪst/",
+        "laos_pronunciation": "laisu",
+        "jp_pronunciation": "risuto",
+        "vie_pronunciation": "danh sach"
+      },
+      "means": {
+        "en": "A database containing an ordered array of items (names or topics)",
+        "zh": "尽管衰弱或逐渐死亡，但仍然存在"
+      }
+    },
+    {
+      "word": {
+        "en": "listen",
+        "laos": "ຟັງ",
+        "jp": "聞いてください",
+        "vie": "lắng nghe",
+        "en_pronunciation": "/ˈlɪsən/",
+        "laos_pronunciation": "fang",
+        "jp_pronunciation": "kii tekudasai",
+        "vie_pronunciation": "lang nghe"
+      },
+      "means": {
+        "en": "Hear with intention",
+        "zh": "由语言组成或与语言相关"
+      }
+    },
+    {
+      "word": {
+        "en": "listener",
+        "laos": "ຜູ້ຟັງ",
+        "jp": "聞き手",
+        "vie": "người nghe",
+        "en_pronunciation": "/ˈlɪsənər/",
+        "laos_pronunciation": "phufang",
+        "jp_pronunciation": "kikite",
+        "vie_pronunciation": "nguoi nghe"
+      },
+      "means": {
+        "en": "Someone who listens attentively",
+        "zh": "语言科学研究"
+      }
+    },
+    {
+      "word": {
+        "en": "liter",
+        "laos": "ລິດ",
+        "jp": "リットル",
+        "vie": "lít",
+        "en_pronunciation": "/ˈlitər/",
+        "laos_pronunciation": "lid",
+        "jp_pronunciation": "rittoru",
+        "vie_pronunciation": "lit"
+      },
+      "means": {
+        "en": "A metric unit of capacity, formerly defined as the volume of one kilogram of pure water under standard conditions; now equal to 1,000 cubic centimeters (or approximately 1.75 pints)",
+        "zh": "串联的事物之间的连接方式"
+      }
+    },
+    {
+      "word": {
+        "en": "litre",
+        "laos": "ລິດ",
+        "jp": "リットル",
+        "vie": "lít",
+        "en_pronunciation": "/litre/",
+        "laos_pronunciation": "lid",
+        "jp_pronunciation": "rittoru",
+        "vie_pronunciation": "lit"
+      },
+      "means": {
+        "en": "A metric unit of capacity, formerly defined as the volume of one kilogram of pure water under standard conditions; now equal to 1,000 cubic centimeters (or approximately 1.75 pints)",
+        "zh": "关联关系"
+      }
+    },
+    {
+      "word": {
+        "en": "literal",
+        "laos": "ທີ່ຮູ້ຫນັງສື",
+        "jp": "文字通りの",
+        "vie": "theo nghĩa đen",
+        "en_pronunciation": "/ˈlɪtərəl/",
+        "laos_pronunciation": "thi hunangsu",
+        "jp_pronunciation": "mojidoori no",
+        "vie_pronunciation": "theo nghia den"
+      },
+      "means": {
+        "en": "A mistake in printed matter resulting from mechanical failures of some kind",
+        "zh": "非洲和印度的大型群居掠食性猫科动物，雄性有黄褐色的皮毛和蓬松的鬃毛"
+      }
+    },
+    {
+      "word": {
+        "en": "literally",
+        "laos": "ທີ່ຮູ້ຫນັງສື",
+        "jp": "文字通り",
+        "vie": "theo nghĩa đen",
+        "en_pronunciation": "/ˈlɪtərəli/",
+        "laos_pronunciation": "thi hunangsu",
+        "jp_pronunciation": "mojidoori",
+        "vie_pronunciation": "theo nghia den"
+      },
+      "means": {
+        "en": "In a literal sense",
+        "zh": "一只母狮子"
+      }
+    },
+    {
+      "word": {
+        "en": "literary",
+        "laos": "ວັນນະຄະດີ",
+        "jp": "文学的な",
+        "vie": "văn chương",
+        "en_pronunciation": "/ˈlɪtərˌɛri/",
+        "laos_pronunciation": "vannakhadi",
+        "jp_pronunciation": "bungakuteki na",
+        "vie_pronunciation": "van chuong"
+      },
+      "means": {
+        "en": "Of or relating to or characteristic of literature",
+        "zh": "围绕口腔并在说话中发挥作用的两个肉质组织皱襞之一"
+      }
+    },
+    {
+      "word": {
+        "en": "literature",
+        "laos": "ວັນນະຄະດີ",
+        "jp": "文学",
+        "vie": "văn chương",
+        "en_pronunciation": "/ˈlɪtərəʧər/",
+        "laos_pronunciation": "vannakhadi",
+        "jp_pronunciation": "bungaku",
+        "vie_pronunciation": "van chuong"
+      },
+      "means": {
+        "en": "Creative writing of recognized artistic value",
+        "zh": "用于为嘴唇着色的化妆品"
+      }
+    },
+    {
+      "word": {
+        "en": "literate",
+        "laos": "ທີ່ຮູ້ຫນັງສື",
+        "jp": "読み書きできる",
+        "vie": "biết chữ",
+        "en_pronunciation": "/ˈlɪtərət/",
+        "laos_pronunciation": "thi hunangsu",
+        "jp_pronunciation": "yomikaki dekiru",
+        "vie_pronunciation": "biet chu"
+      },
+      "means": {
+        "en": "A person who can read and write",
+        "zh": "在室温和压力下呈液态的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "literacy",
+        "laos": "ຄວາມຮູ້ຫນັງສື",
+        "jp": "読み書き能力",
+        "vie": "khả năng đọc viết",
+        "en_pronunciation": "/ˈlɪtərəsi/",
+        "laos_pronunciation": "khuaamhunangsu",
+        "jp_pronunciation": "yomikaki nouryoku",
+        "vie_pronunciation": "kha nang doc viet"
+      },
+      "means": {
+        "en": "The ability to read and write",
+        "zh": "一种蒸馏而非发酵的酒精饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "litter",
+        "laos": "ຂີ້ເຫຍື້ອ",
+        "jp": "ゴミ",
+        "vie": "xả rác",
+        "en_pronunciation": "/ˈlɪtər/",
+        "laos_pronunciation": "khihiau",
+        "jp_pronunciation": "gomi",
+        "vie_pronunciation": "xa rac"
+      },
+      "means": {
+        "en": "The offspring at one birth of a multiparous mammal",
+        "zh": "包含有序项目数组（名称或主题）的数据库"
+      }
+    },
+    {
+      "word": {
+        "en": "little",
+        "laos": "ນ້ອຍ",
+        "jp": "少し",
+        "vie": "ít",
+        "en_pronunciation": "/ˈlɪtəl/",
+        "laos_pronunciation": "nony",
+        "jp_pronunciation": "sukoshi",
+        "vie_pronunciation": "it"
+      },
+      "means": {
+        "en": "A small amount or duration",
+        "zh": "有目的地听"
+      }
+    },
+    {
+      "word": {
+        "en": "live",
+        "laos": "ທີ່ຢູ່ອາໄສ",
+        "jp": "生きる",
+        "vie": "sống",
+        "en_pronunciation": "/lɪv/",
+        "laos_pronunciation": "thiyuoasai",
+        "jp_pronunciation": "iki ru",
+        "vie_pronunciation": "song"
+      },
+      "means": {
+        "en": "Inhabit or live in; be an inhabitant of",
+        "zh": "一个认真倾听的人"
+      }
+    },
+    {
+      "word": {
+        "en": "living",
+        "laos": "ການດໍາລົງຊີວິດ",
+        "jp": "生きている",
+        "vie": "sống",
+        "en_pronunciation": "/ˈlɪvɪŋ/",
+        "laos_pronunciation": "kandoalongsivid",
+        "jp_pronunciation": "iki teiru",
+        "vie_pronunciation": "song"
+      },
+      "means": {
+        "en": "The experience of being alive; the course of human events and activities",
+        "zh": "容量的公制单位，以前定义为标准条件下一公斤纯水的体积；"
+      }
+    },
+    {
+      "word": {
+        "en": "livelihood",
+        "laos": "ການລ້ຽງແວ",
+        "jp": "生計",
+        "vie": "sinh kế",
+        "en_pronunciation": "/ˈlaɪvliˌhʊd/",
+        "laos_pronunciation": "kanliangaev",
+        "jp_pronunciation": "seikei",
+        "vie_pronunciation": "sinh ke"
+      },
+      "means": {
+        "en": "The financial means whereby one lives",
+        "zh": "现在等于 1,000 立方厘米（或大约 1.75 品脱）"
+      }
+    },
+    {
+      "word": {
+        "en": "lively",
+        "laos": "ທີ່ມີຊີວິດຊີວາ",
+        "jp": "活気のある",
+        "vie": "sống động",
+        "en_pronunciation": "/ˈlaɪvli/",
+        "laos_pronunciation": "thi misividsiuaa",
+        "jp_pronunciation": "kakki noaru",
+        "vie_pronunciation": "song dong"
+      },
+      "means": {
+        "en": "Full of life and energy",
+        "zh": "容量的公制单位，以前定义为标准条件下一公斤纯水的体积；"
+      }
+    },
+    {
+      "word": {
+        "en": "liver",
+        "laos": "ຕັບ",
+        "jp": "肝臓",
+        "vie": "gan",
+        "en_pronunciation": "/ˈlɪvər/",
+        "laos_pronunciation": "tab",
+        "jp_pronunciation": "kanzou",
+        "vie_pronunciation": "gan"
+      },
+      "means": {
+        "en": "Large and complicated reddish-brown glandular organ located in the upper right portion of the abdominal cavity; secretes bile and functions in metabolism of protein and carbohydrate and fat; synthesizes substances involved in the clotting of the blood; synthesizes vitamin A; detoxifies poisonous substances and breaks down worn-out erythrocytes",
+        "zh": "现在等于 1,000 立方厘米（或大约 1.75 品脱）"
+      }
+    },
+    {
+      "word": {
+        "en": "livestock",
+        "laos": "ການລ້ຽງສັດ",
+        "jp": "家畜",
+        "vie": "vật nuôi",
+        "en_pronunciation": "/ˈlaɪvˌstɑk/",
+        "laos_pronunciation": "kanliangsad",
+        "jp_pronunciation": "kachiku",
+        "vie_pronunciation": "vat nuoi"
+      },
+      "means": {
+        "en": "Any animals kept for use or profit",
+        "zh": "由于某种机械故障而导致的印刷品错误"
+      }
+    },
+    {
+      "word": {
+        "en": "living-room",
+        "laos": "ຫ້ອງຮັບແຂກ",
+        "jp": "リビングルーム",
+        "vie": "phòng khách",
+        "en_pronunciation": "/living-room/",
+        "laos_pronunciation": "honghabaekhk",
+        "jp_pronunciation": "ribinguruumu",
+        "vie_pronunciation": "phong khach"
+      },
+      "means": {
+        "en": "A room in a private house or establishment where people can sit and talk and relax",
+        "zh": "从字面意义上来说"
+      }
+    },
+    {
+      "word": {
+        "en": "load",
+        "laos": "ບັນທົກ",
+        "jp": "負荷をかける",
+        "vie": "tải",
+        "en_pronunciation": "/loʊd/",
+        "laos_pronunciation": "banthok",
+        "jp_pronunciation": "fuka wokakeru",
+        "vie_pronunciation": "tai"
+      },
+      "means": {
+        "en": "Weight to be borne or conveyed",
+        "zh": "属于文学或与文学相关或具有文学特征"
+      }
+    },
+    {
+      "word": {
+        "en": "loaf",
+        "laos": "loaf",
+        "jp": "パン",
+        "vie": "ổ bánh mì",
+        "en_pronunciation": "/loʊf/",
+        "laos_pronunciation": "loaf",
+        "jp_pronunciation": "pan",
+        "vie_pronunciation": "o banh mi"
+      },
+      "means": {
+        "en": "A shaped mass of baked bread that is usually sliced before eating",
+        "zh": "具有公认艺术价值的创意写作"
+      }
+    },
+    {
+      "word": {
+        "en": "loan",
+        "laos": "ເງິນຍືມ",
+        "jp": "ローン",
+        "vie": "tiền vay",
+        "en_pronunciation": "/loʊn/",
+        "laos_pronunciation": "ngoennyum",
+        "jp_pronunciation": "roon",
+        "vie_pronunciation": "tien vay"
+      },
+      "means": {
+        "en": "The temporary provision of money (usually at interest)",
+        "zh": "一个能读能写的人"
+      }
+    },
+    {
+      "word": {
+        "en": "lobby",
+        "laos": "lobby",
+        "jp": "ロビー",
+        "vie": "tiền sảnh",
+        "en_pronunciation": "/ˈlɑbi/",
+        "laos_pronunciation": "lobby",
+        "jp_pronunciation": "robii",
+        "vie_pronunciation": "tien sanh"
+      },
+      "means": {
+        "en": "A large entrance or reception room or area",
+        "zh": "读写能力"
+      }
+    }
+  ]
+}

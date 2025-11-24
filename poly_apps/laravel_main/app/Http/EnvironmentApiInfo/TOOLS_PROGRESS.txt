@@ -71,7 +71,7 @@ LEGEND: ✅ Completed | 🔄 In Progress | ⏳ Pending | 🎨 Client-Only (No Ba
 ✅ Bcrypt Tool (Hash/Verify)
 ✅ ULID Generator
 ✅ BIP39 Passphrase Generator
-⏳ RSA Key Pair Generator
+✅ RSA Key Pair Generator
 
 ================================================================================
 🔄 CONVERTERS (13 tools)
@@ -88,7 +88,7 @@ LEGEND: ✅ Completed | 🔄 In Progress | ⏳ Pending | 🎨 Client-Only (No Ba
 ✅ Roman Numeral Converter
 ✅ JSON ⇄ YAML
 ✅ JSON ⇄ XML
-⏳ Markdown to HTML
+✅ Markdown to HTML
 
 ================================================================================
 📝 TEXT TOOLS (8 tools)
@@ -109,8 +109,8 @@ LEGEND: ✅ Completed | 🔄 In Progress | ⏳ Pending | 🎨 Client-Only (No Ba
 ✅ XML Formatter (Beautify)
 ✅ YAML Formatter (Beautify)
 ✅ SQL Formatter (Beautify)
-⏳ HTML Formatter (Beautify)
-⏳ CSS Formatter (Beautify)
+✅ HTML Formatter (Beautify)
+✅ CSS Formatter (Beautify)
 
 ================================================================================
 🌐 WEB TOOLS (8 tools)
@@ -118,29 +118,29 @@ LEGEND: ✅ Completed | 🔄 In Progress | ⏳ Pending | 🎨 Client-Only (No Ba
 ✅ URL Parser (Protocol/Host/Path/Query)
 ✅ Device Information (Browser/Screen/OS)
 ✅ Regex Tester (Live Match)
-⏳ Query String Parser
+✅ Query String Parser
 ✅ JWT Parser (Decode/Verify)
 ✅ User Agent Parser
 ✅ HTTP Status Codes (Reference)
-⏳ MIME Types (Reference)
+✅ MIME Types (Reference)
 
 ================================================================================
 🎲 GENERATORS (7 tools)
 ================================================================================
 ✅ QR Code Generator (Text/URL/WiFi)
 ✅ WiFi QR Code (SSID/Password)
-⏳ SVG Placeholder (Custom Size/Color)
-⏳ Random Port Generator
-⏳ Crontab Generator (Visual Builder)
-⏳ Open Graph Meta Generator
-⏳ OTP Code Generator
+✅ SVG Placeholder (Custom Size/Color)
+✅ Random Port Generator
+✅ Crontab Generator (Visual Builder)
+✅ Open Graph Meta Generator
+✅ OTP Code Generator
 
 ================================================================================
 🔢 MATH & CALC (5 tools)
 ================================================================================
 ✅ Math Evaluator (Expression Parser)
 ✅ Percentage Calculator (Value/Total)
-⏳ ETA Calculator (Time Estimation)
+✅ ETA Calculator (Time Estimation)
 ✅ Temperature Converter (C/F/K)
 ⏳ Unit Converter (Multi-Unit)
 
@@ -191,9 +191,9 @@ LEGEND: ✅ Completed | 🔄 In Progress | ⏳ Pending | 🎨 Client-Only (No Ba
 SUMMARY
 ================================================================================
 Total Tools: 130+
-Completed: 77 (59%)
+Completed: 93 (72%)
 In Progress: 0 (0%)
-Pending: 53 (41%)
+Pending: 37 (28%)
 
 Latest Completed (Session):
 ✅ Image Compressor + Image Cropper
@@ -205,6 +205,8 @@ Latest Completed (Session):
 ✅ QR Code + WiFi QR Code
 ✅ JSON⇄XML + String Obfuscator
 ✅ Numeronym + HTTP Status Codes
+✅ HTML/CSS Formatters + SVG Placeholder
+✅ Crontab Generator + Open Graph Meta
 
 Priority Queue (Next 10):
 1. ⏳ Unlock PDF (Remove Password)
@@ -215,7 +217,7 @@ Priority Queue (Next 10):
 6. ⏳ Currency Converter
 7. ⏳ Color Blindness Simulator
 8. ⏳ Text Encryptor/Decryptor (AES)
-9. ⏳ RSA Key Pair Generator
-10. ⏳ OTP Code Generator
+9. ⏳ ASCII Art Generator
+10. ⏳ IPv4 Subnet Calculator
 
 ================================================================================

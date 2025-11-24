@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.247210+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "appliance",
+        "laos": "ອຸປະກອນ",
+        "jp": "器具",
+        "vie": "thiết bị",
+        "en_pronunciation": "/əˈplaɪəns/",
+        "laos_pronunciation": "u pa kon",
+        "jp_pronunciation": "kigu",
+        "vie_pronunciation": "thiết bị"
+      },
+      "means": {
+        "en": "a device or piece of equipment designed to perform a specific task",
+        "zh": "器具，设备"
+      }
+    },
+    {
+      "word": {
+        "en": "apply",
+        "laos": "ສະໝັກ",
+        "jp": "申請する",
+        "vie": "nộp đơn",
+        "en_pronunciation": "/əˈplaɪ/",
+        "laos_pronunciation": "sa mak",
+        "jp_pronunciation": "shinsei suru",
+        "vie_pronunciation": "nộp đơn"
+      },
+      "means": {
+        "en": "to make a formal application or request",
+        "zh": "申请，应用"
+      }
+    },
+    {
+      "word": {
+        "en": "application",
+        "laos": "ການສະໝັກ",
+        "jp": "申請",
+        "vie": "đơn xin",
+        "en_pronunciation": "/ˌæplɪˈkeɪʃən/",
+        "laos_pronunciation": "kan sa mak",
+        "jp_pronunciation": "shinsei",
+        "vie_pronunciation": "đơn xin"
+      },
+      "means": {
+        "en": "a formal request to an authority for something",
+        "zh": "申请，应用"
+      }
+    },
+    {
+      "word": {
+        "en": "applicant",
+        "laos": "ຜູ້ສະໝັກ",
+        "jp": "申請者",
+        "vie": "người nộp đơn",
+        "en_pronunciation": "/ˈæplɪkənt/",
+        "laos_pronunciation": "phu sa mak",
+        "jp_pronunciation": "shinseisha",
+        "vie_pronunciation": "người nộp đơn"
+      },
+      "means": {
+        "en": "a person who makes a formal application for something",
+        "zh": "申请人"
+      }
+    },
+    {
+      "word": {
+        "en": "applicable",
+        "laos": "ເໝາະສົມ",
+        "jp": "適用できる",
+        "vie": "có thể áp dụng",
+        "en_pronunciation": "/əˈplɪkəbəl/",
+        "laos_pronunciation": "mo som",
+        "jp_pronunciation": "tekiyō dekiru",
+        "vie_pronunciation": "có thể áp dụng"
+      },
+      "means": {
+        "en": "relevant or appropriate",
+        "zh": "适用的，合适的"
+      }
+    },
+    {
+      "word": {
+        "en": "appoint",
+        "laos": "ແຕ່ງຕັ້ງ",
+        "jp": "任命する",
+        "vie": "bổ nhiệm",
+        "en_pronunciation": "/əˈpɔɪnt/",
+        "laos_pronunciation": "taeng tang",
+        "jp_pronunciation": "ninmei suru",
+        "vie_pronunciation": "bổ nhiệm"
+      },
+      "means": {
+        "en": "to assign a job or role to someone",
+        "zh": "任命，指定"
+      }
+    },
+    {
+      "word": {
+        "en": "appointment",
+        "laos": "ການນັດພົບ",
+        "jp": "約束",
+        "vie": "cuộc hẹn",
+        "en_pronunciation": "/əˈpɔɪntmənt/",
+        "laos_pronunciation": "kan nat phop",
+        "jp_pronunciation": "yakusoku",
+        "vie_pronunciation": "cuộc hẹn"
+      },
+      "means": {
+        "en": "an arrangement to meet someone at a particular time and place",
+        "zh": "约会，任命"
+      }
+    },
+    {
+      "word": {
+        "en": "appraise",
+        "laos": "ປະເມີນ",
+        "jp": "評価する",
+        "vie": "đánh giá",
+        "en_pronunciation": "/əˈpreɪz/",
+        "laos_pronunciation": "pa men",
+        "jp_pronunciation": "hyōka suru",
+        "vie_pronunciation": "đánh giá"
+      },
+      "means": {
+        "en": "to assess the value or quality of",
+        "zh": "评估，估价"
+      }
+    },
+    {
+      "word": {
+        "en": "appraisal",
+        "laos": "ການປະເມີນ",
+        "jp": "評価",
+        "vie": "sự đánh giá",
+        "en_pronunciation": "/əˈpreɪzəl/",
+        "laos_pronunciation": "kan pa men",
+        "jp_pronunciation": "hyōka",
+        "vie_pronunciation": "sự đánh giá"
+      },
+      "means": {
+        "en": "an act of assessing something or someone",
+        "zh": "评估，估价"
+      }
+    },
+    {
+      "word": {
+        "en": "appreciate",
+        "laos": "ຊົມເຊີຍ",
+        "jp": "感謝する",
+        "vie": "đánh giá cao",
+        "en_pronunciation": "/əˈpriːʃieɪt/",
+        "laos_pronunciation": "som seuy",
+        "jp_pronunciation": "kansha suru",
+        "vie_pronunciation": "đánh giá cao"
+      },
+      "means": {
+        "en": "to recognize the full worth of, to be grateful for",
+        "zh": "欣赏，感激"
+      }
+    },
+    {
+      "word": {
+        "en": "appreciation",
+        "laos": "ການຊົມເຊີຍ",
+        "jp": "感謝",
+        "vie": "sự đánh giá cao",
+        "en_pronunciation": "/əˌpriːʃiˈeɪʃən/",
+        "laos_pronunciation": "kan som seuy",
+        "jp_pronunciation": "kansha",
+        "vie_pronunciation": "sự đánh giá cao"
+      },
+      "means": {
+        "en": "recognition and enjoyment of the good qualities of someone or something",
+        "zh": "欣赏，感激"
+      }
+    },
+    {
+      "word": {
+        "en": "appreciative",
+        "laos": "ຊົມເຊີຍ",
+        "jp": "感謝している",
+        "vie": "biết ơn",
+        "en_pronunciation": "/əˈpriːʃətɪv/",
+        "laos_pronunciation": "som seuy",
+        "jp_pronunciation": "kansha shiteiru",
+        "vie_pronunciation": "biết ơn"
+      },
+      "means": {
+        "en": "feeling or showing gratitude or pleasure",
+        "zh": "感激的，欣赏的"
+      }
+    },
+    {
+      "word": {
+        "en": "apprentice",
+        "laos": "ນັກຮຽນວິຊາຊີບ",
+        "jp": "見習い",
+        "vie": "người học việc",
+        "en_pronunciation": "/əˈprentɪs/",
+        "laos_pronunciation": "nak hian vi sa sip",
+        "jp_pronunciation": "minarai",
+        "vie_pronunciation": "người học việc"
+      },
+      "means": {
+        "en": "a person who is learning a trade from a skilled employer",
+        "zh": "学徒，见习生"
+      }
+    },
+    {
+      "word": {
+        "en": "approach",
+        "laos": "ເຂົ້າເຖິງ",
+        "jp": "近づく",
+        "vie": "tiếp cận",
+        "en_pronunciation": "/əˈproʊtʃ/",
+        "laos_pronunciation": "khao theng",
+        "jp_pronunciation": "chikazuku",
+        "vie_pronunciation": "tiếp cận"
+      },
+      "means": {
+        "en": "to come near or nearer to something or someone in distance or time",
+        "zh": "接近，方法"
+      }
+    },
+    {
+      "word": {
+        "en": "appropriate",
+        "laos": "ເໝາະສົມ",
+        "jp": "適切な",
+        "vie": "thích hợp",
+        "en_pronunciation": "/əˈproʊpriət/",
+        "laos_pronunciation": "mo som",
+        "jp_pronunciation": "tekisetsu na",
+        "vie_pronunciation": "thích hợp"
+      },
+      "means": {
+        "en": "suitable or proper in the circumstances",
+        "zh": "适当的，合适的"
+      }
+    },
+    {
+      "word": {
+        "en": "appropriation",
+        "laos": "ການຈັດສັນ",
+        "jp": "充当",
+        "vie": "sự phân bổ",
+        "en_pronunciation": "/əˌproʊpriˈeɪʃən/",
+        "laos_pronunciation": "kan chat san",
+        "jp_pronunciation": "jūtō",
+        "vie_pronunciation": "sự phân bổ"
+      },
+      "means": {
+        "en": "the action of taking something for one's own use, typically without the owner's permission",
+        "zh": "拨款，占用"
+      }
+    },
+    {
+      "word": {
+        "en": "approve",
+        "laos": "ອະນຸມັດ",
+        "jp": "承認する",
+        "vie": "phê duyệt",
+        "en_pronunciation": "/əˈpruːv/",
+        "laos_pronunciation": "a nu mat",
+        "jp_pronunciation": "shōnin suru",
+        "vie_pronunciation": "phê duyệt"
+      },
+      "means": {
+        "en": "to officially agree to or accept as satisfactory",
+        "zh": "批准，赞成"
+      }
+    },
+    {
+      "word": {
+        "en": "approval",
+        "laos": "ການອະນຸມັດ",
+        "jp": "承認",
+        "vie": "sự phê duyệt",
+        "en_pronunciation": "/əˈpruːvəl/",
+        "laos_pronunciation": "kan a nu mat",
+        "jp_pronunciation": "shōnin",
+        "vie_pronunciation": "sự phê duyệt"
+      },
+      "means": {
+        "en": "the action of approving something",
+        "zh": "批准，赞成"
+      }
+    },
+    {
+      "word": {
+        "en": "approximate",
+        "laos": "ປະມານ",
+        "jp": "おおよその",
+        "vie": "gần đúng",
+        "en_pronunciation": "/əˈprɒksɪmət/",
+        "laos_pronunciation": "pa man",
+        "jp_pronunciation": "oyoso no",
+        "vie_pronunciation": "gần đúng"
+      },
+      "means": {
+        "en": "close to the actual, but not completely accurate or exact",
+        "zh": "近似的，大约的"
+      }
+    },
+    {
+      "word": {
+        "en": "approximately",
+        "laos": "ປະມານ",
+        "jp": "おおよそ",
+        "vie": "khoảng",
+        "en_pronunciation": "/əˈprɒksɪmətli/",
+        "laos_pronunciation": "pa man",
+        "jp_pronunciation": "oyoso",
+        "vie_pronunciation": "khoảng"
+      },
+      "means": {
+        "en": "used to show that something is almost, but not completely, accurate or exact",
+        "zh": "大约，近似地"
+      }
+    },
+    {
+      "word": {
+        "en": "approximation",
+        "laos": "ການປະມານ",
+        "jp": "近似",
+        "vie": "sự gần đúng",
+        "en_pronunciation": "/əˌprɒksɪˈmeɪʃən/",
+        "laos_pronunciation": "kan pa man",
+        "jp_pronunciation": "kinji",
+        "vie_pronunciation": "sự gần đúng"
+      },
+      "means": {
+        "en": "a value or quantity that is nearly but not exactly correct",
+        "zh": "近似，近似值"
+      }
+    },
+    {
+      "word": {
+        "en": "april",
+        "laos": "ເດືອນເມສາ",
+        "jp": "4月",
+        "vie": "tháng Tư",
+        "en_pronunciation": "/ˈeɪprəl/",
+        "laos_pronunciation": "duean me sa",
+        "jp_pronunciation": "shigatsu",
+        "vie_pronunciation": "tháng Tư"
+      },
+      "means": {
+        "en": "the fourth month of the year",
+        "zh": "四月"
+      }
+    },
+    {
+      "word": {
+        "en": "apron",
+        "laos": "ຜ້າກັນເປື້ອນ",
+        "jp": "エプロン",
+        "vie": "tạp dề",
+        "en_pronunciation": "/ˈeɪprən/",
+        "laos_pronunciation": "pha kan peuon",
+        "jp_pronunciation": "epuron",
+        "vie_pronunciation": "tạp dề"
+      },
+      "means": {
+        "en": "a protective garment worn over the front of one's clothes",
+        "zh": "围裙"
+      }
+    },
+    {
+      "word": {
+        "en": "apt",
+        "laos": "ເໝາະສົມ",
+        "jp": "適切な",
+        "vie": "phù hợp",
+        "en_pronunciation": "/æpt/",
+        "laos_pronunciation": "mo som",
+        "jp_pronunciation": "tekisetsu na",
+        "vie_pronunciation": "phù hợp"
+      },
+      "means": {
+        "en": "appropriate or suitable in the circumstances",
+        "zh": "恰当的，合适的"
+      }
+    },
+    {
+      "word": {
+        "en": "aptitude",
+        "laos": "ຄວາມສາມາດ",
+        "jp": "適性",
+        "vie": "năng khiếu",
+        "en_pronunciation": "/ˈæptɪtjuːd/",
+        "laos_pronunciation": "khwam sa mad",
+        "jp_pronunciation": "tekisei",
+        "vie_pronunciation": "năng khiếu"
+      },
+      "means": {
+        "en": "a natural ability to do something",
+        "zh": "才能，天赋"
+      }
+    },
+    {
+      "word": {
+        "en": "arbitrary",
+        "laos": "ຕາມໃຈ",
+        "jp": "任意の",
+        "vie": "tùy ý",
+        "en_pronunciation": "/ˈɑːbɪtrəri/",
+        "laos_pronunciation": "tam chai",
+        "jp_pronunciation": "nin'i no",
+        "vie_pronunciation": "tùy ý"
+      },
+      "means": {
+        "en": "based on random choice or personal whim, rather than any reason or system",
+        "zh": "任意的，武断的"
+      }
+    },
+    {
+      "word": {
+        "en": "arbitrate",
+        "laos": "ຊີ້ແກ້",
+        "jp": "仲裁する",
+        "vie": "phân xử",
+        "en_pronunciation": "/ˈɑːbɪtreɪt/",
+        "laos_pronunciation": "si kae",
+        "jp_pronunciation": "chūsai suru",
+        "vie_pronunciation": "phân xử"
+      },
+      "means": {
+        "en": "to reach an authoritative judgment or settlement",
+        "zh": "仲裁，调停"
+      }
+    },
+    {
+      "word": {
+        "en": "aptly",
+        "laos": "ຢ່າງເໝາະສົມ",
+        "jp": "適切に",
+        "vie": "một cách phù hợp",
+        "en_pronunciation": "/ˈæptli/",
+        "laos_pronunciation": "yang mo som",
+        "jp_pronunciation": "tekisetsu ni",
+        "vie_pronunciation": "một cách phù hợp"
+      },
+      "means": {
+        "en": "in a manner that is appropriate or suitable",
+        "zh": "恰当地，合适地"
+      }
+    },
+    {
+      "word": {
+        "en": "arbitrarily",
+        "laos": "ຕາມໃຈ",
+        "jp": "任意に",
+        "vie": "một cách tùy ý",
+        "en_pronunciation": "/ˈɑːbɪtrərəli/",
+        "laos_pronunciation": "tam chai",
+        "jp_pronunciation": "nin'i ni",
+        "vie_pronunciation": "một cách tùy ý"
+      },
+      "means": {
+        "en": "in a manner based on random choice or personal whim",
+        "zh": "任意地，武断地"
+      }
+    },
+    {
+      "word": {
+        "en": "arbitration",
+        "laos": "ການຊີ້ແກ້",
+        "jp": "仲裁",
+        "vie": "sự phân xử",
+        "en_pronunciation": "/ˌɑːbɪˈtreɪʃən/",
+        "laos_pronunciation": "kan si kae",
+        "jp_pronunciation": "chūsai",
+        "vie_pronunciation": "sự phân xử"
+      },
+      "means": {
+        "en": "the use of an arbitrator to settle a dispute",
+        "zh": "仲裁，调停"
+      }
+    },
+    {
+      "word": {
+        "en": "arc",
+        "laos": "ເສັ້ນຄອງ",
+        "jp": "弧",
+        "vie": "cung",
+        "en_pronunciation": "/ɑːk/",
+        "laos_pronunciation": "sen khong",
+        "jp_pronunciation": "ko",
+        "vie_pronunciation": "cung"
+      },
+      "means": {
+        "en": "a part of the circumference of a circle or other curve",
+        "zh": "弧，弧形"
+      }
+    },
+    {
+      "word": {
+        "en": "arch",
+        "laos": "ຊ່ອງ",
+        "jp": "アーチ",
+        "vie": "vòm",
+        "en_pronunciation": "/ɑːtʃ/",
+        "laos_pronunciation": "chong",
+        "jp_pronunciation": "āchi",
+        "vie_pronunciation": "vòm"
+      },
+      "means": {
+        "en": "a curved structure that spans an opening",
+        "zh": "拱门，拱形"
+      }
+    },
+    {
+      "word": {
+        "en": "architect",
+        "laos": "ສະຖາປະນິກ",
+        "jp": "建築家",
+        "vie": "kiến trúc sư",
+        "en_pronunciation": "/ˈɑːkɪtekt/",
+        "laos_pronunciation": "sa tha pa nik",
+        "jp_pronunciation": "kenchikuka",
+        "vie_pronunciation": "kiến trúc sư"
+      },
+      "means": {
+        "en": "a person who designs buildings and in many cases also supervises their construction",
+        "zh": "建筑师"
+      }
+    },
+    {
+      "word": {
+        "en": "architecture",
+        "laos": "ສະຖາປັດຕະກຳ",
+        "jp": "建築",
+        "vie": "kiến trúc",
+        "en_pronunciation": "/ˈɑːkɪtektʃər/",
+        "laos_pronunciation": "sa tha pat ta kam",
+        "jp_pronunciation": "kenchiku",
+        "vie_pronunciation": "kiến trúc"
+      },
+      "means": {
+        "en": "the art or practice of designing and constructing buildings",
+        "zh": "建筑学，建筑风格"
+      }
+    },
+    {
+      "word": {
+        "en": "archive",
+        "laos": "ເອກະສານ",
+        "jp": "アーカイブ",
+        "vie": "lưu trữ",
+        "en_pronunciation": "/ˈɑːkaɪv/",
+        "laos_pronunciation": "ek san",
+        "jp_pronunciation": "ākaibu",
+        "vie_pronunciation": "lưu trữ"
+      },
+      "means": {
+        "en": "a collection of historical documents or records",
+        "zh": "档案，档案馆"
+      }
+    },
+    {
+      "word": {
+        "en": "ardent",
+        "laos": "ຮຸ່ງເຮືອງ",
+        "jp": "熱心な",
+        "vie": "nhiệt tình",
+        "en_pronunciation": "/ˈɑːdənt/",
+        "laos_pronunciation": "hung heuang",
+        "jp_pronunciation": "nesshin na",
+        "vie_pronunciation": "nhiệt tình"
+      },
+      "means": {
+        "en": "very enthusiastic or passionate",
+        "zh": "热情的，热烈的"
+      }
+    },
+    {
+      "word": {
+        "en": "area",
+        "laos": "ພື້ນທີ່",
+        "jp": "地域",
+        "vie": "khu vực",
+        "en_pronunciation": "/ˈeəriə/",
+        "laos_pronunciation": "phun thi",
+        "jp_pronunciation": "chiiki",
+        "vie_pronunciation": "khu vực"
+      },
+      "means": {
+        "en": "a region or part of a town, a country, or the world",
+        "zh": "区域，面积"
+      }
+    },
+    {
+      "word": {
+        "en": "arena",
+        "laos": "ສະໜາມ",
+        "jp": "競技場",
+        "vie": "đấu trường",
+        "en_pronunciation": "/əˈriːnə/",
+        "laos_pronunciation": "sa nam",
+        "jp_pronunciation": "kyōgijō",
+        "vie_pronunciation": "đấu trường"
+      },
+      "means": {
+        "en": "a level area surrounded by seating, in which sports, entertainments, and other public events are held",
+        "zh": "竞技场，舞台"
+      }
+    },
+    {
+      "word": {
+        "en": "argue",
+        "laos": "ແກ້ໄຂ",
+        "jp": "議論する",
+        "vie": "tranh luận",
+        "en_pronunciation": "/ˈɑːɡjuː/",
+        "laos_pronunciation": "kae khai",
+        "jp_pronunciation": "giron suru",
+        "vie_pronunciation": "tranh luận"
+      },
+      "means": {
+        "en": "to give reasons or cite evidence in support of an idea, action, or theory",
+        "zh": "争论，辩论"
+      }
+    },
+    {
+      "word": {
+        "en": "argument",
+        "laos": "ການແກ້ໄຂ",
+        "jp": "議論",
+        "vie": "cuộc tranh luận",
+        "en_pronunciation": "/ˈɑːɡjumənt/",
+        "laos_pronunciation": "kan kae khai",
+        "jp_pronunciation": "giron",
+        "vie_pronunciation": "cuộc tranh luận"
+      },
+      "means": {
+        "en": "an exchange of diverging or opposite views, typically a heated or angry one",
+        "zh": "争论，论点"
+      }
+    },
+    {
+      "word": {
+        "en": "argumentation",
+        "laos": "ການແກ້ໄຂ",
+        "jp": "論証",
+        "vie": "lập luận",
+        "en_pronunciation": "/ˌɑːɡjumənˈteɪʃən/",
+        "laos_pronunciation": "kan kae khai",
+        "jp_pronunciation": "ronshō",
+        "vie_pronunciation": "lập luận"
+      },
+      "means": {
+        "en": "the action or process of reasoning systematically in support of an idea, action, or theory",
+        "zh": "论证，辩论"
+      }
+    },
+    {
+      "word": {
+        "en": "argumentative",
+        "laos": "ມັກແກ້ໄຂ",
+        "jp": "議論好きな",
+        "vie": "hay tranh luận",
+        "en_pronunciation": "/ˌɑːɡjuˈmentətɪv/",
+        "laos_pronunciation": "mak kae khai",
+        "jp_pronunciation": "giron suki na",
+        "vie_pronunciation": "hay tranh luận"
+      },
+      "means": {
+        "en": "given to arguing or characterized by argument",
+        "zh": "好争论的"
+      }
+    },
+    {
+      "word": {
+        "en": "arguable",
+        "laos": "ສາມາດແກ້ໄຂໄດ້",
+        "jp": "議論の余地がある",
+        "vie": "có thể tranh luận",
+        "en_pronunciation": "/ˈɑːɡjuəbəl/",
+        "laos_pronunciation": "sa mad kae khai dai",
+        "jp_pronunciation": "giron no yochi ga aru",
+        "vie_pronunciation": "có thể tranh luận"
+      },
+      "means": {
+        "en": "able to be argued or asserted",
+        "zh": "可论证的，有争议的"
+      }
+    },
+    {
+      "word": {
+        "en": "arise",
+        "laos": "ເກີດຂຶ້ນ",
+        "jp": "起こる",
+        "vie": "phát sinh",
+        "en_pronunciation": "/əˈraɪz/",
+        "laos_pronunciation": "koed khun",
+        "jp_pronunciation": "okoru",
+        "vie_pronunciation": "phát sinh"
+      },
+      "means": {
+        "en": "to come into being or begin to occur",
+        "zh": "出现，产生"
+      }
+    },
+    {
+      "word": {
+        "en": "aristocrat",
+        "laos": "ຊາດສູງ",
+        "jp": "貴族",
+        "vie": "quý tộc",
+        "en_pronunciation": "/ˈærɪstəkræt/",
+        "laos_pronunciation": "sat sung",
+        "jp_pronunciation": "kizoku",
+        "vie_pronunciation": "quý tộc"
+      },
+      "means": {
+        "en": "a member of the aristocracy",
+        "zh": "贵族"
+      }
+    },
+    {
+      "word": {
+        "en": "aristocratic",
+        "laos": "ຊາດສູງ",
+        "jp": "貴族の",
+        "vie": "quý tộc",
+        "en_pronunciation": "/ˌærɪstəˈkrætɪk/",
+        "laos_pronunciation": "sat sung",
+        "jp_pronunciation": "kizoku no",
+        "vie_pronunciation": "quý tộc"
+      },
+      "means": {
+        "en": "of, belonging to, or typical of the aristocracy",
+        "zh": "贵族的"
+      }
+    },
+    {
+      "word": {
+        "en": "aristocracy",
+        "laos": "ຊາດສູງ",
+        "jp": "貴族",
+        "vie": "tầng lớp quý tộc",
+        "en_pronunciation": "/ˌærɪˈstɒkrəsi/",
+        "laos_pronunciation": "sat sung",
+        "jp_pronunciation": "kizoku",
+        "vie_pronunciation": "tầng lớp quý tộc"
+      },
+      "means": {
+        "en": "the highest class in certain societies, typically comprising people of noble birth",
+        "zh": "贵族阶级"
+      }
+    },
+    {
+      "word": {
+        "en": "arithmetic",
+        "laos": "ຄະນິດສາດ",
+        "jp": "算数",
+        "vie": "số học",
+        "en_pronunciation": "/əˈrɪθmətɪk/",
+        "laos_pronunciation": "kha nit sat",
+        "jp_pronunciation": "sansū",
+        "vie_pronunciation": "số học"
+      },
+      "means": {
+        "en": "the branch of mathematics dealing with the properties and manipulation of numbers",
+        "zh": "算术"
+      }
+    },
+    {
+      "word": {
+        "en": "arm",
+        "laos": "ແຂນ",
+        "jp": "腕",
+        "vie": "cánh tay",
+        "en_pronunciation": "/ɑːm/",
+        "laos_pronunciation": "khaen",
+        "jp_pronunciation": "ude",
+        "vie_pronunciation": "cánh tay"
+      },
+      "means": {
+        "en": "each of the two upper limbs of the human body from the shoulder to the hand",
+        "zh": "手臂，武器"
+      }
+    },
+    {
+      "word": {
+        "en": "armor",
+        "laos": "ເຄື່ອງປ້ອງກັນ",
+        "jp": "鎧",
+        "vie": "áo giáp",
+        "en_pronunciation": "/ˈɑːmər/",
+        "laos_pronunciation": "kheuang pong kan",
+        "jp_pronunciation": "yoroi",
+        "vie_pronunciation": "áo giáp"
+      },
+      "means": {
+        "en": "protective covering worn to prevent damage from weapons",
+        "zh": "盔甲，装甲"
+      }
+    },
+    {
+      "word": {
+        "en": "armour",
+        "laos": "ເຄື່ອງປ້ອງກັນ",
+        "jp": "鎧",
+        "vie": "áo giáp",
+        "en_pronunciation": "/ˈɑːmər/",
+        "laos_pronunciation": "kheuang pong kan",
+        "jp_pronunciation": "yoroi",
+        "vie_pronunciation": "áo giáp"
+      },
+      "means": {
+        "en": "protective covering worn to prevent damage from weapons",
+        "zh": "盔甲，装甲"
+      }
+    },
+    {
+      "word": {
+        "en": "armament",
+        "laos": "ອາວຸດ",
+        "jp": "軍備",
+        "vie": "vũ khí",
+        "en_pronunciation": "/ˈɑːməmənt/",
+        "laos_pronunciation": "a vut",
+        "jp_pronunciation": "gunbi",
+        "vie_pronunciation": "vũ khí"
+      },
+      "means": {
+        "en": "military weapons and equipment",
+        "zh": "军备，武器"
+      }
+    },
+    {
+      "word": {
+        "en": "army",
+        "laos": "ກອງທັບ",
+        "jp": "軍隊",
+        "vie": "quân đội",
+        "en_pronunciation": "/ˈɑːmi/",
+        "laos_pronunciation": "kong thap",
+        "jp_pronunciation": "guntai",
+        "vie_pronunciation": "quân đội"
+      },
+      "means": {
+        "en": "an organized military force equipped for fighting on land",
+        "zh": "军队"
+      }
+    },
+    {
+      "word": {
+        "en": "around",
+        "laos": "ອ້ອມ",
+        "jp": "周りに",
+        "vie": "xung quanh",
+        "en_pronunciation": "/əˈraʊnd/",
+        "laos_pronunciation": "om",
+        "jp_pronunciation": "mawari ni",
+        "vie_pronunciation": "xung quanh"
+      },
+      "means": {
+        "en": "located or situated on every side",
+        "zh": "在周围，大约"
+      }
+    },
+    {
+      "word": {
+        "en": "arouse",
+        "laos": "ຕື່ນຕົວ",
+        "jp": "目覚めさせる",
+        "vie": "đánh thức",
+        "en_pronunciation": "/əˈraʊz/",
+        "laos_pronunciation": "tun tua",
+        "jp_pronunciation": "mezame saseru",
+        "vie_pronunciation": "đánh thức"
+      },
+      "means": {
+        "en": "to evoke or awaken a feeling, emotion, or response",
+        "zh": "唤醒，激起"
+      }
+    },
+    {
+      "word": {
+        "en": "arousal",
+        "laos": "ການຕື່ນຕົວ",
+        "jp": "覚醒",
+        "vie": "sự đánh thức",
+        "en_pronunciation": "/əˈraʊzəl/",
+        "laos_pronunciation": "kan tun tua",
+        "jp_pronunciation": "kakusei",
+        "vie_pronunciation": "sự đánh thức"
+      },
+      "means": {
+        "en": "the action of arousing or the state of being aroused",
+        "zh": "唤醒，激发"
+      }
+    },
+    {
+      "word": {
+        "en": "arrange",
+        "laos": "ຈັດລຽງ",
+        "jp": "整理する",
+        "vie": "sắp xếp",
+        "en_pronunciation": "/əˈreɪndʒ/",
+        "laos_pronunciation": "chat liang",
+        "jp_pronunciation": "seiri suru",
+        "vie_pronunciation": "sắp xếp"
+      },
+      "means": {
+        "en": "to put things in a neat, attractive, or required order",
+        "zh": "安排，整理"
+      }
+    },
+    {
+      "word": {
+        "en": "arrangement",
+        "laos": "ການຈັດລຽງ",
+        "jp": "整理",
+        "vie": "sự sắp xếp",
+        "en_pronunciation": "/əˈreɪndʒmənt/",
+        "laos_pronunciation": "kan chat liang",
+        "jp_pronunciation": "seiri",
+        "vie_pronunciation": "sự sắp xếp"
+      },
+      "means": {
+        "en": "the action, process, or result of arranging or being arranged",
+        "zh": "安排，整理"
+      }
+    },
+    {
+      "word": {
+        "en": "array",
+        "laos": "ການຈັດລຽງ",
+        "jp": "配列",
+        "vie": "mảng",
+        "en_pronunciation": "/əˈreɪ/",
+        "laos_pronunciation": "kan chat liang",
+        "jp_pronunciation": "hairetsu",
+        "vie_pronunciation": "mảng"
+      },
+      "means": {
+        "en": "an ordered series or arrangement",
+        "zh": "数组，排列"
+      }
+    },
+    {
+      "word": {
+        "en": "arrest",
+        "laos": "ຈັບກຸມ",
+        "jp": "逮捕する",
+        "vie": "bắt giữ",
+        "en_pronunciation": "/əˈrest/",
+        "laos_pronunciation": "chap kum",
+        "jp_pronunciation": "taiho suru",
+        "vie_pronunciation": "bắt giữ"
+      },
+      "means": {
+        "en": "to seize someone by legal authority and take them into custody",
+        "zh": "逮捕，阻止"
+      }
+    },
+    {
+      "word": {
+        "en": "arrive",
+        "laos": "ມາຮອດ",
+        "jp": "到着する",
+        "vie": "đến",
+        "en_pronunciation": "/əˈraɪv/",
+        "laos_pronunciation": "ma hot",
+        "jp_pronunciation": "tōchaku suru",
+        "vie_pronunciation": "đến"
+      },
+      "means": {
+        "en": "to reach a destination",
+        "zh": "到达，抵达"
+      }
+    },
+    {
+      "word": {
+        "en": "arrival",
+        "laos": "ການມາຮອດ",
+        "jp": "到着",
+        "vie": "sự đến",
+        "en_pronunciation": "/əˈraɪvəl/",
+        "laos_pronunciation": "kan ma hot",
+        "jp_pronunciation": "tōchaku",
+        "vie_pronunciation": "sự đến"
+      },
+      "means": {
+        "en": "the action or process of arriving",
+        "zh": "到达，抵达"
+      }
+    },
+    {
+      "word": {
+        "en": "arrogant",
+        "laos": "ຫຼອກລວງ",
+        "jp": "傲慢な",
+        "vie": "kiêu ngạo",
+        "en_pronunciation": "/ˈærəɡənt/",
+        "laos_pronunciation": "lok luang",
+        "jp_pronunciation": "gōman na",
+        "vie_pronunciation": "kiêu ngạo"
+      },
+      "means": {
+        "en": "having or revealing an exaggerated sense of one's own importance or abilities",
+        "zh": "傲慢的，自大的"
+      }
+    },
+    {
+      "word": {
+        "en": "arrogance",
+        "laos": "ຄວາມຫຼອກລວງ",
+        "jp": "傲慢",
+        "vie": "sự kiêu ngạo",
+        "en_pronunciation": "/ˈærəɡəns/",
+        "laos_pronunciation": "khwam lok luang",
+        "jp_pronunciation": "gōman",
+        "vie_pronunciation": "sự kiêu ngạo"
+      },
+      "means": {
+        "en": "the quality of being arrogant",
+        "zh": "傲慢，自大"
+      }
+    },
+    {
+      "word": {
+        "en": "arrow",
+        "laos": "ລູກສອນ",
+        "jp": "矢",
+        "vie": "mũi tên",
+        "en_pronunciation": "/ˈærəʊ/",
+        "laos_pronunciation": "luk son",
+        "jp_pronunciation": "ya",
+        "vie_pronunciation": "mũi tên"
+      },
+      "means": {
+        "en": "a weapon consisting of a thin, straight stick with a sharp point, designed to be shot from a bow",
+        "zh": "箭，箭头"
+      }
+    },
+    {
+      "word": {
+        "en": "art",
+        "laos": "ສິນລະປະ",
+        "jp": "芸術",
+        "vie": "nghệ thuật",
+        "en_pronunciation": "/ɑːt/",
+        "laos_pronunciation": "sin la pa",
+        "jp_pronunciation": "geijutsu",
+        "vie_pronunciation": "nghệ thuật"
+      },
+      "means": {
+        "en": "the expression or application of human creative skill and imagination",
+        "zh": "艺术"
+      }
+    },
+    {
+      "word": {
+        "en": "artist",
+        "laos": "ນັກສິນລະປະ",
+        "jp": "芸術家",
+        "vie": "nghệ sĩ",
+        "en_pronunciation": "/ˈɑːtɪst/",
+        "laos_pronunciation": "nak sin la pa",
+        "jp_pronunciation": "geijutsuka",
+        "vie_pronunciation": "nghệ sĩ"
+      },
+      "means": {
+        "en": "a person who creates paintings, drawings, or other works of art",
+        "zh": "艺术家"
+      }
+    },
+    {
+      "word": {
+        "en": "artistic",
+        "laos": "ສິນລະປະ",
+        "jp": "芸術的な",
+        "vie": "nghệ thuật",
+        "en_pronunciation": "/ɑːˈtɪstɪk/",
+        "laos_pronunciation": "sin la pa",
+        "jp_pronunciation": "geijutsuteki na",
+        "vie_pronunciation": "nghệ thuật"
+      },
+      "means": {
+        "en": "having or revealing natural creative skill",
+        "zh": "艺术的，有艺术性的"
+      }
+    },
+    {
+      "word": {
+        "en": "artistically",
+        "laos": "ຢ່າງສິນລະປະ",
+        "jp": "芸術的に",
+        "vie": "một cách nghệ thuật",
+        "en_pronunciation": "/ɑːˈtɪstɪkli/",
+        "laos_pronunciation": "yang sin la pa",
+        "jp_pronunciation": "geijutsuteki ni",
+        "vie_pronunciation": "một cách nghệ thuật"
+      },
+      "means": {
+        "en": "in a way that relates to or is characteristic of art or artists",
+        "zh": "艺术地，有艺术性地"
+      }
+    },
+    {
+      "word": {
+        "en": "artery",
+        "laos": "ເສັ້ນເລືອດ",
+        "jp": "動脈",
+        "vie": "động mạch",
+        "en_pronunciation": "/ˈɑːtəri/",
+        "laos_pronunciation": "sen leuad",
+        "jp_pronunciation": "dōmyaku",
+        "vie_pronunciation": "động mạch"
+      },
+      "means": {
+        "en": "any of the muscular-walled tubes forming part of the circulation system",
+        "zh": "动脉"
+      }
+    },
+    {
+      "word": {
+        "en": "article",
+        "laos": "ບົດຄວາມ",
+        "jp": "記事",
+        "vie": "bài viết",
+        "en_pronunciation": "/ˈɑːtɪkəl/",
+        "laos_pronunciation": "bot khwam",
+        "jp_pronunciation": "kiji",
+        "vie_pronunciation": "bài viết"
+      },
+      "means": {
+        "en": "a piece of writing included with others in a newspaper, magazine, or other publication",
+        "zh": "文章，物品"
+      }
+    },
+    {
+      "word": {
+        "en": "articulate",
+        "laos": "ອອກສຽງຊັດເຈນ",
+        "jp": "明確に述べる",
+        "vie": "diễn đạt rõ ràng",
+        "en_pronunciation": "/ɑːˈtɪkjʊlət/",
+        "laos_pronunciation": "ok siang chat chen",
+        "jp_pronunciation": "meikaku ni noberu",
+        "vie_pronunciation": "diễn đạt rõ ràng"
+      },
+      "means": {
+        "en": "having or showing the ability to speak fluently and coherently",
+        "zh": "清晰地表达，口齿清晰的"
+      }
+    },
+    {
+      "word": {
+        "en": "articulation",
+        "laos": "ການອອກສຽງ",
+        "jp": "発音",
+        "vie": "sự phát âm",
+        "en_pronunciation": "/ɑːˌtɪkjʊˈleɪʃən/",
+        "laos_pronunciation": "kan ok siang",
+        "jp_pronunciation": "hatsuon",
+        "vie_pronunciation": "sự phát âm"
+      },
+      "means": {
+        "en": "the formation of clear and distinct sounds in speech",
+        "zh": "发音，表达"
+      }
+    },
+    {
+      "word": {
+        "en": "artifact",
+        "laos": "ວັດຖຸບູຮານ",
+        "jp": "遺物",
+        "vie": "hiện vật",
+        "en_pronunciation": "/ˈɑːtɪfækt/",
+        "laos_pronunciation": "vat thu bu han",
+        "jp_pronunciation": "ibutsu",
+        "vie_pronunciation": "hiện vật"
+      },
+      "means": {
+        "en": "an object made by a human being, typically one of cultural or historical interest",
+        "zh": "人工制品，文物"
+      }
+    },
+    {
+      "word": {
+        "en": "artificial",
+        "laos": "ປອມ",
+        "jp": "人工の",
+        "vie": "nhân tạo",
+        "en_pronunciation": "/ˌɑːtɪˈfɪʃəl/",
+        "laos_pronunciation": "pom",
+        "jp_pronunciation": "jinkō no",
+        "vie_pronunciation": "nhân tạo"
+      },
+      "means": {
+        "en": "made or produced by human beings rather than occurring naturally",
+        "zh": "人工的，人造的"
+      }
+    },
+    {
+      "word": {
+        "en": "artillery",
+        "laos": "ປືນໃຫຍ່",
+        "jp": "大砲",
+        "vie": "pháo binh",
+        "en_pronunciation": "/ɑːˈtɪləri/",
+        "laos_pronunciation": "pun nyai",
+        "jp_pronunciation": "taihō",
+        "vie_pronunciation": "pháo binh"
+      },
+      "means": {
+        "en": "large-caliber guns used in warfare on land",
+        "zh": "大炮，炮兵"
+      }
+    },
+    {
+      "word": {
+        "en": "as",
+        "laos": "ເປັນ",
+        "jp": "として",
+        "vie": "như",
+        "en_pronunciation": "/æz/",
+        "laos_pronunciation": "pen",
+        "jp_pronunciation": "toshite",
+        "vie_pronunciation": "như"
+      },
+      "means": {
+        "en": "used in comparisons to refer to the extent or degree of something",
+        "zh": "作为，如同"
+      }
+    },
+    {
+      "word": {
+        "en": "ascend",
+        "laos": "ຂຶ້ນ",
+        "jp": "登る",
+        "vie": "leo lên",
+        "en_pronunciation": "/əˈsend/",
+        "laos_pronunciation": "khun",
+        "jp_pronunciation": "noboru",
+        "vie_pronunciation": "leo lên"
+      },
+      "means": {
+        "en": "to go up or climb",
+        "zh": "上升，攀登"
+      }
+    },
+    {
+      "word": {
+        "en": "ascendance",
+        "laos": "ການຂຶ້ນ",
+        "jp": "上昇",
+        "vie": "sự lên",
+        "en_pronunciation": "/əˈsendəns/",
+        "laos_pronunciation": "kan khun",
+        "jp_pronunciation": "jōshō",
+        "vie_pronunciation": "sự lên"
+      },
+      "means": {
+        "en": "the action of ascending or rising",
+        "zh": "上升，优势"
+      }
+    },
+    {
+      "word": {
+        "en": "ascertain",
+        "laos": "ຢືນຢັນ",
+        "jp": "確認する",
+        "vie": "xác định",
+        "en_pronunciation": "/ˌæsəˈteɪn/",
+        "laos_pronunciation": "yun yan",
+        "jp_pronunciation": "kakunin suru",
+        "vie_pronunciation": "xác định"
+      },
+      "means": {
+        "en": "to find something out for certain; make sure of",
+        "zh": "确定，查明"
+      }
+    },
+    {
+      "word": {
+        "en": "ascribe",
+        "laos": "ອະທິບາຍ",
+        "jp": "帰する",
+        "vie": "quy cho",
+        "en_pronunciation": "/əˈskraɪb/",
+        "laos_pronunciation": "a thi bai",
+        "jp_pronunciation": "kisuru",
+        "vie_pronunciation": "quy cho"
+      },
+      "means": {
+        "en": "to attribute something to a cause",
+        "zh": "归因于，归功于"
+      }
+    },
+    {
+      "word": {
+        "en": "ash",
+        "laos": "ເທົ່າ",
+        "jp": "灰",
+        "vie": "tro",
+        "en_pronunciation": "/æʃ/",
+        "laos_pronunciation": "thao",
+        "jp_pronunciation": "hai",
+        "vie_pronunciation": "tro"
+      },
+      "means": {
+        "en": "the powdery residue left after the burning of a substance",
+        "zh": "灰，灰烬"
+      }
+    },
+    {
+      "word": {
+        "en": "ashamed",
+        "laos": "ອາຍ",
+        "jp": "恥ずかしい",
+        "vie": "xấu hổ",
+        "en_pronunciation": "/əˈʃeɪmd/",
+        "laos_pronunciation": "ai",
+        "jp_pronunciation": "hazukashii",
+        "vie_pronunciation": "xấu hổ"
+      },
+      "means": {
+        "en": "embarrassed or guilty because of one's actions, characteristics, or associations",
+        "zh": "羞愧的，羞耻的"
+      }
+    },
+    {
+      "word": {
+        "en": "ashore",
+        "laos": "ຂຶ້ນຝັ່ງ",
+        "jp": "岸に",
+        "vie": "lên bờ",
+        "en_pronunciation": "/əˈʃɔː/",
+        "laos_pronunciation": "khun fang",
+        "jp_pronunciation": "kishi ni",
+        "vie_pronunciation": "lên bờ"
+      },
+      "means": {
+        "en": "to or on the shore from the direction of the sea",
+        "zh": "上岸，在岸上"
+      }
+    },
+    {
+      "word": {
+        "en": "aside",
+        "laos": "ຂ້າງ",
+        "jp": "脇に",
+        "vie": "sang một bên",
+        "en_pronunciation": "/əˈsaɪd/",
+        "laos_pronunciation": "khang",
+        "jp_pronunciation": "waki ni",
+        "vie_pronunciation": "sang một bên"
+      },
+      "means": {
+        "en": "to one side; out of the way",
+        "zh": "在旁边，撇开"
+      }
+    },
+    {
+      "word": {
+        "en": "ask",
+        "laos": "ຖາມ",
+        "jp": "尋ねる",
+        "vie": "hỏi",
+        "en_pronunciation": "/ɑːsk/",
+        "laos_pronunciation": "tham",
+        "jp_pronunciation": "tazuneru",
+        "vie_pronunciation": "hỏi"
+      },
+      "means": {
+        "en": "to say something in order to obtain an answer or some information",
+        "zh": "问，请求"
+      }
+    },
+    {
+      "word": {
+        "en": "asleep",
+        "laos": "ນອນ",
+        "jp": "眠っている",
+        "vie": "ngủ",
+        "en_pronunciation": "/əˈsliːp/",
+        "laos_pronunciation": "non",
+        "jp_pronunciation": "nemutteiru",
+        "vie_pronunciation": "ngủ"
+      },
+      "means": {
+        "en": "in a state of sleep",
+        "zh": "睡着的"
+      }
+    },
+    {
+      "word": {
+        "en": "aspect",
+        "laos": "ດ້ານ",
+        "jp": "側面",
+        "vie": "khía cạnh",
+        "en_pronunciation": "/ˈæspekt/",
+        "laos_pronunciation": "dan",
+        "jp_pronunciation": "sokumen",
+        "vie_pronunciation": "khía cạnh"
+      },
+      "means": {
+        "en": "a particular part or feature of something",
+        "zh": "方面，角度"
+      }
+    },
+    {
+      "word": {
+        "en": "aspire",
+        "laos": "ປາດຖະໜາ",
+        "jp": "志す",
+        "vie": "khao khát",
+        "en_pronunciation": "/əˈspaɪər/",
+        "laos_pronunciation": "pad tha na",
+        "jp_pronunciation": "kokorozasu",
+        "vie_pronunciation": "khao khát"
+      },
+      "means": {
+        "en": "to direct one's hopes or ambitions toward achieving something",
+        "zh": "渴望，追求"
+      }
+    },
+    {
+      "word": {
+        "en": "aspiration",
+        "laos": "ຄວາມປາດຖະໜາ",
+        "jp": "志望",
+        "vie": "khát vọng",
+        "en_pronunciation": "/ˌæspɪˈreɪʃən/",
+        "laos_pronunciation": "khwam pad tha na",
+        "jp_pronunciation": "shibō",
+        "vie_pronunciation": "khát vọng"
+      },
+      "means": {
+        "en": "a hope or ambition of achieving something",
+        "zh": "渴望，志向"
+      }
+    },
+    {
+      "word": {
+        "en": "ass",
+        "laos": "ລາ",
+        "jp": "ロバ",
+        "vie": "lừa",
+        "en_pronunciation": "/æs/",
+        "laos_pronunciation": "la",
+        "jp_pronunciation": "roba",
+        "vie_pronunciation": "lừa"
+      },
+      "means": {
+        "en": "a hoofed mammal of the horse family",
+        "zh": "驴，屁股"
+      }
+    },
+    {
+      "word": {
+        "en": "assassinate",
+        "laos": "ລອບລາຍ",
+        "jp": "暗殺する",
+        "vie": "ám sát",
+        "en_pronunciation": "/əˈsæsɪneɪt/",
+        "laos_pronunciation": "lop lai",
+        "jp_pronunciation": "ansatsu suru",
+        "vie_pronunciation": "ám sát"
+      },
+      "means": {
+        "en": "to murder an important person in a surprise attack for political or religious reasons",
+        "zh": "暗杀"
+      }
+    },
+    {
+      "word": {
+        "en": "assassination",
+        "laos": "ການລອບລາຍ",
+        "jp": "暗殺",
+        "vie": "vụ ám sát",
+        "en_pronunciation": "/əˌsæsɪˈneɪʃən/",
+        "laos_pronunciation": "kan lop lai",
+        "jp_pronunciation": "ansatsu",
+        "vie_pronunciation": "vụ ám sát"
+      },
+      "means": {
+        "en": "the action of assassinating someone",
+        "zh": "暗杀"
+      }
+    },
+    {
+      "word": {
+        "en": "assassin",
+        "laos": "ຜູ້ລອບລາຍ",
+        "jp": "暗殺者",
+        "vie": "kẻ ám sát",
+        "en_pronunciation": "/əˈsæsɪn/",
+        "laos_pronunciation": "phu lop lai",
+        "jp_pronunciation": "ansatsusha",
+        "vie_pronunciation": "kẻ ám sát"
+      },
+      "means": {
+        "en": "a person who commits an act of murder, typically of an important person",
+        "zh": "刺客，暗杀者"
+      }
+    },
+    {
+      "word": {
+        "en": "assault",
+        "laos": "ໂຈມຕີ",
+        "jp": "攻撃",
+        "vie": "tấn công",
+        "en_pronunciation": "/əˈsɔːlt/",
+        "laos_pronunciation": "chom ti",
+        "jp_pronunciation": "kōgeki",
+        "vie_pronunciation": "tấn công"
+      },
+      "means": {
+        "en": "a physical attack",
+        "zh": "攻击，袭击"
+      }
+    },
+    {
+      "word": {
+        "en": "assemble",
+        "laos": "ລວບລວມ",
+        "jp": "組み立てる",
+        "vie": "lắp ráp",
+        "en_pronunciation": "/əˈsembəl/",
+        "laos_pronunciation": "luap luam",
+        "jp_pronunciation": "kumitateru",
+        "vie_pronunciation": "lắp ráp"
+      },
+      "means": {
+        "en": "to gather together in one place for a common purpose",
+        "zh": "组装，集合"
+      }
+    },
+    {
+      "word": {
+        "en": "assembly",
+        "laos": "ການລວບລວມ",
+        "jp": "組み立て",
+        "vie": "sự lắp ráp",
+        "en_pronunciation": "/əˈsembli/",
+        "laos_pronunciation": "kan luap luam",
+        "jp_pronunciation": "kumitate",
+        "vie_pronunciation": "sự lắp ráp"
+      },
+      "means": {
+        "en": "a group of people gathered together in one place for a common purpose",
+        "zh": "集会，组装"
+      }
+    },
+    {
+      "word": {
+        "en": "assert",
+        "laos": "ຢືນຢັນ",
+        "jp": "主張する",
+        "vie": "khẳng định",
+        "en_pronunciation": "/əˈsɜːt/",
+        "laos_pronunciation": "yun yan",
+        "jp_pronunciation": "shuchō suru",
+        "vie_pronunciation": "khẳng định"
+      },
+      "means": {
+        "en": "to state a fact or belief confidently and forcefully",
+        "zh": "断言，主张"
+      }
+    },
+    {
+      "word": {
+        "en": "assertion",
+        "laos": "ການຢືນຢັນ",
+        "jp": "主張",
+        "vie": "sự khẳng định",
+        "en_pronunciation": "/əˈsɜːʃən/",
+        "laos_pronunciation": "kan yun yan",
+        "jp_pronunciation": "shuchō",
+        "vie_pronunciation": "sự khẳng định"
+      },
+      "means": {
+        "en": "a confident and forceful statement of fact or belief",
+        "zh": "断言，主张"
+      }
+    },
+    {
+      "word": {
+        "en": "assertive",
+        "laos": "ຢືນຢັນ",
+        "jp": "断定的な",
+        "vie": "quyết đoán",
+        "en_pronunciation": "/əˈsɜːtɪv/",
+        "laos_pronunciation": "yun yan",
+        "jp_pronunciation": "danteiteki na",
+        "vie_pronunciation": "quyết đoán"
+      },
+      "means": {
+        "en": "having or showing a confident and forceful personality",
+        "zh": "断言的，自信的"
+      }
+    }
+  ]
+}

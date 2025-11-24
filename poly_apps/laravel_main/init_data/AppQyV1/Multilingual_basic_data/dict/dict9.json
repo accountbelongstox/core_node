@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.258010+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "bite",
+        "laos": "ກັດ",
+        "jp": "噛む",
+        "vie": "cắn",
+        "en_pronunciation": "/baɪt/",
+        "laos_pronunciation": "kad",
+        "jp_pronunciation": "kamu",
+        "vie_pronunciation": "can"
+      },
+      "means": {
+        "en": "A wound resulting from biting by an animal or a person",
+        "zh": "被动物或人咬伤造成的伤口"
+      }
+    },
+    {
+      "word": {
+        "en": "bitter",
+        "laos": "ຂົມ",
+        "jp": "苦い",
+        "vie": "cay đắng",
+        "en_pronunciation": "/ˈbɪtər/",
+        "laos_pronunciation": "khom",
+        "jp_pronunciation": "nigai",
+        "vie_pronunciation": "cay dang"
+      },
+      "means": {
+        "en": "English term for a dry sharp-tasting ale with strong flavor of hops (usually on draft)",
+        "zh": "英语术语，指带有浓郁啤酒花味道的干啤酒（通常是生啤酒）"
+      }
+    },
+    {
+      "word": {
+        "en": "bizarre",
+        "laos": "ແປກສໍາພັນ",
+        "jp": "奇妙な",
+        "vie": "kỳ quái",
+        "en_pronunciation": "/bɪˈzɑr/",
+        "laos_pronunciation": "aepksoaphan",
+        "jp_pronunciation": "kimyou na",
+        "vie_pronunciation": "ky quai"
+      },
+      "means": {
+        "en": "Conspicuously or grossly unconventional or unusual",
+        "zh": "明显或非常不传统或不寻常"
+      }
+    },
+    {
+      "word": {
+        "en": "black",
+        "laos": "ດໍາ",
+        "jp": "黒",
+        "vie": "màu đen",
+        "en_pronunciation": "/blæk/",
+        "laos_pronunciation": "doa",
+        "jp_pronunciation": "kuro",
+        "vie_pronunciation": "mau den"
+      },
+      "means": {
+        "en": "The quality or state of the achromatic color of least lightness (bearing the least resemblance to white)",
+        "zh": "亮度最低的无彩色的质量或状态（与白色最不相似）"
+      }
+    },
+    {
+      "word": {
+        "en": "blackboard",
+        "laos": "ກະດານດໍາ",
+        "jp": "黒板",
+        "vie": "bảng đen",
+        "en_pronunciation": "/ˈblækˌbɔrd/",
+        "laos_pronunciation": "kadandoa",
+        "jp_pronunciation": "kokuban",
+        "vie_pronunciation": "bang den"
+      },
+      "means": {
+        "en": "Sheet of slate; for writing with chalk",
+        "zh": "石板；"
+      }
+    },
+    {
+      "word": {
+        "en": "blackmail",
+        "laos": "ການຂູ່",
+        "jp": "脅迫",
+        "vie": "tống tiền",
+        "en_pronunciation": "/ˈblækˌmeɪl/",
+        "laos_pronunciation": "kankhu",
+        "jp_pronunciation": "kyouhaku",
+        "vie_pronunciation": "tong tien"
+      },
+      "means": {
+        "en": "Extortion of money by threats to divulge discrediting information",
+        "zh": "用于用粉笔书写"
+      }
+    },
+    {
+      "word": {
+        "en": "blade",
+        "laos": "ໃບຫຢ້າ",
+        "jp": "刃",
+        "vie": "lưỡi dao",
+        "en_pronunciation": "/bleɪd/",
+        "laos_pronunciation": "bai hya",
+        "jp_pronunciation": "ha",
+        "vie_pronunciation": "luoi dao"
+      },
+      "means": {
+        "en": "Especially a leaf of grass or the broad portion of a leaf as distinct from the petiole",
+        "zh": "通过威胁泄露不可信信息来勒索金钱"
+      }
+    },
+    {
+      "word": {
+        "en": "blame",
+        "laos": "ຕິຕຽນ",
+        "jp": "責める",
+        "vie": "đổ lỗi",
+        "en_pronunciation": "/bleɪm/",
+        "laos_pronunciation": "titian",
+        "jp_pronunciation": "seme ru",
+        "vie_pronunciation": "do loi"
+      },
+      "means": {
+        "en": "An accusation that you are responsible for some lapse or misdeed",
+        "zh": "尤其是草叶或不同于叶柄的叶子的宽阔部分"
+      }
+    },
+    {
+      "word": {
+        "en": "blank",
+        "laos": "ເປົ່າ",
+        "jp": "空白",
+        "vie": "chỗ trống",
+        "en_pronunciation": "/blæŋk/",
+        "laos_pronunciation": "peoa",
+        "jp_pronunciation": "kuuhaku",
+        "vie_pronunciation": "cho trong"
+      },
+      "means": {
+        "en": "A blank character used to separate successive words in writing or printing",
+        "zh": "指控您对某些失误或不当行为负责"
+      }
+    },
+    {
+      "word": {
+        "en": "blanket",
+        "laos": "ຜ້າຫົ່ມ",
+        "jp": "毛布",
+        "vie": "chăn",
+        "en_pronunciation": "/ˈblæŋkɪt/",
+        "laos_pronunciation": "phahom",
+        "jp_pronunciation": "moufu",
+        "vie_pronunciation": "chan"
+      },
+      "means": {
+        "en": "Bedding that keeps a person warm in bed",
+        "zh": "用于在书写或打印中分隔连续单词的空白字符"
+      }
+    },
+    {
+      "word": {
+        "en": "blast",
+        "laos": "ລະເບີດ",
+        "jp": "爆発",
+        "vie": "vụ nổ",
+        "en_pronunciation": "/blæst/",
+        "laos_pronunciation": "laboed",
+        "jp_pronunciation": "bakuhatsu",
+        "vie_pronunciation": "vu no"
+      },
+      "means": {
+        "en": "A very long fly ball",
+        "zh": "使人在床上保持温暖的床上用品"
+      }
+    },
+    {
+      "word": {
+        "en": "blaze",
+        "laos": "ສະຍົດໄຟແດງ",
+        "jp": "燃える",
+        "vie": "ngọn lửa",
+        "en_pronunciation": "/bleɪz/",
+        "laos_pronunciation": "sa nyodfaiaedng",
+        "jp_pronunciation": "moe ru",
+        "vie_pronunciation": "ngon lua"
+      },
+      "means": {
+        "en": "A strong flame that burns brightly",
+        "zh": "一个很长的飞球"
+      }
+    },
+    {
+      "word": {
+        "en": "bleach",
+        "laos": "ຟອກໃຫ້ຂາວ",
+        "jp": "漂白剤",
+        "vie": "thuốc tẩy",
+        "en_pronunciation": "/bliʧ/",
+        "laos_pronunciation": "fok haikhav",
+        "jp_pronunciation": "hyouhakuzai",
+        "vie_pronunciation": "thuoc tay"
+      },
+      "means": {
+        "en": "The whiteness that results from removing the color from something",
+        "zh": "强烈的火焰，燃烧得很明亮"
+      }
+    },
+    {
+      "word": {
+        "en": "bleak",
+        "laos": "ສີກາດ",
+        "jp": "暗い",
+        "vie": "ảm đạm",
+        "en_pronunciation": "/blik/",
+        "laos_pronunciation": "sikad",
+        "jp_pronunciation": "kurai",
+        "vie_pronunciation": "am dam"
+      },
+      "means": {
+        "en": "Offering little or no hope; ; ; - J.M.Synge",
+        "zh": "去除某物颜色后产生的白度"
+      }
+    },
+    {
+      "word": {
+        "en": "bleed",
+        "laos": "ເລືອດອອກ",
+        "jp": "出血する",
+        "vie": "chảy máu",
+        "en_pronunciation": "/blid/",
+        "laos_pronunciation": "leuodook",
+        "jp_pronunciation": "shukketsu suru",
+        "vie_pronunciation": "chay mau"
+      },
+      "means": {
+        "en": "Lose blood from one's body",
+        "zh": "几乎没有希望；"
+      }
+    },
+    {
+      "word": {
+        "en": "blend",
+        "laos": "ປະສົມ",
+        "jp": "ブレンド",
+        "vie": "pha trộn",
+        "en_pronunciation": "/blɛnd/",
+        "laos_pronunciation": "pasom",
+        "jp_pronunciation": "burendo",
+        "vie_pronunciation": "pha tron"
+      },
+      "means": {
+        "en": "An occurrence of thorough mixing",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "bless",
+        "laos": "ອວຍພອນ",
+        "jp": "祝福する",
+        "vie": "ban phước",
+        "en_pronunciation": "/blɛs/",
+        "laos_pronunciation": "vnyphon",
+        "jp_pronunciation": "shukufuku suru",
+        "vie_pronunciation": "ban phuoc"
+      },
+      "means": {
+        "en": "Give a benediction to",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "blind",
+        "laos": "ບອດ",
+        "jp": "盲目",
+        "vie": "mù",
+        "en_pronunciation": "/blaɪnd/",
+        "laos_pronunciation": "bod",
+        "jp_pronunciation": "moumoku",
+        "vie_pronunciation": "mu"
+      },
+      "means": {
+        "en": "People who have severe visual impairments, considered as a group",
+        "zh": "——J·M·辛格"
+      }
+    },
+    {
+      "word": {
+        "en": "blessing",
+        "laos": "ພອນ",
+        "jp": "祝福",
+        "vie": "phước lành",
+        "en_pronunciation": "/ˈblɛsɪŋ/",
+        "laos_pronunciation": "phon",
+        "jp_pronunciation": "shukufuku",
+        "vie_pronunciation": "phuoc lanh"
+      },
+      "means": {
+        "en": "The formal act of approving",
+        "zh": "失去身体的血液"
+      }
+    },
+    {
+      "word": {
+        "en": "blink",
+        "laos": "ພິບຕາ",
+        "jp": "まばたきする",
+        "vie": "chớp mắt",
+        "en_pronunciation": "/blɪŋk/",
+        "laos_pronunciation": "phibta",
+        "jp_pronunciation": "mabatakisuru",
+        "vie_pronunciation": "chop mat"
+      },
+      "means": {
+        "en": "A reflex that closes and opens the eyes rapidly",
+        "zh": "发生充分混合"
+      }
+    },
+    {
+      "word": {
+        "en": "bloc",
+        "laos": "ບ້ວນ",
+        "jp": "ブロック",
+        "vie": "khối",
+        "en_pronunciation": "/blɑk/",
+        "laos_pronunciation": "buan",
+        "jp_pronunciation": "burokku",
+        "vie_pronunciation": "khoi"
+      },
+      "means": {
+        "en": "A group of countries in special alliance",
+        "zh": "送上祝福"
+      }
+    },
+    {
+      "word": {
+        "en": "block",
+        "laos": "ກີດກັ້ນ",
+        "jp": "ブロック",
+        "vie": "khối",
+        "en_pronunciation": "/blɑk/",
+        "laos_pronunciation": "kidkan",
+        "jp_pronunciation": "burokku",
+        "vie_pronunciation": "khoi"
+      },
+      "means": {
+        "en": "A solid piece of something (usually having flat rectangular sides)",
+        "zh": "有严重视力障碍的人被视为一个群体"
+      }
+    },
+    {
+      "word": {
+        "en": "blog",
+        "laos": "Blog",
+        "jp": "ブログ",
+        "vie": "blog",
+        "en_pronunciation": "/blɔg/",
+        "laos_pronunciation": "Blog",
+        "jp_pronunciation": "burogu",
+        "vie_pronunciation": "blog"
+      },
+      "means": {
+        "en": "A shared on-line journal where people can post diary entries about their personal experiences and hobbies",
+        "zh": "正式批准行为"
+      }
+    },
+    {
+      "word": {
+        "en": "blond",
+        "laos": "ໂພງ",
+        "jp": "金髪",
+        "vie": "tóc vàng",
+        "en_pronunciation": "/blɑnd/",
+        "laos_pronunciation": "ophng",
+        "jp_pronunciation": "kinpatsu",
+        "vie_pronunciation": "toc vang"
+      },
+      "means": {
+        "en": "A person with fair skin and hair",
+        "zh": "快速闭眼和睁开眼睛的反射"
+      }
+    },
+    {
+      "word": {
+        "en": "blonde",
+        "laos": "ຜິວເນື້ອສີຂາວ",
+        "jp": "金髪",
+        "vie": "tóc vàng",
+        "en_pronunciation": "/blɑnd/",
+        "laos_pronunciation": "phiv neuosikhav",
+        "jp_pronunciation": "kinpatsu",
+        "vie_pronunciation": "toc vang"
+      },
+      "means": {
+        "en": "A person with fair skin and hair",
+        "zh": "特殊联盟国家集团"
+      }
+    },
+    {
+      "word": {
+        "en": "blood",
+        "laos": "ເລືອດ",
+        "jp": "血",
+        "vie": "máu",
+        "en_pronunciation": "/bləd/",
+        "laos_pronunciation": "leuod",
+        "jp_pronunciation": "chi",
+        "vie_pronunciation": "mau"
+      },
+      "means": {
+        "en": "The fluid (red in vertebrates) that is pumped through the body by the heart and contains plasma, blood cells, and platelets",
+        "zh": "一块实心的东西（通常具有平坦的矩形侧面）"
+      }
+    },
+    {
+      "word": {
+        "en": "bloody",
+        "laos": "ນອງເລືອດ",
+        "jp": "血まみれの",
+        "vie": "đẫm máu",
+        "en_pronunciation": "/ˈblədi/",
+        "laos_pronunciation": "nongleuod",
+        "jp_pronunciation": "chi mamireno",
+        "vie_pronunciation": "dam mau"
+      },
+      "means": {
+        "en": "Cover with blood",
+        "zh": "共享的在线日记，人们可以在其中发布有关个人经历和爱好的日记条目"
+      }
+    },
+    {
+      "word": {
+        "en": "bloom",
+        "laos": "ດອກໄມ້",
+        "jp": "咲く",
+        "vie": "nở hoa",
+        "en_pronunciation": "/blum/",
+        "laos_pronunciation": "dokmai",
+        "jp_pronunciation": "saku",
+        "vie_pronunciation": "no hoa"
+      },
+      "means": {
+        "en": "The organic process of bearing flowers",
+        "zh": "一个皮肤白皙、头发白皙的人"
+      }
+    },
+    {
+      "word": {
+        "en": "blossom",
+        "laos": "ດອກໄມ້",
+        "jp": "花",
+        "vie": "nở hoa",
+        "en_pronunciation": "/ˈblɑsəm/",
+        "laos_pronunciation": "dokmai",
+        "jp_pronunciation": "hana",
+        "vie_pronunciation": "no hoa"
+      },
+      "means": {
+        "en": "Reproductive organ of angiosperm plants especially one having showy or colorful parts",
+        "zh": "一个皮肤白皙、头发白皙的人"
+      }
+    },
+    {
+      "word": {
+        "en": "blouse",
+        "laos": "ເສື້ອ",
+        "jp": "ブラウス",
+        "vie": "áo cánh",
+        "en_pronunciation": "/blaʊs/",
+        "laos_pronunciation": "seu",
+        "jp_pronunciation": "burausu",
+        "vie_pronunciation": "ao canh"
+      },
+      "means": {
+        "en": "A top worn by women",
+        "zh": "由心脏泵入全身的液体（脊椎动物中为红色），含有血浆、血细胞和血小板"
+      }
+    },
+    {
+      "word": {
+        "en": "blow",
+        "laos": "ຜູ່ນ້ໍາ",
+        "jp": "打撃",
+        "vie": "đòn",
+        "en_pronunciation": "/bloʊ/",
+        "laos_pronunciation": "phunoa",
+        "jp_pronunciation": "dageki",
+        "vie_pronunciation": "don"
+      },
+      "means": {
+        "en": "A powerful stroke with the fist or a weapon",
+        "zh": "沾满血迹"
+      }
+    },
+    {
+      "word": {
+        "en": "blue",
+        "laos": "ສີຟ້າ",
+        "jp": "青",
+        "vie": "màu xanh",
+        "en_pronunciation": "/blu/",
+        "laos_pronunciation": "sifa",
+        "jp_pronunciation": "ao",
+        "vie_pronunciation": "mau xanh"
+      },
+      "means": {
+        "en": "Blue color or pigment; resembling the color of the clear sky in the daytime",
+        "zh": "开花的有机过程"
+      }
+    },
+    {
+      "word": {
+        "en": "blueprint",
+        "laos": "ແຜນການ",
+        "jp": "青写真",
+        "vie": "bản thiết kế",
+        "en_pronunciation": "/ˈbluˌprɪnt/",
+        "laos_pronunciation": "aephnkan",
+        "jp_pronunciation": "aojashin",
+        "vie_pronunciation": "ban thiet ke"
+      },
+      "means": {
+        "en": "Something intended as a guide for making something else",
+        "zh": "被子植物的生殖器官，尤其是具有华丽或多彩部分的生殖器官"
+      }
+    },
+    {
+      "word": {
+        "en": "bluff",
+        "laos": "ການນໍາມາໃຫ້",
+        "jp": "はったり",
+        "vie": "lừa gạt",
+        "en_pronunciation": "/bləf/",
+        "laos_pronunciation": "kannoamahai",
+        "jp_pronunciation": "hattari",
+        "vie_pronunciation": "lua gat"
+      },
+      "means": {
+        "en": "A high steep bank (usually formed by river erosion)",
+        "zh": "女性所穿的上衣"
+      }
+    },
+    {
+      "word": {
+        "en": "blunder",
+        "laos": "ພັງເຜີ",
+        "jp": "失策",
+        "vie": "sai lầm",
+        "en_pronunciation": "/ˈbləndər/",
+        "laos_pronunciation": "phangphoe",
+        "jp_pronunciation": "shissaku",
+        "vie_pronunciation": "sai lam"
+      },
+      "means": {
+        "en": "An embarrassing mistake",
+        "zh": "用拳头或武器进行有力的击打"
+      }
+    },
+    {
+      "word": {
+        "en": "blunt",
+        "laos": "ກະລະກະ",
+        "jp": "鈍い",
+        "vie": "cùn",
+        "en_pronunciation": "/blənt/",
+        "laos_pronunciation": "kalaka",
+        "jp_pronunciation": "nibui",
+        "vie_pronunciation": "cun"
+      },
+      "means": {
+        "en": "Make less intense",
+        "zh": "蓝色或颜料；"
+      }
+    },
+    {
+      "word": {
+        "en": "blur",
+        "laos": "ມົວ",
+        "jp": "ぼかし",
+        "vie": "lờ mờ",
+        "en_pronunciation": "/blər/",
+        "laos_pronunciation": "mua",
+        "jp_pronunciation": "bokashi",
+        "vie_pronunciation": "lo mo"
+      },
+      "means": {
+        "en": "A hazy or indistinct representation",
+        "zh": "类似于白天晴朗天空的颜色"
+      }
+    },
+    {
+      "word": {
+        "en": "blush",
+        "laos": "ພໍເຫັນມືດ",
+        "jp": "赤面",
+        "vie": "đỏ mặt",
+        "en_pronunciation": "/bləʃ/",
+        "laos_pronunciation": "pho henmud",
+        "jp_pronunciation": "sekimen",
+        "vie_pronunciation": "do mat"
+      },
+      "means": {
+        "en": "A rosy color (especially in the cheeks) taken as a sign of good health",
+        "zh": "旨在作为制作其他东西的指南的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "board",
+        "laos": "ກະດານ",
+        "jp": "ボード",
+        "vie": "bảng",
+        "en_pronunciation": "/bɔrd/",
+        "laos_pronunciation": "kadan",
+        "jp_pronunciation": "boodo",
+        "vie_pronunciation": "bang"
+      },
+      "means": {
+        "en": "A committee having supervisory powers",
+        "zh": "高陡的河岸（通常由河流侵蚀形成）"
+      }
+    },
+    {
+      "word": {
+        "en": "boast",
+        "laos": "ໂມ້",
+        "jp": "自慢する",
+        "vie": "khoe khoang",
+        "en_pronunciation": "/boʊst/",
+        "laos_pronunciation": "om",
+        "jp_pronunciation": "jiman suru",
+        "vie_pronunciation": "khoe khoang"
+      },
+      "means": {
+        "en": "Speaking of yourself in superlatives",
+        "zh": "一个尴尬的错误"
+      }
+    },
+    {
+      "word": {
+        "en": "boastful",
+        "laos": "ອວດໆ",
+        "jp": "自慢の",
+        "vie": "khoe khoang",
+        "en_pronunciation": "/ˈboʊstfəl/",
+        "laos_pronunciation": "vd",
+        "jp_pronunciation": "jiman no",
+        "vie_pronunciation": "khoe khoang"
+      },
+      "means": {
+        "en": "Exhibiting self-importance",
+        "zh": "降低强度"
+      }
+    },
+    {
+      "word": {
+        "en": "boat",
+        "laos": "ເຮືອ",
+        "jp": "ボート",
+        "vie": "thuyền",
+        "en_pronunciation": "/boʊt/",
+        "laos_pronunciation": "heu",
+        "jp_pronunciation": "booto",
+        "vie_pronunciation": "thuyen"
+      },
+      "means": {
+        "en": "A small vessel for travel on water",
+        "zh": "模糊或不清晰的表示"
+      }
+    },
+    {
+      "word": {
+        "en": "body",
+        "laos": "ຮ່າງກາຍ",
+        "jp": "体",
+        "vie": "cơ thể",
+        "en_pronunciation": "/ˈbɑdi/",
+        "laos_pronunciation": "hangkai",
+        "jp_pronunciation": "karada",
+        "vie_pronunciation": "co the"
+      },
+      "means": {
+        "en": "The entire structure of an organism (an animal, plant, or human being)",
+        "zh": "玫瑰色（尤其是脸颊）被视为健康的标志"
+      }
+    },
+    {
+      "word": {
+        "en": "bodily",
+        "laos": "ເທບ",
+        "jp": "肉体的に",
+        "vie": "thân xác",
+        "en_pronunciation": "/ˈbɑdəli/",
+        "laos_pronunciation": "theb",
+        "jp_pronunciation": "nikutaiteki ni",
+        "vie_pronunciation": "than xac"
+      },
+      "means": {
+        "en": "Of or relating to or belonging to the body",
+        "zh": "具有监督权的委员会"
+      }
+    },
+    {
+      "word": {
+        "en": "boil",
+        "laos": "ຕົ້ມ",
+        "jp": "沸騰させる",
+        "vie": "đun sôi",
+        "en_pronunciation": "/bɔɪl/",
+        "laos_pronunciation": "tom",
+        "jp_pronunciation": "futtou saseru",
+        "vie_pronunciation": "dun soi"
+      },
+      "means": {
+        "en": "A painful sore with a hard core filled with pus",
+        "zh": "用最高级的方式谈论自己"
+      }
+    },
+    {
+      "word": {
+        "en": "boiler",
+        "laos": "ນ້ໍາເຂົ້າ",
+        "jp": "ボイラー",
+        "vie": "nồi hơi",
+        "en_pronunciation": "/ˈbɔɪlər/",
+        "laos_pronunciation": "noakhao",
+        "jp_pronunciation": "boiraa",
+        "vie_pronunciation": "noi hoi"
+      },
+      "means": {
+        "en": "Sealed vessel where water is converted to steam",
+        "zh": "表现出自我重要性"
+      }
+    },
+    {
+      "word": {
+        "en": "bold",
+        "laos": "ກ້າຫານ",
+        "jp": "大胆な",
+        "vie": "in đậm",
+        "en_pronunciation": "/boʊld/",
+        "laos_pronunciation": "kahan",
+        "jp_pronunciation": "daitan na",
+        "vie_pronunciation": "in dam"
+      },
+      "means": {
+        "en": "A typeface with thick heavy lines",
+        "zh": "水上旅行的小型船只"
+      }
+    },
+    {
+      "word": {
+        "en": "bolster",
+        "laos": "ກະເປົາ",
+        "jp": "強化する",
+        "vie": "củng cố",
+        "en_pronunciation": "/ˈboʊlstər/",
+        "laos_pronunciation": "kapao",
+        "jp_pronunciation": "kyouka suru",
+        "vie_pronunciation": "cung co"
+      },
+      "means": {
+        "en": "A pillow that is often put across a bed underneath the regular pillows",
+        "zh": "有机体（动物、植物或人类）的整个结构"
+      }
+    },
+    {
+      "word": {
+        "en": "bolt",
+        "laos": "ໄລປະຕູ",
+        "jp": "ボルト",
+        "vie": "chốt",
+        "en_pronunciation": "/boʊlt/",
+        "laos_pronunciation": "laipatu",
+        "jp_pronunciation": "boruto",
+        "vie_pronunciation": "chot"
+      },
+      "means": {
+        "en": "A discharge of lightning accompanied by thunder",
+        "zh": "属于身体的、关于身体的或属于身体的"
+      }
+    },
+    {
+      "word": {
+        "en": "bomb",
+        "laos": "ລູກລະເບີດ",
+        "jp": "爆弾",
+        "vie": "quả bom",
+        "en_pronunciation": "/bɔm/",
+        "laos_pronunciation": "luklaboed",
+        "jp_pronunciation": "bakudan",
+        "vie_pronunciation": "qua bom"
+      },
+      "means": {
+        "en": "An explosive device fused to explode under specific conditions",
+        "zh": "疼痛的疮口，硬核充满脓液"
+      }
+    },
+    {
+      "word": {
+        "en": "bond",
+        "laos": "ພັນທະບັດ",
+        "jp": "絆",
+        "vie": "trái phiếu",
+        "en_pronunciation": "/bɑnd/",
+        "laos_pronunciation": "phanthabad",
+        "jp_pronunciation": "kizuna",
+        "vie_pronunciation": "trai phieu"
+      },
+      "means": {
+        "en": "An electrical force linking atoms",
+        "zh": "密封容器，其中水转化为蒸汽"
+      }
+    },
+    {
+      "word": {
+        "en": "bondage",
+        "laos": "ການເປັນຂ້າທາດ",
+        "jp": "束縛",
+        "vie": "sự trói buộc",
+        "en_pronunciation": "/ˈbɑndɪʤ/",
+        "laos_pronunciation": "kan penkhathad",
+        "jp_pronunciation": "sokubaku",
+        "vie_pronunciation": "su troi buoc"
+      },
+      "means": {
+        "en": "The state of being under the control of a force or influence or abstract power; he sought release from his bondage to Satana self freed from the bondage of time\"",
+        "zh": "带有粗粗线条的字体"
+      }
+    },
+    {
+      "word": {
+        "en": "bone",
+        "laos": "ກະດູກ",
+        "jp": "骨",
+        "vie": "khúc xương",
+        "en_pronunciation": "/boʊn/",
+        "laos_pronunciation": "kaduk",
+        "jp_pronunciation": "hone",
+        "vie_pronunciation": "khuc xuong"
+      },
+      "means": {
+        "en": "Rigid connective tissue that makes up the skeleton of vertebrates",
+        "zh": "经常放在床上的普通枕头下面的枕头"
+      }
+    },
+    {
+      "word": {
+        "en": "bony",
+        "laos": "ໄວ",
+        "jp": "骨っぽい",
+        "vie": "xương xẩu",
+        "en_pronunciation": "/ˈboʊni/",
+        "laos_pronunciation": "vai",
+        "jp_pronunciation": "hone ppoi",
+        "vie_pronunciation": "xuong xau"
+      },
+      "means": {
+        "en": "Very thin especially from disease or hunger or cold",
+        "zh": "伴随着雷声的闪电放电"
+      }
+    },
+    {
+      "word": {
+        "en": "bonus",
+        "laos": "ເບັ້ຽບໍາເຫນັດ",
+        "jp": "ボーナス",
+        "vie": "tiền thưởng",
+        "en_pronunciation": "/ˈboʊnəs/",
+        "laos_pronunciation": "beia boa henad",
+        "jp_pronunciation": "boonasu",
+        "vie_pronunciation": "tien thuong"
+      },
+      "means": {
+        "en": "Anything that tends to arouse",
+        "zh": "在特定条件下发生熔断而爆炸的爆炸装置"
+      }
+    },
+    {
+      "word": {
+        "en": "book",
+        "laos": "ປື້ມ",
+        "jp": "本",
+        "vie": "cuốn sách",
+        "en_pronunciation": "/bʊk/",
+        "laos_pronunciation": "pum",
+        "jp_pronunciation": "hon",
+        "vie_pronunciation": "cuon sach"
+      },
+      "means": {
+        "en": "A written work or composition that has been published (printed on pages bound together)",
+        "zh": "连接原子的电力"
+      }
+    },
+    {
+      "word": {
+        "en": "boom",
+        "laos": "ຂະຫຍາຍຕົວຢ່າງ",
+        "jp": "ブーム",
+        "vie": "bùng nổ",
+        "en_pronunciation": "/bum/",
+        "laos_pronunciation": "khajaituayang",
+        "jp_pronunciation": "buumu",
+        "vie_pronunciation": "bung no"
+      },
+      "means": {
+        "en": "A deep prolonged loud noise",
+        "zh": "受某种力量、影响或抽象权力控制的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "boost",
+        "laos": "ສົ່ງເສີມ",
+        "jp": "ブースト",
+        "vie": "tăng cường",
+        "en_pronunciation": "/bust/",
+        "laos_pronunciation": "songsoem",
+        "jp_pronunciation": "buusuto",
+        "vie_pronunciation": "tang cuong"
+      },
+      "means": {
+        "en": "The act of giving hope or support to someone",
+        "zh": "他寻求从撒旦自我的束缚中解脱出来，从时间的束缚中解脱出来”"
+      }
+    },
+    {
+      "word": {
+        "en": "boot",
+        "laos": "ໃສ່ເກີບ",
+        "jp": "ブーツ",
+        "vie": "khởi động",
+        "en_pronunciation": "/but/",
+        "laos_pronunciation": "saikoeb",
+        "jp_pronunciation": "buutsu",
+        "vie_pronunciation": "khoi dong"
+      },
+      "means": {
+        "en": "Footwear that covers the whole foot and lower leg",
+        "zh": "构成脊椎动物骨骼的刚性结缔组织"
+      }
+    },
+    {
+      "word": {
+        "en": "booth",
+        "laos": "ຮ້ານ",
+        "jp": "ブース",
+        "vie": "gian hàng",
+        "en_pronunciation": "/buθ/",
+        "laos_pronunciation": "han",
+        "jp_pronunciation": "buusu",
+        "vie_pronunciation": "gian hang"
+      },
+      "means": {
+        "en": "A table (in a restaurant or bar) surrounded by two high-backed benches",
+        "zh": "非常瘦，特别是由于疾病、饥饿或寒冷"
+      }
+    },
+    {
+      "word": {
+        "en": "border",
+        "laos": "ແດນ",
+        "jp": "境界線",
+        "vie": "biên giới",
+        "en_pronunciation": "/ˈbɔrdər/",
+        "laos_pronunciation": "aedn",
+        "jp_pronunciation": "kyoukaisen",
+        "vie_pronunciation": "bien gioi"
+      },
+      "means": {
+        "en": "A line that indicates a boundary",
+        "zh": "任何容易引起兴奋的事物"
+      }
+    },
+    {
+      "word": {
+        "en": "bore",
+        "laos": "ເບື່ອດີ",
+        "jp": "ボア",
+        "vie": "khoan",
+        "en_pronunciation": "/bɔr/",
+        "laos_pronunciation": "beuodi",
+        "jp_pronunciation": "boa",
+        "vie_pronunciation": "khoan"
+      },
+      "means": {
+        "en": "A person who evokes boredom",
+        "zh": "已出版的书面作品或作品（打印在装订在一起的页面上）"
+      }
+    },
+    {
+      "word": {
+        "en": "boring",
+        "laos": "ຫນ້າເບື່ອ",
+        "jp": "退屈な",
+        "vie": "nhàm chán",
+        "en_pronunciation": "/ˈbɔrɪŋ/",
+        "laos_pronunciation": "nabeu",
+        "jp_pronunciation": "taikutsu na",
+        "vie_pronunciation": "nham chan"
+      },
+      "means": {
+        "en": "The act of drilling",
+        "zh": "深沉而持久的巨响"
+      }
+    },
+    {
+      "word": {
+        "en": "born",
+        "laos": "ເກີດ",
+        "jp": "生まれた",
+        "vie": "sinh ra",
+        "en_pronunciation": "/bɔrn/",
+        "laos_pronunciation": "koed",
+        "jp_pronunciation": "umare ta",
+        "vie_pronunciation": "sinh ra"
+      },
+      "means": {
+        "en": "British nuclear physicist (born in Germany) honored for his contributions to quantum mechanics (1882-1970)",
+        "zh": "向某人给予希望或支持的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "borrow",
+        "laos": "ຢືມ",
+        "jp": "借りる",
+        "vie": "mượn",
+        "en_pronunciation": "/ˈbɑˌroʊ/",
+        "laos_pronunciation": "yum",
+        "jp_pronunciation": "kari ru",
+        "vie_pronunciation": "muon"
+      },
+      "means": {
+        "en": "Get temporarily",
+        "zh": "覆盖整个脚和小腿的鞋类"
+      }
+    },
+    {
+      "word": {
+        "en": "boss",
+        "laos": "ນາຍ",
+        "jp": "上司",
+        "vie": "ông chủ",
+        "en_pronunciation": "/bɔs/",
+        "laos_pronunciation": "nai",
+        "jp_pronunciation": "joushi",
+        "vie_pronunciation": "ong chu"
+      },
+      "means": {
+        "en": "A person who exercises control over workers",
+        "zh": "一张桌子（餐厅或酒吧），周围有两个高背长凳"
+      }
+    },
+    {
+      "word": {
+        "en": "botany",
+        "laos": "ພຶກສາສາດ",
+        "jp": "植物学",
+        "vie": "Thực vật học",
+        "en_pronunciation": "/ˈbɑtəni/",
+        "laos_pronunciation": "phuk sasad",
+        "jp_pronunciation": "shokubutsugaku",
+        "vie_pronunciation": "Thuc vat hoc"
+      },
+      "means": {
+        "en": "All the plant life in a particular region or period",
+        "zh": "表示边界的线"
+      }
+    },
+    {
+      "word": {
+        "en": "botanical",
+        "laos": "ສະນະພືດສາດ",
+        "jp": "植物の",
+        "vie": "thực vật",
+        "en_pronunciation": "/bəˈtænɪkəl/",
+        "laos_pronunciation": "sana phudsad",
+        "jp_pronunciation": "shokubutsu no",
+        "vie_pronunciation": "thuc vat"
+      },
+      "means": {
+        "en": "A drug made from part of a plant (as the bark or root or leaves)",
+        "zh": "一个让人感到无聊的人"
+      }
+    },
+    {
+      "word": {
+        "en": "both",
+        "laos": "ທັງສອງ",
+        "jp": "両方",
+        "vie": "cả hai",
+        "en_pronunciation": "/boʊθ/",
+        "laos_pronunciation": "thangsong",
+        "jp_pronunciation": "ryouhou",
+        "vie_pronunciation": "ca hai"
+      },
+      "means": {
+        "en": "(used with count nouns) two considered together; the two",
+        "zh": "钻孔动作"
+      }
+    },
+    {
+      "word": {
+        "en": "bother",
+        "laos": "ກວນໃຈ",
+        "jp": "迷惑",
+        "vie": "làm phiền",
+        "en_pronunciation": "/ˈbɑðər/",
+        "laos_pronunciation": "kuanchai",
+        "jp_pronunciation": "meiwaku",
+        "vie_pronunciation": "lam phien"
+      },
+      "means": {
+        "en": "An angry disturbance",
+        "zh": "英国核物理学家（出生于德国）因其对量子力学的贡献而获奖（1882-1970）"
+      }
+    },
+    {
+      "word": {
+        "en": "bottle",
+        "laos": "ຂວດ",
+        "jp": "ボトル",
+        "vie": "chai",
+        "en_pronunciation": "/ˈbɑtəl/",
+        "laos_pronunciation": "khuad",
+        "jp_pronunciation": "botoru",
+        "vie_pronunciation": "chai"
+      },
+      "means": {
+        "en": "A glass or plastic vessel used for storing drinks or other liquids; typically cylindrical without handles and with a narrow neck that can be plugged or capped",
+        "zh": "暂时获取"
+      }
+    },
+    {
+      "word": {
+        "en": "bottom",
+        "laos": "ດ້ານລຸ່ມ",
+        "jp": "一番下",
+        "vie": "đáy",
+        "en_pronunciation": "/ˈbɑtəm/",
+        "laos_pronunciation": "danlum",
+        "jp_pronunciation": "ichibanshita",
+        "vie_pronunciation": "day"
+      },
+      "means": {
+        "en": "The lower side of anything",
+        "zh": "对工人行使控制权的人"
+      }
+    },
+    {
+      "word": {
+        "en": "bounce",
+        "laos": "ກະດອນ",
+        "jp": "跳ねる",
+        "vie": "tung lên",
+        "en_pronunciation": "/baʊns/",
+        "laos_pronunciation": "kadon",
+        "jp_pronunciation": "hane ru",
+        "vie_pronunciation": "tung len"
+      },
+      "means": {
+        "en": "The quality of a substance that is able to rebound",
+        "zh": "特定地区或时期的所有植物生命"
+      }
+    },
+    {
+      "word": {
+        "en": "bound",
+        "laos": "ເປັນ",
+        "jp": "縛られた",
+        "vie": "ràng buộc",
+        "en_pronunciation": "/baʊnd/",
+        "laos_pronunciation": "pen",
+        "jp_pronunciation": "shibara reta",
+        "vie_pronunciation": "rang buoc"
+      },
+      "means": {
+        "en": "A line determining the limits of an area",
+        "zh": "由植物的一部分（如树皮、根或叶）制成的药物"
+      }
+    },
+    {
+      "word": {
+        "en": "boundary",
+        "laos": "ເຂດແດນ",
+        "jp": "境界線",
+        "vie": "ranh giới",
+        "en_pronunciation": "/ˈbaʊndəri/",
+        "laos_pronunciation": "khedaedn",
+        "jp_pronunciation": "kyoukaisen",
+        "vie_pronunciation": "ranh gioi"
+      },
+      "means": {
+        "en": "The line or plane indicating the limit or extent of something",
+        "zh": "（与可数名词一起使用）两个一起考虑；"
+      }
+    },
+    {
+      "word": {
+        "en": "bouquet",
+        "laos": "ຊໍ່ດອກໄມ້",
+        "jp": "花束",
+        "vie": "bó hoa",
+        "en_pronunciation": "/buˈkeɪ/",
+        "laos_pronunciation": "sodokmai",
+        "jp_pronunciation": "hanataba",
+        "vie_pronunciation": "bo hoa"
+      },
+      "means": {
+        "en": "An arrangement of flowers that is usually given as a present",
+        "zh": "两个"
+      }
+    },
+    {
+      "word": {
+        "en": "bout",
+        "laos": "ການແຂ່ງຂັນ",
+        "jp": "試合",
+        "vie": "cơn sốt",
+        "en_pronunciation": "/baʊt/",
+        "laos_pronunciation": "kanaekhngkhan",
+        "jp_pronunciation": "shiai",
+        "vie_pronunciation": "con sot"
+      },
+      "means": {
+        "en": "(sports) a division during which one team is on the offensive",
+        "zh": "愤怒的扰乱"
+      }
+    },
+    {
+      "word": {
+        "en": "bow",
+        "laos": "ນ້ອມຄໍານັບ",
+        "jp": "弓",
+        "vie": "cúi đầu",
+        "en_pronunciation": "/boʊ/",
+        "laos_pronunciation": "nom khoanab",
+        "jp_pronunciation": "yumi",
+        "vie_pronunciation": "cui dau"
+      },
+      "means": {
+        "en": "A knot with two loops and loose ends; used to tie shoelaces",
+        "zh": "用于储存饮料或其他液体的玻璃或塑料容器；"
+      }
+    },
+    {
+      "word": {
+        "en": "bowel",
+        "laos": "ໂຖປັດສະວະ",
+        "jp": "腸",
+        "vie": "ruột",
+        "en_pronunciation": "/baʊəl/",
+        "laos_pronunciation": "oth padsauaa",
+        "jp_pronunciation": "chou",
+        "vie_pronunciation": "ruot"
+      },
+      "means": {
+        "en": "The part of the alimentary canal between the stomach and the anus",
+        "zh": "通常是圆柱形，没有手柄，颈部很窄，可以塞住或盖上盖子"
+      }
+    },
+    {
+      "word": {
+        "en": "bowl",
+        "laos": "ຊາມ",
+        "jp": "ボウル",
+        "vie": "bát",
+        "en_pronunciation": "/boʊl/",
+        "laos_pronunciation": "sam",
+        "jp_pronunciation": "bouru",
+        "vie_pronunciation": "bat"
+      },
+      "means": {
+        "en": "A round vessel that is open at the top; used chiefly for holding food or liquids",
+        "zh": "任何事物的底面"
+      }
+    },
+    {
+      "word": {
+        "en": "box",
+        "laos": "ຊົກ",
+        "jp": "ボックス",
+        "vie": "cái hộp",
+        "en_pronunciation": "/bɑks/",
+        "laos_pronunciation": "sok",
+        "jp_pronunciation": "bokkusu",
+        "vie_pronunciation": "cai hop"
+      },
+      "means": {
+        "en": "A (usually rectangular) container; may have a lid",
+        "zh": "能够反弹的物质的质量"
+      }
+    },
+    {
+      "word": {
+        "en": "boxing",
+        "laos": "ມວຍ",
+        "jp": "ボクシング",
+        "vie": "quyền anh",
+        "en_pronunciation": "/ˈbɑksɪŋ/",
+        "laos_pronunciation": "muany",
+        "jp_pronunciation": "bokushingu",
+        "vie_pronunciation": "quyen anh"
+      },
+      "means": {
+        "en": "Fighting with the fists",
+        "zh": "确定区域界限的线"
+      }
+    },
+    {
+      "word": {
+        "en": "boy",
+        "laos": "ເດັກຜູ້ຊາຍ",
+        "jp": "男の子",
+        "vie": "cậu bé",
+        "en_pronunciation": "/bɔɪ/",
+        "laos_pronunciation": "dekphusai",
+        "jp_pronunciation": "otokonoko",
+        "vie_pronunciation": "cau be"
+      },
+      "means": {
+        "en": "A youthful male person",
+        "zh": "表示某事物的界限或范围的线或平面"
+      }
+    },
+    {
+      "word": {
+        "en": "boycott",
+        "laos": "boycott",
+        "jp": "ボイコットする",
+        "vie": "tẩy chay",
+        "en_pronunciation": "/ˈbɔɪˌkɑt/",
+        "laos_pronunciation": "boycott",
+        "jp_pronunciation": "boikotto suru",
+        "vie_pronunciation": "tay chay"
+      },
+      "means": {
+        "en": "A group's refusal to have commercial dealings with some organization in protest against its policies",
+        "zh": "通常作为礼物赠送的插花"
+      }
+    },
+    {
+      "word": {
+        "en": "brace",
+        "laos": "ການຜູກ",
+        "jp": "ブレース",
+        "vie": "cú đúp",
+        "en_pronunciation": "/breɪs/",
+        "laos_pronunciation": "kanphuk",
+        "jp_pronunciation": "bureesu",
+        "vie_pronunciation": "cu dup"
+      },
+      "means": {
+        "en": "A support that steadies or strengthens something else",
+        "zh": "（体育运动）一支球队处于进攻状态的分区"
+      }
+    },
+    {
+      "word": {
+        "en": "bracket",
+        "laos": "ວົງເລັບໃຫຢ່",
+        "jp": "ブラケット",
+        "vie": "dấu ngoặc",
+        "en_pronunciation": "/ˈbrækɪt/",
+        "laos_pronunciation": "vong leb haiy",
+        "jp_pronunciation": "buraketto",
+        "vie_pronunciation": "dau ngoac"
+      },
+      "means": {
+        "en": "A category falling within certain defined limits",
+        "zh": "有两个环且末端松散的结；"
+      }
+    },
+    {
+      "word": {
+        "en": "brag",
+        "laos": "ກວະ",
+        "jp": "自慢する",
+        "vie": "khoe khoang",
+        "en_pronunciation": "/bræg/",
+        "laos_pronunciation": "kuaa",
+        "jp_pronunciation": "jiman suru",
+        "vie_pronunciation": "khoe khoang"
+      },
+      "means": {
+        "en": "An instance of boastful talk",
+        "zh": "用于系鞋带"
+      }
+    },
+    {
+      "word": {
+        "en": "brain",
+        "laos": "ສະຫມອງ",
+        "jp": "脳",
+        "vie": "não",
+        "en_pronunciation": "/breɪn/",
+        "laos_pronunciation": "samong",
+        "jp_pronunciation": "nou",
+        "vie_pronunciation": "nao"
+      },
+      "means": {
+        "en": "That part of the central nervous system that includes all the higher nervous centers; enclosed within the skull; continuous with the spinal cord",
+        "zh": "消化道位于胃和肛门之间的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "brake",
+        "laos": "ຫ້າມລໍ້",
+        "jp": "ブレーキ",
+        "vie": "phanh",
+        "en_pronunciation": "/breɪk/",
+        "laos_pronunciation": "hamlo",
+        "jp_pronunciation": "bureeki",
+        "vie_pronunciation": "phanh"
+      },
+      "means": {
+        "en": "A restraint used to slow or stop a vehicle",
+        "zh": "顶部开口的圆形容器；"
+      }
+    },
+    {
+      "word": {
+        "en": "branch",
+        "laos": "ສາຂາ",
+        "jp": "支店",
+        "vie": "chi nhánh",
+        "en_pronunciation": "/brænʧ/",
+        "laos_pronunciation": "sakha",
+        "jp_pronunciation": "shiten",
+        "vie_pronunciation": "chi nhanh"
+      },
+      "means": {
+        "en": "A division of some larger or more complex organization",
+        "zh": "主要用于盛放食物或液体"
+      }
+    },
+    {
+      "word": {
+        "en": "brand",
+        "laos": "ຍີ່ຫໍ້",
+        "jp": "ブランド",
+        "vie": "nhãn hiệu",
+        "en_pronunciation": "/brænd/",
+        "laos_pronunciation": "nyiho",
+        "jp_pronunciation": "burando",
+        "vie_pronunciation": "nhan hieu"
+      },
+      "means": {
+        "en": "A name given to a product or service",
+        "zh": "一个（通常是矩形）容器；"
+      }
+    },
+    {
+      "word": {
+        "en": "brand-new",
+        "laos": "ຍີ່ຫໍ້ໃຫມ່",
+        "jp": "真新しい",
+        "vie": "hoàn toàn mới",
+        "en_pronunciation": "/ˈbrændˌnu/",
+        "laos_pronunciation": "nyihohaim",
+        "jp_pronunciation": "maatarashii",
+        "vie_pronunciation": "hoan toan moi"
+      },
+      "means": {
+        "en": "Conspicuously new",
+        "zh": "可能有一个盖子"
+      }
+    },
+    {
+      "word": {
+        "en": "brandy",
+        "laos": "ຍີ່ນ",
+        "jp": "ブランデー",
+        "vie": "rượu mạnh",
+        "en_pronunciation": "/ˈbrændi/",
+        "laos_pronunciation": "nyin",
+        "jp_pronunciation": "burandee",
+        "vie_pronunciation": "ruou manh"
+      },
+      "means": {
+        "en": "Distilled from wine or fermented fruit juice",
+        "zh": "用拳头战斗"
+      }
+    },
+    {
+      "word": {
+        "en": "brass",
+        "laos": "ທອງເຫລືອງ",
+        "jp": "真鍮",
+        "vie": "đồng thau",
+        "en_pronunciation": "/bræs/",
+        "laos_pronunciation": "thongheluong",
+        "jp_pronunciation": "shinchuu",
+        "vie_pronunciation": "dong thau"
+      },
+      "means": {
+        "en": "An alloy of copper and zinc",
+        "zh": "一个年轻的男性"
+      }
+    },
+    {
+      "word": {
+        "en": "brave",
+        "laos": "ທີ່ກ້າຫານ",
+        "jp": "勇敢な",
+        "vie": "dũng cảm",
+        "en_pronunciation": "/breɪv/",
+        "laos_pronunciation": "thikahan",
+        "jp_pronunciation": "yuukan na",
+        "vie_pronunciation": "dung cam"
+      },
+      "means": {
+        "en": "A North American Indian warrior",
+        "zh": "某个团体拒绝与某个组织进行商业往来以抗议其政策"
+      }
+    },
+    {
+      "word": {
+        "en": "bravery",
+        "laos": "ທີ່ກ້າຫານ",
+        "jp": "勇気",
+        "vie": "lòng dũng cảm",
+        "en_pronunciation": "/ˈbreɪvəri/",
+        "laos_pronunciation": "thikahan",
+        "jp_pronunciation": "yuuki",
+        "vie_pronunciation": "long dung cam"
+      },
+      "means": {
+        "en": "A quality of spirit that enables you to face danger or pain without showing fear",
+        "zh": "稳定或加强其他事物的支持"
+      }
+    },
+    {
+      "word": {
+        "en": "breach",
+        "laos": "ການລະເມີດ",
+        "jp": "違反",
+        "vie": "vi phạm",
+        "en_pronunciation": "/briʧ/",
+        "laos_pronunciation": "kanlamoed",
+        "jp_pronunciation": "ihan",
+        "vie_pronunciation": "vi pham"
+      },
+      "means": {
+        "en": "A failure to perform some promised act or obligation",
+        "zh": "属于某些定义范围内的类别"
+      }
+    },
+    {
+      "word": {
+        "en": "bread",
+        "laos": "ເຂົ້າຈີ່",
+        "jp": "パン",
+        "vie": "bánh mì",
+        "en_pronunciation": "/brɛd/",
+        "laos_pronunciation": "khaochi",
+        "jp_pronunciation": "pan",
+        "vie_pronunciation": "banh mi"
+      },
+      "means": {
+        "en": "Food made from dough of flour or meal and usually raised with yeast or baking powder and then baked",
+        "zh": "夸夸其谈的例子"
+      }
+    },
+    {
+      "word": {
+        "en": "break",
+        "laos": "ແຕກແຢກ",
+        "jp": "休憩",
+        "vie": "phá vỡ",
+        "en_pronunciation": "/breɪk/",
+        "laos_pronunciation": "aetk aeyk",
+        "jp_pronunciation": "kyuukei",
+        "vie_pronunciation": "pha vo"
+      },
+      "means": {
+        "en": "Some abrupt occurrence that interrupts an ongoing activity",
+        "zh": "中枢神经系统的一部分，包括所有高级神经中枢；"
+      }
+    },
+    {
+      "word": {
+        "en": "breakdown",
+        "laos": "ການແຕກແຢກ",
+        "jp": "内訳",
+        "vie": "sự cố",
+        "en_pronunciation": "/ˈbreɪkˌdaʊn/",
+        "laos_pronunciation": "kan aetk aeyk",
+        "jp_pronunciation": "uchiwake",
+        "vie_pronunciation": "su co"
+      },
+      "means": {
+        "en": "The act of disrupting an established order so it fails to continue",
+        "zh": "封闭在头骨内；"
+      }
+    }
+  ]
+}

@@ -36,7 +36,7 @@ async function start(options = {}) {
         logger.info('Starting DocOfflineDownloader application...');
         
         // Initialize app configuration
-        const appConfig = gconfig.get('DocOfflineDownloader') || {};
+        const appConfig = gconfig.DocOfflineDownloader || {};
         
         // Create app instance
         const app = new DocOfflineDownloaderApp(appConfig);

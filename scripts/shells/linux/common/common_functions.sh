@@ -840,3 +840,339 @@ show_post_install_artifacts_from_common_functions() {
         print_info_from_common_functions "System desktop entry disabled: $system_desktop_disabled"
     fi
 }
+
+# ============================================================================
+# Directory Migration and Permission Management Functions
+# ============================================================================
+
+# Get real user (not root, not sudo) (from common_functions.sh)
+get_real_user_from_common_functions() {
+    local real_user=""
+    local real_home=""
+
+    # Priority 1: Check SUDO_USER environment variable
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        real_user="$SUDO_USER"
+        real_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$real_home" ] && [ -d "$real_home" ]; then
+            echo "$real_user"
+            return 0
+        fi
+    fi
+
+    # Priority 2: If not root, return current user
+    if [ "$(id -u)" -ne 0 ] && [ "$USER" != "root" ]; then
+        echo "$USER"
+        return 0
+    fi
+
+    # Priority 3: Check ACTUAL_DESKTOP_USER from gvar_common.sh
+    if [ -n "${ACTUAL_DESKTOP_USER:-}" ] && [ "$ACTUAL_DESKTOP_USER" != "root" ]; then
+        echo "$ACTUAL_DESKTOP_USER"
+        return 0
+    fi
+
+    # Priority 4: Scan /home/* for most recently modified accessible directory
+    # This finds the user who is actively using the system
+    local most_recent_user=""
+    local most_recent_time=0
+
+    for user_home in /home/*; do
+        if [ -d "$user_home" ] && [ -r "$user_home" ]; then
+            local username="$(basename "$user_home")"
+
+            # Skip system users and special names
+            if [ "$username" = "lost+found" ] || [ "$username" = "nobody" ]; then
+                continue
+            fi
+
+            # Check if user exists in passwd
+            if ! id -u "$username" >/dev/null 2>&1; then
+                continue
+            fi
+
+            # Get last modification time of home directory and common subdirectories
+            local check_dirs=(
+                "$user_home"
+                "$user_home/.bashrc"
+                "$user_home/.profile"
+                "$user_home/.local"
+                "$user_home/.config"
+                "$user_home/Desktop"
+                "$user_home/Documents"
+            )
+
+            for check_dir in "${check_dirs[@]}"; do
+                if [ -e "$check_dir" ]; then
+                    local mtime=$(stat -c %Y "$check_dir" 2>/dev/null || echo 0)
+                    if [ "$mtime" -gt "$most_recent_time" ]; then
+                        most_recent_time=$mtime
+                        most_recent_user="$username"
+                    fi
+                fi
+            done
+        fi
+    done
+
+    if [ -n "$most_recent_user" ]; then
+        echo "$most_recent_user"
+        return 0
+    fi
+
+    # Priority 5: Find first non-system user (UID >= 1000, < 60000)
+    while IFS=: read -r username _ uid _ _ homedir _; do
+        if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$homedir" ] && [ "$username" != "nobody" ]; then
+            echo "$username"
+            return 0
+        fi
+    done < /etc/passwd
+
+    # Fallback: return current user
+    echo "$USER"
+    return 0
+}
+
+# Migrate from old directory to new directory (from common_functions.sh)
+migrate_old_to_new_directory_from_common_functions() {
+    local old_base_pattern="$1"  # e.g., "dev_ubuntu24" or "/www/dev_ubuntu24"
+    local new_base_pattern="$2"  # e.g., "_ubuntu_24" or "/www/_ubuntu_24"
+    local specific_path="${3:-}"  # Optional: specific subdirectory to migrate
+
+    # Resolve full paths
+    local old_dir=""
+    local new_dir=""
+
+    # If patterns don't start with /, assume they're under /www
+    if [[ "$old_base_pattern" != /* ]]; then
+        old_dir="/www/$old_base_pattern"
+    else
+        old_dir="$old_base_pattern"
+    fi
+
+    if [[ "$new_base_pattern" != /* ]]; then
+        new_dir="/www/$new_base_pattern"
+    else
+        new_dir="$new_base_pattern"
+    fi
+
+    # If specific path provided, append it
+    if [ -n "$specific_path" ]; then
+        old_dir="$old_dir/$specific_path"
+        new_dir="$new_dir/$specific_path"
+    fi
+
+    # Check if old directory exists
+    if [ ! -d "$old_dir" ]; then
+        print_debug_from_common_functions "Old directory does not exist: $old_dir"
+        return 0
+    fi
+
+    # Check if new directory already exists
+    if [ -d "$new_dir" ]; then
+        print_warning_from_common_functions "New directory already exists: $new_dir"
+        print_info_from_common_functions "Merging contents from old directory: $old_dir"
+
+        # Merge: Copy files that don't exist in new directory
+        $USE_SUDO rsync -a --ignore-existing "$old_dir/" "$new_dir/"
+
+        print_info_from_common_functions "Removing old directory: $old_dir"
+        $USE_SUDO rm -rf "$old_dir"
+    else
+        print_step_from_common_functions "Migrating: $old_dir -> $new_dir"
+
+        # Create parent directory if needed
+        local parent_dir="$(dirname "$new_dir")"
+        if [ ! -d "$parent_dir" ]; then
+            $USE_SUDO mkdir -p "$parent_dir"
+        fi
+
+        # Move the entire directory
+        $USE_SUDO mv "$old_dir" "$new_dir"
+
+        print_success_from_common_functions "Migration complete: $new_dir"
+    fi
+
+    return 0
+}
+
+# Fix permissions for installation directory (from common_functions.sh)
+fix_installation_permissions_from_common_functions() {
+    local target_path="$1"
+    local permission_mode="${2:-777}"  # Default: 777 (all users)
+    local set_owner="${3:-true}"       # Default: set owner to real user
+
+    if [ ! -e "$target_path" ]; then
+        print_warning_from_common_functions "Path does not exist: $target_path"
+        return 1
+    fi
+
+    print_step_from_common_functions "Fixing permissions for: $target_path"
+
+    # Get real user
+    local real_user=$(get_real_user_from_common_functions)
+    local real_group=$(id -gn "$real_user" 2>/dev/null || echo "$real_user")
+
+    print_info_from_common_functions "Real user: $real_user:$real_group"
+    print_info_from_common_functions "Permission mode: $permission_mode"
+
+    # Set ownership to real user if requested
+    if [ "$set_owner" = "true" ]; then
+        print_info_from_common_functions "Changing ownership to: $real_user:$real_group"
+        $USE_SUDO chown -R "$real_user:$real_group" "$target_path" 2>/dev/null || {
+            print_warning_from_common_functions "Failed to change ownership, continuing..."
+        }
+    fi
+
+    # Set permissions
+    print_info_from_common_functions "Setting permissions: $permission_mode"
+    $USE_SUDO chmod -R "$permission_mode" "$target_path" 2>/dev/null || {
+        print_warning_from_common_functions "Failed to set permissions, continuing..."
+    }
+
+    # For directories, also set execute bit
+    if [ -d "$target_path" ]; then
+        $USE_SUDO find "$target_path" -type d -exec chmod a+x {} \; 2>/dev/null || true
+    fi
+
+    print_success_from_common_functions "Permissions fixed for: $target_path"
+    return 0
+}
+
+# Ensure directory exists with correct permissions (from common_functions.sh)
+ensure_directory_permissions_from_common_functions() {
+    local target_dir="$1"
+    local permission_mode="${2:-755}"  # Default: 755
+    local set_owner="${3:-true}"       # Default: set owner to real user
+
+    # Create directory if it doesn't exist
+    if [ ! -d "$target_dir" ]; then
+        print_step_from_common_functions "Creating directory: $target_dir"
+        $USE_SUDO mkdir -p "$target_dir"
+    fi
+
+    # Fix permissions
+    fix_installation_permissions_from_common_functions "$target_dir" "$permission_mode" "$set_owner"
+
+    return 0
+}
+
+# Remove old installation directory (from common_functions.sh)
+migrate_all_old_installations_from_common_functions() {
+    print_header_from_common_functions "Removing Old Installation Directory"
+
+    local old_base_dir=$(map_web_path "dev_system_old")
+
+    if [ ! -d "$old_base_dir" ]; then
+        print_info_from_common_functions "No old installation directory found"
+        return 0
+    fi
+
+    print_info_from_common_functions "Found old installation directory: $old_base_dir"
+    print_info_from_common_functions "Removing old directory..."
+    
+    if command -v npm >/dev/null 2>&1; then
+        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
+        if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
+            print_info_from_common_functions "Clearing npm prefix pointing to old directory"
+            npm config delete prefix
+        fi
+    fi
+    
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        print_info_from_common_functions "Clearing NPM_CONFIG_PREFIX environment variable"
+        unset NPM_CONFIG_PREFIX
+    fi
+    
+    if [ -f /etc/environment ]; then
+        print_info_from_common_functions "Cleaning old directory references from /etc/environment..."
+        $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
+    fi
+    
+    for binary in node npm npx; do
+        local link_path="/usr/local/bin/$binary"
+        if [ -L "$link_path" ]; then
+            local target=$(readlink "$link_path")
+            if [[ "$target" == *"$old_base_dir"* ]]; then
+                print_info_from_common_functions "Removing symlink pointing to old directory: $link_path"
+                $USE_SUDO rm -f "$link_path"
+            fi
+        fi
+    done
+    
+    print_info_from_common_functions "Removing old directory: $old_base_dir"
+    $USE_SUDO rm -rf "$old_base_dir"
+    print_success_from_common_functions "Removed old directory"
+    
+    print_success_from_common_functions "Old directory cleanup complete"
+    return 0
+}
+
+# Fix NPM global installation permissions (from common_functions.sh)
+fix_npm_global_permissions_from_common_functions() {
+    print_step_from_common_functions "Fixing NPM global installation permissions"
+
+    # Get npm global prefix
+    local npm_prefix=$(npm config get prefix 2>/dev/null || echo "")
+
+    if [ -z "$npm_prefix" ] || [ ! -d "$npm_prefix" ]; then
+        print_warning_from_common_functions "NPM global prefix not found or not a directory"
+        return 1
+    fi
+
+    print_info_from_common_functions "NPM global prefix: $npm_prefix"
+
+    # Fix permissions for bin and lib directories
+    if [ -d "$npm_prefix/bin" ]; then
+        fix_installation_permissions_from_common_functions "$npm_prefix/bin" "755" "true"
+    fi
+
+    if [ -d "$npm_prefix/lib" ]; then
+        fix_installation_permissions_from_common_functions "$npm_prefix/lib" "755" "true"
+    fi
+
+    # Make all binaries executable
+    if [ -d "$npm_prefix/bin" ]; then
+        $USE_SUDO find "$npm_prefix/bin" -type f -exec chmod +x {} \; 2>/dev/null || true
+    fi
+
+    print_success_from_common_functions "NPM permissions fixed"
+    return 0
+}
+
+# Update wrapper scripts to use new directory paths (from common_functions.sh)
+update_wrapper_script_paths_from_common_functions() {
+    local wrapper_dir="${1:-/usr/local/super_scripts}"
+    local old_pattern="${2:-}"
+    local new_pattern="${3:-_ubuntu_24}"
+
+    if [ ! -d "$wrapper_dir" ]; then
+        print_warning_from_common_functions "Wrapper directory does not exist: $wrapper_dir"
+        return 0
+    fi
+
+    print_step_from_common_functions "Updating wrapper scripts in: $wrapper_dir"
+
+    local updated_count=0
+
+    # Find and update all wrapper scripts
+    while IFS= read -r -d '' script_file; do
+        if grep -q "$old_pattern" "$script_file" 2>/dev/null; then
+            print_info_from_common_functions "Updating: $script_file"
+            $USE_SUDO sed -i "s|$old_pattern|$new_pattern|g" "$script_file"
+            ((updated_count++))
+        fi
+    done < <(find "$wrapper_dir" -type f -name "*.sh" -print0 2>/dev/null)
+
+    # Also check files without .sh extension
+    while IFS= read -r -d '' script_file; do
+        if [ -f "$script_file" ] && [ ! -d "$script_file" ] && grep -q "$old_pattern" "$script_file" 2>/dev/null; then
+            print_info_from_common_functions "Updating: $script_file"
+            $USE_SUDO sed -i "s|$old_pattern|$new_pattern|g" "$script_file"
+            ((updated_count++))
+        fi
+    done < <(find "$wrapper_dir" -type f ! -name "*.sh" -print0 2>/dev/null)
+
+    print_success_from_common_functions "Updated $updated_count wrapper scripts"
+    return 0
+}
+

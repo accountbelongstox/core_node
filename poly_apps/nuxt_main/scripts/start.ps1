@@ -704,9 +704,8 @@ if ($multiModeEnabled) {
 
 Write-Host "=== Entry Point Configuration ===" -ForegroundColor Yellow
 Write-Host "  Entry File       : pages/index.vue" -ForegroundColor Gray
-Write-Host "  Source Template  : pages/index.$appNamespace.vue" -ForegroundColor Gray
-Write-Host "  Switch Script    : scripts/switch-app-entry.js" -ForegroundColor Gray
-Write-Host "  Factory Sync     : scripts/switch-app-entry-plus.js" -ForegroundColor Gray
+Write-Host "  Source Directory : app_${appNamespace}_pages/" -ForegroundColor Gray
+Write-Host "  Switch Script    : scripts/switch-app.js" -ForegroundColor Gray
 Write-Host "  APP_ENTRY Env    : $appNamespace" -ForegroundColor Green
 Write-Host ""
 
@@ -751,12 +750,12 @@ elseif ($env:MULTI_APP_ENTRIES) {
 
 Write-Host ""
 Write-Host "===============================================================================" -ForegroundColor Magenta
-Write-Host "  STEP 1: SWITCHING APP ENTRY POINT" -ForegroundColor Magenta
+Write-Host "  STEP 1: SWITCHING APP PAGES DIRECTORY" -ForegroundColor Magenta
 Write-Host "===============================================================================" -ForegroundColor Magenta
 Write-Host "[INFO] Target App: $appNamespace" -ForegroundColor Cyan
-Write-Host "[INFO] Switch Script: $SCRIPT_DIR\switch-app-entry.js" -ForegroundColor Cyan
+Write-Host "[INFO] Switch Script: $SCRIPT_DIR\switch-app.js" -ForegroundColor Cyan
 
-$switchScriptPath = Join-Path $SCRIPT_DIR "switch-app-entry.js"
+$switchScriptPath = Join-Path $SCRIPT_DIR "switch-app.js"
 $switchCommand = "node `"$switchScriptPath`" $appNamespace"
 
 Write-Host ""
@@ -766,10 +765,10 @@ Write-Host ""
 
 Invoke-CommandWithErrorHandling -Command {
     node $switchScriptPath $appNamespace
-} -CommandDescription "Switch app entry to $appNamespace" -PauseOnError $true
+} -CommandDescription "Switch pages directory to $appNamespace" -PauseOnError $true
 
 Write-Host ""
-Write-Host "[SUCCESS] App entry switched successfully" -ForegroundColor Green
+Write-Host "[SUCCESS] Pages directory switched successfully" -ForegroundColor Green
 Write-Host "===============================================================================" -ForegroundColor Magenta
 Write-Host ""
 
@@ -812,7 +811,7 @@ if ($mode -eq "debug") {
         Write-Host "[INFO] Targets: $multiTargetSummary" -ForegroundColor Cyan
         Write-Host ""
 
-        $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app-entry-plus.js"
+        $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app.js"
         $plusCommand = "node `"$plusScriptPath`" --apps `"$multiAppNamesString`" --mode dev"
 
         Write-Host "[COMMAND TRACE] Environment Variables:" -ForegroundColor Yellow
@@ -824,7 +823,7 @@ if ($mode -eq "debug") {
         Write-Host "[COMMAND TRACE] Executing Multi-App Factory Sync:" -ForegroundColor Yellow
         Write-Host "  > $plusCommand" -ForegroundColor White
         Write-Host ""
-        Write-Host "[INFO] switch-app-entry-plus.js will:" -ForegroundColor Green
+        Write-Host "[INFO] switch-app.js will:" -ForegroundColor Green
         Write-Host "  - Mirror the repository into dedicated workspaces per app" -ForegroundColor Gray
         Write-Host "  - Keep every workspace in sync via a shared watcher" -ForegroundColor Gray
         Write-Host "  - Launch pnpm dev commands for each selected app" -ForegroundColor Gray
@@ -846,7 +845,7 @@ if ($mode -eq "debug") {
         Write-Host "[INFO] Host: 0.0.0.0 (Network Accessible)" -ForegroundColor Cyan
         Write-Host ""
 
-        $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app-entry-plus.js"
+        $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app.js"
         $plusCommand = "node `"$plusScriptPath`" $appNamespace --mode dev"
 
         Write-Host "[COMMAND TRACE] Environment Variables:" -ForegroundColor Yellow
@@ -857,7 +856,7 @@ if ($mode -eq "debug") {
         Write-Host "[COMMAND TRACE] Executing Nuxt Factory Sync:" -ForegroundColor Yellow
         Write-Host "  > $plusCommand" -ForegroundColor White
         Write-Host ""
-        Write-Host "[INFO] switch-app-entry-plus.js will:" -ForegroundColor Green
+        Write-Host "[INFO] switch-app.js will:" -ForegroundColor Green
         Write-Host "  - Mirror the repo to the factory build directory" -ForegroundColor Gray
         Write-Host "  - Continuously sync changes every 2 seconds" -ForegroundColor Gray
         Write-Host "  - Launch pnpm $($selectedApp.DevCommand) from the mirrored workspace" -ForegroundColor Gray
@@ -879,7 +878,7 @@ else {
 
     $factoryRootPath = Get-FactoryRootPath -PlatformSegment $factoryPlatformSegment
     $factoryTargetDir = Get-FactoryTargetDirectory -FactoryRoot $factoryRootPath -PlatformSegment $factoryPlatformSegment -Namespace $appNamespace
-    $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app-entry-plus.js"
+    $plusScriptPath = Join-Path $SCRIPT_DIR "switch-app.js"
 
     Write-Host "[INFO] Factory Root     : $factoryRootPath" -ForegroundColor Gray
     Write-Host "[INFO] Target Directory : $factoryTargetDir" -ForegroundColor Gray
@@ -893,7 +892,7 @@ else {
     Write-Host "[COMMAND TRACE] Executing Factory Build:" -ForegroundColor Yellow
     Write-Host "  > node $plusScriptPath $appNamespace --mode build --factory-root $factoryRootPath --platform $factoryPlatformSegment" -ForegroundColor White
     Write-Host ""
-    Write-Host "[INFO] switch-app-entry-plus.js will mirror the workspace, sync entry files, then run pnpm build from the mirrored tree." -ForegroundColor Green
+    Write-Host "[INFO] switch-app.js will mirror the workspace, sync entry files, then run pnpm build from the mirrored tree." -ForegroundColor Green
     Write-Host "===============================================================================" -ForegroundColor Magenta
     Write-Host ""
 

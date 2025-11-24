@@ -8,7 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('VipClubV1')->create('vipclubv1_articles', function (Blueprint $table) {
+        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_articles')) {
+        Schema::connection('vipclubv1')->create('vipclubv1_articles', function (Blueprint $table) {
             $table->id();
             $table->string('title');
             $table->text('summary')->nullable();
@@ -28,10 +29,11 @@ return new class extends Migration
             $table->index('is_published');
             $table->index('publish_date');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('VipClubV1')->dropIfExists('vipclubv1_articles');
+        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_articles');
     }
 };

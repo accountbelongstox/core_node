@@ -14,6 +14,9 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const WebSocket = require('ws');
 const logger = require('#@logger');
+const { getInstance: getModeResolver } = require('./utils/mode_resolver');
+const CustomTitleBar = require('./components/custom_title_bar');
+const LoadingAnimations = require('./components/loading_animations');
 
 class ElectronManager {
     constructor() {
@@ -140,22 +143,31 @@ class ElectronManager {
         try {
             logger.info('Electron app is ready');
 
-            const trayEnabled = this.config.tray?.enabled ?? this.config.enableTray ?? true;
-            const windowEnabled = this.config.window?.enabled ?? true;
-            const showWindowOnStart = this.config.window?.showOnStart ?? this.config.showWindowOnStart ?? false;
-            const trayOnly = this.config.mode?.trayOnly ?? false;
+            const modeResolver = getModeResolver();
+            if (!modeResolver.validate(this.config)) {
+                logger.error('Configuration validation failed, aborting');
+                return;
+            }
 
-            if (trayEnabled) {
+            const mode = modeResolver.resolve(this.config);
+
+            if (mode.enableTray) {
                 this.createTray();
                 logger.info('System tray created');
             }
 
-            if (!trayOnly && windowEnabled && showWindowOnStart) {
-                this.createMainWindow();
-                logger.info('Main window created');
+            if (mode.enableWindow) {
+                if (mode.showWindowOnStart) {
+                    this.createMainWindow();
+                    logger.info('Main window created and shown');
+                } else {
+                    logger.info('Window enabled but not shown on start');
+                }
             } else {
-                logger.info('Running in tray-only mode, window not created');
+                logger.info('Window disabled by launch mode');
             }
+
+            this.setupIPCHandlers();
 
             this.startServiceMonitoring();
 
@@ -165,6 +177,68 @@ class ElectronManager {
         }
     }
 
+    setupIPCHandlers() {
+        if (!this.electron || !this.electron.ipcMain) {
+            logger.warn('IPC not available, skipping handler setup');
+            return;
+        }
+
+        const { ipcMain } = this.electron;
+
+        ipcMain.handle('minimize-window', () => {
+            if (this.mainWindow) {
+                this.mainWindow.minimize();
+            }
+        });
+
+        ipcMain.handle('maximize-window', () => {
+            if (this.mainWindow) {
+                if (this.mainWindow.isMaximized()) {
+                    this.mainWindow.unmaximize();
+                } else {
+                    this.mainWindow.maximize();
+                }
+            }
+        });
+
+        ipcMain.handle('close-window', () => {
+            if (this.mainWindow) {
+                this.mainWindow.close();
+            }
+        });
+
+        ipcMain.handle('is-window-maximized', () => {
+            return this.mainWindow ? this.mainWindow.isMaximized() : false;
+        });
+
+        ipcMain.handle('get-service-status', () => {
+            return this.getServiceStatus();
+        });
+
+        ipcMain.handle('check-service-health', async () => {
+            await this.checkServiceHealth();
+            return this.getServiceStatus();
+        });
+
+        ipcMain.handle('restart-services', async () => {
+            await this.restartServices();
+        });
+
+        ipcMain.handle('open-backend-status', async () => {
+            await this.openBackendStatus();
+        });
+
+        ipcMain.handle('get-app-version', () => {
+            return this.version;
+        });
+
+        ipcMain.handle('get-app-name', () => {
+            return this.config.appTitle || 'Core Node MCP Server';
+        });
+
+        logger.info('IPC handlers registered successfully');
+    }
+
     createTray() {
         if (!this.Tray) {
             logger.warn('Tray not available, skipping tray creation');
@@ -172,9 +246,16 @@ class ElectronManager {
         }
 
         try {
+            const fs = require('fs');
             const trayConfig = this.config.tray || {};
             const iconPath = trayConfig.icon || this.config.trayIcon || path.join(__dirname, 'assets', 'tray-icon.png');
             const tooltip = trayConfig.tooltip || this.config.appTitle || 'Core Node MCP Server';
+
+            if (!iconPath || !fs.existsSync(iconPath)) {
+                logger.warn(`Tray icon not found: ${iconPath}`);
+                logger.warn('Skipping tray creation - please provide a valid icon path');
+                return;
+            }
 
             this.tray = new this.Tray(iconPath);
             this.tray.setToolTip(tooltip);
@@ -273,6 +354,18 @@ class ElectronManager {
                 this.mainWindow = null;
             });
 
+            this.mainWindow.on('maximize', () => {
+                if (this.mainWindow && this.mainWindow.webContents) {
+                    this.mainWindow.webContents.send('window-maximized');
+                }
+            });
+
+            this.mainWindow.on('unmaximize', () => {
+                if (this.mainWindow && this.mainWindow.webContents) {
+                    this.mainWindow.webContents.send('window-unmaximized');
+                }
+            });
+
             this.mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
                 logger.error(`Failed to load frontend: ${errorCode} - ${errorDescription}`);
                 this.handleLoadError(errorCode, errorDescription);
@@ -296,32 +389,86 @@ class ElectronManager {
             const contentType = contentConfig.type || 'url';
             const contentSource = contentConfig.source || this.config.services?.frontend?.url || this.config.frontendUrl || 'http://localhost:7096';
             const loadOptions = contentConfig.loadOptions || {};
+            const loadingConfig = contentConfig.loadingAnimation || {};
 
-            switch (contentType) {
-                case 'url':
-                    logger.info(`Loading URL: ${contentSource}`);
-                    this.mainWindow.loadURL(contentSource, loadOptions);
-                    break;
+            if (loadingConfig.enabled) {
+                const style = loadingConfig.style || 1;
+                const text = loadingConfig.text || 'Loading...';
+                const bg = loadingConfig.backgroundColor || '#1e1e1e';
 
-                case 'file':
-                    const filePath = path.isAbsolute(contentSource) ? contentSource : path.join(process.cwd(), contentSource);
-                    logger.info(`Loading file: ${filePath}`);
-                    this.mainWindow.loadFile(filePath);
-                    break;
+                logger.info(`Showing loading animation (style ${style})...`);
+                LoadingAnimations.show(this.mainWindow, style, text, bg);
 
-                case 'html':
-                    logger.info('Loading HTML content');
-                    this.mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(contentSource)}`);
-                    break;
-
-                default:
-                    logger.warn(`Unknown content type: ${contentType}, falling back to URL`);
-                    this.mainWindow.loadURL(contentSource, loadOptions);
+                setTimeout(() => {
+                    this.loadActualContent(contentType, contentSource, loadOptions);
+                }, 500);
+            } else {
+                this.loadActualContent(contentType, contentSource, loadOptions);
             }
 
             logger.info('Window content loaded successfully');
         } catch (error) {
             logger.error(`Failed to load window content: ${error.message}`);
+        }
+    }
+
+    loadActualContent(contentType, contentSource, loadOptions) {
+        switch (contentType) {
+            case 'url':
+                logger.info(`Loading URL: ${contentSource}`);
+                this.mainWindow.loadURL(contentSource, loadOptions);
+                break;
+
+            case 'file':
+                const filePath = path.isAbsolute(contentSource) ? contentSource : path.join(process.cwd(), contentSource);
+                logger.info(`Loading file: ${filePath}`);
+                this.mainWindow.loadFile(filePath);
+                break;
+
+            case 'html':
+                logger.info('Loading HTML content');
+                this.mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(contentSource)}`);
+                break;
+
+            default:
+                logger.warn(`Unknown content type: ${contentType}, falling back to URL`);
+                this.mainWindow.loadURL(contentSource, loadOptions);
+        }
+
+        const windowConfig = this.config.window || {};
+        const titleBarConfig = windowConfig.titleBar || {};
+
+        if (titleBarConfig.enabled) {
+            this.mainWindow.webContents.once('did-finish-load', () => {
+                this.injectCustomTitleBar();
+            });
+        }
+    }
+
+    async injectCustomTitleBar() {
+        try {
+            const windowConfig = this.config.window || {};
+            const titleBarConfig = windowConfig.titleBar || {};
+
+            const titleBar = new CustomTitleBar(this.mainWindow, {
+                height: titleBarConfig.height || 40,
+                style: titleBarConfig.style || 'modern',
+                showAppName: titleBarConfig.showAppName !== false,
+                showLogo: titleBarConfig.showLogo === true,
+                appName: this.config.appTitle || 'Application',
+                logoPath: titleBarConfig.logoPath || this.config.trayIcon,
+                buttons: titleBarConfig.buttons || {
+                    minimize: true,
+                    maximize: true,
+                    close: true
+                },
+                customStyles: titleBarConfig.customStyles || {}
+            });
+
+            await titleBar.inject();
+            logger.info('Custom title bar injected successfully');
+        } catch (error) {
+            logger.error(`Failed to inject custom title bar: ${error.message}`);
         }
     }
 

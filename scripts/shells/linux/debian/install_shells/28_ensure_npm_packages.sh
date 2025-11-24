@@ -30,6 +30,45 @@ fi
 
 CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 
+migrate_old_npm_installation() {
+    local old_base_dir=$(map_web_path "dev_system_old")
+    
+    echo "[$SCRIPT_INDEX] Checking for old installation references..."
+    
+    if command -v npm >/dev/null 2>&1; then
+        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
+        
+        if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
+            echo "[$SCRIPT_INDEX] Clearing npm prefix pointing to old directory"
+            npm config delete prefix
+        fi
+    fi
+    
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        echo "[$SCRIPT_INDEX] Clearing NPM_CONFIG_PREFIX: $NPM_CONFIG_PREFIX"
+        unset NPM_CONFIG_PREFIX
+    fi
+    
+    if [ -f /etc/environment ]; then
+        if grep -q "$old_base_dir" /etc/environment; then
+            echo "[$SCRIPT_INDEX] Removing old directory references from /etc/environment..."
+            $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
+        fi
+        if grep -q "NPM_CONFIG_PREFIX" /etc/environment; then
+            echo "[$SCRIPT_INDEX] Removing NPM_CONFIG_PREFIX from /etc/environment..."
+            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
+        fi
+    fi
+    
+    if [ -d "$old_base_dir" ]; then
+        echo "[$SCRIPT_INDEX] Removing old base directory: $old_base_dir"
+        $USE_SUDO rm -rf "$old_base_dir"
+    fi
+    
+    echo "[$SCRIPT_INDEX] Migration check completed"
+    return 0
+}
+
 # Function to extract package names from npm list output
 get_installed_packages() {
     # Use the Node.js script to get the package list
@@ -43,16 +82,40 @@ get_installed_packages() {
     echo "$GLOBAL_PACKAGES" | grep -v 'npm@' | sed -n 's/.*\([@/][^@]*\)@.*/\1/p' | sed 's/^[@/]*//'
 }
 
-# Function to check if a package is installed
+# Function to check if a package is installed and linked correctly
 is_package_installed() {
     local package_name=$1
     
-    # Use npm list to check if package is installed globally
-    if npm list -g "$package_name" >/dev/null 2>&1; then
-        return 0
+    if ! npm list -g "$package_name" >/dev/null 2>&1; then
+        return 1
     fi
     
-    # Also check if the binary exists in PATH (fallback check)
+    local npm_bin_dir=$(npm config get prefix 2>/dev/null)/bin
+    if [ -z "$npm_bin_dir" ] || [ ! -d "$npm_bin_dir" ]; then
+        return 1
+    fi
+    
+    local binary_path="$npm_bin_dir/$package_name"
+    if [ ! -e "$binary_path" ]; then
+        binary_path=$(which "$package_name" 2>/dev/null)
+        if [ -z "$binary_path" ]; then
+            return 1
+        fi
+    fi
+    
+    local link_path="/usr/local/bin/$package_name"
+    if [ -L "$link_path" ]; then
+        local current_target=$(readlink -f "$link_path")
+        local real_binary=$(readlink -f "$binary_path")
+        
+        if [ "$current_target" = "$real_binary" ]; then
+            return 0
+        else
+            echo "[$SCRIPT_INDEX] Package $package_name installed but link incorrect"
+            return 1
+        fi
+    fi
+    
     if command -v "$package_name" >/dev/null 2>&1; then
         return 0
     fi
@@ -96,6 +159,9 @@ ensure_package() {
 }
 
 echo "[$SCRIPT_INDEX] NPM Global Package Installation Script"
+
+migrate_old_npm_installation
+
 echo "[$SCRIPT_INDEX] Checking currently installed global packages..."
 
 # Cache the global packages list

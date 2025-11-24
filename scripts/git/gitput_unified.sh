@@ -345,14 +345,32 @@ get_default_remote() {
     fi
 }
 
+# Load remote configurations from git_remotes.conf
+load_remote_configs() {
+    local config_file="$SCRIPT_DIR/git_remotes.conf"
+    declare -g -A remote_configs
+    
+    if [ ! -f "$config_file" ]; then
+        echo "Error: Configuration file not found: $config_file"
+        exit 1
+    fi
+    
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        # Skip empty lines and comments
+        [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+        # Trim whitespace
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs)
+        # Store in associative array
+        remote_configs["$key"]="$value"
+    done < "$config_file"
+}
+
+# Load configurations
+load_remote_configs
+
 # Default remote (primary) - this will be restored after each operation
 DEFAULT_REMOTE=$(get_default_remote "$PROJECT_NAME")
-
-# Remote configurations
-declare -A remote_configs
-remote_configs["gitee"]="git@gitee.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["github"]="git@github.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["local"]="git@192.168.2.1:adminroot/core_node.git"
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
 get_execution_order() {
@@ -509,7 +527,7 @@ get_current_remote() {
 # Function to set remote URL
 set_remote_url() {
     local remote_url="$1"
-    
+
     write_color_text "Executing: git remote set-url origin $remote_url" "DarkGray"
     git remote set-url origin "$remote_url"
     if [ $? -eq 0 ]; then
@@ -701,37 +719,37 @@ invoke_safe_git_pull() {
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
-    
+
     write_color_text "----------------------------------------------------------------" "DarkYellow"
     write_color_text "Starting git operations for: $target_url" "Cyan"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
     write_color_text "--------------------------------" "Green"
-    
+
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
-    
+
     # Ensure SSH permissions are correct
     ensure_ssh_permissions
-    
+
     # Ensure git identity is configured
     ensure_git_identity
-    
+
     # Store original branch and remote for restoration
     ORIGINAL_BRANCH=$(get_current_branch)
     ORIGINAL_REMOTE_URL=$(get_current_remote)
     write_color_text "Original branch: $ORIGINAL_BRANCH" "DarkGray"
     write_color_text "Original remote: $ORIGINAL_REMOTE_URL" "DarkGray"
-    
+
     # Create backup if enabled
     create_working_backup
-    
+
     # Set target remote
     if ! set_remote_url "$target_url"; then
         return 1
     fi
-    
+
     # Show remote configuration
     write_color_text "--------------------------------" "Green"
     write_color_text "Executing: git remote -v" "DarkGray"
@@ -942,7 +960,13 @@ invoke_git_operations() {
     write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
     git push --set-upstream origin "$current_branch"
     write_color_text "----------------------------------------------------------------" "DarkBlue"
-    
+
+    # Restore default remote after push (always restore to DEFAULT_REMOTE)
+    if [ "$(get_current_remote)" != "$DEFAULT_REMOTE" ]; then
+        write_color_text "Restoring default remote: $DEFAULT_REMOTE" "Yellow"
+        set_remote_url "$DEFAULT_REMOTE"
+    fi
+
     return 0
 }
 
@@ -996,10 +1020,6 @@ main() {
             write_color_text "Unknown remote target: $target" "Red"
             all_success=false
         fi
-        
-        # Always restore original branch and remote after each operation
-        restore_original_branch
-        restore_original_remote
     done
     
     write_color_text "\n=== Summary ===" "Magenta"

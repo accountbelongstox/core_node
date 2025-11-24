@@ -29,6 +29,9 @@ from typing import List, Optional
 # Import from common provider
 from mcp_config_provider import MCPConfig, get_mcp_configs, get_project_root
 
+# Determine if running on Windows
+IS_WINDOWS = sys.platform == "win32"
+
 
 def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) -> bool:
     """Run a shell command and return success status"""
@@ -43,7 +46,8 @@ def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) ->
             capture_output=True,
             text=True,
             timeout=30,
-            cwd=str(cwd) if cwd else None
+            cwd=str(cwd) if cwd else None,
+            shell=IS_WINDOWS
         )
 
         if result.stdout:
@@ -78,7 +82,7 @@ def configure_claude_mcp() -> int:
 
     # Check if claude command exists
     check_cmd = ["claude", "--version"]
-    result = subprocess.run(check_cmd, capture_output=True, text=True)
+    result = subprocess.run(check_cmd, capture_output=True, text=True, shell=IS_WINDOWS)
     if result.returncode != 0:
         print("[ERROR] 'claude' command not found. Please install Claude Code first.")
         return 1
@@ -96,41 +100,70 @@ def configure_claude_mcp() -> int:
     # Get project root for relative path execution
     project_root = get_project_root()
 
-    success_count = 0
-    failed_count = 0
+    # Build all commands first and display them
+    commands_to_run = []
 
-    for config in configs:
-        print(f"[{success_count + failed_count + 1}/{len(configs)}] Adding MCP server: {config.name}")
+    print("=" * 80)
+    print("[PREVIEW] Commands to be executed:")
+    print("=" * 80)
 
+    for idx, config in enumerate(configs, 1):
         if config.transport_type == "http":
-            # HTTP transport
-            cmd = ["claude", "mcp", "add", config.name,
-                   "--transport", "http",
-                   "--url", config.url]
-
-            # Add headers
+            # Correct format: claude mcp add --transport http <name> <url> --header "key: value"
+            cmd = ["claude", "mcp", "add", "--transport", "http", config.name, config.url]
             for key, value in config.headers.items():
                 cmd.extend(["--header", f"{key}: {value}"])
+            commands_to_run.append((config, cmd, None))
+        else:
+            # Correct format: claude mcp add --transport stdio <name> [--env KEY=VALUE] -- <command> [args...]
+            cmd = ["claude", "mcp", "add", "--transport", "stdio", config.name]
 
-            if run_command(cmd, f"Adding {config.name} MCP server (HTTP)"):
-                success_count += 1
-            else:
-                failed_count += 1
-
-        else:  # stdio transport
-            # Build claude mcp add command with relative path
-            cmd = ["claude", "mcp", "add", config.name, config.command] + config.args
-
-            # Add environment variables if present
+            # Add environment variables before --
             if config.env:
                 for key, value in config.env.items():
                     cmd.extend(["--env", f"{key}={value}"])
 
-            # Run from PROJECT_ROOT so relative paths work
-            if run_command(cmd, f"Adding {config.name} MCP server (stdio)", cwd=project_root):
-                success_count += 1
+            # Add -- separator
+            cmd.append("--")
+
+            # Add command and args after --
+            # For relative paths, resolve to absolute path based on project_root
+            if config.command and not Path(config.command).is_absolute():
+                # Resolve relative command path to absolute
+                absolute_command = str(project_root / config.command)
+                cmd.append(absolute_command)
             else:
-                failed_count += 1
+                cmd.append(config.command)
+
+            # Resolve args - if arg is a relative path, make it absolute
+            for arg in config.args:
+                if arg.endswith('.py') and not Path(arg).is_absolute():
+                    # This is likely a Python file, resolve to absolute path
+                    absolute_arg = str(project_root / arg)
+                    cmd.append(absolute_arg)
+                else:
+                    cmd.append(arg)
+
+            commands_to_run.append((config, cmd, None))
+
+        print(f"[{idx}] {config.name} ({config.transport_type})")
+        print(f"    CMD: {' '.join(cmd)}")
+        print()
+
+    print("=" * 80)
+    print()
+
+    success_count = 0
+    failed_count = 0
+
+    for idx, (config, cmd, cwd) in enumerate(commands_to_run, 1):
+        print(f"[{idx}/{len(configs)}] Executing: {config.name}")
+
+        description = f"Adding {config.name} MCP server ({config.transport_type})"
+        if run_command(cmd, description, cwd=cwd):
+            success_count += 1
+        else:
+            failed_count += 1
 
         print()
 

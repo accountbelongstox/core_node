@@ -23,7 +23,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AwyV0')->create('awy_v0_messages', function (Blueprint $table) {
+        if (!Schema::connection('awyv0')->hasTable('awy_v0_messages')) {
+            Schema::connection('awyv0')->create('awy_v0_messages', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('conversation_id')->index();
             $table->unsignedBigInteger('sender_id')->index();
@@ -43,6 +44,7 @@ return new class extends Migration
             $table->index(['conversation_id', 'is_read'], 'awy_v0_messages_conversation_read');
             $table->index('is_read', 'awy_v0_messages_read');
         });
+        }
     }
 
     /**
@@ -50,6 +52,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AwyV0')->dropIfExists('awy_v0_messages');
+        Schema::connection('awyv0')->dropIfExists('awy_v0_messages');
     }
 };

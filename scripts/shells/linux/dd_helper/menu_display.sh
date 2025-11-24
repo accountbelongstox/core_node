@@ -19,8 +19,6 @@ initialize_menu_items() {
     menu_items["Install and Test Environment"]="text=Install and Test Environment;values=default;current=0;key=INSTALL_TEST_MENU;action=show_install_test_menu"
     menu_order+=("Install and Test Environment")
 
-    menu_items["Enable Router Forwarding"]="text=Enable Router Forwarding;values=default;current=0;key=ROUTER_FORWARD_MENU;action=enable_router_forwarding"
-    menu_order+=("Enable Router Forwarding")
 
     menu_items["Get the latest git version"]="text=Get the latest git version;values=default;current=0;key=GIT_UPDATE_TYPE;action=get_git"
     menu_order+=("Get the latest git version")

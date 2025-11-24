@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.300935+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "eccentric",
+        "laos": "ກຶງ",
+        "jp": "風変わりな",
+        "vie": "lập dị",
+        "en_pronunciation": "/ˌɛkˈsɛntrɪk/",
+        "laos_pronunciation": "kung",
+        "jp_pronunciation": "kaze kawari na",
+        "vie_pronunciation": "lap di"
+      },
+      "means": {
+        "en": "A person with an unusual or odd personality",
+        "zh": "性格不寻常或奇怪的人"
+      }
+    },
+    {
+      "word": {
+        "en": "echo",
+        "laos": "ເສດຖະກິດ",
+        "jp": "エコー",
+        "vie": "tiếng vọng",
+        "en_pronunciation": "/ˈɛkoʊ/",
+        "laos_pronunciation": "sedthakid",
+        "jp_pronunciation": "ekoo",
+        "vie_pronunciation": "tieng vong"
+      },
+      "means": {
+        "en": "The repetition of a sound resulting from reflection of the sound waves",
+        "zh": "由于声波反射而产生的声音的重复"
+      }
+    },
+    {
+      "word": {
+        "en": "eclipse",
+        "laos": "ຂົ່ມເຂົ້າ",
+        "jp": "日食",
+        "vie": "nhật thực",
+        "en_pronunciation": "/ɪˈklɪps/",
+        "laos_pronunciation": "khomkhao",
+        "jp_pronunciation": "nisshoku",
+        "vie_pronunciation": "nhat thuc"
+      },
+      "means": {
+        "en": "One celestial body obscures another",
+        "zh": "一个天体遮蔽了另一个天体"
+      }
+    },
+    {
+      "word": {
+        "en": "ecology",
+        "laos": "ສິ່ງທີ່ຕ້ອງການ",
+        "jp": "生態学",
+        "vie": "sinh thái",
+        "en_pronunciation": "/ɪˈkɑləʤi/",
+        "laos_pronunciation": "singthitongkan",
+        "jp_pronunciation": "seitaigaku",
+        "vie_pronunciation": "sinh thai"
+      },
+      "means": {
+        "en": "The environment as it relates to living organisms",
+        "zh": "环境与生物体的关系"
+      }
+    },
+    {
+      "word": {
+        "en": "ecological",
+        "laos": "ນິຣະວະ",
+        "jp": "生態学的な",
+        "vie": "sinh thái",
+        "en_pronunciation": "/ɛkəˈlɑʤɪkəl/",
+        "laos_pronunciation": "nirauaa",
+        "jp_pronunciation": "seitaigaku tekina",
+        "vie_pronunciation": "sinh thai"
+      },
+      "means": {
+        "en": "Characterized by the interdependence of living organisms in an environment",
+        "zh": "其特点是环境中生物体的相互依赖"
+      }
+    },
+    {
+      "word": {
+        "en": "economics",
+        "laos": "ເສດຖະກິດ",
+        "jp": "経済学",
+        "vie": "kinh tế",
+        "en_pronunciation": "/ˌɛkəˈnɑmɪks/",
+        "laos_pronunciation": "sedthakid",
+        "jp_pronunciation": "keizaigaku",
+        "vie_pronunciation": "kinh te"
+      },
+      "means": {
+        "en": "The branch of social science that deals with the production and distribution and consumption of goods and services and their management",
+        "zh": "社会科学的一个分支，研究商品和服务的生产、分配和消费及其管理"
+      }
+    },
+    {
+      "word": {
+        "en": "economist",
+        "laos": "ນັກເສດຖະສາດ",
+        "jp": "経済学者",
+        "vie": "nhà kinh tế học",
+        "en_pronunciation": "/ɪˈkɑnəmɪst/",
+        "laos_pronunciation": "naksedthasad",
+        "jp_pronunciation": "keizaigakusha",
+        "vie_pronunciation": "nha kinh te hoc"
+      },
+      "means": {
+        "en": "An expert in the science of economics",
+        "zh": "经济学专家"
+      }
+    },
+    {
+      "word": {
+        "en": "economy",
+        "laos": "ເສດຖະກິດ",
+        "jp": "経済",
+        "vie": "kinh tế",
+        "en_pronunciation": "/ɪˈkɑnəmi/",
+        "laos_pronunciation": "sedthakid",
+        "jp_pronunciation": "keizai",
+        "vie_pronunciation": "kinh te"
+      },
+      "means": {
+        "en": "The system of production and distribution and consumption",
+        "zh": "生产、分配和消费体系"
+      }
+    },
+    {
+      "word": {
+        "en": "ecosystem",
+        "laos": "ລະບົບນິເວດວິທະຍາ",
+        "jp": "生態系",
+        "vie": "hệ sinh thái",
+        "en_pronunciation": "/ˈikoʊˌsɪstəm/",
+        "laos_pronunciation": "labobniuaedvithanya",
+        "jp_pronunciation": "seitaikei",
+        "vie_pronunciation": "he sinh thai"
+      },
+      "means": {
+        "en": "A system formed by the interaction of a community of organisms with their physical environment",
+        "zh": "由生物群落与其物理环境相互作用形成的系统"
+      }
+    },
+    {
+      "word": {
+        "en": "edge",
+        "laos": "ແຂບ",
+        "jp": "エッジ",
+        "vie": "cạnh",
+        "en_pronunciation": "/ɛʤ/",
+        "laos_pronunciation": "aekhb",
+        "jp_pronunciation": "ejji",
+        "vie_pronunciation": "canh"
+      },
+      "means": {
+        "en": "The boundary of a surface",
+        "zh": "曲面的边界"
+      }
+    },
+    {
+      "word": {
+        "en": "edible",
+        "laos": "ກິນໄດ້",
+        "jp": "食用の",
+        "vie": "ăn được",
+        "en_pronunciation": "/ˈɛdəbəl/",
+        "laos_pronunciation": "kindai",
+        "jp_pronunciation": "shokuyou no",
+        "vie_pronunciation": "an duoc"
+      },
+      "means": {
+        "en": "Any substance that can be used as food",
+        "zh": "任何可以用作食物的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "economic",
+        "laos": "ເສດຖະກິດ",
+        "jp": "経済的な",
+        "vie": "kinh tế",
+        "en_pronunciation": "/ˌɛkəˈnɑmɪk/",
+        "laos_pronunciation": "sedthakid",
+        "jp_pronunciation": "keizaiteki na",
+        "vie_pronunciation": "kinh te"
+      },
+      "means": {
+        "en": "Of or relating to an economy, the system of production and management of material wealth",
+        "zh": "经济体的或与之相关的物质财富的生产和管理系统"
+      }
+    },
+    {
+      "word": {
+        "en": "economical",
+        "laos": "ເສດຖະສິໃຫຢ່",
+        "jp": "経済的",
+        "vie": "kinh tế",
+        "en_pronunciation": "/ˌɛkəˈnɑmɪkəl/",
+        "laos_pronunciation": "sedtha si haiy",
+        "jp_pronunciation": "keizaiteki",
+        "vie_pronunciation": "kinh te"
+      },
+      "means": {
+        "en": "Using the minimum of time or resources necessary for effectiveness",
+        "zh": "使用实现有效性所需的最少时间或资源"
+      }
+    },
+    {
+      "word": {
+        "en": "edit",
+        "laos": "ແກ້ໄຂ",
+        "jp": "編集する",
+        "vie": "chỉnh sửa",
+        "en_pronunciation": "/ˈɛdət/",
+        "laos_pronunciation": "aekkhai",
+        "jp_pronunciation": "henshuu suru",
+        "vie_pronunciation": "chinh sua"
+      },
+      "means": {
+        "en": "Prepare for publication or presentation by correcting, revising, or adapting",
+        "zh": "通过纠正、修改或改编来准备出版或演示"
+      }
+    },
+    {
+      "word": {
+        "en": "editorial",
+        "laos": "ບົດບັນນາທິການ",
+        "jp": "編集者",
+        "vie": "biên tập",
+        "en_pronunciation": "/ˌɛdəˈtɔriəl/",
+        "laos_pronunciation": "bodbannathikan",
+        "jp_pronunciation": "henshuusha",
+        "vie_pronunciation": "bien tap"
+      },
+      "means": {
+        "en": "An article giving opinions or perspectives",
+        "zh": "发表意见或观点的文章"
+      }
+    },
+    {
+      "word": {
+        "en": "educate",
+        "laos": "ສຶກສາ",
+        "jp": "教育する",
+        "vie": "giáo dục",
+        "en_pronunciation": "/ˈɛʤəˌkeɪt/",
+        "laos_pronunciation": "suksa",
+        "jp_pronunciation": "kyouiku suru",
+        "vie_pronunciation": "giao duc"
+      },
+      "means": {
+        "en": "Give an education to",
+        "zh": "给予教育"
+      }
+    },
+    {
+      "word": {
+        "en": "effect",
+        "laos": "ຜົນ",
+        "jp": "効果",
+        "vie": "hiệu ứng",
+        "en_pronunciation": "/ˈifɛkt/",
+        "laos_pronunciation": "phon",
+        "jp_pronunciation": "kouka",
+        "vie_pronunciation": "hieu ung"
+      },
+      "means": {
+        "en": "A phenomenon that follows and is caused by some previous phenomenon",
+        "zh": "跟随某种先前现象并由某种先前现象引起的现象"
+      }
+    },
+    {
+      "word": {
+        "en": "efficient",
+        "laos": "ທີ່ມີປະສິດທິພາບ",
+        "jp": "効率的な",
+        "vie": "hiệu quả",
+        "en_pronunciation": "/ɪˈfɪʃənt/",
+        "laos_pronunciation": "thimipasidthiphab",
+        "jp_pronunciation": "kouritsuteki na",
+        "vie_pronunciation": "hieu qua"
+      },
+      "means": {
+        "en": "Being effective without wasting time or effort or expense",
+        "zh": "有效而不浪费时间、精力或费用"
+      }
+    },
+    {
+      "word": {
+        "en": "editor",
+        "laos": "ບັນນາທິການ",
+        "jp": "編集者",
+        "vie": "biên tập viên",
+        "en_pronunciation": "/ˈɛdɪtər/",
+        "laos_pronunciation": "bannathikan",
+        "jp_pronunciation": "henshuusha",
+        "vie_pronunciation": "bien tap vien"
+      },
+      "means": {
+        "en": "A person responsible for the editorial aspects of publication; the person who determines the final content of a text (especially of a newspaper or magazine)",
+        "zh": "负责出版物编辑方面的人员；"
+      }
+    },
+    {
+      "word": {
+        "en": "education",
+        "laos": "ການສຶກສາ",
+        "jp": "教育",
+        "vie": "giáo dục",
+        "en_pronunciation": "/ˌɛʤəˈkeɪʃən/",
+        "laos_pronunciation": "kansuksa",
+        "jp_pronunciation": "kyouiku",
+        "vie_pronunciation": "giao duc"
+      },
+      "means": {
+        "en": "The activities of educating or instructing; activities that impart knowledge or skill",
+        "zh": "决定文本（尤其是报纸或杂志）最终内容的人"
+      }
+    },
+    {
+      "word": {
+        "en": "effective",
+        "laos": "ມີຜົນ",
+        "jp": "効果的な",
+        "vie": "hiệu quả",
+        "en_pronunciation": "/ˈifɛktɪv/",
+        "laos_pronunciation": "miphon",
+        "jp_pronunciation": "koukateki na",
+        "vie_pronunciation": "hieu qua"
+      },
+      "means": {
+        "en": "Producing or capable of producing an intended result or having a striking effect; -LewisMumford",
+        "zh": "教育或指导活动；"
+      }
+    },
+    {
+      "word": {
+        "en": "efficiency",
+        "laos": "ປະສິດທິພາບປະສິດທິພາບ",
+        "jp": "効率",
+        "vie": "hiệu quả",
+        "en_pronunciation": "/ɪˈfɪʃənsi/",
+        "laos_pronunciation": "pasidthiphabpasidthiphab",
+        "jp_pronunciation": "kouritsu",
+        "vie_pronunciation": "hieu qua"
+      },
+      "means": {
+        "en": "The ratio of the output to the input of any system",
+        "zh": "传授知识或技能的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "edition",
+        "laos": "ສະບັບ",
+        "jp": "版",
+        "vie": "ấn bản",
+        "en_pronunciation": "/ɪˈdɪʃən/",
+        "laos_pronunciation": "sabab",
+        "jp_pronunciation": "han",
+        "vie_pronunciation": "an ban"
+      },
+      "means": {
+        "en": "The form in which a text (especially a printed book) is published",
+        "zh": "产生或能够产生预期结果或具有显着效果；"
+      }
+    },
+    {
+      "word": {
+        "en": "educational",
+        "laos": "ການສຶກສາ",
+        "jp": "教育的",
+        "vie": "giáo dục",
+        "en_pronunciation": "/ˌɛʤəˈkeɪʃənəl/",
+        "laos_pronunciation": "kansuksa",
+        "jp_pronunciation": "kyouikuteki",
+        "vie_pronunciation": "giao duc"
+      },
+      "means": {
+        "en": "Relating to the process of education",
+        "zh": "——刘易斯·芒福德"
+      }
+    },
+    {
+      "word": {
+        "en": "educator",
+        "laos": "ນັກສຶກສາ",
+        "jp": "教育者",
+        "vie": "nhà giáo dục",
+        "en_pronunciation": "/ˈɛʤəˌkeɪtər/",
+        "laos_pronunciation": "naksuksa",
+        "jp_pronunciation": "kyouikusha",
+        "vie_pronunciation": "nha giao duc"
+      },
+      "means": {
+        "en": "Someone who educates young people",
+        "zh": "任何系统的输出与输入之比"
+      }
+    },
+    {
+      "word": {
+        "en": "effort",
+        "laos": "ຄວາມພະຍາຍາມ",
+        "jp": "努力",
+        "vie": "nỗ lực",
+        "en_pronunciation": "/ˈɛfərt/",
+        "laos_pronunciation": "khuaamphanyaiam",
+        "jp_pronunciation": "doryoku",
+        "vie_pronunciation": "no luc"
+      },
+      "means": {
+        "en": "Earnest and conscientious activity intended to do or accomplish something",
+        "zh": "文本（尤其是印刷书籍）的出版形式"
+      }
+    },
+    {
+      "word": {
+        "en": "egg",
+        "laos": "ໄຂ່",
+        "jp": "卵",
+        "vie": "quả trứng",
+        "en_pronunciation": "/ɛg/",
+        "laos_pronunciation": "khai",
+        "jp_pronunciation": "tamago",
+        "vie_pronunciation": "qua trung"
+      },
+      "means": {
+        "en": "Animal reproductive body consisting of an ovum or embryo together with nutritive and protective envelopes; especially the thin-shelled reproductive body laid by e.g. female birds",
+        "zh": "与教育过程相关"
+      }
+    },
+    {
+      "word": {
+        "en": "eggplant",
+        "laos": "ຫມາກເຂືອ",
+        "jp": "ナス",
+        "vie": "cà tím",
+        "en_pronunciation": "/ˈɛgˌplænt/",
+        "laos_pronunciation": "makkheu",
+        "jp_pronunciation": "nasu",
+        "vie_pronunciation": "ca tim"
+      },
+      "means": {
+        "en": "Egg-shaped vegetable having a shiny skin typically dark purple but occasionally white or yellow",
+        "zh": "一个教育年轻人的人"
+      }
+    },
+    {
+      "word": {
+        "en": "ego",
+        "laos": "ຊີວິດ",
+        "jp": "エゴ",
+        "vie": "cái tôi",
+        "en_pronunciation": "/ˈigoʊ/",
+        "laos_pronunciation": "sivid",
+        "jp_pronunciation": "ego",
+        "vie_pronunciation": "cai toi"
+      },
+      "means": {
+        "en": "An inflated feeling of pride in your superiority to others",
+        "zh": "旨在做或完成某事的认真和认真的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "egoism",
+        "laos": "ຊີວະນິສາ",
+        "jp": "エゴイズム",
+        "vie": "sự ích kỷ",
+        "en_pronunciation": "/ˈigoʊˌɪzəm/",
+        "laos_pronunciation": "siuaa nisa",
+        "jp_pronunciation": "egoizumu",
+        "vie_pronunciation": "su ich ky"
+      },
+      "means": {
+        "en": "(ethics) the theory that the pursuit of your own welfare in the basis of morality",
+        "zh": "动物生殖体，由卵子或胚胎以及营养和保护性包膜组成；"
+      }
+    },
+    {
+      "word": {
+        "en": "egoist",
+        "laos": "ສັດລ້ຽງ",
+        "jp": "エゴイスト",
+        "vie": "người ích kỷ",
+        "en_pronunciation": "/egoist/",
+        "laos_pronunciation": "sadliang",
+        "jp_pronunciation": "egoisuto",
+        "vie_pronunciation": "nguoi ich ky"
+      },
+      "means": {
+        "en": "A conceited and self-centered person",
+        "zh": "尤其是薄壳生殖体，例如由"
+      }
+    },
+    {
+      "word": {
+        "en": "eight",
+        "laos": "ແປດ",
+        "jp": "8",
+        "vie": "tám",
+        "en_pronunciation": "/eɪt/",
+        "laos_pronunciation": "aepd",
+        "jp_pronunciation": "8",
+        "vie_pronunciation": "tam"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of seven and one",
+        "zh": "雌鸟"
+      }
+    },
+    {
+      "word": {
+        "en": "eighteen",
+        "laos": "ສິບແປດ",
+        "jp": "十八",
+        "vie": "mười tám",
+        "en_pronunciation": "/ˈeɪˈtin/",
+        "laos_pronunciation": "sibaepd",
+        "jp_pronunciation": "juuhachi",
+        "vie_pronunciation": "muoi tam"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of seventeen and one",
+        "zh": "蛋形蔬菜，外皮有光泽，通常为深紫色，但偶尔为白色或黄色"
+      }
+    },
+    {
+      "word": {
+        "en": "eighth",
+        "laos": "ທີ່ແປດ",
+        "jp": "8番目",
+        "vie": "thứ tám",
+        "en_pronunciation": "/eɪθ/",
+        "laos_pronunciation": "thiaepd",
+        "jp_pronunciation": "8 banme",
+        "vie_pronunciation": "thu tam"
+      },
+      "means": {
+        "en": "Position eight in a countable series of things",
+        "zh": "因自己比别人优越而感到自豪"
+      }
+    },
+    {
+      "word": {
+        "en": "eighty",
+        "laos": "ແປດສິບ",
+        "jp": "八十",
+        "vie": "tám mươi",
+        "en_pronunciation": "/ˈeɪti/",
+        "laos_pronunciation": "aepdsib",
+        "jp_pronunciation": "hachijuu",
+        "vie_pronunciation": "tam muoi"
+      },
+      "means": {
+        "en": "The cardinal number that is the product of ten and eight",
+        "zh": "（伦理学）以道德为基础追求自身福利的理论"
+      }
+    },
+    {
+      "word": {
+        "en": "either",
+        "laos": "ບໍ່ວ່າ",
+        "jp": "どちらか",
+        "vie": "hoặc là",
+        "en_pronunciation": "/ˈiðər/",
+        "laos_pronunciation": "bova",
+        "jp_pronunciation": "dochiraka",
+        "vie_pronunciation": "hoac la"
+      },
+      "means": {
+        "en": "After a negative statement used as an intensive meaning something like `likewise' or `also'",
+        "zh": "自负且以自我为中心的人"
+      }
+    },
+    {
+      "word": {
+        "en": "eject",
+        "laos": "ສີດ",
+        "jp": "排出する",
+        "vie": "đẩy ra",
+        "en_pronunciation": "/ɪˈʤɛkt/",
+        "laos_pronunciation": "sid",
+        "jp_pronunciation": "haishutsu suru",
+        "vie_pronunciation": "day ra"
+      },
+      "means": {
+        "en": "Put out or expel from a place",
+        "zh": "七加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "ejection",
+        "laos": "ບ້ອງ",
+        "jp": "排出",
+        "vie": "phóng ra",
+        "en_pronunciation": "/ɪˈʤɛkʃən/",
+        "laos_pronunciation": "bong",
+        "jp_pronunciation": "haishutsu",
+        "vie_pronunciation": "phong ra"
+      },
+      "means": {
+        "en": "The act of expelling or projecting or ejecting",
+        "zh": "十七加一的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "elaborate",
+        "laos": "ອະທິຖານ",
+        "jp": "精緻な",
+        "vie": "tỉ mỉ",
+        "en_pronunciation": "/ɪˈlæbərˌeɪt/",
+        "laos_pronunciation": "athithan",
+        "jp_pronunciation": "seichi na",
+        "vie_pronunciation": "ti mi"
+      },
+      "means": {
+        "en": "Add details, as to an account or idea; clarify the meaning of and discourse in a learned way, usually in writing",
+        "zh": "在一系列可数事物中的位置八"
+      }
+    },
+    {
+      "word": {
+        "en": "elaboration",
+        "laos": "ການໃຫ້ອະໄພ",
+        "jp": "詳細",
+        "vie": "sự tỉ mỉ",
+        "en_pronunciation": "/ɪˌlæbərˈeɪʃən/",
+        "laos_pronunciation": "kan haioaphai",
+        "jp_pronunciation": "shousai",
+        "vie_pronunciation": "su ti mi"
+      },
+      "means": {
+        "en": "Addition of extra material or illustration or clarifying detail",
+        "zh": "十和八的乘积的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "elapse",
+        "laos": "ປຸບ",
+        "jp": "経過する",
+        "vie": "trôi qua",
+        "en_pronunciation": "/ɪˈlæps/",
+        "laos_pronunciation": "pub",
+        "jp_pronunciation": "keika suru",
+        "vie_pronunciation": "troi qua"
+      },
+      "means": {
+        "en": "Pass by",
+        "zh": "在用作强化含义的否定陈述之后，例如“同样”或“也”"
+      }
+    },
+    {
+      "word": {
+        "en": "elastic",
+        "laos": "elastic ໄດ້",
+        "jp": "弾性のある",
+        "vie": "đàn hồi",
+        "en_pronunciation": "/ɪˈlæstɪk/",
+        "laos_pronunciation": "elastic dai",
+        "jp_pronunciation": "dansei noaru",
+        "vie_pronunciation": "dan hoi"
+      },
+      "means": {
+        "en": "A narrow band of elastic rubber used to hold things (such as papers) together",
+        "zh": "从某个地方放出或驱逐"
+      }
+    },
+    {
+      "word": {
+        "en": "elasticity",
+        "laos": "ຄວາມແຂງແຮງ",
+        "jp": "弾力性",
+        "vie": "độ đàn hồi",
+        "en_pronunciation": "/ˌiˌlæˈstɪsəti/",
+        "laos_pronunciation": "khuaamaekhngaehng",
+        "jp_pronunciation": "danryokusei",
+        "vie_pronunciation": "do dan hoi"
+      },
+      "means": {
+        "en": "The tendency of a body to return to its original shape after it has been stretched or compressed",
+        "zh": "驱逐、投射或弹出的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "elbow",
+        "laos": "ສອກ",
+        "jp": "肘",
+        "vie": "khuỷu tay",
+        "en_pronunciation": "/ˈɛlˌboʊ/",
+        "laos_pronunciation": "sok",
+        "jp_pronunciation": "hiji",
+        "vie_pronunciation": "khuyu tay"
+      },
+      "means": {
+        "en": "Hinge joint between the forearm and upper arm and the corresponding joint in the forelimb of a quadruped",
+        "zh": "添加有关帐户或想法的详细信息；"
+      }
+    },
+    {
+      "word": {
+        "en": "elder",
+        "laos": "ແກ່ກ່ວາ",
+        "jp": "長老",
+        "vie": "người lớn tuổi",
+        "en_pronunciation": "/ˈɛldər/",
+        "laos_pronunciation": "aekkuaa",
+        "jp_pronunciation": "chourou",
+        "vie_pronunciation": "nguoi lon tuoi"
+      },
+      "means": {
+        "en": "A person who is older than you are",
+        "zh": "以学到的方式（通常是书面形式）阐明含义和话语"
+      }
+    },
+    {
+      "word": {
+        "en": "elderly",
+        "laos": "ຜູ້ສູງອາຍຸ",
+        "jp": "高齢者",
+        "vie": "người già",
+        "en_pronunciation": "/ˈɛldərli/",
+        "laos_pronunciation": "phu sungoaiu",
+        "jp_pronunciation": "koureisha",
+        "vie_pronunciation": "nguoi gia"
+      },
+      "means": {
+        "en": "People who are old collectively",
+        "zh": "添加额外的材料或插图或澄清细节"
+      }
+    },
+    {
+      "word": {
+        "en": "elect",
+        "laos": "ເລືອກ",
+        "jp": "選ぶ",
+        "vie": "bầu cử",
+        "en_pronunciation": "/ɪˈlɛkt/",
+        "laos_pronunciation": "leuok",
+        "jp_pronunciation": "erabu",
+        "vie_pronunciation": "bau cu"
+      },
+      "means": {
+        "en": "An exclusive group of people",
+        "zh": "路过"
+      }
+    },
+    {
+      "word": {
+        "en": "election",
+        "laos": "ການເລືອກຕັ້ງ",
+        "jp": "選挙",
+        "vie": "cuộc bầu cử",
+        "en_pronunciation": "/ɪˈlɛkʃən/",
+        "laos_pronunciation": "kanleuoktang",
+        "jp_pronunciation": "senkyo",
+        "vie_pronunciation": "cuoc bau cu"
+      },
+      "means": {
+        "en": "A vote to select the winner of a position or political office",
+        "zh": "用于将物体（例如纸张）固定在一起的窄弹性橡胶带"
+      }
+    },
+    {
+      "word": {
+        "en": "elective",
+        "laos": "ຜູ້ເລືອກຕັ້ງ",
+        "jp": "選択的",
+        "vie": "tự chọn",
+        "en_pronunciation": "/ɪˈlɛktɪv/",
+        "laos_pronunciation": "phuleuoktang",
+        "jp_pronunciation": "sentakuteki",
+        "vie_pronunciation": "tu chon"
+      },
+      "means": {
+        "en": "A course that the student can select from among alternatives",
+        "zh": "物体被拉伸或压缩后恢复其原始形状的趋势"
+      }
+    },
+    {
+      "word": {
+        "en": "electoral",
+        "laos": "ມີການເລືອກຕັ້ງ",
+        "jp": "選挙",
+        "vie": "bầu cử",
+        "en_pronunciation": "/ɪˈlɛktərəl/",
+        "laos_pronunciation": "mikanleuoktang",
+        "jp_pronunciation": "senkyo",
+        "vie_pronunciation": "bau cu"
+      },
+      "means": {
+        "en": "Of or relating to elections",
+        "zh": "前臂和上臂之间的铰链关节以及四足动物前肢的相应关节"
+      }
+    },
+    {
+      "word": {
+        "en": "electricity",
+        "laos": "ໄຟຟ້າ",
+        "jp": "電気",
+        "vie": "điện",
+        "en_pronunciation": "/ɪˌlɛkˈtrɪsəti/",
+        "laos_pronunciation": "faifa",
+        "jp_pronunciation": "denki",
+        "vie_pronunciation": "dien"
+      },
+      "means": {
+        "en": "A physical phenomenon associated with stationary or moving electrons and protons",
+        "zh": "一个比你年长的人"
+      }
+    },
+    {
+      "word": {
+        "en": "electorate",
+        "laos": "ຜູ້ທາ",
+        "jp": "有権者",
+        "vie": "cử tri",
+        "en_pronunciation": "/ɪˈlɛktərət/",
+        "laos_pronunciation": "phutha",
+        "jp_pronunciation": "yuukensha",
+        "vie_pronunciation": "cu tri"
+      },
+      "means": {
+        "en": "The body of enfranchised citizens; those qualified to vote",
+        "zh": "集体变老的人"
+      }
+    },
+    {
+      "word": {
+        "en": "electric",
+        "laos": "ໄຟຟ້າ",
+        "jp": "電気",
+        "vie": "điện",
+        "en_pronunciation": "/ɪˈlɛktrɪk/",
+        "laos_pronunciation": "faifa",
+        "jp_pronunciation": "denki",
+        "vie_pronunciation": "dien"
+      },
+      "means": {
+        "en": "A car that is powered by electricity",
+        "zh": "一群独特的人"
+      }
+    },
+    {
+      "word": {
+        "en": "electrical",
+        "laos": "ໄຟຟ້າ",
+        "jp": "電気",
+        "vie": "điện",
+        "en_pronunciation": "/ɪˈlɛktrɪkəl/",
+        "laos_pronunciation": "faifa",
+        "jp_pronunciation": "denki",
+        "vie_pronunciation": "dien"
+      },
+      "means": {
+        "en": "Relating to or concerned with electricity",
+        "zh": "投票选出职位或政治职位的获胜者"
+      }
+    },
+    {
+      "word": {
+        "en": "electrician",
+        "laos": "ຊ່າງໄຟຟ້າ",
+        "jp": "電気技師",
+        "vie": "thợ điện",
+        "en_pronunciation": "/ɪlɛkˈtrɪʃən/",
+        "laos_pronunciation": "sangfaifa",
+        "jp_pronunciation": "denki gishi",
+        "vie_pronunciation": "tho dien"
+      },
+      "means": {
+        "en": "A person who installs or repairs electrical or telephone lines",
+        "zh": "学生可以从备选课程中选择的课程"
+      }
+    },
+    {
+      "word": {
+        "en": "electron",
+        "laos": "ເອເລັກໂຕຣນິກ",
+        "jp": "電子",
+        "vie": "điện tử",
+        "en_pronunciation": "/ˌɪˈlɛktrɑn/",
+        "laos_pronunciation": "elekotrnik",
+        "jp_pronunciation": "denshi",
+        "vie_pronunciation": "dien tu"
+      },
+      "means": {
+        "en": "An elementary particle with negative charge",
+        "zh": "属于选举或与选举有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "electronic",
+        "laos": "ສໍາຄັນ",
+        "jp": "電子",
+        "vie": "điện tử",
+        "en_pronunciation": "/ˌɪˌlɛkˈtrɑnɪk/",
+        "laos_pronunciation": "soakhan",
+        "jp_pronunciation": "denshi",
+        "vie_pronunciation": "dien tu"
+      },
+      "means": {
+        "en": "Of or relating to electronics; concerned with or using devices that operate on principles governing the behavior of electrons",
+        "zh": "与静止或运动的电子和质子相关的物理现象"
+      }
+    },
+    {
+      "word": {
+        "en": "electronically",
+        "laos": "ເອເລັກໂຕຣນິກ",
+        "jp": "電子的に",
+        "vie": "bằng điện tử",
+        "en_pronunciation": "/ˌɪˌlɛkˈtrɑnɪkəˌli/",
+        "laos_pronunciation": "elekotrnik",
+        "jp_pronunciation": "denshiteki ni",
+        "vie_pronunciation": "bang dien tu"
+      },
+      "means": {
+        "en": "By electronic means",
+        "zh": "拥有选举权的公民团体；"
+      }
+    },
+    {
+      "word": {
+        "en": "electronics",
+        "laos": "ເຄື່ອງໃຊ້ໄຟຟ້າ",
+        "jp": "エレクトロニクス",
+        "vie": "thiết bị điện tử",
+        "en_pronunciation": "/ˌɪˌlɛkˈtrɑnɪks/",
+        "laos_pronunciation": "kheuongsaifaifa",
+        "jp_pronunciation": "erekutoronikusu",
+        "vie_pronunciation": "thiet bi dien tu"
+      },
+      "means": {
+        "en": "The branch of physics that deals with the emission and effects of electrons and with the use of electronic devices",
+        "zh": "有资格投票的人"
+      }
+    },
+    {
+      "word": {
+        "en": "elegant",
+        "laos": "ສະງ່າ",
+        "jp": "エレガントな",
+        "vie": "thanh lịch",
+        "en_pronunciation": "/ˈɛləgənt/",
+        "laos_pronunciation": "sanga",
+        "jp_pronunciation": "ereganto na",
+        "vie_pronunciation": "thanh lich"
+      },
+      "means": {
+        "en": "Refined and tasteful in appearance or behavior or style",
+        "zh": "以电力为动力的汽车"
+      }
+    },
+    {
+      "word": {
+        "en": "elegance",
+        "laos": "ຄວາມງາມ",
+        "jp": "エレガンス",
+        "vie": "sang trọng",
+        "en_pronunciation": "/ˈɛləgəns/",
+        "laos_pronunciation": "khuaamngam",
+        "jp_pronunciation": "eregansu",
+        "vie_pronunciation": "sang trong"
+      },
+      "means": {
+        "en": "A refined quality of gracefulness and good taste",
+        "zh": "与电力有关或有关"
+      }
+    },
+    {
+      "word": {
+        "en": "element",
+        "laos": "ອົງປະກອບ",
+        "jp": "要素",
+        "vie": "phần tử",
+        "en_pronunciation": "/ˈɛləmənt/",
+        "laos_pronunciation": "ongpakob",
+        "jp_pronunciation": "youso",
+        "vie_pronunciation": "phan tu"
+      },
+      "means": {
+        "en": "An abstract part of something",
+        "zh": "安装或修理电线或电话线的人"
+      }
+    },
+    {
+      "word": {
+        "en": "elementary",
+        "laos": "ປະຖົມ",
+        "jp": "小学校",
+        "vie": "tiểu học",
+        "en_pronunciation": "/ˌɛləˈmɛnʧri/",
+        "laos_pronunciation": "pathom",
+        "jp_pronunciation": "shougakkou",
+        "vie_pronunciation": "tieu hoc"
+      },
+      "means": {
+        "en": "Easy and not involved or complicated",
+        "zh": "带负电荷的基本粒子"
+      }
+    },
+    {
+      "word": {
+        "en": "elephant",
+        "laos": "ກຸນຊອນ",
+        "jp": "象",
+        "vie": "con voi",
+        "en_pronunciation": "/ˈɛləfənt/",
+        "laos_pronunciation": "kunson",
+        "jp_pronunciation": "zou",
+        "vie_pronunciation": "con voi"
+      },
+      "means": {
+        "en": "Five-toed pachyderm",
+        "zh": "电子产品的或与之相关的；"
+      }
+    },
+    {
+      "word": {
+        "en": "elevate",
+        "laos": "ຍົກສູງ",
+        "jp": "高める",
+        "vie": "nâng cao",
+        "en_pronunciation": "/ˈɛləˌveɪt/",
+        "laos_pronunciation": "nyoksung",
+        "jp_pronunciation": "takame ru",
+        "vie_pronunciation": "nang cao"
+      },
+      "means": {
+        "en": "Give a promotion to or assign to a higher position",
+        "zh": "涉及或使用按照电子行为原理运行的设备"
+      }
+    },
+    {
+      "word": {
+        "en": "elevation",
+        "laos": "ການຢົກຂຶ້ນ",
+        "jp": "標高",
+        "vie": "độ cao",
+        "en_pronunciation": "/ˌɛləˈveɪʃən/",
+        "laos_pronunciation": "kan yokkhun",
+        "jp_pronunciation": "hyoukou",
+        "vie_pronunciation": "do cao"
+      },
+      "means": {
+        "en": "The event of something being raised upward",
+        "zh": "通过电子方式"
+      }
+    },
+    {
+      "word": {
+        "en": "elevator",
+        "laos": "ລິຟ",
+        "jp": "エレベーター",
+        "vie": "thang máy",
+        "en_pronunciation": "/ˈɛləˌveɪtər/",
+        "laos_pronunciation": "lif",
+        "jp_pronunciation": "erebeetaa",
+        "vie_pronunciation": "thang may"
+      },
+      "means": {
+        "en": "Lifting device consisting of a platform or cage that is raised and lowered mechanically in a vertical shaft in order to move people from one floor to another in a building",
+        "zh": "物理学的一个分支，研究电子的发射和效应以及电子设备的使用"
+      }
+    },
+    {
+      "word": {
+        "en": "eleven",
+        "laos": "ສິບເອັດ",
+        "jp": "11",
+        "vie": "mười một",
+        "en_pronunciation": "/ˈilɛvən/",
+        "laos_pronunciation": "siboed",
+        "jp_pronunciation": "11",
+        "vie_pronunciation": "muoi mot"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of ten and one",
+        "zh": "外表或行为或风格精致而有品位"
+      }
+    },
+    {
+      "word": {
+        "en": "elicit",
+        "laos": "ຢືດ",
+        "jp": "引き出す",
+        "vie": "khơi gợi",
+        "en_pronunciation": "/ɪˈlɪsɪt/",
+        "laos_pronunciation": "yud",
+        "jp_pronunciation": "hikidasu",
+        "vie_pronunciation": "khoi goi"
+      },
+      "means": {
+        "en": "Call forth (emotions, feelings, and responses)",
+        "zh": "优雅气质和高雅品味"
+      }
+    },
+    {
+      "word": {
+        "en": "eligible",
+        "laos": "ມີສິດໄດ້ຮັບ",
+        "jp": "適格",
+        "vie": "đủ điều kiện",
+        "en_pronunciation": "/ˈɛlɪʤəbəl/",
+        "laos_pronunciation": "misiddaihab",
+        "jp_pronunciation": "tekikaku",
+        "vie_pronunciation": "du dieu kien"
+      },
+      "means": {
+        "en": "Qualified for or allowed or worthy of being chosen",
+        "zh": "某物的抽象部分"
+      }
+    },
+    {
+      "word": {
+        "en": "eligibility",
+        "laos": "ສິດທິພາບ",
+        "jp": "資格",
+        "vie": "đủ điều kiện",
+        "en_pronunciation": "/ˌɛlɪʤəˈbɪlɪti/",
+        "laos_pronunciation": "sidthiphab",
+        "jp_pronunciation": "shikaku",
+        "vie_pronunciation": "du dieu kien"
+      },
+      "means": {
+        "en": "The quality or state of being eligible",
+        "zh": "简单，不涉及或复杂"
+      }
+    },
+    {
+      "word": {
+        "en": "eliminate",
+        "laos": "ກໍາຈັດບລິວ",
+        "jp": "排除する",
+        "vie": "loại bỏ",
+        "en_pronunciation": "/ɪˈlɪməˌneɪt/",
+        "laos_pronunciation": "koachad bliv",
+        "jp_pronunciation": "haijo suru",
+        "vie_pronunciation": "loai bo"
+      },
+      "means": {
+        "en": "Terminate, end, or take out",
+        "zh": "五趾厚皮动物"
+      }
+    },
+    {
+      "word": {
+        "en": "elimination",
+        "laos": "ການລົບລ້າງ",
+        "jp": "除去",
+        "vie": "sự loại bỏ",
+        "en_pronunciation": "/ɪˌlɪməˈneɪʃən/",
+        "laos_pronunciation": "kanloblang",
+        "jp_pronunciation": "jokyo",
+        "vie_pronunciation": "su loai bo"
+      },
+      "means": {
+        "en": "The act of removing or getting rid of something",
+        "zh": "晋升或分配到更高的职位"
+      }
+    },
+    {
+      "word": {
+        "en": "elite",
+        "laos": "ສອກ",
+        "jp": "エリート",
+        "vie": "ưu tú",
+        "en_pronunciation": "/ɪˈlit/",
+        "laos_pronunciation": "sok",
+        "jp_pronunciation": "eriito",
+        "vie_pronunciation": "uu tu"
+      },
+      "means": {
+        "en": "A group or class of persons enjoying superior intellectual or social or economic status",
+        "zh": "某物被向上举起的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "eloquent",
+        "laos": "ການຫຍິບໃຫມ່",
+        "jp": "雄弁な",
+        "vie": "có tài hùng biện",
+        "en_pronunciation": "/ˈɛləkwənt/",
+        "laos_pronunciation": "kan jibhaim",
+        "jp_pronunciation": "yuuben na",
+        "vie_pronunciation": "co tai hung bien"
+      },
+      "means": {
+        "en": "Expressing yourself readily, clearly, effectively",
+        "zh": "起重装置，由平台或笼子组成，可在垂直竖井中机械升降，以便将人员从建筑物的一层移动到另一层"
+      }
+    },
+    {
+      "word": {
+        "en": "eloquence",
+        "laos": "ໂວຫານ",
+        "jp": "雄弁",
+        "vie": "tài hùng biện",
+        "en_pronunciation": "/ˈɛləkwəns/",
+        "laos_pronunciation": "ouahan",
+        "jp_pronunciation": "yuuben",
+        "vie_pronunciation": "tai hung bien"
+      },
+      "means": {
+        "en": "Powerful and effective language",
+        "zh": "十加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "else",
+        "laos": "ອື່ນ",
+        "jp": "それ以外の場合",
+        "vie": "khác",
+        "en_pronunciation": "/ɛls/",
+        "laos_pronunciation": "un",
+        "jp_pronunciation": "sore igai no baai",
+        "vie_pronunciation": "khac"
+      },
+      "means": {
+        "en": "Else is an English word referring to 'else'.",
+        "zh": "唤起（情绪、感受和反应）"
+      }
+    },
+    {
+      "word": {
+        "en": "elsewhere",
+        "laos": "ບ່ອນອື່ນ",
+        "jp": "他の場所で",
+        "vie": "nơi khác",
+        "en_pronunciation": "/ˈɛlsˌwɛr/",
+        "laos_pronunciation": "bonun",
+        "jp_pronunciation": "hokano basho de",
+        "vie_pronunciation": "noi khac"
+      },
+      "means": {
+        "en": "In or to another place",
+        "zh": "有资格或允许或值得被选择"
+      }
+    },
+    {
+      "word": {
+        "en": "email",
+        "laos": "ອີເມວ",
+        "jp": "電子メール",
+        "vie": "email",
+        "en_pronunciation": "/iˈmeɪl/",
+        "laos_pronunciation": "imev",
+        "jp_pronunciation": "denshimeeru",
+        "vie_pronunciation": "email"
+      },
+      "means": {
+        "en": "(computer science) a system of world-wide electronic communication in which a computer user can compose a message at one terminal that can be regenerated at the recipient's terminal when the recipient logs in",
+        "zh": "合格的质量或状态"
+      }
+    },
+    {
+      "word": {
+        "en": "emancipate",
+        "laos": "ເນລະເທດ",
+        "jp": "解放する",
+        "vie": "giải phóng",
+        "en_pronunciation": "/ɪˈmænsəˌpeɪt/",
+        "laos_pronunciation": "nelathed",
+        "jp_pronunciation": "kaihou suru",
+        "vie_pronunciation": "giai phong"
+      },
+      "means": {
+        "en": "Give equal rights to; of women and minorities",
+        "zh": "终止、结束或删除"
+      }
+    },
+    {
+      "word": {
+        "en": "emancipation",
+        "laos": "ປົດປ່ອຍ",
+        "jp": "解放",
+        "vie": "sự giải phóng",
+        "en_pronunciation": "/ɪˌmænsəˈpeɪʃən/",
+        "laos_pronunciation": "podpony",
+        "jp_pronunciation": "kaihou",
+        "vie_pronunciation": "su giai phong"
+      },
+      "means": {
+        "en": "Freeing someone from the control of another; especially a parent's relinquishing authority and control over a minor child",
+        "zh": "移除或摆脱某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "embargo",
+        "laos": "ທ",
+        "jp": "禁輸措置",
+        "vie": "lệnh cấm vận",
+        "en_pronunciation": "/ɛmˈbɑrgoʊ/",
+        "laos_pronunciation": "th",
+        "jp_pronunciation": "kinyu sochi",
+        "vie_pronunciation": "lenh cam van"
+      },
+      "means": {
+        "en": "A government order imposing a trade barrier",
+        "zh": "享有优越智力或社会或经济地位的一群或一类人"
+      }
+    },
+    {
+      "word": {
+        "en": "embark",
+        "laos": "ລົງເຮືອ",
+        "jp": "乗り出す",
+        "vie": "lên tàu",
+        "en_pronunciation": "/ɪmˈbɑrk/",
+        "laos_pronunciation": "longheu",
+        "jp_pronunciation": "nori dasu",
+        "vie_pronunciation": "len tau"
+      },
+      "means": {
+        "en": "Go on board",
+        "zh": "轻松、清晰、有效地表达自己"
+      }
+    },
+    {
+      "word": {
+        "en": "embarrass",
+        "laos": "ເຮັດໃຫ້ອາຍ",
+        "jp": "恥ずかしい",
+        "vie": "làm xấu hổ",
+        "en_pronunciation": "/ɪmˈbɛrəs/",
+        "laos_pronunciation": "hedhaioai",
+        "jp_pronunciation": "hazukashii",
+        "vie_pronunciation": "lam xau ho"
+      },
+      "means": {
+        "en": "Cause to be embarrassed; cause to feel self-conscious",
+        "zh": "强大而有效的语言"
+      }
+    },
+    {
+      "word": {
+        "en": "embarrassment",
+        "laos": "ຄວາມອັບອາຍ",
+        "jp": "恥ずかしさ",
+        "vie": "bối rối",
+        "en_pronunciation": "/ɪmˈbɛrəsmənt/",
+        "laos_pronunciation": "khuaamboai",
+        "jp_pronunciation": "hazukashisa",
+        "vie_pronunciation": "boi roi"
+      },
+      "means": {
+        "en": "The shame you feel when your inadequacy or guilt is made public",
+        "zh": "Else 是一个英语单词，指的是“else”。"
+      }
+    },
+    {
+      "word": {
+        "en": "embassy",
+        "laos": "ສະຖານທູດ",
+        "jp": "大使館",
+        "vie": "đại sứ quán",
+        "en_pronunciation": "/ˈɛmbəsi/",
+        "laos_pronunciation": "sathanthud",
+        "jp_pronunciation": "taishikan",
+        "vie_pronunciation": "dai su quan"
+      },
+      "means": {
+        "en": "A diplomatic building where ambassadors live or work",
+        "zh": "在或到另一个地方"
+      }
+    },
+    {
+      "word": {
+        "en": "embed",
+        "laos": "ຝັງຫນັກ",
+        "jp": "埋め込む",
+        "vie": "nhúng",
+        "en_pronunciation": "/ɪmˈbɛd/",
+        "laos_pronunciation": "fangnak",
+        "jp_pronunciation": "umekomu",
+        "vie_pronunciation": "nhung"
+      },
+      "means": {
+        "en": "Fix or set securely or deeply",
+        "zh": "（计算机科学）一种全球电子通信系统，其中计算机用户可以在一个终端上撰写消息，当接收者登录时，该消息可以在接收者的终端上重新生成"
+      }
+    },
+    {
+      "word": {
+        "en": "embody",
+        "laos": "embody",
+        "jp": "体現する",
+        "vie": "hiện thân",
+        "en_pronunciation": "/ɪmˈbɑdi/",
+        "laos_pronunciation": "embody",
+        "jp_pronunciation": "taigen suru",
+        "vie_pronunciation": "hien than"
+      },
+      "means": {
+        "en": "Represent in bodily form",
+        "zh": "给予平等权利；"
+      }
+    },
+    {
+      "word": {
+        "en": "embodiment",
+        "laos": "ຕົນເອງຮູ້ໃຈ",
+        "jp": "実施形態",
+        "vie": "hiện thân",
+        "en_pronunciation": "/ɛmˈbɑdimənt/",
+        "laos_pronunciation": "tonoeng huchai",
+        "jp_pronunciation": "jisshi keitai",
+        "vie_pronunciation": "hien than"
+      },
+      "means": {
+        "en": "A new personification of a familiar idea",
+        "zh": "妇女和少数族裔"
+      }
+    },
+    {
+      "word": {
+        "en": "embrace",
+        "laos": "ກ່ອມກັນ",
+        "jp": "抱きしめる",
+        "vie": "ôm hôn",
+        "en_pronunciation": "/ɪmˈbreɪs/",
+        "laos_pronunciation": "komkan",
+        "jp_pronunciation": "daki shimeru",
+        "vie_pronunciation": "om hon"
+      },
+      "means": {
+        "en": "The act of clasping another person in the arms (as in greeting or affection)",
+        "zh": "将某人从另一个人的控制中解放出来；"
+      }
+    },
+    {
+      "word": {
+        "en": "embroidery",
+        "laos": "ເຊີດການ",
+        "jp": "刺繍",
+        "vie": "nghề thêu",
+        "en_pronunciation": "/ɛmˈbrɔɪdəri/",
+        "laos_pronunciation": "soedkan",
+        "jp_pronunciation": "shishuu",
+        "vie_pronunciation": "nghe theu"
+      },
+      "means": {
+        "en": "Elaboration of an interpretation by the use of decorative (sometimes fictitious) detail",
+        "zh": "尤其是父母放弃对未成年子女的权威和控制"
+      }
+    },
+    {
+      "word": {
+        "en": "emerge",
+        "laos": "ເກີດ",
+        "jp": "出現する",
+        "vie": "xuất hiện",
+        "en_pronunciation": "/ˈimərʤ/",
+        "laos_pronunciation": "koed",
+        "jp_pronunciation": "shutsugen suru",
+        "vie_pronunciation": "xuat hien"
+      },
+      "means": {
+        "en": "Come out into view, as from concealment",
+        "zh": "施加贸易壁垒的政府命令"
+      }
+    },
+    {
+      "word": {
+        "en": "emergence",
+        "laos": "ສຸກເສີນ",
+        "jp": "出現",
+        "vie": "sự xuất hiện",
+        "en_pronunciation": "/ˈimərʤəns/",
+        "laos_pronunciation": "suksoen",
+        "jp_pronunciation": "shutsugen",
+        "vie_pronunciation": "su xuat hien"
+      },
+      "means": {
+        "en": "The gradual beginning or coming forth",
+        "zh": "上船"
+      }
+    },
+    {
+      "word": {
+        "en": "emergency",
+        "laos": "ສຸກເສີນ",
+        "jp": "緊急",
+        "vie": "trường hợp khẩn cấp",
+        "en_pronunciation": "/ˈimərʤənsi/",
+        "laos_pronunciation": "suksoen",
+        "jp_pronunciation": "kinkyuu",
+        "vie_pronunciation": "truong hop khan cap"
+      },
+      "means": {
+        "en": "A sudden unforeseen crisis (usually involving danger) that requires immediate action",
+        "zh": "导致尴尬；"
+      }
+    },
+    {
+      "word": {
+        "en": "emigrate",
+        "laos": "ອົບພະນວນ",
+        "jp": "移住する",
+        "vie": "di cư",
+        "en_pronunciation": "/ˈɛməˌgreɪt/",
+        "laos_pronunciation": "ob phanuan",
+        "jp_pronunciation": "ijuu suru",
+        "vie_pronunciation": "di cu"
+      },
+      "means": {
+        "en": "Leave one's country of residence for a new one",
+        "zh": "导致感到不自在"
+      }
+    },
+    {
+      "word": {
+        "en": "emigration",
+        "laos": "ການອົບພະຢົບ",
+        "jp": "移民",
+        "vie": "di cư",
+        "en_pronunciation": "/ˌɛməˈgreɪʃən/",
+        "laos_pronunciation": "kan ob pha yob",
+        "jp_pronunciation": "imin",
+        "vie_pronunciation": "di cu"
+      },
+      "means": {
+        "en": "Migration from a place (especially migration from your native country in order to settle in another)",
+        "zh": "当你的不足或内疚被公开时你感到羞耻"
+      }
+    },
+    {
+      "word": {
+        "en": "emigrant",
+        "laos": "ຜູ້ຢິງປະກັນ",
+        "jp": "移民",
+        "vie": "người di cư",
+        "en_pronunciation": "/ˈɛməgrənt/",
+        "laos_pronunciation": "phu yingpakan",
+        "jp_pronunciation": "imin",
+        "vie_pronunciation": "nguoi di cu"
+      },
+      "means": {
+        "en": "Someone who leaves one country to settle in another",
+        "zh": "大使居住或工作的外交大楼"
+      }
+    },
+    {
+      "word": {
+        "en": "eminent",
+        "laos": "ອັກຄະ",
+        "jp": "著名な",
+        "vie": "lỗi lạc",
+        "en_pronunciation": "/ˈɛmənənt/",
+        "laos_pronunciation": "akkha",
+        "jp_pronunciation": "chomei na",
+        "vie_pronunciation": "loi lac"
+      },
+      "means": {
+        "en": "Standing above others in quality or position",
+        "zh": "牢固或深入地固定或设置"
+      }
+    },
+    {
+      "word": {
+        "en": "eminence",
+        "laos": "emince ໄດ້",
+        "jp": "著名な",
+        "vie": "sự cao quý",
+        "en_pronunciation": "/ˈɛmənəns/",
+        "laos_pronunciation": "emince dai",
+        "jp_pronunciation": "chomei na",
+        "vie_pronunciation": "su cao quy"
+      },
+      "means": {
+        "en": "High status importance owing to marked superiority",
+        "zh": "以身体形式代表"
+      }
+    },
+    {
+      "word": {
+        "en": "emit",
+        "laos": "ປ່ອຍຕົວ",
+        "jp": "発する",
+        "vie": "phát ra",
+        "en_pronunciation": "/ɪˈmɪt/",
+        "laos_pronunciation": "ponytua",
+        "jp_pronunciation": "hassu ru",
+        "vie_pronunciation": "phat ra"
+      },
+      "means": {
+        "en": "Expel (gases or odors)",
+        "zh": "熟悉的想法的新拟人化"
+      }
+    }
+  ]
+}

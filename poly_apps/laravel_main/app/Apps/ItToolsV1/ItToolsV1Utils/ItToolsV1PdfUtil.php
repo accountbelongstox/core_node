@@ -13,40 +13,30 @@
 
 namespace App\Apps\ItToolsV1\ItToolsV1Utils;
 
+use App\Providers\PathMapper;
+
 class ItToolsV1PdfUtil
 {
     private static function getPdftkPath(): string
     {
-        $paths = [
-            '/usr/bin/pdftk',
-            '/usr/local/bin/pdftk',
-            'pdftk'
-        ];
+        $path = PathMapper::getPdftkBinaryPath();
         
-        foreach ($paths as $path) {
-            if (file_exists($path) || shell_exec("which $path 2>/dev/null")) {
-                return $path;
-            }
+        if ($path === null) {
+            throw new \RuntimeException("pdftk is not installed. Please install it first.");
         }
         
-        throw new \RuntimeException("pdftk is not installed. Please install it first.");
+        return $path;
     }
     
-    private static function getGs Path(): string
+    private static function getGsPath(): string
     {
-        $paths = [
-            '/usr/bin/gs',
-            '/usr/local/bin/gs',
-            'gs'
-        ];
+        $path = PathMapper::getGhostscriptBinaryPath();
         
-        foreach ($paths as $path) {
-            if (file_exists($path) || shell_exec("which $path 2>/dev/null")) {
-                return $path;
-            }
+        if ($path === null) {
+            throw new \RuntimeException("Ghostscript is not installed. Please install it first.");
         }
         
-        throw new \RuntimeException("Ghostscript is not installed. Please install it first.");
+        return $path;
     }
     
     public static function getPdfPageCount(string $pdfPath): int

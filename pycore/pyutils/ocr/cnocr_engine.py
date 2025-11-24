@@ -150,6 +150,11 @@ class CnOCREngine:
         total_confidence = 0.0
         word_count = 0
 
+        # Debug: show first detection structure
+        if cnocr_result and len(cnocr_result) > 0:
+            ColorPrint.yellow(f"[DEBUG] First CnOCR detection structure: {cnocr_result[0]}")
+            ColorPrint.yellow(f"[DEBUG] Detection keys: {list(cnocr_result[0].keys())}")
+
         for detection in cnocr_result:
             if detection and 'text' in detection:
                 text = detection.get('text', '').strip()
@@ -161,7 +166,8 @@ class CnOCREngine:
                     # Create word info
                     word_info = {
                         "text": text,
-                        "confidence": confidence
+                        "confidence": confidence,
+                        "score": confidence  # Add score as alias for compatibility
                     }
 
                     # Extract bounding box if available
@@ -178,6 +184,10 @@ class CnOCREngine:
                                 "height": max(y_coords) - min(y_coords)
                             }
                             word_info["position"] = position
+                            ColorPrint.green(f"[DEBUG] Word '{text}' has bbox: {word_info['bbox']}")
+                    else:
+                        ColorPrint.yellow(f"[DEBUG] Word '{text}' has NO 'position' in detection")
+                        ColorPrint.yellow(f"[DEBUG] Detection data: {detection}")
 
                     all_words.append(word_info)
                     total_confidence += confidence
