@@ -58,10 +58,18 @@ class Mode1PriceMonitor:
 
         result = response.json()
 
-        if result.get('success'):
-            return result.get('urls', [])
+        # RPC framework wraps response in 'result' field
+        if result.get('success') and 'result' in result:
+            actual_data = result.get('result', {})
+            if actual_data.get('success'):
+                return actual_data.get('urls', [])
+            else:
+                ColorPrint.red(f"[Mode1] Backend returned error: {actual_data.get('error', 'Unknown error')}")
+                return []
         else:
-            raise Exception(f"Failed to get intercepted URLs: {result.get('error')}")
+            error_msg = result.get('error', 'Unknown error')
+            ColorPrint.red(f"[Mode1] RPC call failed: {error_msg}")
+            raise Exception(f"Failed to get intercepted URLs: {error_msg}")
 
     def _extract_currencies_from_url(self, url):
         """
