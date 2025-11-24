@@ -19,6 +19,7 @@ const fs = require('fs');
 const EnhancedPage = require('#@ncore/utils/puppeteer_spider_v2/src/implementations/pages/EnhancedPage.js');
 const UnifiedRequestUtils = require('#@ncore/utils/puppeteer_spider_v2/src/utils/request/UnifiedRequestUtils.js');
 const ResourceInterceptor = require('#@ncore/utils/puppeteer_spider_v2/src/utils/download/ResourceInterceptor.js');
+const { pageCollector } = require('./page_collector');
 
 class BrowserManager {
     constructor() {
@@ -28,6 +29,7 @@ class BrowserManager {
         this.enhancedPage = null;
         this.requestUtils = new Map(); // Map pageId -> UnifiedRequestUtils
         this.interceptors = new Map(); // Map pageId -> ResourceInterceptor
+        this.pageCollector = pageCollector;
     }
 
     async launch(options = {}) {
@@ -94,17 +96,29 @@ class BrowserManager {
             logger.info(`[BrowserManager] Opening URL with smart tab reuse: ${url}`);
 
             // Use EnhancedPage's openUrl for smart tab reuse
+            const matchMode = options.matchMode || 'sameOrigin';
+            const urlStrict = matchMode === 'fullUrl';
+            const reuseTab = matchMode === 'sameOrigin' || matchMode === 'sameDomain';
+
             const navResult = await this.enhancedPage.openUrl(url, {
                 waitForComplete: true,
                 timeout: options.timeout || 30000,
                 logging: true,
                 showImages: options.showImages !== false,
                 showStyle: options.showStyle !== false,
-                urlStrict: options.matchMode === 'fullUrl'
+                urlStrict: urlStrict,
+                reuseMainTab: reuseTab
             });
 
             const page = navResult.page || this.enhancedPage.activePage;
-            const pageId = `page_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            // Generate pageId: use consistent ID for reused main tab
+            let pageId;
+            if (reuseTab && navResult.action === 'reused_main_tab') {
+                pageId = 'page_main_tab';  // Consistent ID for main tab reuse
+            } else {
+                pageId = `page_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            }
 
             const result = {
                 success: true,
@@ -145,6 +159,9 @@ class BrowserManager {
                 this.pages = new Map();
             }
             this.pages.set(pageId, page);
+
+            // Setup page collectors for URL interception and console logs
+            this.pageCollector.setupPageCollectors(page, pageId);
 
             // Optional: Enable request interception
             if (options.enableInterception) {

@@ -37,6 +37,7 @@ class PageCollector {
     constructor() {
         this.consoleLogs = new Map();
         this.pageResources = new Map();
+        this.interceptedApiUrls = new Map();
     }
 
     /**
@@ -77,6 +78,17 @@ class PageCollector {
                 });
                 this.pageResources.set(pageId, resources);
             }
+
+            if (url.includes('batch-currency-trend?currencies=')) {
+                const apiUrls = this.interceptedApiUrls.get(pageId) || [];
+                apiUrls.push({
+                    url: url,
+                    status: response.status(),
+                    timestamp: Date.now()
+                });
+                this.interceptedApiUrls.set(pageId, apiUrls);
+                logger.info(`[PageCollector] Intercepted batch-currency-trend URL: ${url.substring(0, 150)}...`);
+            }
         });
 
         logger.info(`[PageCollector] Setup collectors for page: ${pageId}`);
@@ -101,12 +113,27 @@ class PageCollector {
     }
 
     /**
+     * Get intercepted API URLs for page
+     * @param {string} pageId - Page identifier
+     * @param {boolean} clearAfterGet - Clear URLs after getting them
+     * @returns {Array}
+     */
+    getInterceptedApiUrls(pageId, clearAfterGet = false) {
+        const urls = this.interceptedApiUrls.get(pageId) || [];
+        if (clearAfterGet) {
+            this.interceptedApiUrls.set(pageId, []);
+        }
+        return urls;
+    }
+
+    /**
      * Clear logs for page
      * @param {string} pageId - Page identifier
      */
     clearPageData(pageId) {
         this.consoleLogs.delete(pageId);
         this.pageResources.delete(pageId);
+        this.interceptedApiUrls.delete(pageId);
     }
 
     /**

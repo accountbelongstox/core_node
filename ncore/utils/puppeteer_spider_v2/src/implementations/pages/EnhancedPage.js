@@ -219,37 +219,64 @@ class EnhancedPage extends StandardPage {
             logging = true,
             showImages = true,
             showStyle = true,
-            urlStrict = this.urlComparisonStrict
+            urlStrict = this.urlComparisonStrict,
+            reuseMainTab = false
         } = options;
 
         try {
-            // Check if URL already exists in tabs
-            const existingPageIndex = await this.findNormalizedUrlIndex(url, urlStrict);
-            if (existingPageIndex !== -1) {
-                // Switch to existing tab
-                await this.switchToPageByIndex(existingPageIndex);
-                this.metrics.tabSwitches++;
-                logger.debug(`Switched to existing tab for URL: ${url}`);
-                return { success: true, action: 'switched', pageIndex: existingPageIndex };
-            }
-
-            // Check for blank page to reuse
-            const blankPageIndex = await this.findBlankPageIndex();
             let targetPage;
+            let action;
 
-            if (blankPageIndex !== -1) {
-                // Reuse blank page
+            if (reuseMainTab) {
+                // Force reuse of main tab (tab[0]) - overrides all other logic
                 const pages = await this.browser.pages();
-                targetPage = pages[blankPageIndex];
-                this.metrics.blankPageReuses++;
-                logger.info(`✅ Reusing blank page at index ${blankPageIndex} for URL: ${url}`);
+                if (pages.length > 0) {
+                    targetPage = pages[0];
+                    this.metrics.tabSwitches++;
+                    action = 'reused_main_tab';
+                    logger.info(`♻️ Force reusing main tab (tab[0]) for URL: ${url}`);
+                } else {
+                    targetPage = await this.browser.newPage();
+                    await this.setupPageInterception(targetPage, showImages, showStyle);
+                    await this.setupDownloadDirectoryForPage(targetPage);
+                    this.metrics.newPageCreations++;
+                    action = 'created';
+                    logger.info(`❌ No tabs found, created new tab for URL: ${url}`);
+                }
             } else {
-                // Create new page
-                targetPage = await this.browser.newPage();
-                await this.setupPageInterception(targetPage, showImages, showStyle);
-                await this.setupDownloadDirectoryForPage(targetPage);
-                this.metrics.newPageCreations++;
-                logger.info(`❌ No blank page found, created new page for URL: ${url}`);
+                // Original behavior: Smart tab reuse logic
+                const existingPageIndex = await this.findNormalizedUrlIndex(url, urlStrict);
+                if (existingPageIndex !== -1) {
+                    // Switch to existing tab
+                    await this.switchToPageByIndex(existingPageIndex);
+                    this.metrics.tabSwitches++;
+                    action = 'switched';
+                    const pages = await this.browser.pages();
+                    targetPage = pages[existingPageIndex];
+                    logger.debug(`Switched to existing tab for URL: ${url}`);
+                    this.activePage = targetPage;
+                    return { success: true, action: action, page: targetPage, pageIndex: existingPageIndex };
+                }
+
+                // Check for blank page to reuse
+                const blankPageIndex = await this.findBlankPageIndex();
+
+                if (blankPageIndex !== -1) {
+                    // Reuse blank page
+                    const pages = await this.browser.pages();
+                    targetPage = pages[blankPageIndex];
+                    this.metrics.blankPageReuses++;
+                    action = 'reused';
+                    logger.info(`✅ Reusing blank page at index ${blankPageIndex} for URL: ${url}`);
+                } else {
+                    // Create new page
+                    targetPage = await this.browser.newPage();
+                    await this.setupPageInterception(targetPage, showImages, showStyle);
+                    await this.setupDownloadDirectoryForPage(targetPage);
+                    this.metrics.newPageCreations++;
+                    action = 'created';
+                    logger.info(`❌ No blank page found, created new page for URL: ${url}`);
+                }
             }
 
             // Navigate to URL
@@ -264,7 +291,7 @@ class EnhancedPage extends StandardPage {
             }
 
             this.activePage = targetPage;
-            return { success: true, action: blankPageIndex !== -1 ? 'reused' : 'created', page: targetPage };
+            return { success: true, action: action, page: targetPage };
 
         } catch (error) {
             logger.error(`Failed to open URL ${url}:`, error);

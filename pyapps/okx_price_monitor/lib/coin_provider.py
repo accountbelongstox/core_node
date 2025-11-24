@@ -7,8 +7,11 @@ Provides coin list by fetching from OKX API and caching.
 """
 
 import time
+import json
+from pathlib import Path
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pygvar import PROJECT_ROOT
 from pyapps.okx_price_monitor.lib.config import config
 
 requests = None
@@ -73,6 +76,37 @@ class CoinProvider:
 
         return result.get('data')
 
+    def _save_coins_to_file(self, coins_data):
+        """
+        Save coins data to local JSON file
+
+        Args:
+            coins_data (list): List of coin data
+
+        Returns:
+            str: File path where data was saved
+        """
+        try:
+            app_dir_path = Path(PROJECT_ROOT) / 'public' / 'uploads' / 'okx_price_monitor' / 'cache'
+            app_dir_path.mkdir(parents=True, exist_ok=True)
+
+            timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
+            filename = f"coins_cache_{timestamp}.json"
+            filepath = app_dir_path / filename
+
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'timestamp': timestamp,
+                    'total_coins': len(coins_data),
+                    'data': coins_data
+                }, f, indent=2, ensure_ascii=False)
+
+            return str(filepath)
+
+        except Exception as error:
+            ColorPrint.red(f"[CoinProvider] Failed to save coins to file: {error}")
+            return None
+
     def fetch_coins(self, page_id, force_refresh=False):
         """
         Fetch coin list from OKX API
@@ -102,6 +136,12 @@ class CoinProvider:
             self.coins_cache = data['data']
             self.cache_timestamp = current_time
             ColorPrint.green(f"[CoinProvider] Cached {len(self.coins_cache)} coins")
+
+            # Save to file
+            cache_file = self._save_coins_to_file(self.coins_cache)
+            if cache_file:
+                ColorPrint.green(f"[CoinProvider] Coins cache saved to: {cache_file}")
+
             return self.coins_cache
         else:
             ColorPrint.red("[CoinProvider] Failed to fetch coins")
@@ -133,6 +173,19 @@ class CoinProvider:
                     coin_names.append(coin['currency'])
 
         ColorPrint.blue(f"[CoinProvider] Extracted {len(coin_names)} coin names from {len(coins)} items")
+
+        # Display all coin names
+        ColorPrint.green("\n" + "=" * 80)
+        ColorPrint.green(f"ALL COIN NAMES ({len(coin_names)} total)")
+        ColorPrint.green("=" * 80)
+
+        # Display in rows of 10 coins per line
+        for i in range(0, len(coin_names), 10):
+            row = coin_names[i:i+10]
+            ColorPrint.blue("  " + ", ".join(row))
+
+        ColorPrint.green("=" * 80 + "\n")
+
         return coin_names
 
     def get_coins_info(self, page_id):

@@ -24,15 +24,15 @@ class ContinuousMonitor:
     All batches complete = 1 tick.
     """
 
-    def __init__(self, mode1_monitor, fetch_interval=None, max_history=None, save_to_file=None, use_concurrent=True, concurrency=10):
+    def __init__(self, mode1_monitor, fetch_interval=None, max_history=None, save_to_file=None, fetch_mode=None, concurrency=None):
         self.mode1_monitor = mode1_monitor
 
         # Use config values if not specified
         self.fetch_interval = (fetch_interval or config.FETCH_INTERVAL_MS) / 1000.0
         self.max_history = max_history if max_history is not None else config.MAX_HISTORY
         self.save_to_file = save_to_file if save_to_file is not None else config.SAVE_TO_FILE
-        self.use_concurrent = use_concurrent
-        self.concurrency = concurrency
+        self.fetch_mode = fetch_mode or config.FETCH_MODE
+        self.concurrency = concurrency or config.CONCURRENCY
 
         self.is_running = False
         self.is_initialized = False
@@ -86,11 +86,18 @@ class ContinuousMonitor:
             ColorPrint.red("[ContinuousMonitor] Page not initialized")
             return
 
-        # Use concurrent or sequential fetching
-        if self.use_concurrent:
+        # Select fetch method based on mode
+        if self.fetch_mode == 'intercepted':
+            price_data = self.mode1_monitor.fetch_from_intercepted_urls(self.page_id)
+        elif self.fetch_mode == 'single_url':
+            price_data = self.mode1_monitor.fetch_all_single_url(self.page_id)
+        elif self.fetch_mode == 'concurrent':
             price_data = self.mode1_monitor.fetch_all_batches_concurrent(self.page_id, self.concurrency)
-        else:
+        elif self.fetch_mode == 'sequential':
             price_data = self.mode1_monitor.fetch_all_batches(self.page_id)
+        else:
+            ColorPrint.red(f"[ContinuousMonitor] Unknown fetch mode: {self.fetch_mode}")
+            return
 
         if not price_data:
             ColorPrint.red("[ContinuousMonitor] Failed to fetch price data")

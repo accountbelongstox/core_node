@@ -194,6 +194,24 @@ const browserRoutes = {
      */
     'browser/switchToDesktop': async (params) => {
         return ncoreController.browserManager.switchToDesktop(params || {});
+    },
+
+    /**
+     * Get intercepted API URLs for a page
+     * params: { pageId: string, clearAfterGet?: boolean }
+     */
+    'browser/getInterceptedApiUrls': async (params) => {
+        const { pageId, clearAfterGet } = params || {};
+        if (!pageId) {
+            return { success: false, error: 'pageId is required' };
+        }
+        const urls = ncoreController.browserManager.pageCollector.getInterceptedApiUrls(pageId, clearAfterGet);
+        return {
+            success: true,
+            pageId: pageId,
+            urls: urls,
+            count: urls.length
+        };
     }
 };
 

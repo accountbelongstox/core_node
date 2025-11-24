@@ -22,7 +22,11 @@ class OKXMonitorConfig:
     # ============================================================
     # Page Configuration
     # ============================================================
-    BASE_PAGE_URL = 'https://www.okx.com/markets/prices/page/15'
+    # Pages to visit for collecting URLs (market prices)
+    BASE_PAGES = [f'https://www.okx.com/markets/prices/page/{i}' for i in range(1, 15)]
+
+    # Deprecated: single page URL
+    BASE_PAGE_URL = BASE_PAGES[0]
 
     # ============================================================
     # Fetch Configuration
@@ -30,14 +34,24 @@ class OKXMonitorConfig:
     # Fetch interval in milliseconds (1000 = 1 second)
     FETCH_INTERVAL_MS = 1000
 
-    # Batch size for fetching currencies
+    # Fetch mode: 'intercepted', 'single_url', 'concurrent', or 'sequential'
+    # - 'intercepted': Use backend-intercepted URLs from multiple pages (recommended)
+    # - 'single_url': All currencies in one URL request (fastest, most efficient)
+    # - 'concurrent': Multiple batches fetched in parallel (good balance)
+    # - 'sequential': Batches fetched one by one (slowest, most reliable)
+    FETCH_MODE = 'intercepted'
+
+    # Batch size for fetching currencies (only used in 'concurrent' and 'sequential' modes)
     # None = fetch all at once
     # Set to 25, 50, 100, etc. for batch fetching
     # All batches complete = 1 tick
     BATCH_SIZE = 25  # Fetch 25 currencies per request, all batches = 1 tick
 
-    # Delay between batch requests in milliseconds
+    # Delay between batch requests in milliseconds (only used in 'sequential' mode)
     BATCH_DELAY_MS = 100
+
+    # Concurrency level for concurrent mode (only used in 'concurrent' mode)
+    CONCURRENCY = 10
 
     # ============================================================
     # API Configuration
@@ -136,10 +150,17 @@ class OKXMonitorConfig:
         ColorPrint.green("OKX MONITOR CONFIGURATION")
         ColorPrint.green("=" * 60)
         ColorPrint.blue(f"  RPC Base URL: {cls.RPC_BASE_URL}")
-        ColorPrint.blue(f"  Base Page URL: {cls.BASE_PAGE_URL}")
+        ColorPrint.blue(f"  Base Pages: {len(cls.BASE_PAGES)} pages (page 1-{len(cls.BASE_PAGES)})")
+        ColorPrint.blue(f"  Fetch Mode: {cls.FETCH_MODE.upper()}")
         ColorPrint.blue(f"  Fetch Interval: {cls.FETCH_INTERVAL_MS}ms")
-        ColorPrint.blue(f"  Batch Size: {cls.BATCH_SIZE or 'ALL (no batching)'}")
-        ColorPrint.blue(f"  Batch Delay: {cls.BATCH_DELAY_MS}ms")
+        if cls.FETCH_MODE == 'intercepted':
+            ColorPrint.blue(f"  URL Interception: Enabled ({len(cls.BASE_PAGES)} pages)")
+        elif cls.FETCH_MODE != 'single_url':
+            ColorPrint.blue(f"  Batch Size: {cls.BATCH_SIZE or 'ALL (no batching)'}")
+            if cls.FETCH_MODE == 'sequential':
+                ColorPrint.blue(f"  Batch Delay: {cls.BATCH_DELAY_MS}ms")
+            elif cls.FETCH_MODE == 'concurrent':
+                ColorPrint.blue(f"  Concurrency: {cls.CONCURRENCY}")
         ColorPrint.blue(f"  Coin Cache TTL: {cls.COIN_CACHE_TTL}s")
         ColorPrint.blue(f"  Max History: {cls.MAX_HISTORY}")
         ColorPrint.blue(f"  Save to File: {cls.SAVE_TO_FILE}")
