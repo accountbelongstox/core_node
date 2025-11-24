@@ -11,6 +11,7 @@ import time
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.color_print import ColorPrint
 from pyapps.okx_price_monitor.lib.config import config
+from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
 
 requests = None
 
@@ -57,11 +58,8 @@ class Mode1PriceMonitor:
         response.raise_for_status()
 
         result = response.json()
-
-        if result.get('success'):
-            return result.get('urls', [])
-        else:
-            raise Exception(f"Failed to get intercepted URLs: {result.get('error')}")
+        actual_data = parse_rpc_response(result)
+        return actual_data.get('urls', [])
 
     def _extract_currencies_from_url(self, url):
         """
@@ -150,13 +148,7 @@ class Mode1PriceMonitor:
         response.raise_for_status()
 
         result = response.json()
-
-        if result.get('success') and result.get('result'):
-            return result.get('result', {}).get('data')
-        elif not result.get('success'):
-            raise Exception(f"RPC call failed: {result.get('error')}")
-
-        return result.get('data')
+        return parse_rpc_response(result, extract_data=True)
 
     def set_currencies(self, currencies, batch_size=None):
         """
@@ -334,29 +326,25 @@ class Mode1PriceMonitor:
         response.raise_for_status()
         result = response.json()
 
-        if result.get('success') and result.get('result'):
-            batch_result = result['result']
+        batch_result = parse_rpc_response(result)
 
-            # Extract merged data
-            merged_data = batch_result.get('data', [])
+        # Extract merged data
+        merged_data = batch_result.get('data', [])
 
-            self.tick_count += 1
+        self.tick_count += 1
 
-            ColorPrint.green(f"[Mode1] Tick #{self.tick_count} complete (CONCURRENT): "
-                           f"{batch_result.get('mergedCount', 0)} price records from "
-                           f"{batch_result.get('successful', 0)}/{batch_result.get('total', 0)} successful requests")
+        ColorPrint.green(f"[Mode1] Tick #{self.tick_count} complete (CONCURRENT): "
+                       f"{batch_result.get('mergedCount', 0)} price records from "
+                       f"{batch_result.get('successful', 0)}/{batch_result.get('total', 0)} successful requests")
 
-            return {
-                'data': merged_data,
-                'tick': self.tick_count,
-                'method': 'concurrent',
-                'total_requests': batch_result.get('total', 0),
-                'successful_requests': batch_result.get('successful', 0),
-                'failed_requests': batch_result.get('failed', 0)
-            }
-        else:
-            ColorPrint.red(f"[Mode1] Concurrent batch fetch failed: {result.get('error', 'Unknown error')}")
-            return None
+        return {
+            'data': merged_data,
+            'tick': self.tick_count,
+            'method': 'concurrent',
+            'total_requests': batch_result.get('total', 0),
+            'successful_requests': batch_result.get('successful', 0),
+            'failed_requests': batch_result.get('failed', 0)
+        }
 
     def fetch_all_single_url(self, page_id):
         """
@@ -387,8 +375,10 @@ class Mode1PriceMonitor:
         url_length = len(api_url)
         ColorPrint.blue(f"[Mode1] Starting tick #{self.tick_count + 1}: {len(self.currencies)} currencies (SINGLE_URL)")
         ColorPrint.blue(f"[Mode1] URL length: {url_length} characters")
-        ColorPrint.yellow(f"[Mode1] Sample URL (first 500 chars): {api_url[:500]}...")
-        ColorPrint.yellow(f"[Mode1] Currency param (first 200 chars): {currencies_param[:200]}...")
+        ColorPrint.yellow(f"[Mode1] Full URL:")
+        ColorPrint.yellow(f"  {api_url}")
+        ColorPrint.yellow(f"[Mode1] Currency parameter:")
+        ColorPrint.yellow(f"  {currencies_param}")
 
         # Fetch data using single URL
         try:
@@ -423,25 +413,26 @@ class Mode1PriceMonitor:
             ColorPrint.red(f"[Mode1] Single URL fetch failed: {str(e)}")
             return None
 
-    def fetch_from_intercepted_urls(self, page_id):
+    def fetch_from_intercepted_urls(self, page_id, batch_group=0):
         """
         Fetch prices using intercepted URLs from backend (INTERCEPTED MODE)
 
-        Gets all intercepted batch-currency-trend URLs from backend,
-        merges the currency lists, and makes a single request.
+        Uses original intercepted URLs directly, split into batches.
+        Two batches complete = 1 tick.
 
         Args:
             page_id (str): Page ID from browser manager
+            batch_group (int): Which batch group to request (0 or 1)
 
         Returns:
-            dict: Combined price data with all currencies
+            dict: Combined price data from all URLs in this batch
         """
-        ColorPrint.blue(f"[Mode1] Starting tick #{self.tick_count + 1} (INTERCEPTED_MODE)")
+        ColorPrint.blue(f"[Mode1] Fetching batch group {batch_group + 1}/{config.URL_BATCH_GROUPS} (INTERCEPTED_MODE)")
 
         try:
-            # Get intercepted URLs from backend
+            # Get intercepted URLs from backend (don't clear yet)
             ColorPrint.blue(f"[Mode1] Fetching intercepted URLs from backend (pageId: {page_id})...")
-            intercepted_urls = self._call_rpc_get_intercepted_urls(page_id, clear_after_get=True)
+            intercepted_urls = self._call_rpc_get_intercepted_urls(page_id, clear_after_get=False)
 
             if not intercepted_urls:
                 ColorPrint.yellow("[Mode1] No intercepted URLs found, backend may not have captured any yet")
@@ -449,59 +440,63 @@ class Mode1PriceMonitor:
 
             ColorPrint.green(f"[Mode1] Retrieved {len(intercepted_urls)} intercepted URLs")
 
-            # Display all original intercepted URLs
-            ColorPrint.blue("\n[Mode1] === ALL ORIGINAL INTERCEPTED URLs ===")
-            for i, url_obj in enumerate(intercepted_urls, 1):
+            # Split URLs into batch groups
+            urls_per_group = (len(intercepted_urls) + config.URL_BATCH_GROUPS - 1) // config.URL_BATCH_GROUPS
+            start_idx = batch_group * urls_per_group
+            end_idx = min(start_idx + urls_per_group, len(intercepted_urls))
+            batch_urls = intercepted_urls[start_idx:end_idx]
+
+            if not batch_urls:
+                ColorPrint.yellow(f"[Mode1] No URLs in batch group {batch_group}")
+                return None
+
+            ColorPrint.blue(f"[Mode1] Using URLs {start_idx + 1} to {end_idx} ({len(batch_urls)} URLs)")
+
+            # Display batch URLs
+            ColorPrint.blue(f"\n[Mode1] === BATCH GROUP {batch_group + 1} URLs ===")
+            for i, url_obj in enumerate(batch_urls, 1):
                 url = url_obj.get('url', '')
                 status = url_obj.get('status', 'N/A')
-                ColorPrint.yellow(f"[Mode1] Original URL #{i} (status: {status}):")
+                ColorPrint.yellow(f"[Mode1] URL #{i} (status: {status}):")
                 ColorPrint.yellow(f"  {url}")
-            ColorPrint.blue("[Mode1] === END OF ORIGINAL URLs ===\n")
+            ColorPrint.blue("[Mode1] === END OF BATCH URLs ===\n")
 
-            # Merge currencies from all URLs
-            ColorPrint.blue("[Mode1] Merging currencies lists from URLs...")
-            merged_currencies = self._merge_intercepted_urls(intercepted_urls)
+            # Extract URLs for batch request
+            api_urls = [url_obj.get('url') for url_obj in batch_urls]
 
-            ColorPrint.green(f"[Mode1] Merged {len(merged_currencies)} unique currencies")
-            ColorPrint.yellow(f"[Mode1] Sample currencies: {', '.join(merged_currencies[:20])}...")
+            # Use batch API request with merge
+            ColorPrint.blue(f"[Mode1] Requesting {len(api_urls)} URLs concurrently...")
+            rpc_url = f"{self.rpc_base_url}/rpc/browser/injectBatchAPIRequestsAndMerge"
 
-            # Build single URL with merged currencies
-            timestamp = self._get_timestamp()
-            period = config.DEFAULT_PERIOD
-            currencies_param = '%2C'.join(merged_currencies)
-            api_url = f"{config.PRICE_TREND_API_URL}?currencies={currencies_param}&period={period}&t={timestamp}"
+            payload = {
+                'pageId': page_id,
+                'apiUrls': api_urls,
+                'method': 'GET',
+                'responseType': 'json',
+                'timeout': 30000,
+                'concurrency': 5
+            }
 
-            url_length = len(api_url)
-            ColorPrint.blue(f"[Mode1] Built merged URL, length: {url_length} characters")
+            response = requests.post(rpc_url, json=payload, timeout=60)
+            response.raise_for_status()
 
-            # Fetch data using merged URL
-            data = self._call_rpc_browser_inject(page_id, api_url)
+            result = response.json()
+            batch_result = parse_rpc_response(result)
 
-            if data:
-                if isinstance(data, dict) and 'data' in data:
-                    all_data = data['data']
-                elif isinstance(data, list):
-                    all_data = data
-                else:
-                    ColorPrint.red(f"[Mode1] Unexpected data format: {type(data)}")
-                    return None
+            # Extract merged data
+            merged_data = batch_result.get('data', [])
 
-                self.tick_count += 1
+            ColorPrint.green(f"[Mode1] Batch group {batch_group + 1} complete: "
+                           f"{len(merged_data)} price records from "
+                           f"{batch_result.get('successful', 0)}/{batch_result.get('total', 0)} successful requests")
 
-                ColorPrint.green(f"[Mode1] Tick #{self.tick_count} complete (INTERCEPTED_MODE): "
-                               f"{len(all_data)} price records fetched")
-
-                return {
-                    'data': all_data,
-                    'tick': self.tick_count,
-                    'method': 'intercepted',
-                    'intercepted_url_count': len(intercepted_urls),
-                    'merged_currencies_count': len(merged_currencies),
-                    'url_length': url_length
-                }
-            else:
-                ColorPrint.red("[Mode1] No data returned from intercepted URL request")
-                return None
+            return {
+                'data': merged_data,
+                'batch_group': batch_group,
+                'total_urls': len(api_urls),
+                'successful_requests': batch_result.get('successful', 0),
+                'failed_requests': batch_result.get('failed', 0)
+            }
 
         except Exception as e:
             ColorPrint.red(f"[Mode1] Intercepted URL fetch failed: {str(e)}")
@@ -530,7 +525,7 @@ class Mode1PriceMonitor:
             data_list = price_data
         else:
             ColorPrint.red(f"[Mode1] Unexpected data format: {type(price_data)}")
-            ColorPrint.yellow(f"Data preview: {str(price_data)[:200]}")
+            ColorPrint.yellow(f"Full data: {str(price_data)}")
             return
 
         ColorPrint.blue(f"\n[Mode1] Processing {len(data_list)} price items")
