@@ -141,27 +141,59 @@ function Install-ScoopWithChinaMirror {
     if ($isFirstInstall) {
         try {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Configuring Scoop..." -Type "Warning"
-            
-            # Add essential buckets
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding essential buckets..." -Type "Warning"
-            if (-not (& scoop bucket list | Select-String "main")) {
-                if ($Global:RegionIsChina) {
-                    & $SCOOP_EXE bucket add main https://ghproxy.cc/https://github.com/ScoopInstaller/Main
-                } else {
-                    & $SCOOP_EXE bucket add main
+
+            # Check if Git is available in PATH before adding buckets
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking for Git availability..." -Type "Info"
+            $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+
+            if (-not $gitCommand) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git not found in PATH, attempting to refresh environment..." -Type "Warning"
+
+                # Refresh environment variables
+                & $windowsPathFunctionPath "refresh-bat"
+                $refreshBatchPath = Join-Path $env:TEMP "refresh_env.cmd"
+                if (Test-Path $refreshBatchPath) {
+                    & $refreshBatchPath
                 }
-            }
-            
-            if (-not (& scoop bucket list | Select-String "extras")) {
-                if ($Global:RegionIsChina) {
-                    & $SCOOP_EXE bucket add extras https://ghproxy.cc/https://github.com/ScoopInstaller/Extras
-                } else {
-                    & $SCOOP_EXE bucket add extras
-                }
+
+                # Manually refresh PATH in current PowerShell session
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+                # Check again
+                $gitCommand = Get-Command git -ErrorAction SilentlyContinue
             }
 
-            # Update Scoop
-            & $SCOOP_EXE update
+            if ($gitCommand) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git found at: $($gitCommand.Source)" -Type "Success"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git version: $(git --version)" -Type "Info"
+
+                # Add essential buckets
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding essential buckets..." -Type "Warning"
+                if (-not (& scoop bucket list | Select-String "main")) {
+                    if ($Global:RegionIsChina) {
+                        & $SCOOP_EXE bucket add main https://ghproxy.cc/https://github.com/ScoopInstaller/Main
+                    } else {
+                        & $SCOOP_EXE bucket add main
+                    }
+                }
+
+                if (-not (& scoop bucket list | Select-String "extras")) {
+                    if ($Global:RegionIsChina) {
+                        & $SCOOP_EXE bucket add extras https://ghproxy.cc/https://github.com/ScoopInstaller/Extras
+                    } else {
+                        & $SCOOP_EXE bucket add extras
+                    }
+                }
+
+                # Update Scoop
+                & $SCOOP_EXE update
+            }
+            else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git is not available in PATH. Skipping bucket addition." -Type "Warning"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] You can add buckets later after Git is available by running:" -Type "Info"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER]   scoop bucket add main" -Type "Info"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER]   scoop bucket add extras" -Type "Info"
+            }
         }
         catch {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to configure Scoop: $_" -Type "Warning"

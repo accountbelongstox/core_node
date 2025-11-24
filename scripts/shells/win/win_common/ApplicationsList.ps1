@@ -448,51 +448,6 @@ $Global:BasePackages = @{
             }
         )
     }
-    PHP84      = @{
-        Exec              = "php.exe"
-        Name              = "php84"
-        Description       = "PHP 8.4 - Server-side scripting language"
-        InstallType       = "combo"
-        ForceToInstallDir = $true
-        VerifySuffix      = "--version"
-        AdditionalKeywords = @("php-cli", "php8")
-        ComboMethods      = @(
-            @{
-                InstallType = "winget"
-                PackageId   = "PHP.PHP.8.4"
-            }
-            @{
-                InstallType    = "choco"
-                PackageId      = "php"
-                ChocoOptions   = @("--version=8.4")
-            }
-            @{
-                InstallType = "scoop"
-                PackageId   = "php84"
-            }
-            @{
-                InstallType     = "web"
-                PackageId       = "php-8.4.12-Win32-vs17-x64.zip"
-                DownloadUrl     = "https://downloads.php.net/~windows/releases/php-8.4.12-Win32-vs17-x64.zip"
-                ExecutableName  = "php.exe"
-                IsArchive       = $true
-                ArchiveType     = "zip"
-            }
-        )
-        EnvVars           = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("php.exe", "composer.exe", "composer.bat")
-            }
-        )
-        DesktopShortcuts  = $null
-        PostInstallCallbacks = @(
-            @{
-                Type = "php"
-                Operation = "full_setup"
-            }
-        )
-    }
     Pandoc     = @{
         PackageId           = "JohnMacFarlane.Pandoc"
         Exec               = "pandoc.exe"
