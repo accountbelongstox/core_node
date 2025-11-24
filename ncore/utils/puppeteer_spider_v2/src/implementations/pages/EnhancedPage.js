@@ -136,7 +136,7 @@ class EnhancedPage extends StandardPage {
 
     async findBlankPageIndex() {
         try {
-            const pages = await this.browser.getPages();
+            const pages = await this.browser.pages();
             logger.debug(`Checking ${pages.length} pages for blank pages`);
             
             for (let i = 0; i < pages.length; i++) {
@@ -239,7 +239,7 @@ class EnhancedPage extends StandardPage {
 
             if (blankPageIndex !== -1) {
                 // Reuse blank page
-                const pages = await this.browser.getPages();
+                const pages = await this.browser.pages();
                 targetPage = pages[blankPageIndex];
                 this.metrics.blankPageReuses++;
                 logger.info(`✅ Reusing blank page at index ${blankPageIndex} for URL: ${url}`);
@@ -372,7 +372,7 @@ class EnhancedPage extends StandardPage {
         let index = 0;
         
         while (new Date().getTime() - start < timeout && !this.stopFindActivePageEvent) {
-            const pages = await this.browser.getPages();
+            const pages = await this.browser.pages();
             let visiblePages = [];
             
             for (const p of pages) {
@@ -409,7 +409,7 @@ class EnhancedPage extends StandardPage {
             return this.activePage;
         }
         
-        const pages = await this.browser.getPages();
+        const pages = await this.browser.pages();
         if (pages.length > 0) {
             this.activePage = pages[0];
             return this.activePage;
@@ -419,7 +419,7 @@ class EnhancedPage extends StandardPage {
     }
 
     async getPages() {
-        return await this.browser.getPages();
+        return await this.browser.pages();
     }
 
     async getCurrentUrl(full = false) {
