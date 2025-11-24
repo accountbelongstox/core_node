@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.312180+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "extra",
+        "laos": "ພິເສດ",
+        "jp": "余分な",
+        "vie": "thêm",
+        "en_pronunciation": "/ˈɛkstrə/",
+        "laos_pronunciation": "phised",
+        "jp_pronunciation": "yobun na",
+        "vie_pronunciation": "them"
+      },
+      "means": {
+        "en": "A minor actor in crowd scenes",
+        "zh": "人群场景中的小演员"
+      }
+    },
+    {
+      "word": {
+        "en": "extract",
+        "laos": "ສະກັດລາຍ",
+        "jp": "抜粋",
+        "vie": "chiết xuất",
+        "en_pronunciation": "/ˈɛkˌstrækt/",
+        "laos_pronunciation": "sakadlai",
+        "jp_pronunciation": "bassui",
+        "vie_pronunciation": "chiet xuat"
+      },
+      "means": {
+        "en": "A solution obtained by steeping or soaking a substance (usually in water)",
+        "zh": "通过浸泡或浸泡物质（通常在水中）获得的溶液"
+      }
+    },
+    {
+      "word": {
+        "en": "extraction",
+        "laos": "ການສະກັດເອົາ",
+        "jp": "抽出",
+        "vie": "khai thác",
+        "en_pronunciation": "/ɛkˈstrækʃən/",
+        "laos_pronunciation": "kan sakadoao",
+        "jp_pronunciation": "chuushutsu",
+        "vie_pronunciation": "khai thac"
+      },
+      "means": {
+        "en": "The process of obtaining something from a mixture or compound by chemical or physical or mechanical means",
+        "zh": "通过化学、物理或机械手段从混合物或化合物中获取某种物质的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "extraordinary",
+        "laos": "ພິເສດ",
+        "jp": "異常な",
+        "vie": "phi thường",
+        "en_pronunciation": "/ˌɛkstrəˈɔrdəˌnɛri/",
+        "laos_pronunciation": "phised",
+        "jp_pronunciation": "ijouna",
+        "vie_pronunciation": "phi thuong"
+      },
+      "means": {
+        "en": "Beyond what is ordinary or usual; highly unusual or exceptional or remarkable",
+        "zh": "超越平常或通常的事物；"
+      }
+    },
+    {
+      "word": {
+        "en": "extravagant",
+        "laos": "ພິເສດ",
+        "jp": "贅沢な",
+        "vie": "ngông cuồng",
+        "en_pronunciation": "/ɛkˈstrævəgənt/",
+        "laos_pronunciation": "phised",
+        "jp_pronunciation": "zeitaku na",
+        "vie_pronunciation": "ngong cuong"
+      },
+      "means": {
+        "en": "Unrestrained, especially with regard to feelings",
+        "zh": "非常不寻常或异常或非凡"
+      }
+    },
+    {
+      "word": {
+        "en": "extravagance",
+        "laos": "ພິເສດ",
+        "jp": "贅沢",
+        "vie": "sự xa hoa",
+        "en_pronunciation": "/ɛkˈstrævəgəns/",
+        "laos_pronunciation": "phised",
+        "jp_pronunciation": "zeitaku",
+        "vie_pronunciation": "su xa hoa"
+      },
+      "means": {
+        "en": "The quality of exceeding the appropriate limits of decorum or probability or truth",
+        "zh": "不受拘束，尤其是在感情方面"
+      }
+    },
+    {
+      "word": {
+        "en": "extreme",
+        "laos": "ທີ່ຮ້າຍ",
+        "jp": "極端な",
+        "vie": "cực độ",
+        "en_pronunciation": "/ɪkˈstrim/",
+        "laos_pronunciation": "thihai",
+        "jp_pronunciation": "kyokutan na",
+        "vie_pronunciation": "cuc do"
+      },
+      "means": {
+        "en": "The furthest or highest degree of something",
+        "zh": "超出礼节、概率或真理的适当限度的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "extremity",
+        "laos": "ຄວາມຮຸນແຮງ",
+        "jp": "末端",
+        "vie": "cực điểm",
+        "en_pronunciation": "/ɛkˈstrɛməti/",
+        "laos_pronunciation": "khuaamhunaehng",
+        "jp_pronunciation": "mattan",
+        "vie_pronunciation": "cuc diem"
+      },
+      "means": {
+        "en": "An external body part that projects from the body",
+        "zh": "某物的最远或最高程度"
+      }
+    },
+    {
+      "word": {
+        "en": "eye",
+        "laos": "ຊ່າງ",
+        "jp": "目",
+        "vie": "mắt",
+        "en_pronunciation": "/aɪ/",
+        "laos_pronunciation": "sang",
+        "jp_pronunciation": "me",
+        "vie_pronunciation": "mat"
+      },
+      "means": {
+        "en": "The organ of sight",
+        "zh": "从身体突出的外部身体部分"
+      }
+    },
+    {
+      "word": {
+        "en": "eyebrow",
+        "laos": "ຄິ້ວ",
+        "jp": "眉毛",
+        "vie": "lông mày",
+        "en_pronunciation": "/ˈaɪˌbraʊ/",
+        "laos_pronunciation": "khiv",
+        "jp_pronunciation": "mayuge",
+        "vie_pronunciation": "long may"
+      },
+      "means": {
+        "en": "The arch of hair above each eye",
+        "zh": "视觉器官"
+      }
+    },
+    {
+      "word": {
+        "en": "eyesight",
+        "laos": "ສາຍຕາ",
+        "jp": "視力",
+        "vie": "thị lực",
+        "en_pronunciation": "/ˈaɪˌsaɪt/",
+        "laos_pronunciation": "saita",
+        "jp_pronunciation": "shiryoku",
+        "vie_pronunciation": "thi luc"
+      },
+      "means": {
+        "en": "Normal use of the faculty of vision",
+        "zh": "每只眼睛上方的头发拱形"
+      }
+    },
+    {
+      "word": {
+        "en": "fable",
+        "laos": "ນິທານ",
+        "jp": "寓話",
+        "vie": "truyện ngụ ngôn",
+        "en_pronunciation": "/ˈfeɪbəl/",
+        "laos_pronunciation": "nithan",
+        "jp_pronunciation": "guuwa",
+        "vie_pronunciation": "truyen ngu ngon"
+      },
+      "means": {
+        "en": "A deliberately false or improbable account",
+        "zh": "视觉能力的正常使用"
+      }
+    },
+    {
+      "word": {
+        "en": "fabric",
+        "laos": "ຜ້າ",
+        "jp": "生地",
+        "vie": "vải",
+        "en_pronunciation": "/ˈfæbrɪk/",
+        "laos_pronunciation": "pha",
+        "jp_pronunciation": "kiji",
+        "vie_pronunciation": "vai"
+      },
+      "means": {
+        "en": "Artifact made by weaving or felting or knitting or crocheting natural or synthetic fibers",
+        "zh": "故意虚假或不可能的账户"
+      }
+    },
+    {
+      "word": {
+        "en": "fabricate",
+        "laos": "ກຸຂຶ້ນ",
+        "jp": "捏造する",
+        "vie": "chế tạo",
+        "en_pronunciation": "/ˈfæbrəˌkeɪt/",
+        "laos_pronunciation": "kukhun",
+        "jp_pronunciation": "netsuzou suru",
+        "vie_pronunciation": "che tao"
+      },
+      "means": {
+        "en": "Put together out of artificial or natural components or parts; ; ; He manufactured a popular cereal\"",
+        "zh": "由天然或合成纤维编织、毡制、针织或钩编而成的制品"
+      }
+    },
+    {
+      "word": {
+        "en": "fabrication",
+        "laos": "ການປະສົມ",
+        "jp": "製造",
+        "vie": "chế tạo",
+        "en_pronunciation": "/ˌfæbrɪˈkeɪʃən/",
+        "laos_pronunciation": "kanpasom",
+        "jp_pronunciation": "seizou",
+        "vie_pronunciation": "che tao"
+      },
+      "means": {
+        "en": "A deliberately false or improbable account",
+        "zh": "用人造或天然成分或部件组装而成；"
+      }
+    },
+    {
+      "word": {
+        "en": "fabulous",
+        "laos": "ແປກ",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/ˈfæbjələs/",
+        "laos_pronunciation": "aepk",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "Extremely pleasing",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "face",
+        "laos": "ປະເຊີນຫນ້າ",
+        "jp": "顔",
+        "vie": "đối mặt",
+        "en_pronunciation": "/feɪs/",
+        "laos_pronunciation": "pasoenna",
+        "jp_pronunciation": "kao",
+        "vie_pronunciation": "doi mat"
+      },
+      "means": {
+        "en": "The front of the human head from the forehead to the chin and ear to ear",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "facial",
+        "laos": "ຈະຫນ້າ",
+        "jp": "フェイシャル",
+        "vie": "mặt",
+        "en_pronunciation": "/ˈfeɪʃəl/",
+        "laos_pronunciation": "chana",
+        "jp_pronunciation": "feisharu",
+        "vie_pronunciation": "mat"
+      },
+      "means": {
+        "en": "Cranial nerve that supplies facial muscles",
+        "zh": "他制造了一种受欢迎的麦片”"
+      }
+    },
+    {
+      "word": {
+        "en": "facet",
+        "laos": "facet",
+        "jp": "ファセット",
+        "vie": "khía cạnh",
+        "en_pronunciation": "/ˈfæsət/",
+        "laos_pronunciation": "facet",
+        "jp_pronunciation": "fasetto",
+        "vie_pronunciation": "khia canh"
+      },
+      "means": {
+        "en": "A distinct feature or element in a problem",
+        "zh": "故意虚假或不可能的账户"
+      }
+    },
+    {
+      "word": {
+        "en": "facility",
+        "laos": "ສິ່ງອໍານວຍຄວາມສະດວກ",
+        "jp": "施設",
+        "vie": "cơ sở vật chất",
+        "en_pronunciation": "/fəˈsɪlɪti/",
+        "laos_pronunciation": "singoanuanykhuaamsaduak",
+        "jp_pronunciation": "shisetsu",
+        "vie_pronunciation": "co so vat chat"
+      },
+      "means": {
+        "en": "A building or place that provides a particular service or is used for a particular industry",
+        "zh": "非常令人愉悦"
+      }
+    },
+    {
+      "word": {
+        "en": "facilitate",
+        "laos": "ອໍານວຍຄວາມສະດວກ",
+        "jp": "促進する",
+        "vie": "tạo điều kiện thuận lợi",
+        "en_pronunciation": "/fəˈsɪləˌteɪt/",
+        "laos_pronunciation": "oanuanykhuaamsaduak",
+        "jp_pronunciation": "sokushin suru",
+        "vie_pronunciation": "tao dieu kien thuan loi"
+      },
+      "means": {
+        "en": "Make easier",
+        "zh": "人体头部前部从额头到下巴、耳朵到耳朵的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "facilitation",
+        "laos": "ການອໍານວຍຄວາມສະດວກ",
+        "jp": "ファシリテーション",
+        "vie": "sự tạo điều kiện thuận lợi",
+        "en_pronunciation": "/fəˌsɪləˈteɪʃən/",
+        "laos_pronunciation": "kanoanuanykhuaamsaduak",
+        "jp_pronunciation": "fashiriteeshon",
+        "vie_pronunciation": "su tao dieu kien thuan loi"
+      },
+      "means": {
+        "en": "The condition of being made easy (or easier)",
+        "zh": "支配面部肌肉的脑神经"
+      }
+    },
+    {
+      "word": {
+        "en": "fact",
+        "laos": "ຂໍ້ມູນ",
+        "jp": "事実",
+        "vie": "sự thật",
+        "en_pronunciation": "/fækt/",
+        "laos_pronunciation": "khomun",
+        "jp_pronunciation": "jijitsu",
+        "vie_pronunciation": "su that"
+      },
+      "means": {
+        "en": "A piece of information about circumstances that exist or events that have occurred",
+        "zh": "问题中的独特特征或元素"
+      }
+    },
+    {
+      "word": {
+        "en": "factual",
+        "laos": "ຄວາມຈິງ",
+        "jp": "事実上の",
+        "vie": "thực tế",
+        "en_pronunciation": "/ˈfækʧuəl/",
+        "laos_pronunciation": "khuaamching",
+        "jp_pronunciation": "jijitsujou no",
+        "vie_pronunciation": "thuc te"
+      },
+      "means": {
+        "en": "Existing in act or fact",
+        "zh": "提供特定服务或用于特定行业的建筑物或场所"
+      }
+    },
+    {
+      "word": {
+        "en": "faction",
+        "laos": "ສັດຊາ",
+        "jp": "派閥",
+        "vie": "phe phái",
+        "en_pronunciation": "/ˈfækʃən/",
+        "laos_pronunciation": "sadsa",
+        "jp_pronunciation": "habatsu",
+        "vie_pronunciation": "phe phai"
+      },
+      "means": {
+        "en": "A clique (often secret) that seeks power usually through intrigue",
+        "zh": "让更轻松"
+      }
+    },
+    {
+      "word": {
+        "en": "factor",
+        "laos": "ປັດໄຈ",
+        "jp": "係数",
+        "vie": "yếu tố",
+        "en_pronunciation": "/ˈfæktər/",
+        "laos_pronunciation": "padchai",
+        "jp_pronunciation": "keisuu",
+        "vie_pronunciation": "yeu to"
+      },
+      "means": {
+        "en": "Anything that contributes causally to a result",
+        "zh": "变得容易（或更容易）的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "factory",
+        "laos": "ໂຮງງານ",
+        "jp": "工場",
+        "vie": "nhà máy",
+        "en_pronunciation": "/ˈfæktəri/",
+        "laos_pronunciation": "ohngngan",
+        "jp_pronunciation": "koujou",
+        "vie_pronunciation": "nha may"
+      },
+      "means": {
+        "en": "A plant consisting of one or more buildings with facilities for manufacturing",
+        "zh": "有关现有情况或已发生事件的信息"
+      }
+    },
+    {
+      "word": {
+        "en": "faculty",
+        "laos": "ຄະນະ",
+        "jp": "教員",
+        "vie": "khoa",
+        "en_pronunciation": "/ˈfækəlti/",
+        "laos_pronunciation": "khana",
+        "jp_pronunciation": "kyouin",
+        "vie_pronunciation": "khoa"
+      },
+      "means": {
+        "en": "One of the inherent cognitive or perceptual powers of the mind",
+        "zh": "行为或事实中存在"
+      }
+    },
+    {
+      "word": {
+        "en": "fade",
+        "laos": "ສະຫລົດ",
+        "jp": "色褪せる",
+        "vie": "mờ dần",
+        "en_pronunciation": "/feɪd/",
+        "laos_pronunciation": "salod",
+        "jp_pronunciation": "iroase ru",
+        "vie_pronunciation": "mo dan"
+      },
+      "means": {
+        "en": "A golf shot that curves to the right for a right-handed golfer",
+        "zh": "通常通过阴谋寻求权力的小集团（通常是秘密的）"
+      }
+    },
+    {
+      "word": {
+        "en": "fail",
+        "laos": "ລົ້ມຂ້ຽນ",
+        "jp": "失敗する",
+        "vie": "thất bại",
+        "en_pronunciation": "/feɪl/",
+        "laos_pronunciation": "lom khian",
+        "jp_pronunciation": "shippai suru",
+        "vie_pronunciation": "that bai"
+      },
+      "means": {
+        "en": "Fail to do something; leave something undone",
+        "zh": "任何对结果有因果贡献的事物"
+      }
+    },
+    {
+      "word": {
+        "en": "failure",
+        "laos": "ຄວາມລົ້ມເຫຼວ",
+        "jp": "失敗",
+        "vie": "thất bại",
+        "en_pronunciation": "/ˈfeɪljər/",
+        "laos_pronunciation": "khuaamlomhev",
+        "jp_pronunciation": "shippai",
+        "vie_pronunciation": "that bai"
+      },
+      "means": {
+        "en": "An act that fails",
+        "zh": "由一栋或多栋具有制造设施的建筑物组成的工厂"
+      }
+    },
+    {
+      "word": {
+        "en": "faint",
+        "laos": "ເຊິ້",
+        "jp": "かすかな",
+        "vie": "ngất xỉu",
+        "en_pronunciation": "/feɪnt/",
+        "laos_pronunciation": "soe",
+        "jp_pronunciation": "kasukana",
+        "vie_pronunciation": "ngat xiu"
+      },
+      "means": {
+        "en": "A spontaneous loss of consciousness caused by insufficient blood to the brain",
+        "zh": "心灵固有的认知或感知能力之一"
+      }
+    },
+    {
+      "word": {
+        "en": "fair",
+        "laos": "ສໍາຫຼວດ",
+        "jp": "公正な",
+        "vie": "công bằng",
+        "en_pronunciation": "/fɛr/",
+        "laos_pronunciation": "soaruad",
+        "jp_pronunciation": "kousei na",
+        "vie_pronunciation": "cong bang"
+      },
+      "means": {
+        "en": "A traveling show; having sideshows and rides and games of skill etc.",
+        "zh": "对于右手高尔夫球手来说，高尔夫球的击球会向右弯曲"
+      }
+    },
+    {
+      "word": {
+        "en": "fairly",
+        "laos": "ພໍສົມຄວນ",
+        "jp": "かなり",
+        "vie": "khá",
+        "en_pronunciation": "/ˈfɛrli/",
+        "laos_pronunciation": "phosomkhuan",
+        "jp_pronunciation": "kanari",
+        "vie_pronunciation": "kha"
+      },
+      "means": {
+        "en": "To a moderately sufficient extent or degree",
+        "zh": "未能做某事；"
+      }
+    },
+    {
+      "word": {
+        "en": "fairy",
+        "laos": "ນາງຟ້າ",
+        "jp": "妖精",
+        "vie": "nàng tiên",
+        "en_pronunciation": "/ˈfɛri/",
+        "laos_pronunciation": "nangfa",
+        "jp_pronunciation": "yousei",
+        "vie_pronunciation": "nang tien"
+      },
+      "means": {
+        "en": "A small being, human in form, playful and having magical powers",
+        "zh": "留下未完成的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "faith",
+        "laos": "ສັດທາ",
+        "jp": "信仰",
+        "vie": "đức tin",
+        "en_pronunciation": "/feɪθ/",
+        "laos_pronunciation": "sadtha",
+        "jp_pronunciation": "shinkou",
+        "vie_pronunciation": "duc tin"
+      },
+      "means": {
+        "en": "A strong belief in a supernatural power or powers that control human destiny",
+        "zh": "失败的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "faithful",
+        "laos": "ທີ່ຊື່ສັດ",
+        "jp": "忠実な",
+        "vie": "trung thành",
+        "en_pronunciation": "/ˈfeɪθfəl/",
+        "laos_pronunciation": "thisusad",
+        "jp_pronunciation": "chuujitsu na",
+        "vie_pronunciation": "trung thanh"
+      },
+      "means": {
+        "en": "Any loyal and steadfast following",
+        "zh": "由于大脑供血不足而导致的自发意识丧失"
+      }
+    },
+    {
+      "word": {
+        "en": "fake",
+        "laos": "ປອມແປງ",
+        "jp": "偽物",
+        "vie": "giả mạo",
+        "en_pronunciation": "/feɪk/",
+        "laos_pronunciation": "pomaepng",
+        "jp_pronunciation": "nisemono",
+        "vie_pronunciation": "gia mao"
+      },
+      "means": {
+        "en": "Something that is a counterfeit; not what it seems to be",
+        "zh": "巡回演出；"
+      }
+    },
+    {
+      "word": {
+        "en": "fall",
+        "laos": "ລ່າວ",
+        "jp": "落ちる",
+        "vie": "ngã",
+        "en_pronunciation": "/fɔl/",
+        "laos_pronunciation": "lav",
+        "jp_pronunciation": "ochiru",
+        "vie_pronunciation": "nga"
+      },
+      "means": {
+        "en": "The season when the leaves fall from the trees",
+        "zh": "有余兴表演、游乐设施和技巧游戏等。"
+      }
+    },
+    {
+      "word": {
+        "en": "false",
+        "laos": "ຂີ້ດີ",
+        "jp": "偽",
+        "vie": "sai",
+        "en_pronunciation": "/fɔls/",
+        "laos_pronunciation": "khidi",
+        "jp_pronunciation": "nise",
+        "vie_pronunciation": "sai"
+      },
+      "means": {
+        "en": "Not in accordance with the fact or reality or actuality",
+        "zh": "达到适度足够的程度或程度"
+      }
+    },
+    {
+      "word": {
+        "en": "falsehood",
+        "laos": "ຕົວະຍົວະ",
+        "jp": "虚偽",
+        "vie": "sự giả dối",
+        "en_pronunciation": "/ˈfælsˌhʊd/",
+        "laos_pronunciation": "tuaanyuaa",
+        "jp_pronunciation": "kyogi",
+        "vie_pronunciation": "su gia doi"
+      },
+      "means": {
+        "en": "A false statement",
+        "zh": "一个小生命，人形，顽皮且拥有神奇的力量"
+      }
+    },
+    {
+      "word": {
+        "en": "fame",
+        "laos": "ຊື່ສຽງ",
+        "jp": "名声",
+        "vie": "danh tiếng",
+        "en_pronunciation": "/feɪm/",
+        "laos_pronunciation": "susiang",
+        "jp_pronunciation": "meisei",
+        "vie_pronunciation": "danh tieng"
+      },
+      "means": {
+        "en": "The state or quality of being widely honored and acclaimed",
+        "zh": "坚信有一种或多种超自然力量可以控制人类的命运"
+      }
+    },
+    {
+      "word": {
+        "en": "familiar",
+        "laos": "ຄວາມຄຸ້ນເຄີຍ",
+        "jp": "おなじみの",
+        "vie": "quen thuộc",
+        "en_pronunciation": "/fəˈmɪljər/",
+        "laos_pronunciation": "khuaam khunkhoeny",
+        "jp_pronunciation": "onajimino",
+        "vie_pronunciation": "quen thuoc"
+      },
+      "means": {
+        "en": "A person attached to the household of a high official (as a pope or bishop) who renders service in return for support",
+        "zh": "任何忠诚和坚定的追随者"
+      }
+    },
+    {
+      "word": {
+        "en": "famous",
+        "laos": "ມີຊື່ສຽງ",
+        "jp": "有名な",
+        "vie": "nổi tiếng",
+        "en_pronunciation": "/ˈfeɪməs/",
+        "laos_pronunciation": "misusiang",
+        "jp_pronunciation": "yuumei na",
+        "vie_pronunciation": "noi tieng"
+      },
+      "means": {
+        "en": "Widely known and esteemed",
+        "zh": "假货；"
+      }
+    },
+    {
+      "word": {
+        "en": "familiarity",
+        "laos": "ຄວາມຄຸ້ນເຄີຍ",
+        "jp": "親しみやすさ",
+        "vie": "sự quen thuộc",
+        "en_pronunciation": "/fəˌmɪˈljɛrəti/",
+        "laos_pronunciation": "khuaam khunkhoeny",
+        "jp_pronunciation": "shitashimi yasusa",
+        "vie_pronunciation": "su quen thuoc"
+      },
+      "means": {
+        "en": "Personal knowledge or information about someone or something",
+        "zh": "不是看上去的那样"
+      }
+    },
+    {
+      "word": {
+        "en": "familiarize",
+        "laos": "ຄຸ້ນເຄີຍ",
+        "jp": "慣れる",
+        "vie": "làm quen",
+        "en_pronunciation": "/fəˈmɪljərˌaɪz/",
+        "laos_pronunciation": "khunkhoeny",
+        "jp_pronunciation": "nare ru",
+        "vie_pronunciation": "lam quen"
+      },
+      "means": {
+        "en": "Make familiar or conversant with",
+        "zh": "树叶从树上落下的季节"
+      }
+    },
+    {
+      "word": {
+        "en": "familiarise",
+        "laos": "ຄຸ້ນເຄີຍ",
+        "jp": "慣れる",
+        "vie": "làm quen",
+        "en_pronunciation": "/familiarise/",
+        "laos_pronunciation": "khunkhoeny",
+        "jp_pronunciation": "nare ru",
+        "vie_pronunciation": "lam quen"
+      },
+      "means": {
+        "en": "Make familiar or conversant with",
+        "zh": "不符合事实、现实或现状"
+      }
+    },
+    {
+      "word": {
+        "en": "family",
+        "laos": "ຄອບຄົວ",
+        "jp": "家族",
+        "vie": "gia đình",
+        "en_pronunciation": "/ˈfæməli/",
+        "laos_pronunciation": "khobkhua",
+        "jp_pronunciation": "kazoku",
+        "vie_pronunciation": "gia dinh"
+      },
+      "means": {
+        "en": "A social unit living together",
+        "zh": "虚假陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "famine",
+        "laos": "ຄວາມອຶດຍາກ",
+        "jp": "飢餓",
+        "vie": "nạn đói",
+        "en_pronunciation": "/ˈfæmən/",
+        "laos_pronunciation": "khuaam udnyak",
+        "jp_pronunciation": "kiga",
+        "vie_pronunciation": "nan doi"
+      },
+      "means": {
+        "en": "An acute insufficiency",
+        "zh": "受到广泛尊崇和赞誉的状态或品质"
+      }
+    },
+    {
+      "word": {
+        "en": "fan",
+        "laos": "ພັດລົມ",
+        "jp": "ファン",
+        "vie": "quạt",
+        "en_pronunciation": "/fæn/",
+        "laos_pronunciation": "phadlom",
+        "jp_pronunciation": "fan",
+        "vie_pronunciation": "quat"
+      },
+      "means": {
+        "en": "A device for creating a current of air by movement of a surface or surfaces",
+        "zh": "附属于高级官员（如教皇或主教）家庭的人，提供服务以换取支持"
+      }
+    },
+    {
+      "word": {
+        "en": "fancy",
+        "laos": "ທີ່ມອດ",
+        "jp": "派手な",
+        "vie": "ưa thích",
+        "en_pronunciation": "/ˈfænsi/",
+        "laos_pronunciation": "thimod",
+        "jp_pronunciation": "hade na",
+        "vie_pronunciation": "ua thich"
+      },
+      "means": {
+        "en": "Something many people believe that is false",
+        "zh": "广为人知并受人尊敬"
+      }
+    },
+    {
+      "word": {
+        "en": "fantasy",
+        "laos": "ສັມຜັດປະລາບ",
+        "jp": "ファンタジー",
+        "vie": "tưởng tượng",
+        "en_pronunciation": "/ˈfænəsi/",
+        "laos_pronunciation": "sam phad palab",
+        "jp_pronunciation": "fantajii",
+        "vie_pronunciation": "tuong tuong"
+      },
+      "means": {
+        "en": "Imagination unrestricted by reality",
+        "zh": "关于某人或某事的个人知识或信息"
+      }
+    },
+    {
+      "word": {
+        "en": "far",
+        "laos": "ຢູ່ໄກ",
+        "jp": "遠く",
+        "vie": "xa",
+        "en_pronunciation": "/fɑr/",
+        "laos_pronunciation": "yukai",
+        "jp_pronunciation": "tooku",
+        "vie_pronunciation": "xa"
+      },
+      "means": {
+        "en": "A terrorist organization that seeks to overthrow the government dominated by Tutsi and to institute Hutu control again",
+        "zh": "熟悉或熟悉"
+      }
+    },
+    {
+      "word": {
+        "en": "fantastic",
+        "laos": "ຫນ້າທີ່ດີເລີດ",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/fænˈtæstɪk/",
+        "laos_pronunciation": "nathidiloed",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "Ludicrously odd",
+        "zh": "熟悉或熟悉"
+      }
+    },
+    {
+      "word": {
+        "en": "fare",
+        "laos": "ຄ່າໂດຍສານ",
+        "jp": "運賃",
+        "vie": "giá vé",
+        "en_pronunciation": "/fɛr/",
+        "laos_pronunciation": "khaodnysan",
+        "jp_pronunciation": "unchin",
+        "vie_pronunciation": "gia ve"
+      },
+      "means": {
+        "en": "An agenda of things to do",
+        "zh": "共同生活的社会单位"
+      }
+    },
+    {
+      "word": {
+        "en": "farewell",
+        "laos": "ການອໍາລາ",
+        "jp": "さよなら",
+        "vie": "tạm biệt",
+        "en_pronunciation": "/ˌfɛrˈwɛl/",
+        "laos_pronunciation": "kanoala",
+        "jp_pronunciation": "sayonara",
+        "vie_pronunciation": "tam biet"
+      },
+      "means": {
+        "en": "An acknowledgment or expression of goodwill at parting",
+        "zh": "严重不足"
+      }
+    },
+    {
+      "word": {
+        "en": "farm",
+        "laos": "ການກະສິກໍາ",
+        "jp": "農場",
+        "vie": "trang trại",
+        "en_pronunciation": "/fɑrm/",
+        "laos_pronunciation": "kankasikoa",
+        "jp_pronunciation": "noujou",
+        "vie_pronunciation": "trang trai"
+      },
+      "means": {
+        "en": "Workplace consisting of farm buildings and cultivated land as a unit",
+        "zh": "一种通过一个或多个表面的移动产生气流的装置"
+      }
+    },
+    {
+      "word": {
+        "en": "farmer",
+        "laos": "ຊາວນາ",
+        "jp": "農民",
+        "vie": "nông dân",
+        "en_pronunciation": "/ˈfɑrmər/",
+        "laos_pronunciation": "sauana",
+        "jp_pronunciation": "noumin",
+        "vie_pronunciation": "nong dan"
+      },
+      "means": {
+        "en": "A person who operates a farm",
+        "zh": "许多人认为这是错误的"
+      }
+    },
+    {
+      "word": {
+        "en": "farming",
+        "laos": "ການປູກຝັງ",
+        "jp": "農業",
+        "vie": "nông nghiệp",
+        "en_pronunciation": "/ˈfɑrmɪŋ/",
+        "laos_pronunciation": "kanpukfang",
+        "jp_pronunciation": "nougyou",
+        "vie_pronunciation": "nong nghiep"
+      },
+      "means": {
+        "en": "The practice of cultivating the land or raising stock",
+        "zh": "想象力不受现实限制"
+      }
+    },
+    {
+      "word": {
+        "en": "farther",
+        "laos": "ໄກກວ່າ",
+        "jp": "もっと遠くへ",
+        "vie": "xa hơn",
+        "en_pronunciation": "/ˈfɑrðər/",
+        "laos_pronunciation": "kaikva",
+        "jp_pronunciation": "motto tooku he",
+        "vie_pronunciation": "xa hon"
+      },
+      "means": {
+        "en": "More distant in especially space or time",
+        "zh": "一个恐怖组织，旨在推翻图西族统治的政府并再次实行胡图族控制"
+      }
+    },
+    {
+      "word": {
+        "en": "fascinate",
+        "laos": "ເລືອມ",
+        "jp": "魅了する",
+        "vie": "mê hoặc",
+        "en_pronunciation": "/ˈfæsəˌneɪt/",
+        "laos_pronunciation": "leuom",
+        "jp_pronunciation": "miryou suru",
+        "vie_pronunciation": "me hoac"
+      },
+      "means": {
+        "en": "Cause to be interested or curious",
+        "zh": "奇怪得可笑"
+      }
+    },
+    {
+      "word": {
+        "en": "fascinating",
+        "laos": "ຈັບໃຈ",
+        "jp": "魅力的な",
+        "vie": "hấp dẫn",
+        "en_pronunciation": "/ˈfæsəˌneɪtɪŋ/",
+        "laos_pronunciation": "chabchai",
+        "jp_pronunciation": "miryokuteki na",
+        "vie_pronunciation": "hap dan"
+      },
+      "means": {
+        "en": "Cause to be interested or curious",
+        "zh": "要做的事情的议程"
+      }
+    },
+    {
+      "word": {
+        "en": "fascination",
+        "laos": "ຄວາມຫລົງໄຫລ",
+        "jp": "魅惑",
+        "vie": "sự mê hoặc",
+        "en_pronunciation": "/ˌfæsəˈneɪʃən/",
+        "laos_pronunciation": "khuaamlonghail",
+        "jp_pronunciation": "miwaku",
+        "vie_pronunciation": "su me hoac"
+      },
+      "means": {
+        "en": "The state of being intensely interested (as by awe or terror)",
+        "zh": "临别时的致谢或善意表达"
+      }
+    },
+    {
+      "word": {
+        "en": "fascist",
+        "laos": "fascist",
+        "jp": "ファシスト",
+        "vie": "phát xít",
+        "en_pronunciation": "/ˈfæʃɪst/",
+        "laos_pronunciation": "fascist",
+        "jp_pronunciation": "fashisuto",
+        "vie_pronunciation": "phat xit"
+      },
+      "means": {
+        "en": "An adherent of fascism or other right-wing authoritarian views",
+        "zh": "以农舍和耕地为单位的工作场所"
+      }
+    },
+    {
+      "word": {
+        "en": "fascism",
+        "laos": "ລັດທິຟາດຊິດ",
+        "jp": "ファシズム",
+        "vie": "chủ nghĩa phát xít",
+        "en_pronunciation": "/ˈfæˌʃɪzəm/",
+        "laos_pronunciation": "ladthi fadsid",
+        "jp_pronunciation": "fashizumu",
+        "vie_pronunciation": "chu nghia phat xit"
+      },
+      "means": {
+        "en": "A political theory advocating an authoritarian hierarchical government (as opposed to democracy or liberalism)",
+        "zh": "经营农场的人"
+      }
+    },
+    {
+      "word": {
+        "en": "fashion",
+        "laos": "ຄົນອັບເດດ:",
+        "jp": "ファッション",
+        "vie": "thời trang",
+        "en_pronunciation": "/ˈfæʃən/",
+        "laos_pronunciation": "khon abded",
+        "jp_pronunciation": "fasshon",
+        "vie_pronunciation": "thoi trang"
+      },
+      "means": {
+        "en": "How something is done or how it happens",
+        "zh": "耕种土地或饲养牲畜的做法"
+      }
+    },
+    {
+      "word": {
+        "en": "fashionable",
+        "laos": "ຄົນເບີກບານ",
+        "jp": "おしゃれな",
+        "vie": "hợp thời trang",
+        "en_pronunciation": "/ˈfæʃənəbəl/",
+        "laos_pronunciation": "khonboekban",
+        "jp_pronunciation": "osharena",
+        "vie_pronunciation": "hop thoi trang"
+      },
+      "means": {
+        "en": "Being or in accordance with current social fashions",
+        "zh": "特别是在空间或时间上更遥远"
+      }
+    },
+    {
+      "word": {
+        "en": "fast",
+        "laos": "ອົດອາຫານ",
+        "jp": "速い",
+        "vie": "nhanh",
+        "en_pronunciation": "/fæst/",
+        "laos_pronunciation": "odoahan",
+        "jp_pronunciation": "hayai",
+        "vie_pronunciation": "nhanh"
+      },
+      "means": {
+        "en": "Abstaining from food",
+        "zh": "引起兴趣或好奇"
+      }
+    },
+    {
+      "word": {
+        "en": "fasten",
+        "laos": "ຮັດ",
+        "jp": "締める",
+        "vie": "buộc chặt",
+        "en_pronunciation": "/ˈfæsən/",
+        "laos_pronunciation": "had",
+        "jp_pronunciation": "shime ru",
+        "vie_pronunciation": "buoc chat"
+      },
+      "means": {
+        "en": "Cause to be firmly attached",
+        "zh": "引起兴趣或好奇"
+      }
+    },
+    {
+      "word": {
+        "en": "fat",
+        "laos": "ໄຂມັນ",
+        "jp": "脂肪",
+        "vie": "béo",
+        "en_pronunciation": "/fæt/",
+        "laos_pronunciation": "khaiman",
+        "jp_pronunciation": "shibou",
+        "vie_pronunciation": "beo"
+      },
+      "means": {
+        "en": "A soft greasy substance occurring in organic tissue and consisting of a mixture of lipids (mostly triglycerides)",
+        "zh": "强烈感兴趣的状态（例如敬畏或恐惧）"
+      }
+    },
+    {
+      "word": {
+        "en": "fatal",
+        "laos": "ຕາຍ",
+        "jp": "致命的な",
+        "vie": "gây tử vong",
+        "en_pronunciation": "/ˈfeɪtəl/",
+        "laos_pronunciation": "tai",
+        "jp_pronunciation": "chimeiteki na",
+        "vie_pronunciation": "gay tu vong"
+      },
+      "means": {
+        "en": "Bringing death",
+        "zh": "法西斯主义或其他右翼独裁观点的追随者"
+      }
+    },
+    {
+      "word": {
+        "en": "fatality",
+        "laos": "ຄວາມຕາຍ",
+        "jp": "死亡事故",
+        "vie": "tử vong",
+        "en_pronunciation": "/fəˈtælɪti/",
+        "laos_pronunciation": "khuaamtai",
+        "jp_pronunciation": "shiboujiko",
+        "vie_pronunciation": "tu vong"
+      },
+      "means": {
+        "en": "A death resulting from an accident or a disaster",
+        "zh": "主张威权等级政府的政治理论（相对于民主或自由主义）"
+      }
+    },
+    {
+      "word": {
+        "en": "fate",
+        "laos": "ກັມ",
+        "jp": "運命",
+        "vie": "số phận",
+        "en_pronunciation": "/feɪt/",
+        "laos_pronunciation": "kam",
+        "jp_pronunciation": "unmei",
+        "vie_pronunciation": "so phan"
+      },
+      "means": {
+        "en": "An event (or a course of events) that will inevitably happen in the future",
+        "zh": "某事如何完成或如何发生"
+      }
+    },
+    {
+      "word": {
+        "en": "father",
+        "laos": "ບິຕຸຣົງ",
+        "jp": "父",
+        "vie": "cha",
+        "en_pronunciation": "/ˈfɑðər/",
+        "laos_pronunciation": "bi turong",
+        "jp_pronunciation": "chichi",
+        "vie_pronunciation": "cha"
+      },
+      "means": {
+        "en": "A male parent (also used as a term of address to your father)",
+        "zh": "符合或符合当前的社会时尚"
+      }
+    },
+    {
+      "word": {
+        "en": "fatherly",
+        "laos": "ພະຍາທອນ",
+        "jp": "父親らしい",
+        "vie": "có tính cách của một người cha",
+        "en_pronunciation": "/ˈfɑðərli/",
+        "laos_pronunciation": "phanyathon",
+        "jp_pronunciation": "chichioya rashii",
+        "vie_pronunciation": "co tinh cach cua mot nguoi cha"
+      },
+      "means": {
+        "en": "Like or befitting a father or fatherhood; kind and protective",
+        "zh": "戒除食物"
+      }
+    },
+    {
+      "word": {
+        "en": "fatigue",
+        "laos": "ຄວາມແພ້",
+        "jp": "疲労",
+        "vie": "mệt mỏi",
+        "en_pronunciation": "/fəˈtig/",
+        "laos_pronunciation": "khuaamaeph",
+        "jp_pronunciation": "hirou",
+        "vie_pronunciation": "met moi"
+      },
+      "means": {
+        "en": "Temporary loss of strength and energy resulting from hard physical or mental work",
+        "zh": "导致牢固附着"
+      }
+    },
+    {
+      "word": {
+        "en": "fault",
+        "laos": "ໂຟ້ດ",
+        "jp": "故障",
+        "vie": "lỗi",
+        "en_pronunciation": "/fɔlt/",
+        "laos_pronunciation": "ofd",
+        "jp_pronunciation": "koshou",
+        "vie_pronunciation": "loi"
+      },
+      "means": {
+        "en": "A wrong action attributable to bad judgment or ignorance or inattention",
+        "zh": "有机组织中存在的软油状物质，由脂质混合物（主要是甘油三酯）组成"
+      }
+    },
+    {
+      "word": {
+        "en": "favor",
+        "laos": "ຄວາມໂປດປານ",
+        "jp": "好意",
+        "vie": "ủng hộ",
+        "en_pronunciation": "/ˈfeɪvər/",
+        "laos_pronunciation": "khuaam opdpan",
+        "jp_pronunciation": "koui",
+        "vie_pronunciation": "ung ho"
+      },
+      "means": {
+        "en": "An act of gracious kindness",
+        "zh": "带来死亡"
+      }
+    },
+    {
+      "word": {
+        "en": "favour",
+        "laos": "ຄວາມໂປດປານ",
+        "jp": "好意",
+        "vie": "ủng hộ",
+        "en_pronunciation": "/ˈfeɪvər/",
+        "laos_pronunciation": "khuaam opdpan",
+        "jp_pronunciation": "koui",
+        "vie_pronunciation": "ung ho"
+      },
+      "means": {
+        "en": "A feeling of favorable regard",
+        "zh": "因事故或灾难而死亡"
+      }
+    },
+    {
+      "word": {
+        "en": "faulty",
+        "laos": "ຄວາມຜິດ",
+        "jp": "欠陥のある",
+        "vie": "bị lỗi",
+        "en_pronunciation": "/ˈfɔlti/",
+        "laos_pronunciation": "khuaamphid",
+        "jp_pronunciation": "kekkan noaru",
+        "vie_pronunciation": "bi loi"
+      },
+      "means": {
+        "en": "Having a defect",
+        "zh": "未来不可避免地发生的事件（或一系列事件）"
+      }
+    },
+    {
+      "word": {
+        "en": "favorable",
+        "laos": "ທີ່ເອື້ອອໍານວຍໃຫ້ແກ່ໄດ້",
+        "jp": "有利な",
+        "vie": "thuận lợi",
+        "en_pronunciation": "/ˈfeɪvərəbəl/",
+        "laos_pronunciation": "thi euooanuany haiaekdai",
+        "jp_pronunciation": "yuuri na",
+        "vie_pronunciation": "thuan loi"
+      },
+      "means": {
+        "en": "Encouraging or approving or pleasing",
+        "zh": "男性父母（也用作对父亲的称呼）"
+      }
+    },
+    {
+      "word": {
+        "en": "favourable",
+        "laos": "ທີ່ເອື້ອອໍານວຍໃຫ້ແກ່ໄດ້",
+        "jp": "有利な",
+        "vie": "thuận lợi",
+        "en_pronunciation": "/favourable/",
+        "laos_pronunciation": "thi euooanuany haiaekdai",
+        "jp_pronunciation": "yuuri na",
+        "vie_pronunciation": "thuan loi"
+      },
+      "means": {
+        "en": "Encouraging or approving or pleasing",
+        "zh": "像或适合父亲或父亲身份；"
+      }
+    },
+    {
+      "word": {
+        "en": "favorite",
+        "laos": "ທີ່ມັກຫລາຢທີ່",
+        "jp": "お気に入り",
+        "vie": "yêu thích",
+        "en_pronunciation": "/ˈfeɪvərɪt/",
+        "laos_pronunciation": "thimak laythi",
+        "jp_pronunciation": "o kiniiri",
+        "vie_pronunciation": "yeu thich"
+      },
+      "means": {
+        "en": "Something regarded with special favor or liking",
+        "zh": "善良且具有保护性"
+      }
+    },
+    {
+      "word": {
+        "en": "favourite",
+        "laos": "ທີ່ມັກຫລາຢທີ່",
+        "jp": "お気に入り",
+        "vie": "yêu thích",
+        "en_pronunciation": "/ˈfeɪvərɪt/",
+        "laos_pronunciation": "thimak laythi",
+        "jp_pronunciation": "o kiniiri",
+        "vie_pronunciation": "yeu thich"
+      },
+      "means": {
+        "en": "A competitor thought likely to win",
+        "zh": "由于体力或脑力劳动而暂时丧失体力和精力"
+      }
+    },
+    {
+      "word": {
+        "en": "fax",
+        "laos": "ແຟັກ",
+        "jp": "ファックス",
+        "vie": "fax",
+        "en_pronunciation": "/fæks/",
+        "laos_pronunciation": "faek",
+        "jp_pronunciation": "fakkusu",
+        "vie_pronunciation": "fax"
+      },
+      "means": {
+        "en": "Duplicator that transmits the copy by wire or radio",
+        "zh": "由于错误判断、无知或疏忽而采取的错误行动"
+      }
+    },
+    {
+      "word": {
+        "en": "fear",
+        "laos": "ຢໍາແຢງ",
+        "jp": "恐怖",
+        "vie": "nỗi sợ hãi",
+        "en_pronunciation": "/fɪr/",
+        "laos_pronunciation": "yoa aeyng",
+        "jp_pronunciation": "kyoufu",
+        "vie_pronunciation": "noi so hai"
+      },
+      "means": {
+        "en": "An emotion experienced in anticipation of some specific pain or danger (usually accompanied by a desire to flee or fight)",
+        "zh": "一种仁慈的善举"
+      }
+    },
+    {
+      "word": {
+        "en": "fearful",
+        "laos": "ທີ່ຢ້ານ",
+        "jp": "怖い",
+        "vie": "đáng sợ",
+        "en_pronunciation": "/ˈfɪrfəl/",
+        "laos_pronunciation": "thiyan",
+        "jp_pronunciation": "kowai",
+        "vie_pronunciation": "dang so"
+      },
+      "means": {
+        "en": "Experiencing or showing fear",
+        "zh": "一种受人尊重的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "feasible",
+        "laos": "ທີ່ເປັນໄປໄດ້",
+        "jp": "実現可能",
+        "vie": "khả thi",
+        "en_pronunciation": "/ˈfizəbəl/",
+        "laos_pronunciation": "thipenpaidai",
+        "jp_pronunciation": "jitsugenkanou",
+        "vie_pronunciation": "kha thi"
+      },
+      "means": {
+        "en": "Capable of being done with means at hand and circumstances as they are",
+        "zh": "有缺陷"
+      }
+    },
+    {
+      "word": {
+        "en": "feasibility",
+        "laos": "ຄວາມເປັນໄປໄດ້",
+        "jp": "実現可能性",
+        "vie": "tính khả thi",
+        "en_pronunciation": "/ˌfizəˈbɪləti/",
+        "laos_pronunciation": "khuaampenpaidai",
+        "jp_pronunciation": "jitsugenkanousei",
+        "vie_pronunciation": "tinh kha thi"
+      },
+      "means": {
+        "en": "The quality of being doable",
+        "zh": "鼓励或认可或令人愉悦"
+      }
+    },
+    {
+      "word": {
+        "en": "feast",
+        "laos": "ກອງບຸນ",
+        "jp": "ごちそう",
+        "vie": "bữa tiệc",
+        "en_pronunciation": "/fist/",
+        "laos_pronunciation": "kongbun",
+        "jp_pronunciation": "gochisou",
+        "vie_pronunciation": "bua tiec"
+      },
+      "means": {
+        "en": "A ceremonial dinner party for many people",
+        "zh": "鼓励或认可或令人愉悦"
+      }
+    },
+    {
+      "word": {
+        "en": "feat",
+        "laos": "ຄວາມຮ້ອນ",
+        "jp": "偉業",
+        "vie": "kỳ công",
+        "en_pronunciation": "/fit/",
+        "laos_pronunciation": "khuaamhon",
+        "jp_pronunciation": "igyou",
+        "vie_pronunciation": "ky cong"
+      },
+      "means": {
+        "en": "A notable achievement",
+        "zh": "受到特别青睐或喜爱的事物"
+      }
+    },
+    {
+      "word": {
+        "en": "feather",
+        "laos": "ຂົນ",
+        "jp": "羽",
+        "vie": "lông vũ",
+        "en_pronunciation": "/ˈfɛðər/",
+        "laos_pronunciation": "khon",
+        "jp_pronunciation": "hane",
+        "vie_pronunciation": "long vu"
+      },
+      "means": {
+        "en": "The light horny waterproof structure forming the external covering of birds",
+        "zh": "认为可能获胜的竞争对手"
+      }
+    },
+    {
+      "word": {
+        "en": "feature",
+        "laos": "ຄຸນນະສົມບັດ",
+        "jp": "特徴",
+        "vie": "tính năng",
+        "en_pronunciation": "/ˈfiʧər/",
+        "laos_pronunciation": "khunnasombad",
+        "jp_pronunciation": "tokuchou",
+        "vie_pronunciation": "tinh nang"
+      },
+      "means": {
+        "en": "A prominent attribute or aspect of something",
+        "zh": "通过有线或无线电传输副本的复印机"
+      }
+    },
+    {
+      "word": {
+        "en": "february",
+        "laos": "ກຸມພາ",
+        "jp": "2月",
+        "vie": "tháng hai",
+        "en_pronunciation": "/ˈfɛbruˌɛri/",
+        "laos_pronunciation": "kumpha",
+        "jp_pronunciation": "2 gatsu",
+        "vie_pronunciation": "thang hai"
+      },
+      "means": {
+        "en": "The month following January and preceding March",
+        "zh": "因预期某些特定的疼痛或危险而经历的情绪（通常伴随着逃跑或战斗的愿望）"
+      }
+    },
+    {
+      "word": {
+        "en": "federal",
+        "laos": "ມະຫະກອນ",
+        "jp": "連邦",
+        "vie": "liên bang",
+        "en_pronunciation": "/ˈfɛdərəl/",
+        "laos_pronunciation": "mahakon",
+        "jp_pronunciation": "renpou",
+        "vie_pronunciation": "lien bang"
+      },
+      "means": {
+        "en": "A member of the Union Army during the American Civil War",
+        "zh": "经历或表现出恐惧"
+      }
+    },
+    {
+      "word": {
+        "en": "federation",
+        "laos": "ສະຫະພັນ",
+        "jp": "連邦",
+        "vie": "liên đoàn",
+        "en_pronunciation": "/ˌfɛdərˈeɪʃən/",
+        "laos_pronunciation": "sahaphan",
+        "jp_pronunciation": "renpou",
+        "vie_pronunciation": "lien doan"
+      },
+      "means": {
+        "en": "An organization formed by merging several groups or parties",
+        "zh": "能够利用现有的手段和现有的情况来完成"
+      }
+    },
+    {
+      "word": {
+        "en": "fee",
+        "laos": "ຄ່າທໍານຽມ",
+        "jp": "料金",
+        "vie": "lệ phí",
+        "en_pronunciation": "/fi/",
+        "laos_pronunciation": "khathoaniam",
+        "jp_pronunciation": "ryoukin",
+        "vie_pronunciation": "le phi"
+      },
+      "means": {
+        "en": "A fixed charge for a privilege or for professional services",
+        "zh": "可行的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "feeble",
+        "laos": "ອ່ອນເພຍ",
+        "jp": "弱々しい",
+        "vie": "yếu đuối",
+        "en_pronunciation": "/ˈfibəl/",
+        "laos_pronunciation": "nphia",
+        "jp_pronunciation": "yowayowashii",
+        "vie_pronunciation": "yeu duoi"
+      },
+      "means": {
+        "en": "Pathetically lacking in force or effectiveness",
+        "zh": "为多人举办的隆重晚宴"
+      }
+    },
+    {
+      "word": {
+        "en": "feed",
+        "laos": "ລ້ຽງ",
+        "jp": "フィード",
+        "vie": "thức ăn",
+        "en_pronunciation": "/fid/",
+        "laos_pronunciation": "liang",
+        "jp_pronunciation": "fiido",
+        "vie_pronunciation": "thuc an"
+      },
+      "means": {
+        "en": "Food for domestic livestock",
+        "zh": "一项显着的成就"
+      }
+    },
+    {
+      "word": {
+        "en": "feedback",
+        "laos": "ຄໍາຕິຊົມ",
+        "jp": "フィードバック",
+        "vie": "phản hồi",
+        "en_pronunciation": "/ˈfidˌbæk/",
+        "laos_pronunciation": "khoa tisom",
+        "jp_pronunciation": "fiidobakku",
+        "vie_pronunciation": "phan hoi"
+      },
+      "means": {
+        "en": "The process in which part of the output of a system is returned to its input in order to regulate its further output",
+        "zh": "形成鸟类外壳的轻质角质防水结构"
+      }
+    }
+  ]
+}

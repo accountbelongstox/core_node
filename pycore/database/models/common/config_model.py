@@ -53,8 +53,8 @@ class CommonConfigModel(BaseModel):
             sqlalchemy.Column('key', sqlalchemy.String(255), unique=True, nullable=False, index=True),
             sqlalchemy.Column('value', sqlalchemy.Text, nullable=False),
             sqlalchemy.Column('description', sqlalchemy.String(500), nullable=True),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
-            sqlalchemy.Column('updated_at', sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False),
+            sqlalchemy.Column('created_at', sqlalchemy.String(50), nullable=False),
+            sqlalchemy.Column('updated_at', sqlalchemy.String(50), nullable=False),
         )
 
     # ===== Custom Methods (Differentiated Functionality) =====

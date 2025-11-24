@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.268852+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "choir",
+        "laos": "ຄອຍ",
+        "jp": "合唱団",
+        "vie": "dàn hợp xướng",
+        "en_pronunciation": "/ˈkwaɪər/",
+        "laos_pronunciation": "khoi",
+        "jp_pronunciation": "gasshōdan",
+        "vie_pronunciation": "dàn hợp xướng"
+      },
+      "means": {
+        "en": "an organized group of singers, typically performing in churches",
+        "zh": "合唱团，唱诗班"
+      }
+    },
+    {
+      "word": {
+        "en": "choke",
+        "laos": "ອັດຄໍ",
+        "jp": "窒息する",
+        "vie": "nghẹt thở",
+        "en_pronunciation": "/tʃoʊk/",
+        "laos_pronunciation": "at kho",
+        "jp_pronunciation": "chissoku suru",
+        "vie_pronunciation": "nghẹt thở"
+      },
+      "means": {
+        "en": "to have severe difficulty in breathing because of a constricted or obstructed throat",
+        "zh": "窒息，阻塞"
+      }
+    },
+    {
+      "word": {
+        "en": "cholesterol",
+        "laos": "ໂຄເລດສະເຕີຣໍ",
+        "jp": "コレステロール",
+        "vie": "cholesterol",
+        "en_pronunciation": "/kəˈlestərɔːl/",
+        "laos_pronunciation": "kho let sa ter",
+        "jp_pronunciation": "koresuterōru",
+        "vie_pronunciation": "cholesterol"
+      },
+      "means": {
+        "en": "a compound of the sterol type found in most body tissues, including the blood",
+        "zh": "胆固醇"
+      }
+    },
+    {
+      "word": {
+        "en": "choose",
+        "laos": "ເລືອກ",
+        "jp": "選ぶ",
+        "vie": "chọn",
+        "en_pronunciation": "/tʃuːz/",
+        "laos_pronunciation": "leuak",
+        "jp_pronunciation": "erabu",
+        "vie_pronunciation": "chọn"
+      },
+      "means": {
+        "en": "to pick out or select from a number of alternatives",
+        "zh": "选择，挑选"
+      }
+    },
+    {
+      "word": {
+        "en": "choosy",
+        "laos": "ເລືອກຫຼາຍ",
+        "jp": "選り好みする",
+        "vie": "kén chọn",
+        "en_pronunciation": "/ˈtʃuːzi/",
+        "laos_pronunciation": "leuak lai",
+        "jp_pronunciation": "erigonomi suru",
+        "vie_pronunciation": "kén chọn"
+      },
+      "means": {
+        "en": "taking great care when choosing, very particular",
+        "zh": "挑剔的，选择严格的"
+      }
+    },
+    {
+      "word": {
+        "en": "chop",
+        "laos": "ຕັດ",
+        "jp": "切る",
+        "vie": "chặt",
+        "en_pronunciation": "/tʃɒp/",
+        "laos_pronunciation": "tat",
+        "jp_pronunciation": "kiru",
+        "vie_pronunciation": "chặt"
+      },
+      "means": {
+        "en": "to cut something into pieces with repeated sharp blows",
+        "zh": "砍，切，剁"
+      }
+    },
+    {
+      "word": {
+        "en": "chopstick",
+        "laos": "ຕະໂມ",
+        "jp": "箸",
+        "vie": "đũa",
+        "en_pronunciation": "/ˈtʃɒpstɪk/",
+        "laos_pronunciation": "ta mo",
+        "jp_pronunciation": "hashi",
+        "vie_pronunciation": "đũa"
+      },
+      "means": {
+        "en": "each of a pair of small thin sticks held in one hand and used as eating utensils",
+        "zh": "筷子"
+      }
+    },
+    {
+      "word": {
+        "en": "chord",
+        "laos": "ຄອດ",
+        "jp": "和音",
+        "vie": "hợp âm",
+        "en_pronunciation": "/kɔːrd/",
+        "laos_pronunciation": "khot",
+        "jp_pronunciation": "waon",
+        "vie_pronunciation": "hợp âm"
+      },
+      "means": {
+        "en": "a group of three or more notes sounded together in harmony",
+        "zh": "和弦，和音"
+      }
+    },
+    {
+      "word": {
+        "en": "chore",
+        "laos": "ວຽກບ້ານ",
+        "jp": "雑用",
+        "vie": "việc nhà",
+        "en_pronunciation": "/tʃɔːr/",
+        "laos_pronunciation": "wiak ban",
+        "jp_pronunciation": "zatsuyō",
+        "vie_pronunciation": "việc nhà"
+      },
+      "means": {
+        "en": "a routine task, especially a household one",
+        "zh": "家务，杂务"
+      }
+    },
+    {
+      "word": {
+        "en": "chorus",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "christ",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "christmas",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "christian",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "christianity",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "chronic",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "chronically",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "chronicle",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "chunk",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "church",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cigar",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cigaret",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cigarette",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cinema",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circle",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circular",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circuit",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circulate",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circulation",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circumstance",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "circus",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cite",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "citizen",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "citation",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "citizenship",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "city",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civic",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civil",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civilize",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civilise",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civilization",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civilisation",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "civilian",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "claim",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clamp",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clan",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clap",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clarity",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clarify",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clarification",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clash",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clasp",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "class",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classic",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classical",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classify",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classification",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classified",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classmate",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "classroom",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clause",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "claw",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clay",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clean",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cleanse",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clear",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clearly",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clearance",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clear-cut",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clearing",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clench",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clergy",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clerk",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clerical",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clever",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cliché",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "click",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "client",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cliff",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "climate",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "climatic",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "climax",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "climb",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cling",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clinic",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clinical",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clip",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cloak",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clock",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clockwise",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clog",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clone",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "close",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "closet",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cloth",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clothe",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clothes",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clothing",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cloud",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "clown",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    },
+    {
+      "word": {
+        "en": "cloudy",
+        "laos": "",
+        "jp": "",
+        "vie": "",
+        "en_pronunciation": "",
+        "laos_pronunciation": "",
+        "jp_pronunciation": "",
+        "vie_pronunciation": ""
+      },
+      "means": {
+        "en": "",
+        "zh": ""
+      }
+    }
+  ]
+}

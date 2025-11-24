@@ -1,0 +1,76 @@
+{
+  "language": "lo",
+  "generated_at": "2025-11-22T21:30:01.166884+00:00",
+  "items": [
+    {
+      "order": 1,
+      "term": "ສະບາຍດີ",
+      "romanization": "sabaidee",
+      "ipa": null,
+      "meaning": {
+        "en": "hello",
+        "zh": "你好"
+      },
+      "notes": {
+        "en": "Common Lao reading aid.",
+        "zh": "常见Lao词汇读音。"
+      }
+    },
+    {
+      "order": 2,
+      "term": "ຂອບໃຈ",
+      "romanization": "khop chai",
+      "ipa": null,
+      "meaning": {
+        "en": "thank you",
+        "zh": "谢谢"
+      },
+      "notes": {
+        "en": "Common Lao reading aid.",
+        "zh": "常见Lao词汇读音。"
+      }
+    },
+    {
+      "order": 3,
+      "term": "ບໍ່ເປັນຫຍັງ",
+      "romanization": "bo pen nyang",
+      "ipa": null,
+      "meaning": {
+        "en": "it's okay",
+        "zh": "没关系"
+      },
+      "notes": {
+        "en": "Common Lao reading aid.",
+        "zh": "常见Lao词汇读音。"
+      }
+    },
+    {
+      "order": 4,
+      "term": "ກະລຸນນາ",
+      "romanization": "kaluna",
+      "ipa": null,
+      "meaning": {
+        "en": "please",
+        "zh": "请"
+      },
+      "notes": {
+        "en": "Common Lao reading aid.",
+        "zh": "常见Lao词汇读音。"
+      }
+    },
+    {
+      "order": 5,
+      "term": "ອາຫານ",
+      "romanization": "ahan",
+      "ipa": null,
+      "meaning": {
+        "en": "food",
+        "zh": "食物"
+      },
+      "notes": {
+        "en": "Common Lao reading aid.",
+        "zh": "常见Lao词汇读音。"
+      }
+    }
+  ]
+}

@@ -29,6 +29,9 @@ from typing import List, Optional
 # Import from common provider
 from mcp_config_provider import MCPConfig, get_mcp_configs, get_project_root
 
+# Determine if running on Windows
+IS_WINDOWS = sys.platform == "win32"
+
 
 def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) -> bool:
     """Run a shell command and return success status"""
@@ -43,7 +46,8 @@ def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) ->
             capture_output=True,
             text=True,
             timeout=30,
-            cwd=str(cwd) if cwd else None
+            cwd=str(cwd) if cwd else None,
+            shell=IS_WINDOWS
         )
 
         if result.stdout:
@@ -78,7 +82,7 @@ def configure_codex_mcp() -> int:
 
     # Check if codex command exists
     check_cmd = ["codex", "--version"]
-    result = subprocess.run(check_cmd, capture_output=True, text=True)
+    result = subprocess.run(check_cmd, capture_output=True, text=True, shell=IS_WINDOWS)
     if result.returncode != 0:
         print("[ERROR] 'codex' command not found. Please install Codex Code first.")
         return 1
@@ -96,41 +100,71 @@ def configure_codex_mcp() -> int:
     # Get project root for relative path execution
     project_root = get_project_root()
 
-    success_count = 0
-    failed_count = 0
+    # Build all commands first and display them
+    commands_to_run = []
 
-    for config in configs:
-        print(f"[{success_count + failed_count + 1}/{len(configs)}] Adding MCP server: {config.name}")
+    print("=" * 80)
+    print("[PREVIEW] Commands to be executed:")
+    print("=" * 80)
 
+    for idx, config in enumerate(configs, 1):
         if config.transport_type == "http":
-            # HTTP transport
-            cmd = ["codex", "mcp", "add", config.name,
-                   "--transport", "http",
-                   "--url", config.url]
+            # HTTP transport: codex mcp add <name> --url <url>
+            cmd = ["codex", "mcp", "add", config.name, "--url", config.url]
+            commands_to_run.append((config, cmd, None))
+        else:
+            # STDIO transport: codex mcp add <name> [--env KEY=VALUE] -- <command> [args...]
+            cmd = ["codex", "mcp", "add", config.name]
 
-            # Add headers
-            for key, value in config.headers.items():
-                cmd.extend(["--header", f"{key}: {value}"])
-
-            if run_command(cmd, f"Adding {config.name} MCP server (HTTP)"):
-                success_count += 1
-            else:
-                failed_count += 1
-
-        else:  # stdio transport
-            # Build codex mcp add command with relative path
-            cmd = ["codex", "mcp", "add", config.name, config.command] + config.args
-
-            # Add environment variables if present
+            # Add environment variables before --
             if config.env:
                 for key, value in config.env.items():
                     cmd.extend(["--env", f"{key}={value}"])
 
-            # Run from PROJECT_ROOT so relative paths work
-            if run_command(cmd, f"Adding {config.name} MCP server (stdio)", cwd=project_root):
-                success_count += 1
-            else:
-                failed_count += 1
+            # Add -- separator
+            cmd.append("--")
+
+            # Add command and args after --
+            # Only resolve relative paths for actual file paths (e.g., pymain.py)
+            # Don't resolve system commands (npx, node, python, etc.)
+            system_commands = {'npx', 'node', 'python', 'python3'}
+            if config.command:
+                command_name = Path(config.command).name.lower()
+                # If command is a relative path but not a system command, resolve it
+                if not Path(config.command).is_absolute() and command_name not in system_commands:
+                    absolute_command = str(project_root / config.command)
+                    cmd.append(absolute_command)
+                else:
+                    cmd.append(config.command)
+
+            # Resolve args - if arg is a relative path, make it absolute
+            for arg in config.args:
+                if arg.endswith('.py') and not Path(arg).is_absolute():
+                    absolute_arg = str(project_root / arg)
+                    cmd.append(absolute_arg)
+                else:
+                    cmd.append(arg)
+
+            commands_to_run.append((config, cmd, None))
+
+        print(f"[{idx}] {config.name} ({config.transport_type})")
+        print(f"    CMD: {' '.join(cmd)}")
+        print()
+
+    print("=" * 80)
+    print()
+
+    success_count = 0
+    failed_count = 0
+
+    for idx, (config, cmd, cwd) in enumerate(commands_to_run, 1):
+        print(f"[{idx}/{len(configs)}] Executing: {config.name}")
+
+        description = f"Adding {config.name} MCP server ({config.transport_type})"
+        if run_command(cmd, description, cwd=cwd):
+            success_count += 1
+        else:
+            failed_count += 1
 
         print()
 

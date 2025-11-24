@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.243849+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "amendment",
+        "laos": "ການແກ້ແກ້ງ",
+        "jp": "修正",
+        "vie": "sự sửa đổi",
+        "en_pronunciation": "/əˈmendmənt/",
+        "laos_pronunciation": "kan kae kaeng",
+        "jp_pronunciation": "shūsei",
+        "vie_pronunciation": "sự sửa đổi"
+      },
+      "means": {
+        "en": "a minor change or addition designed to improve a text, piece of legislation, etc.",
+        "zh": "修正，修正案"
+      }
+    },
+    {
+      "word": {
+        "en": "amiable",
+        "laos": "ເປັນມິດ",
+        "jp": "愛想の良い",
+        "vie": "thân thiện",
+        "en_pronunciation": "/ˈeɪmiəbəl/",
+        "laos_pronunciation": "pen mit",
+        "jp_pronunciation": "aisō no yoi",
+        "vie_pronunciation": "thân thiện"
+      },
+      "means": {
+        "en": "having or displaying a friendly and pleasant manner",
+        "zh": "和蔼可亲的，友好的"
+      }
+    },
+    {
+      "word": {
+        "en": "amid",
+        "laos": "ຢູ່ກາງ",
+        "jp": "の真ん中で",
+        "vie": "giữa",
+        "en_pronunciation": "/əˈmɪd/",
+        "laos_pronunciation": "yu kang",
+        "jp_pronunciation": "no mannaka de",
+        "vie_pronunciation": "giữa"
+      },
+      "means": {
+        "en": "in the middle of, surrounded by",
+        "zh": "在...中间，在...之中"
+      }
+    },
+    {
+      "word": {
+        "en": "amidst",
+        "laos": "ຢູ່ກາງ",
+        "jp": "の真ん中で",
+        "vie": "giữa",
+        "en_pronunciation": "/əˈmɪdst/",
+        "laos_pronunciation": "yu kang",
+        "jp_pronunciation": "no mannaka de",
+        "vie_pronunciation": "giữa"
+      },
+      "means": {
+        "en": "in the middle of, surrounded by",
+        "zh": "在...中间，在...之中（amid的变体）"
+      }
+    },
+    {
+      "word": {
+        "en": "ammunition",
+        "laos": "ລະເບີດ",
+        "jp": "弾薬",
+        "vie": "đạn dược",
+        "en_pronunciation": "/ˌæmjʊˈnɪʃən/",
+        "laos_pronunciation": "la bet",
+        "jp_pronunciation": "danyaku",
+        "vie_pronunciation": "đạn dược"
+      },
+      "means": {
+        "en": "a supply of bullets and shells",
+        "zh": "弹药，军火"
+      }
+    },
+    {
+      "word": {
+        "en": "among",
+        "laos": "ລະວ່າງ",
+        "jp": "の中で",
+        "vie": "trong số",
+        "en_pronunciation": "/əˈmʌŋ/",
+        "laos_pronunciation": "la vang",
+        "jp_pronunciation": "no naka de",
+        "vie_pronunciation": "trong số"
+      },
+      "means": {
+        "en": "situated more or less centrally in relation to several other things",
+        "zh": "在...之中，在...中间"
+      }
+    },
+    {
+      "word": {
+        "en": "amongst",
+        "laos": "ລະວ່າງ",
+        "jp": "の中で",
+        "vie": "trong số",
+        "en_pronunciation": "/əˈmʌŋst/",
+        "laos_pronunciation": "la vang",
+        "jp_pronunciation": "no naka de",
+        "vie_pronunciation": "trong số"
+      },
+      "means": {
+        "en": "situated more or less centrally in relation to several other things",
+        "zh": "在...之中，在...中间（among的变体）"
+      }
+    },
+    {
+      "word": {
+        "en": "amount",
+        "laos": "ຈຳນວນ",
+        "jp": "量",
+        "vie": "số lượng",
+        "en_pronunciation": "/əˈmaʊnt/",
+        "laos_pronunciation": "cham nuan",
+        "jp_pronunciation": "ryō",
+        "vie_pronunciation": "số lượng"
+      },
+      "means": {
+        "en": "a quantity of something, the total of two or more quantities",
+        "zh": "数量，总额"
+      }
+    },
+    {
+      "word": {
+        "en": "ample",
+        "laos": "ພຽງພໍ",
+        "jp": "十分な",
+        "vie": "đầy đủ",
+        "en_pronunciation": "/ˈæmpəl/",
+        "laos_pronunciation": "phiang pho",
+        "jp_pronunciation": "jūbun na",
+        "vie_pronunciation": "đầy đủ"
+      },
+      "means": {
+        "en": "enough or more than enough, plentiful",
+        "zh": "充足的，丰富的"
+      }
+    },
+    {
+      "word": {
+        "en": "amplify",
+        "laos": "ຂະຫຍາຍ",
+        "jp": "増幅する",
+        "vie": "khuếch đại",
+        "en_pronunciation": "/ˈæmplɪfaɪ/",
+        "laos_pronunciation": "kha nyai",
+        "jp_pronunciation": "zōfuku suru",
+        "vie_pronunciation": "khuếch đại"
+      },
+      "means": {
+        "en": "to increase the volume or strength of sound, to make larger or more powerful",
+        "zh": "放大，增强"
+      }
+    },
+    {
+      "word": {
+        "en": "amplification",
+        "laos": "ການຂະຫຍາຍ",
+        "jp": "増幅",
+        "vie": "sự khuếch đại",
+        "en_pronunciation": "/ˌæmplɪfɪˈkeɪʃən/",
+        "laos_pronunciation": "kan kha nyai",
+        "jp_pronunciation": "zōfuku",
+        "vie_pronunciation": "sự khuếch đại"
+      },
+      "means": {
+        "en": "the action of amplifying something or the state of being amplified",
+        "zh": "放大，增强"
+      }
+    },
+    {
+      "word": {
+        "en": "amuse",
+        "laos": "ມ່ວນ",
+        "jp": "楽しませる",
+        "vie": "làm vui",
+        "en_pronunciation": "/əˈmjuːz/",
+        "laos_pronunciation": "muan",
+        "jp_pronunciation": "tanoshimaseru",
+        "vie_pronunciation": "làm vui"
+      },
+      "means": {
+        "en": "to cause someone to find something funny, to entertain",
+        "zh": "逗乐，使娱乐"
+      }
+    },
+    {
+      "word": {
+        "en": "amusing",
+        "laos": "ມ່ວນ",
+        "jp": "面白い",
+        "vie": "thú vị",
+        "en_pronunciation": "/əˈmjuːzɪŋ/",
+        "laos_pronunciation": "muan",
+        "jp_pronunciation": "omoshiroi",
+        "vie_pronunciation": "thú vị"
+      },
+      "means": {
+        "en": "causing laughter and providing entertainment",
+        "zh": "有趣的，逗乐的"
+      }
+    },
+    {
+      "word": {
+        "en": "amusement",
+        "laos": "ຄວາມມ່ວນ",
+        "jp": "娯楽",
+        "vie": "sự giải trí",
+        "en_pronunciation": "/əˈmjuːzmənt/",
+        "laos_pronunciation": "khwam muan",
+        "jp_pronunciation": "goraku",
+        "vie_pronunciation": "sự giải trí"
+      },
+      "means": {
+        "en": "the state or experience of finding something funny or entertaining",
+        "zh": "娱乐，消遣"
+      }
+    },
+    {
+      "word": {
+        "en": "analogue",
+        "laos": "ຄ້າຍຄື",
+        "jp": "類似物",
+        "vie": "tương tự",
+        "en_pronunciation": "/ˈænəlɒɡ/",
+        "laos_pronunciation": "khai khu",
+        "jp_pronunciation": "ruijibutsu",
+        "vie_pronunciation": "tương tự"
+      },
+      "means": {
+        "en": "a person or thing seen as comparable to another",
+        "zh": "类似物，模拟的（英式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "analogous",
+        "laos": "ຄ້າຍຄື",
+        "jp": "類似した",
+        "vie": "tương tự",
+        "en_pronunciation": "/əˈnæləɡəs/",
+        "laos_pronunciation": "khai khu",
+        "jp_pronunciation": "ruiji shita",
+        "vie_pronunciation": "tương tự"
+      },
+      "means": {
+        "en": "comparable in certain respects, typically in a way that makes clearer the nature of the things compared",
+        "zh": "类似的，相似的"
+      }
+    },
+    {
+      "word": {
+        "en": "analogy",
+        "laos": "ການປຽບທຽບ",
+        "jp": "類推",
+        "vie": "sự tương tự",
+        "en_pronunciation": "/əˈnælədʒi/",
+        "laos_pronunciation": "kan piab thiab",
+        "jp_pronunciation": "ruisui",
+        "vie_pronunciation": "sự tương tự"
+      },
+      "means": {
+        "en": "a comparison between one thing and another, typically for the purpose of explanation or clarification",
+        "zh": "类比，相似"
+      }
+    },
+    {
+      "word": {
+        "en": "analyze",
+        "laos": "ວິເຄາະ",
+        "jp": "分析する",
+        "vie": "phân tích",
+        "en_pronunciation": "/ˈænəlaɪz/",
+        "laos_pronunciation": "vi kheo",
+        "jp_pronunciation": "bunseki suru",
+        "vie_pronunciation": "phân tích"
+      },
+      "means": {
+        "en": "to examine methodically and in detail the constitution or structure of something",
+        "zh": "分析（美式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "analyse",
+        "laos": "ວິເຄາະ",
+        "jp": "分析する",
+        "vie": "phân tích",
+        "en_pronunciation": "/ˈænəlaɪz/",
+        "laos_pronunciation": "vi kheo",
+        "jp_pronunciation": "bunseki suru",
+        "vie_pronunciation": "phân tích"
+      },
+      "means": {
+        "en": "to examine methodically and in detail the constitution or structure of something",
+        "zh": "分析（英式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "analysis",
+        "laos": "ການວິເຄາະ",
+        "jp": "分析",
+        "vie": "phân tích",
+        "en_pronunciation": "/əˈnælɪsɪs/",
+        "laos_pronunciation": "kan vi kheo",
+        "jp_pronunciation": "bunseki",
+        "vie_pronunciation": "phân tích"
+      },
+      "means": {
+        "en": "detailed examination of the elements or structure of something",
+        "zh": "分析"
+      }
+    },
+    {
+      "word": {
+        "en": "analytic",
+        "laos": "ທາງວິເຄາະ",
+        "jp": "分析的な",
+        "vie": "phân tích",
+        "en_pronunciation": "/ˌænəˈlɪtɪk/",
+        "laos_pronunciation": "thang vi kheo",
+        "jp_pronunciation": "bunsekiteki na",
+        "vie_pronunciation": "phân tích"
+      },
+      "means": {
+        "en": "relating to or using analysis or logical reasoning",
+        "zh": "分析的，解析的"
+      }
+    },
+    {
+      "word": {
+        "en": "analytical",
+        "laos": "ທາງວິເຄາະ",
+        "jp": "分析的な",
+        "vie": "phân tích",
+        "en_pronunciation": "/ˌænəˈlɪtɪkəl/",
+        "laos_pronunciation": "thang vi kheo",
+        "jp_pronunciation": "bunsekiteki na",
+        "vie_pronunciation": "phân tích"
+      },
+      "means": {
+        "en": "relating to or using analysis or logical reasoning",
+        "zh": "分析的，解析的"
+      }
+    },
+    {
+      "word": {
+        "en": "analyst",
+        "laos": "ນັກວິເຄາະ",
+        "jp": "分析者",
+        "vie": "nhà phân tích",
+        "en_pronunciation": "/ˈænəlɪst/",
+        "laos_pronunciation": "nak vi kheo",
+        "jp_pronunciation": "bunsekisha",
+        "vie_pronunciation": "nhà phân tích"
+      },
+      "means": {
+        "en": "a person who conducts analysis",
+        "zh": "分析师，分析员"
+      }
+    },
+    {
+      "word": {
+        "en": "ancestor",
+        "laos": "ບັນພະບູລຸດ",
+        "jp": "祖先",
+        "vie": "tổ tiên",
+        "en_pronunciation": "/ˈænsestər/",
+        "laos_pronunciation": "ban pha bu lut",
+        "jp_pronunciation": "sosen",
+        "vie_pronunciation": "tổ tiên"
+      },
+      "means": {
+        "en": "a person, typically one more remote than a grandparent, from whom one is descended",
+        "zh": "祖先，先辈"
+      }
+    },
+    {
+      "word": {
+        "en": "ancestry",
+        "laos": "ຕະກູນ",
+        "jp": "祖先",
+        "vie": "dòng dõi",
+        "en_pronunciation": "/ˈænsestri/",
+        "laos_pronunciation": "ta kun",
+        "jp_pronunciation": "sosen",
+        "vie_pronunciation": "dòng dõi"
+      },
+      "means": {
+        "en": "one's family or ethnic descent",
+        "zh": "祖先，血统"
+      }
+    },
+    {
+      "word": {
+        "en": "anchor",
+        "laos": "ສະໝໍ",
+        "jp": "錨",
+        "vie": "mỏ neo",
+        "en_pronunciation": "/ˈæŋkər/",
+        "laos_pronunciation": "sa mo",
+        "jp_pronunciation": "ikari",
+        "vie_pronunciation": "mỏ neo"
+      },
+      "means": {
+        "en": "a heavy object attached to a rope or chain and used to moor a vessel to the sea bottom",
+        "zh": "锚，主持人"
+      }
+    },
+    {
+      "word": {
+        "en": "anchorage",
+        "laos": "ທີ່ຈອດ",
+        "jp": "停泊地",
+        "vie": "nơi neo đậu",
+        "en_pronunciation": "/ˈæŋkərɪdʒ/",
+        "laos_pronunciation": "thi chot",
+        "jp_pronunciation": "teihakuchi",
+        "vie_pronunciation": "nơi neo đậu"
+      },
+      "means": {
+        "en": "an area off the coast which is suitable for a ship to anchor",
+        "zh": "锚地，停泊处"
+      }
+    },
+    {
+      "word": {
+        "en": "ancient",
+        "laos": "ເກົ່າ",
+        "jp": "古代の",
+        "vie": "cổ xưa",
+        "en_pronunciation": "/ˈeɪnʃənt/",
+        "laos_pronunciation": "kao",
+        "jp_pronunciation": "kodai no",
+        "vie_pronunciation": "cổ xưa"
+      },
+      "means": {
+        "en": "belonging to the very distant past and no longer in existence",
+        "zh": "古代的，古老的"
+      }
+    },
+    {
+      "word": {
+        "en": "and",
+        "laos": "ແລະ",
+        "jp": "と",
+        "vie": "và",
+        "en_pronunciation": "/ænd/",
+        "laos_pronunciation": "lae",
+        "jp_pronunciation": "to",
+        "vie_pronunciation": "và"
+      },
+      "means": {
+        "en": "used to connect words of the same part of speech, clauses, or sentences",
+        "zh": "和，与，并且"
+      }
+    },
+    {
+      "word": {
+        "en": "anecdote",
+        "laos": "ເລື່ອງລາວ",
+        "jp": "逸話",
+        "vie": "giai thoại",
+        "en_pronunciation": "/ˈænɪkdoʊt/",
+        "laos_pronunciation": "leuang lao",
+        "jp_pronunciation": "itsuwa",
+        "vie_pronunciation": "giai thoại"
+      },
+      "means": {
+        "en": "a short amusing or interesting story about a real incident or person",
+        "zh": "轶事，趣闻"
+      }
+    },
+    {
+      "word": {
+        "en": "anecdotal",
+        "laos": "ເລື່ອງລາວ",
+        "jp": "逸話的な",
+        "vie": "theo giai thoại",
+        "en_pronunciation": "/ˌænɪkˈdoʊtəl/",
+        "laos_pronunciation": "leuang lao",
+        "jp_pronunciation": "itsuwateki na",
+        "vie_pronunciation": "theo giai thoại"
+      },
+      "means": {
+        "en": "not necessarily true or reliable, because based on personal accounts rather than facts or research",
+        "zh": "轶事的，传闻的"
+      }
+    },
+    {
+      "word": {
+        "en": "anew",
+        "laos": "ໃໝ່",
+        "jp": "新しく",
+        "vie": "lại",
+        "en_pronunciation": "/əˈnuː/",
+        "laos_pronunciation": "mai",
+        "jp_pronunciation": "atarashiku",
+        "vie_pronunciation": "lại"
+      },
+      "means": {
+        "en": "in a new or different and typically more positive way",
+        "zh": "重新，再次"
+      }
+    },
+    {
+      "word": {
+        "en": "angel",
+        "laos": "ນາງຟ້າ",
+        "jp": "天使",
+        "vie": "thiên thần",
+        "en_pronunciation": "/ˈeɪndʒəl/",
+        "laos_pronunciation": "nang fa",
+        "jp_pronunciation": "tenshi",
+        "vie_pronunciation": "thiên thần"
+      },
+      "means": {
+        "en": "a spiritual being believed to act as an attendant, agent, or messenger of God",
+        "zh": "天使"
+      }
+    },
+    {
+      "word": {
+        "en": "angle",
+        "laos": "ມຸມ",
+        "jp": "角度",
+        "vie": "góc",
+        "en_pronunciation": "/ˈæŋɡəl/",
+        "laos_pronunciation": "mum",
+        "jp_pronunciation": "kakudo",
+        "vie_pronunciation": "góc"
+      },
+      "means": {
+        "en": "the space between two lines or surfaces that meet, measured in degrees",
+        "zh": "角度，角"
+      }
+    },
+    {
+      "word": {
+        "en": "angry",
+        "laos": "ໂກດ",
+        "jp": "怒っている",
+        "vie": "tức giận",
+        "en_pronunciation": "/ˈæŋɡri/",
+        "laos_pronunciation": "kot",
+        "jp_pronunciation": "okotteiru",
+        "vie_pronunciation": "tức giận"
+      },
+      "means": {
+        "en": "feeling or showing strong annoyance, displeasure, or hostility",
+        "zh": "生气的，愤怒的"
+      }
+    },
+    {
+      "word": {
+        "en": "anger",
+        "laos": "ຄວາມໂກດ",
+        "jp": "怒り",
+        "vie": "sự tức giận",
+        "en_pronunciation": "/ˈæŋɡər/",
+        "laos_pronunciation": "khwam kot",
+        "jp_pronunciation": "ikari",
+        "vie_pronunciation": "sự tức giận"
+      },
+      "means": {
+        "en": "a strong feeling of annoyance, displeasure, or hostility",
+        "zh": "愤怒，生气"
+      }
+    },
+    {
+      "word": {
+        "en": "anguish",
+        "laos": "ຄວາມເຈັບປວດ",
+        "jp": "苦悩",
+        "vie": "nỗi đau",
+        "en_pronunciation": "/ˈæŋɡwɪʃ/",
+        "laos_pronunciation": "khwam chep puad",
+        "jp_pronunciation": "kunō",
+        "vie_pronunciation": "nỗi đau"
+      },
+      "means": {
+        "en": "severe mental or physical pain or suffering",
+        "zh": "极度痛苦，苦恼"
+      }
+    },
+    {
+      "word": {
+        "en": "animal",
+        "laos": "ສັດ",
+        "jp": "動物",
+        "vie": "động vật",
+        "en_pronunciation": "/ˈænɪməl/",
+        "laos_pronunciation": "sat",
+        "jp_pronunciation": "dōbutsu",
+        "vie_pronunciation": "động vật"
+      },
+      "means": {
+        "en": "a living organism that feeds on organic matter, typically having specialized sense organs",
+        "zh": "动物"
+      }
+    },
+    {
+      "word": {
+        "en": "animate",
+        "laos": "ມີຊີວິດ",
+        "jp": "生きている",
+        "vie": "có sự sống",
+        "en_pronunciation": "/ˈænɪmeɪt/",
+        "laos_pronunciation": "mi si vit",
+        "jp_pronunciation": "ikiteiru",
+        "vie_pronunciation": "có sự sống"
+      },
+      "means": {
+        "en": "alive, having life, to bring to life",
+        "zh": "有生命的，使有生气"
+      }
+    },
+    {
+      "word": {
+        "en": "animated",
+        "laos": "ມີຊີວິດ",
+        "jp": "アニメーションの",
+        "vie": "hoạt hình",
+        "en_pronunciation": "/ˈænɪmeɪtɪd/",
+        "laos_pronunciation": "mi si vit",
+        "jp_pronunciation": "animeeshon no",
+        "vie_pronunciation": "hoạt hình"
+      },
+      "means": {
+        "en": "full of life or excitement, using animation techniques",
+        "zh": "有生气的，动画的"
+      }
+    },
+    {
+      "word": {
+        "en": "animation",
+        "laos": "ການເຮັດໃຫ້ມີຊີວິດ",
+        "jp": "アニメーション",
+        "vie": "hoạt hình",
+        "en_pronunciation": "/ˌænɪˈmeɪʃən/",
+        "laos_pronunciation": "kan het hai mi si vit",
+        "jp_pronunciation": "animeeshon",
+        "vie_pronunciation": "hoạt hình"
+      },
+      "means": {
+        "en": "the technique of photographing successive drawings or positions to create an illusion of movement",
+        "zh": "动画，动画制作"
+      }
+    },
+    {
+      "word": {
+        "en": "ankle",
+        "laos": "ຂໍ້ຕີນ",
+        "jp": "足首",
+        "vie": "mắt cá chân",
+        "en_pronunciation": "/ˈæŋkəl/",
+        "laos_pronunciation": "kho tin",
+        "jp_pronunciation": "ashikubi",
+        "vie_pronunciation": "mắt cá chân"
+      },
+      "means": {
+        "en": "the joint connecting the foot with the leg",
+        "zh": "脚踝"
+      }
+    },
+    {
+      "word": {
+        "en": "annex",
+        "laos": "ສາຂາ",
+        "jp": "併合する",
+        "vie": "sáp nhập",
+        "en_pronunciation": "/əˈneks/",
+        "laos_pronunciation": "sa kha",
+        "jp_pronunciation": "heigō suru",
+        "vie_pronunciation": "sáp nhập"
+      },
+      "means": {
+        "en": "to add as an extra or subordinate part, especially to a document",
+        "zh": "附加，吞并"
+      }
+    },
+    {
+      "word": {
+        "en": "annexation",
+        "laos": "ການສາຂາ",
+        "jp": "併合",
+        "vie": "sự sáp nhập",
+        "en_pronunciation": "/ˌænekˈseɪʃən/",
+        "laos_pronunciation": "kan sa kha",
+        "jp_pronunciation": "heigō",
+        "vie_pronunciation": "sự sáp nhập"
+      },
+      "means": {
+        "en": "the action of annexing something, especially territory",
+        "zh": "吞并，附加"
+      }
+    },
+    {
+      "word": {
+        "en": "anniversary",
+        "laos": "ວັນຄົບຮອບ",
+        "jp": "記念日",
+        "vie": "kỷ niệm",
+        "en_pronunciation": "/ˌænɪˈvɜːrsəri/",
+        "laos_pronunciation": "van khob hop",
+        "jp_pronunciation": "kinenbi",
+        "vie_pronunciation": "kỷ niệm"
+      },
+      "means": {
+        "en": "the date on which an event took place in a previous year",
+        "zh": "周年纪念日"
+      }
+    },
+    {
+      "word": {
+        "en": "announce",
+        "laos": "ປະກາດ",
+        "jp": "発表する",
+        "vie": "thông báo",
+        "en_pronunciation": "/əˈnaʊns/",
+        "laos_pronunciation": "pa kat",
+        "jp_pronunciation": "happō suru",
+        "vie_pronunciation": "thông báo"
+      },
+      "means": {
+        "en": "to make a formal public statement about a fact, occurrence, or intention",
+        "zh": "宣布，宣告"
+      }
+    },
+    {
+      "word": {
+        "en": "announcement",
+        "laos": "ການປະກາດ",
+        "jp": "発表",
+        "vie": "thông báo",
+        "en_pronunciation": "/əˈnaʊnsmənt/",
+        "laos_pronunciation": "kan pa kat",
+        "jp_pronunciation": "happō",
+        "vie_pronunciation": "thông báo"
+      },
+      "means": {
+        "en": "a formal public statement about a fact, occurrence, or intention",
+        "zh": "宣布，公告"
+      }
+    },
+    {
+      "word": {
+        "en": "annoy",
+        "laos": "ລົບກວນ",
+        "jp": "困らせる",
+        "vie": "làm phiền",
+        "en_pronunciation": "/əˈnɔɪ/",
+        "laos_pronunciation": "lop kuan",
+        "jp_pronunciation": "komaraseru",
+        "vie_pronunciation": "làm phiền"
+      },
+      "means": {
+        "en": "to irritate someone, make someone a little angry",
+        "zh": "使烦恼，使生气"
+      }
+    },
+    {
+      "word": {
+        "en": "annoyance",
+        "laos": "ຄວາມລົບກວນ",
+        "jp": "迷惑",
+        "vie": "sự phiền toái",
+        "en_pronunciation": "/əˈnɔɪəns/",
+        "laos_pronunciation": "khwam lop kuan",
+        "jp_pronunciation": "meiwaku",
+        "vie_pronunciation": "sự phiền toái"
+      },
+      "means": {
+        "en": "the feeling or state of being annoyed, irritation",
+        "zh": "烦恼，恼怒"
+      }
+    },
+    {
+      "word": {
+        "en": "annual",
+        "laos": "ປະຈຳປີ",
+        "jp": "年間の",
+        "vie": "hàng năm",
+        "en_pronunciation": "/ˈænjuəl/",
+        "laos_pronunciation": "pa cham pi",
+        "jp_pronunciation": "nenkan no",
+        "vie_pronunciation": "hàng năm"
+      },
+      "means": {
+        "en": "occurring once every year",
+        "zh": "每年的，年度的"
+      }
+    },
+    {
+      "word": {
+        "en": "anonymous",
+        "laos": "ບໍ່ມີຊື່",
+        "jp": "匿名の",
+        "vie": "ẩn danh",
+        "en_pronunciation": "/əˈnɒnɪməs/",
+        "laos_pronunciation": "bo mi su",
+        "jp_pronunciation": "tokumei no",
+        "vie_pronunciation": "ẩn danh"
+      },
+      "means": {
+        "en": "not identified by name, of unknown name",
+        "zh": "匿名的，无名的"
+      }
+    },
+    {
+      "word": {
+        "en": "anonymity",
+        "laos": "ຄວາມບໍ່ມີຊື່",
+        "jp": "匿名",
+        "vie": "sự ẩn danh",
+        "en_pronunciation": "/ˌænəˈnɪmɪti/",
+        "laos_pronunciation": "khwam bo mi su",
+        "jp_pronunciation": "tokumei",
+        "vie_pronunciation": "sự ẩn danh"
+      },
+      "means": {
+        "en": "the condition of being anonymous",
+        "zh": "匿名，无名"
+      }
+    },
+    {
+      "word": {
+        "en": "another",
+        "laos": "ອີກ",
+        "jp": "別の",
+        "vie": "khác",
+        "en_pronunciation": "/əˈnʌðər/",
+        "laos_pronunciation": "ik",
+        "jp_pronunciation": "betsu no",
+        "vie_pronunciation": "khác"
+      },
+      "means": {
+        "en": "used to refer to an additional person or thing of the same type as one already mentioned",
+        "zh": "另一个，又一个"
+      }
+    },
+    {
+      "word": {
+        "en": "answer",
+        "laos": "ຄຳຕອບ",
+        "jp": "答え",
+        "vie": "câu trả lời",
+        "en_pronunciation": "/ˈænsər/",
+        "laos_pronunciation": "kham top",
+        "jp_pronunciation": "kotae",
+        "vie_pronunciation": "câu trả lời"
+      },
+      "means": {
+        "en": "a thing said, written, or done to deal with or as a reaction to a question, statement, or situation",
+        "zh": "回答，答案"
+      }
+    },
+    {
+      "word": {
+        "en": "ant",
+        "laos": "ມົດ",
+        "jp": "蟻",
+        "vie": "kiến",
+        "en_pronunciation": "/ænt/",
+        "laos_pronunciation": "mot",
+        "jp_pronunciation": "ari",
+        "vie_pronunciation": "kiến"
+      },
+      "means": {
+        "en": "a small insect typically having a sting and living in a complex social colony",
+        "zh": "蚂蚁"
+      }
+    },
+    {
+      "word": {
+        "en": "antagonism",
+        "laos": "ການຕໍ່ຕ້ານ",
+        "jp": "敵対",
+        "vie": "sự đối kháng",
+        "en_pronunciation": "/ænˈtæɡənɪzəm/",
+        "laos_pronunciation": "kan to tan",
+        "jp_pronunciation": "tekitai",
+        "vie_pronunciation": "sự đối kháng"
+      },
+      "means": {
+        "en": "active hostility or opposition",
+        "zh": "对抗，敌对"
+      }
+    },
+    {
+      "word": {
+        "en": "antagonist",
+        "laos": "ຄູ່ແຂ່ງ",
+        "jp": "敵対者",
+        "vie": "đối thủ",
+        "en_pronunciation": "/ænˈtæɡənɪst/",
+        "laos_pronunciation": "khu khaeng",
+        "jp_pronunciation": "tekitai sha",
+        "vie_pronunciation": "đối thủ"
+      },
+      "means": {
+        "en": "a person who actively opposes or is hostile to someone or something",
+        "zh": "对手，敌手"
+      }
+    },
+    {
+      "word": {
+        "en": "antagonistic",
+        "laos": "ຕໍ່ຕ້ານ",
+        "jp": "敵対的な",
+        "vie": "đối kháng",
+        "en_pronunciation": "/ænˌtæɡəˈnɪstɪk/",
+        "laos_pronunciation": "to tan",
+        "jp_pronunciation": "tekitaiteki na",
+        "vie_pronunciation": "đối kháng"
+      },
+      "means": {
+        "en": "showing or feeling active opposition or hostility toward someone or something",
+        "zh": "敌对的，对抗的"
+      }
+    },
+    {
+      "word": {
+        "en": "antagonistically",
+        "laos": "ຢ່າງຕໍ່ຕ້ານ",
+        "jp": "敵対的に",
+        "vie": "một cách đối kháng",
+        "en_pronunciation": "/ænˌtæɡəˈnɪstɪkli/",
+        "laos_pronunciation": "yang to tan",
+        "jp_pronunciation": "tekitaiteki ni",
+        "vie_pronunciation": "một cách đối kháng"
+      },
+      "means": {
+        "en": "in a way that shows active opposition or hostility",
+        "zh": "敌对地，对抗地"
+      }
+    },
+    {
+      "word": {
+        "en": "antenna",
+        "laos": "ເສົາສັນຍານ",
+        "jp": "アンテナ",
+        "vie": "ăng-ten",
+        "en_pronunciation": "/ænˈtenə/",
+        "laos_pronunciation": "sao san nyan",
+        "jp_pronunciation": "antena",
+        "vie_pronunciation": "ăng-ten"
+      },
+      "means": {
+        "en": "a rod, wire, or other device used to transmit or receive radio or television signals",
+        "zh": "天线"
+      }
+    },
+    {
+      "word": {
+        "en": "antibiotic",
+        "laos": "ຢາຕ້ານເຊື້ອ",
+        "jp": "抗生物質",
+        "vie": "kháng sinh",
+        "en_pronunciation": "/ˌæntibaɪˈɒtɪk/",
+        "laos_pronunciation": "ya tan seu",
+        "jp_pronunciation": "kōseibusshitsu",
+        "vie_pronunciation": "kháng sinh"
+      },
+      "means": {
+        "en": "a medicine that inhibits the growth of or destroys microorganisms",
+        "zh": "抗生素"
+      }
+    },
+    {
+      "word": {
+        "en": "anticipate",
+        "laos": "ຄາດຄະເນ",
+        "jp": "予期する",
+        "vie": "dự đoán",
+        "en_pronunciation": "/ænˈtɪsɪpeɪt/",
+        "laos_pronunciation": "khat kha ne",
+        "jp_pronunciation": "yoki suru",
+        "vie_pronunciation": "dự đoán"
+      },
+      "means": {
+        "en": "to regard as probable, expect or predict",
+        "zh": "预期，预料"
+      }
+    },
+    {
+      "word": {
+        "en": "anticipation",
+        "laos": "ການຄາດຄະເນ",
+        "jp": "予期",
+        "vie": "sự dự đoán",
+        "en_pronunciation": "/ænˌtɪsɪˈpeɪʃən/",
+        "laos_pronunciation": "kan khat kha ne",
+        "jp_pronunciation": "yoki",
+        "vie_pronunciation": "sự dự đoán"
+      },
+      "means": {
+        "en": "the action of anticipating something, expectation or prediction",
+        "zh": "预期，预料"
+      }
+    },
+    {
+      "word": {
+        "en": "antique",
+        "laos": "ເກົ່າ",
+        "jp": "骨董品",
+        "vie": "đồ cổ",
+        "en_pronunciation": "/ænˈtiːk/",
+        "laos_pronunciation": "kao",
+        "jp_pronunciation": "kottōhin",
+        "vie_pronunciation": "đồ cổ"
+      },
+      "means": {
+        "en": "a collectible object such as a piece of furniture or work of art that has a high value because of its age and quality",
+        "zh": "古董，古物"
+      }
+    },
+    {
+      "word": {
+        "en": "antonym",
+        "laos": "ຄຳກົງກັນຂ້າມ",
+        "jp": "対義語",
+        "vie": "từ trái nghĩa",
+        "en_pronunciation": "/ˈæntənɪm/",
+        "laos_pronunciation": "kham kong kan kham",
+        "jp_pronunciation": "taigo",
+        "vie_pronunciation": "từ trái nghĩa"
+      },
+      "means": {
+        "en": "a word opposite in meaning to another",
+        "zh": "反义词"
+      }
+    },
+    {
+      "word": {
+        "en": "anxious",
+        "laos": "ກັງວົນ",
+        "jp": "心配な",
+        "vie": "lo lắng",
+        "en_pronunciation": "/ˈæŋkʃəs/",
+        "laos_pronunciation": "kang von",
+        "jp_pronunciation": "shinpai na",
+        "vie_pronunciation": "lo lắng"
+      },
+      "means": {
+        "en": "experiencing worry, unease, or nervousness",
+        "zh": "焦虑的，担心的"
+      }
+    },
+    {
+      "word": {
+        "en": "anxiety",
+        "laos": "ຄວາມກັງວົນ",
+        "jp": "不安",
+        "vie": "sự lo lắng",
+        "en_pronunciation": "/æŋˈzaɪəti/",
+        "laos_pronunciation": "khwam kang von",
+        "jp_pronunciation": "fuan",
+        "vie_pronunciation": "sự lo lắng"
+      },
+      "means": {
+        "en": "a feeling of worry, nervousness, or unease about something with an uncertain outcome",
+        "zh": "焦虑，担心"
+      }
+    },
+    {
+      "word": {
+        "en": "any",
+        "laos": "ໃດໆ",
+        "jp": "任意の",
+        "vie": "bất kỳ",
+        "en_pronunciation": "/ˈeni/",
+        "laos_pronunciation": "dai dai",
+        "jp_pronunciation": "nin'i no",
+        "vie_pronunciation": "bất kỳ"
+      },
+      "means": {
+        "en": "used to refer to one or some of a thing or number of things, no matter how much or many",
+        "zh": "任何，任一"
+      }
+    },
+    {
+      "word": {
+        "en": "anybody",
+        "laos": "ໃຜໆ",
+        "jp": "誰でも",
+        "vie": "bất kỳ ai",
+        "en_pronunciation": "/ˈenibɒdi/",
+        "laos_pronunciation": "phai phai",
+        "jp_pronunciation": "dare demo",
+        "vie_pronunciation": "bất kỳ ai"
+      },
+      "means": {
+        "en": "any person, anyone",
+        "zh": "任何人"
+      }
+    },
+    {
+      "word": {
+        "en": "anyone",
+        "laos": "ໃຜໆ",
+        "jp": "誰でも",
+        "vie": "bất kỳ ai",
+        "en_pronunciation": "/ˈeniwʌn/",
+        "laos_pronunciation": "phai phai",
+        "jp_pronunciation": "dare demo",
+        "vie_pronunciation": "bất kỳ ai"
+      },
+      "means": {
+        "en": "any person or people",
+        "zh": "任何人"
+      }
+    },
+    {
+      "word": {
+        "en": "anyhow",
+        "laos": "ຢ່າງໃດກໍ່ຕາມ",
+        "jp": "とにかく",
+        "vie": "dù sao",
+        "en_pronunciation": "/ˈenihaʊ/",
+        "laos_pronunciation": "yang dai ko tam",
+        "jp_pronunciation": "tonikaku",
+        "vie_pronunciation": "dù sao"
+      },
+      "means": {
+        "en": "used to indicate that a statement explains or supports a previous statement",
+        "zh": "无论如何，不管怎样"
+      }
+    },
+    {
+      "word": {
+        "en": "anything",
+        "laos": "ສິ່ງໃດໆ",
+        "jp": "何でも",
+        "vie": "bất cứ thứ gì",
+        "en_pronunciation": "/ˈeniθɪŋ/",
+        "laos_pronunciation": "sing dai dai",
+        "jp_pronunciation": "nan demo",
+        "vie_pronunciation": "bất cứ thứ gì"
+      },
+      "means": {
+        "en": "used to refer to a thing, no matter what",
+        "zh": "任何东西，任何事情"
+      }
+    },
+    {
+      "word": {
+        "en": "anyway",
+        "laos": "ຢ່າງໃດກໍ່ຕາມ",
+        "jp": "とにかく",
+        "vie": "dù sao",
+        "en_pronunciation": "/ˈeniweɪ/",
+        "laos_pronunciation": "yang dai ko tam",
+        "jp_pronunciation": "tonikaku",
+        "vie_pronunciation": "dù sao"
+      },
+      "means": {
+        "en": "used to confirm or support a point or idea just mentioned",
+        "zh": "无论如何，不管怎样"
+      }
+    },
+    {
+      "word": {
+        "en": "anywhere",
+        "laos": "ທຸກບ່ອນ",
+        "jp": "どこでも",
+        "vie": "bất cứ đâu",
+        "en_pronunciation": "/ˈeniweər/",
+        "laos_pronunciation": "thuk bon",
+        "jp_pronunciation": "doko demo",
+        "vie_pronunciation": "bất cứ đâu"
+      },
+      "means": {
+        "en": "in or to any place",
+        "zh": "任何地方，无论哪里"
+      }
+    },
+    {
+      "word": {
+        "en": "apart",
+        "laos": "ແຍກ",
+        "jp": "離れて",
+        "vie": "tách biệt",
+        "en_pronunciation": "/əˈpɑːrt/",
+        "laos_pronunciation": "nyek",
+        "jp_pronunciation": "hanarete",
+        "vie_pronunciation": "tách biệt"
+      },
+      "means": {
+        "en": "separated by a distance, into pieces",
+        "zh": "分开，分离"
+      }
+    },
+    {
+      "word": {
+        "en": "apartment",
+        "laos": "ຫ້ອງ",
+        "jp": "アパート",
+        "vie": "căn hộ",
+        "en_pronunciation": "/əˈpɑːrtmənt/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "apāto",
+        "vie_pronunciation": "căn hộ"
+      },
+      "means": {
+        "en": "a suite of rooms forming one residence, typically in a building containing a number of these",
+        "zh": "公寓，套房"
+      }
+    },
+    {
+      "word": {
+        "en": "apt",
+        "laos": "ເໝາະສົມ",
+        "jp": "適切な",
+        "vie": "thích hợp",
+        "en_pronunciation": "/æpt/",
+        "laos_pronunciation": "mo som",
+        "jp_pronunciation": "tekisetsu na",
+        "vie_pronunciation": "thích hợp"
+      },
+      "means": {
+        "en": "appropriate or suitable in the circumstances, having a tendency to do something",
+        "zh": "恰当的，有...倾向的"
+      }
+    },
+    {
+      "word": {
+        "en": "ape",
+        "laos": "ລີງ",
+        "jp": "類人猿",
+        "vie": "khỉ không đuôi",
+        "en_pronunciation": "/eɪp/",
+        "laos_pronunciation": "ling",
+        "jp_pronunciation": "ruijin'en",
+        "vie_pronunciation": "khỉ không đuôi"
+      },
+      "means": {
+        "en": "a large primate that lacks a tail, including gorillas, chimpanzees, orangutans",
+        "zh": "猿，类人猿"
+      }
+    },
+    {
+      "word": {
+        "en": "apology",
+        "laos": "ການຂໍໂທດ",
+        "jp": "謝罪",
+        "vie": "lời xin lỗi",
+        "en_pronunciation": "/əˈpɒlədʒi/",
+        "laos_pronunciation": "kan kho thot",
+        "jp_pronunciation": "shazai",
+        "vie_pronunciation": "lời xin lỗi"
+      },
+      "means": {
+        "en": "a regretful acknowledgment of an offense or failure",
+        "zh": "道歉，歉意"
+      }
+    },
+    {
+      "word": {
+        "en": "apologize",
+        "laos": "ຂໍໂທດ",
+        "jp": "謝罪する",
+        "vie": "xin lỗi",
+        "en_pronunciation": "/əˈpɒlədʒaɪz/",
+        "laos_pronunciation": "kho thot",
+        "jp_pronunciation": "shazai suru",
+        "vie_pronunciation": "xin lỗi"
+      },
+      "means": {
+        "en": "to express regret for something that one has done wrong",
+        "zh": "道歉（美式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "apologise",
+        "laos": "ຂໍໂທດ",
+        "jp": "謝罪する",
+        "vie": "xin lỗi",
+        "en_pronunciation": "/əˈpɒlədʒaɪz/",
+        "laos_pronunciation": "kho thot",
+        "jp_pronunciation": "shazai suru",
+        "vie_pronunciation": "xin lỗi"
+      },
+      "means": {
+        "en": "to express regret for something that one has done wrong",
+        "zh": "道歉（英式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "apologetic",
+        "laos": "ຂໍໂທດ",
+        "jp": "謝罪の",
+        "vie": "xin lỗi",
+        "en_pronunciation": "/əˌpɒləˈdʒetɪk/",
+        "laos_pronunciation": "kho thot",
+        "jp_pronunciation": "shazai no",
+        "vie_pronunciation": "xin lỗi"
+      },
+      "means": {
+        "en": "expressing or showing regretful acknowledgment of an offense or failure",
+        "zh": "道歉的，歉意的"
+      }
+    },
+    {
+      "word": {
+        "en": "app",
+        "laos": "ແອັບ",
+        "jp": "アプリ",
+        "vie": "ứng dụng",
+        "en_pronunciation": "/æp/",
+        "laos_pronunciation": "aep",
+        "jp_pronunciation": "apuri",
+        "vie_pronunciation": "ứng dụng"
+      },
+      "means": {
+        "en": "an application, especially as downloaded by a user to a mobile device",
+        "zh": "应用程序（application的缩写）"
+      }
+    },
+    {
+      "word": {
+        "en": "appal",
+        "laos": "ຕົກໃຈ",
+        "jp": "ぞっとさせる",
+        "vie": "kinh hoàng",
+        "en_pronunciation": "/əˈpɔːl/",
+        "laos_pronunciation": "tok chai",
+        "jp_pronunciation": "zotto saseru",
+        "vie_pronunciation": "kinh hoàng"
+      },
+      "means": {
+        "en": "to greatly dismay or horrify",
+        "zh": "使惊骇，使震惊（英式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "appall",
+        "laos": "ຕົກໃຈ",
+        "jp": "ぞっとさせる",
+        "vie": "kinh hoàng",
+        "en_pronunciation": "/əˈpɔːl/",
+        "laos_pronunciation": "tok chai",
+        "jp_pronunciation": "zotto saseru",
+        "vie_pronunciation": "kinh hoàng"
+      },
+      "means": {
+        "en": "to greatly dismay or horrify",
+        "zh": "使惊骇，使震惊（美式拼写）"
+      }
+    },
+    {
+      "word": {
+        "en": "appalling",
+        "laos": "ຕົກໃຈ",
+        "jp": "ぞっとする",
+        "vie": "kinh hoàng",
+        "en_pronunciation": "/əˈpɔːlɪŋ/",
+        "laos_pronunciation": "tok chai",
+        "jp_pronunciation": "zotto suru",
+        "vie_pronunciation": "kinh hoàng"
+      },
+      "means": {
+        "en": "causing shock or dismay, horrific",
+        "zh": "令人震惊的，骇人听闻的"
+      }
+    },
+    {
+      "word": {
+        "en": "apparatus",
+        "laos": "ອຸປະກອນ",
+        "jp": "装置",
+        "vie": "thiết bị",
+        "en_pronunciation": "/ˌæpəˈrætəs/",
+        "laos_pronunciation": "u pa kon",
+        "jp_pronunciation": "sōchi",
+        "vie_pronunciation": "thiết bị"
+      },
+      "means": {
+        "en": "the technical equipment or machinery needed for a particular activity or purpose",
+        "zh": "设备，装置"
+      }
+    },
+    {
+      "word": {
+        "en": "apparent",
+        "laos": "ຊັດເຈນ",
+        "jp": "明らかな",
+        "vie": "rõ ràng",
+        "en_pronunciation": "/əˈpærənt/",
+        "laos_pronunciation": "sat chen",
+        "jp_pronunciation": "akiraka na",
+        "vie_pronunciation": "rõ ràng"
+      },
+      "means": {
+        "en": "clearly visible or understood, obvious",
+        "zh": "明显的，显然的"
+      }
+    },
+    {
+      "word": {
+        "en": "apparently",
+        "laos": "ຊັດເຈນ",
+        "jp": "明らかに",
+        "vie": "rõ ràng",
+        "en_pronunciation": "/əˈpærəntli/",
+        "laos_pronunciation": "sat chen",
+        "jp_pronunciation": "akiraka ni",
+        "vie_pronunciation": "rõ ràng"
+      },
+      "means": {
+        "en": "as far as one knows or can see, seemingly",
+        "zh": "显然，明显地"
+      }
+    },
+    {
+      "word": {
+        "en": "appeal",
+        "laos": "ອຸທອນ",
+        "jp": "訴える",
+        "vie": "kêu gọi",
+        "en_pronunciation": "/əˈpiːl/",
+        "laos_pronunciation": "u thon",
+        "jp_pronunciation": "uttaeru",
+        "vie_pronunciation": "kêu gọi"
+      },
+      "means": {
+        "en": "to make a serious or urgent request, typically to the public",
+        "zh": "呼吁，上诉"
+      }
+    },
+    {
+      "word": {
+        "en": "appealing",
+        "laos": "ດຶງດູດ",
+        "jp": "魅力的な",
+        "vie": "hấp dẫn",
+        "en_pronunciation": "/əˈpiːlɪŋ/",
+        "laos_pronunciation": "dung dut",
+        "jp_pronunciation": "miryokuteki na",
+        "vie_pronunciation": "hấp dẫn"
+      },
+      "means": {
+        "en": "attractive or interesting",
+        "zh": "吸引人的，有魅力的"
+      }
+    },
+    {
+      "word": {
+        "en": "appear",
+        "laos": "ປາກົດ",
+        "jp": "現れる",
+        "vie": "xuất hiện",
+        "en_pronunciation": "/əˈpɪər/",
+        "laos_pronunciation": "pak kot",
+        "jp_pronunciation": "arawareru",
+        "vie_pronunciation": "xuất hiện"
+      },
+      "means": {
+        "en": "to come into sight, become visible or noticeable",
+        "zh": "出现，显得"
+      }
+    },
+    {
+      "word": {
+        "en": "appearance",
+        "laos": "ການປາກົດ",
+        "jp": "外観",
+        "vie": "sự xuất hiện",
+        "en_pronunciation": "/əˈpɪərəns/",
+        "laos_pronunciation": "kan pak kot",
+        "jp_pronunciation": "gaikan",
+        "vie_pronunciation": "sự xuất hiện"
+      },
+      "means": {
+        "en": "the way that someone or something looks",
+        "zh": "外观，出现"
+      }
+    },
+    {
+      "word": {
+        "en": "appease",
+        "laos": "ປອບປົບ",
+        "jp": "なだめる",
+        "vie": "xoa dịu",
+        "en_pronunciation": "/əˈpiːz/",
+        "laos_pronunciation": "pop pop",
+        "jp_pronunciation": "nadameru",
+        "vie_pronunciation": "xoa dịu"
+      },
+      "means": {
+        "en": "to pacify or placate someone by acceding to their demands",
+        "zh": "安抚，平息"
+      }
+    },
+    {
+      "word": {
+        "en": "appeasement",
+        "laos": "ການປອບປົບ",
+        "jp": "宥和",
+        "vie": "sự xoa dịu",
+        "en_pronunciation": "/əˈpiːzmənt/",
+        "laos_pronunciation": "kan pop pop",
+        "jp_pronunciation": "yūwa",
+        "vie_pronunciation": "sự xoa dịu"
+      },
+      "means": {
+        "en": "the action of appeasing",
+        "zh": "安抚，绥靖"
+      }
+    },
+    {
+      "word": {
+        "en": "appendix",
+        "laos": "ພາກທະວີບ",
+        "jp": "付録",
+        "vie": "phụ lục",
+        "en_pronunciation": "/əˈpendɪks/",
+        "laos_pronunciation": "phak thi vip",
+        "jp_pronunciation": "furoku",
+        "vie_pronunciation": "phụ lục"
+      },
+      "means": {
+        "en": "a section or table of additional matter at the end of a book or document",
+        "zh": "附录，阑尾"
+      }
+    },
+    {
+      "word": {
+        "en": "appetite",
+        "laos": "ຄວາມຢາກກິນ",
+        "jp": "食欲",
+        "vie": "sự thèm ăn",
+        "en_pronunciation": "/ˈæpɪtaɪt/",
+        "laos_pronunciation": "khwam yak kin",
+        "jp_pronunciation": "shokuyoku",
+        "vie_pronunciation": "sự thèm ăn"
+      },
+      "means": {
+        "en": "a natural desire to satisfy a bodily need, especially for food",
+        "zh": "食欲，胃口"
+      }
+    },
+    {
+      "word": {
+        "en": "applaud",
+        "laos": "ຕົບມື",
+        "jp": "拍手する",
+        "vie": "vỗ tay",
+        "en_pronunciation": "/əˈplɔːd/",
+        "laos_pronunciation": "top meu",
+        "jp_pronunciation": "hakushu suru",
+        "vie_pronunciation": "vỗ tay"
+      },
+      "means": {
+        "en": "to show approval or praise by clapping",
+        "zh": "鼓掌，称赞"
+      }
+    },
+    {
+      "word": {
+        "en": "applause",
+        "laos": "ການຕົບມື",
+        "jp": "拍手",
+        "vie": "tiếng vỗ tay",
+        "en_pronunciation": "/əˈplɔːz/",
+        "laos_pronunciation": "kan top meu",
+        "jp_pronunciation": "hakushu",
+        "vie_pronunciation": "tiếng vỗ tay"
+      },
+      "means": {
+        "en": "approval or praise expressed by clapping",
+        "zh": "掌声，喝彩"
+      }
+    },
+    {
+      "word": {
+        "en": "apple",
+        "laos": "ໝາກແອັບເປີ້ນ",
+        "jp": "リンゴ",
+        "vie": "táo",
+        "en_pronunciation": "/ˈæpəl/",
+        "laos_pronunciation": "mak aep poen",
+        "jp_pronunciation": "ringo",
+        "vie_pronunciation": "táo"
+      },
+      "means": {
+        "en": "the round fruit of a tree of the rose family, which typically has thin red or green skin and crisp flesh",
+        "zh": "苹果"
+      }
+    }
+  ]
+}

@@ -51,12 +51,12 @@ class CommonLogModel(BaseModel):
             cls.__full_table_name__,
             metadata,
             sqlalchemy.Column('id', sqlalchemy.Integer, primary_key=True, autoincrement=True),
-            sqlalchemy.Column('timestamp', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False, index=True),
+            sqlalchemy.Column('timestamp', sqlalchemy.String(50), nullable=False, index=True),
             sqlalchemy.Column('level', sqlalchemy.String(20), nullable=False, index=True),
             sqlalchemy.Column('source', sqlalchemy.String(100), nullable=False, index=True),
             sqlalchemy.Column('message', sqlalchemy.Text, nullable=False),
             sqlalchemy.Column('details', sqlalchemy.Text, nullable=True),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
+            sqlalchemy.Column('created_at', sqlalchemy.String(50), nullable=False),
         )
 
     # ===== Custom Methods (Differentiated Functionality) =====

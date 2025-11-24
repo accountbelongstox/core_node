@@ -154,7 +154,7 @@ def get_global_config() -> GlobalConfig:
 def init_global_config(
     pycore_root: Optional[str] = None,
     http_port: int = DEFAULT_HTTP_PORT,
-    host: str = '127.0.0.1',
+    host: str = '0.0.0.0',
     debug: bool = False
 ) -> GlobalConfig:
     """

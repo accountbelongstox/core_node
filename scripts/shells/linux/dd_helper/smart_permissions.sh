@@ -15,31 +15,41 @@ get_real_user_info() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
     local real_user=""
     local real_user_home=""
-    
-    # Method 1: Use Python system_info if available
-    if command -v python3 >/dev/null 2>&1 && [ -f "$project_root/pycore/pyfoundations/system_info.py" ]; then
-        local user_info=$(python3 -c "
-import sys
-sys.path.insert(0, '$project_root')
-try:
-    from pycore.pyfoundations.system_info import get_real_user, get_real_user_home
-    print(f'{get_real_user()}:{get_real_user_home()}')
-except Exception:
-    print('')
-" 2>/dev/null || echo "")
-        
-        if [ -n "$user_info" ]; then
-            real_user="${user_info%%:*}"
-            real_user_home="${user_info##*:}"
+
+    echo "[DEBUG] get_real_user_info: project_root=$project_root" >&2
+
+    # Method 1: Check SUDO_USER (when running with sudo)
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        real_user="$SUDO_USER"
+        real_user_home=$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)
+        if [ -z "$real_user_home" ]; then
+            real_user_home="/home/$real_user"
         fi
+        echo "[DEBUG] get_real_user_info: Using SUDO_USER method" >&2
     fi
-    
-    # Method 2: Environment variables fallback
+
+    # Method 2: Check current user (when not running with sudo)
     if [ -z "$real_user" ]; then
-        real_user="${SUDO_USER:-ubuntu}"
-        real_user_home="/home/$real_user"
+        real_user="$(whoami 2>/dev/null || echo "$USER")"
+        if [ "$real_user" = "root" ]; then
+            # If running as root without sudo, try to find the real user
+            real_user="${USER:-ubuntu}"
+        fi
+        real_user_home=$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)
+        if [ -z "$real_user_home" ]; then
+            real_user_home="/home/$real_user"
+        fi
+        echo "[DEBUG] get_real_user_info: Using current user method" >&2
     fi
-    
+
+    # Method 3: Ultimate fallback
+    if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
+        echo "[DEBUG] get_real_user_info: Using ultimate fallback" >&2
+        real_user="ubuntu"
+        real_user_home="/home/ubuntu"
+    fi
+
+    echo "[DEBUG] get_real_user_info: final result=$real_user:$real_user_home" >&2
     echo "$real_user:$real_user_home"
 }
 
@@ -55,19 +65,26 @@ fix_core_node_permissions_essential() {
     echo "[INFO] Fixing Core Node essential permissions (fast)..."
     echo "[INFO] Project root: $project_root"
     echo "[INFO] Real user: $real_user"
-    
+
     # Essential directories for basic operation - 777 permissions
     local essential_dirs=(
         "$project_root"
         "$project_root/scripts"
     )
-    
+
+    # Print directories to be scanned
+    echo "[SCAN] Directories to be checked:"
+    for dir in "${essential_dirs[@]}"; do
+        echo "  - $dir"
+    done
+    echo ""
+
     # Critical file
     local critical_file="$project_root/dd.sh"
-    
+
     if [ "$(id -u)" -eq 0 ]; then
         echo "[INFO] Running as root - fixing essential permissions"
-        
+
         # Fix essential directories - set 777 for all users
         for dir in "${essential_dirs[@]}"; do
             if [ -d "$dir" ]; then
@@ -210,13 +227,13 @@ repair_ai_tool_simple() {
     local real_user_home="${user_info##*:}"
     
     echo "[INFO] Checking $tool..."
-    
+
     # Check if tool exists and works
     if command -v "$tool" &> /dev/null && timeout 5 "$tool" --version &> /dev/null; then
         echo "[SUCCESS] $tool is working"
         return 0
     fi
-    
+
     # Try to find and fix tool
     local user_locations=(
         "$real_user_home/.local/bin/$tool"
@@ -224,7 +241,14 @@ repair_ai_tool_simple() {
         "/usr/bin/$tool"
         "/usr/local/bin/$tool"
     )
-    
+
+    # Print locations to be scanned
+    echo "[SCAN] AI tool locations to be checked for $tool:"
+    for location in "${user_locations[@]}"; do
+        echo "  - $location"
+    done
+    echo ""
+
     for location in "${user_locations[@]}"; do
         if [ -x "$location" ] && timeout 3 "$location" --version &> /dev/null; then
             echo "[INFO] Found working $tool at $location"
@@ -245,26 +269,42 @@ repair_ai_tool_simple() {
 # Main Smart Permissions Function (Essential Only - Fast)
 # =============================================================================
 smart_permissions_fix() {
+    echo "========================================" >&2
+    echo "[TEST] smart_permissions_fix CALLED" >&2
+    echo "========================================" >&2
+
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
-    
+
     echo "[INFO] Essential Permissions & Environment Setup"
-    
+    echo "[INFO] Essential Permissions & Environment Setup" >&2
+    echo "[DEBUG] Project root: $project_root"
+    echo "[DEBUG] Project root: $project_root" >&2
+
     # Get user information
+    echo "[DEBUG] Getting real user information..."
     local user_info="$(get_real_user_info "$project_root")"
     local real_user="${user_info%%:*}"
     local real_user_home="${user_info##*:}"
-    
+
     echo "[INFO] Real user: $real_user"
-    
+    echo "[INFO] Real user home: $real_user_home"
+    echo ""
+
     # 1. Fix essential Core Node permissions (fast)
+    echo "[STEP 1/3] Fixing essential Core Node permissions..."
     fix_core_node_permissions_essential "$project_root" "$user_info"
-    
-    # 2. Fix /var/_core_node permissions  
+    echo ""
+
+    # 2. Fix /var/_core_node permissions
+    echo "[STEP 2/3] Fixing /var/_core_node permissions..."
     fix_var_core_node_permissions "$project_root" "$user_info"
-    
+    echo ""
+
     # 3. Setup environment variables
+    echo "[STEP 3/3] Setting up environment variables..."
     setup_environment_variables "$project_root"
-    
+    echo ""
+
     echo "[SUCCESS] Essential setup completed"
     return 0
 }

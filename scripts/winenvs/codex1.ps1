@@ -21,7 +21,7 @@
 .NOTES
     - Tool Name: Codex CLI
     - Command Prefix: codex
-    - PowerShell Command: codex
+    - PowerShell Command: codex --yolo
     - File Number: 1
     - File Name: codex1.ps1
 #>
@@ -403,9 +403,9 @@ if ($env:OPENAI_BASE_URL) {
 
 $envVarsCommand = $envVarsParts -join '; '
 if ($envVarsCommand) {
-    $fullCommandDisplay = "$envVarsCommand; codex"
+    $fullCommandDisplay = "$envVarsCommand; codex --yolo"
 } else {
-    $fullCommandDisplay = "codex"
+    $fullCommandDisplay = "codex --yolo"
 }
 #endregion
 
@@ -646,7 +646,7 @@ Write-Host "============================================================" -Foreg
 $null = Read-Host "Press Enter to continue"
 
 Write-Host ""
-Write-Host "Executing: codex" -ForegroundColor White
+Write-Host "Executing: codex --yolo" -ForegroundColor White
 Write-Host ""
 Write-Host "PowerShell Command: powershell -NoProfile -ExecutionPolicy Bypass -Command `"$fullCommandDisplay`"" -ForegroundColor White
 Write-Host ""

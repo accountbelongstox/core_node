@@ -44,10 +44,16 @@ class SingletonBrowser {
             this.spiderEngine = createSpiderEngine();
             await this.spiderEngine.initialize();
 
+            const { platformDetector } = require('#@platform_detector');
+            const isDesktop = await platformDetector.isDesktopSystem();
+            const headlessMode = !isDesktop;
+
+            logger.info(`[SingletonBrowser] Browser headless mode: ${headlessMode} (desktop: ${isDesktop})`);
+
             this.defaultSession = await this.spiderEngine.createSession({
                 browser: 'edge',
                 browserOptions: {
-                    headless: true, // Run in background (headless mode)
+                    headless: headlessMode,
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
@@ -88,7 +94,7 @@ class SingletonBrowser {
 
     async createPage() {
         const session = await this.getSession();
-        return await session.createPage();
+        return await session.newPage();
     }
 
     async takeScreenshot(url = null, options = {}) {

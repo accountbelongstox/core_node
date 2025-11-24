@@ -58,9 +58,9 @@ class ExampleTaskModel(BaseModel):
             sqlalchemy.Column('description', sqlalchemy.Text, nullable=True),
             sqlalchemy.Column('status', sqlalchemy.String(20), default='pending', nullable=False, index=True),
             sqlalchemy.Column('priority', sqlalchemy.Integer, default=2, nullable=False),
-            sqlalchemy.Column('created_at', sqlalchemy.DateTime, default=datetime.utcnow, nullable=False),
-            sqlalchemy.Column('updated_at', sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False),
-            sqlalchemy.Column('completed_at', sqlalchemy.DateTime, nullable=True),
+            sqlalchemy.Column('created_at', sqlalchemy.String(50), nullable=False),
+            sqlalchemy.Column('updated_at', sqlalchemy.String(50), nullable=False),
+            sqlalchemy.Column('completed_at', sqlalchemy.String(50), nullable=True),
         )
 
     # ===== Custom Methods (Differentiated Functionality) =====

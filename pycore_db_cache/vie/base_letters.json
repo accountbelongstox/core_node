@@ -1,0 +1,297 @@
+{
+  "language": "vi",
+  "script": "Latin",
+  "generated_at": "2025-11-22T21:30:01.166884+00:00",
+  "items": [
+    {
+      "order": 1,
+      "symbol": "A",
+      "romanization": "a",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 2,
+      "symbol": "Ă",
+      "romanization": "ă",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 3,
+      "symbol": "Â",
+      "romanization": "â",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 4,
+      "symbol": "B",
+      "romanization": "bê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 5,
+      "symbol": "C",
+      "romanization": "xê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 6,
+      "symbol": "D",
+      "romanization": "dê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 7,
+      "symbol": "Đ",
+      "romanization": "đê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 8,
+      "symbol": "E",
+      "romanization": "e",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 9,
+      "symbol": "Ê",
+      "romanization": "ê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 10,
+      "symbol": "G",
+      "romanization": "giê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 11,
+      "symbol": "H",
+      "romanization": "hát",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 12,
+      "symbol": "I",
+      "romanization": "i",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 13,
+      "symbol": "K",
+      "romanization": "ca",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 14,
+      "symbol": "L",
+      "romanization": "e-lờ",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 15,
+      "symbol": "M",
+      "romanization": "em",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 16,
+      "symbol": "N",
+      "romanization": "en",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 17,
+      "symbol": "O",
+      "romanization": "o",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 18,
+      "symbol": "Ô",
+      "romanization": "ô",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 19,
+      "symbol": "Ơ",
+      "romanization": "ơ",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 20,
+      "symbol": "P",
+      "romanization": "pê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 21,
+      "symbol": "Q",
+      "romanization": "quy",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 22,
+      "symbol": "R",
+      "romanization": "e-rờ",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 23,
+      "symbol": "S",
+      "romanization": "ét",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 24,
+      "symbol": "T",
+      "romanization": "tê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 25,
+      "symbol": "U",
+      "romanization": "u",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 26,
+      "symbol": "Ư",
+      "romanization": "ư",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 27,
+      "symbol": "V",
+      "romanization": "vê",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 28,
+      "symbol": "X",
+      "romanization": "ích",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    },
+    {
+      "order": 29,
+      "symbol": "Y",
+      "romanization": "y dài",
+      "type": "letter",
+      "notes": {
+        "en": "Vietnamese script element representing letter.",
+        "zh": "Vietnamese字母，表示letter."
+      }
+    }
+  ]
+}

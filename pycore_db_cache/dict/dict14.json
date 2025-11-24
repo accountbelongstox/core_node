@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.272380+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "club",
+        "laos": "ສະໂມສອນ",
+        "jp": "クラブ",
+        "vie": "câu lạc bộ",
+        "en_pronunciation": "/kləb/",
+        "laos_pronunciation": "saomson",
+        "jp_pronunciation": "kurabu",
+        "vie_pronunciation": "cau lac bo"
+      },
+      "means": {
+        "en": "A team of professional baseball players who play and travel together",
+        "zh": "一群一起打球、一起旅行的职业棒球运动员"
+      }
+    },
+    {
+      "word": {
+        "en": "clue",
+        "laos": "ສັນບັນ",
+        "jp": "手がかり",
+        "vie": "đầu mối",
+        "en_pronunciation": "/klu/",
+        "laos_pronunciation": "sanban",
+        "jp_pronunciation": "tegakari",
+        "vie_pronunciation": "dau moi"
+      },
+      "means": {
+        "en": "A slight indication",
+        "zh": "轻微的指示"
+      }
+    },
+    {
+      "word": {
+        "en": "clumsy",
+        "laos": "clumsy",
+        "jp": "不器用な",
+        "vie": "vụng về",
+        "en_pronunciation": "/ˈkləmzi/",
+        "laos_pronunciation": "clumsy",
+        "jp_pronunciation": "bukiyou na",
+        "vie_pronunciation": "vung ve"
+      },
+      "means": {
+        "en": "Lacking grace in movement or posture",
+        "zh": "动作或姿势缺乏优雅"
+      }
+    },
+    {
+      "word": {
+        "en": "cluster",
+        "laos": "ກຸ່ມບ້ານ",
+        "jp": "クラスター",
+        "vie": "cụm",
+        "en_pronunciation": "/ˈkləstər/",
+        "laos_pronunciation": "kumban",
+        "jp_pronunciation": "kurasutaa",
+        "vie_pronunciation": "cum"
+      },
+      "means": {
+        "en": "A grouping of a number of similar things",
+        "zh": "大量相似事物的组合"
+      }
+    },
+    {
+      "word": {
+        "en": "clutch",
+        "laos": "ຫນວດ",
+        "jp": "クラッチ",
+        "vie": "ly hợp",
+        "en_pronunciation": "/kləʧ/",
+        "laos_pronunciation": "nuad",
+        "jp_pronunciation": "kuratchi",
+        "vie_pronunciation": "ly hop"
+      },
+      "means": {
+        "en": "The act of grasping",
+        "zh": "抓握的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "coach",
+        "laos": "ຜູ້ຊາຢຝຶກສອນ",
+        "jp": "コーチ",
+        "vie": "huấn luyện viên",
+        "en_pronunciation": "/koʊʧ/",
+        "laos_pronunciation": "phu say fukson",
+        "jp_pronunciation": "koochi",
+        "vie_pronunciation": "huan luyen vien"
+      },
+      "means": {
+        "en": "(sports) someone in charge of training an athlete or a team",
+        "zh": "（体育运动）负责训练运动员或团队的人"
+      }
+    },
+    {
+      "word": {
+        "en": "coal",
+        "laos": "ຖ່ານຫີນ",
+        "jp": "石炭",
+        "vie": "than đá",
+        "en_pronunciation": "/koʊl/",
+        "laos_pronunciation": "thanhin",
+        "jp_pronunciation": "sekitan",
+        "vie_pronunciation": "than da"
+      },
+      "means": {
+        "en": "Fossil fuel consisting of carbonized vegetable matter deposited in the Carboniferous period",
+        "zh": "由石炭纪沉积的碳化植物物质组成的化石燃料"
+      }
+    },
+    {
+      "word": {
+        "en": "coalition",
+        "laos": "ການປະສານ",
+        "jp": "連合",
+        "vie": "liên minh",
+        "en_pronunciation": "/ˌkoʊəˈlɪʃən/",
+        "laos_pronunciation": "kanpasan",
+        "jp_pronunciation": "rengou",
+        "vie_pronunciation": "lien minh"
+      },
+      "means": {
+        "en": "An organization of people (or countries) involved in a pact or treaty",
+        "zh": "参与协定或条约的人民（或国家）组织"
+      }
+    },
+    {
+      "word": {
+        "en": "coarse",
+        "laos": "ຫຢາບ",
+        "jp": "粗い",
+        "vie": "thô",
+        "en_pronunciation": "/kɔrs/",
+        "laos_pronunciation": "hyab",
+        "jp_pronunciation": "arai",
+        "vie_pronunciation": "tho"
+      },
+      "means": {
+        "en": "Of textures that are rough to the touch or substances consisting of relatively large particles",
+        "zh": "触感粗糙的纹理或由相对较大颗粒组成的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "coast",
+        "laos": "ຝັ່ງທະເລ",
+        "jp": "海岸",
+        "vie": "Bờ biển",
+        "en_pronunciation": "/koʊst/",
+        "laos_pronunciation": "fangthale",
+        "jp_pronunciation": "kaigan",
+        "vie_pronunciation": "Bo bien"
+      },
+      "means": {
+        "en": "The shore of a sea or ocean",
+        "zh": "大海或海洋的海岸"
+      }
+    },
+    {
+      "word": {
+        "en": "coastal",
+        "laos": "ຊາຍຝັ່ງ",
+        "jp": "沿岸",
+        "vie": "ven biển",
+        "en_pronunciation": "/ˈkoʊstəl/",
+        "laos_pronunciation": "saifang",
+        "jp_pronunciation": "engan",
+        "vie_pronunciation": "ven bien"
+      },
+      "means": {
+        "en": "Of or relating to a coast",
+        "zh": "属于海岸的或与海岸有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "coat",
+        "laos": "ເສື້ອ",
+        "jp": "コート",
+        "vie": "áo khoác",
+        "en_pronunciation": "/koʊt/",
+        "laos_pronunciation": "seu",
+        "jp_pronunciation": "kooto",
+        "vie_pronunciation": "ao khoac"
+      },
+      "means": {
+        "en": "An outer garment that has sleeves and covers the body from shoulder down; worn outdoors",
+        "zh": "有袖子并从肩部以下覆盖身体的外衣；"
+      }
+    },
+    {
+      "word": {
+        "en": "cocaine",
+        "laos": "ໂກເຄັກ",
+        "jp": "コカイン",
+        "vie": "cocain",
+        "en_pronunciation": "/koʊˈkeɪn/",
+        "laos_pronunciation": "okkhek",
+        "jp_pronunciation": "kokain",
+        "vie_pronunciation": "cocain"
+      },
+      "means": {
+        "en": "A narcotic (alkaloid) extracted from coca leaves; used as a surface anesthetic or taken for pleasure; can become powerfully addictive",
+        "zh": "户外穿着"
+      }
+    },
+    {
+      "word": {
+        "en": "cock",
+        "laos": "ໄກ່",
+        "jp": "コック",
+        "vie": "gà trống",
+        "en_pronunciation": "/kɑk/",
+        "laos_pronunciation": "kai",
+        "jp_pronunciation": "kokku",
+        "vie_pronunciation": "ga trong"
+      },
+      "means": {
+        "en": "Obscene terms for penis",
+        "zh": "从古柯叶中提取的麻醉剂（生物碱）；"
+      }
+    },
+    {
+      "word": {
+        "en": "cockpit",
+        "laos": "ຄົນປອງ",
+        "jp": "コックピット",
+        "vie": "buồng lái",
+        "en_pronunciation": "/ˈkɑkˌpɪt/",
+        "laos_pronunciation": "khonpong",
+        "jp_pronunciation": "kokkupitto",
+        "vie_pronunciation": "buong lai"
+      },
+      "means": {
+        "en": "Compartment where the pilot sits while flying the aircraft",
+        "zh": "用作表面麻醉剂或为了愉悦而服用；"
+      }
+    },
+    {
+      "word": {
+        "en": "cocktail",
+        "laos": "ຂຸ່ຍ",
+        "jp": "カクテル",
+        "vie": "cocktail",
+        "en_pronunciation": "/ˈkɑkˌteɪl/",
+        "laos_pronunciation": "khuny",
+        "jp_pronunciation": "kakuteru",
+        "vie_pronunciation": "cocktail"
+      },
+      "means": {
+        "en": "A short mixed drink",
+        "zh": "会变得很容易上瘾"
+      }
+    },
+    {
+      "word": {
+        "en": "coconut",
+        "laos": "ພ້າວ",
+        "jp": "ココナッツ",
+        "vie": "dừa",
+        "en_pronunciation": "/ˈkoʊkəˌnət/",
+        "laos_pronunciation": "phav",
+        "jp_pronunciation": "kokonattsu",
+        "vie_pronunciation": "dua"
+      },
+      "means": {
+        "en": "The edible white meat of a coconut; often shredded for use in e.g. cakes and curries",
+        "zh": "阴茎的猥亵用语"
+      }
+    },
+    {
+      "word": {
+        "en": "code",
+        "laos": "ລະຫັດ",
+        "jp": "コード",
+        "vie": "mã",
+        "en_pronunciation": "/koʊd/",
+        "laos_pronunciation": "lahad",
+        "jp_pronunciation": "koodo",
+        "vie_pronunciation": "ma"
+      },
+      "means": {
+        "en": "A set of rules or principles or laws (especially written ones)",
+        "zh": "飞行员驾驶飞机时所坐的舱室"
+      }
+    },
+    {
+      "word": {
+        "en": "coexist",
+        "laos": "ສິດຄະດີ",
+        "jp": "共存する",
+        "vie": "cùng tồn tại",
+        "en_pronunciation": "/ˌkoʊəgˈzɪst/",
+        "laos_pronunciation": "sidkhadi",
+        "jp_pronunciation": "kyouzon suru",
+        "vie_pronunciation": "cung ton tai"
+      },
+      "means": {
+        "en": "Coexist peacefully, as of nations",
+        "zh": "一小杯混合饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "coexistence",
+        "laos": "ການຢູ່ໃນບ້ານ",
+        "jp": "共存",
+        "vie": "cùng tồn tại",
+        "en_pronunciation": "/ˌkoʊɪgˈzɪstəns/",
+        "laos_pronunciation": "kan yunaiban",
+        "jp_pronunciation": "kyouzon",
+        "vie_pronunciation": "cung ton tai"
+      },
+      "means": {
+        "en": "Existing peacefully together",
+        "zh": "椰子的可食用白肉；"
+      }
+    },
+    {
+      "word": {
+        "en": "coffee",
+        "laos": "ກາເຟ",
+        "jp": "コーヒー",
+        "vie": "cà phê",
+        "en_pronunciation": "/ˈkɔfi/",
+        "laos_pronunciation": "kafe",
+        "jp_pronunciation": "koohii",
+        "vie_pronunciation": "ca phe"
+      },
+      "means": {
+        "en": "A beverage consisting of an infusion of ground coffee beans",
+        "zh": "通常被切碎用于例如"
+      }
+    },
+    {
+      "word": {
+        "en": "cognitive",
+        "laos": "ມັນສະຫມອງ",
+        "jp": "認知的",
+        "vie": "nhận thức",
+        "en_pronunciation": "/ˈkɑgnɪtɪv/",
+        "laos_pronunciation": "mansamong",
+        "jp_pronunciation": "ninchiteki",
+        "vie_pronunciation": "nhan thuc"
+      },
+      "means": {
+        "en": "Of or being or relating to or involving cognition",
+        "zh": "蛋糕和咖喱"
+      }
+    },
+    {
+      "word": {
+        "en": "coherent",
+        "laos": "ປະລໍາກຽວ",
+        "jp": "一貫した",
+        "vie": "mạch lạc",
+        "en_pronunciation": "/koʊˈhɪrənt/",
+        "laos_pronunciation": "pa loakiav",
+        "jp_pronunciation": "ikkan shita",
+        "vie_pronunciation": "mach lac"
+      },
+      "means": {
+        "en": "Marked by an orderly, logical, and aesthetically consistent relation of parts",
+        "zh": "一套规则、原则或法律（尤其是成文的）"
+      }
+    },
+    {
+      "word": {
+        "en": "cognition",
+        "laos": "ຮັບຜິດຊອບ",
+        "jp": "認知",
+        "vie": "nhận thức",
+        "en_pronunciation": "/kɑgˈnɪʃən/",
+        "laos_pronunciation": "habphidsob",
+        "jp_pronunciation": "ninchi",
+        "vie_pronunciation": "nhan thuc"
+      },
+      "means": {
+        "en": "The psychological result of perception and learning and reasoning",
+        "zh": "各国和平共处"
+      }
+    },
+    {
+      "word": {
+        "en": "coherence",
+        "laos": "ທີ່ເປັນຫມັນ",
+        "jp": "一貫性",
+        "vie": "sự mạch lạc",
+        "en_pronunciation": "/koʊˈhɪrəns/",
+        "laos_pronunciation": "thipenman",
+        "jp_pronunciation": "ikkansei",
+        "vie_pronunciation": "su mach lac"
+      },
+      "means": {
+        "en": "The state of cohering or sticking together",
+        "zh": "和平共处"
+      }
+    },
+    {
+      "word": {
+        "en": "cohesion",
+        "laos": "ຄວາມສາມັກຄີກັນ",
+        "jp": "凝集",
+        "vie": "sự gắn kết",
+        "en_pronunciation": "/koʊˈhiʒən/",
+        "laos_pronunciation": "khuaamsamakkhikan",
+        "jp_pronunciation": "gyoushuu",
+        "vie_pronunciation": "su gan ket"
+      },
+      "means": {
+        "en": "The state of cohering or sticking together",
+        "zh": "一种由研磨咖啡豆冲泡而成的饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "cohesive",
+        "laos": "ຜູກຢ",
+        "jp": "凝集性のある",
+        "vie": "gắn kết",
+        "en_pronunciation": "/koʊˈhisɪv/",
+        "laos_pronunciation": "phuky",
+        "jp_pronunciation": "gyoushuu sei noaru",
+        "vie_pronunciation": "gan ket"
+      },
+      "means": {
+        "en": "Causing cohesion",
+        "zh": "属于认知、属于认知、关于认知或涉及认知"
+      }
+    },
+    {
+      "word": {
+        "en": "coil",
+        "laos": "ດອກໄຟ",
+        "jp": "コイル",
+        "vie": "cuộn dây",
+        "en_pronunciation": "/kɔɪl/",
+        "laos_pronunciation": "dokfai",
+        "jp_pronunciation": "koiru",
+        "vie_pronunciation": "cuon day"
+      },
+      "means": {
+        "en": "A structure consisting of something wound in a continuous series of loops",
+        "zh": "以有序、逻辑和美观一致的各部分关系为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "coin",
+        "laos": "ເງິນຫລຽນ",
+        "jp": "コイン",
+        "vie": "đồng xu",
+        "en_pronunciation": "/kɔɪn/",
+        "laos_pronunciation": "ngoenlian",
+        "jp_pronunciation": "koin",
+        "vie_pronunciation": "dong xu"
+      },
+      "means": {
+        "en": "A flat metal piece (usually a disc) used as money",
+        "zh": "感知、学习和推理的心理结果"
+      }
+    },
+    {
+      "word": {
+        "en": "coincide",
+        "laos": "ເກີດຂື້ນ",
+        "jp": "一致する",
+        "vie": "trùng hợp",
+        "en_pronunciation": "/ˌkoʊɪnˈsaɪd/",
+        "laos_pronunciation": "koedkhun",
+        "jp_pronunciation": "itchi suru",
+        "vie_pronunciation": "trung hop"
+      },
+      "means": {
+        "en": "Go with, fall together",
+        "zh": "凝聚或粘在一起的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "coinage",
+        "laos": "ໂພ້",
+        "jp": "貨幣",
+        "vie": "tiền đúc",
+        "en_pronunciation": "/ˈkɔɪnɪʤ/",
+        "laos_pronunciation": "oph",
+        "jp_pronunciation": "kahei",
+        "vie_pronunciation": "tien duc"
+      },
+      "means": {
+        "en": "Coins collectively",
+        "zh": "凝聚或粘在一起的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "coincidence",
+        "laos": "ຄວາມບັງເອີນ",
+        "jp": "偶然",
+        "vie": "sự trùng hợp ngẫu nhiên",
+        "en_pronunciation": "/koʊˈɪnsɪdəns/",
+        "laos_pronunciation": "khuaambangooen",
+        "jp_pronunciation": "guuzen",
+        "vie_pronunciation": "su trung hop ngau nhien"
+      },
+      "means": {
+        "en": "An event that might have been arranged although it was really accidental",
+        "zh": "产生凝聚力"
+      }
+    },
+    {
+      "word": {
+        "en": "cold",
+        "laos": "ເຢັນ",
+        "jp": "寒い",
+        "vie": "lạnh",
+        "en_pronunciation": "/koʊld/",
+        "laos_pronunciation": "yen",
+        "jp_pronunciation": "samui",
+        "vie_pronunciation": "lanh"
+      },
+      "means": {
+        "en": "A mild viral infection involving the nose and respiratory passages (but not the lungs)",
+        "zh": "由连续一系列循环缠绕的物体组成的结构"
+      }
+    },
+    {
+      "word": {
+        "en": "collaborate",
+        "laos": "ຮ່ວມມື",
+        "jp": "協力する",
+        "vie": "cộng tác",
+        "en_pronunciation": "/kəˈlæbərˌeɪt/",
+        "laos_pronunciation": "huammu",
+        "jp_pronunciation": "kyouryoku suru",
+        "vie_pronunciation": "cong tac"
+      },
+      "means": {
+        "en": "Work together on a common enterprise of project",
+        "zh": "用作货币的扁平金属片（通常是圆盘）"
+      }
+    },
+    {
+      "word": {
+        "en": "collaboration",
+        "laos": "ການຮ່ວມມື",
+        "jp": "コラボレーション",
+        "vie": "sự hợp tác",
+        "en_pronunciation": "/kəˌlæbərˈeɪʃən/",
+        "laos_pronunciation": "kanhuammu",
+        "jp_pronunciation": "koraboreeshon",
+        "vie_pronunciation": "su hop tac"
+      },
+      "means": {
+        "en": "Act of working jointly",
+        "zh": "一起走，一起落"
+      }
+    },
+    {
+      "word": {
+        "en": "collaborative",
+        "laos": "ຮ່ວມມື",
+        "jp": "協力的な",
+        "vie": "hợp tác",
+        "en_pronunciation": "/kəˈlæbərˌeɪtɪv/",
+        "laos_pronunciation": "huammu",
+        "jp_pronunciation": "kyouryokuteki na",
+        "vie_pronunciation": "hop tac"
+      },
+      "means": {
+        "en": "Accomplished by collaboration",
+        "zh": "硬币总称"
+      }
+    },
+    {
+      "word": {
+        "en": "collapse",
+        "laos": "ພັງທະລາຍ",
+        "jp": "崩壊する",
+        "vie": "sụp đổ",
+        "en_pronunciation": "/kəˈlæps/",
+        "laos_pronunciation": "phangthalai",
+        "jp_pronunciation": "houkai suru",
+        "vie_pronunciation": "sup do"
+      },
+      "means": {
+        "en": "An abrupt failure of function or complete physical exhaustion",
+        "zh": "一个可能是被安排的事件，虽然它确实是偶然的"
+      }
+    },
+    {
+      "word": {
+        "en": "collar",
+        "laos": "ຄໍ",
+        "jp": "襟",
+        "vie": "cổ áo",
+        "en_pronunciation": "/ˈkɑlər/",
+        "laos_pronunciation": "kho",
+        "jp_pronunciation": "eri",
+        "vie_pronunciation": "co ao"
+      },
+      "means": {
+        "en": "A band that fits around the neck and is usually folded over",
+        "zh": "涉及鼻子和呼吸道（但不包括肺部）的轻度病毒感染"
+      }
+    },
+    {
+      "word": {
+        "en": "colleague",
+        "laos": "ຜູ້ຢິງຮ່ວມງານ",
+        "jp": "同僚",
+        "vie": "đồng nghiệp",
+        "en_pronunciation": "/ˈkɑlig/",
+        "laos_pronunciation": "phu yinghuamngan",
+        "jp_pronunciation": "douryou",
+        "vie_pronunciation": "dong nghiep"
+      },
+      "means": {
+        "en": "An associate that one works with",
+        "zh": "共同致力于项目的共同事业"
+      }
+    },
+    {
+      "word": {
+        "en": "collect",
+        "laos": "ລວບລວມ",
+        "jp": "集める",
+        "vie": "thu thập",
+        "en_pronunciation": "/kəˈlɛkt/",
+        "laos_pronunciation": "luabluam",
+        "jp_pronunciation": "atsume ru",
+        "vie_pronunciation": "thu thap"
+      },
+      "means": {
+        "en": "A short prayer generally preceding the lesson in the Church of Rome or the Church of England",
+        "zh": "共同工作行为"
+      }
+    },
+    {
+      "word": {
+        "en": "collection",
+        "laos": "ກຸນແຈ",
+        "jp": "コレクション",
+        "vie": "bộ sưu tập",
+        "en_pronunciation": "/kəˈlɛkʃən/",
+        "laos_pronunciation": "kunaech",
+        "jp_pronunciation": "korekushon",
+        "vie_pronunciation": "bo suu tap"
+      },
+      "means": {
+        "en": "Several things grouped together or considered as a whole",
+        "zh": "通过协作完成"
+      }
+    },
+    {
+      "word": {
+        "en": "collective",
+        "laos": "ການລວບລວມ",
+        "jp": "集団的",
+        "vie": "tập thể",
+        "en_pronunciation": "/kəˈlɛktɪv/",
+        "laos_pronunciation": "kanluabluam",
+        "jp_pronunciation": "shuudanteki",
+        "vie_pronunciation": "tap the"
+      },
+      "means": {
+        "en": "Members of a cooperative enterprise",
+        "zh": "功能突然失效或身体完全疲惫"
+      }
+    },
+    {
+      "word": {
+        "en": "college",
+        "laos": "ວິທະຍາໄລ",
+        "jp": "大学",
+        "vie": "đại học",
+        "en_pronunciation": "/ˈkɑlɪʤ/",
+        "laos_pronunciation": "vithanyalai",
+        "jp_pronunciation": "daigaku",
+        "vie_pronunciation": "dai hoc"
+      },
+      "means": {
+        "en": "The body of faculty and students of a college",
+        "zh": "适合挂在脖子上且通常折叠起来的带子"
+      }
+    },
+    {
+      "word": {
+        "en": "collide",
+        "laos": "ໂດນ",
+        "jp": "衝突する",
+        "vie": "va chạm",
+        "en_pronunciation": "/kəˈlaɪd/",
+        "laos_pronunciation": "odn",
+        "jp_pronunciation": "shoutotsu suru",
+        "vie_pronunciation": "va cham"
+      },
+      "means": {
+        "en": "Be incompatible; be or come into conflict",
+        "zh": "与某人一起工作的同事"
+      }
+    },
+    {
+      "word": {
+        "en": "collision",
+        "laos": "ການປະປົນ",
+        "jp": "衝突",
+        "vie": "va chạm",
+        "en_pronunciation": "/kəˈlɪʒən/",
+        "laos_pronunciation": "kan papon",
+        "jp_pronunciation": "shoutotsu",
+        "vie_pronunciation": "va cham"
+      },
+      "means": {
+        "en": "(physics) a brief event in which two or more bodies come together",
+        "zh": "在罗马教会或英国教会中，通常在课前进行简短的祈祷"
+      }
+    },
+    {
+      "word": {
+        "en": "colon",
+        "laos": "ຈໍ້າສອງໄຄ",
+        "jp": "結腸",
+        "vie": "dấu hai chấm",
+        "en_pronunciation": "/ˈkoʊlən/",
+        "laos_pronunciation": "choa songkhai",
+        "jp_pronunciation": "ketchou",
+        "vie_pronunciation": "dau hai cham"
+      },
+      "means": {
+        "en": "The part of the large intestine between the cecum and the rectum; it extracts moisture from food residues before they are excreted",
+        "zh": "几件事组合在一起或作为一个整体考虑"
+      }
+    },
+    {
+      "word": {
+        "en": "semi-colon",
+        "laos": "ຈໍ້າສອງໄຄ",
+        "jp": "セミコロン",
+        "vie": "dấu chấm phẩy",
+        "en_pronunciation": "/ˈsɛməˈkoʊlən/",
+        "laos_pronunciation": "choa songkhai",
+        "jp_pronunciation": "semikoron",
+        "vie_pronunciation": "dau cham phay"
+      },
+      "means": {
+        "en": "A punctuation mark (`;') used to connect independent clauses; indicates a closer relation than does a period",
+        "zh": "合作企业成员"
+      }
+    },
+    {
+      "word": {
+        "en": "colonel",
+        "laos": "ນາງ Colonel",
+        "jp": "大佐",
+        "vie": "đại tá",
+        "en_pronunciation": "/ˈkərnəl/",
+        "laos_pronunciation": "nang Colonel",
+        "jp_pronunciation": "taisa",
+        "vie_pronunciation": "dai ta"
+      },
+      "means": {
+        "en": "A commissioned military officer in the United States Army or Air Force or Marines who ranks above a lieutenant colonel and below a brigadier general",
+        "zh": "学院的教职员工和学生团体"
+      }
+    },
+    {
+      "word": {
+        "en": "colony",
+        "laos": "ເມືອງ",
+        "jp": "コロニー",
+        "vie": "thuộc địa",
+        "en_pronunciation": "/ˈkɑləni/",
+        "laos_pronunciation": "meuong",
+        "jp_pronunciation": "koronii",
+        "vie_pronunciation": "thuoc dia"
+      },
+      "means": {
+        "en": "A body of people who settle far from home but maintain ties with their homeland; inhabitants remain nationals of their home state but are not literally under the home state's system of government",
+        "zh": "不相容；"
+      }
+    },
+    {
+      "word": {
+        "en": "color",
+        "laos": "ສີ",
+        "jp": "色",
+        "vie": "màu sắc",
+        "en_pronunciation": "/ˈkələr/",
+        "laos_pronunciation": "si",
+        "jp_pronunciation": "iro",
+        "vie_pronunciation": "mau sac"
+      },
+      "means": {
+        "en": "A visual attribute of things that results from the light they emit or transmit or reflect",
+        "zh": "存在或发生冲突"
+      }
+    },
+    {
+      "word": {
+        "en": "colour",
+        "laos": "ສີ",
+        "jp": "色",
+        "vie": "màu sắc",
+        "en_pronunciation": "/ˈkələr/",
+        "laos_pronunciation": "si",
+        "jp_pronunciation": "iro",
+        "vie_pronunciation": "mau sac"
+      },
+      "means": {
+        "en": "Any material used for its color",
+        "zh": "（物理学）两个或多个物体聚集在一起的短暂事件"
+      }
+    },
+    {
+      "word": {
+        "en": "colonial",
+        "laos": "ອານານິຄົມ",
+        "jp": "植民地時代の",
+        "vie": "thuộc địa",
+        "en_pronunciation": "/kəˈloʊniəl/",
+        "laos_pronunciation": "ananikhom",
+        "jp_pronunciation": "shokuminchi jidai no",
+        "vie_pronunciation": "thuoc dia"
+      },
+      "means": {
+        "en": "A resident of a colony",
+        "zh": "大肠位于盲肠和直肠之间的部分；"
+      }
+    },
+    {
+      "word": {
+        "en": "colorful",
+        "laos": "ສີ",
+        "jp": "カラフルな",
+        "vie": "đầy màu sắc",
+        "en_pronunciation": "/ˈkələrfəl/",
+        "laos_pronunciation": "si",
+        "jp_pronunciation": "karafuru na",
+        "vie_pronunciation": "day mau sac"
+      },
+      "means": {
+        "en": "Having striking color",
+        "zh": "它在食物残渣排出体外之前提取水分"
+      }
+    },
+    {
+      "word": {
+        "en": "colourful",
+        "laos": "ສີ",
+        "jp": "カラフルな",
+        "vie": "đầy màu sắc",
+        "en_pronunciation": "/colourful/",
+        "laos_pronunciation": "si",
+        "jp_pronunciation": "karafuru na",
+        "vie_pronunciation": "day mau sac"
+      },
+      "means": {
+        "en": "Striking in variety and interest",
+        "zh": "标点符号（`;'）用于连接独立子句；"
+      }
+    },
+    {
+      "word": {
+        "en": "colonialism",
+        "laos": "ລັດທິສິຣະ",
+        "jp": "植民地主義",
+        "vie": "chủ nghĩa thực dân",
+        "en_pronunciation": "/kəˈloʊniəˌlɪzəm/",
+        "laos_pronunciation": "ladthi sira",
+        "jp_pronunciation": "shokuminchi shugi",
+        "vie_pronunciation": "chu nghia thuc dan"
+      },
+      "means": {
+        "en": "Exploitation by a stronger country of weaker one; the use of the weaker country's resources to strengthen and enrich the stronger country",
+        "zh": "表示比句点更紧密的关系"
+      }
+    },
+    {
+      "word": {
+        "en": "colonize",
+        "laos": "creonize colonize",
+        "jp": "植民地化する",
+        "vie": "thuộc địa hóa",
+        "en_pronunciation": "/ˈkɑləˌnaɪz/",
+        "laos_pronunciation": "creonize colonize",
+        "jp_pronunciation": "shokuminchika suru",
+        "vie_pronunciation": "thuoc dia hoa"
+      },
+      "means": {
+        "en": "Settle as a colony; of countries in the developing world",
+        "zh": "美国陆军、空军或海军陆战队的现役军官，军衔在中校以上、准将以下"
+      }
+    },
+    {
+      "word": {
+        "en": "colonise",
+        "laos": "creonize colonize",
+        "jp": "植民地化する",
+        "vie": "thuộc địa hóa",
+        "en_pronunciation": "/colonise/",
+        "laos_pronunciation": "creonize colonize",
+        "jp_pronunciation": "shokuminchika suru",
+        "vie_pronunciation": "thuoc dia hoa"
+      },
+      "means": {
+        "en": "Settle as a colony; of countries in the developing world",
+        "zh": "一群远离家乡定居但与祖国保持联系的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "column",
+        "laos": "ຖັນ",
+        "jp": "コラム",
+        "vie": "cột",
+        "en_pronunciation": "/ˈkɑləm/",
+        "laos_pronunciation": "than",
+        "jp_pronunciation": "koramu",
+        "vie_pronunciation": "cot"
+      },
+      "means": {
+        "en": "A line of units following one after another",
+        "zh": "居民仍然是其祖国的国民，但实际上并不受其祖国的政府体系管辖"
+      }
+    },
+    {
+      "word": {
+        "en": "columnist",
+        "laos": "ໂພທິວ່າ",
+        "jp": "コラムニスト",
+        "vie": "người viết chuyên mục",
+        "en_pronunciation": "/ˈkɑləmnəst/",
+        "laos_pronunciation": "ophthiva",
+        "jp_pronunciation": "koramunisuto",
+        "vie_pronunciation": "nguoi viet chuyen muc"
+      },
+      "means": {
+        "en": "A journalist who writes editorials",
+        "zh": "事物的视觉属性，由它们发射、传输或反射的光产生"
+      }
+    },
+    {
+      "word": {
+        "en": "comb",
+        "laos": "ສິ້ນບອນ",
+        "jp": "櫛",
+        "vie": "lược",
+        "en_pronunciation": "/koʊm/",
+        "laos_pronunciation": "sinbon",
+        "jp_pronunciation": "kushi",
+        "vie_pronunciation": "luoc"
+      },
+      "means": {
+        "en": "A flat device with narrow pointed teeth on one edge; disentangles or arranges hair",
+        "zh": "任何用于其颜色的材料"
+      }
+    },
+    {
+      "word": {
+        "en": "combat",
+        "laos": "ການຕໍ່ສູ້",
+        "jp": "戦闘",
+        "vie": "chiến đấu",
+        "en_pronunciation": "/ˈkɑmbæt/",
+        "laos_pronunciation": "kantosu",
+        "jp_pronunciation": "sentou",
+        "vie_pronunciation": "chien dau"
+      },
+      "means": {
+        "en": "An engagement fought between two military forces",
+        "zh": "一个殖民地的居民"
+      }
+    },
+    {
+      "word": {
+        "en": "combative",
+        "laos": "ການປະສົມປະສານ",
+        "jp": "好戦的な",
+        "vie": "hiếu chiến",
+        "en_pronunciation": "/ˌkɑmˈbæˌtɪv/",
+        "laos_pronunciation": "kanpasompasan",
+        "jp_pronunciation": "kousenteki na",
+        "vie_pronunciation": "hieu chien"
+      },
+      "means": {
+        "en": "Inclined or showing an inclination to dispute or disagree, even to engage in law suits",
+        "zh": "拥有醒目的色彩"
+      }
+    },
+    {
+      "word": {
+        "en": "combine",
+        "laos": "ປະສົມ",
+        "jp": "組み合わせる",
+        "vie": "kết hợp",
+        "en_pronunciation": "/ˈkɑmbaɪn/",
+        "laos_pronunciation": "pasom",
+        "jp_pronunciation": "kumiawase ru",
+        "vie_pronunciation": "ket hop"
+      },
+      "means": {
+        "en": "Harvester that heads and threshes and cleans grain while moving across the field",
+        "zh": "多样性和趣味性引人注目"
+      }
+    },
+    {
+      "word": {
+        "en": "combination",
+        "laos": "ການປະສົມປະສານ",
+        "jp": "組み合わせ",
+        "vie": "sự kết hợp",
+        "en_pronunciation": "/ˌkɑmbəˈneɪʃən/",
+        "laos_pronunciation": "kanpasompasan",
+        "jp_pronunciation": "kumiawase",
+        "vie_pronunciation": "su ket hop"
+      },
+      "means": {
+        "en": "A collection of things that have been combined; an assemblage of separate parts or qualities",
+        "zh": "强国对弱国的剥削；"
+      }
+    },
+    {
+      "word": {
+        "en": "come",
+        "laos": "ມາ",
+        "jp": "来てください",
+        "vie": "đến",
+        "en_pronunciation": "/kəm/",
+        "laos_pronunciation": "ma",
+        "jp_pronunciation": "kite kudasai",
+        "vie_pronunciation": "den"
+      },
+      "means": {
+        "en": "The thick white fluid containing spermatozoa that is ejaculated by the male genital tract",
+        "zh": "利用弱国的资源来增强和丰富强国"
+      }
+    },
+    {
+      "word": {
+        "en": "comedy",
+        "laos": "ລະຄອນຕະຫລົກ",
+        "jp": "コメディ",
+        "vie": "hài kịch",
+        "en_pronunciation": "/ˈkɑmədi/",
+        "laos_pronunciation": "lakhontalok",
+        "jp_pronunciation": "komedi",
+        "vie_pronunciation": "hai kich"
+      },
+      "means": {
+        "en": "Light and humorous drama with a happy ending",
+        "zh": "作为殖民地定居；"
+      }
+    },
+    {
+      "word": {
+        "en": "comet",
+        "laos": "ຄົກໄສ",
+        "jp": "彗星",
+        "vie": "sao chổi",
+        "en_pronunciation": "/ˈkɑmət/",
+        "laos_pronunciation": "khoksai",
+        "jp_pronunciation": "suisei",
+        "vie_pronunciation": "sao choi"
+      },
+      "means": {
+        "en": "(astronomy) a relatively small extraterrestrial body consisting of a frozen mass that travels around the sun in a highly elliptical orbit",
+        "zh": "发展中国家的国家"
+      }
+    },
+    {
+      "word": {
+        "en": "comfort",
+        "laos": "ຄວາມສະບາຍ",
+        "jp": "快適さ",
+        "vie": "sự thoải mái",
+        "en_pronunciation": "/ˈkəmfərt/",
+        "laos_pronunciation": "khuaamsabai",
+        "jp_pronunciation": "kaiteki sa",
+        "vie_pronunciation": "su thoai mai"
+      },
+      "means": {
+        "en": "A state of being relaxed and feeling no pain",
+        "zh": "作为殖民地定居；"
+      }
+    },
+    {
+      "word": {
+        "en": "comfortable",
+        "laos": "ສະບາຍ",
+        "jp": "快適な",
+        "vie": "thoải mái",
+        "en_pronunciation": "/ˈkəmfərtəbəl/",
+        "laos_pronunciation": "sabai",
+        "jp_pronunciation": "kaiteki na",
+        "vie_pronunciation": "thoai mai"
+      },
+      "means": {
+        "en": "Providing or experiencing physical well-being or relief (`comfy' is informal)",
+        "zh": "发展中国家的国家"
+      }
+    },
+    {
+      "word": {
+        "en": "comic",
+        "laos": "ຕະລົກ",
+        "jp": "漫画",
+        "vie": "truyện tranh",
+        "en_pronunciation": "/ˈkɑmɪk/",
+        "laos_pronunciation": "talok",
+        "jp_pronunciation": "manga",
+        "vie_pronunciation": "truyen tranh"
+      },
+      "means": {
+        "en": "A professional performer who tells jokes and performs comical acts",
+        "zh": "一排单位依次排列"
+      }
+    },
+    {
+      "word": {
+        "en": "comma",
+        "laos": "ເມຈິ",
+        "jp": "カンマ",
+        "vie": "dấu phẩy",
+        "en_pronunciation": "/ˈkɑmə/",
+        "laos_pronunciation": "mechi",
+        "jp_pronunciation": "kanma",
+        "vie_pronunciation": "dau phay"
+      },
+      "means": {
+        "en": "A punctuation mark (,) used to indicate the separation of elements within the grammatical structure of a sentence",
+        "zh": "一个写社论的记者"
+      }
+    },
+    {
+      "word": {
+        "en": "command",
+        "laos": "ບັນຊາ",
+        "jp": "コマンド",
+        "vie": "lệnh",
+        "en_pronunciation": "/kəˈmænd/",
+        "laos_pronunciation": "bansa",
+        "jp_pronunciation": "komando",
+        "vie_pronunciation": "lenh"
+      },
+      "means": {
+        "en": "An authoritative direction or instruction to do something",
+        "zh": "一侧边缘有窄尖齿的扁平装置；"
+      }
+    },
+    {
+      "word": {
+        "en": "commander",
+        "laos": "ຜູ້ບັງຄັບບັນຊາ",
+        "jp": "指揮官",
+        "vie": "người chỉ huy",
+        "en_pronunciation": "/kəˈmændər/",
+        "laos_pronunciation": "phubangkhabbansa",
+        "jp_pronunciation": "shikikan",
+        "vie_pronunciation": "nguoi chi huy"
+      },
+      "means": {
+        "en": "An officer in command of a military unit",
+        "zh": "解开或整理头发"
+      }
+    },
+    {
+      "word": {
+        "en": "commemorate",
+        "laos": "ອັດຕະໂນມັດ",
+        "jp": "記念する",
+        "vie": "kỷ niệm",
+        "en_pronunciation": "/kəˈmɛmərˌeɪt/",
+        "laos_pronunciation": "adtaonmad",
+        "jp_pronunciation": "kinen suru",
+        "vie_pronunciation": "ky niem"
+      },
+      "means": {
+        "en": "Mark by some ceremony or observation",
+        "zh": "两支军队之间的交战"
+      }
+    },
+    {
+      "word": {
+        "en": "commemoration",
+        "laos": "ຄວາມລະຍາຍ",
+        "jp": "記念",
+        "vie": "kỷ niệm",
+        "en_pronunciation": "/kəˌmɛmərˈeɪʃən/",
+        "laos_pronunciation": "khuaamlanyai",
+        "jp_pronunciation": "kinen",
+        "vie_pronunciation": "ky niem"
+      },
+      "means": {
+        "en": "A ceremony to honor the memory of someone or something",
+        "zh": "倾向于或表现出争议或不同意见的倾向，甚至参与法律诉讼"
+      }
+    },
+    {
+      "word": {
+        "en": "commence",
+        "laos": "ກໍ່ແຮກ",
+        "jp": "始める",
+        "vie": "bắt đầu",
+        "en_pronunciation": "/kəˈmɛns/",
+        "laos_pronunciation": "koaehk",
+        "jp_pronunciation": "hajime ru",
+        "vie_pronunciation": "bat dau"
+      },
+      "means": {
+        "en": "Take the first step or steps in carrying out an action",
+        "zh": "收割机在穿过田地时对谷物进行打头、脱粒和清理"
+      }
+    },
+    {
+      "word": {
+        "en": "commencement",
+        "laos": "ການຂຶ້ນນາປິຕິ",
+        "jp": "始まり",
+        "vie": "sự bắt đầu",
+        "en_pronunciation": "/kəˈmɛnsmənt/",
+        "laos_pronunciation": "kan khun napiti",
+        "jp_pronunciation": "hajimari",
+        "vie_pronunciation": "su bat dau"
+      },
+      "means": {
+        "en": "The time at which something is supposed to begin",
+        "zh": "已组合的事物的集合；"
+      }
+    },
+    {
+      "word": {
+        "en": "commend",
+        "laos": "ຢົກຢ້ອງ",
+        "jp": "褒める",
+        "vie": "khen ngợi",
+        "en_pronunciation": "/kəˈmɛnd/",
+        "laos_pronunciation": "yok yong",
+        "jp_pronunciation": "home ru",
+        "vie_pronunciation": "khen ngoi"
+      },
+      "means": {
+        "en": "Express approval of",
+        "zh": "单独部分或质量的组合"
+      }
+    },
+    {
+      "word": {
+        "en": "commendation",
+        "laos": "ການຢົກຢຽງ",
+        "jp": "表彰",
+        "vie": "lời khen ngợi",
+        "en_pronunciation": "/ˌkɑmənˈdeɪʃən/",
+        "laos_pronunciation": "kan yok yiang",
+        "jp_pronunciation": "hyoushou",
+        "vie_pronunciation": "loi khen ngoi"
+      },
+      "means": {
+        "en": "An official award (as for bravery or service) usually given as formal public statement",
+        "zh": "男性生殖道射出的含有精子的白色粘稠液体"
+      }
+    },
+    {
+      "word": {
+        "en": "comment",
+        "laos": "ຄໍາເຫັນ",
+        "jp": "コメント",
+        "vie": "bình luận",
+        "en_pronunciation": "/ˈkɑmɛnt/",
+        "laos_pronunciation": "khoahen",
+        "jp_pronunciation": "komento",
+        "vie_pronunciation": "binh luan"
+      },
+      "means": {
+        "en": "A statement that expresses a personal opinion or belief or adds information",
+        "zh": "轻松幽默的剧情，结局圆满"
+      }
+    },
+    {
+      "word": {
+        "en": "commerce",
+        "laos": "ການຄ້າຂາຢ",
+        "jp": "商業",
+        "vie": "thương mại",
+        "en_pronunciation": "/ˈkɑmərs/",
+        "laos_pronunciation": "kankha khay",
+        "jp_pronunciation": "shougyou",
+        "vie_pronunciation": "thuong mai"
+      },
+      "means": {
+        "en": "Transactions (sales and purchases) having the objective of supplying commodities (goods and services)",
+        "zh": "（天文学）由冰冻物质组成的相对较小的外星天体，以高椭圆轨道绕太阳运行"
+      }
+    },
+    {
+      "word": {
+        "en": "commission",
+        "laos": "ຄະນະກໍາມາທິການ",
+        "jp": "手数料",
+        "vie": "hoa hồng",
+        "en_pronunciation": "/kəˈmɪʃən/",
+        "laos_pronunciation": "khanakoamathikan",
+        "jp_pronunciation": "tesuuryou",
+        "vie_pronunciation": "hoa hong"
+      },
+      "means": {
+        "en": "A special group delegated to consider some matter;  - Milton Berle",
+        "zh": "一种放松、感觉不到疼痛的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "commentary",
+        "laos": "ຂໍ້ສັງເກດ",
+        "jp": "解説",
+        "vie": "bình luận",
+        "en_pronunciation": "/ˈkɑmənˌtɛri/",
+        "laos_pronunciation": "khosangked",
+        "jp_pronunciation": "kaisetsu",
+        "vie_pronunciation": "binh luan"
+      },
+      "means": {
+        "en": "A written explanation or criticism or illustration that is added to a book or other textual material",
+        "zh": "提供或体验身体健康或缓解（“舒适”是非正式的）"
+      }
+    },
+    {
+      "word": {
+        "en": "commercial",
+        "laos": "ການຄ້າ",
+        "jp": "コマーシャル",
+        "vie": "thương mại",
+        "en_pronunciation": "/kəˈmərʃəl/",
+        "laos_pronunciation": "kankha",
+        "jp_pronunciation": "komaasharu",
+        "vie_pronunciation": "thuong mai"
+      },
+      "means": {
+        "en": "A commercially sponsored ad on radio or television",
+        "zh": "讲笑话、表演滑稽动作的专业表演者"
+      }
+    },
+    {
+      "word": {
+        "en": "commentator",
+        "laos": "ຜູ້ໃຫ້ຄໍາເຫັນ",
+        "jp": "コメンテーター",
+        "vie": "người bình luận",
+        "en_pronunciation": "/ˈkɑmənˌteɪtər/",
+        "laos_pronunciation": "phuhaikhoahen",
+        "jp_pronunciation": "komenteetaa",
+        "vie_pronunciation": "nguoi binh luan"
+      },
+      "means": {
+        "en": "An expert who observes and comments on something",
+        "zh": "标点符号 (,) 用于表示句子语法结构中元素的分隔"
+      }
+    },
+    {
+      "word": {
+        "en": "commercialize",
+        "laos": "ການຄ້າ",
+        "jp": "商品化する",
+        "vie": "thương mại hóa",
+        "en_pronunciation": "/kəˈmərʃəˌlaɪz/",
+        "laos_pronunciation": "kankha",
+        "jp_pronunciation": "shouhinka suru",
+        "vie_pronunciation": "thuong mai hoa"
+      },
+      "means": {
+        "en": "Exploit for maximal profit, usually by sacrificing quality",
+        "zh": "做某事的权威指示或指示"
+      }
+    },
+    {
+      "word": {
+        "en": "commercialise",
+        "laos": "ການຄ້າ",
+        "jp": "商品化する",
+        "vie": "thương mại hóa",
+        "en_pronunciation": "/commercialise/",
+        "laos_pronunciation": "kankha",
+        "jp_pronunciation": "shouhinka suru",
+        "vie_pronunciation": "thuong mai hoa"
+      },
+      "means": {
+        "en": "Make commercial",
+        "zh": "军事单位的指挥官"
+      }
+    },
+    {
+      "word": {
+        "en": "commit",
+        "laos": "ສັນທາ",
+        "jp": "コミットする",
+        "vie": "cam kết",
+        "en_pronunciation": "/kəˈmɪt/",
+        "laos_pronunciation": "santha",
+        "jp_pronunciation": "komitto suru",
+        "vie_pronunciation": "cam ket"
+      },
+      "means": {
+        "en": "Perform an act, usually with a negative connotation",
+        "zh": "通过某种仪式或观察来标记"
+      }
+    },
+    {
+      "word": {
+        "en": "commitment",
+        "laos": "ຂໍ້ຜູກມັດ",
+        "jp": "コミットメント",
+        "vie": "cam kết",
+        "en_pronunciation": "/kəˈmɪtmənt/",
+        "laos_pronunciation": "khophukmad",
+        "jp_pronunciation": "komittomento",
+        "vie_pronunciation": "cam ket"
+      },
+      "means": {
+        "en": "The trait of sincere and steadfast fixity of purpose",
+        "zh": "纪念某人或某事的仪式"
+      }
+    },
+    {
+      "word": {
+        "en": "committee",
+        "laos": "ຄະນະກໍາມະການ",
+        "jp": "委員会",
+        "vie": "ủy ban",
+        "en_pronunciation": "/kəˈmɪti/",
+        "laos_pronunciation": "khanakoamakan",
+        "jp_pronunciation": "iinkai",
+        "vie_pronunciation": "uy ban"
+      },
+      "means": {
+        "en": "A special group delegated to consider some matter;  - Milton Berle",
+        "zh": "采取第一步或执行某项行动的步骤"
+      }
+    },
+    {
+      "word": {
+        "en": "commodity",
+        "laos": "ສິນຄ້າ",
+        "jp": "商品",
+        "vie": "hàng hóa",
+        "en_pronunciation": "/kəˈmɑdəti/",
+        "laos_pronunciation": "sinkha",
+        "jp_pronunciation": "shouhin",
+        "vie_pronunciation": "hang hoa"
+      },
+      "means": {
+        "en": "Articles of commerce",
+        "zh": "某事应该开始的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "common",
+        "laos": "ສາມັນ",
+        "jp": "共通の",
+        "vie": "chung",
+        "en_pronunciation": "/ˈkɑmən/",
+        "laos_pronunciation": "saman",
+        "jp_pronunciation": "kyoutsuu no",
+        "vie_pronunciation": "chung"
+      },
+      "means": {
+        "en": "A piece of open land for recreational use in an urban area",
+        "zh": "明确批准"
+      }
+    },
+    {
+      "word": {
+        "en": "commonplace",
+        "laos": "ທົ່ວໄປ",
+        "jp": "ありふれた",
+        "vie": "chuyện tầm thường",
+        "en_pronunciation": "/ˈkɑmənˌpleɪs/",
+        "laos_pronunciation": "thouapai",
+        "jp_pronunciation": "arifureta",
+        "vie_pronunciation": "chuyen tam thuong"
+      },
+      "means": {
+        "en": "A trite or obvious remark",
+        "zh": "官方奖励（针对勇敢或服务），通常以正式公开声明的形式颁发"
+      }
+    },
+    {
+      "word": {
+        "en": "commonwealth",
+        "laos": "ຈັກກະພົບ",
+        "jp": "連邦",
+        "vie": "thịnh vượng chung",
+        "en_pronunciation": "/ˈkɑmənˌwɛlθ/",
+        "laos_pronunciation": "chakkaphob",
+        "jp_pronunciation": "renpou",
+        "vie_pronunciation": "thinh vuong chung"
+      },
+      "means": {
+        "en": "The official name of some states in the United States (Massachusetts and Pennsylvania and Virginia and Kentucky) and associated territories (Puerto Rico)",
+        "zh": "表达个人意见或信念或添加信息的声明"
+      }
+    },
+    {
+      "word": {
+        "en": "communicate",
+        "laos": "ສື່",
+        "jp": "通信する",
+        "vie": "giao tiếp",
+        "en_pronunciation": "/kəmˈjunəˌkeɪt/",
+        "laos_pronunciation": "su",
+        "jp_pronunciation": "tsuushin suru",
+        "vie_pronunciation": "giao tiep"
+      },
+      "means": {
+        "en": "Transmit information",
+        "zh": "以供应商品（商品和服务）为目的的交易（销售和采购）"
+      }
+    },
+    {
+      "word": {
+        "en": "communication",
+        "laos": "ການຕິດຕໍ່",
+        "jp": "コミュニケーション",
+        "vie": "giao tiếp",
+        "en_pronunciation": "/kəmˌjunəˈkeɪʃən/",
+        "laos_pronunciation": "kantidto",
+        "jp_pronunciation": "komyunikeeshon",
+        "vie_pronunciation": "giao tiep"
+      },
+      "means": {
+        "en": "The activity of communicating; the activity of conveying information",
+        "zh": "一个专门小组被授权审议某些事项；"
+      }
+    },
+    {
+      "word": {
+        "en": "communicative",
+        "laos": "ການສື່ສານ",
+        "jp": "コミュニケーション的な",
+        "vie": "giao tiếp",
+        "en_pronunciation": "/kəmˈjunəkətɪv/",
+        "laos_pronunciation": "kansusan",
+        "jp_pronunciation": "komyunikeeshon tekina",
+        "vie_pronunciation": "giao tiep"
+      },
+      "means": {
+        "en": "Of or relating to communication",
+        "zh": "——米尔顿·伯利"
+      }
+    },
+    {
+      "word": {
+        "en": "commune",
+        "laos": "ສັງຫອນ",
+        "jp": "コミューン",
+        "vie": "xã",
+        "en_pronunciation": "/ˈkɑmjun/",
+        "laos_pronunciation": "sanghon",
+        "jp_pronunciation": "komyuun",
+        "vie_pronunciation": "xa"
+      },
+      "means": {
+        "en": "The smallest administrative district of several European countries",
+        "zh": "添加到书籍或其他文字材料中的书面解释、批评或插图"
+      }
+    },
+    {
+      "word": {
+        "en": "communist",
+        "laos": "ຈວງ",
+        "jp": "共産主義者",
+        "vie": "cộng sản",
+        "en_pronunciation": "/ˈkɑmjənəst/",
+        "laos_pronunciation": "chuang",
+        "jp_pronunciation": "kyousanshugisha",
+        "vie_pronunciation": "cong san"
+      },
+      "means": {
+        "en": "A member of the communist party",
+        "zh": "广播或电视上的商业赞助广告"
+      }
+    },
+    {
+      "word": {
+        "en": "communism",
+        "laos": "ລັດທິຄອມມິວນິດ",
+        "jp": "共産主義",
+        "vie": "chủ nghĩa cộng sản",
+        "en_pronunciation": "/ˈkɑmjəˌnɪzəm/",
+        "laos_pronunciation": "ladthi khom miv nid",
+        "jp_pronunciation": "kyousanshugi",
+        "vie_pronunciation": "chu nghia cong san"
+      },
+      "means": {
+        "en": "A form of socialism that abolishes private ownership",
+        "zh": "对某事进行观察和评论的专家"
+      }
+    }
+  ]
+}
