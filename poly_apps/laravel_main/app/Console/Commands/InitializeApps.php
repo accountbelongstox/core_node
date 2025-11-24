@@ -122,6 +122,81 @@ class InitializeApps extends Command
         }
         $this->newLine();
         
+        $this->info('Initializing dictionary (Step 2: Extended words & translations)...');
+        $dictResults = \App\Services\UserSyncService::initializeDictionaryStep2();
+        
+        if (isset($dictResults['step1_rename_7z'])) {
+            $step1 = $dictResults['step1_rename_7z'];
+            if (isset($step1['total_files'])) {
+                $this->line("  📦 Processing 7z files: {$step1['renamed']}/{$step1['total_files']} renamed");
+                if ($step1['extracted'] > 0) {
+                    $this->line("  ✅ Extracted JSON file");
+                    if (isset($step1['json_file'])) {
+                        $sizeMB = round($step1['json_size'] / 1024 / 1024, 2);
+                        $this->line("     JSON: {$step1['json_file']} ({$sizeMB} MB)");
+                    }
+                } else {
+                    $this->line("  ⚠️  JSON extraction pending");
+                }
+                if (!empty($step1['errors'])) {
+                    foreach (array_slice($step1['errors'], 0, 3) as $error) {
+                        $this->line("     ⚠️  {$error}");
+                    }
+                }
+            }
+        }
+        
+        if (isset($dictResults['step3_import_words'])) {
+            $step3 = $dictResults['step3_import_words'];
+            if (isset($step3['skipped']) && $step3['skipped']) {
+                $this->line("  ⏭️  Words: {$step3['message']}");
+            } elseif (isset($step3['imported'])) {
+                $this->line("  ✅ Imported {$step3['imported']} words from output.txt");
+            } elseif (isset($step3['error'])) {
+                $this->line("  ❌ {$step3['error']}");
+            }
+        }
+        
+        if (isset($dictResults['step4_update_translations'])) {
+            $step4 = $dictResults['step4_update_translations'];
+            if (isset($step4['error'])) {
+                $this->line("  ❌ Translations: {$step4['error']}");
+            } elseif (isset($step4['processed'])) {
+                $this->line("  ✅ Translations: processed {$step4['processed']}, updated {$step4['updated']}, inserted {$step4['inserted']}, errors {$step4['errors']}");
+            }
+        }
+        
+        if (isset($dictResults['error'])) {
+            $this->error("  ❌ Dictionary initialization error: {$dictResults['error']}");
+        }
+        
+        $this->newLine();
+        
+        $this->info('AppQyV1 word tables summary:');
+        try {
+            $connection = 'appqyv1';
+            $tables = [
+                'app_qy_v1_words_english',
+                'app_qy_v1_words_lao',
+                'app_qy_v1_words_japanese',
+                'app_qy_v1_words_vietnamese',
+                'app_qy_v1_tts_cache',
+            ];
+            
+            foreach ($tables as $table) {
+                try {
+                    $count = \DB::connection($connection)->table($table)->count();
+                    $this->line("  • {$table}: {$count} rows");
+                } catch (\Exception $e) {
+                    $this->line("  • {$table}: <fg=red>not exists</>");
+                }
+            }
+        } catch (\Exception $e) {
+            $this->line("  <fg=red>Error: {$e->getMessage()}</>");
+        }
+        
+        $this->newLine();
+        
         $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());

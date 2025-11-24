@@ -340,8 +340,6 @@ class UserSyncService
             'lao' => 'Lao',
             'japanese' => 'Japanese', 
             'vietnamese' => 'Vietnamese',
-            'english' => 'English',
-            'chinese' => 'Chinese',
         ];
         
         foreach ($languages as $langKey => $langName) {
@@ -382,6 +380,41 @@ class UserSyncService
             }
         }
         
+        try {
+            DB::connection($connection)->statement("
+                CREATE TABLE IF NOT EXISTS app_qy_v1_words_english (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    word_id INTEGER NOT NULL,
+                    word TEXT NOT NULL,
+                    us_phonetic TEXT,
+                    uk_phonetic TEXT,
+                    translation TEXT,
+                    sample_images TEXT,
+                    ai_reviewed INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+            
+            DB::connection($connection)->statement("
+                CREATE INDEX IF NOT EXISTS idx_english_word_id ON app_qy_v1_words_english(word_id)
+            ");
+            
+            DB::connection($connection)->statement("
+                CREATE INDEX IF NOT EXISTS idx_english_word ON app_qy_v1_words_english(word)
+            ");
+            
+            DB::connection($connection)->statement("
+                CREATE INDEX IF NOT EXISTS idx_english_ai_reviewed ON app_qy_v1_words_english(ai_reviewed)
+            ");
+            
+            $results['app_qy_v1_words_english'] = 'created';
+            
+        } catch (\Exception $e) {
+            Log::error("[UserSync] Failed to create app_qy_v1_words_english: " . $e->getMessage());
+            $results['app_qy_v1_words_english'] = 'error: ' . $e->getMessage();
+        }
+        
         return $results;
     }
 
@@ -415,8 +448,6 @@ class UserSyncService
         $laoData = [];
         $japaneseData = [];
         $vietnameseData = [];
-        $englishData = [];
-        $chineseData = [];
         
         foreach ($mdFiles as $file) {
             $content = file_get_contents($file);
@@ -458,16 +489,6 @@ class UserSyncService
                 
                 $now = now();
                 
-                $englishData[] = [
-                    'word_id' => $wordId,
-                    'word' => $english,
-                    'pronunciation' => null,
-                    'meaning_en' => $meaningEn,
-                    'meaning_zh' => $meaningZh,
-                    'ai_reviewed' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
                 
                 $laoData[] = [
                     'word_id' => $wordId,
@@ -502,27 +523,12 @@ class UserSyncService
                     'updated_at' => $now,
                 ];
                 
-                $chineseData[] = [
-                    'word_id' => $wordId,
-                    'word' => $meaningZh,
-                    'pronunciation' => null,
-                    'meaning_en' => $meaningEn,
-                    'meaning_zh' => $meaningZh,
-                    'ai_reviewed' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-                
                 $results['total_words']++;
             }
         }
         
         try {
             $chunkSize = 500;
-            
-            foreach (array_chunk($englishData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_words_english')->insert($chunk);
-            }
             
             foreach (array_chunk($laoData, $chunkSize) as $chunk) {
                 DB::connection($connection)->table('app_qy_v1_words_lao')->insert($chunk);
@@ -536,10 +542,6 @@ class UserSyncService
                 DB::connection($connection)->table('app_qy_v1_words_vietnamese')->insert($chunk);
             }
             
-            foreach (array_chunk($chineseData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_words_chinese')->insert($chunk);
-            }
-            
             $results['imported'] = $results['total_words'];
             
         } catch (\Exception $e) {
@@ -548,5 +550,352 @@ class UserSyncService
         }
         
         return $results;
+    }
+
+    public static function initializeDictionaryStep2(): array
+    {
+        $results = [
+            'step1_rename_7z' => [],
+            'step2_extract_json' => [],
+            'step3_import_words' => [],
+            'step4_update_translations' => [],
+        ];
+        
+        try {
+            $results['step1_rename_7z'] = self::process7zFiles();
+            $results['step3_import_words'] = self::importDictionaryWords();
+            $results['step4_update_translations'] = self::importTranslationsFromJson();
+            
+        } catch (\Exception $e) {
+            Log::error("[DictionaryInit] Failed: " . $e->getMessage());
+            $results['error'] = $e->getMessage();
+        }
+        
+        return $results;
+    }
+
+    private static function importTranslationsFromJson(): array
+    {
+        $jsonFile = \App\Providers\PathMapper::getLaravelTmpDir() . '/dictionary_import/extracted/olddb.txt';
+        $connection = 'appqyv1';
+        $delimiter = '------------------------------TokenLine-----------------------------';
+        
+        if (!file_exists($jsonFile)) {
+            return ['error' => 'JSON file not found: ' . $jsonFile];
+        }
+        
+        $handle = fopen($jsonFile, 'r');
+        if (!$handle) {
+            return ['error' => 'Failed to open JSON file'];
+        }
+        
+        $buffer = '';
+        $processed = 0;
+        $updated = 0;
+        $inserted = 0;
+        $errors = 0;
+        $batch = [];
+        $batchSize = 100;
+        
+        while (!feof($handle)) {
+            $chunk = fread($handle, 65536);
+            $buffer .= $chunk;
+            
+            while (($pos = strpos($buffer, $delimiter)) !== false) {
+                $item = trim(substr($buffer, 0, $pos));
+                $buffer = substr($buffer, $pos + strlen($delimiter));
+                
+                if (empty($item)) continue;
+                
+                $data = json_decode($item, true);
+                if (!$data || !isset($data['content'])) {
+                    $errors++;
+                    continue;
+                }
+                
+                $word = $data['content'];
+                $usPhonetic = $data['us_phonetic'] ?? null;
+                $ukPhonetic = $data['uk_phonetic'] ?? null;
+                
+                $translation = $data['translation'] ?? [];
+                
+                if (isset($translation['synonyms_type'])) {
+                    $translation['synonyms_type'] = array_map(function($v) {
+                        return strip_tags(html_entity_decode($v));
+                    }, $translation['synonyms_type']);
+                }
+                
+                if (isset($translation['advanced_translate_type'])) {
+                    $translation['advanced_translate_type'] = array_map(function($v) {
+                        return strip_tags(html_entity_decode($v));
+                    }, $translation['advanced_translate_type']);
+                }
+                
+                unset($translation['voice_files']);
+                unset($translation['phonetic_symbol']);
+                
+                $sampleImages = [];
+                if (isset($data['sample_images'])) {
+                    foreach ($data['sample_images'] as $img) {
+                        if (isset($img['save_filename'])) {
+                            $sampleImages[] = $img['save_filename'];
+                        }
+                    }
+                }
+                
+                $batch[] = [
+                    'word' => $word,
+                    'us_phonetic' => $usPhonetic,
+                    'uk_phonetic' => $ukPhonetic,
+                    'translation' => json_encode($translation, JSON_UNESCAPED_UNICODE),
+                    'sample_images' => json_encode($sampleImages, JSON_UNESCAPED_UNICODE),
+                ];
+                
+                $processed++;
+                
+                if (count($batch) >= $batchSize) {
+                    $result = self::upsertTranslationBatch($connection, $batch);
+                    $updated += $result['updated'];
+                    $inserted += $result['inserted'];
+                    $batch = [];
+                }
+            }
+        }
+        
+        if (!empty($batch)) {
+            $result = self::upsertTranslationBatch($connection, $batch);
+            $updated += $result['updated'];
+            $inserted += $result['inserted'];
+        }
+        
+        fclose($handle);
+        
+        return [
+            'processed' => $processed,
+            'updated' => $updated,
+            'inserted' => $inserted,
+            'errors' => $errors,
+        ];
+    }
+
+    private static function upsertTranslationBatch(string $connection, array $batch): array
+    {
+        $updated = 0;
+        $inserted = 0;
+        $now = now();
+        
+        foreach ($batch as $item) {
+            $existing = DB::connection($connection)
+                ->table('app_qy_v1_words_english')
+                ->where('word', $item['word'])
+                ->first();
+            
+            if ($existing) {
+                DB::connection($connection)
+                    ->table('app_qy_v1_words_english')
+                    ->where('id', $existing->id)
+                    ->update([
+                        'us_phonetic' => $item['us_phonetic'],
+                        'uk_phonetic' => $item['uk_phonetic'],
+                        'translation' => $item['translation'],
+                        'sample_images' => $item['sample_images'],
+                        'updated_at' => $now,
+                    ]);
+                $updated++;
+            } else {
+                $maxWordId = DB::connection($connection)
+                    ->table('app_qy_v1_words_english')
+                    ->max('word_id') ?? 0;
+                
+                DB::connection($connection)
+                    ->table('app_qy_v1_words_english')
+                    ->insert([
+                        'word_id' => $maxWordId + 1,
+                        'word' => $item['word'],
+                        'us_phonetic' => $item['us_phonetic'],
+                        'uk_phonetic' => $item['uk_phonetic'],
+                        'translation' => $item['translation'],
+                        'sample_images' => $item['sample_images'],
+                        'ai_reviewed' => 0,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                $inserted++;
+            }
+        }
+        
+        return ['updated' => $updated, 'inserted' => $inserted];
+    }
+
+    private static function process7zFiles(): array
+    {
+        $translateDir = base_path('init_data/AppQyV1/VoiceStaticServer/translate');
+        $tmpDir = \App\Providers\PathMapper::getLaravelTmpDir() . '/dictionary_import';
+        $extractDir = "{$tmpDir}/extracted";
+        $jsonFile = "{$extractDir}/olddb.txt";
+        
+        if (file_exists($jsonFile)) {
+            return [
+                'skipped' => true,
+                'message' => 'JSON already extracted',
+                'json_file' => $jsonFile,
+                'json_size' => filesize($jsonFile),
+            ];
+        }
+        
+        if (!is_dir($tmpDir)) {
+            mkdir($tmpDir, 0755, true);
+        }
+        
+        $jsFiles = glob("{$translateDir}/*.js");
+        $results = [
+            'total_files' => count($jsFiles),
+            'renamed' => 0,
+            'extracted' => 0,
+            'errors' => [],
+        ];
+        
+        foreach ($jsFiles as $jsFile) {
+            $basename = basename($jsFile);
+            
+            preg_match('/olddb\.7z\.(\d+)\.expected_ext_marker\.j7son\.js/', $basename, $matches);
+            if (!$matches) {
+                $results['errors'][] = "Skipped: {$basename} (invalid format)";
+                continue;
+            }
+            
+            $partNumber = $matches[1];
+            $newFilename = "olddb.7z.{$partNumber}";
+            $newPath = "{$tmpDir}/{$newFilename}";
+            
+            if (copy($jsFile, $newPath)) {
+                $results['renamed']++;
+            } else {
+                $results['errors'][] = "Failed to copy: {$basename}";
+            }
+        }
+        
+        if ($results['renamed'] > 0) {
+            $combinedFile = "{$tmpDir}/olddb.7z";
+            
+            exec("cd {$tmpDir} && cat olddb.7z.* > olddb.7z 2>&1", $output, $returnCode);
+            
+            if ($returnCode === 0 && file_exists($combinedFile)) {
+                if (!is_dir($extractDir)) {
+                    mkdir($extractDir, 0755, true);
+                }
+                
+                exec("7z x \"{$combinedFile}\" -o\"{$extractDir}\" -y 2>&1", $extractOutput, $extractCode);
+                
+                if ($extractCode === 0) {
+                    $results['extracted'] = 1;
+                    $results['extract_dir'] = $extractDir;
+                    
+                    if (file_exists($jsonFile)) {
+                        $results['json_file'] = $jsonFile;
+                        $results['json_size'] = filesize($jsonFile);
+                    }
+                } else {
+                    $results['errors'][] = "Failed to extract: " . implode("\n", $extractOutput);
+                }
+            } else {
+                $results['errors'][] = "Failed to combine parts: " . implode("\n", $output);
+            }
+        }
+        
+        return $results;
+    }
+
+    private static function importDictionaryWords(): array
+    {
+        $outputFile = base_path('init_data/AppQyV1/VoiceStaticServer/dictionary/output.txt');
+        $connection = 'appqyv1';
+        
+        if (!file_exists($outputFile)) {
+            return ['error' => 'output.txt not found'];
+        }
+        
+        $existingCount = DB::connection($connection)->table('app_qy_v1_words_english')->count();
+        if ($existingCount > 50000) {
+            return [
+                'skipped' => true,
+                'message' => "Already imported {$existingCount} words, skipping",
+            ];
+        }
+        
+        $handle = fopen($outputFile, 'r');
+        if (!$handle) {
+            return ['error' => 'Failed to open output.txt'];
+        }
+        
+        $batch = [];
+        $imported = 0;
+        $wordId = DB::connection($connection)->table('app_qy_v1_words_english')->max('word_id') ?? 0;
+        $now = now();
+        
+        while (($line = fgets($handle)) !== false) {
+            $word = trim($line);
+            if (empty($word)) {
+                continue;
+            }
+            
+            $wordId++;
+            $batch[] = [
+                'word_id' => $wordId,
+                'word' => $word,
+                'us_phonetic' => null,
+                'uk_phonetic' => null,
+                'translation' => null,
+                'sample_images' => null,
+                'ai_reviewed' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            
+            if (count($batch) >= 1000) {
+                DB::connection($connection)->table('app_qy_v1_words_english')->insert($batch);
+                $imported += count($batch);
+                $batch = [];
+            }
+        }
+        
+        if (!empty($batch)) {
+            DB::connection($connection)->table('app_qy_v1_words_english')->insert($batch);
+            $imported += count($batch);
+        }
+        
+        fclose($handle);
+        
+        return [
+            'imported' => $imported,
+            'total_words' => $wordId,
+        ];
+    }
+
+    public static function getVoiceFilePath($wordId, $word, $language = 'en'): ?string
+    {
+        $baseDir = \App\Providers\PathMapper::getLaravelStaticDir() . '/voice';
+        
+        $namespace = str_pad(floor(($wordId - 1) / 1000) * 1000 + 1, 4, '0', STR_PAD_LEFT);
+        $path = "{$baseDir}/{$language}/{$namespace}/{$word}.mp3";
+        
+        if (file_exists($path)) {
+            return $path;
+        }
+        
+        $firstLetter = strtolower(substr($word, 0, 1));
+        $path = "{$baseDir}/{$language}/{$firstLetter}/{$word}.mp3";
+        
+        if (file_exists($path)) {
+            return $path;
+        }
+        
+        $path = "{$baseDir}/{$language}/{$word}.mp3";
+        
+        if (file_exists($path)) {
+            return $path;
+        }
+        
+        return null;
     }
 }
