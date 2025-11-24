@@ -490,4 +490,57 @@ class AppQyV1SystemInitializationController extends Controller
             return false;
         }
     }
+
+    public function getDictionaryStatistics()
+    {
+        try {
+            $connection = 'appqyv1';
+            
+            $languages = [
+                'english' => 'English',
+                'lao' => 'Lao',
+                'japanese' => 'Japanese',
+                'vietnamese' => 'Vietnamese',
+            ];
+            
+            $statistics = [];
+            $totalWords = 0;
+            $totalReviewed = 0;
+            
+            foreach ($languages as $langCode => $langName) {
+                $tableName = "app_qy_v1_words_{$langCode}";
+                
+                $total = DB::connection($connection)->table($tableName)->count();
+                $reviewed = DB::connection($connection)->table($tableName)->where('ai_reviewed', 1)->count();
+                
+                $statistics[] = [
+                    'language' => $langName,
+                    'language_code' => $langCode,
+                    'total_words' => $total,
+                    'ai_reviewed' => $reviewed,
+                    'review_percentage' => $total > 0 ? round(($reviewed / $total) * 100, 2) : 0
+                ];
+                
+                $totalWords += $total;
+                $totalReviewed += $reviewed;
+            }
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'languages' => $statistics,
+                    'summary' => [
+                        'total_words' => $totalWords,
+                        'total_reviewed' => $totalReviewed,
+                        'overall_review_percentage' => $totalWords > 0 ? round(($totalReviewed / $totalWords) * 100, 2) : 0
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to get dictionary statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

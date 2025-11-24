@@ -30,6 +30,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/initialization-status', [AppQyV1SystemInitializationController::class, 'status']);
         Route::post('/process-vocabulary', [AppQyV1SystemInitializationController::class, 'processVocabularyOnly']);
         Route::get('/vocabulary-status', [AppQyV1SystemInitializationController::class, 'getVocabularyStatus']);
+        Route::get('/dictionary-statistics', [AppQyV1SystemInitializationController::class, 'getDictionaryStatistics']);
     });
 
     // Enhanced word query routes
