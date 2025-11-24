@@ -9,6 +9,7 @@ Provides coin list by fetching from OKX API and caching.
 import time
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.color_print import ColorPrint
+from pyapps.okx_price_monitor.lib.config import config
 
 requests = None
 
@@ -20,15 +21,15 @@ class CoinProvider:
     Fetches and caches coin list from OKX public API.
     """
 
-    def __init__(self, rpc_base_url='http://127.0.0.1:58000'):
+    def __init__(self, rpc_base_url=None):
         global requests
         if requests is None:
             requests = get_third_package_requests()
 
-        self.rpc_base_url = rpc_base_url
+        self.rpc_base_url = rpc_base_url or config.RPC_BASE_URL
         self.coins_cache = None
         self.cache_timestamp = None
-        self.cache_ttl = 3600
+        self.cache_ttl = config.COIN_CACHE_TTL
 
     def _get_timestamp(self):
         """
@@ -91,7 +92,7 @@ class CoinProvider:
                 return self.coins_cache
 
         timestamp = self._get_timestamp()
-        api_url = f"https://www.okx.com/priapi/v5/public/coins?t={timestamp}"
+        api_url = f"{config.COINS_API_URL}?t={timestamp}"
 
         ColorPrint.blue(f"[CoinProvider] Fetching coins from: {api_url}")
 

@@ -31,10 +31,10 @@ class OKXMonitorConfig:
     FETCH_INTERVAL_MS = 1000
 
     # Batch size for fetching currencies
-    # None = fetch all at once (default)
+    # None = fetch all at once
     # Set to 25, 50, 100, etc. for batch fetching
     # All batches complete = 1 tick
-    BATCH_SIZE = None
+    BATCH_SIZE = 25  # Fetch 25 currencies per request, all batches = 1 tick
 
     # Delay between batch requests in milliseconds
     BATCH_DELAY_MS = 100

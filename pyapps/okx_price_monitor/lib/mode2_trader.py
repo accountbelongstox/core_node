@@ -9,6 +9,7 @@ Includes trader and trading timing analyzer.
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pyapps.okx_price_monitor.lib.config import config
 
 requests = None
 
@@ -21,13 +22,13 @@ class Mode2Trader:
     management, and position tracking.
     """
 
-    def __init__(self, coin_provider, rpc_base_url='http://127.0.0.1:58000'):
+    def __init__(self, coin_provider, rpc_base_url=None):
         global requests
         if requests is None:
             requests = get_third_package_requests()
 
         self.coin_provider = coin_provider
-        self.rpc_base_url = rpc_base_url
+        self.rpc_base_url = rpc_base_url or config.RPC_BASE_URL
         self.active_orders = {}
         self.positions = {}
         self.trading_enabled = False
@@ -157,11 +158,12 @@ class TradingTimingAnalyzer:
 
     def __init__(self):
         self.signals = []
+        # Load thresholds from config
         self.thresholds = {
-            'buy_dip': -5.0,
-            'sell_peak': 5.0,
-            'strong_buy': -10.0,
-            'strong_sell': 10.0
+            'buy_dip': config.BUY_DIP_THRESHOLD,
+            'sell_peak': config.SELL_PEAK_THRESHOLD,
+            'strong_buy': config.STRONG_BUY_THRESHOLD,
+            'strong_sell': config.STRONG_SELL_THRESHOLD
         }
 
     def set_thresholds(self, buy_dip=None, sell_peak=None, strong_buy=None, strong_sell=None):

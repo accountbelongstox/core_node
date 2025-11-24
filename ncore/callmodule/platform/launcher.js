@@ -60,16 +60,6 @@ async function launchPlatformAware(options = {}) {
         }
     }
 
-    // Initialize global config (headless mode determined by platform_detector)
-    initGlobalConfig({
-        ncoreRoot: NCORE_ROOT,
-        httpPort: port,
-        host: host,
-        debug: debug,
-        autoLaunchBrowser: !noBrowser,
-        browserType: browserType
-    });
-
     if (platform === 'win32') {
         // Windows: Default to tray mode unless explicitly disabled
         const isInteractive = process.stdout.isTTY !== false;
@@ -85,7 +75,7 @@ async function launchPlatformAware(options = {}) {
             // Try tray mode first
             try {
                 const { launchWindowsTray } = require('./windows_tray');
-                await launchWindowsTray({ host, port, debug });
+                await launchWindowsTray({ host, port, debug, noBrowser, browserType });
             } catch (error) {
                 // Fallback to service mode if tray fails
                 console.log('[Launcher] Tray mode failed:', error.message);

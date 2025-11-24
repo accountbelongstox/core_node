@@ -457,6 +457,73 @@ class UnifiedRequestUtils {
             matchMode: 'fullUrl'
         });
     }
+
+    async fetchBatch(urls, options = {}) {
+        const method = options.method || 'GET';
+        const headers = options.headers || {};
+        const responseType = options.responseType || 'json';
+        const timeout = options.timeout || this.options.timeout;
+        const concurrency = options.concurrency || 10;
+
+        logger.info(`[UnifiedRequestUtils] Batch fetching ${urls.length} URLs with concurrency ${concurrency}`);
+
+        try {
+            const result = await this.scriptInjection.injectBatchFetchRequests(urls, {
+                method,
+                headers,
+                responseType,
+                timeout,
+                concurrency
+            });
+
+            logger.success(`[UnifiedRequestUtils] Batch fetch completed: ${result.successful}/${result.total} successful`);
+
+            return {
+                success: true,
+                method: 'inject_batch',
+                total: result.total,
+                successful: result.successful,
+                failed: result.failed,
+                results: result.results
+            };
+
+        } catch (error) {
+            logger.error(`[UnifiedRequestUtils] Batch fetch failed: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async fetchBatchAndMerge(urls, options = {}) {
+        const result = await this.fetchBatch(urls, options);
+
+        if (!result.success) {
+            throw new Error('Batch fetch failed');
+        }
+
+        const successfulResults = result.results.filter(r => r.success);
+        const allData = [];
+
+        for (const item of successfulResults) {
+            if (item.data && item.data.data && Array.isArray(item.data.data)) {
+                allData.push(...item.data.data);
+            } else if (item.data && Array.isArray(item.data)) {
+                allData.push(...item.data);
+            }
+        }
+
+        logger.info(`[UnifiedRequestUtils] Merged ${allData.length} items from ${successfulResults.length} successful requests`);
+
+        return {
+            success: true,
+            method: 'inject_batch_merged',
+            total: result.total,
+            successful: result.successful,
+            failed: result.failed,
+            mergedCount: allData.length,
+            data: allData,
+            rawResults: result.results
+        };
+    }
 }
 
 module.exports = UnifiedRequestUtils;
