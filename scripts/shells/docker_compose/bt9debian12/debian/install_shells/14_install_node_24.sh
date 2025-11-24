@@ -26,10 +26,10 @@ source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
 INSTALL_NODE=$(get_var "INSTALL_NODE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
-NODE_VERSION="v22.19.0"
-NODE_SHORT_VERSION="22"
+NODE_VERSION="v24.11.1"
+NODE_SHORT_VERSION="24"
 NODE_INSTALL_DIR="$COMPILE_DIR/nodejs"
-NODE_DOWNLOAD_URL="https://nodejs.org/dist/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
+NODE_DOWNLOAD_URL="https://nodejs.org/dist/v24.11.1/node-v24.11.1-linux-x64.tar.xz"
 TAR_FILE="/tmp/node-$NODE_VERSION-linux-x64.tar.xz"
 EXTRACT_DIR="/tmp/node-$NODE_VERSION-linux-x64"
 NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"

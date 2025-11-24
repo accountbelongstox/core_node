@@ -29,7 +29,7 @@ NODE_DOWNLOAD_URLS=(
     "$NODE_DOWNLOAD_URL"
 )
 # Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_22")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_24")
 TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64.tar.xz"
 EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64"
 NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"
@@ -46,100 +46,35 @@ echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
 
 # Function to migrate from old directory structure
 migrate_old_nodejs_installation() {
-    local old_base_dir="/www/dev_ubuntu24"
-    local new_base_dir="/www/_ubuntu_24"
+    local old_base_dir=$(map_web_path "dev_system_old")
     
-    # Check if old directory exists
-    if [ ! -d "$old_base_dir/nodejs" ]; then
+    if [ ! -d "$old_base_dir" ]; then
         return 0
     fi
     
-    echo "Detected old Node.js installation in: $old_base_dir/nodejs"
-    echo "Migrating to new directory structure: $new_base_dir/nodejs"
+    echo "Detected old installation directory: $old_base_dir"
+    echo "Removing old directory completely..."
     
-    # Create new base directory if needed
-    if [ ! -d "$new_base_dir" ]; then
-        $USE_SUDO mkdir -p "$new_base_dir"
-    fi
-    
-    # Migrate nodejs directory
-    if [ -d "$new_base_dir/nodejs" ]; then
-        echo "New directory already exists, merging contents..."
-        $USE_SUDO rsync -a --ignore-existing "$old_base_dir/nodejs/" "$new_base_dir/nodejs/"
-    else
-        echo "Moving nodejs directory..."
-        $USE_SUDO mv "$old_base_dir/nodejs" "$new_base_dir/nodejs"
-    fi
-    
-    # Update npm config if it points to old directory
-    if command -v npm >/dev/null 2>&1; then
-        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
-        if [[ "$current_npm_prefix" == *"dev_ubuntu24"* ]]; then
-            local new_npm_prefix="${current_npm_prefix/dev_ubuntu24/_ubuntu_24}"
-            echo "Updating npm prefix: $current_npm_prefix -> $new_npm_prefix"
-            npm config set prefix "$new_npm_prefix"
-        fi
-    fi
-    
-    # Update environment variables
     if [ -f /etc/environment ]; then
-        echo "Updating environment variables..."
-        $USE_SUDO sed -i "s|/www/dev_ubuntu24/|/www/_ubuntu_24/|g" /etc/environment
-        
-        # Also update current shell environment
-        if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"dev_ubuntu24"* ]]; then
-            export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX/dev_ubuntu24/_ubuntu_24}"
-            echo "Updated NPM_CONFIG_PREFIX in current shell: $NPM_CONFIG_PREFIX"
-        fi
-        
-        if [ -n "$NODE_HOME" ] && [[ "$NODE_HOME" == *"dev_ubuntu24"* ]]; then
-            export NODE_HOME="${NODE_HOME/dev_ubuntu24/_ubuntu_24}"
-            echo "Updated NODE_HOME in current shell: $NODE_HOME"
-        fi
-        
-        if [ -n "$NODE_PATH" ] && [[ "$NODE_PATH" == *"dev_ubuntu24"* ]]; then
-            export NODE_PATH="${NODE_PATH/dev_ubuntu24/_ubuntu_24}"
-            echo "Updated NODE_PATH in current shell: $NODE_PATH"
-        fi
-        
-        if [[ "$PATH" == *"dev_ubuntu24"* ]]; then
-            export PATH="${PATH//\/www\/dev_ubuntu24\//\/www\/_ubuntu_24\/}"
-            echo "Updated PATH in current shell"
-        fi
+        echo "Cleaning old directory references from /etc/environment..."
+        $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
     fi
     
-    # Update symlinks
     for binary in node npm npx; do
         local link_path="/usr/local/bin/$binary"
         if [ -L "$link_path" ]; then
             local target=$(readlink "$link_path")
-            if [[ "$target" == *"dev_ubuntu24"* ]]; then
-                local new_target="${target/dev_ubuntu24/_ubuntu_24}"
-                if [ -e "$new_target" ]; then
-                    echo "Updating symlink: $link_path -> $new_target"
-                    $USE_SUDO ln -sf "$new_target" "$link_path"
-                fi
+            if [[ "$target" == *"$old_base_dir"* ]]; then
+                echo "Removing symlink pointing to old directory: $link_path"
+                $USE_SUDO rm -f "$link_path"
             fi
         fi
     done
     
-    # Remove old nodejs directory after successful migration
-    if [ -d "$old_base_dir/nodejs" ]; then
-        echo "Removing old nodejs directory: $old_base_dir/nodejs"
-        $USE_SUDO rm -rf "$old_base_dir/nodejs"
-    fi
+    echo "Removing old base directory: $old_base_dir"
+    $USE_SUDO rm -rf "$old_base_dir"
     
-    # Check if old base directory is empty and remove it
-    if [ -d "$old_base_dir" ]; then
-        if [ -z "$(ls -A "$old_base_dir" 2>/dev/null)" ]; then
-            echo "Old base directory is empty, removing: $old_base_dir"
-            $USE_SUDO rm -rf "$old_base_dir"
-        else
-            echo "Old base directory still contains files, keeping: $old_base_dir"
-        fi
-    fi
-    
-    echo "Migration completed"
+    echo "Old directory removal completed"
     return 0
 }
 
@@ -237,7 +172,6 @@ detect_and_fix_previous_issues() {
 configure_npm_settings() {
     local npm_bin="$NODE_BIN_DIR/npm"
 
-    # Check if npm binary exists
     if [ ! -f "$npm_bin" ]; then
         echo "Warning: npm binary not found at $npm_bin, trying system npm..."
         npm_bin=$(which npm 2>/dev/null)
@@ -247,10 +181,12 @@ configure_npm_settings() {
         fi
     fi
     
-    # Clear conflicting environment variables before configuring
-    if [ -n "$NPM_CONFIG_PREFIX" ] && [[ "$NPM_CONFIG_PREFIX" == *"dev_ubuntu24"* ]]; then
-        echo "Detected old NPM_CONFIG_PREFIX in environment, clearing..."
+    if [ -n "$NPM_CONFIG_PREFIX" ]; then
+        echo "Clearing NPM_CONFIG_PREFIX environment variable"
         unset NPM_CONFIG_PREFIX
+        if [ -f /etc/environment ]; then
+            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
+        fi
     fi
 
     # Configure registry based on region
@@ -581,7 +517,6 @@ setup_environment() {
     # Set environment variables using the proper function from gvar_common.sh
     set_env_and_var "NODE_HOME" "$actual_node_home"
     set_env_and_var "NODE_PATH" "$actual_node_path"
-    set_env_and_var "NPM_CONFIG_PREFIX" "$actual_node_home"
     
     # Use Node.js installation directory for npm globals (npm-global not needed)
     echo "NPM will use default global directory within Node.js installation: $actual_node_home"
@@ -605,7 +540,6 @@ setup_environment() {
     echo "Environment variables configured:"
     echo "  NODE_HOME: $actual_node_home"
     echo "  NODE_PATH: $actual_node_path"
-    echo "  NPM_CONFIG_PREFIX: $actual_node_home"
     echo "  Updated PATH with: $npm_global_bin"
     
     return 0

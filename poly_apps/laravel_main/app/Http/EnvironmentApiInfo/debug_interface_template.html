@@ -517,8 +517,23 @@
         <!-- Main Content -->
         <div class="main-content">
             <div class="content-header">
-                <h2 id="page-title">API Testing Dashboard</h2>
-                <p id="page-description">Test and debug your Laravel API endpoints</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 id="page-title">API Testing Dashboard</h2>
+                        <p id="page-description">Test and debug your Laravel API endpoints</p>
+                    </div>
+                    <div id="user-info-area" style="text-align: right;">
+                        <div id="user-logged-in" style="display: none;">
+                            <span style="color: #28a745; font-weight: 500;">● Logged in as: </span>
+                            <span id="user-display-name" style="font-weight: 600; color: #2c3e50;"></span>
+                            <button onclick="handleLogout()" style="margin-left: 10px; padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Logout</button>
+                        </div>
+                        <div id="user-not-logged-in">
+                            <span style="color: #6c757d; font-weight: 500;">● Not logged in</span>
+                            <button onclick="AuthHelper.showAuthModal()" style="margin-left: 10px; padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Login</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="content-body">
@@ -796,12 +811,76 @@
         // Restore sidebar and active section on load
         document.addEventListener('DOMContentLoaded', function() {
             restoreSidebarState();
-            
+
             const activeSection = localStorage.getItem('active_section');
             if (activeSection && activeSection !== 'api-testing') {
                 showSection(activeSection);
             }
+
+            updateUserDisplay();
         });
+
+        // Update user display based on AuthHelper status
+        async function updateUserDisplay() {
+            const isLoggedIn = await AuthHelper.checkAuthStatus();
+            const loggedInDiv = document.getElementById('user-logged-in');
+            const notLoggedInDiv = document.getElementById('user-not-logged-in');
+            const displayNameSpan = document.getElementById('user-display-name');
+
+            if (isLoggedIn && AuthHelper.currentUser) {
+                const displayName = AuthHelper.currentUser.username ||
+                                   AuthHelper.currentUser.email ||
+                                   AuthHelper.currentUser.name ||
+                                   'User';
+                displayNameSpan.textContent = displayName;
+                loggedInDiv.style.display = 'block';
+                notLoggedInDiv.style.display = 'none';
+            } else {
+                loggedInDiv.style.display = 'none';
+                notLoggedInDiv.style.display = 'block';
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            if (!confirm('Are you sure you want to logout?')) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('auth_token');
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                const response = await fetch('/api/dict/v1/logout', {
+                    method: 'POST',
+                    headers: headers
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.removeItem('auth_token');
+                    AuthHelper.currentUser = null;
+                    alert('Logout successful!');
+                    window.location.reload();
+                } else {
+                    alert('Logout failed: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                localStorage.removeItem('auth_token');
+                AuthHelper.currentUser = null;
+                alert('Logout error: Network error');
+                window.location.reload();
+            }
+        }
 
         // Cache Management Functions
         function saveParamsToServer(appName, endpoint, method, params) {

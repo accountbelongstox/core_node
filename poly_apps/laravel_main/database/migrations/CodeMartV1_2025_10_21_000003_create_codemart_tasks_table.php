@@ -9,7 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         // Tasks table
-        Schema::connection('CodeMartV1')->create('codemart_v1_tasks', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_tasks')) {
+        Schema::connection('codemartv1')->create('codemart_v1_tasks', function (Blueprint $table) {
             $table->id();
             $table->foreignId('milestone_id')->constrained('codemart_v1_milestones')->onDelete('cascade');
             $table->string('title');
@@ -26,9 +27,11 @@ return new class extends Migration
             $table->index('assigned_to');
             $table->index('status');
         });
+        }
 
         // Task submissions (when developers submit completed tasks)
-        Schema::connection('CodeMartV1')->create('codemart_v1_task_submissions', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_task_submissions')) {
+        Schema::connection('codemartv1')->create('codemart_v1_task_submissions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_id')->constrained('codemart_v1_tasks')->onDelete('cascade');
             $table->foreignId('submitted_by')->constrained('users')->onDelete('cascade');
@@ -39,9 +42,11 @@ return new class extends Migration
             $table->index('task_id');
             $table->index('submitted_by');
         });
+        }
 
         // Task comments
-        Schema::connection('CodeMartV1')->create('codemart_v1_task_comments', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_task_comments')) {
+        Schema::connection('codemartv1')->create('codemart_v1_task_comments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_id')->constrained('codemart_v1_tasks')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
@@ -51,9 +56,11 @@ return new class extends Migration
             $table->index('task_id');
             $table->index('user_id');
         });
+        }
 
         // Code reviews (for task submissions)
-        Schema::connection('CodeMartV1')->create('codemart_v1_code_reviews', function (Blueprint $table) {
+        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_code_reviews')) {
+        Schema::connection('codemartv1')->create('codemart_v1_code_reviews', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_submission_id')->constrained('codemart_v1_task_submissions')->onDelete('cascade');
             $table->foreignId('reviewer_id')->constrained('users')->onDelete('cascade');
@@ -65,13 +72,14 @@ return new class extends Migration
             $table->index('task_submission_id');
             $table->index('reviewer_id');
         });
+        }
     }
 
     public function down(): void
     {
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_code_reviews');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_task_comments');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_task_submissions');
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_tasks');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_code_reviews');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_task_comments');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_task_submissions');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_tasks');
     }
 };

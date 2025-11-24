@@ -38,7 +38,7 @@ CLEANUP_MODE=false
 # Source shared libraries
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 
 # Initialize globals (detect desktop, sudo, etc.)
 init_global_vars

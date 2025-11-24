@@ -21,8 +21,9 @@ return new class extends Migration
     {
         foreach ($this->languages as $langCode) {
             $tableName = "app_qy_v1_{$langCode}_dictionaries";
-            
-            Schema::connection('AppQyV1')->create($tableName, function (Blueprint $table) use ($langCode) {
+
+            if (!Schema::connection('appqyv1')->hasTable($tableName)) {
+                Schema::connection('appqyv1')->create($tableName, function (Blueprint $table) use ($langCode) {
                 $table->id();
                 
                 $table->text('content')->nullable(false);
@@ -59,6 +60,7 @@ return new class extends Migration
                 $table->index('has_translation', "idx_{$langCode}_has_translation");
                 $table->index('last_query_time', "idx_{$langCode}_last_query_time");
             });
+            }
         }
     }
 
@@ -66,7 +68,7 @@ return new class extends Migration
     {
         foreach ($this->languages as $langCode) {
             $tableName = "app_qy_v1_{$langCode}_dictionaries";
-            Schema::connection('AppQyV1')->dropIfExists($tableName);
+            Schema::connection('appqyv1')->dropIfExists($tableName);
         }
     }
 };

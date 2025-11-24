@@ -146,22 +146,27 @@ class UserSyncService
     public static function ensureUserTablesExist(): array
     {
         $results = [];
-        
-        if (!self::tableExists('sqlite', 'users')) {
-            self::createUserTable('sqlite');
-            $results['Main'] = 'created';
-        } else {
+
+        if (self::tableExists('sqlite', 'users')) {
             $results['Main'] = 'exists';
+        } else {
+            $results['Main'] = 'skipped - will be created by migrations';
         }
-        
+
+        if (self::tableExists('sqlite', 'personal_access_tokens')) {
+            $results['Main (personal_access_tokens)'] = 'exists';
+        } else {
+            $results['Main (personal_access_tokens)'] = 'skipped - will be created by migrations';
+        }
+
         foreach (self::SUB_APPS as $appName) {
             $connectionName = strtolower($appName);
-            
+
             if (!config("database.connections.{$connectionName}")) {
                 $results[$appName] = 'no_connection';
                 continue;
             }
-            
+
             try {
                 if (!self::tableExists($connectionName, 'users')) {
                     self::createUserTable($connectionName);
@@ -174,7 +179,7 @@ class UserSyncService
                 $results[$appName] = 'error: ' . $e->getMessage();
             }
         }
-        
+
         return $results;
     }
     
@@ -238,7 +243,46 @@ class UserSyncService
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
         ');
     }
-    
+
+    private static function createPersonalAccessTokensTable(string $connection): void
+    {
+        $config = config("database.connections.{$connection}");
+        if ($config && $config['driver'] === 'sqlite') {
+            $dbPath = $config['database'];
+            if (!file_exists($dbPath)) {
+                $dir = dirname($dbPath);
+                if (!is_dir($dir)) {
+                    mkdir($dir, 0755, true);
+                }
+                touch($dbPath);
+                chmod($dbPath, 0664);
+            }
+        }
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS personal_access_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tokenable_type VARCHAR(255) NOT NULL,
+                tokenable_id INTEGER NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                token VARCHAR(64) UNIQUE NOT NULL,
+                abilities TEXT,
+                last_used_at TIMESTAMP NULL,
+                expires_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_personal_access_tokens_tokenable ON personal_access_tokens(tokenable_type, tokenable_id)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_personal_access_tokens_token ON personal_access_tokens(token)
+        ');
+    }
+
     public static function ensureTTSCacheTablesExist(): array
     {
         $results = [];
