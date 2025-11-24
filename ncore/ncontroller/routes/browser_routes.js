@@ -201,17 +201,36 @@ const browserRoutes = {
      * params: { pageId: string, clearAfterGet?: boolean }
      */
     'browser/getInterceptedApiUrls': async (params) => {
-        const { pageId, clearAfterGet } = params || {};
+        const { pageId, clearAfterGet, requestId } = params || {};
         if (!pageId) {
             return { success: false, error: 'pageId is required' };
         }
+
+        const logger = require('#@logger');
+        const reqTag = requestId ? `[REQ-${requestId}]` : '';
+        logger.info(`[RPC] ${reqTag} getInterceptedApiUrls called with pageId="${pageId}", clearAfterGet=${clearAfterGet}`);
+
         const urls = ncoreController.browserManager.pageCollector.getInterceptedApiUrls(pageId, clearAfterGet);
-        return {
+
+        logger.info(`[RPC] ${reqTag} Found ${urls.length} intercepted URLs for pageId="${pageId}"`);
+
+        if (urls.length > 0) {
+            logger.info(`[RPC] ${reqTag} Sample URL: ${urls[0].url ? urls[0].url.substring(0, 120) : 'N/A'}`);
+        } else {
+            logger.warn(`[RPC] ${reqTag} ⚠️ No URLs found in backend storage!`);
+        }
+
+        const response = {
             success: true,
             pageId: pageId,
             urls: urls,
-            count: urls.length
+            count: urls.length,
+            requestId: requestId
         };
+
+        logger.info(`[RPC] ${reqTag} Returning response with ${response.urls.length} URLs, count=${response.count}`);
+
+        return response;
     }
 };
 
