@@ -13,6 +13,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PROJECT_ROOT
 from pyapps.okx_price_monitor.lib.config import config
+from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
 
 requests = None
 
@@ -68,13 +69,7 @@ class CoinProvider:
         response.raise_for_status()
 
         result = response.json()
-
-        if result.get('success') and result.get('result'):
-            return result.get('result', {}).get('data')
-        elif not result.get('success'):
-            raise Exception(f"RPC call failed: {result.get('error')}")
-
-        return result.get('data')
+        return parse_rpc_response(result, extract_data=True)
 
     def _save_coins_to_file(self, coins_data):
         """

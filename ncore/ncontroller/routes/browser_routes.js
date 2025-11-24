@@ -215,7 +215,8 @@ const browserRoutes = {
         logger.info(`[RPC] ${reqTag} Found ${urls.length} intercepted URLs for pageId="${pageId}"`);
 
         if (urls.length > 0) {
-            logger.info(`[RPC] ${reqTag} Sample URL: ${urls[0].url ? urls[0].url.substring(0, 120) : 'N/A'}`);
+            logger.info(`[RPC] ${reqTag} Sample URL (first URL):`);
+            logger.info(`  ${urls[0].url || 'N/A'}`);
         } else {
             logger.warn(`[RPC] ${reqTag} ⚠️ No URLs found in backend storage!`);
         }
