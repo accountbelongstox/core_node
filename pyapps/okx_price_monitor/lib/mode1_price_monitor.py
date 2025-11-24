@@ -440,7 +440,7 @@ class Mode1PriceMonitor:
 
         try:
             # Get intercepted URLs from backend
-            ColorPrint.blue("[Mode1] Fetching intercepted URLs from backend...")
+            ColorPrint.blue(f"[Mode1] Fetching intercepted URLs from backend (pageId: {page_id})...")
             intercepted_urls = self._call_rpc_get_intercepted_urls(page_id, clear_after_get=True)
 
             if not intercepted_urls:
