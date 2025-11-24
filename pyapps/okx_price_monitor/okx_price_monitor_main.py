@@ -86,23 +86,31 @@ def start():
     signal.signal(signal.SIGINT, signal_handler)
 
     ColorPrint.green("=" * 80)
-    ColorPrint.green("OKX PRICE MONITOR - CONTINUOUS MODE")
+    ColorPrint.green("OKX PRICE MONITOR - INTERCEPTED URL MODE")
     ColorPrint.green("=" * 80)
 
     # Print configuration
     config.print_config()
 
-    ColorPrint.blue("\n[Step 1] Opening base page via RPC...")
-    open_result = call_rpc_browser_open(config.BASE_PAGE_URL)
+    ColorPrint.blue(f"\n[Step 1] Opening {len(config.BASE_PAGES)} pages to collect URLs...")
 
-    page_id = open_result.get('pageId')
-    tab_action = open_result.get('tabAction', 'unknown')
+    page_ids = []
+    for i, page_url in enumerate(config.BASE_PAGES, 1):
+        ColorPrint.yellow(f"[Step 1.{i}] Opening page: {page_url}")
+        open_result = call_rpc_browser_open(page_url)
 
-    ColorPrint.green(f"[Step 1] Page opened successfully")
-    ColorPrint.green(f"  Page ID: {page_id}")
-    ColorPrint.green(f"  Tab Action: {tab_action}")
+        page_id = open_result.get('pageId')
+        tab_action = open_result.get('tabAction', 'unknown')
+        page_ids.append(page_id)
 
-    time.sleep(2)
+        ColorPrint.green(f"  Page ID: {page_id}, Tab Action: {tab_action}")
+        time.sleep(3)  # Wait for page to load and URLs to be intercepted
+
+    ColorPrint.green(f"[Step 1] All pages opened successfully")
+    ColorPrint.green(f"  Total pages: {len(page_ids)}")
+
+    # Use the first page ID for subsequent operations
+    page_id = page_ids[0]
 
     ColorPrint.blue("\n[Step 2] Initializing Coin Provider (Shared)...")
     coin_provider = CoinProvider(rpc_base_url=config.RPC_BASE_URL)
@@ -122,8 +130,16 @@ def start():
     mode1.set_currencies(coin_names, batch_size=batch_size)
     ColorPrint.blue(f"  Total currencies: {len(coin_names)}, Batch size: {batch_size}")
 
-    ColorPrint.blue("\n[Step 5] Running initial fetch (one full tick with CONCURRENT fetching)...")
-    price_data = mode1.fetch_all_batches_concurrent(page_id, concurrency=10)
+    ColorPrint.blue(f"\n[Step 5] Running initial fetch (mode: {config.FETCH_MODE.upper()})...")
+    if config.FETCH_MODE == 'intercepted':
+        price_data = mode1.fetch_from_intercepted_urls(page_id)
+    elif config.FETCH_MODE == 'single_url':
+        price_data = mode1.fetch_all_single_url(page_id)
+    elif config.FETCH_MODE == 'concurrent':
+        price_data = mode1.fetch_all_batches_concurrent(page_id, concurrency=config.CONCURRENCY)
+    else:  # sequential
+        price_data = mode1.fetch_all_batches(page_id)
+
     if price_data:
         mode1.print_prices(price_data)
 
@@ -142,21 +158,33 @@ def start():
         fetch_interval=config.FETCH_INTERVAL_MS,
         max_history=config.MAX_HISTORY,
         save_to_file=config.SAVE_TO_FILE,
-        use_concurrent=True,  # Enable concurrent batch fetching
-        concurrency=10  # Fetch 10 batches at a time
+        fetch_mode=config.FETCH_MODE,
+        concurrency=config.CONCURRENCY
     )
 
     continuous_monitor_instance.initialize(page_id)
     continuous_monitor_instance.start()
 
-    total_batches = (len(coin_names) + batch_size - 1) // batch_size
     ColorPrint.green("\n" + "=" * 80)
     ColorPrint.green("OKX PRICE MONITOR RUNNING")
     ColorPrint.green("=" * 80)
     ColorPrint.yellow("\nContinuous monitoring active:")
     ColorPrint.yellow(f"  - Total currencies: {len(coin_names)}")
-    ColorPrint.yellow(f"  - Batch size: {batch_size} ({total_batches} batches per tick)")
-    ColorPrint.yellow(f"  - Fetch mode: CONCURRENT (concurrency=10)")
+    ColorPrint.yellow(f"  - Fetch mode: {config.FETCH_MODE.upper()}")
+
+    if config.FETCH_MODE == 'intercepted':
+        ColorPrint.yellow(f"  - Using intercepted URLs from {len(config.BASE_PAGES)} pages")
+        ColorPrint.yellow("  - All currencies merged in single request")
+    elif config.FETCH_MODE == 'single_url':
+        ColorPrint.yellow("  - All currencies in single URL request")
+    elif config.FETCH_MODE == 'concurrent':
+        total_batches = (len(coin_names) + batch_size - 1) // batch_size
+        ColorPrint.yellow(f"  - Batch size: {batch_size} ({total_batches} batches per tick)")
+        ColorPrint.yellow(f"  - Concurrency: {config.CONCURRENCY}")
+    else:  # sequential
+        total_batches = (len(coin_names) + batch_size - 1) // batch_size
+        ColorPrint.yellow(f"  - Batch size: {batch_size} ({total_batches} batches per tick)")
+
     ColorPrint.yellow(f"  - Tick interval: {config.FETCH_INTERVAL_MS}ms")
     ColorPrint.yellow(f"  - Saving data: {config.SAVE_TO_FILE}")
     ColorPrint.yellow("  - Press Ctrl+C to stop")
