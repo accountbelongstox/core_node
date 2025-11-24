@@ -96,6 +96,27 @@ class OKXMonitorConfig:
     STRONG_SELL_THRESHOLD = 10.0
 
     # ============================================================
+    # Price Change Alert Thresholds
+    # ============================================================
+    # 1 minute change threshold (%)
+    ALERT_1MIN_THRESHOLD = 2.0
+
+    # 30 seconds change threshold (%)
+    ALERT_30SEC_THRESHOLD = 1.0
+
+    # ============================================================
+    # Batch Request Configuration
+    # ============================================================
+    # Number of URL groups to split intercepted URLs into
+    URL_BATCH_GROUPS = 2
+
+    # ============================================================
+    # Database Configuration
+    # ============================================================
+    # Hours of historical data to load on startup
+    HISTORY_HOURS = 3
+
+    # ============================================================
     # Request Configuration
     # ============================================================
     # Request timeout in milliseconds

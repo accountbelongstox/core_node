@@ -19,6 +19,7 @@ from pyapps.okx_price_monitor.lib import (
     TradingTimingAnalyzer,
     ContinuousMonitor
 )
+from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
 
 requests = None
 continuous_monitor_instance = None
@@ -53,13 +54,7 @@ def call_rpc_browser_open(url):
     response.raise_for_status()
 
     result = response.json()
-
-    if result.get('success') and result.get('result'):
-        return result.get('result')
-    elif not result.get('success'):
-        raise Exception(f"Failed to open URL: {result.get('error')}")
-
-    return result
+    return parse_rpc_response(result)
 
 
 def signal_handler(sig, frame):
@@ -141,7 +136,8 @@ def start():
                         for j, url_obj in enumerate(urls[-3:], 1):  # Show last 3 URLs
                             url = url_obj.get('url', '')
                             status = url_obj.get('status', 'N/A')
-                            ColorPrint.yellow(f"    [{j}] Status {status}: {url[:120]}...")
+                            ColorPrint.yellow(f"    [{j}] Status {status}:")
+                            ColorPrint.yellow(f"        {url}")
                     else:
                         ColorPrint.red(f"  ⚠️ URLs array is empty!")
                 else:

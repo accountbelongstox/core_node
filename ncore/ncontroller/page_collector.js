@@ -110,7 +110,8 @@ class PageCollector {
                     timestamp: Date.now()
                 });
                 this.interceptedApiUrls.set(pageId, apiUrls);
-                logger.info(`[PageCollector] Intercepted batch-currency-trend URL for pageId=${pageId}: ${url.substring(0, 120)}...`);
+                logger.info(`[PageCollector] Intercepted batch-currency-trend URL for pageId=${pageId}:`);
+                logger.info(`  ${url}`);
             }
         });
 
