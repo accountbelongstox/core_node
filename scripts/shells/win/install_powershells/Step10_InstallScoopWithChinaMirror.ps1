@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Step number for this script
-$STEP_NUMBER = 5
+$STEP_NUMBER = 10
 
 # Import variable management functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"

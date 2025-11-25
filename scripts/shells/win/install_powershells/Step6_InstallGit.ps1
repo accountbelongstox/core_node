@@ -16,7 +16,7 @@
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 5
+$STEP_NUMBER = 6
 
 # Create complete Git package object
 $GitPackage = @{
@@ -326,7 +326,7 @@ function Clone-CoreNodeProject {
     $programingDir = "D:\programing"
     $projectDir = Join-Path $programingDir "core_node"
 
-    # Check if project already exists
+    # Check if project already exists at target location
     if (Test-Path $projectDir) {
         if (Test-Path (Join-Path $projectDir ".git")) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] core_node project already exists at correct location: $projectDir" -Type "Success"
@@ -336,6 +336,62 @@ function Clone-CoreNodeProject {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Directory exists but is not a git repository: $projectDir" -Type "Warning"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Please manually remove or rename this directory" -Type "Warning"
             return $false
+        }
+    }
+
+    # Check if project exists at current location (BASE_DIR)
+    if ($Global:BASE_DIR -and (Test-Path $Global:BASE_DIR)) {
+        $currentGitDir = Join-Path $Global:BASE_DIR ".git"
+        if (Test-Path $currentGitDir) {
+            # Normalize paths for comparison
+            $normalizedBase = $Global:BASE_DIR.TrimEnd('\')
+            $normalizedTarget = $projectDir.TrimEnd('\')
+
+            if ($normalizedBase -ne $normalizedTarget) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Found core_node project at current location: $($Global:BASE_DIR)" -Type "Warning"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] But the correct location should be: $projectDir" -Type "Warning"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Do you want to move the project to the correct location? (y/N, timeout 15s, default: N)" -Type "Warning"
+
+                $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+                $timeout = 15
+                $shouldMove = $false
+
+                while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
+                    Start-Sleep -Milliseconds 200
+                }
+
+                if ($host.UI.RawUI.KeyAvailable) {
+                    $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
+                    if ($key -eq 'y' -or $key -eq 'Y') {
+                        $shouldMove = $true
+                    }
+                }
+
+                $stopWatch.Stop()
+
+                if ($shouldMove) {
+                    # Call Step7_FixCoreNodeProjectLocation.ps1
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Calling project location fix utility..." -Type "Info"
+                    $fixScript = Join-Path $PSScriptRoot "Step7_FixCoreNodeProjectLocation.ps1"
+                    if (Test-Path $fixScript) {
+                        & $fixScript
+
+                        # Check if move was successful
+                        if (Test-Path $projectDir) {
+                            Write-ColorMessage -Message "[Step $STEP_NUMBER] Project successfully moved to correct location" -Type "Success"
+                            return $true
+                        } else {
+                            Write-ColorMessage -Message "[Step $STEP_NUMBER] Project move may have failed, continuing..." -Type "Warning"
+                        }
+                    } else {
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Fix utility not found, please manually move the project" -Type "Warning"
+                    }
+                } else {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] User chose not to move project" -Type "Info"
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] You can manually run Step7_FixCoreNodeProjectLocation.ps1 later to fix the location" -Type "Info"
+                    return $true
+                }
+            }
         }
     }
 

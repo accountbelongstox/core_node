@@ -469,10 +469,15 @@ $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
 # Python related global variables
-$Global:PYTHON_DIR = "$Global:LANG_COMPILER_DIR\python313"
+$Global:PYTHON_VERSION = "3.13"
+$Global:PYTHON_VERSION_COMPACT = "313"
+$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR "python$Global:PYTHON_VERSION_COMPACT"
 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
 $Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
-$Global:PYTHON_WINGET_ID = "Python.Python.3.13"
+$Global:UV_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\uv.exe"
+$Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pipx.exe"
+$Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\poetry.exe"
+$Global:PYTHON_WINGET_ID = "Python.Python.$Global:PYTHON_VERSION"
 
 # Repository Configuration - Auto-switch based on region
 $Global:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"

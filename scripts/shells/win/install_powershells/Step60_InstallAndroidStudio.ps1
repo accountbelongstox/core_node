@@ -16,7 +16,7 @@
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 56
+$STEP_NUMBER = 60
 
 # Declare global variables for paths
 $Global:DEFAULT_STUDIO_PATH = "C:\Program Files\Android"
