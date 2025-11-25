@@ -167,36 +167,38 @@ class PathMapper
         return true;
     }
 
+    private static $hasDesktopEnvironmentCached = null;
+
     /**
      * Check if system has desktop environment
      */
     public static function hasDesktopEnvironment(): bool
     {
-        // Check for X11 session
+        if (self::$hasDesktopEnvironmentCached !== null) {
+            return self::$hasDesktopEnvironmentCached;
+        }
+
+        if (isset($_SERVER['INVOCATION_ID'])) {
+            self::$hasDesktopEnvironmentCached = false;
+            return false;
+        }
+
         if (getenv('DISPLAY') && getenv('DISPLAY') !== ':0') {
+            self::$hasDesktopEnvironmentCached = true;
             return true;
         }
-        
-        // Check for Wayland session
+
         if (getenv('WAYLAND_DISPLAY')) {
+            self::$hasDesktopEnvironmentCached = true;
             return true;
         }
-        
-        // Check for desktop environment variables
+
         if (getenv('XDG_CURRENT_DESKTOP') || getenv('DESKTOP_SESSION')) {
+            self::$hasDesktopEnvironmentCached = true;
             return true;
         }
-        
-        // Check for common desktop processes (if we can execute commands)
-        if (function_exists('exec')) {
-            $output = [];
-            $returnVar = 0;
-            @exec('pgrep -x "gnome-session|kde-session|xfce4-session|mate-session|cinnamon-session" 2>/dev/null', $output, $returnVar);
-            if (!empty($output)) {
-                return true;
-            }
-        }
-        
+
+        self::$hasDesktopEnvironmentCached = false;
         return false;
     }
 
