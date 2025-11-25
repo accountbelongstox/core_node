@@ -359,6 +359,8 @@ const CodeBrowser = {
         const menuDelete = document.getElementById('menu-delete');
         const menuRestore = document.getElementById('menu-restore');
         const menuRename = document.getElementById('menu-rename');
+        const menuCopyPath = document.getElementById('menu-copy-path');
+        const menuCopyAbsPath = document.getElementById('menu-copy-abspath');
 
         const isInDelete = this.contextMenuTarget && this.contextMenuTarget.startsWith('_delete/');
         const isSpecialFolder = this.contextMenuTarget === '_delete' || this.contextMenuTarget === '_prompts';
@@ -378,6 +380,8 @@ const CodeBrowser = {
         }
 
         menuRename.style.display = canRename ? 'block' : 'none';
+        menuCopyPath.style.display = this.contextMenuTarget ? 'block' : 'none';
+        menuCopyAbsPath.style.display = this.contextMenuTarget ? 'block' : 'none';
 
         menu.style.display = 'block';
         menu.style.left = x + 'px';
