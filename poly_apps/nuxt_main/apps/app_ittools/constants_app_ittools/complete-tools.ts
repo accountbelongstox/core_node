@@ -1540,33 +1540,236 @@ export const DATA_TOOLS: Tool[] = [
   }
 ];
 
+// ================== COLOR TOOLS (4 tools) ==================
+export const COLOR_TOOLS: Tool[] = [
+  {
+    id: 'gradient_generator',
+    name: 'Gradient Generator',
+    description: 'Create beautiful CSS gradients with visual editor',
+    category: 'development',
+    icon: 'paint-roller',
+    params: {
+      type: { type: 'select', required: false, default: 'linear', enum: ['linear', 'radial', 'conic'] },
+      angle: { type: 'integer', required: false, default: 90, min: 0, max: 360 }
+    },
+    keywords: ['gradient', 'css', 'color', 'background', 'design']
+  },
+  {
+    id: 'contrast_checker',
+    name: 'Contrast Checker',
+    description: 'Check color contrast for WCAG accessibility compliance',
+    category: 'development',
+    icon: 'adjust',
+    params: {
+      foreground: { type: 'string', required: true, default: '#000000' },
+      background: { type: 'string', required: true, default: '#ffffff' }
+    },
+    keywords: ['contrast', 'accessibility', 'wcag', 'a11y', 'color']
+  },
+  {
+    id: 'palette_generator',
+    name: 'Palette Generator',
+    description: 'Generate harmonious color palettes',
+    category: 'development',
+    icon: 'swatchbook',
+    params: {
+      base_color: { type: 'string', required: true, default: '#667eea' },
+      palette_type: { type: 'select', required: false, default: 'complementary', enum: ['complementary', 'analogous', 'triadic', 'split-complementary', 'tetradic', 'monochromatic'] }
+    },
+    keywords: ['palette', 'color', 'scheme', 'design', 'generate']
+  },
+  {
+    id: 'color_blindness_simulator',
+    name: 'Color Blindness Simulator',
+    description: 'Simulate how colors appear to people with color vision deficiencies',
+    category: 'development',
+    icon: 'eye',
+    params: {
+      color: { type: 'string', required: true, placeholder: 'Enter color (hex)' }
+    },
+    keywords: ['color', 'blindness', 'accessibility', 'simulation', 'vision']
+  }
+];
+
+// ================== TEXT TOOLS ADVANCED (4 tools) ==================
+export const TEXT_TOOLS_ADVANCED: Tool[] = [
+  {
+    id: 'duplicate_line_remover',
+    name: 'Remove Duplicate Lines',
+    description: 'Remove duplicate lines from text',
+    category: 'text',
+    icon: 'filter',
+    params: {
+      case_sensitive: { type: 'boolean', required: false, default: true },
+      trim_whitespace: { type: 'boolean', required: false, default: true },
+      sort_output: { type: 'boolean', required: false, default: false }
+    },
+    keywords: ['duplicate', 'remove', 'unique', 'lines', 'filter']
+  },
+  {
+    id: 'text_sorter',
+    name: 'Text Sorter',
+    description: 'Sort lines of text alphabetically or numerically',
+    category: 'text',
+    icon: 'sort-alpha-down',
+    params: {
+      sort_order: { type: 'select', required: false, default: 'asc', enum: ['asc', 'desc'] },
+      sort_type: { type: 'select', required: false, default: 'alphabetic', enum: ['alphabetic', 'numeric', 'length', 'natural'] }
+    },
+    keywords: ['sort', 'order', 'alphabetical', 'lines', 'text']
+  },
+  {
+    id: 'text_reverser',
+    name: 'Text Reverser',
+    description: 'Reverse text in various ways',
+    category: 'text',
+    icon: 'exchange-alt',
+    params: {
+      reverse_mode: { type: 'select', required: false, default: 'characters', enum: ['characters', 'words', 'lines', 'sentences'] }
+    },
+    keywords: ['reverse', 'text', 'backwards', 'flip', 'mirror']
+  },
+  {
+    id: 'word_counter_seo',
+    name: 'Word Counter (SEO)',
+    description: 'Analyze text for SEO with word count, keyword density, and readability',
+    category: 'text',
+    icon: 'chart-bar',
+    params: {},
+    keywords: ['word', 'count', 'seo', 'keyword', 'density', 'readability']
+  }
+];
+
+// ================== UTILITY TOOLS (3 tools) ==================
+export const UTILITY_TOOLS: Tool[] = [
+  {
+    id: 'qr_scanner',
+    name: 'QR Code Scanner',
+    description: 'Scan QR codes from image files or camera',
+    category: 'web',
+    icon: 'qrcode',
+    params: {},
+    keywords: ['qr', 'scan', 'camera', 'decode', 'barcode']
+  },
+  {
+    id: 'barcode_generator',
+    name: 'Barcode Generator',
+    description: 'Generate various types of barcodes',
+    category: 'web',
+    icon: 'barcode',
+    params: {
+      type: { type: 'select', required: false, default: 'CODE128', enum: ['CODE128', 'CODE39', 'EAN13', 'EAN8', 'UPC', 'ITF14'] },
+      content: { type: 'string', required: true, placeholder: 'Enter barcode content' }
+    },
+    keywords: ['barcode', 'generate', 'code128', 'ean', 'upc']
+  },
+  {
+    id: 'timezone_converter',
+    name: 'Time Zone Converter',
+    description: 'Convert time between different time zones',
+    category: 'converter',
+    icon: 'globe',
+    params: {
+      from_timezone: { type: 'string', required: true, default: 'UTC' },
+      to_timezone: { type: 'string', required: true, default: 'America/New_York' }
+    },
+    keywords: ['timezone', 'time', 'convert', 'world', 'clock']
+  }
+];
+
+// ================== FORMATTER TOOLS (2 tools) ==================
+export const FORMATTER_TOOLS: Tool[] = [
+  {
+    id: 'html_formatter',
+    name: 'HTML Formatter',
+    description: 'Format and beautify HTML code',
+    category: 'web',
+    icon: 'code',
+    params: {
+      indent_size: { type: 'integer', required: false, default: 2, min: 1, max: 8 }
+    },
+    keywords: ['html', 'format', 'beautify', 'prettify', 'indent']
+  },
+  {
+    id: 'css_formatter',
+    name: 'CSS Formatter',
+    description: 'Format, beautify, and minify CSS code',
+    category: 'web',
+    icon: 'paint-brush',
+    params: {
+      indent_size: { type: 'integer', required: false, default: 2, min: 1, max: 8 }
+    },
+    keywords: ['css', 'format', 'beautify', 'minify', 'prettify']
+  }
+];
+
+// ================== ADDITIONAL DEV TOOLS (1 tool) ==================
+export const ADDITIONAL_DEV_TOOLS: Tool[] = [
+  {
+    id: 'regex_cheatsheet',
+    name: 'Regex Cheatsheet',
+    description: 'Quick reference for regular expressions',
+    category: 'development',
+    icon: 'bookmark',
+    params: {},
+    keywords: ['regex', 'cheatsheet', 'reference', 'patterns', 'regular expression']
+  },
+  {
+    id: 'unit_converter',
+    name: 'Unit Converter',
+    description: 'Convert between different units of measurement',
+    category: 'converter',
+    icon: 'balance-scale',
+    params: {
+      category: { type: 'select', required: false, default: 'length', enum: ['length', 'weight', 'temperature', 'area', 'volume', 'data'] }
+    },
+    keywords: ['unit', 'convert', 'measurement', 'length', 'weight', 'temperature']
+  },
+  {
+    id: 'query_string_parser',
+    name: 'Query String Parser',
+    description: 'Parse and manipulate URL query strings',
+    category: 'web',
+    icon: 'question-circle',
+    params: {
+      query_string: { type: 'string', required: true, placeholder: '?key=value&...' }
+    },
+    keywords: ['query', 'string', 'url', 'parse', 'parameters']
+  }
+];
+
 // Export all tools combined
 export const ALL_TOOLS: Tool[] = [
-  ...CRYPTO_TOOLS,      // 15 tools
-  ...CONVERTER_TOOLS,   // 25 tools
-  ...WEB_TOOLS,         // 18 tools
-  ...TEXT_TOOLS,        // 10 tools
-  ...MATH_TOOLS,        // 3 tools
-  ...NETWORK_TOOLS,     // 6 tools
-  ...MEDIA_TOOLS,       // 4 tools
-  ...IMAGE_TOOLS,       // 7 tools
-  ...CALCULATOR_TOOLS,  // 5 tools
-  ...PDF_TOOLS,         // 5 tools
-  ...DEVELOPMENT_TOOLS, // 7 tools
-  ...MEASUREMENT_TOOLS, // 2 tools
-  ...DATA_TOOLS         // 4 tools
+  ...CRYPTO_TOOLS,          // 15 tools
+  ...CONVERTER_TOOLS,       // 25 tools
+  ...WEB_TOOLS,             // 18 tools
+  ...TEXT_TOOLS,            // 10 tools
+  ...TEXT_TOOLS_ADVANCED,   // 4 tools
+  ...MATH_TOOLS,            // 3 tools
+  ...NETWORK_TOOLS,         // 6 tools
+  ...MEDIA_TOOLS,           // 4 tools
+  ...IMAGE_TOOLS,           // 7 tools
+  ...CALCULATOR_TOOLS,      // 5 tools
+  ...PDF_TOOLS,             // 5 tools
+  ...DEVELOPMENT_TOOLS,     // 7 tools
+  ...MEASUREMENT_TOOLS,     // 2 tools
+  ...DATA_TOOLS,            // 4 tools
+  ...COLOR_TOOLS,           // 4 tools
+  ...UTILITY_TOOLS,         // 3 tools
+  ...FORMATTER_TOOLS,       // 2 tools
+  ...ADDITIONAL_DEV_TOOLS   // 3 tools
 ];
 
 // Export tools by category for easy access
 export const TOOLS_BY_CATEGORY = {
   crypto: CRYPTO_TOOLS,
-  converter: CONVERTER_TOOLS,
-  web: WEB_TOOLS,
-  text: TEXT_TOOLS,
+  converter: [...CONVERTER_TOOLS, ...UTILITY_TOOLS.filter(t => t.category === 'converter'), ...ADDITIONAL_DEV_TOOLS.filter(t => t.category === 'converter')],
+  web: [...WEB_TOOLS, ...UTILITY_TOOLS.filter(t => t.category === 'web'), ...FORMATTER_TOOLS, ...ADDITIONAL_DEV_TOOLS.filter(t => t.category === 'web')],
+  text: [...TEXT_TOOLS, ...TEXT_TOOLS_ADVANCED],
   math: [...MATH_TOOLS, ...CALCULATOR_TOOLS],
   network: NETWORK_TOOLS,
   media: [...MEDIA_TOOLS, ...IMAGE_TOOLS, ...PDF_TOOLS],
-  development: DEVELOPMENT_TOOLS,
+  development: [...DEVELOPMENT_TOOLS, ...COLOR_TOOLS, ...ADDITIONAL_DEV_TOOLS.filter(t => t.category === 'development')],
   measurement: MEASUREMENT_TOOLS,
   data: DATA_TOOLS
 };
