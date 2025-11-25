@@ -68,7 +68,7 @@ function Find-CoreNodeProjects {
             if (Test-Path $gitDir) {
                 # Check if not already in list
                 $alreadyFound = @($possibleLocations | Where-Object { $_.Path -eq $loc })
-                if ($alreadyFound.Count -eq 0) {
+                if (-not $alreadyFound -or $alreadyFound.Count -eq 0) {
                     $possibleLocations += @{
                         Path = $loc
                         IsGitRepo = $true
@@ -107,7 +107,7 @@ function Move-CoreNodeProject {
         # Get all items in the directory (files and subdirectories)
         $items = Get-ChildItem -Path $DestPath -Recurse -Force -ErrorAction SilentlyContinue
 
-        if ($items.Count -eq 0) {
+        if (-not $items -or $items.Count -eq 0) {
             # Directory is empty, remove it
             Write-ColorMessage -Message "$SCRIPT_INDEX Destination directory is empty, removing: $DestPath" -Type "Warning"
             Remove-Item -Path $DestPath -Force -Recurse -ErrorAction SilentlyContinue
@@ -176,7 +176,7 @@ function Main-FixProjectLocation {
     # Find all core_node projects
     $projects = @(Find-CoreNodeProjects)
 
-    if ($projects.Count -eq 0) {
+    if (-not $projects -or $projects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No core_node projects found" -Type "Warning"
         Write-ColorMessage -Message "$SCRIPT_INDEX Cloning project to target location..." -Type "Info"
 
@@ -209,7 +209,7 @@ function Main-FixProjectLocation {
             # Get all items in the directory (files and subdirectories)
             $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
 
-            if ($items.Count -eq 0) {
+            if (-not $items -or $items.Count -eq 0) {
                 # Directory is empty, remove it
                 Write-ColorMessage -Message "$SCRIPT_INDEX Target directory is empty, removing: $TARGET_PROJECT_DIR" -Type "Warning"
                 Remove-Item -Path $TARGET_PROJECT_DIR -Force -Recurse -ErrorAction SilentlyContinue
@@ -282,7 +282,7 @@ function Main-FixProjectLocation {
     # Find projects at wrong locations
     $wrongLocationProjects = @($projects | Where-Object { -not (Test-IsCorrectLocation -Path $_.Path) })
 
-    if ($wrongLocationProjects.Count -eq 0) {
+    if (-not $wrongLocationProjects -or $wrongLocationProjects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No projects found at incorrect locations" -Type "Success"
         return
     }
