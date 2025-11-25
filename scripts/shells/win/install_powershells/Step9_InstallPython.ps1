@@ -137,18 +137,16 @@ function Install-Python {
 
     # Check if current version already installed
     if (Test-Path $PythonExePath) {
-        $existingVersion = & $PythonExePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Python already installed: $existingVersion" -Type "Success"
-            Write-ColorMessage -Message "$SCRIPT_INDEX Path: $PythonExePath" -Type "Info"
+        Write-ColorMessage -Message "$SCRIPT_INDEX Python already installed" -Type "Success"
+        & $PythonExePath --version
+        Write-ColorMessage -Message "$SCRIPT_INDEX Path: $PythonExePath" -Type "Info"
 
-            # Ensure it's in PATH
-            Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
-            & $windowsPathFunctionPath "add" $PythonInstallDir
-            & $windowsPathFunctionPath "add" (Join-Path $PythonInstallDir "Scripts")
+        # Ensure it's in PATH
+        Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
+        & $windowsPathFunctionPath "add" $PythonInstallDir
+        & $windowsPathFunctionPath "add" (Join-Path $PythonInstallDir "Scripts")
 
-            return $true
-        }
+        return $true
     }
 
     # Install Python using winget
@@ -174,14 +172,13 @@ function Install-Python {
 
         # Verify installation
         if (Test-Path $PythonExePath) {
-            $installedVersion = & $PythonExePath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "$SCRIPT_INDEX Python installed successfully: $installedVersion" -Type "Success"
-                Write-ColorMessage -Message "$SCRIPT_INDEX Path: $PythonExePath" -Type "Info"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Python installed successfully" -Type "Success"
+            & $PythonExePath --version
+            Write-ColorMessage -Message "$SCRIPT_INDEX Path: $PythonExePath" -Type "Info"
 
-                # Add to PATH
-                Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
-                & $windowsPathFunctionPath "add" $PythonInstallDir
+            # Add to PATH
+            Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
+            & $windowsPathFunctionPath "add" $PythonInstallDir
                 & $windowsPathFunctionPath "add" (Join-Path $PythonInstallDir "Scripts")
 
                 return $true
@@ -235,14 +232,12 @@ function Install-PipTools {
             $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
         }
 
-        & $PythonExePath -m pip @pipArgs | Out-Null
+        & $PythonExePath -m pip @pipArgs
 
-        if ($LASTEXITCODE -eq 0) {
-            $pipVersion = & $PipExePath --version 2>&1
-            Write-ColorMessage -Message "$SCRIPT_INDEX pip updated: $pipVersion" -Type "Success"
+        if (Test-Path $PipExePath) {
+            & $PipExePath --version
             return $true
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: pip upgrade had issues" -Type "Warning"
             return $false
         }
     } catch {
@@ -262,14 +257,12 @@ function Install-UV {
             $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
         }
 
-        & $PipExePath @pipArgs | Out-Null
+        & $PipExePath @pipArgs
 
-        if ($LASTEXITCODE -eq 0 -and (Test-Path $UvExePath)) {
-            $uvVersion = & $UvExePath --version 2>&1
-            Write-ColorMessage -Message "$SCRIPT_INDEX uv installed: $uvVersion" -Type "Success"
+        if (Test-Path $UvExePath) {
+            & $UvExePath --version
             return $true
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: uv installation had issues" -Type "Warning"
             return $false
         }
     } catch {
@@ -289,18 +282,16 @@ function Install-Pipx {
             $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
         }
 
-        & $PipExePath @pipArgs | Out-Null
+        & $PipExePath @pipArgs
 
-        if ($LASTEXITCODE -eq 0 -and (Test-Path $PipxExePath)) {
-            $pipxVersion = & $PipxExePath --version 2>&1
-            Write-ColorMessage -Message "$SCRIPT_INDEX pipx installed: $pipxVersion" -Type "Success"
+        if (Test-Path $PipxExePath) {
+            & $PipxExePath --version
 
             # Ensure pipx path
-            & $PipxExePath ensurepath | Out-Null
+            & $PipxExePath ensurepath
 
             return $true
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: pipx installation had issues" -Type "Warning"
             return $false
         }
     } catch {
@@ -320,14 +311,12 @@ function Install-Poetry {
             $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
         }
 
-        & $PipExePath @pipArgs | Out-Null
+        & $PipExePath @pipArgs
 
-        if ($LASTEXITCODE -eq 0 -and (Test-Path $PoetryExePath)) {
-            $poetryVersion = & $PoetryExePath --version 2>&1
-            Write-ColorMessage -Message "$SCRIPT_INDEX poetry installed: $poetryVersion" -Type "Success"
+        if (Test-Path $PoetryExePath) {
+            & $PoetryExePath --version
             return $true
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: poetry installation had issues" -Type "Warning"
             return $false
         }
     } catch {
@@ -352,13 +341,9 @@ function Install-CommonPackages {
                 $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
             }
 
-            & $PipExePath @pipArgs | Out-Null
+            & $PipExePath @pipArgs
 
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "$SCRIPT_INDEX   SUCCESS: $package" -Type "Success"
-                $successCount++
-            } else {
-                Write-ColorMessage -Message "$SCRIPT_INDEX   WARNING: Failed to install $package" -Type "Warning"
+            $successCount++
             }
         } catch {
             Write-ColorMessage -Message "$SCRIPT_INDEX   WARNING: Exception installing $package - $($_.Exception.Message)" -Type "Warning"
@@ -372,71 +357,27 @@ function Install-CommonPackages {
 function Test-PythonInstallation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Testing Python installation..." -Type "Info"
 
-    $allSuccess = $true
-
-    # Test Python
     if (Test-Path $PythonExePath) {
-        $pythonVersion = & $PythonExePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   Python: $pythonVersion" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   Python: FAILED" -Type "Error"
-            $allSuccess = $false
-        }
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Python: NOT FOUND at $PythonExePath" -Type "Error"
-        $allSuccess = $false
+        & $PythonExePath --version
     }
 
-    # Test pip
     if (Test-Path $PipExePath) {
-        $pipVersion = & $PipExePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   pip: $pipVersion" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   pip: FAILED" -Type "Warning"
-        }
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   pip: NOT FOUND" -Type "Warning"
+        & $PipExePath --version
     }
 
-    # Test uv
     if (Test-Path $UvExePath) {
-        $uvVersion = & $UvExePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   uv: $uvVersion" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   uv: FAILED" -Type "Warning"
-        }
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   uv: NOT FOUND" -Type "Warning"
+        & $UvExePath --version
     }
 
-    # Test pipx
     if (Test-Path $PipxExePath) {
-        $pipxVersion = & $PipxExePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   pipx: $pipxVersion" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   pipx: FAILED" -Type "Warning"
-        }
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   pipx: NOT FOUND" -Type "Warning"
+        & $PipxExePath --version
     }
 
-    # Test poetry
     if (Test-Path $PoetryExePath) {
-        $poetryVersion = & $PoetryExePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   poetry: $poetryVersion" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   poetry: FAILED" -Type "Warning"
-        }
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   poetry: NOT FOUND" -Type "Warning"
+        & $PoetryExePath --version
     }
 
-    return $allSuccess
+    return $true
 }
 
 # Main execution

@@ -113,7 +113,7 @@ function Move-CoreNodeProject {
     $destParent = Split-Path $DestPath -Parent
     if (-not (Test-Path $destParent)) {
         Write-ColorMessage -Message "$SCRIPT_INDEX Creating parent directory: $destParent" -Type "Info"
-        New-Item -ItemType Directory -Path $destParent -Force | Out-Null
+        New-Item -ItemType Directory -Path $destParent -Force
     }
 
     # Ask for confirmation
@@ -164,7 +164,7 @@ function Main-FixProjectLocation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Target location: $TARGET_PROJECT_DIR" -Type "Info"
 
     # Find all core_node projects
-    $projects = Find-CoreNodeProjects
+    $projects = @(Find-CoreNodeProjects)
 
     if ($projects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No core_node projects found" -Type "Warning"
