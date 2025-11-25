@@ -129,6 +129,164 @@ Route::prefix('code-browser')->group(function () {
     Route::post('/restore-file', [CodeBrowserFileOpsController::class, 'restoreFile']);
     Route::post('/rename-item', [CodeBrowserFileOpsController::class, 'renameItem']);
     Route::get('/prompts', [CodeBrowserFileOpsController::class, 'getPrompts']);
-    Route::post('/prompts/create', [CodeBrowserFileOpsController::class, 'createPrompt']);
+
+    Route::post('/prompts/create', function (\Illuminate\Http\Request $request) {
+        $debugInfo = [];
+        $debugInfo['route_hit'] = true;
+        $debugInfo['timestamp'] = date('Y-m-d H:i:s');
+        $debugInfo['request_all'] = $request->all();
+        $debugInfo['request_name'] = $request->input('name');
+
+        $debugInfo['php_user'] = posix_getpwuid(posix_geteuid())['name'];
+        $debugInfo['php_uid'] = posix_geteuid();
+        $debugInfo['php_gid'] = posix_getegid();
+        $debugInfo['process_user'] = get_current_user();
+
+        $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
+        $debugInfo['core_node_dir'] = $coreNodeDir;
+        $debugInfo['core_node_exists'] = is_dir($coreNodeDir);
+
+        $promptsDir = $coreNodeDir . DIRECTORY_SEPARATOR . '_prompts';
+        $debugInfo['prompts_dir'] = $promptsDir;
+        $debugInfo['prompts_dir_exists'] = is_dir($promptsDir);
+        $debugInfo['prompts_dir_writable'] = is_writable($promptsDir);
+
+        $promptsDirStat = stat($promptsDir);
+        $debugInfo['prompts_dir_owner_uid'] = $promptsDirStat['uid'];
+        $debugInfo['prompts_dir_owner_gid'] = $promptsDirStat['gid'];
+        $debugInfo['prompts_dir_perms'] = substr(sprintf('%o', fileperms($promptsDir)), -4);
+
+        $name = $request->input('name');
+        if (!$name) {
+            $debugInfo['error'] = 'Name is required';
+            return response()->json($debugInfo, 400);
+        }
+
+        $processedName = trim($name);
+        $processedName = preg_replace('/\s+/', ' ', $processedName);
+        $words = explode(' ', $processedName);
+        $words = array_map(function($word) {
+            return ucfirst(strtolower($word));
+        }, $words);
+        $processedName = implode(' ', $words);
+
+        if (!preg_match('/\.md$/i', $processedName)) {
+            $processedName .= '.md';
+        }
+
+        $debugInfo['processed_name'] = $processedName;
+
+        \App\Utils\FileSystemManager::ensureDirectoryExists($promptsDir);
+
+        $filePath = $promptsDir . DIRECTORY_SEPARATOR . $processedName;
+        $debugInfo['file_path'] = $filePath;
+        $debugInfo['file_exists_before'] = file_exists($filePath);
+
+        if (file_exists($filePath)) {
+            $debugInfo['error'] = 'Prompt already exists';
+            return response()->json($debugInfo, 409);
+        }
+
+        clearstatcache(true, $filePath);
+        clearstatcache(true, $promptsDir);
+
+        $handle = @fopen($filePath, 'w');
+        $debugInfo['fopen_result'] = ($handle !== false);
+        if ($handle !== false) {
+            @fwrite($handle, '');
+            @fclose($handle);
+        }
+        $debugInfo['fopen_exists_after'] = file_exists($filePath);
+
+        $writeResult = @file_put_contents($filePath, '', LOCK_EX);
+        $debugInfo['write_result'] = $writeResult;
+        $debugInfo['write_result_type'] = gettype($writeResult);
+        $debugInfo['file_exists_after'] = file_exists($filePath);
+        $debugInfo['last_error'] = error_get_last();
+
+        exec('whoami', $whoamiOutput);
+        $debugInfo['exec_whoami'] = implode('', $whoamiOutput);
+
+        $debugInfo['disable_functions'] = ini_get('disable_functions');
+        $debugInfo['open_basedir'] = ini_get('open_basedir');
+
+        if (file_exists($filePath)) {
+            $debugInfo['success'] = true;
+            $debugInfo['message'] = 'Prompt created successfully (via fopen)';
+            $debugInfo['path'] = '_prompts' . DIRECTORY_SEPARATOR . $processedName;
+            $debugInfo['name'] = $processedName;
+            return response()->json($debugInfo, 200);
+        }
+
+        if ($writeResult === false && !file_exists($filePath)) {
+            $debugInfo['error'] = 'Failed to write file';
+            $debugInfo['parent_dir'] = dirname($filePath);
+            $debugInfo['parent_exists'] = is_dir(dirname($filePath));
+            $debugInfo['parent_writable'] = is_writable(dirname($filePath));
+
+            $testPath = $promptsDir . DIRECTORY_SEPARATOR . 'debug_test_' . time() . '.txt';
+            $testResult = @file_put_contents($testPath, 'test content');
+            $debugInfo['test_ascii_write'] = $testResult;
+            $debugInfo['test_ascii_path'] = $testPath;
+            $debugInfo['test_ascii_exists'] = file_exists($testPath);
+
+            @chmod($promptsDir, 0777);
+            $debugInfo['after_chmod_writable'] = is_writable($promptsDir);
+
+            $testPath2 = $promptsDir . DIRECTORY_SEPARATOR . 'debug_test2_' . time() . '.txt';
+            $testResult2 = @file_put_contents($testPath2, 'test after chmod');
+            $debugInfo['test_after_chmod'] = $testResult2;
+
+            try {
+                \Illuminate\Support\Facades\Storage::disk('local')->put('test_storage.txt', 'test via Storage');
+                $debugInfo['storage_test'] = 'success';
+                $debugInfo['storage_path'] = storage_path('app/test_storage.txt');
+            } catch (\Exception $e) {
+                $debugInfo['storage_test'] = 'failed: ' . $e->getMessage();
+            }
+
+            $execTestPath = $promptsDir . DIRECTORY_SEPARATOR . 'exec_test_' . time() . '.txt';
+            $execCmd = sprintf('touch %s 2>&1', escapeshellarg($execTestPath));
+            $execOutput = [];
+            $execReturnVar = 0;
+            @exec($execCmd, $execOutput, $execReturnVar);
+            $debugInfo['exec_test_cmd'] = $execCmd;
+            $debugInfo['exec_test_return'] = $execReturnVar;
+            $debugInfo['exec_test_output'] = implode("\n", $execOutput);
+            $debugInfo['exec_test_exists'] = file_exists($execTestPath);
+
+            $shellCmd = sprintf('/bin/bash -c "echo test > %s" 2>&1', escapeshellarg($execTestPath . '.sh'));
+            $shellOutput = shell_exec($shellCmd);
+            $debugInfo['shell_cmd'] = $shellCmd;
+            $debugInfo['shell_output'] = $shellOutput;
+            $debugInfo['shell_exists'] = file_exists($execTestPath . '.sh');
+
+            $procOpen = proc_open(
+                sprintf('touch %s', escapeshellarg($execTestPath . '.proc')),
+                [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes
+            );
+            if (is_resource($procOpen)) {
+                $procOutput = stream_get_contents($pipes[1]);
+                $procError = stream_get_contents($pipes[2]);
+                $procReturn = proc_close($procOpen);
+                $debugInfo['proc_return'] = $procReturn;
+                $debugInfo['proc_output'] = $procOutput;
+                $debugInfo['proc_error'] = $procError;
+                $debugInfo['proc_exists'] = file_exists($execTestPath . '.proc');
+            }
+
+            return response()->json($debugInfo, 500);
+        }
+
+        $debugInfo['success'] = true;
+        $debugInfo['message'] = 'Prompt created successfully';
+        $debugInfo['path'] = '_prompts' . DIRECTORY_SEPARATOR . $processedName;
+        $debugInfo['name'] = $processedName;
+
+        return response()->json($debugInfo, 200);
+    });
+
     Route::post('/prompts/translate', [CodeBrowserFileOpsController::class, 'translatePrompt']);
+    Route::post('/prompts/translate-name', [CodeBrowserFileOpsController::class, 'translatePromptName']);
 });

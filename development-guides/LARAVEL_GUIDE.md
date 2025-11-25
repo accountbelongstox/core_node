@@ -92,6 +92,7 @@ This codebase is designed to support multiple applications simultaneously. Each 
 
 - **Required Classes**: Use `App\Utils\FileSystemManager` for all file/directory operations. Use `App\Utils\SystemUserDetector` to get actual logged-in user.
 - **Auto Permission Fix**: FileSystemManager automatically fixes ownership to actual user (detected via /home scan on desktop systems) after all operations.
+- **External Path Mapping**: Paths outside storage/ are auto-mapped to storage/external/ with symlinks (Swoole sandbox workaround).
 - **Prohibited Native Functions**: Do not use `file_put_contents()`, `file_get_contents()`, `mkdir()`, `copy()`, `rename()`, `scandir()`, etc. directly. Use FileSystemManager methods instead.
 - **Required Methods**: `FileSystemManager::writeFile()`, `::readFile()`, `::mkdir()`, `::ensureDirectoryExists()`, `::copy()`, `::rename()`, `::scandir()`, `::exists()`, `::isFile()`, `::isDir()`, `::fixPermissions()`, `::fixPermissionsRecursive()`.
 
