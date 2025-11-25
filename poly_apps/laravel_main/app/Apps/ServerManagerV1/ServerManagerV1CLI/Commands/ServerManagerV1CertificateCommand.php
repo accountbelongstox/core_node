@@ -119,6 +119,81 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
     }
 
     /**
+     * Copy or link certificates from Let's Encrypt to SSL directory
+     * This ensures certificates are available in both locations for compatibility
+     *
+     * @param string $domain The domain name
+     * @return bool True if successful, false otherwise
+     */
+    private function copyCertificatesToSslDir(string $domain): bool
+    {
+        try {
+            $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $domain));
+
+            // Get source directory (Let's Encrypt live certificates)
+            $sourceDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($cleanDomain);
+
+            // Get target directory (SSL certificates directory)
+            $targetDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getSslCertDir($cleanDomain);
+
+            // Check if source directory exists
+            if (!is_dir($sourceDir)) {
+                $this->warn("Let's Encrypt certificates not found at: $sourceDir");
+                return false;
+            }
+
+            // Create target directory if it doesn't exist
+            if (!is_dir($targetDir)) {
+                if (!mkdir($targetDir, 0755, true)) {
+                    $this->error("Failed to create SSL certificate directory: $targetDir");
+                    return false;
+                }
+            }
+
+            // Certificate files to copy/link
+            $certFiles = ['fullchain.pem', 'privkey.pem', 'chain.pem', 'cert.pem'];
+
+            foreach ($certFiles as $file) {
+                $sourcePath = $sourceDir . '/' . $file;
+                $targetPath = $targetDir . '/' . $file;
+
+                // Skip if source file doesn't exist
+                if (!file_exists($sourcePath)) {
+                    continue;
+                }
+
+                // Remove existing target file or symlink
+                if (file_exists($targetPath) || is_link($targetPath)) {
+                    unlink($targetPath);
+                }
+
+                // Create symlink from target to source
+                if (!symlink($sourcePath, $targetPath)) {
+                    $this->warn("Failed to create symlink for: $file");
+                    // Fall back to copying
+                    if (!copy($sourcePath, $targetPath)) {
+                        $this->warn("Failed to copy: $file");
+                        continue;
+                    }
+                    chmod($targetPath, ($file === 'privkey.pem') ? 0600 : 0644);
+                }
+            }
+
+            $this->info("Certificates linked/copied to: $targetDir");
+            return true;
+
+        } catch (\Exception $e) {
+            $this->error("Failed to copy certificates: " . $e->getMessage());
+            Log::error("Certificate copy failed", [
+                'domain' => $domain,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Find certificate for domain
      */
     private function findCertificate(?string $domain): int
@@ -141,7 +216,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             $this->line("  Auto renew: " . ($certificate['auto_renew'] ? 'yes' : 'no'));
             $this->line("  Created: " . $certificate['created_at']);
             $this->line("  Updated: " . $certificate['updated_at']);
-            
+
             if (isset($certificate['expires_at'])) {
                 $this->line("  Expires: " . $certificate['expires_at']);
             }
