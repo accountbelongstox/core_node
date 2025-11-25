@@ -14,6 +14,10 @@ param(
     [Parameter()] [string]$Action = "install"
 )
 
+if ($Action -eq "Global" -or $Action -eq "China") {
+    $Action = "install"
+}
+
 #region Variable Declarations
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")

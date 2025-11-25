@@ -235,6 +235,12 @@ function Install-PackageManagers {
         }
     }
 
+    if (Test-Path $PnpmExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
+        & $PnpmExePath setup
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
+    }
+
     # Install yarn
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing yarn..." -Type "Warning"
     if (Test-Path $YarnExePath) {

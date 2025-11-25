@@ -737,7 +737,7 @@ function Repair-PythonEnvironment {
     $sitePackagesPaths = @(
         (Join-Path $env:APPDATA "Python\Python313\site-packages"),
         (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\site-packages"),
-        (Join-Path $result.PythonExe -Parent | Join-Path -ChildPath "Lib\site-packages")
+        (Split-Path $result.PythonExe -Parent | Join-Path -ChildPath "Lib\site-packages")
     )
 
     $corruptedPackagesFound = 0
@@ -902,26 +902,26 @@ function Repair-NodeEnvironment {
     # Step 2: Install pnpm if not present
     if (-not $result.PnpmExe) {
         Write-DebugLog -Message "Step 2: pnpm not found, installing via npm..." -Category "NODE-REPAIR" -Color "Yellow"
-        try {
-            & $result.NpmExe install -g pnpm 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                $pnpmPath = Join-Path $result.NodeDir "pnpm.cmd"
-                if (Test-Path $pnpmPath) {
-                    $result.PnpmExe = $pnpmPath
-                    Write-DebugLog -Message "pnpm installed successfully at: $pnpmPath" -Category "NODE-REPAIR" -Color "Green"
-                    $result.PathFixed = $true
-                } else {
-                    Write-DebugLog -Message "pnpm installation completed but executable not found" -Category "NODE-REPAIR" -Color "Yellow"
-                }
-            } else {
-                Write-DebugLog -Message "Failed to install pnpm via npm" -Category "NODE-REPAIR" -Color "Yellow"
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error installing pnpm: $($_.Exception.Message)" -Category "NODE-REPAIR" -Color "Yellow"
+        & $result.NpmExe install -g pnpm
+        $pnpmPath = Join-Path $result.NodeDir "pnpm.cmd"
+        if (Test-Path $pnpmPath) {
+            $result.PnpmExe = $pnpmPath
+            Write-DebugLog -Message "pnpm installed successfully at: $pnpmPath" -Category "NODE-REPAIR" -Color "Green"
+
+            Write-DebugLog -Message "Running pnpm setup..." -Category "NODE-REPAIR" -Color "Yellow"
+            & $pnpmPath setup
+            Write-DebugLog -Message "pnpm setup completed" -Category "NODE-REPAIR" -Color "Green"
+
+            $result.PathFixed = $true
+        } else {
+            Write-DebugLog -Message "pnpm installation completed but executable not found" -Category "NODE-REPAIR" -Color "Yellow"
         }
     } else {
         Write-DebugLog -Message "Step 2: pnpm already installed" -Category "NODE-REPAIR" -Color "Gray"
+
+        Write-DebugLog -Message "Running pnpm setup to ensure configuration..." -Category "NODE-REPAIR" -Color "Yellow"
+        & $result.PnpmExe setup
+        Write-DebugLog -Message "pnpm setup completed" -Category "NODE-REPAIR" -Color "Green"
     }
 
     # Step 3: Verify and repair PATH environment variables

@@ -234,9 +234,9 @@ function Invoke-SecretDecryptAll {
         Write-Host "[SECRET_DECRYPT_ALL] Decrypting: $fileName -> $keyName" -ForegroundColor Cyan
 
         try {
-            $result = & node $encryptedFile.FullName pwd $Password $OutputDir 2>&1
+            $result = & $Global:NODE_EXE_PATH $encryptedFile.FullName pwd $Password $OutputDir
 
-            if ($LASTEXITCODE -eq 0) {
+            if ($result) {
                 Write-Host "[SECRET_DECRYPT_ALL]    SUCCESS: $keyName" -ForegroundColor Green
                 $successCount++
             } else {
@@ -381,9 +381,9 @@ function Invoke-SecretEncryptAll {
                 continue
             }
 
-            $result = & node $disguiseJs $keyName $Password $content $dirs.ENCRYPTED_DIR 2>&1
+            $result = & $Global:NODE_EXE_PATH $disguiseJs $keyName $Password $content $dirs.ENCRYPTED_DIR
 
-            if ($LASTEXITCODE -eq 0 -and (Test-Path $outputFile)) {
+            if (Test-Path $outputFile) {
                 Write-Host "[SECRET_ENCRYPT_ALL]    SUCCESS: $keyName.js" -ForegroundColor Green
                 $successCount++
             } else {
@@ -625,10 +625,10 @@ function Set-SecretKey {
     }
 
     try {
-        $result = & node $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR 2>&1
+        $result = & $Global:NODE_EXE_PATH $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR
 
         $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$KeyName.js"
-        if ($LASTEXITCODE -eq 0 -and (Test-Path $encryptedFile)) {
+        if (Test-Path $encryptedFile) {
             Write-Host "[SECRET_SET_KEY] Encrypted and saved: $KeyName" -ForegroundColor Green
             return $true
         } else {
@@ -785,10 +785,10 @@ function Set-SecretKeyBatch {
         $keyName = [System.IO.Path]::GetFileName($rawFile)
 
         try {
-            $result = & node $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR 2>&1
+            $result = & $Global:NODE_EXE_PATH $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR
 
             $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$keyName.js"
-            if ($LASTEXITCODE -eq 0 -and (Test-Path $encryptedFile)) {
+            if (Test-Path $encryptedFile) {
                 Write-Host "[SECRET_SET_KEY_BATCH]   SUCCESS: $keyName" -ForegroundColor Green
                 $encryptedCount++
             } else {

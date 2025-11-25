@@ -2072,23 +2072,34 @@ function Get-FileWithSizeCheck {
             }
             
             $totalTime = ([DateTime]::Now - $startTime).TotalSeconds
-            $finalSize = (Get-Item $tempFile).Length
-            $averageSpeed = [math]::Round($finalSize / $totalTime / 1MB, 2)
-            
-            Write-Progress -Activity "Downloading $description" -Status "Download Complete - Average Speed: $averageSpeed MB/s" -PercentComplete 100 -Completed
-            
-            if (Test-Path $tempFile) {
-                if (Test-Path $localPath) {
-                    Remove-Item -Path $localPath -Force
-                }
-                Rename-Item -Path $tempFile -NewName (Split-Path $localPath -Leaf) -Force
-                Write-Host "Download completed: $localPath (Average Speed: $averageSpeed MB/s)" -ForegroundColor Green
-                return $true
-            }
-            else {
+
+            if (-not (Test-Path $tempFile)) {
                 Write-Error "Failed to download file: No temporary file created"
                 return $false
             }
+
+            $finalSize = (Get-Item $tempFile).Length
+
+            if ($finalSize -eq 0) {
+                Write-Error "Downloaded file is empty (0 bytes)"
+                Remove-Item -Path $tempFile -Force
+                return $false
+            }
+
+            if ($totalSize -gt 0 -and $finalSize -ne $totalSize) {
+                Write-Warning "Downloaded file size ($finalSize bytes) does not match expected size ($totalSize bytes)"
+            }
+
+            $averageSpeed = if ($totalTime -gt 0) { [math]::Round($finalSize / $totalTime / 1MB, 2) } else { 0 }
+
+            Write-Progress -Activity "Downloading $description" -Status "Download Complete - Average Speed: $averageSpeed MB/s" -PercentComplete 100 -Completed
+
+            if (Test-Path $localPath) {
+                Remove-Item -Path $localPath -Force
+            }
+            Rename-Item -Path $tempFile -NewName (Split-Path $localPath -Leaf) -Force
+            Write-Host "Download completed: $localPath (Average Speed: $averageSpeed MB/s)" -ForegroundColor Green
+            return $true
         }
         catch {
             Write-Error "Failed to download file: $_"

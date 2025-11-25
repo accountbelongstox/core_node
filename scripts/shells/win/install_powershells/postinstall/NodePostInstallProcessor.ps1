@@ -45,46 +45,38 @@ function Install-PnpmAndYarn {
 
     # Install pnpm
     Write-Host "$LogPrefix Installing pnpm..." -ForegroundColor Yellow
-    try {
-        $pnpmPath = Join-Path $InstallDir "pnpm.cmd"
+    $pnpmPath = Join-Path $InstallDir "pnpm.cmd"
 
+    if (Test-Path $pnpmPath) {
+        Write-Host "$LogPrefix pnpm already installed at: $pnpmPath" -ForegroundColor Green
+    } else {
+        & $NpmPath install -g pnpm
         if (Test-Path $pnpmPath) {
-            Write-Host "$LogPrefix pnpm already installed at: $pnpmPath" -ForegroundColor Green
+            Write-Host "$LogPrefix pnpm installed successfully" -ForegroundColor Green
         } else {
-            # Use absolute path to npm for installation
-            & $NpmPath install -g pnpm 2>&1 | Out-Null
-
-            if ($LASTEXITCODE -eq 0 -and (Test-Path $pnpmPath)) {
-                Write-Host "$LogPrefix pnpm installed successfully" -ForegroundColor Green
-            } else {
-                Write-Host "$LogPrefix WARNING: pnpm installation may have failed" -ForegroundColor Yellow
-            }
+            Write-Host "$LogPrefix WARNING: pnpm installation may have failed" -ForegroundColor Yellow
         }
     }
-    catch {
-        Write-Host "$LogPrefix ERROR installing pnpm: $($_.Exception.Message)" -ForegroundColor Red
+
+    if (Test-Path $pnpmPath) {
+        Write-Host "$LogPrefix Running pnpm setup..." -ForegroundColor Yellow
+        & $pnpmPath setup
+        Write-Host "$LogPrefix pnpm setup completed" -ForegroundColor Green
     }
 
     # Install yarn
     Write-Host "$LogPrefix Installing yarn..." -ForegroundColor Yellow
-    try {
-        $yarnPath = Join-Path $InstallDir "yarn.cmd"
+    $yarnPath = Join-Path $InstallDir "yarn.cmd"
 
+    if (Test-Path $yarnPath) {
+        Write-Host "$LogPrefix yarn already installed at: $yarnPath" -ForegroundColor Green
+    } else {
+        & $NpmPath install -g yarn
         if (Test-Path $yarnPath) {
-            Write-Host "$LogPrefix yarn already installed at: $yarnPath" -ForegroundColor Green
+            Write-Host "$LogPrefix yarn installed successfully" -ForegroundColor Green
         } else {
-            # Use absolute path to npm for installation
-            & $NpmPath install -g yarn 2>&1 | Out-Null
-
-            if ($LASTEXITCODE -eq 0 -and (Test-Path $yarnPath)) {
-                Write-Host "$LogPrefix yarn installed successfully" -ForegroundColor Green
-            } else {
-                Write-Host "$LogPrefix WARNING: yarn installation may have failed" -ForegroundColor Yellow
-            }
+            Write-Host "$LogPrefix WARNING: yarn installation may have failed" -ForegroundColor Yellow
         }
-    }
-    catch {
-        Write-Host "$LogPrefix ERROR installing yarn: $($_.Exception.Message)" -ForegroundColor Red
     }
 
     return $true
