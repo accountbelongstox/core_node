@@ -315,46 +315,30 @@ phantomjs_cdnurl=https://npmmirror.com/mirrors/phantomjs
 function Test-NodeJSInstallation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Testing Node.js installation..." -Type "Info"
 
-    # Test Node.js
-    Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js:" -Type "Info"
     if (Test-Path $NodeExePath) {
         & $NodeExePath --version
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   NOT FOUND at $NodeExePath" -Type "Error"
     }
 
-    # Test npm
-    Write-ColorMessage -Message "$SCRIPT_INDEX   npm:" -Type "Info"
     if (Test-Path $NpmExePath) {
         & $NpmExePath --version
-    } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   NOT FOUND" -Type "Warning"
     }
 
-    # Test pnpm
-    Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm:" -Type "Info"
     if (Test-Path $PnpmExePath) {
         & $PnpmExePath --version
     } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   NOT FOUND - installing" -Type "Warning"
         & $NpmExePath install -g pnpm
         Start-Sleep -Milliseconds 500
         if (Test-Path $PnpmExePath) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm installed, version:" -Type "Success"
             & $PnpmExePath --version
         }
     }
 
-    # Test yarn
-    Write-ColorMessage -Message "$SCRIPT_INDEX   yarn:" -Type "Info"
     if (Test-Path $YarnExePath) {
         & $YarnExePath --version
     } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   NOT FOUND - installing" -Type "Warning"
         & $NpmExePath install -g yarn
         Start-Sleep -Milliseconds 500
         if (Test-Path $YarnExePath) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   yarn installed, version:" -Type "Success"
             & $YarnExePath --version
         }
     }
