@@ -13,7 +13,7 @@
 
 namespace App\Apps\AppQyV1\Utils\Dict;
 use App\Utils\StrTool;
-class DictWrap
+class AppQyV1DictWrap
 {
     public static function mergeAlreadyWrapDict($alreadyExistDictionaries, $newDictionary)
     {

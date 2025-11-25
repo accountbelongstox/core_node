@@ -24,7 +24,7 @@ use Illuminate\Support\Str;
 use Laravolt\Avatar\Avatar;
 use App\Http\Common\CommonAvatarPublic;
 use App\Http\Common\CommonAuthService;
-use App\Apps\AppQyV1\AppQyV1Gvar\Gvar;
+use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use Illuminate\Routing\Controller as BaseController;
 class AppQyV1AuthenticationLoginController extends BaseController

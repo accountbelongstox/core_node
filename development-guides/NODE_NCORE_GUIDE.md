@@ -322,3 +322,14 @@ apps/
 8. **全局编码库引用**：是否遵守了规范中全局编码库的引用
 9. **别名规则**：是否遵守了规范中的别名规则，且所有别名有效
 10. **启动部署脚本**：ncore app 需要实现启动部署脚本（apps/{appname}/scripts/目录下的start.ps1、install.ps1、deploy.ps1、stop.ps1），因为统一管理系统需要通过explorer调用这些脚本来启动和管理应用，如果app有特殊的操作系统库需求，需要在install.ps1中完成相关依赖的安装
+
+## 10. Nuxt-Laravel API Integration Specification
+
+For Nuxt applications interacting with Laravel backend, use the following port configuration:
+- Remote API: HTTPS without port (default 443) - api.si.12gm.com, api.si.gm15.com
+- Local Domain: HTTP without port (default 80) - local.api.12gm.com, local.api.gm15.com
+- Local IP: HTTP with port 9003 - 192.168.2.1:9003, 192.168.50.2:9003
+- Priority: Remote (1-2) > Local Domain (3-4) > Local IP (5-6); Health check: Any HTTP response = healthy, only network errors = unhealthy
+## 11. Unified HTTP/WebSocket Client
+
+Nuxt apps MUST use unified HTTP client (`common/utils/http-client.ts`) for all API requests to enable middleware support (logging, auth, retry), automatic health check with 2s retry queue for POST requests when endpoint unavailable, and CSRF token management. Import: `import { httpClient } from '@/common/utils/http-client';` Usage: `await httpClient.post('/api/endpoint', data)`. Middleware registration: `httpClient.use({ name: 'logger', onRequest: async (url, opts) => opts })`.

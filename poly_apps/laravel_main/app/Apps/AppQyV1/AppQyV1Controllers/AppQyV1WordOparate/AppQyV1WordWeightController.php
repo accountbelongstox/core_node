@@ -17,7 +17,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate;
 use Illuminate\Http\Request;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
-use App\Apps\AppQyV1\Utils\Dict\DictWrap;
+use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDPPublic;
 class AppQyV1WordWeightController 

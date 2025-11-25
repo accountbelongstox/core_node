@@ -15,7 +15,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\ArrTool;
-use App\Apps\AppQyV1\Utils\Dict\DictWrap;
+use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\PDQBasePublic;
 class AppQyV1PersonalDictionaryProcessPublicController
 {

@@ -11,15 +11,15 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-
-namespace App\Apps\AppQyV1\AppQyV1Gvar;
-
-class Gvar
+namespace App\Apps\AppQyV1\Utils\Dict;
+class AppQyV1DictFrequency
 {
-    public const ClientToken = "Client-Token";
-    public const AuthUserToken = "Auth-User-Token";
-    public const AuthUsername = "Auth-Username";
-    public const AuthPassword = "Auth-Password";
-    public const AuthDebugToken = "Auth-Debug-Token";
+    public static function countFrequency($words, $gcontent)
+    {
+        $frequency = [];
+        foreach ($words as $key => $wordOrItem) {
+            $word = $key;
+            $frequency[$word] = count($gcontent);
+        }
+    }
 }
-

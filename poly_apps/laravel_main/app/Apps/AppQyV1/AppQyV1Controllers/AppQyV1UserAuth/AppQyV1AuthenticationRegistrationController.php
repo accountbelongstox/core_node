@@ -28,25 +28,50 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
      */
     public function apiStore(Request $request): Response | JsonResponse
     {
-        $request->validate([
-            'username' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string', 'max:255'],
-        ]);
-        if (CommonUserGen::checkUsernameIsExist($request->username)) {
+        try {
+            $request->validate([
+                'username' => ['required', 'string', 'max:255'],
+                'password' => ['required', 'string', 'min:6', 'max:255'],
+            ]);
+
+            if (CommonUserGen::checkUsernameIsExist($request->username)) {
+                return response()->json([
+                    'message' => 'Username already exists',
+                    'code' => 400,
+                    'status' => 'error',
+                ], 400);
+            }
+
+            $email = $request->email ?? "";
+            $nickname = $request->nickname ?? "";
+            $name = $request->name ?? "";
+            $userData = CommonUserGen::createUser($request->username, $request->password, $email, $nickname, $name, 'AppQyV1');
+
+            if (!$userData) {
+                \Log::error('[AppQyV1Registration] Registration failed for user', [
+                    'username' => $request->username
+                ]);
+                return response()->json([
+                    'message' => 'Registration failed. Please check the logs or try again.',
+                    'code' => 500,
+                    'status' => 'error',
+                ], 500);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
-                'message' => 'Username already exists',
-                'code' => 400,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+                'code' => 422,
                 'status' => 'error',
-            ], 400);
-        }
-        $email = $request->email ?? "";
-        $nickname = $request->nickname ?? "";
-        $name = $request->name ?? "";
-        $userData = CommonUserGen::createUser($request->username, $request->password, $email, $nickname, $name, 'appqyv1');
-        
-        if (!$userData) {
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('[AppQyV1Registration] Unexpected error', [
+                'username' => $request->username ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
-                'message' => 'Registration failed',
+                'message' => 'Registration failed: ' . $e->getMessage(),
                 'code' => 500,
                 'status' => 'error',
             ], 500);

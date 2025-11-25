@@ -206,18 +206,11 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
     private function validateAppNamespace(string $appname): bool
     {
-        $indexFile = "$this->nuxtMainPath/pages/index.$appname.vue";
-
-        if (!file_exists($indexFile)) {
-            $this->error("Namespace not found: $indexFile does not exist");
-            $this->comment("Available apps:");
-            $this->listAvailableApps();
-            return false;
-        }
-
         $appDir = "$this->nuxtMainPath/apps/app_$appname";
         if (!is_dir($appDir)) {
             $this->error("App directory not found: $appDir");
+            $this->comment("Available apps:");
+            $this->listAvailableApps();
             return false;
         }
 
@@ -326,25 +319,17 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             return false;
         }
 
-        $switchScript = "$factoryPath/scripts/switch-app-entry.js";
-        if (!file_exists($switchScript)) {
-            $this->error("Switch script not found after copy: $switchScript");
-            return false;
-        }
-
-        $switchResult = Process::path($factoryPath)
-            ->timeout(30)
-            ->run("node scripts/switch-app-entry.js $appname");
-
-        if ($switchResult->failed()) {
-            $this->error("Failed to switch app entry");
-            $this->error($switchResult->errorOutput());
-            return false;
-        }
-
         if (!is_dir($factoryPath)) {
             $this->error("Factory directory not created: $factoryPath");
             return false;
+        }
+
+        // Set ownership immediately after rsync to prevent permission issues
+        $user = SystemUtil::detectUser($this->debugMode);
+        $this->comment("Setting ownership to $user...");
+        $chownResult = Process::run("chown -R $user:$user $factoryPath");
+        if ($chownResult->failed()) {
+            $this->warn("Failed to set ownership after copy");
         }
 
         $this->comment("✓ Workspace copied to factory");
@@ -355,14 +340,31 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
     {
         $factoryPath = "$this->factoryBasePath/_app_$appname";
 
+        // Detect user for proper ownership
+        $user = SystemUtil::detectUser($this->debugMode);
+
+        // Ensure parent directories exist with proper permissions
+        if (!is_dir($this->factoryBasePath)) {
+            if (!mkdir($this->factoryBasePath, 0755, true)) {
+                $this->error("Failed to create factory base directory");
+                return false;
+            }
+            // Set ownership of parent directories
+            Process::run("chown -R $user:$user $this->factoryBasePath");
+        }
+
         // Create factory directory if it doesn't exist
         if (!is_dir($factoryPath)) {
             if (!mkdir($factoryPath, 0755, true)) {
                 $this->error("Failed to create factory directory");
                 return false;
             }
+            // Set ownership immediately after creation
+            Process::run("chown -R $user:$user $factoryPath");
             $this->comment("✓ Factory directory created");
         } else {
+            // Directory exists, ensure proper ownership
+            Process::run("chown -R $user:$user $factoryPath");
             $this->comment("✓ Factory directory exists");
         }
 
@@ -418,6 +420,44 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         }
 
         $this->comment("✓ Factory dependencies installed");
+
+        // Now that dependencies are installed, switch the app entry
+        $switchScript = "$factoryPath/scripts/switch-app.js";
+        if (!file_exists($switchScript)) {
+            $this->error("Switch script not found: $switchScript");
+            return false;
+        }
+
+        $this->comment("Switching app entry to: $appname");
+        $switchResult = Process::path($factoryPath)
+            ->timeout(30)
+            ->run("node scripts/switch-app.js $appname");
+
+        if ($switchResult->failed()) {
+            $this->error("Failed to switch app entry");
+            $this->error($switchResult->errorOutput());
+            return false;
+        }
+
+        $this->comment("✓ App entry switched to: $appname");
+
+        // Pre-create node-compile-cache directory with correct permissions
+        // This prevents permission errors when Node.js tries to create it at runtime
+        $cacheDir = "$factoryPath/node-compile-cache";
+        if (!is_dir($cacheDir)) {
+            $this->comment("Creating node-compile-cache directory...");
+            Process::run("mkdir -p $cacheDir && chown $user:$user $cacheDir");
+        }
+
+        // Fix permissions after all operations to ensure service can run properly
+        $this->comment("Ensuring final permissions...");
+        $chownResult = Process::run("chown -R $user:$user $factoryPath");
+        if ($chownResult->failed()) {
+            $this->warn("Failed to set final ownership");
+        } else {
+            $this->comment("✓ Final permissions set");
+        }
+
         return true;
     }
 
