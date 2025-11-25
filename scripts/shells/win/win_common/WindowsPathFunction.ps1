@@ -66,9 +66,15 @@ if ($winBuild -ge 22000) {
 $Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"
 
-# Do not modify PROJECT_ROOT_DIR, PROJECT_DIR, PROJECT_SCRIPTS_DIR, INLINE_WINENVS_DIR
-# These variables are defined in GlobalVars.ps1 and should not be overridden
-# WindowsPathFunction.ps1 is only responsible for PATH management functions
+# Load GlobalVars.ps1 to get PROJECT_DIR and INLINE_WINENVS_DIR
+# This is needed when WindowsPathFunction.ps1 is called as a standalone script
+$scriptDir = $PSScriptRoot
+if ($scriptDir) {
+    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+    if (Test-Path $globalVarsPath) {
+        . $globalVarsPath
+    }
+}
 
 function Write-Log {
     param (
@@ -618,19 +624,11 @@ function Add-ScriptContentToWinEnvs {
     }
 }
 
+# DEPRECATED: Ensure-InlineWinEnvsDir is no longer used
+# We now simply add PROJECT_DIR to PATH instead of managing separate inline/global directories
 function Ensure-InlineWinEnvsDir {
-    # Check if project directory exists first to avoid creating it prematurely
-    if (-not (Test-Path $Global:PROJECT_DIR)) {
-        Write-Log "Project directory does not exist yet, skipping inline winenvs creation: $Global:PROJECT_DIR" -color "Yellow"
-        return
-    }
-
-    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
-        New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
-        Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"
-    }
-    $inlineEnvsNormalized = Normalize-WindowsPath $Global:INLINE_WINENVS_DIR
-    Add-Path -newPath $inlineEnvsNormalized
+    Write-Log "Ensure-InlineWinEnvsDir is deprecated. PROJECT_DIR is added to PATH instead." -color "Yellow"
+    return
 }
 
 function Copy-ItemToInline {
@@ -703,109 +701,19 @@ function Add-ExecToInline {
 
 Set-Alias -Name Add-ScriptToInline -Value Add-FileToInline
 
+# DEPRECATED: Sync-InlineToGlobal is no longer used
+# We now simply add PROJECT_DIR to PATH instead of creating symlinks
+# This simplifies the architecture and avoids issues with:
+# - WSL/Linux reserved filenames (nul, CON, PRN, etc.)
+# - Complex sync logic and symlink management
+# - File conflicts between projects
 function Sync-InlineToGlobal {
-    <#
-    .SYNOPSIS
-        Synchronizes scripts from inline winenvs to global winenvs directory
+    param([switch]$Force)
 
-    .DESCRIPTION
-        Creates symbolic links from scripts\winenvs to D:\.dev_winXX\.winenvs
-        Removes existing files in target directory before creating links
-        Automatically creates parent directories if they don't exist
-
-    .PARAMETER Force
-        Force synchronization even if target files exist
-
-    .EXAMPLE
-        Sync-InlineToGlobal
-        Sync-InlineToGlobal -Force
-    #>
-    param(
-        [switch]$Force
-    )
-
-    $globalWinEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-    $inlineWinEnvsDir = $Global:INLINE_WINENVS_DIR
-
-    if (-not (Test-Path $inlineWinEnvsDir)) {
-        Write-Log "Inline winenvs directory does not exist: $inlineWinEnvsDir" -color "Yellow"
-        return
-    }
-
-    if (-not (Test-Path $Global:LANG_COMPILER_DIR)) {
-        try {
-            New-Item -ItemType Directory -Path $Global:LANG_COMPILER_DIR -Force | Out-Null
-            Write-Log "Created parent directory: $Global:LANG_COMPILER_DIR" -color "Yellow"
-        } catch {
-            Write-Log "Failed to create parent directory: $($_.Exception.Message)" -color "Red"
-            return
-        }
-    }
-
-    if (-not (Test-Path $globalWinEnvsDir)) {
-        try {
-            New-Item -ItemType Directory -Path $globalWinEnvsDir -Force | Out-Null
-            Write-Log "Created global winenvs directory: $globalWinEnvsDir" -color "Yellow"
-        } catch {
-            Write-Log "Failed to create winenvs directory: $($_.Exception.Message)" -color "Red"
-            return
-        }
-    }
-
-    Write-Log "Synchronizing scripts from inline to global winenvs..." -color "Cyan"
-    Write-Log "  Source: $inlineWinEnvsDir" -color "Gray"
-    Write-Log "  Target: $globalWinEnvsDir" -color "Gray"
-
-    $inlineScripts = Get-ChildItem -Path $inlineWinEnvsDir -File -ErrorAction SilentlyContinue
-
-    if (-not $inlineScripts -or $inlineScripts.Count -eq 0) {
-        Write-Log "No scripts found in inline winenvs directory" -color "Yellow"
-        return
-    }
-
-    $syncCount = 0
-    $skipCount = 0
-    $errorCount = 0
-
-    $alwaysLinkFiles = @('dd.cmd', 'dd.ps1')
-
-    foreach ($script in $inlineScripts) {
-        $targetPath = Join-Path $globalWinEnvsDir $script.Name
-        $shouldForceLink = $alwaysLinkFiles -contains $script.Name
-
-        try {
-            if (Test-Path $targetPath) {
-                $existingItem = Get-Item $targetPath
-
-                if ($existingItem.LinkType -eq "SymbolicLink") {
-                    $existingTarget = $existingItem.Target
-                    if ($existingTarget -eq $script.FullName) {
-                        if (-not $Force -and -not $shouldForceLink) {
-                            $skipCount++
-                            continue
-                        }
-                    }
-                }
-
-                Remove-Item -Path $targetPath -Force -ErrorAction Stop
-                Write-Log "  Removed existing: $($script.Name)" -color "Yellow"
-            }
-
-            New-Item -ItemType SymbolicLink -Path $targetPath -Target $script.FullName -Force -ErrorAction Stop | Out-Null
-            Write-Log "  [OK] Linked: $($script.Name)" -color "Green"
-            $syncCount++
-
-        } catch {
-            Write-Log "  [X] Failed to sync $($script.Name): $($_.Exception.Message)" -color "Red"
-            $errorCount++
-        }
-    }
-
-    Write-Log "" -color "White"
-    Write-Log "Synchronization completed:" -color "Cyan"
-    Write-Log "  Synced: $syncCount" -color "Green"
-    Write-Log "  Skipped: $skipCount" -color "Yellow"
-    Write-Log "  Errors: $errorCount" -color "Red"
+    Write-Log "Sync-InlineToGlobal is deprecated." -color "Yellow"
+    Write-Log "PROJECT_DIR is now added to PATH directly - no sync needed." -color "Green"
+    Write-Log "Scripts in project directory are automatically available from anywhere." -color "Green"
+    return
 }
 
 # Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
