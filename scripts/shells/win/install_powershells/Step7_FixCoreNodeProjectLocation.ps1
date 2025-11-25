@@ -229,15 +229,11 @@ function Main-FixProjectLocation {
             $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
             if ($items.Count -gt 0) {
                 Write-ColorMessage -Message "$SCRIPT_INDEX Project cloned successfully to: $TARGET_PROJECT_DIR" -Type "Success"
-
-                # Switch to project directory and re-execute dd.cmd
-                Set-Location $TARGET_PROJECT_DIR
-                $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
-                if (Test-Path $ddCmd) {
-                    Write-ColorMessage -Message "$SCRIPT_INDEX Restarting from project directory..." -Type "Info"
-                    & cmd /c $ddCmd
-                    exit
-                }
+                Write-ColorMessage -Message "$SCRIPT_INDEX Please run dd.cmd from the project directory to continue installation:" -Type "Warning"
+                Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
+                Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
+                Read-Host "Press Enter to exit"
+                exit 0
             } else {
                 Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
             }
@@ -266,16 +262,9 @@ function Main-FixProjectLocation {
             Write-ColorMessage -Message "$SCRIPT_INDEX Already running from project directory, no need to switch" -Type "Success"
             return
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Switching to project directory and restarting..." -Type "Info"
-            Set-Location $TARGET_PROJECT_DIR
-            $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
-            if (Test-Path $ddCmd) {
-                & cmd /c $ddCmd
-                exit
-            } else {
-                Write-ColorMessage -Message "$SCRIPT_INDEX Warning: dd.cmd not found at: $ddCmd" -Type "Warning"
-                return
-            }
+            Write-ColorMessage -Message "$SCRIPT_INDEX Not running from project directory, but project is at correct location" -Type "Info"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Installation will continue from current location" -Type "Info"
+            return
         }
     }
 
@@ -377,15 +366,11 @@ function Main-FixProjectLocation {
         Write-ColorMessage -Message "$SCRIPT_INDEX   Project location fixed successfully!" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX   New location: $TARGET_PROJECT_DIR" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Success"
-
-        # Switch to project directory and re-execute dd.cmd
-        Set-Location $TARGET_PROJECT_DIR
-        $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
-        if (Test-Path $ddCmd) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Restarting from project directory..." -Type "Info"
-            & cmd /c $ddCmd
-            exit
-        }
+        Write-ColorMessage -Message "$SCRIPT_INDEX Please run dd.cmd from the project directory to continue installation:" -Type "Warning"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
+        Read-Host "Press Enter to exit"
+        exit 0
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Error"
         Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to fix project location" -Type "Error"
