@@ -95,7 +95,7 @@ Press Enter to continue, or any other key to pause (auto-continue in 5 seconds).
 
 注意使用公共方法 ，公共下载方法  common fun .ps1， 下载的文件如果存在且有效，可以跳过。 文件名也要改了。
 
-
-
+扫描 其中的所有 关联文件。
+只安装一个最推荐的版本。 
 
 

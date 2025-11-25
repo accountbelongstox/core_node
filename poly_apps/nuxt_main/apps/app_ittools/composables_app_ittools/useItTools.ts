@@ -1,10 +1,12 @@
 // IT Tools Composable
 // Provides reactive helpers and utilities for IT Tools application
+// Per NUXT_MULTI_APP_ARCHITECTURE.md - centralized services
 
 import { ref, computed, onMounted } from 'vue';
 import { useItToolsStore } from '../stores_app_ittools/ittools-store';
 import { ItToolsMainAPI } from '../services_app_ittools/ittools-main-api';
-import type { Tool } from '../constants_app_ittools/tools';
+import { itToolsApi } from '../services_app_ittools/ittools-api';
+import type { Tool } from '../types_app_ittools';
 
 export function useItTools() {
   const store = useItToolsStore();
@@ -144,6 +146,10 @@ export function useItTools() {
     downloadResult,
     clearResults,
     setApiUrl,
-    initialize
+    initialize,
+
+    // API Services
+    api,           // Legacy API (ItToolsMainAPI instance)
+    itToolsApi     // Centralized API service (recommended)
   };
 }
