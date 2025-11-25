@@ -187,6 +187,30 @@
         </div>
       </div>
     </ItToolsLogPanel>
+
+    <!-- Right Side Panel (Quick Access like Laravel) -->
+    <RightSidePanel
+      :is-visible="rightPanelVisible"
+      :recent-tools="recentlyUsedTools"
+      :favorite-tools="itToolsStore.favoriteTools"
+      :categories="itToolsStore.categoriesWithCounts"
+      :all-tools="itToolsStore.allTools"
+      :theme="itToolsStore.theme"
+      :is-authenticated="auth.isAuthenticated.value"
+      @close="rightPanelVisible = false"
+      @select-tool="selectToolAndOpen"
+      @toggle-theme="handleToggleTheme"
+      @login="handleLogin"
+    />
+
+    <!-- Right Panel Toggle Button -->
+    <button
+      @click="toggleRightPanel"
+      class="fixed right-0 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-lg hover:bg-blue-700 transition z-50"
+      title="Quick Access Panel"
+    >
+      <i :class="['fas', rightPanelVisible ? 'fa-chevron-right' : 'fa-chevron-left']"></i>
+    </button>
   </div>
 </template>
 
@@ -200,6 +224,7 @@ import BrowserAutomationPanel from '@/apps/app_ittools/components_app_ittools/Br
 import WindowsOperationsPanel from '@/apps/app_ittools/components_app_ittools/WindowsOperationsPanel.vue';
 import NginxManagementPanel from '@/apps/app_ittools/components_app_ittools/NginxManagementPanel.vue';
 import { useApiClient } from '@/apps/app_ittools/composables_app_ittools/useApiClient';
+import { useAuth } from '@/apps/app_ittools/composables_app_ittools/useAuth';
 import { appLogger, type LogEntry, type LogLevel } from '@/apps/app_ittools/services_app_ittools/logger';
 import ItToolsTopBar from '@/apps/app_ittools/components_app_ittools/ittools_index_components/ItToolsTopBar.vue';
 import ItToolsSidebar from '@/apps/app_ittools/components_app_ittools/ittools_index_components/ItToolsSidebar.vue';
@@ -209,6 +234,7 @@ import ItToolsSearchPanel from '@/apps/app_ittools/components_app_ittools/ittool
 import ItToolsActiveCard from '@/apps/app_ittools/components_app_ittools/ittools_index_components/ItToolsActiveCard.vue';
 import ItToolsLogPanel from '@/apps/app_ittools/components_app_ittools/ittools_index_components/LogPanel.vue';
 import ItToolsQuickStats from '@/apps/app_ittools/components_app_ittools/ittools_index_components/ItToolsQuickStats.vue';
+import RightSidePanel from '@/apps/app_ittools/components_app_ittools/ittools_index_components/RightSidePanel.vue';
 
 const mainTabs = [
   { id: 'ittools', name: 'IT Tools', icon: 'fas fa-tools', badge: '88+' },
@@ -244,8 +270,25 @@ const pythonSidebarItems = [
 
 const itToolsStore = useItToolsStore();
 const apiClient = useApiClient();
+const auth = useAuth();
 const route = useRoute();
 const router = useRouter();
+
+// Right side panel state
+const rightPanelVisible = ref(false);
+const toggleRightPanel = () => {
+  rightPanelVisible.value = !rightPanelVisible.value;
+};
+
+// Auth related
+const handleLogin = () => {
+  // Navigate to login page or show login modal
+  router.push('/auth/login?redirect=/ittools');
+};
+
+const handleToggleTheme = () => {
+  itToolsStore.toggleTheme();
+};
 
 const activeMainTab = ref('ittools');
 const activeBrowserSection = ref('quick-actions');
