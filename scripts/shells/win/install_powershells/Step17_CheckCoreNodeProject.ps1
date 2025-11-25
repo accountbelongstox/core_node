@@ -60,8 +60,8 @@ if (-not (Test-Path $PROJECT_DIR)) {
         $NEEDS_CLONE = $true
     } else {
         # Check if there are any non-hidden files (not just directories)
-        $NON_HIDDEN_FILES = $DIRECTORY_ITEMS | Where-Object { -not $_.PSIsContainer -and -not $_.Name.StartsWith('.') }
-        $NON_HIDDEN_DIRS = $DIRECTORY_ITEMS | Where-Object { $_.PSIsContainer -and -not $_.Name.StartsWith('.') }
+        $NON_HIDDEN_FILES = @($DIRECTORY_ITEMS | Where-Object { -not $_.PSIsContainer -and -not $_.Name.StartsWith('.') })
+        $NON_HIDDEN_DIRS = @($DIRECTORY_ITEMS | Where-Object { $_.PSIsContainer -and -not $_.Name.StartsWith('.') })
         
         if ((-not $NON_HIDDEN_FILES -or $NON_HIDDEN_FILES.Count -eq 0) -and (-not $NON_HIDDEN_DIRS -or $NON_HIDDEN_DIRS.Count -eq 0)) {
             Write-Host "$SCRIPT_INDEX Project directory contains only hidden files/directories or is effectively empty" -ForegroundColor Yellow

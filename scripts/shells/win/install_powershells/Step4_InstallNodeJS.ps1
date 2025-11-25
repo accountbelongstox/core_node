@@ -16,46 +16,16 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $winCommonDir "GlobalVars.ps1")
 . (Join-Path $winCommonDir "CommonFunc.ps1")
 . (Join-Path $winCommonDir "WindowsPathFunction.ps1")
-. (Join-Path $winCommonDir "PackageManagerInvokes.ps1")
-. (Join-Path $winCommonDir "PostInstallCallbackProcessor.ps1")
 
 $STEP_NUMBER = 4
 $SCRIPT_INDEX = "[Step $STEP_NUMBER]"
 
-# Node.js package definition (extracted from ApplicationsList.ps1)
-# IMPORTANT: Use versioned directory to support upgrades
+# Node.js installation configuration
 # Version is defined in GlobalVars.ps1 to prevent multiple definitions
 $NodeJSVersion = $Global:NODE_VERSION
 $NodeJSInstallDir = Join-Path $Global:LANG_COMPILER_DIR "node-v$NodeJSVersion"
-
-$NodeJSPackage = @{
-    Version                        = $NodeJSVersion
-    PackageId                      = "node-v$NodeJSVersion-win-x64"
-    Exec                           = "node.exe"
-    Name                           = "node"
-    Description                    = "Node.js $NodeJSVersion - JavaScript Runtime"
-    InstallType                    = "web"
-    ForceToInstallDir              = $true
-    VerifySuffix                   = "--version"
-    URL                            = "https://nodejs.org/dist/v$NodeJSVersion/node-v$NodeJSVersion-win-x64.zip"
-    ArchiveType                    = "zip"
-    ArchiveRootFolder              = "node-v$NodeJSVersion-win-x64"
-    AppCustomInstallDir            = $NodeJSInstallDir
-    EnvVars                        = @(
-        @{
-            Type    = @("Path")
-            Keyword = @("node.exe")
-        }
-    )
-    DesktopShortcuts               = $null
-    PostInstallCallbacks = @(
-        @{
-            Type       = "node"
-            Operation  = "install_pnpm_yarn"
-            Description = "Install pnpm and yarn package managers"
-        }
-    )
-}
+$NodeJSDownloadUrl = "https://nodejs.org/dist/v$NodeJSVersion/node-v$NodeJSVersion-win-x64.zip"
+$NodeJSArchiveRoot = "node-v$NodeJSVersion-win-x64"
 
 # Define paths using versioned directory
 $NodeExePath = Join-Path $NodeJSInstallDir "node.exe"
@@ -95,10 +65,10 @@ function Remove-OldNodeVersions {
         & $windowsPathFunctionPath "remove" $oldDir.FullName
 
         # Ask before deleting directory
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (y/N, timeout 5s, default: N)" -Type "Warning"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (Y/n, timeout 5s, default: Y)" -Type "Warning"
         $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
         $timeout = 5
-        $shouldDelete = $false
+        $shouldDelete = $true
 
         while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
             Start-Sleep -Milliseconds 200
@@ -106,8 +76,8 @@ function Remove-OldNodeVersions {
 
         if ($host.UI.RawUI.KeyAvailable) {
             $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
-            if ($key -eq 'y' -or $key -eq 'Y') {
-                $shouldDelete = $true
+            if ($key -eq 'n' -or $key -eq 'N') {
+                $shouldDelete = $false
             }
         }
 
@@ -147,15 +117,12 @@ function Install-NodeJS {
             Write-ColorMessage -Message "$SCRIPT_INDEX Adding Node.js to PATH..." -Type "Info"
             & $windowsPathFunctionPath "add" $NodeJSInstallDir
 
-            # Run post-install to ensure pnpm/yarn are installed
-            try {
-                $postInstallSuccess = Invoke-PostInstallCallbacks -Callbacks $NodeJSPackage.PostInstallCallbacks -ExecutablePath $NodeExePath -InstallDir $NodeJSInstallDir -PackageName $NodeJSPackage.Name
-                if (-not $postInstallSuccess) {
-                    Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Post-installation had issues" -Type "Warning"
-                }
-            } catch {
-                Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Post-installation failed: $($_.Exception.Message)" -Type "Warning"
-            }
+            # Install package managers
+            Install-PackageManagers | Out-Null
+
+            # Configure registries
+            Configure-NpmRegistry | Out-Null
+            Configure-PnpmRegistry | Out-Null
 
             return $true
         }
@@ -169,14 +136,14 @@ function Install-NodeJS {
 
     # Download and install Node.js
     Write-ColorMessage -Message "$SCRIPT_INDEX Downloading Node.js v$NodeJSVersion..." -Type "Warning"
-    Write-ColorMessage -Message "$SCRIPT_INDEX URL: $($NodeJSPackage.URL)" -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX URL: $NodeJSDownloadUrl" -Type "Info"
 
     $tempZip = Join-Path $env:TEMP "node-v$NodeJSVersion-win-x64.zip"
     $tempExtract = Join-Path $env:TEMP "node-v$NodeJSVersion-extract"
 
     try {
         # Download
-        Invoke-WebRequest -Uri $NodeJSPackage.URL -OutFile $tempZip -UseBasicParsing
+        Invoke-WebRequest -Uri $NodeJSDownloadUrl -OutFile $tempZip -UseBasicParsing
         Write-ColorMessage -Message "$SCRIPT_INDEX Downloaded to: $tempZip" -Type "Success"
 
         # Extract
@@ -187,7 +154,7 @@ function Install-NodeJS {
         Expand-Archive -Path $tempZip -DestinationPath $tempExtract -Force
 
         # Move files to installation directory
-        $extractedFolder = Join-Path $tempExtract $NodeJSPackage.ArchiveRootFolder
+        $extractedFolder = Join-Path $tempExtract $NodeJSArchiveRoot
         if (Test-Path $extractedFolder) {
             Write-ColorMessage -Message "$SCRIPT_INDEX Moving files to: $NodeJSInstallDir" -Type "Info"
 
@@ -224,18 +191,12 @@ function Install-NodeJS {
                 Write-ColorMessage -Message "$SCRIPT_INDEX Adding Node.js to PATH..." -Type "Info"
                 & $windowsPathFunctionPath "add" $NodeJSInstallDir
 
-                # Run post-install callbacks (install pnpm and yarn)
-                try {
-                    $postInstallSuccess = Invoke-PostInstallCallbacks -Callbacks $NodeJSPackage.PostInstallCallbacks -ExecutablePath $NodeExePath -InstallDir $NodeJSInstallDir -PackageName $NodeJSPackage.Name
+                # Install package managers
+                Install-PackageManagers | Out-Null
 
-                    if ($postInstallSuccess) {
-                        Write-ColorMessage -Message "$SCRIPT_INDEX Node.js post-installation completed successfully" -Type "Success"
-                    } else {
-                        Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Node.js post-installation had issues" -Type "Warning"
-                    }
-                } catch {
-                    Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Post-installation failed: $($_.Exception.Message)" -Type "Warning"
-                }
+                # Configure registries
+                Configure-NpmRegistry | Out-Null
+                Configure-PnpmRegistry | Out-Null
 
                 return $true
             } else {
@@ -258,8 +219,128 @@ function Install-NodeJS {
     }
 }
 
+function Install-PackageManagers {
+    Write-ColorMessage -Message "$SCRIPT_INDEX Installing pnpm and yarn package managers..." -Type "Info"
+
+    # Validate npm exists
+    if (-not (Test-Path $NpmExePath)) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: npm not found at $NpmExePath" -Type "Error"
+        return $false
+    }
+
+    # Install pnpm
+    Write-ColorMessage -Message "$SCRIPT_INDEX Installing pnpm..." -Type "Warning"
+    if (Test-Path $PnpmExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm already installed" -Type "Success"
+    } else {
+        try {
+            & $NpmExePath install -g pnpm 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $PnpmExePath)) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX pnpm installed successfully" -Type "Success"
+            } else {
+                Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: pnpm installation may have failed" -Type "Warning"
+            }
+        } catch {
+            Write-ColorMessage -Message "$SCRIPT_INDEX ERROR installing pnpm: $($_.Exception.Message)" -Type "Error"
+        }
+    }
+
+    # Install yarn
+    Write-ColorMessage -Message "$SCRIPT_INDEX Installing yarn..." -Type "Warning"
+    if (Test-Path $YarnExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX yarn already installed" -Type "Success"
+    } else {
+        try {
+            & $NpmExePath install -g yarn 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $YarnExePath)) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX yarn installed successfully" -Type "Success"
+            } else {
+                Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: yarn installation may have failed" -Type "Warning"
+            }
+        } catch {
+            Write-ColorMessage -Message "$SCRIPT_INDEX ERROR installing yarn: $($_.Exception.Message)" -Type "Error"
+        }
+    }
+
+    return $true
+}
+
+function Configure-NpmRegistry {
+    Write-ColorMessage -Message "$SCRIPT_INDEX Configuring npm registry..." -Type "Info"
+
+    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
+
+    if ($selectedRegion -eq "China") {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Setting npm China mirrors..." -Type "Warning"
+
+        try {
+            & $NpmExePath config set registry https://registry.npmmirror.com 2>&1 | Out-Null
+            & $NpmExePath config set disturl https://npmmirror.com/dist 2>&1 | Out-Null
+            & $NpmExePath config set electron_mirror https://npmmirror.com/mirrors/electron/ 2>&1 | Out-Null
+            & $NpmExePath config set sass_binary_site https://npmmirror.com/mirrors/node-sass 2>&1 | Out-Null
+            & $NpmExePath config set phantomjs_cdnurl https://npmmirror.com/mirrors/phantomjs 2>&1 | Out-Null
+
+            Write-ColorMessage -Message "$SCRIPT_INDEX npm China mirrors configured successfully" -Type "Success"
+        } catch {
+            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Failed to configure npm mirrors: $($_.Exception.Message)" -Type "Warning"
+        }
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Using default npm registry (Global region)" -Type "Info"
+    }
+
+    return $true
+}
+
+function Configure-PnpmRegistry {
+    Write-ColorMessage -Message "$SCRIPT_INDEX Configuring pnpm registry..." -Type "Info"
+
+    if (-not (Test-Path $PnpmExePath)) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm not installed, skipping configuration" -Type "Warning"
+        return $false
+    }
+
+    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
+    $userHome = [Environment]::GetFolderPath('UserProfile')
+    $pnpmrcPath = Join-Path $userHome ".pnpmrc"
+
+    if ($selectedRegion -eq "China") {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Creating .pnpmrc with China mirrors..." -Type "Warning"
+
+        $pnpmrcContent = @"
+registry=https://registry.npmmirror.com
+disturl=https://npmmirror.com/dist
+electron_mirror=https://npmmirror.com/mirrors/electron/
+sass_binary_site=https://npmmirror.com/mirrors/node-sass
+phantomjs_cdnurl=https://npmmirror.com/mirrors/phantomjs
+"@
+
+        try {
+            Set-Content -Path $pnpmrcPath -Value $pnpmrcContent -Force
+            Write-ColorMessage -Message "$SCRIPT_INDEX .pnpmrc created at: $pnpmrcPath" -Type "Success"
+        } catch {
+            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Failed to create .pnpmrc: $($_.Exception.Message)" -Type "Warning"
+        }
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Using default pnpm registry (Global region)" -Type "Info"
+
+        # Remove .pnpmrc if exists to use default registry
+        if (Test-Path $pnpmrcPath) {
+            try {
+                Remove-Item -Path $pnpmrcPath -Force
+                Write-ColorMessage -Message "$SCRIPT_INDEX Removed custom .pnpmrc to use default registry" -Type "Info"
+            } catch {
+                Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Failed to remove .pnpmrc: $($_.Exception.Message)" -Type "Warning"
+            }
+        }
+    }
+
+    return $true
+}
+
 function Test-NodeJSInstallation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Testing Node.js installation..." -Type "Info"
+
+    $allSuccess = $true
 
     # Test Node.js
     if (Test-Path $NodeExePath) {
@@ -268,11 +349,11 @@ function Test-NodeJSInstallation {
             Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js: $nodeVersion" -Type "Success"
         } else {
             Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js: FAILED" -Type "Error"
-            return $false
+            $allSuccess = $false
         }
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js: NOT FOUND at $NodeExePath" -Type "Error"
-        return $false
+        $allSuccess = $false
     }
 
     # Test npm
@@ -293,10 +374,24 @@ function Test-NodeJSInstallation {
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: $pnpmVersion" -Type "Success"
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: FAILED" -Type "Warning"
+            Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: FAILED - attempting to reinstall" -Type "Warning"
+            & $NpmExePath install -g pnpm 2>&1 | Out-Null
+            if (Test-Path $PnpmExePath) {
+                $pnpmVersion = & $PnpmExePath --version 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: $pnpmVersion (reinstalled)" -Type "Success"
+                }
+            }
         }
     } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: NOT FOUND" -Type "Warning"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: NOT FOUND - installing" -Type "Warning"
+        & $NpmExePath install -g pnpm 2>&1 | Out-Null
+        if (Test-Path $PnpmExePath) {
+            $pnpmVersion = & $PnpmExePath --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: $pnpmVersion (newly installed)" -Type "Success"
+            }
+        }
     }
 
     # Test yarn
@@ -305,13 +400,27 @@ function Test-NodeJSInstallation {
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: $yarnVersion" -Type "Success"
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: FAILED" -Type "Warning"
+            Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: FAILED - attempting to reinstall" -Type "Warning"
+            & $NpmExePath install -g yarn 2>&1 | Out-Null
+            if (Test-Path $YarnExePath) {
+                $yarnVersion = & $YarnExePath --version 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: $yarnVersion (reinstalled)" -Type "Success"
+                }
+            }
         }
     } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: NOT FOUND" -Type "Warning"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: NOT FOUND - installing" -Type "Warning"
+        & $NpmExePath install -g yarn 2>&1 | Out-Null
+        if (Test-Path $YarnExePath) {
+            $yarnVersion = & $YarnExePath --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: $yarnVersion (newly installed)" -Type "Success"
+            }
+        }
     }
 
-    return $true
+    return $allSuccess
 }
 
 # Main execution

@@ -67,7 +67,7 @@ function Find-CoreNodeProjects {
             $gitDir = Join-Path $loc ".git"
             if (Test-Path $gitDir) {
                 # Check if not already in list
-                $alreadyFound = $possibleLocations | Where-Object { $_.Path -eq $loc }
+                $alreadyFound = @($possibleLocations | Where-Object { $_.Path -eq $loc })
                 if (-not $alreadyFound) {
                     $possibleLocations += @{
                         Path = $loc
@@ -173,7 +173,7 @@ function Main-FixProjectLocation {
     }
 
     # Check if project is already at correct location
-    $correctLocationProject = $projects | Where-Object { Test-IsCorrectLocation -Path $_.Path }
+    $correctLocationProject = @($projects | Where-Object { Test-IsCorrectLocation -Path $_.Path })
 
     if ($correctLocationProject) {
         Write-ColorMessage -Message "$SCRIPT_INDEX Project already at correct location: $($correctLocationProject.Path)" -Type "Success"
@@ -182,7 +182,7 @@ function Main-FixProjectLocation {
     }
 
     # Find projects at wrong locations
-    $wrongLocationProjects = $projects | Where-Object { -not (Test-IsCorrectLocation -Path $_.Path) }
+    $wrongLocationProjects = @($projects | Where-Object { -not (Test-IsCorrectLocation -Path $_.Path) })
 
     if ($wrongLocationProjects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No projects found at incorrect locations" -Type "Success"

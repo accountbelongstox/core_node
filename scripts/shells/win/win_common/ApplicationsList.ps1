@@ -295,49 +295,8 @@ $Global:BasePackages = @{
             }
         )
     }
-    NodeJS     = @{
-        Version                        = "24.11.1"
-        PackageId                      = "node-v24.11.1-win-x64"
-        Exec                           = "node.exe"
-        Name                           = "node"
-        Description                    = "Node.js 24.11.1 - JavaScript Runtime"
-        InstallType                    = "web"
-        ForceToInstallDir              = $true
-        VerifySuffix                   = "--version"
-        URL                            = "https://nodejs.org/dist/v24.11.1/node-v24.11.1-win-x64.zip"
-        ArchiveType                    = "zip"
-        ArchiveRootFolder              = "node-v24.11.1-win-x64"
-        EnvVars                        = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("node.exe")
-            }
-        )
-        DesktopShortcuts               = $null
-        PostInstallCallbacks = @(
-            @{
-                Type       = "node"
-                Operation  = "install_pnpm_yarn"
-                Description = "Install pnpm and yarn package managers"
-            },
-            @{
-                Type       = "configurator"
-                Executable = "npm.cmd"
-                GlobalParameters = @()  # No mirror configuration for Global region
-                NonGlobalParameters = @(
-                    @("config", "set", "registry", "https://registry.npmmirror.com"),
-                    @("config", "set", "disturl", "https://npmmirror.com/dist"),
-                    @("config", "set", "electron_mirror", "https://npmmirror.com/mirrors/electron/"),
-                    @("config", "set", "sass_binary_site", "https://npmmirror.com/mirrors/node-sass"),
-                    @("config", "set", "phantomjs_cdnurl", "https://npmmirror.com/mirrors/phantomjs")
-                )
-            },
-            @{
-                Type = "pnpm_config_separator"
-                Description = "Create .pnpmrc to separate pnpm configuration from npm configuration"
-            }
-        )
-    }
+    # NodeJS configuration moved to Step4_InstallNodeJS.ps1
+    # Node.js is now installed and configured by Step4_InstallNodeJS.ps1 directly
     Python313  = @{
         Version           = "3.13"
         PackageId          = "Python.Python.3.13"
