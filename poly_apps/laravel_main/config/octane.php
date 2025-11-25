@@ -221,4 +221,22 @@ return [
 
     'max_execution_time' => 30,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Swoole Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Swoole-specific server configuration options. This system management
+    | application runs with root privileges to access system files anywhere.
+    | No chroot restriction is applied to allow full filesystem access.
+    |
+    */
+
+    'swoole' => [
+        'options' => [
+            'enable_coroutine' => true,
+            'task_enable_coroutine' => true,
+        ],
+    ],
+
 ];
