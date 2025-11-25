@@ -512,11 +512,27 @@ create_systemd_service() {
         memory_limit="${memory_limit:-$DEFAULT_MEMORY_LIMIT}"
     fi
 
+    # Extract environment variables from exec_command if present
+    local env_vars=""
+    local clean_command="$exec_command"
+
+    # Check if command starts with KEY=VALUE pattern
+    if [[ "$exec_command" =~ ^([A-Z_][A-Z0-9_]*=) ]]; then
+        # Extract all leading environment variable assignments
+        while [[ "$clean_command" =~ ^([A-Z_][A-Z0-9_]*=[^[:space:]]+)[[:space:]]+(.*) ]]; do
+            env_vars="${env_vars}Environment=\"${BASH_REMATCH[1]}\"\n"
+            clean_command="${BASH_REMATCH[2]}"
+        done
+    fi
+
     local service_file="$SYSTEMD_DIR/${service_name}.service"
 
     echo "[INFO] Creating generic systemd service: $service_name"
     echo "[INFO] Description: $description"
-    echo "[INFO] Exec: $exec_command"
+    echo "[INFO] Exec: $clean_command"
+    if [ -n "$env_vars" ]; then
+        echo "[INFO] Environment variables extracted from command"
+    fi
     echo "[INFO] Working Directory: $working_dir"
     echo "[INFO] User: $user"
 
@@ -529,12 +545,21 @@ After=network.target
 Type=simple
 User=$user
 WorkingDirectory=$working_dir
-ExecStart=$exec_command
+ExecStart=$clean_command
 Restart=$restart_policy
 RestartSec=$restart_sec
 StandardOutput=journal
 StandardError=journal
 EOF
+
+    # Add environment variables if extracted
+    if [ -n "$env_vars" ]; then
+        printf "\n# Environment variables\n" >> "$service_file"
+        printf "$env_vars" >> "$service_file"
+    fi
+
+    # Add default PATH environment variable
+    echo "Environment=\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"" >> "$service_file"
 
     apply_resource_limits "$service_file" "$cpu_limit" "$memory_limit"
 

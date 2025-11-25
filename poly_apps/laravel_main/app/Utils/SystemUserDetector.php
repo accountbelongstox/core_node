@@ -19,6 +19,7 @@ class SystemUserDetector
     private static $cachedUser = null;
     private static $cachedUid = null;
     private static $cachedGid = null;
+    private static $cacheFile = null;
 
     public static function getActualUser(): array
     {
@@ -30,8 +31,22 @@ class SystemUserDetector
             ];
         }
 
-        $currentUser = null;
-        $currentUid = null;
+        if (self::$cacheFile === null) {
+            self::$cacheFile = storage_path('app/system_user_cache.json');
+        }
+
+        if (file_exists(self::$cacheFile)) {
+            $cached = @file_get_contents(self::$cacheFile);
+            if ($cached !== false) {
+                $data = @json_decode($cached, true);
+                if ($data && isset($data['username'], $data['uid'], $data['gid'])) {
+                    self::$cachedUser = $data['username'];
+                    self::$cachedUid = $data['uid'];
+                    self::$cachedGid = $data['gid'];
+                    return $data;
+                }
+            }
+        }
 
         $currentUser = posix_getpwuid(posix_geteuid());
         $currentUid = $currentUser['uid'] ?? 0;
@@ -41,6 +56,8 @@ class SystemUserDetector
             self::$cachedUid = $currentUser['uid'];
             self::$cachedGid = $currentUser['gid'];
 
+            self::saveCacheFile();
+
             return [
                 'username' => self::$cachedUser,
                 'uid' => self::$cachedUid,
@@ -48,12 +65,30 @@ class SystemUserDetector
             ];
         }
 
+        if (self::isSystemdRestrictedEnvironment()) {
+            self::$cachedUser = $currentUser['name'];
+            self::$cachedUid = $currentUser['uid'];
+            self::$cachedGid = $currentUser['gid'];
+
+            self::saveCacheFile();
+
+            return [
+                'username' => self::$cachedUser,
+                'uid' => self::$cachedUid,
+                'gid' => self::$cachedGid
+            ];
+        }
+
+        \Log::info('[SystemUserDetector] Starting desktop user detection');
         $detectedUser = self::detectDesktopUser();
+        \Log::info('[SystemUserDetector] Desktop user detection completed', ['user' => $detectedUser]);
 
         if ($detectedUser) {
             self::$cachedUser = $detectedUser['username'];
             self::$cachedUid = $detectedUser['uid'];
             self::$cachedGid = $detectedUser['gid'];
+
+            self::saveCacheFile();
 
             return $detectedUser;
         }
@@ -62,6 +97,8 @@ class SystemUserDetector
         self::$cachedUid = $currentUser['uid'];
         self::$cachedGid = $currentUser['gid'];
 
+        self::saveCacheFile();
+
         return [
             'username' => self::$cachedUser,
             'uid' => self::$cachedUid,
@@ -69,18 +106,45 @@ class SystemUserDetector
         ];
     }
 
+    private static function saveCacheFile(): void
+    {
+        if (self::$cacheFile === null) {
+            return;
+        }
+
+        $data = [
+            'username' => self::$cachedUser,
+            'uid' => self::$cachedUid,
+            'gid' => self::$cachedGid
+        ];
+
+        @file_put_contents(self::$cacheFile, json_encode($data));
+    }
+
+    private static function isSystemdRestrictedEnvironment(): bool
+    {
+        if (!isset($_SERVER['INVOCATION_ID'])) {
+            return false;
+        }
+
+        return true;
+    }
+
     private static function detectDesktopUser(): ?array
     {
         $homeBase = '/home';
-        $users = [];
-        $latestTime = 0;
-        $latestUser = null;
 
         if (!is_dir($homeBase) || !is_readable($homeBase)) {
             return null;
         }
 
-        $userDirs = scandir($homeBase);
+        $userDirs = @scandir($homeBase);
+        if ($userDirs === false) {
+            return null;
+        }
+
+        $latestTime = 0;
+        $latestUser = null;
 
         foreach ($userDirs as $userDir) {
             if ($userDir === '.' || $userDir === '..') {
@@ -89,35 +153,18 @@ class SystemUserDetector
 
             $userPath = $homeBase . DIRECTORY_SEPARATOR . $userDir;
 
-            if (!is_dir($userPath) || !is_readable($userPath)) {
+            if (!is_dir($userPath)) {
                 continue;
             }
 
-            $subDirs = @scandir($userPath);
-            if ($subDirs === false) {
+            $mtime = @filemtime($userPath);
+            if ($mtime === false) {
                 continue;
             }
 
-            foreach ($subDirs as $subDir) {
-                if ($subDir === '.' || $subDir === '..') {
-                    continue;
-                }
-
-                $subPath = $userPath . DIRECTORY_SEPARATOR . $subDir;
-
-                if (!is_dir($subPath)) {
-                    continue;
-                }
-
-                $mtime = @filemtime($subPath);
-                if ($mtime === false) {
-                    continue;
-                }
-
-                if ($mtime > $latestTime) {
-                    $latestTime = $mtime;
-                    $latestUser = $userDir;
-                }
+            if ($mtime > $latestTime) {
+                $latestTime = $mtime;
+                $latestUser = $userDir;
             }
         }
 
@@ -142,5 +189,9 @@ class SystemUserDetector
         self::$cachedUser = null;
         self::$cachedUid = null;
         self::$cachedGid = null;
+
+        if (self::$cacheFile && file_exists(self::$cacheFile)) {
+            @unlink(self::$cacheFile);
+        }
     }
 }

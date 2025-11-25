@@ -862,7 +862,11 @@ class ServerManagerV1DomainManager
         if (in_array($config['type'], ['laravel', 'poly', 'php'])) {
             if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
                 // Swoole mode (Octane): Reverse proxy configuration
-                $swoolePort = $config['swoole_port'] ?? 8000;
+                // Auto-calculate port based on app index instead of using cached value
+                $wwwDir = $config['www_dir'] ?? '';
+                $swoolePort = $wwwDir
+                    ? ServerManagerV1OctaneServiceManager::getPortFromPathHash($wwwDir)
+                    : ($config['swoole_port'] ?? 8000);
                 $phpConfig = "
     # Swoole/Octane Reverse Proxy
     index index.php index.html index.htm;
@@ -2957,7 +2961,9 @@ server {
             return null;
         }
 
-        $port = $swooleConfig['swoole_port'] ?? null;
+        // Auto-calculate port and workers based on app index and CPU cores
+        $port = ServerManagerV1OctaneServiceManager::getPortFromPathHash($wwwDir);
+        $workers = ServerManagerV1OctaneServiceManager::getDefaultWorkers();
         $pathHash = ServerManagerV1OctaneServiceManager::getPathHash($wwwDir);
         $serviceName = ServerManagerV1OctaneServiceManager::getOctaneServiceNameFromPath($wwwDir, $port);
 
@@ -2966,7 +2972,7 @@ server {
             'www_dir' => $wwwDir,
             'path_hash' => $pathHash,
             'port' => $port,
-            'workers' => $swooleConfig['swoole_workers'] ?? 4,
+            'workers' => $workers,
             'mode' => ServerManagerV1PathConfig::normalizePhpMode($swooleConfig['php_mode'] ?? 'swoole'),
             'domains' => $domainsUsingService,
             'domain_count' => count($domainsUsingService)
@@ -3001,13 +3007,14 @@ server {
         }
 
         // Return info with domain-specific context
+        // Use auto-calculated port and workers from pathInfo (not cached values from config)
         return [
             'service_name' => $pathInfo['service_name'],
             'domain' => $domain,
             'www_dir' => $config['www_dir'],
             'path_hash' => $pathInfo['path_hash'],
-            'port' => $config['swoole_port'],
-            'workers' => $config['swoole_workers'] ?? 4,
+            'port' => $pathInfo['port'],
+            'workers' => $pathInfo['workers'],
             'mode' => $phpMode,
             'all_domains' => $pathInfo['domains'],
             'is_primary' => ($pathInfo['domains'][0] ?? null) === $domain,

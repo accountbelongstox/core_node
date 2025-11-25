@@ -1,402 +1,157 @@
-esolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+] [Step 84] Step 7: Handling WSL installation/upgrade...
+[!] [Step 84] WSL is not installed. Installing...
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[*] [Step 84] Installing WSL2 (system supports it)...
+--install: unrecognized option: no-distribution
+Copyright (c) Microsoft Corporation. All rights reserved.
 
-D:\>REM 7. Do not modify these rules.
+Usage: wsl.exe [Argument] [Options...] [CommandLine]
 
-D:\>REM VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+Arguments for running Linux binaries:
 
-D:\>REM ### AI SPECIAL ATTENTION RULES END ###
-"> Working dir:  D:\"
-"> Script dir:   D:\"
-"! Local dd.ps1 not found; using installer..."
-"> Ensuring local root: C:\Users\accou\.core_node\"
-"> Fetching installer: https://gitee.com/accountbelongstox/core_node/raw/main/scripts/shells/win/main_powershells/WinScriptsInstaller.ps1"
-"+ Running installer to populate scripts under C:\Users\accou\.core_node\"
-Local data root: C:\Users\accou\.core_node
-Repository base: https://raw.githubusercontent.com/accountbelongstox/core_node/main
-Downloading scripts/shells/win/dd.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/dd.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\dd.ps1
-Downloading scripts/shells/win/main_powershells/EnvironmentDetection.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/main_powershells/EnvironmentDetection.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\main_powershells\EnvironmentDetection.ps1
-Downloading scripts/shells/win/win_common/CommonFunc.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/CommonFunc.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\CommonFunc.ps1
-Downloading scripts/shells/win/win_common/StringEscapeUtils.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/StringEscapeUtils.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\StringEscapeUtils.ps1
-Downloading scripts/shells/win/win_common/registry_templates/all_files_context.reg from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/registry_templates/all_files_context.reg
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\registry_templates\all_files_context.reg
-Downloading scripts/shells/win/win_common/registry_templates/file_context.reg from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/registry_templates/file_context.reg
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\registry_templates\file_context.reg
-Downloading scripts/shells/win/win_common/registry_templates/folder_context.reg from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/registry_templates/folder_context.reg
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\registry_templates\folder_context.reg
-Downloading scripts/shells/win/win_common/registry_templates/new_document.reg from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/registry_templates/new_document.reg
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\registry_templates\new_document.reg
-Downloading scripts/shells/win/win_common/ApplicationsList.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/ApplicationsList.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\ApplicationsList.ps1
-Downloading scripts/shells/win/win_common/GlobalVars.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/GlobalVars.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\GlobalVars.ps1
-Downloading scripts/shells/win/win_common/IconExtractor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/IconExtractor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\IconExtractor.ps1
-Downloading scripts/shells/win/win_common/SimpleIconExtractor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/SimpleIconExtractor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\SimpleIconExtractor.ps1
-Downloading scripts/shells/win/win_common/WindowsPathFunction.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/WindowsPathFunction.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\WindowsPathFunction.ps1
-Downloading scripts/shells/win/win_common/WindowsServiceManager.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/WindowsServiceManager.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\WindowsServiceManager.ps1
-Downloading scripts/shells/win/win_common/PackageManagerInvokes.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/PackageManagerInvokes.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\PackageManagerInvokes.ps1
-Downloading scripts/shells/win/win_common/PostInstallCallbackProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/PostInstallCallbackProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\PostInstallCallbackProcessor.ps1
-Downloading scripts/shells/win/win_common/DesktopIconManager.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/DesktopIconManager.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\DesktopIconManager.ps1
-Downloading scripts/shells/win/win_common/StartupManager.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/win_common/StartupManager.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\win_common\StartupManager.ps1
-Downloading scripts/shells/win/install_powershells/InstallerScriptsList.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/InstallerScriptsList.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\InstallerScriptsList.ps1
-Downloading scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step1_InitializeBaseDirectories.ps1
-Downloading scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step2_SetBaseSettings.ps1
-Downloading scripts/shells/win/install_powershells/Step3_InitWinget.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step3_InitWinget.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step3_InitWinget.ps1
-Downloading scripts/shells/win/install_powershells/Step4_InstallNodeJS.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step4_InstallNodeJS.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step4_InstallNodeJS.ps1
-Downloading scripts/shells/win/install_powershells/Step5_InstallGitSSH.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step5_InstallGitSSH.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step5_InstallGitSSH.ps1
-Downloading scripts/shells/win/install_powershells/Step6_InstallGit.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step6_InstallGit.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step6_InstallGit.ps1
-Downloading scripts/shells/win/install_powershells/Step7_FixCoreNodeProjectLocation.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step7_FixCoreNodeProjectLocation.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step7_FixCoreNodeProjectLocation.ps1
-Downloading scripts/shells/win/install_powershells/Step9_InstallPython.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step9_InstallPython.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step9_InstallPython.ps1
-Downloading scripts/shells/win/install_powershells/Step10_InstallScoopWithChinaMirror.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step10_InstallScoopWithChinaMirror.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step10_InstallScoopWithChinaMirror.ps1
-Downloading scripts/shells/win/install_powershells/Step11_ExtendWindowsUpdate.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step11_ExtendWindowsUpdate.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step11_ExtendWindowsUpdate.ps1
-Downloading scripts/shells/win/install_powershells/Step12_InstallPHP.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step12_InstallPHP.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step12_InstallPHP.ps1
-Downloading scripts/shells/win/install_powershells/Step13_SetFileAssociations.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step13_SetFileAssociations.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step13_SetFileAssociations.ps1
-Downloading scripts/shells/win/install_powershells/Step14_DV.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step14_DV.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step14_DV.ps1
-Downloading scripts/shells/win/install_powershells/Step15_Install7ipBase.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step15_Install7ipBase.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step15_Install7ipBase.ps1
-Downloading scripts/shells/win/install_powershells/Step16_InstallApplications.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step16_InstallApplications.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step16_InstallApplications.ps1
-Downloading scripts/shells/win/install_powershells/Step17_CheckCoreNodeProject.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step17_CheckCoreNodeProject.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step17_CheckCoreNodeProject.ps1
-Downloading scripts/shells/win/install_powershells/Step30_InstallChrome.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step30_InstallChrome.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step30_InstallChrome.ps1
-Downloading scripts/shells/win/install_powershells/Step31_InstallPuppeteerPlugins.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step31_InstallPuppeteerPlugins.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step31_InstallPuppeteerPlugins.ps1
-Downloading scripts/shells/win/install_powershells/Step51_InstallApkTool.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step51_InstallApkTool.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step51_InstallApkTool.ps1
-Downloading scripts/shells/win/install_powershells/Step60_InstallAndroidStudio.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step60_InstallAndroidStudio.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step60_InstallAndroidStudio.ps1
-Downloading scripts/shells/win/install_powershells/Step61_InstallAndroidPlatformTools.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step61_InstallAndroidPlatformTools.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step61_InstallAndroidPlatformTools.ps1
-Downloading scripts/shells/win/install_powershells/Step70_InstallFlutter.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step70_InstallFlutter.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step70_InstallFlutter.ps1
-Downloading scripts/shells/win/install_powershells/Step84_InstallWSL.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step84_InstallWSL.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step84_InstallWSL.ps1
-Downloading scripts/shells/win/install_powershells/Step85_InstallWSLUbuntu24.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step85_InstallWSLUbuntu24.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
-Downloading scripts/shells/win/install_powershells/Step86_SetRootLoginWSLUbuntuDebian.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step86_SetRootLoginWSLUbuntuDebian.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step86_SetRootLoginWSLUbuntuDebian.ps1
-Downloading scripts/shells/win/install_powershells/Step87_InstallVisualStudio.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step87_InstallVisualStudio.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step87_InstallVisualStudio.ps1
-Downloading scripts/shells/win/install_powershells/Step88_InstallQtBuildTools.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step88_InstallQtBuildTools.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step88_InstallQtBuildTools.ps1
-Downloading scripts/shells/win/install_powershells/Step89_InstallQt.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step89_InstallQt.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step89_InstallQt.ps1
-Downloading scripts/shells/win/install_powershells/Step94_InstallQtOfficial.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step94_InstallQtOfficial.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step94_InstallQtOfficial.ps1
-Downloading scripts/shells/win/install_powershells/Step99_InstallDeepSeek.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step99_InstallDeepSeek.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step99_InstallDeepSeek.ps1
-Downloading scripts/shells/win/install_powershells/Step100_InstallDeepSeekOCR.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step100_InstallDeepSeekOCR.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step100_InstallDeepSeekOCR.ps1
-Downloading scripts/shells/win/install_powershells/Step101_InstallQwen25.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step101_InstallQwen25.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step101_InstallQwen25.ps1
-Downloading scripts/shells/win/install_powershells/Step102_InstallNLLB200.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/Step102_InstallNLLB200.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step102_InstallNLLB200.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/GoPostInstallProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/GoPostInstallProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\GoPostInstallProcessor.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/JavaPostInstallProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/JavaPostInstallProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\JavaPostInstallProcessor.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/NodePostInstallProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/NodePostInstallProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\NodePostInstallProcessor.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/PhpPostInstallProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/PhpPostInstallProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\PhpPostInstallProcessor.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/RubyPostInstallProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/RubyPostInstallProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\RubyPostInstallProcessor.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/RustPostInstallProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/RustPostInstallProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\RustPostInstallProcessor.ps1
-Downloading scripts/shells/win/install_powershells/postinstall/WSLUpgradeProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/install_powershells/postinstall/WSLUpgradeProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\install_powershells\postinstall\WSLUpgradeProcessor.ps1
-Downloading scripts/shells/win/menu_itemshells/DevInstaller.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/menu_itemshells/DevInstaller.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\menu_itemshells\DevInstaller.ps1
-Downloading scripts/shells/win/menu_itemshells/InitializationManager.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/menu_itemshells/InitializationManager.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\menu_itemshells\InitializationManager.ps1
-Downloading scripts/shells/win/menu_itemshells/ScriptScanner.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/menu_itemshells/ScriptScanner.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\menu_itemshells\ScriptScanner.ps1
-Downloading scripts/shells/win/menu_itemshells/TestInstaller.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/menu_itemshells/TestInstaller.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\menu_itemshells\TestInstaller.ps1
-Downloading scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\menu_itemshells\WSLUbuntuManager.ps1
-Downloading scripts/shells/win/tools/ScriptProcessor.ps1 from: https://raw.githubusercontent.com/accountbelongstox/core_node/main/scripts/shells/win/tools/ScriptProcessor.ps1
-Saved: C:\Users\accou\.core_node\scripts\shells\win\tools\ScriptProcessor.ps1
-All files downloaded successfully.
-"> Executing downloaded dd.ps1: C:\Users\accou\.core_node\scripts\shells\win\dd.ps1"
+    If no command line is provided, wsl.exe launches the default shell.
 
-= * 60
-  CORE NODE INITIALIZATION REQUIRED
-= * 60
+    --exec, -e <CommandLine>
+        Execute the specified command without using the default Linux shell.
 
-The script is running from user profile directory.
-This indicates that the development environment is not yet initialized.
+    --
+        Pass the remaining command line as is.
 
-Available options:
-  1. Initialize development environment (Recommended)
-  2. Continue without initialization
-  3. Exit
+Options:
+    --cd <Directory>
+        Sets the specified directory as the current working directory.
+        If ~ is used the Linux user's home path will be used. If the path begins
+        with a / character, it will be interpreted as an absolute Linux path.
+        Otherwise, the value must be an absolute Windows path.
 
-Please select an option (1-3): 1
+    --distribution, -d <Distro>
+        Run the specified distribution.
 
-= * 60
-  INITIALIZING DEVELOPMENT ENVIRONMENT
-= * 60
+    --user, -u <UserName>
+        Run as the specified user.
 
+Arguments for managing Windows Subsystem for Linux:
 
-= * 60
-  SELECT REGION FOR PROJECT CLONE
-= * 60
+    --help
+        Display usage information.
 
-Please select the region for cloning the project:
+    --install [Options]
+        Install additional Windows Subsystem for Linux distributions.
+        For a list of valid distributions, use 'wsl --list --online'.
 
-Available regions:
-  1. Global (GitHub) - Global access
-  2. China (Gitee) - Faster in China
+        Options:
+            --distribution, -d [Argument]
+                Downloads and installs a distribution by name.
 
-Default: Global (GitHub)
+                Arguments:
+                    A valid distribution name (not case sensitive).
 
-Please select region (1-2, Enter for default): 1
-[*] Selected region: Global
-[*] Loading global variables...
-[OK] Global variables loaded
-[*] Saved selected region: Global
-[*] Switching to project root directory: D:\programing
-[OK] Switched to project root directory
-[*] Executing Step1_InitializeBaseDirectories.ps1...
-[*] [Step 1] Verifying system requirements...
-[*] [Step 1] Checking Windows version...
-[OK] [Step 1] Operating System: Microsoft Windows 10 Pro N
-[*] [Step 1] Checking available disk space...
-[OK] [Step 1] Free space on D: drive: 1886.83 GB
-[*] [Step 1] Checking system memory...
-[OK] [Step 1] Total RAM: 15.18 GB
-[OK] [Step 1] System requirements verified
-[*] ----------------------------------------------------------------
-[*] [Step 1] Initializing base structure...
-[!] [Step 1] Creating directory: D:\programing\core_node\scripts\shells\win
-[OK] [Step 1] Base structure initialization completed
-[*] ----------------------------------------------------------------
-[*] [Step 1] Initializing base directories...
-[*] [Step 1] Setting up LANG_COMPILER_DIR
-[*] [Step 1] Setting up USER_DIR
-[*] [Step 1] Setting up USER_CACHE_DIR
-[*] [Step 1] Setting up APP_INSTALLED_FLAG_DIR
-[*] [Step 1] Setting up SCRIPTS_DIR
-[*] [Step 1] Setting up GIT_CONFIG_DIR
-[*] [Step 1] Setting up USER_CONFIG_DIR
-[*] [Step 1] Setting up APP_INSTALL_DIR
-[*] [Step 1] Setting up WINGET_FLAG_FILE
-[OK] [Step 1] Base directory initialization completed
-[*] ----------------------------------------------------------------
-[OK] Step1_InitializeBaseDirectories.ps1 completed successfully
-[*] Executing Step2_SetBaseSettings.ps1...
-[*] [Step 2] Stopping and disabling HTTP/IIS services...
-[Step 2] Stopping and disabling HTTP and IIS services...
-[Step 2] Stopping IIS services...
-[Step 2] IIS services stopped successfully.
-[Step 2] Stopping HTTP service...
-[Step 2] Error occurred while stopping/disabling services: The HTTP Service service is not started.
-[*] [Step 2] Base settings have already been configured. Skipping...
-[*] [Step 2] To reconfigure, delete the flag file: C:\Users\accou\.core_node\.cache\Step2_BaseSettings_Completed.flag
-[*] [Step 2] Explorer restart has already been performed. Skipping...
-[*] [Step 2] Configuring dark mode settings...
-[*] [Step 2] Detected Windows 10/11, applying dark mode settings...
-[OK] [Step 2] Apps dark theme enabled.
-[OK] [Step 2] System dark theme enabled.
-[OK] [Step 2] Dark mode configuration completed successfully.
+                Examples:
+                    wsl --install -d Ubuntu
+                    wsl --install --distribution Debian
 
-[OK] [Step 2] Dark mode has been applied successfully!
-Do you want to open Windows Settings to review the theme settings? (Y/N) [Auto-continue in 20 seconds with 'N']
+    --set-default-version <Version>
+        Changes the default install version for new distributions.
 
-[*] [Step 2] Skipping settings window as requested.
-[*] [Step 2] Configuring Windows 10 CMD and PowerShell administrator context menus...
-[*] [Step 2] Downloading and importing registry file...
-Script is running from BASE_DIR subdirectory and file exists at: C:\Users\accou\.core_node\scripts\shells\win\scripts\Step2_Win10ContextMenu.reg
-Skipping download for: shells/win/scripts/Step2_Win10ContextMenu.reg
-[OK] [Step 2] Using registry file: C:\Users\accou\.core_node\scripts\shells\win\scripts\Step2_Win10ContextMenu.reg
-[*] [Step 2] File size: 1743 bytes
-[*] [Step 2] Last modified: 11/25/2025 08:01:54
-[!] [Step 2] Import command 1: reg.exe import "C:\Users\accou\.core_node\scripts\shells\win\scripts\Step2_Win10ContextMenu.reg"
-[!] [Step 2] Import command 2: regedit.exe /s "C:\Users\accou\.core_node\scripts\shells\win\scripts\Step2_Win10ContextMenu.reg"
-[*] [Step 2] Executing registry import with reg.exe...
-[OK] [Step 2] Registry imported successfully.
-[OK] Step2_SetBaseSettings.ps1 completed successfully
-[*] Executing Step3_InitWinget.ps1...
-[*] ----------------------------------------------------------------
-[*] [Step 3] Initializing winget configuration...
-[*] [Step 3] Checking WinGet installation...
-[OK] [Step 3] WinGet is already installed. Version: v1.12.350
-[*] [Step 3] Checking if this is winget's first use on Windows 10...
-[*] [Step 3] Testing winget authorization status...
-[OK] [Step 3] Winget is properly authorized and working
-[OK] [Step 3] Winget is already properly authorized, skipping first-time authorization
-[*] [Step 3] Checking winget and its source configuration...
-[OK] [Step 3] winget version: v1.12.350
-[OK] [Step 3] Already using the official winget source. No changes needed.
-[OK] [Step 3] Winget initialization completed
-[*] ----------------------------------------------------------------
-[OK] Step3_InitWinget.ps1 completed successfully
-[*] Executing Step4_InstallNodeJS.ps1...
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Use WindowsPathFunction.ps1 v1.0.0; help ?
-[*] [Step 4] ===============================================
-[*] [Step 4]   Node.js Installation (Step 4)
-[*] [Step 4] ===============================================
-[*] [Step 4] Installing Node.js v24.11.1...
-[*] [Step 4] Checking for old Node.js versions...
-[*] [Step 4] No old Node.js versions found
-[OK] [Step 4] Node.js already installed at: D:\.dev_win10\node-v24.11.1\node.exe
-[*] [Step 4] Checking version:
-[*] [Step 4] Adding Node.js to PATH...
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Path D:\.dev_win10\node-v24.11.1 already exists
-[*] [Step 4] Installing pnpm and yarn package managers...
-[!] [Step 4] Installing pnpm...
-[OK] [Step 4] pnpm already installed
-[!] [Step 4] Installing yarn...
-[OK] [Step 4] yarn already installed
-[*] [Step 4] Configuring npm registry...
-[*] [Step 4] Using default npm registry (Global region)
-[*] [Step 4] Configuring pnpm registry...
-[*] [Step 4] Using default pnpm registry (Global region)
-[OK] [Step 4] Node.js installation completed successfully
-[*] [Step 4] Testing Node.js installation...
-[OK] [Step 4] All Node.js components verified successfully
-[*] [Step 4] ===============================================
-[OK] Step4_InstallNodeJS.ps1 completed successfully
-[*] Executing Step5_InstallGitSSH.ps1...
-[*] [Step 5] === Step 18: Installing Git SSH Keys ===
-[!] [Step 5] This step will install SSH keys for Git authentication.
-[OK] [Step 5] Found SSH key pair: id_ed25519.pub / id_ed25519
-[OK] [Step 5] SSH key pair already exists, skipping installation.
-[OK] Step5_InstallGitSSH.ps1 completed successfully
-[*] Executing Step6_InstallGit.ps1...
-[*] [Step 6] Installing and configuring Git...
-[*] [Step 6] Checking Git installation...
-[OK] [Step 6] Using previously installed Git at D:\applications\Git\cmd\git.exe
-[*] [Step 6] Checking Git configuration...
-[OK] [Step 6] Git user name already set to: DevOps User
-[OK] [Step 6] Git email already set to: devops@example.com
-[*] [Step 6] Configuring Git defaults...
-[OK] [Step 6] core.autocrlf already set to: true
-[OK] [Step 6] core.safecrlf already set to: false
-[OK] [Step 6] init.defaultBranch already set to: main
-[*] [Step 6] Adding Git to environment variables...
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Detected file path, using parent directory: D:\applications\Git\cmd
-Path D:\applications\Git\cmd already exists
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Path D:\applications\Git\bin already exists
-[*] [Step 6] Refreshing environment variables in current session...
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Generated: C:\Users\accou\AppData\Local\Temp\refresh_env.cmd
-[OK] [Step 6] Successfully added Git to environment variables
-[*] [Step 6] Verifying Git installation and configuration...
-[OK] [Step 6] Git version: git version 2.52.0.windows.1
-[OK] [Step 6] Git installation path: D:\applications\Git\cmd\git.exe
-[*] [Step 6] Current Git configuration:
-[OK] [Step 6] - User name: DevOps User
-[OK] [Step 6] - Email: devops@example.com
-[OK] [Step 6] - Default branch: main
-[OK] [Step 6] - AutoCRLF: true
-[OK] [Step 6] - SafeCRLF: false
-[OK] [Step 6] Git installation and configuration completed
-[*] ----------------------------------------------------------------
-[*] [Step 6] Setting up Git Bash context menu...
-[*] [Step 6] Git Bash context menu for background already exists
-[*] [Step 6] Git Bash context menu for folder already exists
-[OK] [Step 6] Git Bash context menu setup completed
-[*] ----------------------------------------------------------------
-[*] [Step 6] =============================================
-[*] [Step 6] Checking core_node project...
-[!] [Step 6] Directory exists but is not a git repository: D:\programing\core_node
-[!] [Step 6] Please manually remove or rename this directory
-[*] [Step 6] =============================================
-[OK] Step6_InstallGit.ps1 completed successfully
-[*] Executing Step7_FixCoreNodeProjectLocation.ps1...
-[*] [Step 7] ===============================================
-[*] [Step 7]   Core Node Project Location Fix Utility
-[*] [Step 7] ===============================================
-[*] [Step 7] Target location: D:\programing\core_node
-[*] [Step 7] Searching for core_node projects...
-[!] [Step 7] No core_node projects found
-[*] [Step 7] Cloning project to target location...
-fatal: destination path 'core_node' already exists and is not an empty directory.
-[OK] [Step 7] Project cloned successfully to: D:\programing\core_node
-[OK] Step7_FixCoreNodeProjectLocation.ps1 completed successfully
-[*] Executing Step9_InstallPython.ps1...
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Use WindowsPathFunction.ps1 v1.0.0; help ?
-[*] [Step 9] ===============================================
-[*] [Step 9]   Python Installation (Step 9)
-[*] [Step 9] ===============================================
-[*] [Step 9] Installing Python 3.13...
-[*] [Step 9] Checking for old Python versions...
-[*] [Step 9] No old Python versions found
-[OK] [Step 9] Python already installed
-[*] [Step 9] Path: D:\.dev_win10\python313\python.exe
-[*] [Step 9] Adding Python to PATH...
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Path D:\.dev_win10\python313 already exists
-Path D:\.dev_win10\.winenvs already exists
-Path C:\Users\accou\.core_node\scripts\winenvs already exists
-Path D:\.dev_win10\python313\Scripts already exists
-[OK] [Step 9] Python installation completed successfully
-[*] [Step 9] Global region detected - using default PyPI (no mirror)
-[*] [Step 9] Installing Python package managers...
-[*] [Step 9] Ensuring pip is up to date...
-[*] [Step 9] Installing/verifying uv...
-[*] [Step 9] Installing/verifying pipx...
-'charmap' codec can't encode character '\u2728' in position 31: character maps to <undefined>
-[*] [Step 9] Installing/verifying poetry...
-[*] [Step 9] Installing common Python packages...
-[*] [Step 9]   Installing: requests
-[*] [Step 9]   Installing: urllib3
-[*] [Step 9]   Installing: certifi
-[*] [Step 9]   Installing: charset-normalizer
-[*] [Step 9]   Installing: idna
-[*] [Step 9]   Installing: setuptools
-[*] [Step 9]   Installing: wheel  
+    --shutdown
+        Immediately terminates all running distributions and the WSL 2
+        lightweight utility virtual machine.
 
+    --status
+        Show the status of Windows Subsystem for Linux.
 
-查看在上面的流程中，是那个文件预先创建了 D:\programing\core_node\scripts\shells\win 目录 ，同时 
-[*] Executing Step7_FixCoreNodeProjectLocation.ps1...
-[*] [Step 7] ===============================================
-[*] [Step 7]   Core Node Project Location Fix Utility
-[*] [Step 7] ===============================================
-[*] [Step 7] Target location: D:\programing\core_node
-[*] [Step 7] Searching for core_node projects...
-[!] [Step 7] No core_node projects found
-[*] [Step 7] Cloning project to target location...
-fatal: destination path 'core_node' already exists and is not an empty directory.
-[OK] [Step 7] Project cloned successfully to: D:\programing\core_node
-[OK] Step7_FixCoreNodeProjectLocation.ps1 completed successfully 不能clone项目。
+    --update [Options]
+        If no options are specified, the WSL 2 kernel will be updated
+        to the latest version.
+
+        Options:
+            --rollback
+                Revert to the previous version of the WSL 2 kernel.
+
+            --inbox
+                Only update the inbox WSL 2 kernel. Do not install WSL from the Microsoft Store.
+
+            --web-download
+                Download the most recent version of WSL from the internet instead of the Microsoft Store.
+
+Arguments for managing distributions in Windows Subsystem for Linux:
+
+    --export <Distro> <FileName>
+        Exports the distribution to a tar file.
+        The filename can be - for standard output.
+
+    --import <Distro> <InstallLocation> <FileName> [Options]
+        Imports the specified tar file as a new distribution.
+        The filename can be - for standard input.
+
+        Options:
+            --version <Version>
+                Specifies the version to use for the new distribution.
+
+    --list, -l [Options]
+        Lists distributions.
+
+        Options:
+            --all
+                List all distributions, including distributions that are
+                currently being installed or uninstalled.
+
+            --running
+                List only distributions that are currently running.
+
+            --quiet, -q
+                Only show distribution names.
+
+            --verbose, -v
+                Show detailed information about all distributions.
+
+            --online, -o
+                Displays a list of available distributions for install with 'wsl --install'.
+
+    --set-default, -s <Distro>
+        Sets the distribution as the default.
+
+    --set-version <Distro> <Version>
+        Changes the version of the specified distribution.
+
+    --terminate, -t <Distro>
+        Terminates the specified distribution.
+
+    --unregister <Distro>
+        Unregisters the distribution and deletes the root filesystem.
+[!] [Step 84] WSL2 installation failed, trying legacy method...
+
+Deployment Image Servicing and Management tool
+Version: 10.0.19041.3636
+
+Image Version: 10.0.19045.3803
+
+Enabling feature(s)
+[==========================100.0%==========================]
+The operation completed successfully.
+
+kipping download for: shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
+Executing script: D:\programing\core_node\scripts\shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
+[Step 80] Starting WSL Ubuntu 24 action: Global
+[Step 80] Invalid action: Global. Valid actions: install, reinstall, restart
+[Step 80] WSL Ubuntu 24 action 'Global' failed
+Checking script: Step86_SetRootLoginWSLUbuntuDebian.ps1
+Script is running from BASE_DIR subdirectory and file exists at: D:\programing\core_node\scripts\shells\win\install_powershells\Step86_SetRootLoginWSLUbuntuDebian.ps1
+
+解决这个自动按Y/n的问题，

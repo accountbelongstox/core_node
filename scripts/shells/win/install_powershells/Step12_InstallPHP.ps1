@@ -85,6 +85,10 @@ function Install-PHPFromWeb {
     }
     catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to extract PHP: $($_.Exception.Message)" -Type "Error"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Removing corrupted ZIP file: $zipFilePath" -Type "Warning"
+        if (Test-Path $zipFilePath) {
+            Remove-Item -Path $zipFilePath -Force
+        }
         return $false
     }
 
