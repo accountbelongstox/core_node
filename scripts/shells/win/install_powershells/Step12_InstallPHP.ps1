@@ -26,14 +26,16 @@ $postinstallDir = Join-Path $PSScriptRoot "postinstall"
 $phpPostInstallProcessorPath = Join-Path $postinstallDir "PhpPostInstallProcessor.ps1"
 
 # PHP version configuration
-$PHP_VERSION = "8.4.15"
-$PHP_VERSION_SHORT = "8.4"
+$PHP_VERSION = "8.5.0"
+$PHP_VERSION_SHORT = "8.5"
 
-# PHP download URLs for version 8.4.15
-$PHP_NTS_URL = "https://downloads.php.net/~windows/releases/archives/php-$PHP_VERSION-nts-Win32-vs17-x64.zip"
-$PHP_NTS_DEBUG_URL = "https://downloads.php.net/~windows/releases/archives/php-debug-pack-$PHP_VERSION-nts-Win32-vs17-x64.zip"
-$PHP_TS_URL = "https://downloads.php.net/~windows/releases/archives/php-$PHP_VERSION-Win32-vs17-x64.zip"
-$PHP_TS_DEBUG_URL = "https://downloads.php.net/~windows/releases/archives/php-debug-pack-$PHP_VERSION-Win32-vs17-x64.zip"
+# PHP download URLs for version 8.5.0 (NTS - Non-Thread Safe, recommended for Laravel)
+# NTS is recommended for:
+# - Laravel Octane (required)
+# - CLI usage and development
+# - Better performance on Windows with IIS/FastCGI
+$PHP_DOWNLOAD_URL = "https://windows.php.net/downloads/releases/php-$PHP_VERSION-nts-Win32-vs17-x64.zip"
+$PHP_DEBUG_PACK_URL = "https://windows.php.net/downloads/releases/php-debug-pack-$PHP_VERSION-nts-Win32-vs17-x64.zip"
 
 # PHP installation directories
 $PHP_INSTALL_BASE = Join-Path $Global:LANG_COMPILER_DIR "PHP"
@@ -43,22 +45,16 @@ $PHP_CACHE_DIR = Join-Path $Global:SCOOP_CACHE_DIR "php"
 # PHP executables
 $PHP_EXE_PATH = Join-Path $PHP_INSTALL_DIR "php.exe"
 
-# Preferred PHP type (NTS for Laravel Octane, TS for traditional web apps)
-$PHP_PREFERRED_TYPE = "nts"
-
 function Install-PHPFromWeb {
     [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)]
-        [string]$PhpType = "nts"
-    )
+    param ()
 
-    $downloadUrl = if ($PhpType -eq "nts") { $PHP_NTS_URL } else { $PHP_TS_URL }
-    $debugUrl = if ($PhpType -eq "nts") { $PHP_NTS_DEBUG_URL } else { $PHP_TS_DEBUG_URL }
+    $downloadUrl = $PHP_DOWNLOAD_URL
+    $debugUrl = $PHP_DEBUG_PACK_URL
     $zipFileName = Split-Path $downloadUrl -Leaf
     $zipFilePath = Join-Path $PHP_CACHE_DIR $zipFileName
 
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing PHP $PHP_VERSION ($PhpType)..." -Type "Warning"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing PHP $PHP_VERSION (NTS)..." -Type "Warning"
 
     # Create cache directory if it doesn't exist
     if (-not (Test-Path $PHP_CACHE_DIR)) {
@@ -72,7 +68,7 @@ function Install-PHPFromWeb {
 
     # Download PHP archive with mirror support
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Downloading PHP from $downloadUrl" -Type "Info"
-    $downloaded = Get-FileWithSizeCheck -localPath $zipFilePath -remoteUrl $downloadUrl -description "PHP $PHP_VERSION ($PhpType)"
+    $downloaded = Get-FileWithSizeCheck -localPath $zipFilePath -remoteUrl $downloadUrl -description "PHP $PHP_VERSION (NTS)"
 
     if (-not $downloaded -or -not (Test-Path $zipFilePath)) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to download PHP archive" -Type "Error"
@@ -163,7 +159,7 @@ function Step7_InstallPHP {
 
     # Install PHP if not already installed
     if (-not $phpInstalled) {
-        $phpInstalled = Install-PHPFromWeb -PhpType $PHP_PREFERRED_TYPE
+        $phpInstalled = Install-PHPFromWeb
 
         if (-not $phpInstalled) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install PHP" -Type "Error"
