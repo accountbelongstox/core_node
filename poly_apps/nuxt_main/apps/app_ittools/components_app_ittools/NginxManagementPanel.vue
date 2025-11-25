@@ -1,216 +1,161 @@
 <template>
-  <div class="space-y-6">
+  <div class="nginx-panel">
     <!-- Login Page -->
-    <div v-if="!isAuthenticated" class="max-w-md mx-auto mt-12">
-      <div class="bg-white rounded-lg shadow-lg p-8">
-        <div class="text-center mb-6">
-          <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <i class="fas fa-server text-white text-2xl"></i>
+    <div v-if="!isAuthenticated" class="login-container">
+      <div class="bento-card login-card">
+        <div class="login-header">
+          <div class="login-icon">
+            <i class="fas fa-server"></i>
           </div>
-          <h2 class="text-2xl font-bold text-gray-900">Nginx Management</h2>
-          <p class="text-sm text-gray-500 mt-2">Please login to access nginx management</p>
+          <h2>Nginx Management</h2>
+          <p>Please login to access nginx management</p>
         </div>
 
-        <form @submit.prevent="handleLogin" class="space-y-4">
-          <div>
-            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
-              Username
-            </label>
+        <form @submit.prevent="handleLogin" class="login-form">
+          <div class="form-group">
+            <label for="username">Username</label>
             <input
               id="username"
               v-model="loginForm.username"
               type="text"
               required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="input-glass"
               placeholder="Enter username"
             />
           </div>
 
-          <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+          <div class="form-group">
+            <label for="password">Password</label>
             <input
               id="password"
               v-model="loginForm.password"
               type="password"
               required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="input-glass"
               placeholder="Enter password"
             />
           </div>
 
-          <div v-if="loginError" class="bg-red-50 border border-red-200 rounded-lg p-3">
-            <p class="text-sm text-red-600">{{ loginError }}</p>
+          <div v-if="loginError" class="error-alert">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ loginError }}</span>
           </div>
 
-          <button
-            type="submit"
-            :disabled="isLoggingIn"
-            class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            <span v-if="!isLoggingIn">Login</span>
-            <span v-else class="flex items-center justify-center">
-              <i class="fas fa-spinner fa-spin mr-2"></i>
-              Logging in...
-            </span>
+          <button type="submit" :disabled="isLoggingIn" class="btn-primary">
+            <i v-if="isLoggingIn" class="fas fa-spinner fa-spin"></i>
+            <span>{{ isLoggingIn ? 'Logging in...' : 'Login' }}</span>
           </button>
         </form>
       </div>
     </div>
 
     <!-- Management Panel -->
-    <div v-else class="space-y-6">
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">Nginx Management</h2>
-            <p class="text-sm text-gray-500 mt-1">Manage nginx sites and configurations</p>
+    <div v-else class="management-container">
+      <div class="bento-card main-card">
+        <div class="card-header">
+          <div class="header-left">
+            <i class="fas fa-server header-icon"></i>
+            <div>
+              <h2>Nginx Management</h2>
+              <p>Manage nginx sites and configurations</p>
+            </div>
           </div>
-          <button
-            @click="handleLogout"
-            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
-          >
-            <i class="fas fa-sign-out-alt mr-2"></i>
+          <button @click="handleLogout" class="btn-glass logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
             Logout
           </button>
         </div>
 
         <!-- Actions Bar -->
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex space-x-3">
-            <button
-              @click="loadSites"
-              :disabled="isLoading"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              <i class="fas fa-sync-alt mr-2" :class="{ 'fa-spin': isLoading }"></i>
-              Refresh
-            </button>
-            <button
-              @click="testNginxConfig"
-              :disabled="isLoading"
-              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              <i class="fas fa-check-circle mr-2"></i>
-              Test Config
-            </button>
-            <button
-              @click="reloadNginx"
-              :disabled="isLoading"
-              class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              <i class="fas fa-redo mr-2"></i>
-              Reload Nginx
-            </button>
-          </div>
+        <div class="actions-bar">
+          <button @click="loadSites" :disabled="isLoading" class="btn-action blue">
+            <i :class="['fas fa-sync-alt', isLoading && 'fa-spin']"></i>
+            Refresh
+          </button>
+          <button @click="testNginxConfig" :disabled="isLoading" class="btn-action green">
+            <i class="fas fa-check-circle"></i>
+            Test Config
+          </button>
+          <button @click="reloadNginx" :disabled="isLoading" class="btn-action purple">
+            <i class="fas fa-redo"></i>
+            Reload Nginx
+          </button>
         </div>
 
         <!-- Status Messages -->
-        <div v-if="statusMessage" class="mb-4 p-4 rounded-lg" :class="statusMessageType === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'">
-          <p class="text-sm" :class="statusMessageType === 'success' ? 'text-green-600' : 'text-red-600'">
-            {{ statusMessage }}
-          </p>
+        <div v-if="statusMessage" class="status-alert" :class="statusMessageType">
+          <i :class="['fas', statusMessageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle']"></i>
+          <span>{{ statusMessage }}</span>
         </div>
 
         <!-- Sites List -->
-        <div v-if="sites.length > 0" class="space-y-3">
-          <div
-            v-for="site in sites"
-            :key="site.name"
-            class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition"
-          >
-            <div class="flex items-center justify-between">
-              <div class="flex-1">
-                <div class="flex items-center space-x-3">
-                  <h3 class="text-lg font-semibold text-gray-900">{{ site.name }}</h3>
-                  <span
-                    v-if="site.enabled"
-                    class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full"
-                  >
-                    Enabled
-                  </span>
-                  <span
-                    v-else
-                    class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full"
-                  >
-                    Disabled
-                  </span>
-                </div>
-                <p v-if="site.server_name" class="text-sm text-gray-500 mt-1">
-                  Server: {{ site.server_name }}
-                </p>
-                <p v-if="site.root" class="text-sm text-gray-500">
-                  Root: {{ site.root }}
-                </p>
+        <div v-if="sites.length > 0" class="sites-list">
+          <div v-for="site in sites" :key="site.name" class="site-card">
+            <div class="site-info">
+              <div class="site-header">
+                <h3>{{ site.name }}</h3>
+                <span class="status-badge" :class="site.enabled ? 'enabled' : 'disabled'">
+                  {{ site.enabled ? 'Enabled' : 'Disabled' }}
+                </span>
               </div>
-              <div class="flex space-x-2">
-                <button
-                  v-if="!site.enabled"
-                  @click="enableSite(site.name)"
-                  :disabled="isLoading"
-                  class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  Enable
-                </button>
-                <button
-                  v-else
-                  @click="disableSite(site.name)"
-                  :disabled="isLoading"
-                  class="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  Disable
-                </button>
-                <button
-                  @click="viewSiteConfig(site.name)"
-                  class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-                >
-                  View Config
-                </button>
-              </div>
+              <p v-if="site.server_name" class="site-detail">
+                <i class="fas fa-globe"></i> {{ site.server_name }}
+              </p>
+              <p v-if="site.root" class="site-detail">
+                <i class="fas fa-folder"></i> {{ site.root }}
+              </p>
+            </div>
+            <div class="site-actions">
+              <button
+                v-if="!site.enabled"
+                @click="enableSite(site.name)"
+                :disabled="isLoading"
+                class="btn-sm green"
+              >
+                Enable
+              </button>
+              <button
+                v-else
+                @click="disableSite(site.name)"
+                :disabled="isLoading"
+                class="btn-sm gray"
+              >
+                Disable
+              </button>
+              <button @click="viewSiteConfig(site.name)" class="btn-sm blue">
+                View Config
+              </button>
             </div>
           </div>
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="!isLoading" class="text-center py-12">
-          <i class="fas fa-server text-4xl text-gray-300 mb-4"></i>
-          <p class="text-gray-500">No nginx sites found</p>
+        <div v-else-if="!isLoading" class="empty-state">
+          <i class="fas fa-server"></i>
+          <p>No nginx sites found</p>
         </div>
 
         <!-- Loading State -->
-        <div v-if="isLoading" class="text-center py-12">
-          <i class="fas fa-spinner fa-spin text-3xl text-blue-500 mb-4"></i>
-          <p class="text-gray-500">Loading...</p>
+        <div v-if="isLoading" class="loading-state">
+          <i class="fas fa-spinner fa-spin"></i>
+          <p>Loading...</p>
         </div>
       </div>
 
       <!-- Config Viewer Modal -->
-      <div
-        v-if="showConfigModal"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-        @click.self="showConfigModal = false"
-      >
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-          <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900">Nginx Configuration: {{ selectedSiteName }}</h3>
-            <button
-              @click="showConfigModal = false"
-              class="text-gray-400 hover:text-gray-600 transition"
-            >
-              <i class="fas fa-times text-xl"></i>
+      <div v-if="showConfigModal" class="modal-overlay" @click.self="showConfigModal = false">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Nginx Configuration: {{ selectedSiteName }}</h3>
+            <button @click="showConfigModal = false" class="modal-close">
+              <i class="fas fa-times"></i>
             </button>
           </div>
-          <div class="flex-1 overflow-y-auto p-6">
-            <pre class="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 overflow-x-auto">{{ siteConfig }}</pre>
+          <div class="modal-body glass-scroll">
+            <pre>{{ siteConfig }}</pre>
           </div>
-          <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
-            <button
-              @click="showConfigModal = false"
-              class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-            >
-              Close
-            </button>
+          <div class="modal-footer">
+            <button @click="showConfigModal = false" class="btn-glass">Close</button>
           </div>
         </div>
       </div>
@@ -227,10 +172,7 @@ const nginxApi = useNginxApi();
 const isAuthenticated = ref(false);
 const isLoggingIn = ref(false);
 const loginError = ref('');
-const loginForm = ref({
-  username: '',
-  password: ''
-});
+const loginForm = ref({ username: '', password: '' });
 
 const isLoading = ref(false);
 const sites = ref<any[]>([]);
@@ -240,7 +182,6 @@ const showConfigModal = ref(false);
 const selectedSiteName = ref('');
 const siteConfig = ref('');
 
-// Check if already authenticated
 onMounted(() => {
   const authToken = localStorage.getItem('nginx_auth_token');
   if (authToken) {
@@ -252,12 +193,8 @@ onMounted(() => {
 const handleLogin = async () => {
   isLoggingIn.value = true;
   loginError.value = '';
-
   try {
-    // Simple authentication check (in production, this should call an API)
-    // For now, we'll use a simple check - in production, this should be replaced with actual API call
     if (loginForm.value.username && loginForm.value.password) {
-      // Store auth token
       localStorage.setItem('nginx_auth_token', 'authenticated');
       isAuthenticated.value = true;
       await loadSites();
@@ -281,7 +218,6 @@ const handleLogout = () => {
 const loadSites = async () => {
   isLoading.value = true;
   statusMessage.value = '';
-
   try {
     const response = await nginxApi.listSites();
     if (response.success && response.data) {
@@ -302,7 +238,6 @@ const loadSites = async () => {
 const enableSite = async (siteName: string) => {
   isLoading.value = true;
   statusMessage.value = '';
-
   try {
     const response = await nginxApi.enableSite(siteName);
     if (response.success) {
@@ -323,7 +258,6 @@ const enableSite = async (siteName: string) => {
 const disableSite = async (siteName: string) => {
   isLoading.value = true;
   statusMessage.value = '';
-
   try {
     const response = await nginxApi.disableSite(siteName);
     if (response.success) {
@@ -344,7 +278,6 @@ const disableSite = async (siteName: string) => {
 const viewSiteConfig = async (siteName: string) => {
   isLoading.value = true;
   selectedSiteName.value = siteName;
-
   try {
     const response = await nginxApi.getSiteConfig(siteName);
     if (response.success && response.data) {
@@ -364,7 +297,6 @@ const viewSiteConfig = async (siteName: string) => {
 const testNginxConfig = async () => {
   isLoading.value = true;
   statusMessage.value = '';
-
   try {
     const response = await nginxApi.testConfig();
     if (response.success) {
@@ -384,7 +316,6 @@ const testNginxConfig = async () => {
 const reloadNginx = async () => {
   isLoading.value = true;
   statusMessage.value = '';
-
   try {
     const response = await nginxApi.reloadNginx();
     if (response.success) {
@@ -403,3 +334,458 @@ const reloadNginx = async () => {
 };
 </script>
 
+<style scoped>
+.nginx-panel {
+  min-height: 100%;
+}
+
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+}
+
+.bento-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.login-card {
+  max-width: 400px;
+  width: 100%;
+  padding: 2.5rem;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 16px;
+  color: white;
+  font-size: 1.75rem;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+}
+
+.login-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.login-header p {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0.5rem 0 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.input-glass {
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  transition: all 0.2s ease;
+}
+
+.input-glass:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.error-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 0.875rem;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.management-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.main-card {
+  padding: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 14px;
+  color: white;
+  font-size: 1.25rem;
+}
+
+.header-left h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.header-left p {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0;
+}
+
+.btn-glass {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-glass:hover {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: #4f46e5;
+}
+
+.logout-btn {
+  color: #6b7280;
+}
+
+.actions-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-action.blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+.btn-action.green { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
+.btn-action.purple { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+
+.status-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.status-alert.success {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  color: #16a34a;
+}
+
+.status-alert.error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+.sites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.site-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.site-card:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.site-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.status-badge {
+  padding: 0.25rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-badge.enabled {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.status-badge.disabled {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+}
+
+.site-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0;
+}
+
+.site-detail i {
+  width: 14px;
+  opacity: 0.6;
+}
+
+.site-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm.blue { background: #3b82f6; }
+.btn-sm.blue:hover { background: #2563eb; }
+.btn-sm.green { background: #22c55e; }
+.btn-sm.green:hover { background: #16a34a; }
+.btn-sm.gray { background: #6b7280; }
+.btn-sm.gray:hover { background: #4b5563; }
+
+.empty-state, .loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #9ca3af;
+}
+
+.empty-state i, .loading-state i {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.modal-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+  max-width: 800px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.modal-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-close:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.modal-body pre {
+  background: rgba(249, 250, 251, 0.8);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 12px;
+  padding: 1rem;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.8125rem;
+  color: #374151;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(229, 231, 235, 0.5);
+}
+</style>
