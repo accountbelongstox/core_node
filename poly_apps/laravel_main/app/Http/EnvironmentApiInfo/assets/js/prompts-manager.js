@@ -14,16 +14,32 @@ const PromptsManager = {
     nameTranslating: false,
 
     async init() {
-        this.createPromptsMenu();
+        const authResult = await this.checkAuth();
+        this.createPromptsMenu(authResult.authenticated);
         this.loadNameTranslationsCache();
-        await this.loadPrompts();
-        this.startAutoTranslateChecker();
-        this.startAutoSaveChecker();
-        this.startNameTranslationChecker();
+        if (authResult.authenticated) {
+            await this.loadPrompts();
+            this.startAutoTranslateChecker();
+            this.startAutoSaveChecker();
+            this.startNameTranslationChecker();
+        }
         window.addEventListener('click', (e) => this.handleWindowClick(e));
     },
 
-    createPromptsMenu() {
+    async checkAuth() {
+        try {
+            const userToken = localStorage.getItem('user_token');
+            const headers = userToken ? { 'Auth-User-Token': userToken } : {};
+
+            const response = await APIClient.get('/code-browser/auth-check', { headers });
+            return await response.json();
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            return { authenticated: false };
+        }
+    },
+
+    createPromptsMenu(isAuthenticated = false) {
         const existingMenu = document.getElementById('prompts-menu-bar');
         if (existingMenu) existingMenu.remove();
 
@@ -52,30 +68,39 @@ const PromptsManager = {
         menuBar.appendChild(label);
 
         const createBtn = document.createElement('button');
-        createBtn.textContent = '+ New Task';
+        createBtn.textContent = isAuthenticated ? '+ New Task' : '+ New Task (Login Required)';
+        createBtn.disabled = !isAuthenticated;
+        createBtn.title = isAuthenticated ? 'Create a new task' : 'Please login to create tasks';
         createBtn.style.cssText = `
             padding: 4px 12px;
-            background: linear-gradient(135deg, #0e639c 0%, #1177bb 100%);
-            color: #ffffff;
-            border: none;
+            background: ${isAuthenticated ? 'linear-gradient(135deg, #0e639c 0%, #1177bb 100%)' : '#3c3c3c'};
+            color: ${isAuthenticated ? '#ffffff' : '#888888'};
+            border: ${isAuthenticated ? 'none' : '1px solid #454545'};
             border-radius: 4px;
-            cursor: pointer;
+            cursor: ${isAuthenticated ? 'pointer' : 'not-allowed'};
             font-size: 12px;
             flex-shrink: 0;
             transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            box-shadow: ${isAuthenticated ? '0 2px 4px rgba(0,0,0,0.3)' : 'none'};
+            opacity: ${isAuthenticated ? '1' : '0.6'};
         `;
-        createBtn.onmouseover = () => {
-            createBtn.style.background = 'linear-gradient(135deg, #1177bb 0%, #1a8dd9 100%)';
-            createBtn.style.transform = 'translateY(-1px)';
-            createBtn.style.boxShadow = '0 4px 8px rgba(0,0,0,0.4)';
-        };
-        createBtn.onmouseout = () => {
-            createBtn.style.background = 'linear-gradient(135deg, #0e639c 0%, #1177bb 100%)';
-            createBtn.style.transform = 'translateY(0)';
-            createBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-        };
-        createBtn.onclick = () => this.createNewPrompt();
+        if (isAuthenticated) {
+            createBtn.onmouseover = () => {
+                createBtn.style.background = 'linear-gradient(135deg, #1177bb 0%, #1a8dd9 100%)';
+                createBtn.style.transform = 'translateY(-1px)';
+                createBtn.style.boxShadow = '0 4px 8px rgba(0,0,0,0.4)';
+            };
+            createBtn.onmouseout = () => {
+                createBtn.style.background = 'linear-gradient(135deg, #0e639c 0%, #1177bb 100%)';
+                createBtn.style.transform = 'translateY(0)';
+                createBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+            };
+            createBtn.onclick = () => this.createNewPrompt();
+        } else {
+            createBtn.onclick = () => {
+                alert('Please login to create new tasks. Authentication is required to access Code Browser and Tasks/Prompts features.');
+            };
+        }
         menuBar.appendChild(createBtn);
 
         const refreshBtn = document.createElement('button');
@@ -126,6 +151,14 @@ const PromptsManager = {
             if (!list) return;
 
             list.innerHTML = '';
+
+            if (response.status === 401 || (data.error && data.error.includes('authenticat'))) {
+                const authMsg = document.createElement('span');
+                authMsg.textContent = 'Please login to view and manage tasks.';
+                authMsg.style.cssText = 'color: #f48771; font-size: 12px; font-style: italic;';
+                list.appendChild(authMsg);
+                return;
+            }
 
             if (!data.items || data.items.length === 0) {
                 const emptyMsg = document.createElement('span');
