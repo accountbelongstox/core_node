@@ -526,19 +526,26 @@ function Store-GlobalPaths {
 }
 
 
+# DEPRECATED: Create-Symlink function is no longer used
+# Instead of creating a symlink at C:\Program Files\dd.ps1,
+# we add PROJECT_DIR to PATH so dd.cmd can be run from anywhere
+# This function is kept for reference but should not be called
 function Create-Symlink {
-    if (Test-Path $script:script_symlink_path) {
-        if ((Get-Item $script:script_symlink_path).LinkType -ne "SymbolicLink" -or 
-            (Get-Item $script:script_symlink_path).Target -ne $script:script_path) {
-            Write-ColorMessage -Message "Removing existing $($script:script_symlink_path) as it is not a symlink to the current script." -Type "Warning"
-            Remove-Item $script:script_symlink_path -Force
-        }
-    }
+    Write-ColorMessage -Message "Create-Symlink is deprecated. PROJECT_DIR is added to PATH instead." -Type "Warning"
+    return
 
-    if (-not (Test-Path $script:script_symlink_path)) {
-        $null = New-Item -ItemType SymbolicLink -Path $script:script_symlink_path -Target $script:script_path -Force
-        Write-ColorMessage -Message "Symbolic link created: $($script:script_symlink_path) -> $($script:script_path)" -Type "Success"
-    }
+    # Old implementation (deprecated):
+    # if (Test-Path $script:script_symlink_path) {
+    #     if ((Get-Item $script:script_symlink_path).LinkType -ne "SymbolicLink" -or
+    #         (Get-Item $script:script_symlink_path).Target -ne $script:script_path) {
+    #         Write-ColorMessage -Message "Removing existing $($script:script_symlink_path) as it is not a symlink to the current script." -Type "Warning"
+    #         Remove-Item $script:script_symlink_path -Force
+    #     }
+    # }
+    # if (-not (Test-Path $script:script_symlink_path)) {
+    #     $null = New-Item -ItemType SymbolicLink -Path $script:script_symlink_path -Target $script:script_path -Force
+    #     Write-ColorMessage -Message "Symbolic link created: $($script:script_symlink_path) -> $($script:script_path)" -Type "Success"
+    # }
 }
 
 function Detect-SystemVersion {
@@ -1294,6 +1301,14 @@ Initialize-Environment
 Set-CommonEnvironmentVariables
 Check-AdminPrivileges
 
+# Set working directory to project directory
+if (Test-Path $Global:PROJECT_DIR) {
+    Set-Location $Global:PROJECT_DIR
+    Write-ColorMessage -Message "Working directory set to: $Global:PROJECT_DIR" -Type "Info"
+} else {
+    Write-ColorMessage -Message "WARNING: Project directory not found: $Global:PROJECT_DIR" -Type "Warning"
+}
+
 # Load common functions
 $commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommonFunc.ps1"
 . $commonFuncPath
@@ -1308,7 +1323,8 @@ if (-not $SkipInitialization) {
     Ensure-GlobalVarsEncoding
     Store-GlobalPaths
     Make-PsExecutable
-    Create-Symlink
+    # PROJECT_DIR is already added to PATH by Set-ProjectEnvironmentVariables
+    # No need to create symlink at C:\Program Files\dd.ps1
 
     # Sync scripts from inline winenvs to global .winenvs
     $inlineWinenvsDir = Join-Path $Global:PROJECT_DIR "scripts\winenvs"
