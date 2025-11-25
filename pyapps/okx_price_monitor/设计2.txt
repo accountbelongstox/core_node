@@ -1,0 +1,31 @@
+ng Step4_InstallNodeJS.ps1...
+Path D:\.dev_win10\.winenvs already exists
+Path C:\Users\accou\.core_node\scripts\winenvs already exists
+Use WindowsPathFunction.ps1 v1.0.0; help ?
+[*] [Step 4] ===============================================
+[*] [Step 4]   Node.js Installation (Step 4)
+[*] [Step 4] ===============================================
+[*] [Step 4] Installing Node.js v24.11.1...
+[*] [Step 4] Checking for old Node.js versions...
+[ERROR] Step4_InstallNodeJS.ps1 failed: The property 'Count' cannot be found on this object. Verify that the property exists.
+Initialization completed successfully. Exiting...
+Path D:\.dev_win10\.winenvs already exists
+Path C:\Users\accou\.core_node\scripts\winenvs already exists
+Use WindowsPathFunction.ps1 v1.0.0; help ?
+[*] CORE_NODE_DIR: C:\Users\accou\.core_node
+
+ng Step4_InstallNodeJS.ps1...
+Path D:\.dev_win10\.winenvs already exists
+Path C:\Users\accou\.core_node\scripts\winenvs already exists
+Use WindowsPathFunction.ps1 v1.0.0; help ?
+[*] [Step 4] ===============================================
+[*] [Step 4]   Node.js Installation (Step 4)
+[*] [Step 4] ===============================================
+[*] [Step 4] Installing Node.js v24.11.1...
+[*] [Step 4] Checking for old Node.js versions...
+[ERROR] Step4_InstallNodeJS.ps1 failed: The property 'Count' cannot be found on this object. Verify that the property exists.
+Initialization completed successfully. Exiting...
+Path D:\.dev_win10\.winenvs already exists
+Path C:\Users\accou\.core_node\scripts\winenvs already exists
+Use WindowsPathFunction.ps1 v1.0.0; help ?
+[*] CORE_NODE_DIR: C:\Users\accou\.core_node

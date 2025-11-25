@@ -70,9 +70,9 @@ function Remove-OldPythonVersions {
     }
 
     # Find all Python directories (versioned)
-    $oldPythonDirs = Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+    $oldPythonDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -match '^python\d+$' -and $_.FullName -ne $PythonInstallDir
-    }
+    })
 
     if ($oldPythonDirs.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No old Python versions found" -Type "Info"
