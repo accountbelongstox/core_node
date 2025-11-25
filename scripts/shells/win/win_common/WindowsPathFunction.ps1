@@ -626,6 +626,12 @@ function Add-ScriptContentToWinEnvs {
 }
 
 function Ensure-InlineWinEnvsDir {
+    # Check if project directory exists first to avoid creating it prematurely
+    if (-not (Test-Path $Global:PROJECT_DIR)) {
+        Write-Log "Project directory does not exist yet, skipping inline winenvs creation: $Global:PROJECT_DIR" -color "Yellow"
+        return
+    }
+
     if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
         New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
         Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"

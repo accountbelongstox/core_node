@@ -142,30 +142,15 @@ function Install-ScoopWithChinaMirror {
         try {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Configuring Scoop..." -Type "Warning"
 
-            # Check if Git is available in PATH before adding buckets
+            # Check if Git is available before adding buckets
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking for Git availability..." -Type "Info"
-            $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+            $gitExePath = $Global:GIT_EXE_PATH
 
-            if (-not $gitCommand) {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git not found in PATH, attempting to refresh environment..." -Type "Warning"
-
-                # Refresh environment variables
-                & $windowsPathFunctionPath "refresh-bat"
-                $refreshBatchPath = Join-Path $env:TEMP "refresh_env.cmd"
-                if (Test-Path $refreshBatchPath) {
-                    & $refreshBatchPath
-                }
-
-                # Manually refresh PATH in current PowerShell session
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-                # Check again
-                $gitCommand = Get-Command git -ErrorAction SilentlyContinue
-            }
-
-            if ($gitCommand) {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git found at: $($gitCommand.Source)" -Type "Success"
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git version: $(git --version)" -Type "Info"
+            if (-not (Test-Path $gitExePath)) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git not found at $gitExePath" -Type "Warning"
+            } else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git found at: $gitExePath" -Type "Success"
+                & $gitExePath --version
 
                 # Add essential buckets
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding essential buckets..." -Type "Warning"
@@ -187,12 +172,6 @@ function Install-ScoopWithChinaMirror {
 
                 # Update Scoop
                 & $SCOOP_EXE update
-            }
-            else {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git is not available in PATH. Skipping bucket addition." -Type "Warning"
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] You can add buckets later after Git is available by running:" -Type "Info"
-                Write-ColorMessage -Message "[Step $STEP_NUMBER]   scoop bucket add main" -Type "Info"
-                Write-ColorMessage -Message "[Step $STEP_NUMBER]   scoop bucket add extras" -Type "Info"
             }
         }
         catch {
