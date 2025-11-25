@@ -562,6 +562,166 @@ function Invoke-NpmFallback {
     - Supports both global and virtual environment installations
     - Returns executable path for environment variable setup
 #>
+
+<#
+.SYNOPSIS
+    Performs comprehensive Python environment repair and validation
+
+.DESCRIPTION
+    This function ensures Python environment is properly configured by:
+    1. Detecting Python and pip absolute paths from multiple sources
+    2. Verifying and repairing PATH environment variables
+    3. Detecting installed pip tools (pipx, uv, poetry)
+    4. Using absolute paths for all operations (handles first-time installation)
+
+    The function MUST be called before any pip operations to ensure environment consistency.
+    It handles the case where environment variables are just added but not yet effective in current session.
+
+.RETURNS
+    Hashtable containing:
+    - PythonExe: Absolute path to python.exe
+    - PipExe: Absolute path to pip.exe
+    - ScriptsDir: Absolute path to Python Scripts directory
+    - PathFixed: Boolean indicating if PATH was repaired
+#>
+function Repair-PythonEnvironment {
+    param(
+        [bool]$Force = $false
+    )
+
+    $result = @{
+        PythonExe = $null
+        PipExe = $null
+        ScriptsDir = $null
+        PathFixed = $false
+    }
+
+    Write-DebugLog -Message "========== Python Environment Repair Started ==========" -Category "PIP-REPAIR" -Color "Cyan"
+
+    # Step 1: Detect Python and pip absolute paths
+    Write-DebugLog -Message "Step 1: Detecting Python and pip paths..." -Category "PIP-REPAIR" -Color "Cyan"
+
+    # Method 1: Use GlobalVars (most reliable)
+    if ($Global:PYTHON_DIR -and (Test-Path $Global:PYTHON_DIR)) {
+        $pythonExePath = Join-Path $Global:PYTHON_DIR "python.exe"
+        $pipExePath = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
+        $scriptsDir = Join-Path $Global:PYTHON_DIR "Scripts"
+
+        if ((Test-Path $pythonExePath) -and (Test-Path $pipExePath)) {
+            $result.PythonExe = $pythonExePath
+            $result.PipExe = $pipExePath
+            $result.ScriptsDir = $scriptsDir
+            Write-DebugLog -Message "Found Python via GlobalVars: $pythonExePath" -Category "PIP-REPAIR" -Color "Green"
+            Write-DebugLog -Message "Found pip via GlobalVars: $pipExePath" -Category "PIP-REPAIR" -Color "Green"
+        }
+    }
+
+    # Method 2: Use Global variables as fallback
+    if (-not $result.PipExe -and $Global:PIP_EXE_PATH -and (Test-Path $Global:PIP_EXE_PATH)) {
+        $result.PipExe = $Global:PIP_EXE_PATH
+        $result.ScriptsDir = Split-Path -Parent $Global:PIP_EXE_PATH
+        Write-DebugLog -Message "Found pip via Global:PIP_EXE_PATH: $($result.PipExe)" -Category "PIP-REPAIR" -Color "Green"
+    }
+
+    if (-not $result.PythonExe -and $Global:PYTHON_EXE_PATH -and (Test-Path $Global:PYTHON_EXE_PATH)) {
+        $result.PythonExe = $Global:PYTHON_EXE_PATH
+        Write-DebugLog -Message "Found Python via Global:PYTHON_EXE_PATH: $($result.PythonExe)" -Category "PIP-REPAIR" -Color "Green"
+    }
+
+    # Method 3: Search in PATH (fallback)
+    if (-not $result.PythonExe) {
+        $pythonInPath = Get-Command python.exe -ErrorAction SilentlyContinue
+        if ($pythonInPath) {
+            $result.PythonExe = $pythonInPath.Source
+            Write-DebugLog -Message "Found Python in PATH: $($result.PythonExe)" -Category "PIP-REPAIR" -Color "Yellow"
+        }
+    }
+
+    if (-not $result.PipExe) {
+        $pipInPath = Get-Command pip.exe -ErrorAction SilentlyContinue
+        if ($pipInPath) {
+            $result.PipExe = $pipInPath.Source
+            $result.ScriptsDir = Split-Path -Parent $pipInPath.Source
+            Write-DebugLog -Message "Found pip in PATH: $($result.PipExe)" -Category "PIP-REPAIR" -Color "Yellow"
+        }
+    }
+
+    # Validation
+    if (-not $result.PythonExe -or -not $result.PipExe) {
+        Write-DebugLog -Message "CRITICAL: Cannot locate Python or pip executables!" -Category "PIP-REPAIR" -Color "Red"
+        Write-DebugLog -Message "Python: $($result.PythonExe)" -Category "PIP-REPAIR" -Color "Red"
+        Write-DebugLog -Message "pip: $($result.PipExe)" -Category "PIP-REPAIR" -Color "Red"
+        return $result
+    }
+
+    # Step 2: Verify and repair PATH environment variables
+    Write-DebugLog -Message "Step 2: Verifying PATH environment variables..." -Category "PIP-REPAIR" -Color "Cyan"
+
+    $pathsToAdd = @()
+
+    # Check Python directory
+    $pythonDir = Split-Path -Parent $result.PythonExe
+    $pathsToAdd += $pythonDir
+
+    # Check Scripts directory
+    if ($result.ScriptsDir) {
+        $pathsToAdd += $result.ScriptsDir
+    }
+
+    # Get current PATH (Machine + User)
+    $currentUserPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $currentMachinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $combinedPath = "$currentUserPath;$currentMachinePath"
+
+    # Get WindowsPathFunction.ps1 path
+    $parentDir = Split-Path $PSScriptRoot -Parent
+    $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
+
+    foreach ($pathToAdd in $pathsToAdd) {
+        if ($combinedPath -notlike "*$pathToAdd*") {
+            Write-DebugLog -Message "PATH missing directory: $pathToAdd - REPAIRING" -Category "PIP-REPAIR" -Color "Yellow"
+
+            if (Test-Path $windowsPathFunctionPath) {
+                & $windowsPathFunctionPath "add" $pathToAdd
+                $result.PathFixed = $true
+                Write-DebugLog -Message "Added to PATH: $pathToAdd" -Category "PIP-REPAIR" -Color "Green"
+            } else {
+                Write-DebugLog -Message "ERROR: Cannot add to PATH - WindowsPathFunction.ps1 not found" -Category "PIP-REPAIR" -Color "Red"
+            }
+        } else {
+            Write-DebugLog -Message "PATH OK: $pathToAdd" -Category "PIP-REPAIR" -Color "Gray"
+        }
+    }
+
+    # Step 3: Refresh current session PATH
+    if ($result.PathFixed -or $Force) {
+        Write-DebugLog -Message "Step 3: Refreshing current session PATH..." -Category "PIP-REPAIR" -Color "Cyan"
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                    [System.Environment]::GetEnvironmentVariable("Path", "User")
+        Write-DebugLog -Message "Session PATH refreshed" -Category "PIP-REPAIR" -Color "Green"
+    }
+
+    # Step 4: Detect installed pip tools
+    Write-DebugLog -Message "Step 4: Detecting installed pip tools..." -Category "PIP-REPAIR" -Color "Cyan"
+    $pipTools = @("pipx.exe", "uv.exe", "poetry.exe")
+    foreach ($tool in $pipTools) {
+        $toolPath = Join-Path $result.ScriptsDir $tool
+        if (Test-Path $toolPath) {
+            Write-DebugLog -Message "Found: $tool at $toolPath" -Category "PIP-REPAIR" -Color "Green"
+        } else {
+            Write-DebugLog -Message "Not installed: $tool" -Category "PIP-REPAIR" -Color "Gray"
+        }
+    }
+
+    Write-DebugLog -Message "========== Python Environment Repair Completed ==========" -Category "PIP-REPAIR" -Color "Cyan"
+    Write-DebugLog -Message "Python: $($result.PythonExe)" -Category "PIP-REPAIR" -Color "Green"
+    Write-DebugLog -Message "pip: $($result.PipExe)" -Category "PIP-REPAIR" -Color "Green"
+    Write-DebugLog -Message "Scripts: $($result.ScriptsDir)" -Category "PIP-REPAIR" -Color "Green"
+    Write-DebugLog -Message "PATH Fixed: $($result.PathFixed)" -Category "PIP-REPAIR" -Color $(if ($result.PathFixed) { "Yellow" } else { "Gray" })
+
+    return $result
+}
+
 function Invoke-PipCommand {
     param (
         [Parameter(Mandatory = $true)]
@@ -575,156 +735,73 @@ function Invoke-PipCommand {
     
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
     Write-DebugLog -Message "Processing pip package: $PackageName" -Category "PIP" -Color "Cyan"
-    
-    # Get pip executable path
-    $pipExe = $Global:PIP_EXE_PATH
-    
-    # Get Python Scripts directory using GlobalVars.ps1 definitions
-    $pythonScriptsDir = $null
-    Write-DebugLog -Message "Starting Python Scripts directory detection..." -Category "PIP" -Color "Cyan"
-    Write-DebugLog -Message "PIP executable path: $pipExe" -Category "PIP" -Color "Cyan"
-    Write-DebugLog -Message "Global PYTHON_DIR: $Global:PYTHON_DIR" -Category "PIP" -Color "Cyan"
-    Write-DebugLog -Message "Global PYTHON_EXE_PATH: $Global:PYTHON_EXE_PATH" -Category "PIP" -Color "Cyan"
-    Write-DebugLog -Message "Global PIP_EXE_PATH: $Global:PIP_EXE_PATH" -Category "PIP" -Color "Cyan"
-    
-    try {
-        # Method 1: Use GlobalVars.ps1 PYTHON_DIR + Scripts
-        Write-DebugLog -Message "Method 1: Using GlobalVars PYTHON_DIR..." -Category "PIP" -Color "Cyan"
-        if ($Global:PYTHON_DIR) {
-            $pythonScriptsDir = Join-Path $Global:PYTHON_DIR "Scripts"
-            Write-DebugLog -Message "Method 1: Calculated Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
-            Write-DebugLog -Message "Method 1: Path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
-            
-            if (Test-Path $pythonScriptsDir) {
-                Write-DebugLog -Message "Method 1 SUCCESS: Python Scripts directory (from GlobalVars): $pythonScriptsDir" -Category "PIP" -Color "Green"
-            } else {
-                Write-DebugLog -Message "Method 1 FAILED: GlobalVars Scripts directory not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
-                $pythonScriptsDir = $null
-            }
-        } else {
-            Write-DebugLog -Message "Method 1 FAILED: GlobalVars PYTHON_DIR is not defined" -Category "PIP" -Color "Yellow"
-        }
-        
-        # Method 2: Try pip show pip command
-        if (-not $pythonScriptsDir) {
-            Write-DebugLog -Message "Method 2: Trying 'pip show pip' command..." -Category "PIP" -Color "Cyan"
-            $pipShowOutput = & $pipExe show pip 2>&1
-            $pipShowExitCode = $LASTEXITCODE
-            Write-DebugLog -Message "pip show pip exit code: $pipShowExitCode" -Category "PIP" -Color "Cyan"
-            Write-DebugLog -Message "pip show pip output: $($pipShowOutput -join '`n')" -Category "PIP" -Color "Cyan"
-            
-            if ($pipShowExitCode -eq 0 -and $pipShowOutput) {
-                $locationLine = $pipShowOutput | Select-String "Location:"
-                if ($locationLine) {
-                    $pipLocation = $locationLine.ToString() -replace "^Location:\s*", ""
-                    $pythonScriptsDir = Join-Path $pipLocation "Scripts"
-                    Write-DebugLog -Message "Method 2 SUCCESS: Python Scripts directory (from pip show): $pythonScriptsDir" -Category "PIP" -Color "Green"
-                    Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
-                } else {
-                    Write-DebugLog -Message "Method 2 FAILED: Location line not found in pip show output" -Category "PIP" -Color "Yellow"
-                }
-            } else {
-                Write-DebugLog -Message "Method 2 FAILED: pip show pip command failed or returned empty output" -Category "PIP" -Color "Yellow"
-            }
-        }
-        
-        # Method 3: Fallback to Python executable location
-        if (-not $pythonScriptsDir) {
-            Write-DebugLog -Message "Method 3: Trying to find Python executable..." -Category "PIP" -Color "Cyan"
-            $pythonExe = Get-Command python -ErrorAction SilentlyContinue
-            if ($pythonExe) {
-                Write-DebugLog -Message "Found Python executable: $($pythonExe.Source)" -Category "PIP" -Color "Cyan"
-                $pythonDir = Split-Path $pythonExe.Source -Parent
-                $pythonScriptsDir = Join-Path $pythonDir "Scripts"
-                Write-DebugLog -Message "Method 3 SUCCESS: Python Scripts directory (from python command): $pythonScriptsDir" -Category "PIP" -Color "Green"
-                Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
-            } else {
-                Write-DebugLog -Message "Method 3 FAILED: Python executable not found in PATH" -Category "PIP" -Color "Yellow"
-            }
-        }
-        
-        # Method 4: Fallback to PIP_EXE_PATH location
-        if (-not $pythonScriptsDir) {
-            Write-DebugLog -Message "Method 4: Trying PIP executable location..." -Category "PIP" -Color "Cyan"
-            $pipDir = Split-Path $pipExe -Parent
-            $pythonScriptsDir = Join-Path $pipDir "Scripts"
-            Write-DebugLog -Message "Method 4 SUCCESS: Python Scripts directory (from pip path): $pythonScriptsDir" -Category "PIP" -Color "Green"
-            Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
-        }
-        
-        # Final validation
-        if ($pythonScriptsDir) {
-            Write-DebugLog -Message "Final validation: Checking if $pythonScriptsDir exists..." -Category "PIP" -Color "Cyan"
-            if (Test-Path $pythonScriptsDir) {
-                Write-DebugLog -Message "SUCCESS: Python Scripts directory found and accessible: $pythonScriptsDir" -Category "PIP" -Color "Green"
-            } else {
-                Write-DebugLog -Message "WARNING: Python Scripts directory found but not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
-            }
-        } else {
-            Write-DebugLog -Message "ERROR: Could not determine Python Scripts directory using any method" -Category "PIP" -Color "Red"
-            throw "Could not determine Python Scripts directory using any method"
-        }
-    }
-    catch {
-        Write-DebugLog -Message "CRITICAL ERROR: Failed to get Python Scripts directory: $($_.Exception.Message)" -Category "PIP" -Color "Red"
-        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
+
+    # CRITICAL: Repair Python environment before any pip operations
+    # This ensures:
+    # 1. We have valid absolute paths to python.exe and pip.exe
+    # 2. PATH environment variables are properly configured
+    # 3. Works correctly even on first-time installation (environment vars not yet effective)
+    $envRepair = Repair-PythonEnvironment
+
+    if (-not $envRepair.PipExe -or -not $envRepair.PythonExe) {
+        Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed with pip operations" -Category "PIP" -Color "Red"
         return $null
     }
-    
-    # Build search paths for pip packages with comprehensive debugging
-    $searchPaths = @()
-    Write-DebugLog -Message "Starting search paths building..." -Category "PIP" -Color "Cyan"
-    
+
+    # Use absolute paths from repair (handles first-time installation)
+    $pipExe = $envRepair.PipExe
+    $pythonExe = $envRepair.PythonExe
+    $pythonScriptsDir = $envRepair.ScriptsDir
+
+    Write-DebugLog -Message "Using pip absolute path: $pipExe" -Category "PIP" -Color "Green"
+    Write-DebugLog -Message "Using Python absolute path: $pythonExe" -Category "PIP" -Color "Green"
+    Write-DebugLog -Message "Using Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Green"
+
+    # Build search paths for pip packages
+    $searchPaths = @($pythonScriptsDir)
+    Write-DebugLog -Message "Building search paths for pip package scanning..." -Category "PIP" -Color "Cyan"
+
     try {
-        # Add the main Python Scripts directory
-        if ($pythonScriptsDir) {
-            Write-DebugLog -Message "Adding main Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
-            if (Test-Path $pythonScriptsDir) {
-                $searchPaths += $pythonScriptsDir
-                Write-DebugLog -Message "SUCCESS: Added Python Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Green"
-            } else {
-                Write-DebugLog -Message "WARNING: Python Scripts directory not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
-            }
-        } else {
-            Write-DebugLog -Message "ERROR: pythonScriptsDir is null or empty" -Category "PIP" -Color "Red"
-        }
         
         # Add user-specific pip paths if available
-        Write-DebugLog -Message "Trying to find user-specific pip paths..." -Category "PIP" -Color "Cyan"
+        Write-DebugLog -Message "Trying to find user-specific pip paths..." -Category "PIP" -Color "Gray"
         try {
             $userPipShowOutput = & $pipExe show pip --user 2>&1
             $userPipExitCode = $LASTEXITCODE
-            Write-DebugLog -Message "pip show pip --user exit code: $userPipExitCode" -Category "PIP" -Color "Cyan"
-            Write-DebugLog -Message "pip show pip --user output: $($userPipShowOutput -join '`n')" -Category "PIP" -Color "Cyan"
-            
+
             if ($userPipExitCode -eq 0 -and $userPipShowOutput) {
+                Write-DebugLog -Message "pip show pip --user exit code: $userPipExitCode" -Category "PIP" -Color "Gray"
                 $userLocationLine = $userPipShowOutput | Select-String "Location:"
                 if ($userLocationLine) {
                     $userPipDir = $userLocationLine.ToString() -replace "^Location:\s*", ""
                     $userScriptsDir = Join-Path $userPipDir "Scripts"
                     Write-DebugLog -Message "Found user pip directory: $userScriptsDir" -Category "PIP" -Color "Cyan"
-                    
+
                     if (Test-Path $userScriptsDir) {
                         $searchPaths += $userScriptsDir
                         Write-DebugLog -Message "SUCCESS: Added user pip Scripts path: $userScriptsDir" -Category "PIP" -Color "Green"
                     } else {
-                        Write-DebugLog -Message "WARNING: User pip Scripts directory not accessible: $userScriptsDir" -Category "PIP" -Color "Yellow"
+                        Write-DebugLog -Message "User pip Scripts directory not accessible: $userScriptsDir" -Category "PIP" -Color "Gray"
                     }
                 } else {
-                    Write-DebugLog -Message "WARNING: Location line not found in user pip show output" -Category "PIP" -Color "Yellow"
+                    Write-DebugLog -Message "Location line not found in user pip show output" -Category "PIP" -Color "Gray"
                 }
             } else {
-                Write-DebugLog -Message "WARNING: pip show pip --user command failed or returned empty output" -Category "PIP" -Color "Yellow"
+                Write-DebugLog -Message "pip show pip --user command not applicable (likely using system-wide installation)" -Category "PIP" -Color "Gray"
             }
         }
         catch {
-            Write-DebugLog -Message "ERROR: Exception while getting user pip location: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+            $errorMessage = $_.Exception.Message
+            if ($errorMessage -match "WARNING: Package\(s\) not found") {
+                Write-DebugLog -Message "User-specific pip not installed (using system-wide pip)" -Category "PIP" -Color "Gray"
+            } else {
+                Write-DebugLog -Message "Exception while getting user pip location: $errorMessage" -Category "PIP" -Color "Gray"
+            }
         }
         
-        # Add additional common pip installation paths
-        Write-DebugLog -Message "Adding additional common pip installation paths..." -Category "PIP" -Color "Cyan"
+        # Add additional common pip installation paths (only if they exist)
         $additionalPaths = @(
             (Join-Path $env:USERPROFILE ".local\Scripts"),
             (Join-Path $env:APPDATA "Python\Scripts"),
@@ -732,15 +809,20 @@ function Invoke-PipCommand {
             (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python\Scripts"),
             (Join-Path $env:USERPROFILE "AppData\Roaming\Python\Scripts")
         )
-        
+
+        $foundAdditionalPaths = 0
         foreach ($path in $additionalPaths) {
-            Write-DebugLog -Message "Checking additional path: $path" -Category "PIP" -Color "Cyan"
             if (Test-Path $path) {
                 $searchPaths += $path
-                Write-DebugLog -Message "SUCCESS: Added additional pip path: $path" -Category "PIP" -Color "Green"
-            } else {
-                Write-DebugLog -Message "Path not found: $path" -Category "PIP" -Color "Gray"
+                $foundAdditionalPaths++
+                Write-DebugLog -Message "Found additional pip path: $path" -Category "PIP" -Color "Green"
             }
+        }
+
+        if ($foundAdditionalPaths -eq 0) {
+            Write-DebugLog -Message "No additional user pip paths found (using system-wide Python installation)" -Category "PIP" -Color "Gray"
+        } else {
+            Write-DebugLog -Message "Added $foundAdditionalPaths additional pip path(s)" -Category "PIP" -Color "Cyan"
         }
         
         # Ensure we have at least one search path
@@ -1006,17 +1088,36 @@ function Invoke-PipxCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
+
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
     Write-DebugLog -Message "Processing pipx package: $PackageName" -Category "PIPX" -Color "Cyan"
-    
-    # Check if pipx is available
-    $pipxExe = Get-Command "pipx" -ErrorAction SilentlyContinue
-    if (-not $pipxExe) {
-        Write-DebugLog -Message "pipx not found in PATH" -Category "PIPX" -Color "Red"
+
+    # Repair Python environment to get valid paths
+    $envRepair = Repair-PythonEnvironment
+    if (-not $envRepair.ScriptsDir) {
+        Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "PIPX" -Color "Red"
         return $null
+    }
+
+    # Try to find pipx using absolute path first
+    $pipxExePath = Join-Path $envRepair.ScriptsDir "pipx.exe"
+    $pipxExe = $null
+
+    if (Test-Path $pipxExePath) {
+        $pipxExe = $pipxExePath
+        Write-DebugLog -Message "Found pipx at absolute path: $pipxExePath" -Category "PIPX" -Color "Green"
+    } else {
+        # Fallback to PATH search
+        $pipxExeCmd = Get-Command "pipx" -ErrorAction SilentlyContinue
+        if ($pipxExeCmd) {
+            $pipxExe = $pipxExeCmd.Source
+            Write-DebugLog -Message "Found pipx in PATH: $pipxExe" -Category "PIPX" -Color "Yellow"
+        } else {
+            Write-DebugLog -Message "pipx not found - needs to be installed via pip first" -Category "PIPX" -Color "Red"
+            return $null
+        }
     }
     
     # Get pipx home directory
@@ -1202,38 +1303,61 @@ function Invoke-UvCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
+
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
     Write-DebugLog -Message "Processing uv package: $PackageName" -Category "UV" -Color "Cyan"
-    
-    # Check if uv is available
-    $uvExe = Get-Command "uv" -ErrorAction SilentlyContinue
-    if (-not $uvExe) {
-        Write-DebugLog -Message "uv not found, attempting to install via pip..." -Category "UV" -Color "Yellow"
-        try {
-            $pipExe = Get-Command "pip" -ErrorAction SilentlyContinue
-            if ($pipExe) {
-                & pip install uv 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    $uvExe = Get-Command "uv" -ErrorAction SilentlyContinue
-                    if (-not $uvExe) {
-                        Write-DebugLog -Message "uv installation failed" -Category "UV" -Color "Red"
+
+    # Repair Python environment to get valid paths
+    $envRepair = Repair-PythonEnvironment
+    if (-not $envRepair.ScriptsDir) {
+        Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "UV" -Color "Red"
+        return $null
+    }
+
+    # Try to find uv using absolute path first
+    $uvExePath = Join-Path $envRepair.ScriptsDir "uv.exe"
+    $uvExe = $null
+
+    if (Test-Path $uvExePath) {
+        $uvExe = $uvExePath
+        Write-DebugLog -Message "Found uv at absolute path: $uvExePath" -Category "UV" -Color "Green"
+    } else {
+        # Fallback to PATH search
+        $uvExeCmd = Get-Command "uv" -ErrorAction SilentlyContinue
+        if ($uvExeCmd) {
+            $uvExe = $uvExeCmd.Source
+            Write-DebugLog -Message "Found uv in PATH: $uvExe" -Category "UV" -Color "Yellow"
+        } else {
+            Write-DebugLog -Message "uv not found, attempting to install via pip..." -Category "UV" -Color "Yellow"
+            try {
+                # Use absolute path to pip
+                $pipExe = $envRepair.PipExe
+                if ($pipExe) {
+                    & $pipExe install uv 2>&1 | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        # Check again with absolute path
+                        if (Test-Path $uvExePath) {
+                            $uvExe = $uvExePath
+                            Write-DebugLog -Message "uv installed successfully at: $uvExePath" -Category "UV" -Color "Green"
+                        } else {
+                            Write-DebugLog -Message "uv installation failed - executable not found" -Category "UV" -Color "Red"
+                            return $null
+                        }
+                    } else {
+                        Write-DebugLog -Message "Failed to install uv via pip" -Category "UV" -Color "Red"
                         return $null
                     }
                 } else {
-                    Write-DebugLog -Message "Failed to install uv via pip" -Category "UV" -Color "Red"
+                    Write-DebugLog -Message "pip not found, cannot install uv" -Category "UV" -Color "Red"
                     return $null
                 }
-            } else {
-                Write-DebugLog -Message "pip not found, cannot install uv" -Category "UV" -Color "Red"
+            }
+            catch {
+                Write-DebugLog -Message "Error installing uv: $($_.Exception.Message)" -Category "UV" -Color "Red"
                 return $null
             }
-        }
-        catch {
-            Write-DebugLog -Message "Error installing uv: $($_.Exception.Message)" -Category "UV" -Color "Red"
-            return $null
         }
     }
     
@@ -1441,18 +1565,37 @@ function Invoke-PoetryCommand {
         [bool]$OnlyCheckFlag = $false,
         [bool]$ForceInstall = $true
     )
-    
+
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
-    
+
     Write-DebugLog -Message "Processing poetry package: $PackageName" -Category "POETRY" -Color "Cyan"
-    
-    # Check if poetry is available
-    $poetryExe = Get-Command "poetry" -ErrorAction SilentlyContinue
-    if (-not $poetryExe) {
-        Write-DebugLog -Message "Poetry not found in PATH, fallback to pip installation" -Category "POETRY" -Color "Yellow"
-        # Poetry doesn't exist, fallback to pip
-        return Invoke-PipCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+
+    # Repair Python environment to get valid paths
+    $envRepair = Repair-PythonEnvironment
+    if (-not $envRepair.ScriptsDir) {
+        Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "POETRY" -Color "Red"
+        return $null
+    }
+
+    # Try to find poetry using absolute path first
+    $poetryExePath = Join-Path $envRepair.ScriptsDir "poetry.exe"
+    $poetryExe = $null
+
+    if (Test-Path $poetryExePath) {
+        $poetryExe = $poetryExePath
+        Write-DebugLog -Message "Found poetry at absolute path: $poetryExePath" -Category "POETRY" -Color "Green"
+    } else {
+        # Fallback to PATH search
+        $poetryExeCmd = Get-Command "poetry" -ErrorAction SilentlyContinue
+        if ($poetryExeCmd) {
+            $poetryExe = $poetryExeCmd.Source
+            Write-DebugLog -Message "Found poetry in PATH: $poetryExe" -Category "POETRY" -Color "Yellow"
+        } else {
+            Write-DebugLog -Message "Poetry not found - fallback to pip installation" -Category "POETRY" -Color "Yellow"
+            # Poetry doesn't exist, fallback to pip
+            return Invoke-PipCommand -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+        }
     }
     
     # Get Poetry configuration paths

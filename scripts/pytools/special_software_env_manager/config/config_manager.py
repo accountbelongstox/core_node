@@ -367,7 +367,6 @@ class ConfigManager:
                     'Enabled': False
                 }
             },
-<<<<<<< HEAD
             'Local Test Credentials': {
                 'Common': 'local_test',
                 'DisplayName': 'Local Test Credentials',
@@ -384,22 +383,10 @@ class ConfigManager:
                         'Name': 'LOCAL_TEST_API_KEY',
                         'DisplayName': 'Local Test API Key',
                         'Description': 'API Key for local testing',
-=======
-            'DeepSeek': {
-                'Common': 'deepseek',
-                'DisplayName': 'DeepSeek',
-                'StorageType': 'encrypted_constant',
-                'Variables': [
-                    {
-                        'Name': 'DEEPSEEK_API_KEY',
-                        'DisplayName': 'DeepSeek API Key',
-                        'Description': 'DeepSeek API Key',
->>>>>>> e1d7e95da15e2eabf7ad0ba93803100cd03e534c
                         'InputType': 'Token',
                         'Required': True
                     },
                     {
-<<<<<<< HEAD
                         'Name': 'LOCAL_TEST_SECRET_KEY',
                         'DisplayName': 'Local Test Secret Key',
                         'Description': 'Secret Key for local testing',
@@ -425,7 +412,29 @@ class ConfigManager:
                         'DisplayName': 'Local Test Database Password',
                         'Description': 'Database password for local testing',
                         'InputType': 'Password',
-=======
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': True
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'DeepSeek': {
+                'Common': 'deepseek',
+                'DisplayName': 'DeepSeek',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'DEEPSEEK_API_KEY',
+                        'DisplayName': 'DeepSeek API Key',
+                        'Description': 'DeepSeek API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
                         'Name': 'DEEPSEEK_BASE_URL',
                         'DisplayName': 'DeepSeek Base URL',
                         'Description': 'DeepSeek API Base URL (default: https://api.deepseek.com)',
@@ -525,7 +534,6 @@ class ConfigManager:
                         'DisplayName': 'Poxie Base URL',
                         'Description': 'Poxie API Base URL',
                         'InputType': 'Url',
->>>>>>> e1d7e95da15e2eabf7ad0ba93803100cd03e534c
                         'Required': False
                     }
                 ],

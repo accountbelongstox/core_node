@@ -121,3 +121,5 @@
 解决一下python安装总是调用到系统上不存在的路径 的问题。 注意反复运行这个脚本会修正和重置配置。
 
 scripts\shells\win\install_powershells\postinstall\PhpPostInstallProcessor.ps1  scripts\shells\win\install_powershells\Step7_InstallPHP.ps1 你确认整合了吗。
+
+但要注意，要和前面的功能深度整合。
