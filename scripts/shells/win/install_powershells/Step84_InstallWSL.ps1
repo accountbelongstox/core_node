@@ -271,34 +271,34 @@ function Is-WSLInstalled {
 }
 
 function Prompt-WSLInstall {
-    while ($true) {
-        $msg = "[Step $STEP_NUMBER] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')"
-        Write-ColorMessage -Message $msg -Type "Warning"
-        $userInput = $null
-        $timeout = 10
-        $startTime = Get-Date
-        $endTime = $startTime.AddSeconds($timeout)
-        while ((Get-Date) -lt $endTime) {
-            if ([Console]::KeyAvailable) {
-                $key = [Console]::ReadKey($true)
-                $userInput = $key.KeyChar
-                break
+    $msg = "[Step $STEP_NUMBER] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')"
+    Write-Host $msg -ForegroundColor Yellow
+
+    $userInput = $null
+    $timeout = 10
+    $startTime = Get-Date
+    $endTime = $startTime.AddSeconds($timeout)
+
+    while ((Get-Date) -lt $endTime) {
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            $char = $key.KeyChar.ToString().ToUpper()
+
+            if ($char -eq "Y") {
+                Write-Host ""
+                return $true
+            } elseif ($char -eq "N") {
+                Write-Host ""
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping WSL installation." -Type "Info"
+                return $false
             }
-            Start-Sleep -Milliseconds 100
         }
-        if ($null -eq $userInput) {
-            $userInput = "Y"
-        }
-        $userInput = $userInput.ToString().ToUpper()
-        if ($userInput -eq "Y") {
-            return $true
-        } elseif ($userInput -eq "N") {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping WSL installation." -Type "Info"
-            return $false
-        } else {
-            Write-ColorMessage -Message "Please enter 'Y' or 'N' (case-insensitive)." -Type "Warning"
-        }
+        Start-Sleep -Milliseconds 100
     }
+
+    Write-Host ""
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Auto-continuing with 'Y' after timeout" -Type "Info"
+    return $true
 }
 
 function Clean-String {
@@ -441,12 +441,11 @@ function Step80_InstallWSL {
         if ($wsl2Supported) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing WSL2 (system supports it)..." -Type "Info"
             try {
-                & wsl --install --no-distribution
+                & wsl --install --no-launch
                 if ($LASTEXITCODE -eq 0) {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 installation completed." -Type "Success"
                 } else {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 installation failed, trying legacy method..." -Type "Warning"
-                    # Fallback to legacy installation
                     & dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
                     & dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
                 }
