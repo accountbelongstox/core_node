@@ -104,9 +104,19 @@ function Move-CoreNodeProject {
 
     # Check if destination already exists
     if (Test-Path $DestPath) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Destination already exists: $DestPath" -Type "Error"
-        Write-ColorMessage -Message "$SCRIPT_INDEX Please manually remove or rename the destination directory first" -Type "Error"
-        return $false
+        # Get all items in the directory (files and subdirectories)
+        $items = Get-ChildItem -Path $DestPath -Recurse -Force -ErrorAction SilentlyContinue
+
+        if ($items.Count -eq 0) {
+            # Directory is empty, remove it
+            Write-ColorMessage -Message "$SCRIPT_INDEX Destination directory is empty, removing: $DestPath" -Type "Warning"
+            Remove-Item -Path $DestPath -Force -Recurse -ErrorAction SilentlyContinue
+        } else {
+            # Directory contains files
+            Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Destination already exists and contains files: $DestPath" -Type "Error"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Please manually remove or rename the destination directory first" -Type "Error"
+            return $false
+        }
     }
 
     # Ensure parent directory exists
@@ -117,11 +127,11 @@ function Move-CoreNodeProject {
     }
 
     # Ask for confirmation
-    Write-ColorMessage -Message "$SCRIPT_INDEX This will move the entire project directory. Continue? (y/N, timeout 10s, default: N)" -Type "Warning"
+    Write-ColorMessage -Message "$SCRIPT_INDEX This will move the entire project directory. Continue? (Y/n, timeout 10s, default: Y)" -Type "Warning"
 
     $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $timeout = 10
-    $shouldMove = $false
+    $shouldMove = $true
 
     while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
         Start-Sleep -Milliseconds 200
@@ -129,8 +139,8 @@ function Move-CoreNodeProject {
 
     if ($host.UI.RawUI.KeyAvailable) {
         $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
-        if ($key -eq 'y' -or $key -eq 'Y') {
-            $shouldMove = $true
+        if ($key -eq 'n' -or $key -eq 'N') {
+            $shouldMove = $false
         }
     }
 
@@ -214,6 +224,15 @@ function Main-FixProjectLocation {
             $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
             if ($items.Count -gt 0) {
                 Write-ColorMessage -Message "$SCRIPT_INDEX Project cloned successfully to: $TARGET_PROJECT_DIR" -Type "Success"
+
+                # Switch to project directory and re-execute dd.cmd
+                Set-Location $TARGET_PROJECT_DIR
+                $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
+                if (Test-Path $ddCmd) {
+                    Write-ColorMessage -Message "$SCRIPT_INDEX Restarting from project directory..." -Type "Info"
+                    & cmd /c $ddCmd
+                    exit
+                }
             } else {
                 Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
             }
@@ -299,11 +318,11 @@ function Main-FixProjectLocation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Move this project to correct location?" -Type "Warning"
     Write-ColorMessage -Message "$SCRIPT_INDEX   From: $($selectedProject.Path)" -Type "Info"
     Write-ColorMessage -Message "$SCRIPT_INDEX   To: $TARGET_PROJECT_DIR" -Type "Info"
-    Write-ColorMessage -Message "$SCRIPT_INDEX Proceed? (y/N, timeout 10s, default: N)" -Type "Warning"
+    Write-ColorMessage -Message "$SCRIPT_INDEX Proceed? (Y/n, timeout 10s, default: Y)" -Type "Warning"
 
     $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $timeout = 10
-    $shouldProceed = $false
+    $shouldProceed = $true
 
     while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
         Start-Sleep -Milliseconds 200
@@ -311,8 +330,8 @@ function Main-FixProjectLocation {
 
     if ($host.UI.RawUI.KeyAvailable) {
         $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
-        if ($key -eq 'y' -or $key -eq 'Y') {
-            $shouldProceed = $true
+        if ($key -eq 'n' -or $key -eq 'N') {
+            $shouldProceed = $false
         }
     }
 
@@ -331,6 +350,15 @@ function Main-FixProjectLocation {
         Write-ColorMessage -Message "$SCRIPT_INDEX   Project location fixed successfully!" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX   New location: $TARGET_PROJECT_DIR" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Success"
+
+        # Switch to project directory and re-execute dd.cmd
+        Set-Location $TARGET_PROJECT_DIR
+        $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
+        if (Test-Path $ddCmd) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Restarting from project directory..." -Type "Info"
+            & cmd /c $ddCmd
+            exit
+        }
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Error"
         Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to fix project location" -Type "Error"

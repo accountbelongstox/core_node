@@ -80,6 +80,15 @@ function Initialize-BaseStructure {
         $formattedStep = "0.{0:00}" -f $stepCount
         $normalizedDirValue = $dir.Value.TrimEnd('\')
 
+        # Check if this is PROJECT_DIR itself
+        if ($normalizedDirValue -eq $normalizedProjectDir) {
+            if (-not (Test-Path $PROJECT_DIR)) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping $($dir.Key): $($dir.Value) (PROJECT_DIR must be cloned via Step7, not created manually)" -Type "Warning"
+                $stepCount++
+                continue
+            }
+        }
+
         # Check if this is a subdirectory of PROJECT_DIR (but not PROJECT_DIR itself)
         $isProjectSubDir = $normalizedDirValue.StartsWith("$normalizedProjectDir\", [System.StringComparison]::OrdinalIgnoreCase)
 
