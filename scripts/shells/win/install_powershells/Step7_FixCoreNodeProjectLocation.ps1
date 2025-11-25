@@ -180,8 +180,13 @@ function Main-FixProjectLocation {
         Write-ColorMessage -Message "$SCRIPT_INDEX No core_node projects found" -Type "Warning"
         Write-ColorMessage -Message "$SCRIPT_INDEX Cloning project to target location..." -Type "Info"
 
-        # Get clone URL
-        $selectedRegion = Get-GlobalVar -key "SELECTED_REGION"
+        # Get clone URL (will use SSH if available, otherwise HTTPS)
+        $hasSSHKey = Test-SSHKeyPairExists
+        if ($hasSSHKey) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX SSH key found, will use SSH clone" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX No SSH key found, will use HTTPS clone" -Type "Info"
+        }
         $cloneUrl = Get-RegionCloneURL
 
         # Ensure parent directory exists
@@ -248,8 +253,30 @@ function Main-FixProjectLocation {
 
     if ($correctLocationProject.Count -gt 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX Project already at correct location: $($correctLocationProject[0].Path)" -Type "Success"
-        Write-ColorMessage -Message "$SCRIPT_INDEX No action needed" -Type "Success"
-        return
+
+        # Check if current script is running from within the project directory
+        $currentScriptPath = $PSScriptRoot
+        $normalizedProjectPath = $TARGET_PROJECT_DIR.TrimEnd('\')
+        $normalizedScriptPath = $currentScriptPath.TrimEnd('\')
+
+        $isRunningFromProject = $normalizedScriptPath.StartsWith("$normalizedProjectPath\", [System.StringComparison]::OrdinalIgnoreCase) -or
+                                ($normalizedScriptPath -eq $normalizedProjectPath)
+
+        if ($isRunningFromProject) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Already running from project directory, no need to switch" -Type "Success"
+            return
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Switching to project directory and restarting..." -Type "Info"
+            Set-Location $TARGET_PROJECT_DIR
+            $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
+            if (Test-Path $ddCmd) {
+                & cmd /c $ddCmd
+                exit
+            } else {
+                Write-ColorMessage -Message "$SCRIPT_INDEX Warning: dd.cmd not found at: $ddCmd" -Type "Warning"
+                return
+            }
+        }
     }
 
     # Find projects at wrong locations

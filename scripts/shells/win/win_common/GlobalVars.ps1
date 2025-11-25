@@ -486,6 +486,8 @@ $Global:GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/accountbelongst
 # Git Clone URLs for project setup
 $Global:GITEE_CLONE_URL = "https://gitee.com/accountbelongstox/core_node.git"
 $Global:GITHUB_CLONE_URL = "https://github.com/accountbelongstox/core_node.git"
+$Global:GITEE_SSH_CLONE_URL = "git@gitee.com:accountbelongstox/core_node.git"
+$Global:GITHUB_SSH_CLONE_URL = "git@github.com:accountbelongstox/core_node.git"
 
 # Function to get appropriate download base URL based on region
 function Get-RegionBaseURL {
@@ -516,13 +518,46 @@ function Get-RegionURL {
     }
 }
 
-# Function to get region-specific Git clone URL
+# Function to check if SSH key pair exists
+function Test-SSHKeyPairExists {
+    $sshDir = $Global:SSH_DIR
+    if (-not (Test-Path $sshDir)) {
+        return $false
+    }
+
+    $pubKeys = Get-ChildItem -Path $sshDir -Filter "*.pub" -File -ErrorAction SilentlyContinue
+    foreach ($pub in $pubKeys) {
+        $priv = Join-Path $sshDir ([System.IO.Path]::GetFileNameWithoutExtension($pub.Name))
+        if (Test-Path $priv) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# Function to get region-specific Git clone URL (with SSH support)
 function Get-RegionCloneURL {
-    $selectedRegion = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "China"
-    if ($selectedRegion -eq "China") {
-        return $Global:GITEE_CLONE_URL
+    param(
+        [switch]$PreferSSH = $true
+    )
+
+    $selectedRegion = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "Global"
+    $hasSSHKey = Test-SSHKeyPairExists
+
+    # If PreferSSH is enabled and SSH key exists, use SSH URL
+    if ($PreferSSH -and $hasSSHKey) {
+        if ($selectedRegion -eq "China") {
+            return $Global:GITEE_SSH_CLONE_URL
+        } else {
+            return $Global:GITHUB_SSH_CLONE_URL
+        }
     } else {
-        return $Global:GITHUB_CLONE_URL
+        # Otherwise use HTTPS URL
+        if ($selectedRegion -eq "China") {
+            return $Global:GITEE_CLONE_URL
+        } else {
+            return $Global:GITHUB_CLONE_URL
+        }
     }
 }
 
