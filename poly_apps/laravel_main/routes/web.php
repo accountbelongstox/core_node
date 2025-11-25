@@ -133,6 +133,17 @@ Route::prefix('code-browser')->group(function () {
     Route::post('/prompts/create', function (\Illuminate\Http\Request $request) {
         \Log::info('[PROMPT_CREATE] Route hit', ['timestamp' => date('Y-m-d H:i:s'), 'input' => $request->all()]);
 
+        // Check authentication
+        $userToken = $request->header('Auth-User-Token');
+        $authToken = $request->bearerToken();
+        if (!($userToken || $authToken || \Illuminate\Support\Facades\Auth::check())) {
+            \Log::warning('[PROMPT_CREATE] Unauthorized access attempt');
+            return response()->json([
+                'error' => 'Please login to create tasks',
+                'authenticated' => false
+            ], 401);
+        }
+
         $name = $request->input('name');
         if (!$name) {
             \Log::error('[PROMPT_CREATE] Name is required');

@@ -16,6 +16,7 @@ namespace App\Http\EnvironmentApiInfo;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Auth;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
@@ -23,6 +24,14 @@ class CodeBrowserFileOpsController
 {
     private $baseDirectory;
     private $deleteDirectory;
+
+    private function checkAuthentication(Request $request)
+    {
+        $userToken = $request->header('Auth-User-Token');
+        $authToken = $request->bearerToken();
+
+        return ($userToken || $authToken || Auth::check());
+    }
 
     public function __construct()
     {
@@ -187,6 +196,13 @@ class CodeBrowserFileOpsController
 
     public function getPrompts(Request $request)
     {
+        if (!$this->checkAuthentication($request)) {
+            return response()->json([
+                'error' => 'Please login to access tasks and prompts',
+                'authenticated' => false
+            ], 401);
+        }
+
         $promptsDir = null;
         $files = null;
         $items = [];
@@ -290,6 +306,13 @@ class CodeBrowserFileOpsController
 
     public function translatePrompt(Request $request)
     {
+        if (!$this->checkAuthentication($request)) {
+            return response()->json([
+                'error' => 'Please login to access translation features',
+                'authenticated' => false
+            ], 401);
+        }
+
         $relativePath = null;
         $fullPath = null;
         $content = null;
@@ -356,6 +379,13 @@ class CodeBrowserFileOpsController
 
     public function translatePromptName(Request $request)
     {
+        if (!$this->checkAuthentication($request)) {
+            return response()->json([
+                'error' => 'Please login to access translation features',
+                'authenticated' => false
+            ], 401);
+        }
+
         $name = null;
         $translated = null;
 
