@@ -207,19 +207,22 @@ function Initialize-DevelopmentEnvironment {
             return $false
         }
         
-        # Switch to project directory and execute dd.cmd
-        Write-Host "[*] Switching to project directory and executing dd.cmd..." -ForegroundColor Cyan
+        # Switch to project directory and execute dd.ps1 directly
+        Write-Host "[*] Switching to project directory..." -ForegroundColor Cyan
         try {
             Set-Location $projectDir
-            if (Test-Path "dd.cmd") {
-                Write-Host "[OK] Executing dd.cmd..." -ForegroundColor Green
-                & ".\dd.cmd"
+            $ddPs1Path = Join-Path $projectDir "scripts\shells\win\dd.ps1"
+            if (Test-Path $ddPs1Path) {
+                Write-Host "[OK] Launching dd.ps1 from project directory..." -ForegroundColor Green
+                Write-Host "[*] Please use dd.cmd in the project directory for future runs" -ForegroundColor Yellow
+                Write-Host ""
+                & $ddPs1Path
             } else {
-                Write-Host "[ERROR] dd.cmd not found in project directory" -ForegroundColor Red
+                Write-Host "[ERROR] dd.ps1 not found at: $ddPs1Path" -ForegroundColor Red
                 return $false
             }
         } catch {
-            Write-Host "[ERROR] Failed to execute dd.cmd: $_" -ForegroundColor Red
+            Write-Host "[ERROR] Failed to execute dd.ps1: $_" -ForegroundColor Red
             return $false
         }
         
