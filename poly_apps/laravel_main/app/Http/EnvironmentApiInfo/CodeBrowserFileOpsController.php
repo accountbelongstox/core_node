@@ -26,14 +26,22 @@ class CodeBrowserFileOpsController
 
     public function __construct()
     {
+        error_log('[CodeBrowserFileOpsController] Constructor called');
+
         $this->baseDirectory = PathMapper::getCoreNodeDir();
+        error_log('[CodeBrowserFileOpsController] Base directory: ' . $this->baseDirectory);
+
         $this->deleteDirectory = $this->baseDirectory . DIRECTORY_SEPARATOR . '_delete';
 
         if ($this->baseDirectory) {
-            FileSystemManager::ensureDirectoryExists($this->deleteDirectory);
+            $deleteResult = FileSystemManager::ensureDirectoryExists($this->deleteDirectory);
+            error_log('[CodeBrowserFileOpsController] Delete directory exists: ' . ($deleteResult ? 'yes' : 'no'));
 
             $promptsDir = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
-            FileSystemManager::ensureDirectoryExists($promptsDir);
+            $promptsResult = FileSystemManager::ensureDirectoryExists($promptsDir);
+            error_log('[CodeBrowserFileOpsController] Prompts directory exists: ' . ($promptsResult ? 'yes' : 'no'));
+        } else {
+            error_log('[CodeBrowserFileOpsController] Base directory is empty!');
         }
     }
 
@@ -221,8 +229,11 @@ class CodeBrowserFileOpsController
         $words = null;
 
         $name = $request->input('name');
+        \Log::channel('single')->info('[CreatePrompt] Received name: ' . var_export($name, true));
+        \Log::channel('single')->info('[CreatePrompt] Request all: ' . json_encode($request->all()));
 
         if (!$name) {
+            \Log::channel('single')->error('[CreatePrompt] ERROR: Name is required');
             return response()->json(['error' => 'Name is required'], 400);
         }
 
@@ -239,21 +250,35 @@ class CodeBrowserFileOpsController
             $processedName .= '.md';
         }
 
-        $promptsDir = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
+        \Log::channel('single')->info('[CreatePrompt] Processed name: ' . $processedName);
 
-        FileSystemManager::ensureDirectoryExists($promptsDir);
+        $promptsDir = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
+        \Log::channel('single')->info('[CreatePrompt] Prompts dir: ' . $promptsDir);
+        \Log::channel('single')->info('[CreatePrompt] Base directory: ' . $this->baseDirectory);
+
+        $dirExists = FileSystemManager::ensureDirectoryExists($promptsDir);
+        \Log::channel('single')->info('[CreatePrompt] Directory exists: ' . ($dirExists ? 'yes' : 'no'));
 
         $filePath = $promptsDir . DIRECTORY_SEPARATOR . $processedName;
+        \Log::channel('single')->info('[CreatePrompt] File path: ' . $filePath);
 
         if (FileSystemManager::exists($filePath)) {
+            \Log::channel('single')->warning('[CreatePrompt] WARNING: Prompt already exists: ' . $filePath);
             return response()->json(['error' => 'Prompt already exists'], 409);
         }
 
-        if (!FileSystemManager::writeFile($filePath, '')) {
+        \Log::channel('single')->info('[CreatePrompt] About to call FileSystemManager::writeFile');
+        $writeResult = FileSystemManager::writeFile($filePath, '');
+        \Log::channel('single')->info('[CreatePrompt] Write result: ' . ($writeResult ? 'success' : 'failed'));
+
+        if (!$writeResult) {
+            \Log::channel('single')->error('[CreatePrompt] ERROR: Failed to create prompt file: ' . $filePath);
             return response()->json(['error' => 'Failed to create prompt'], 500);
         }
 
         $relativePath = '_prompts' . DIRECTORY_SEPARATOR . $processedName;
+
+        \Log::channel('single')->info('[CreatePrompt] Successfully created: ' . $relativePath);
 
         return response()->json([
             'success' => true,
@@ -307,7 +332,7 @@ class CodeBrowserFileOpsController
             if ($this->containsChinese($line)) {
                 $translated = $this->translateLine($line);
                 if ($translated) {
-                    $translatedLines[] = $line;
+                    $translatedLines[] = $line . ' -> ' . $translated;
                     $hasChanges = true;
                 } else {
                     $translatedLines[] = $line;
@@ -326,6 +351,40 @@ class CodeBrowserFileOpsController
             'success' => true,
             'has_changes' => $hasChanges,
             'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath))
+        ]);
+    }
+
+    public function translatePromptName(Request $request)
+    {
+        $name = null;
+        $translated = null;
+
+        $name = $request->input('name');
+
+        if (!$name) {
+            return response()->json(['error' => 'Name is required'], 400);
+        }
+
+        if (!$this->containsChinese($name)) {
+            return response()->json([
+                'success' => true,
+                'original' => $name,
+                'translated' => $name
+            ]);
+        }
+
+        $translated = $this->translateLine($name);
+
+        if (!$translated) {
+            return response()->json([
+                'error' => 'Translation failed'
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'original' => $name,
+            'translated' => $translated
         ]);
     }
 
