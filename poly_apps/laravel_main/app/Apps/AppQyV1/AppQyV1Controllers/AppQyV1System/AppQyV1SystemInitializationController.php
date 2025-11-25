@@ -494,7 +494,7 @@ class AppQyV1SystemInitializationController extends Controller
     public function getDictionaryStatistics()
     {
         try {
-            $connection = 'appqyv1';
+            $connection = 'AppQyV1';
             
             $languages = [
                 'english' => 'English',

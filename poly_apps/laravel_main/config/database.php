@@ -54,6 +54,17 @@ return [
             'synchronous' => null,
         ],
 
+        'AppQyV1' => [
+            'driver' => 'sqlite',
+            'url' => env('DB_URL'),
+            'database' => PathMapper::getDefaultDatabasePath('app_qy_v1_database.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
+        ],
+
         'appqyv1' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),

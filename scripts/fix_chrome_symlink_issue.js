@@ -295,7 +295,7 @@ async function main() {
 // Run the script
 if (require.main === module) {
     main().then(() => {
-        console.log('\n✨ Fix script completed.');
+        console.log('\n[*] Fix script completed.');
     }).catch(error => {
         console.error('Script failed:', error);
         process.exit(1);

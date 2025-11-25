@@ -6,7 +6,7 @@ APP_DIR=""
 ORIGINAL_WORKING_DIR=""
 APP_NAME=""
 MODE=""
-BASE_PORT=3000
+BASE_PORT=10000
 APP_NAMESPACE=""
 APP_PORT=""
 APP_DISPLAY=""
@@ -219,27 +219,44 @@ sync_to_laravel_nginx() {
     # Call Laravel Artisan command
     cd "$laravel_dir"
 
-    echo "[COMMAND] php artisan nuxt:service:refresh $app_name $port $debug_flag"
+    # Build command with appropriate flags
+    local cmd="php artisan servermanager:nuxt add $app_name --port=$port"
+    if [[ "$debug_flag" == "1" ]]; then
+        cmd="$cmd --debug"
+    fi
+
+    echo "[COMMAND] $cmd"
     echo ""
 
-    if php artisan nuxt:service:refresh "$app_name" "$port" "$debug_flag"; then
-        echo ""
+    # Temporarily disable exit on error to capture command result
+    set +e
+    $cmd
+    local exit_code=$?
+    set -e
+
+    echo ""
+    if [ $exit_code -eq 0 ]; then
         echo "[SUCCESS] Service synced to Laravel Nginx successfully!"
         echo ""
         echo "Service details:"
-        echo "  - systemd service: nuxt-polyapp-${app_name}.service"
+        echo "  - systemd service: nuxt-${app_name}.service"
         echo "  - Port: $port"
         echo "  - Mode: $mode"
         echo ""
     else
         echo ""
-        echo "[ERROR] Failed to sync service to Laravel Nginx"
+        echo "==============================================================================="
+        echo "[ERROR] Failed to sync service to Laravel Nginx (exit code: $exit_code)"
+        echo "==============================================================================="
+        echo ""
+        echo "Please review the error messages above."
         echo ""
     fi
 
     cd "$APP_DIR"
 
-    echo "Press any key to continue..."
+    echo ""
+    echo "Press any key to return to menu..."
     read -rsn1
 
     return 0

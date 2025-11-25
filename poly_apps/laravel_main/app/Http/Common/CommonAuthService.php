@@ -62,10 +62,12 @@ class CommonAuthService
         }
         // Authenticate by username/password
         elseif ($username && $password) {
-            $user = User::where('username', $username)
-                ->orWhere('email', $username)
-                ->orWhere('phone', $username)
-                ->first();
+            $user = User::where(function($query) use ($username) {
+                $query->where('username', $username)
+                    ->orWhere('email', $username)
+                    ->orWhere('phone', $username);
+            })->first();
+
             if ($user && !Hash::check($password, $user->password)) {
                 $user = null;
             }

@@ -113,6 +113,75 @@ class AppQyV1TableMaps
         ]
     ];
 
+    public const app_qy_v1_VOCABULARY_COLLECTIONS = [
+        'tablename' => 'app_qy_v1_vocabulary_collections',
+        'fields' => [
+            'id' => 'id',
+            'collection_name' => 'collection_name',
+            'lang_code' => 'lang_code',
+            'source_type' => 'source_type',
+            'owner_id' => 'owner_id',
+            'is_public' => 'is_public',
+            'description' => 'description',
+            'total_words' => 'total_words',
+            'meta_data' => 'meta_data',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+            'deleted_at' => 'deleted_at'
+        ]
+    ];
+
+    public const app_qy_v1_VOCABULARY_ITEMS = [
+        'tablename' => 'app_qy_v1_vocabulary_items',
+        'fields' => [
+            'id' => 'id',
+            'collection_id' => 'collection_id',
+            'lang_code' => 'lang_code',
+            'word_content' => 'word_content',
+            'word_md5' => 'word_md5',
+            'word_index' => 'word_index',
+            'extra_data' => 'extra_data',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const app_qy_v1_USER_LEARNING_PROGRESS = [
+        'tablename' => 'app_qy_v1_user_learning_progress',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'lang_code' => 'lang_code',
+            'word_md5' => 'word_md5',
+            'word_content' => 'word_content',
+            'learning_status' => 'learning_status',
+            'review_count' => 'review_count',
+            'correct_count' => 'correct_count',
+            'wrong_count' => 'wrong_count',
+            'last_reviewed_at' => 'last_reviewed_at',
+            'next_review_at' => 'next_review_at',
+            'familiarity_level' => 'familiarity_level',
+            'review_history' => 'review_history',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+            'deleted_at' => 'deleted_at'
+        ]
+    ];
+
+    public const app_qy_v1_USER_SELECTED_LIBRARIES = [
+        'tablename' => 'app_qy_v1_user_selected_libraries',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'collection_id' => 'collection_id',
+            'lang_code' => 'lang_code',
+            'is_active' => 'is_active',
+            'selected_at' => 'selected_at',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
     // Global Tables (referenced from app/Providers)
     // Note: Global tables are managed in App\Providers\GlobalTablesMap
     // Use GlobalTablesMap::getTableName('GLOBAL_USERS') and GlobalTablesMap::getFieldName('GLOBAL_USERS', 'field_key')
@@ -200,13 +269,17 @@ class AppQyV1TableMaps
         $keys = [
             'app_qy_v1_DICTIONARIES',
             'app_qy_v1_PERSONAL_DICTIONARIES',
-            'app_qy_v1_WORD_GROUPS'
+            'app_qy_v1_WORD_GROUPS',
+            'app_qy_v1_VOCABULARY_COLLECTIONS',
+            'app_qy_v1_VOCABULARY_ITEMS',
+            'app_qy_v1_USER_LEARNING_PROGRESS',
+            'app_qy_v1_USER_SELECTED_LIBRARIES'
         ];
-        
+
         foreach (self::SUPPORTED_LANGUAGES as $langCode) {
             $keys[] = "app_qy_v1_{$langCode}_DICTIONARIES";
         }
-        
+
         return $keys;
     }
     

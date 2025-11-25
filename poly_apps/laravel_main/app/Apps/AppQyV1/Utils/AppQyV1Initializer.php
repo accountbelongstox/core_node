@@ -318,10 +318,21 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function seedInitialData(): array
     {
         try {
-            return [
-                'status' => 'success',
-                'message' => 'No initial data seeding required',
-            ];
+            $vocabularyImporter = new \App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter();
+            $result = $vocabularyImporter->importAllVocabularies('en');
+
+            if ($result['success']) {
+                return [
+                    'status' => 'success',
+                    'message' => sprintf('Imported %d vocabulary collections', $result['imported']),
+                    'details' => $result['details'],
+                ];
+            } else {
+                return [
+                    'status' => 'warning',
+                    'message' => 'Failed to import vocabularies: ' . ($result['error'] ?? 'Unknown error'),
+                ];
+            }
         } catch (\Exception $e) {
             return [
                 'status' => 'error',

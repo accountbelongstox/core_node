@@ -68,7 +68,7 @@ function Find-CoreNodeProjects {
             if (Test-Path $gitDir) {
                 # Check if not already in list
                 $alreadyFound = @($possibleLocations | Where-Object { $_.Path -eq $loc })
-                if ($alreadyFound.Count -eq 0) {
+                if (-not $alreadyFound -or $alreadyFound.Count -eq 0) {
                     $possibleLocations += @{
                         Path = $loc
                         IsGitRepo = $true
@@ -107,7 +107,7 @@ function Move-CoreNodeProject {
         # Get all items in the directory (files and subdirectories)
         $items = Get-ChildItem -Path $DestPath -Recurse -Force -ErrorAction SilentlyContinue
 
-        if ($items.Count -eq 0) {
+        if (-not $items -or $items.Count -eq 0) {
             # Directory is empty, remove it
             Write-ColorMessage -Message "$SCRIPT_INDEX Destination directory is empty, removing: $DestPath" -Type "Warning"
             Remove-Item -Path $DestPath -Force -Recurse -ErrorAction SilentlyContinue
@@ -176,12 +176,17 @@ function Main-FixProjectLocation {
     # Find all core_node projects
     $projects = @(Find-CoreNodeProjects)
 
-    if ($projects.Count -eq 0) {
+    if (-not $projects -or $projects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No core_node projects found" -Type "Warning"
         Write-ColorMessage -Message "$SCRIPT_INDEX Cloning project to target location..." -Type "Info"
 
-        # Get clone URL
-        $selectedRegion = Get-GlobalVar -key "SELECTED_REGION"
+        # Get clone URL (will use SSH if available, otherwise HTTPS)
+        $hasSSHKey = Test-SSHKeyPairExists
+        if ($hasSSHKey) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX SSH key found, will use SSH clone" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX No SSH key found, will use HTTPS clone" -Type "Info"
+        }
         $cloneUrl = Get-RegionCloneURL
 
         # Ensure parent directory exists
@@ -204,7 +209,7 @@ function Main-FixProjectLocation {
             # Get all items in the directory (files and subdirectories)
             $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
 
-            if ($items.Count -eq 0) {
+            if (-not $items -or $items.Count -eq 0) {
                 # Directory is empty, remove it
                 Write-ColorMessage -Message "$SCRIPT_INDEX Target directory is empty, removing: $TARGET_PROJECT_DIR" -Type "Warning"
                 Remove-Item -Path $TARGET_PROJECT_DIR -Force -Recurse -ErrorAction SilentlyContinue
@@ -224,15 +229,11 @@ function Main-FixProjectLocation {
             $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
             if ($items.Count -gt 0) {
                 Write-ColorMessage -Message "$SCRIPT_INDEX Project cloned successfully to: $TARGET_PROJECT_DIR" -Type "Success"
-
-                # Switch to project directory and re-execute dd.cmd
-                Set-Location $TARGET_PROJECT_DIR
-                $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
-                if (Test-Path $ddCmd) {
-                    Write-ColorMessage -Message "$SCRIPT_INDEX Restarting from project directory..." -Type "Info"
-                    & cmd /c $ddCmd
-                    exit
-                }
+                Write-ColorMessage -Message "$SCRIPT_INDEX Please run dd.cmd from the project directory to continue installation:" -Type "Warning"
+                Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
+                Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
+                Read-Host "Press Enter to exit"
+                exit 0
             } else {
                 Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
             }
@@ -248,14 +249,29 @@ function Main-FixProjectLocation {
 
     if ($correctLocationProject.Count -gt 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX Project already at correct location: $($correctLocationProject[0].Path)" -Type "Success"
-        Write-ColorMessage -Message "$SCRIPT_INDEX No action needed" -Type "Success"
-        return
+
+        # Check if current script is running from within the project directory
+        $currentScriptPath = $PSScriptRoot
+        $normalizedProjectPath = $TARGET_PROJECT_DIR.TrimEnd('\')
+        $normalizedScriptPath = $currentScriptPath.TrimEnd('\')
+
+        $isRunningFromProject = $normalizedScriptPath.StartsWith("$normalizedProjectPath\", [System.StringComparison]::OrdinalIgnoreCase) -or
+                                ($normalizedScriptPath -eq $normalizedProjectPath)
+
+        if ($isRunningFromProject) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Already running from project directory, no need to switch" -Type "Success"
+            return
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Not running from project directory, but project is at correct location" -Type "Info"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Installation will continue from current location" -Type "Info"
+            return
+        }
     }
 
     # Find projects at wrong locations
     $wrongLocationProjects = @($projects | Where-Object { -not (Test-IsCorrectLocation -Path $_.Path) })
 
-    if ($wrongLocationProjects.Count -eq 0) {
+    if (-not $wrongLocationProjects -or $wrongLocationProjects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No projects found at incorrect locations" -Type "Success"
         return
     }
@@ -350,15 +366,11 @@ function Main-FixProjectLocation {
         Write-ColorMessage -Message "$SCRIPT_INDEX   Project location fixed successfully!" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX   New location: $TARGET_PROJECT_DIR" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Success"
-
-        # Switch to project directory and re-execute dd.cmd
-        Set-Location $TARGET_PROJECT_DIR
-        $ddCmd = Join-Path $TARGET_PROJECT_DIR "dd.cmd"
-        if (Test-Path $ddCmd) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Restarting from project directory..." -Type "Info"
-            & cmd /c $ddCmd
-            exit
-        }
+        Write-ColorMessage -Message "$SCRIPT_INDEX Please run dd.cmd from the project directory to continue installation:" -Type "Warning"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
+        Read-Host "Press Enter to exit"
+        exit 0
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Error"
         Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to fix project location" -Type "Error"

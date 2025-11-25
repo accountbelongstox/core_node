@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning App - Demo Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            font-size: 28px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #f5f7fa;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .divider {
+            text-align: center;
+            margin: 30px 0;
+            position: relative;
+        }
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e0e0e0;
+        }
+        .divider span {
+            background: white;
+            padding: 0 15px;
+            position: relative;
+            color: #999;
+            font-size: 14px;
+        }
+        .demo-users {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .demo-users h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .demo-user {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e0e0e0;
+        }
+        .demo-user:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+        .demo-user strong {
+            color: #2c3e50;
+            font-size: 13px;
+        }
+        .demo-user small {
+            color: #999;
+            display: block;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>🌐 Language Learning</h1>
+        <p class="subtitle">Demo Login - Quick Access</p>
+
+        <div id="message-area"></div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+            <button type="button" class="btn btn-secondary" onclick="useDemoToken()">Use Demo Token</button>
+        </form>
+
+        <div class="divider"><span>Quick Demo Users</span></div>
+
+        <div class="demo-users">
+            <h3>Click to auto-fill credentials:</h3>
+            <div class="demo-user" onclick="fillCredentials('demo_user', 'password123')">
+                <strong>🎯 Demo User</strong>
+                <small>Username: demo_user | Password: password123</small>
+            </div>
+            <div class="demo-user" onclick="fillCredentials('test', 'test123')">
+                <strong>🧪 Test User</strong>
+                <small>Username: test | Password: test123</small>
+            </div>
+            <div class="demo-user" onclick="fillCredentials('admin', 'admin123')">
+                <strong>👑 Admin User</strong>
+                <small>Username: admin | Password: admin123</small>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <small style="color: #999;">
+                This is a demo environment. You can also use the demo token directly.
+            </small>
+        </div>
+    </div>
+
+    <script>
+        function showMessage(message, type = 'info') {
+            const messageArea = document.getElementById('message-area');
+            messageArea.innerHTML = `<div class="message ${type}">${message}</div>`;
+            setTimeout(() => {
+                messageArea.innerHTML = '';
+            }, 5000);
+        }
+
+        function fillCredentials(username, password) {
+            document.getElementById('username').value = username;
+            document.getElementById('password').value = password;
+            showMessage(`Credentials filled for: ${username}`, 'info');
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            showMessage('Logging in...', 'info');
+
+            try {
+                const response = await fetch('/api/dict/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success && (data.token || (data.data && data.data.login_token))) {
+                    const token = data.token || data.data.login_token;
+                    localStorage.setItem('auth_token', token);
+                    showMessage('✓ Login successful! Redirecting...', 'success');
+
+                    setTimeout(() => {
+                        window.location.href = '/learning';
+                    }, 1000);
+                } else {
+                    showMessage('❌ Login failed: ' + (data.message || 'Invalid credentials'), 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage('❌ Login failed: Network error. Using demo token instead...', 'error');
+
+                setTimeout(() => {
+                    useDemoToken();
+                }, 2000);
+            }
+        }
+
+        function useDemoToken() {
+            const demoToken = 'demo_token_' + Date.now();
+            localStorage.setItem('auth_token', demoToken);
+
+            showMessage('✓ Demo token set! Redirecting to learning app...', 'success');
+
+            setTimeout(() => {
+                window.location.href = '/learning';
+            }, 1500);
+        }
+
+        window.addEventListener('load', () => {
+            const currentToken = localStorage.getItem('auth_token');
+            if (currentToken) {
+                showMessage(`You already have a token. <a href="/learning" style="color: #667eea; font-weight: 600;">Go to Learning App →</a>`, 'info');
+            }
+        });
+    </script>
+</body>
+</html>

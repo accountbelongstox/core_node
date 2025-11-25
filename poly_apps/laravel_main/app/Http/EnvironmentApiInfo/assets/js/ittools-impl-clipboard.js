@@ -24,21 +24,17 @@
 
     async function fetchNamespace(ns = null) {
         const url = ns ? `/clipboard/namespace?namespace=${encodeURIComponent(ns.toLowerCase())}` : '/clipboard/namespace';
-        const response = await fetch(url);
+        const response = await APIClient.get(url, { includeAuth: false });
         return response.json();
     }
 
     async function fetchData(ns) {
-        const response = await fetch(`/clipboard/data?namespace=${ns}`);
+        const response = await APIClient.get(`/clipboard/data?namespace=${ns}`, { includeAuth: false });
         return response.json();
     }
 
     async function saveText(ns, text) {
-        const response = await fetch('/clipboard/text', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ namespace: ns, text: text })
-        });
+        const response = await APIClient.post('/clipboard/text', { namespace: ns, text: text }, { includeAuth: false });
         return response.json();
     }
 
@@ -48,37 +44,22 @@
         for (let i = 0; i < files.length; i++) {
             formData.append('files[]', files[i]);
         }
-        const response = await fetch('/clipboard/upload', {
-            method: 'POST',
-            body: formData
-        });
+        const response = await APIClient.post('/clipboard/upload', formData, { includeAuth: false });
         return response.json();
     }
 
     async function deleteFile(ns, storedName) {
-        const response = await fetch('/clipboard/delete-file', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ namespace: ns, stored_name: storedName })
-        });
+        const response = await APIClient.post('/clipboard/delete-file', { namespace: ns, stored_name: storedName }, { includeAuth: false });
         return response.json();
     }
 
     async function createNew(ns) {
-        const response = await fetch('/clipboard/new', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ namespace: ns })
-        });
+        const response = await APIClient.post('/clipboard/new', { namespace: ns }, { includeAuth: false });
         return response.json();
     }
 
     async function restoreHistory(ns, index) {
-        const response = await fetch('/clipboard/restore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ namespace: ns, history_index: index })
-        });
+        const response = await APIClient.post('/clipboard/restore', { namespace: ns, history_index: index }, { includeAuth: false });
         return response.json();
     }
 

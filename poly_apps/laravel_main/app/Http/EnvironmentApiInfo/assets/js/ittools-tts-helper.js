@@ -2,7 +2,7 @@ ITTools.TTS = {
     audioCache: {},
     pollingIntervals: {},
     pendingAudio: new Set(),
-    
+
     async generateAudio(text, language, type = 'sentence') {
         const cacheKey = this.getCacheKey(text, language, type);
         
@@ -11,19 +11,12 @@ ITTools.TTS = {
         }
         
         try {
-            const response = await fetch('/tts/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: text,
-                    language: language,
-                    type: type,
-                })
-            });
-            
+            const response = await APIClient.post('/tts/generate', {
+                text: text,
+                language: language,
+                type: type,
+            }, { includeAuth: false });
+
             const result = await response.json();
             
             if (result.success) {
@@ -47,15 +40,8 @@ ITTools.TTS = {
     
     async batchGenerate(items) {
         try {
-            const response = await fetch('/tts/batch-generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({ items: items })
-            });
-            
+            const response = await APIClient.post('/tts/batch-generate', { items: items }, { includeAuth: false });
+
             const data = await response.json();
             
             if (data.success && data.results) {
@@ -111,15 +97,8 @@ ITTools.TTS = {
     
     async checkGeneration(audioPath) {
         try {
-            const response = await fetch('/tts/check', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({ audio_path: audioPath })
-            });
-            
+            const response = await APIClient.post('/tts/check', { audio_path: audioPath }, { includeAuth: false });
+
             const result = await response.json();
             return result;
         } catch (error) {

@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="">
     <title>Laravel API Debug Interface</title>
-    
+
     <!-- NAMESPACE: External CSS Imports -->
     <link rel="stylesheet" href="/debug-assets/css/ittools-layout.css">
     
@@ -511,6 +512,20 @@
                         <span class="menu-tooltip">System Information</span>
                     </a>
                 </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('learning')" data-section="learning">
+                        <span class="menu-icon">📚</span>
+                        <span class="menu-text">Vocabulary Learning</span>
+                        <span class="menu-tooltip">Vocabulary Learning</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('code-browser')" data-section="code-browser">
+                        <span class="menu-icon">💻</span>
+                        <span class="menu-text">Code Browser</span>
+                        <span class="menu-tooltip">Code Browser</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -649,6 +664,9 @@
                                 <button class="ittools-bottom-btn" onclick="ITTools.UI.toggleRightPanel()">
                                     📋 Info Panel
                                 </button>
+                                <div id="dict-stats-container" style="display: inline-flex; gap: 15px; margin-left: 20px; font-size: 12px; color: #666;">
+                                    <span id="dict-stats-loading">Loading dictionary stats...</span>
+                                </div>
                             </div>
                             <div class="ittools-bottom-menu-right">
                                 <span class="ittools-bottom-status">Ready</span>
@@ -672,10 +690,111 @@
                     </div>
                 </div>
 
+                <!-- NAMESPACE: Code Browser Section -->
+                <div id="code-browser-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Code Browser - Core Node Directory</h2>
+                            <p id="code-browser-path-display" style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-family: monospace;"></p>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div id="code-browser-auth-check" style="padding: 25px; text-align: center; display: none;">
+                                <p style="color: #dc3545; font-size: 18px; margin-bottom: 20px;">🔒 Authentication Required</p>
+                                <p style="color: #666; margin-bottom: 20px;">Please login to access the code browser</p>
+                                <button onclick="AuthHelper.showAuthModal()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Login Now</button>
+                            </div>
+                            <div id="code-browser-content" style="display: none;">
+                                <div style="display: flex; height: 70vh; background: #1e1e1e;">
+                                    <!-- File Tree (Left Panel) -->
+                                    <div id="file-tree-panel" style="width: 300px; border-right: 1px solid #333; overflow-y: auto; background: #252526; color: #cccccc;">
+                                        <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
+                                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                                <span style="font-weight: 500; font-size: 13px;">📁 core_node</span>
+                                                <button onclick="CodeBrowser.refreshTree()" style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;" title="Refresh">🔄</button>
+                                            </div>
+                                        </div>
+                                        <div id="file-tree" style="padding: 5px; font-size: 13px;">
+                                            <div style="padding: 20px; text-align: center; color: #888;">Loading...</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Code Editor (Right Panel) -->
+                                    <div style="flex: 1; display: flex; flex-direction: column; background: #1e1e1e;">
+                                        <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30; display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <span id="current-file-path" style="font-size: 13px; color: #cccccc; font-family: monospace;">No file selected</span>
+                                                <span id="file-status" style="margin-left: 15px; font-size: 12px; color: #888;"></span>
+                                            </div>
+                                            <div>
+                                                <button id="save-file-btn" onclick="CodeBrowser.saveFile()" style="background: #0e639c; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-right: 5px; display: none;">💾 Save</button>
+                                                <button onclick="CodeBrowser.closeFile()" style="background: #dc3545; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;" id="close-file-btn" disabled>✕ Close</button>
+                                            </div>
+                                        </div>
+                                        <div id="code-editor-container" style="flex: 1; overflow: hidden;">
+                                            <textarea id="code-editor" style="width: 100%; height: 100%; padding: 15px; background: #1e1e1e; color: #d4d4d4; border: none; outline: none; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; resize: none; tab-size: 4;" placeholder="Select a file to edit..." readonly></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
-    
+
+    <!-- Context Menu for File Tree -->
+    <div id="file-context-menu" style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10000; min-width: 180px; border-radius: 4px; padding: 4px 0;">
+        <div onclick="CodeBrowser.copyRelativePath()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📋 Copy Relative Path
+        </div>
+        <div onclick="CodeBrowser.copyAbsolutePath()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📋 Copy Absolute Path
+        </div>
+        <div onclick="CodeBrowser.renameItem()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-rename">
+            ✏️ Rename
+        </div>
+        <div onclick="CodeBrowser.deleteFile()" style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'" id="menu-delete">
+            🗑️ Delete
+        </div>
+        <div onclick="CodeBrowser.restoreFile()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545; display: none;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-restore">
+            ♻️ Restore
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div id="confirm-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
+        <div style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
+                <h3 id="confirm-title" style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Confirm</h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="confirm-message" style="margin: 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;"></p>
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="CodeBrowser.closeConfirmDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#505050'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="confirm-ok-btn" onclick="CodeBrowser.confirmDialogOk()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Dialog -->
+    <div id="rename-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
+        <div style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Rename</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input id="rename-input" type="text" style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;" placeholder="Enter new name...">
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="CodeBrowser.closeRenameDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#505050'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button onclick="CodeBrowser.executeRename()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'">Rename</button>
+            </div>
+        </div>
+    </div>
+
     <!-- NAMESPACE: Global Dropdown Container (Outside all overflow containers) -->
     <div id="global-dropdown-container" style="position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 99999; pointer-events: none;"></div>
     
@@ -683,7 +802,10 @@
     <div id="global-search-results" class="ittools-search-results" style="pointer-events: auto;"></div>
     
     <!-- NAMESPACE: External JavaScript Imports -->
-    <!-- Core Framework (Load First) -->
+    <!-- API Client Library (Load First - Required by all other modules) -->
+    <script src="/debug-assets/js/api-client.js"></script>
+
+    <!-- Core Framework (Load Second) -->
     <script src="/debug-assets/js/ittools-menu-config.js"></script>
     <script src="/debug-assets/js/ittools-core.js"></script>
     <script src="/debug-assets/js/ittools-menu-universal.js"></script>
@@ -732,7 +854,12 @@
     
     <!-- NAMESPACE: Initialize Dynamic Menu -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize CSRF Token first
+            if (typeof APIClient !== 'undefined') {
+                await APIClient.initCsrfToken();
+            }
+
             const menuContainer = document.getElementById('ittools-dynamic-menu');
             if (menuContainer && typeof ITToolsMenuConfig !== 'undefined') {
                 menuContainer.innerHTML = ITToolsMenuConfig.renderMenu();
@@ -802,8 +929,15 @@
                 document.getElementById('api-testing-section').classList.add('active');
                 document.getElementById('page-title').textContent = 'API Testing Dashboard';
                 document.getElementById('page-description').textContent = 'Test and debug your Laravel API endpoints';
+            } else if (sectionType === 'code-browser') {
+                document.getElementById('code-browser-section').classList.add('active');
+                document.getElementById('page-title').textContent = 'Code Browser';
+                document.getElementById('page-description').textContent = 'Browse and edit Core Node directory files';
+                if (typeof CodeBrowser !== 'undefined') {
+                    CodeBrowser.init();
+                }
             }
-            
+
             // Save active section
             localStorage.setItem('active_section', sectionType);
         }
@@ -2046,6 +2180,67 @@
                 showStatus('Jumped to API #' + (apiIndex + 1), 'success');
             }
         }
+
+        async function loadDictionaryStatistics() {
+            try {
+                const response = await fetch('/api/dict/v1/system/dictionary-statistics');
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    const container = document.getElementById('dict-stats-container');
+                    const data = result.data;
+                    
+                    let html = '<div style="display: flex; gap: 20px; align-items: center;">';
+                    
+                    data.languages.forEach(lang => {
+                        html += `
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                <span style="font-weight: 600; color: #333;">${lang.language}</span>
+                                <span style="color: #666;">Words: ${lang.total_words.toLocaleString()}</span>
+                                <span style="color: #999;">AI Reviewed: ${lang.ai_reviewed.toLocaleString()} (${lang.review_percentage}%)</span>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                        <div style="border-left: 2px solid #ddd; padding-left: 20px; display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-weight: 600; color: #333;">Total</span>
+                            <span style="color: #666;">Words: ${data.summary.total_words.toLocaleString()}</span>
+                            <span style="color: #999;">Reviewed: ${data.summary.total_reviewed.toLocaleString()} (${data.summary.overall_review_percentage}%)</span>
+                        </div>
+                    `;
+                    
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    document.getElementById('dict-stats-loading').textContent = 'Failed to load stats';
+                }
+            } catch (error) {
+                console.error('Failed to load dictionary statistics:', error);
+                document.getElementById('dict-stats-loading').textContent = 'Stats unavailable';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDictionaryStatistics();
+        });
+
+        // NAMESPACE: Load Code Browser and Prompts Manager modules
+    </script>
+
+    <!-- Code Browser Module -->
+    <script src="/debug-assets/js/code-browser.js"></script>
+
+    <!-- Prompts Manager Module -->
+    <script src="/debug-assets/js/prompts-manager.js"></script>
+
+    <script>
+        // Initialize Prompts Manager when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof PromptsManager !== 'undefined') {
+                PromptsManager.init();
+            }
+        });
     </script>
 </body>
 </html>
