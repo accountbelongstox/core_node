@@ -17,7 +17,7 @@
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 . "$PSScriptRoot\..\win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 57
+$STEP_NUMBER = 61
 
 class AndroidPlatformToolsScanner {
     [string]$DriveLetter

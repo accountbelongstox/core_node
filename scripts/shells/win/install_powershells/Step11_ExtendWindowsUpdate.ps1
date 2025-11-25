@@ -15,7 +15,7 @@ $WinCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) "win_common"
 . (Join-Path $WinCommonDir "GlobalVars.ps1")
 . (Join-Path $WinCommonDir "CommonFunc.ps1")
 
-$STEP_NUMBER = 7
+$STEP_NUMBER = 11
 
 function Extend-WindowsUpdatePauseDays {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Extending Windows update pause days to prevent automatic updates..." -Type "Info"

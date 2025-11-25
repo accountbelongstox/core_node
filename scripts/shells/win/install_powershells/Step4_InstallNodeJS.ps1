@@ -24,7 +24,8 @@ $SCRIPT_INDEX = "[Step $STEP_NUMBER]"
 
 # Node.js package definition (extracted from ApplicationsList.ps1)
 # IMPORTANT: Use versioned directory to support upgrades
-$NodeJSVersion = "24.11.1"
+# Version is defined in GlobalVars.ps1 to prevent multiple definitions
+$NodeJSVersion = $Global:NODE_VERSION
 $NodeJSInstallDir = Join-Path $Global:LANG_COMPILER_DIR "node-v$NodeJSVersion"
 
 $NodeJSPackage = @{

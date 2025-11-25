@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Step number for this script
-$STEP_NUMBER = 7
+$STEP_NUMBER = 12
 
 # Import variable management functions
 $parentDir = Split-Path $PSScriptRoot -Parent

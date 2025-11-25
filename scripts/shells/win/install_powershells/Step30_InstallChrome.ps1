@@ -16,7 +16,7 @@
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 26
+$STEP_NUMBER = 30
 
 # Chrome Application ID
 $CHROME_ID = "Google.Chrome"

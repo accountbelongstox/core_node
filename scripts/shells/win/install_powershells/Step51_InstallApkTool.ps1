@@ -16,7 +16,7 @@
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 47
+$STEP_NUMBER = 51
 
 Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Apktool..." -Type "Info"
 

@@ -13,7 +13,7 @@
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
 . "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
-$STEP_NUMBER = 81
+$STEP_NUMBER = 87
 
 function Step81_InstallVisualStudio {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Visual Studio 2022..." -Type "Info"
