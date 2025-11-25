@@ -2,7 +2,7 @@ const AuthHelper = {
     currentUser: null,
     authModalId: 'auth-modal',
     maskedInvitationCode: '',
-    
+
     init() {
         this.loadInvitationCode();
         this.checkAuthStatus();
@@ -11,11 +11,7 @@ const AuthHelper = {
     
     async loadInvitationCode() {
         try {
-            const response = await fetch('/api/app_qy_v1/invitation-code', {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
+            const response = await APIClient.get('/api/app_qy_v1/invitation-code', { includeAuth: false });
 
             if (response.ok) {
                 const data = await response.json();
@@ -35,12 +31,7 @@ const AuthHelper = {
                 return false;
             }
 
-            const response = await fetch('/api/user', {
-                headers: {
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await APIClient.get('/api/user');
 
             if (response.ok) {
                 this.currentUser = await response.json();
@@ -309,14 +300,7 @@ const AuthHelper = {
         errorDiv.style.display = 'none';
 
         try {
-            const response = await fetch('/api/dict/v1/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
+            const response = await APIClient.post('/api/dict/v1/login', { username, password }, { includeAuth: false });
 
             const data = await response.json();
 
@@ -375,20 +359,13 @@ const AuthHelper = {
         }
 
         try {
-            const response = await fetch('/api/dict/v1/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    username,
-                    name,
-                    password,
-                    password_confirmation: passwordConfirm,
-                    invitation_code: invitationCode
-                })
-            });
+            const response = await APIClient.post('/api/dict/v1/register', {
+                username,
+                name,
+                password,
+                password_confirmation: passwordConfirm,
+                invitation_code: invitationCode
+            }, { includeAuth: false });
 
             const data = await response.json();
 
@@ -421,32 +398,40 @@ const AuthHelper = {
     },
     
     async makeAuthenticatedRequest(url, options = {}) {
-        const token = localStorage.getItem('auth_token');
-        const headers = {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            ...options.headers
-        };
+        const method = options.method || 'GET';
+        const body = options.body ? JSON.parse(options.body) : null;
+        const customHeaders = options.headers || {};
 
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        let response;
+        try {
+            if (method === 'GET') {
+                response = await APIClient.get(url, { headers: customHeaders });
+            } else if (method === 'POST') {
+                response = await APIClient.post(url, body, { headers: customHeaders });
+            } else if (method === 'PUT') {
+                response = await APIClient.put(url, body, { headers: customHeaders });
+            } else if (method === 'DELETE') {
+                response = await APIClient.delete(url, { headers: customHeaders });
+            } else if (method === 'PATCH') {
+                response = await APIClient.patch(url, body, { headers: customHeaders });
+            } else {
+                response = await APIClient.request(url, options);
+            }
+
+            if (response.status === 401) {
+                localStorage.removeItem('auth_token');
+                this.currentUser = null;
+                this.showAuthModal();
+                throw new Error('Authentication required');
+            }
+
+            return response;
+        } catch (error) {
+            if (error.message === 'Authentication required') {
+                throw error;
+            }
+            throw error;
         }
-
-        const defaultOptions = {
-            ...options,
-            headers
-        };
-
-        const response = await fetch(url, defaultOptions);
-
-        if (response.status === 401) {
-            localStorage.removeItem('auth_token');
-            this.currentUser = null;
-            this.showAuthModal();
-            throw new Error('Authentication required');
-        }
-
-        return response;
     }
 };
 

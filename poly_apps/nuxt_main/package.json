@@ -1,9 +1,9 @@
 {
   "private": true,
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0",
+    "pnpm": ">=10.0.0"
   },
   "packageManager": "pnpm@10.13.1",
   "scripts": {
@@ -80,6 +80,7 @@
     "@vueuse/core": "^13.5.0",
     "@vueuse/head": "^2.0.0",
     "apexcharts": "^5.2.0",
+    "chokidar": "^4.0.3",
     "easymde": "^2.20.0",
     "file-upload-with-preview": "^6.1.2",
     "fs-extra": "^11.3.2",

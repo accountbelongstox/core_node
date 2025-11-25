@@ -31,11 +31,18 @@ class AppQyV1ExternalStorageManager
 
     public function __construct()
     {
+        $legacyDatabasePath = null;
+        $audioDirectoryPath = null;
+        $imagesDirectoryPath = null;
+
         // External directory structure using global configuration
         $this->externalDataPath = Config::get('AppQyV1.paths.external_data_root');
-        $this->databasesPath = dirname(Config::get('AppQyV1.paths.legacy_database'));
-        $this->audioPath = dirname(Config::get('AppQyV1.paths.audio_directory'));
-        $this->imagesPath = dirname(Config::get('AppQyV1.paths.images_directory'));
+        $legacyDatabasePath = Config::get('AppQyV1.paths.legacy_database');
+        $this->databasesPath = $legacyDatabasePath ? dirname($legacyDatabasePath) : storage_path('app/external_data/databases');
+        $audioDirectoryPath = Config::get('AppQyV1.paths.audio_directory');
+        $this->audioPath = $audioDirectoryPath ? dirname($audioDirectoryPath) : storage_path('app/external_data/audio');
+        $imagesDirectoryPath = Config::get('AppQyV1.paths.images_directory');
+        $this->imagesPath = $imagesDirectoryPath ? dirname($imagesDirectoryPath) : storage_path('app/external_data/images');
         $this->cachePath = Config::get('AppQyV1.paths.cache_directory');
         $this->markersPath = Config::get('AppQyV1.paths.markers_directory');
     }

@@ -42,11 +42,7 @@ ITTools.Implementations.RSAGenerator = {
         ITTools.UI.showLoading('rsa-result', 'Generating RSA key pair (this may take a moment)...');
         
         try {
-            const response = await fetch('/api/ittools/v1/crypto/rsa/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key_size: parseInt(keySize) })
-            });
+            const response = await APIClient.post('/api/ittools/v1/crypto/rsa/generate', { key_size: parseInt(keySize) }, { includeAuth: false });
             const result = await response.json();
             
             if (result.success) {
@@ -118,11 +114,7 @@ ITTools.Implementations.OTPGenerator = {
         ITTools.UI.showLoading('otp-result', 'Generating OTP codes...');
         
         try {
-            const response = await fetch('/api/ittools/v1/crypto/otp/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ length: parseInt(length), count: parseInt(count) })
-            });
+            const response = await APIClient.post('/api/ittools/v1/crypto/otp/generate', { length: parseInt(length), count: parseInt(count) }, { includeAuth: false });
             const result = await response.json();
             
             if (result.success) {

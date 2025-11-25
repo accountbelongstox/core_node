@@ -46,7 +46,6 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step14_DV.ps1',
     'scripts/shells/win/install_powershells/Step15_Install7ipBase.ps1',
     'scripts/shells/win/install_powershells/Step16_InstallApplications.ps1',
-    'scripts/shells/win/install_powershells/Step17_CheckCoreNodeProject.ps1',
     'scripts/shells/win/install_powershells/Step30_InstallChrome.ps1',
     'scripts/shells/win/install_powershells/Step31_InstallPuppeteerPlugins.ps1',
     'scripts/shells/win/install_powershells/Step51_InstallApkTool.ps1',

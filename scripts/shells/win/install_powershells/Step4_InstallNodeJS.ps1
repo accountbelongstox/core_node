@@ -51,7 +51,7 @@ function Remove-OldNodeVersions {
         $_.Name -match '^node(-v[\d\.]+)?$' -and $_.FullName -ne $NodeJSInstallDir
     })
 
-    if ($oldNodeDirs.Count -eq 0) {
+    if (-not $oldNodeDirs -or $oldNodeDirs.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No old Node.js versions found" -Type "Info"
         return
     }

@@ -197,6 +197,47 @@ class InitializeApps extends Command
         
         $this->newLine();
         
+        $this->info('Creating vocabulary library tables...');
+        $vocabResults = \App\Services\AppQyV1VocabularyService::ensureVocabularyTablesExist();
+        foreach ($vocabResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        
+        $this->newLine();
+        
+        $this->info('Importing vocabulary libraries from files...');
+        $importResults = \App\Services\AppQyV1VocabularyService::importVocabularyFromFiles();
+        $this->line("  ✅ Imported: {$importResults['imported']} libraries");
+        $this->line("  ✓ Skipped: {$importResults['skipped']} libraries");
+        if ($importResults['errors'] > 0) {
+            $this->line("  ❌ Errors: {$importResults['errors']}");
+        }
+        
+        foreach ($importResults['libraries'] as $file => $status) {
+            $this->line("    • {$file}: {$status}");
+        }
+        
+        $this->newLine();
+        
+        $this->info('Vocabulary library summary:');
+        try {
+            $connection = 'appqyv1';
+            $libraries = \DB::connection($connection)
+                ->table('app_qy_v1_vocabulary_libraries')
+                ->select('name', 'total_words', 'difficulty_level')
+                ->where('is_public', 1)
+                ->get();
+            
+            foreach ($libraries as $lib) {
+                $this->line("  • {$lib->name}: {$lib->total_words} words ({$lib->difficulty_level})");
+            }
+        } catch (\Exception $e) {
+            $this->line("  <fg=red>Error: {$e->getMessage()}</>");
+        }
+        
+        $this->newLine();
+        
         $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());

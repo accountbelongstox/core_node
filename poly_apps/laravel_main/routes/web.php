@@ -16,6 +16,8 @@ use App\Http\EnvironmentApiInfo\DebugIndex;
 use App\Http\EnvironmentApiInfo\ApiInfoIndex;
 use App\Http\EnvironmentApiInfo\ApiParamsCache;
 use App\Http\EnvironmentApiInfo\ClipboardController;
+use App\Http\EnvironmentApiInfo\CodeBrowserController;
+use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
@@ -55,7 +57,10 @@ Route::get('/debug-assets/css/{file}', function ($file) {
 Route::get('/debug-assets/js/{file}', function ($file) {
     $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/js/' . $file;
     if (file_exists($path)) {
-        return response()->file($path, ['Content-Type' => 'application/javascript']);
+        return response()->file($path, [
+            'Content-Type' => 'application/javascript',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate'
+        ]);
     }
     abort(404);
 });
@@ -101,4 +106,29 @@ Route::prefix('system/init')->group(function () {
     Route::post('/all', [AppInitializationController::class, 'initializeAll']);
     Route::post('/{appName}', [AppInitializationController::class, 'initialize']);
     Route::post('/{appName}/reset', [AppInitializationController::class, 'reset']);
+});
+
+Route::get('/learning', function () {
+    return response()->file(public_path('learning.html'));
+});
+
+Route::get('/learning/demo', function () {
+    return response()->file(public_path('learning-demo.html'));
+});
+
+Route::get('/csrf-token', function () {
+    return response()->json(['csrf_token' => csrf_token()]);
+});
+
+Route::prefix('code-browser')->group(function () {
+    Route::get('/auth-check', [CodeBrowserController::class, 'checkAuth']);
+    Route::get('/file-tree', [CodeBrowserController::class, 'getFileTree']);
+    Route::get('/read-file', [CodeBrowserController::class, 'readFile']);
+    Route::post('/save-file', [CodeBrowserController::class, 'saveFile']);
+    Route::post('/delete-file', [CodeBrowserFileOpsController::class, 'deleteFile']);
+    Route::post('/restore-file', [CodeBrowserFileOpsController::class, 'restoreFile']);
+    Route::post('/rename-item', [CodeBrowserFileOpsController::class, 'renameItem']);
+    Route::get('/prompts', [CodeBrowserFileOpsController::class, 'getPrompts']);
+    Route::post('/prompts/create', [CodeBrowserFileOpsController::class, 'createPrompt']);
+    Route::post('/prompts/translate', [CodeBrowserFileOpsController::class, 'translatePrompt']);
 });

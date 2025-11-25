@@ -72,26 +72,80 @@ Supported Languages (examples):
 """)
 
 
+async def handle_json_input(json_str: str) -> dict:
+    try:
+        input_data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        return {'success': False, 'error': f'Invalid JSON input: {str(e)}'}
+
+    action = input_data.get('action', 'translate_single')
+
+    try:
+        if action == 'translate_single':
+            text = input_data.get('text', '')
+            src = input_data.get('src', 'auto')
+            dest = input_data.get('dest', 'en')
+            use_cache = input_data.get('use_cache', True)
+
+            async with GoogleTranslator() as translator:
+                result = await translator.translate_single(text, src=src, dest=dest, use_cache=use_cache)
+                return result.to_dict()
+
+        elif action == 'translate_batch':
+            texts = input_data.get('texts', [])
+            src = input_data.get('src', 'auto')
+            dest = input_data.get('dest', 'en')
+            use_cache = input_data.get('use_cache', True)
+
+            async with GoogleTranslator() as translator:
+                results = await translator.translate_batch(texts, src=src, dest=dest, use_cache=use_cache)
+                return {'success': True, 'results': [r.to_dict() for r in results]}
+
+        elif action == 'detect_language':
+            text = input_data.get('text', '')
+
+            async with GoogleTranslator() as translator:
+                result = await translator.detect_language(text)
+                return {'success': True, **result}
+
+        elif action == 'clear_cache':
+            src_lang = input_data.get('src_lang')
+            dest_lang = input_data.get('dest_lang')
+            count = clear_cache(src_lang, dest_lang)
+            return {'success': True, 'cleared_count': count}
+
+        else:
+            return {'success': False, 'error': f'Unknown action: {action}'}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e), 'type': type(e).__name__}
+
+
 async def main():
+    if len(sys.argv) >= 2 and sys.argv[1].startswith('{'):
+        result = await handle_json_input(sys.argv[1])
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if result.get('success', True) else 1
+
     parser = argparse.ArgumentParser(
         description='Google Translator - Translate text with caching support',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
+
     parser.add_argument(
         '--text',
         type=str,
         help='Text to translate (can be used multiple times for batch)',
         action='append'
     )
-    
+
     parser.add_argument(
         '--src',
         type=str,
         default='auto',
         help='Source language code (default: auto)'
     )
-    
+
     parser.add_argument(
         '--dest',
         type=str,
@@ -99,37 +153,37 @@ async def main():
         default=['en'],
         help='Destination language code(s) (default: en)'
     )
-    
+
     parser.add_argument(
         '--config',
         type=str,
         help='JSON configuration file path'
     )
-    
+
     parser.add_argument(
         '--output',
         type=str,
         help='Output JSON file path'
     )
-    
+
     parser.add_argument(
         '--no-cache',
         action='store_true',
         help='Disable cache (force fresh translation)'
     )
-    
+
     parser.add_argument(
         '--clear-cache',
         action='store_true',
         help='Clear translation cache'
     )
-    
+
     parser.add_argument(
         '--examples',
         action='store_true',
         help='Show usage examples'
     )
-    
+
     args = parser.parse_args()
     
     if args.examples:

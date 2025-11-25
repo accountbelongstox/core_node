@@ -28,6 +28,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1NginxIns
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SwooleCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1NuxtAppCommand;
 use App\Console\Commands\CheckCertbotCommand;
+use App\Console\Commands\NuxtServiceRefreshCommand;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -66,6 +67,7 @@ class AppServiceProvider extends ServiceProvider
                 ServerManagerV1SwooleCommand::class,
                 ServerManagerV1NuxtAppCommand::class,
                 CheckCertbotCommand::class,
+                NuxtServiceRefreshCommand::class,
             ]);
         }
     }

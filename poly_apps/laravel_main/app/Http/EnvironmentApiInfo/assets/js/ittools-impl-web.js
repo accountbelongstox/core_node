@@ -1,6 +1,6 @@
 // ============================================
 // NAMESPACE: ITTools.Implementations.Web
-// FILE: ittools-impl-web.js  
+// FILE: ittools-impl-web.js
 // PURPOSE: Web tool implementations
 // ============================================
 
@@ -43,11 +43,7 @@ ITTools.Implementations.JWTParser = {
         ITTools.UI.showLoading('jwt-result', 'Parsing JWT...');
         
         try {
-            const response = await fetch('/api/ittools/v1/web/jwt/parse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token })
-            });
+            const response = await APIClient.post('/api/ittools/v1/web/jwt/parse', { token }, { includeAuth: false });
             const result = await response.json();
             
             if (result.success) {
@@ -124,11 +120,7 @@ ITTools.Implementations.UserAgentParser = {
         ITTools.UI.showLoading('ua-result', 'Parsing...');
         
         try {
-            const response = await fetch('/api/ittools/v1/network/user-agent/parse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_agent: userAgent })
-            });
+            const response = await APIClient.post('/api/ittools/v1/network/user-agent/parse', { user_agent: userAgent }, { includeAuth: false });
             const result = await response.json();
             
             if (result.success) {
