@@ -77,9 +77,9 @@ function Remove-OldNodeVersions {
     }
 
     # Find all node directories (both versioned and non-versioned)
-    $oldNodeDirs = Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+    $oldNodeDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -match '^node(-v[\d\.]+)?$' -and $_.FullName -ne $NodeJSInstallDir
-    }
+    })
 
     if ($oldNodeDirs.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No old Node.js versions found" -Type "Info"
