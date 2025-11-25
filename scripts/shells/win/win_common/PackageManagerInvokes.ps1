@@ -1181,8 +1181,8 @@ function Invoke-PipCommand {
             # Display errors (fatal)
             if ($errors.Count -gt 0) {
                 Write-DebugLog -Message "Pip errors ($($errors.Count)):" -Category "PIP" -Color "Red"
-                foreach ($error in $errors) {
-                    Write-DebugLog -Message "  $error" -Category "PIP" -Color "Red"
+                foreach ($err in $errors) {
+                    Write-DebugLog -Message "  $err" -Category "PIP" -Color "Red"
                 }
             }
 

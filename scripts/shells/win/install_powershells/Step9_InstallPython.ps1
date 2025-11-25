@@ -94,10 +94,10 @@ function Remove-OldPythonVersions {
         }
 
         # Ask before deleting directory
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (y/N, timeout 5s, default: N)" -Type "Warning"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (Y/n, timeout 5s, default: Y)" -Type "Warning"
         $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
         $timeout = 5
-        $shouldDelete = $false
+        $shouldDelete = $true
 
         while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
             Start-Sleep -Milliseconds 200
@@ -105,8 +105,8 @@ function Remove-OldPythonVersions {
 
         if ($host.UI.RawUI.KeyAvailable) {
             $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
-            if ($key -eq 'y' -or $key -eq 'Y') {
-                $shouldDelete = $true
+            if ($key -eq 'n' -or $key -eq 'N') {
+                $shouldDelete = $false
             }
         }
 
