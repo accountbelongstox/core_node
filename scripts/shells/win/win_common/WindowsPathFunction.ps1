@@ -768,8 +768,11 @@ function Sync-InlineToGlobal {
     $skipCount = 0
     $errorCount = 0
 
+    $alwaysLinkFiles = @('dd.cmd', 'dd.ps1')
+
     foreach ($script in $inlineScripts) {
         $targetPath = Join-Path $globalWinEnvsDir $script.Name
+        $shouldForceLink = $alwaysLinkFiles -contains $script.Name
 
         try {
             if (Test-Path $targetPath) {
@@ -778,7 +781,7 @@ function Sync-InlineToGlobal {
                 if ($existingItem.LinkType -eq "SymbolicLink") {
                     $existingTarget = $existingItem.Target
                     if ($existingTarget -eq $script.FullName) {
-                        if (-not $Force) {
+                        if (-not $Force -and -not $shouldForceLink) {
                             $skipCount++
                             continue
                         }

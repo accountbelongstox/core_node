@@ -309,6 +309,148 @@ function Ensure-GitContextMenu {
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
 
-# Execute both functions
+# Function to clone core_node project
+function Clone-CoreNodeProject {
+    param(
+        [string]$GitExePath = $Global:GIT_EXE_PATH
+    )
+
+    if (-not (Test-Path $GitExePath)) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Git not installed, skipping project clone..." -Type "Warning"
+        return $false
+    }
+
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking core_node project..." -Type "Info"
+
+    # Define project directory
+    $programingDir = "D:\programing"
+    $projectDir = Join-Path $programingDir "core_node"
+
+    # Check if project already exists
+    if (Test-Path $projectDir) {
+        if (Test-Path (Join-Path $projectDir ".git")) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] core_node project already exists at correct location: $projectDir" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping clone" -Type "Info"
+            return $true
+        } else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Directory exists but is not a git repository: $projectDir" -Type "Warning"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Please manually remove or rename this directory" -Type "Warning"
+            return $false
+        }
+    }
+
+    # Ensure D:\programing directory exists (but NOT D:\programing\core_node)
+    if (-not (Test-Path $programingDir)) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Creating programing directory: $programingDir" -Type "Info"
+        New-Item -ItemType Directory -Path $programingDir -Force | Out-Null
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Created: $programingDir" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Programing directory already exists: $programingDir" -Type "Success"
+    }
+
+    # Determine clone URL based on SSH availability and region
+    $useSSH = $false
+    $cloneUrl = ""
+
+    # Check if SSH keys exist (from Step4_InstallGitSSH or Step5_InstallGitSSH)
+    if (Test-Path $Global:SSH_DIR) {
+        $pubKeys = Get-ChildItem -Path $Global:SSH_DIR -Filter "*.pub" -File -ErrorAction SilentlyContinue
+        foreach ($pub in $pubKeys) {
+            $priv = Join-Path $Global:SSH_DIR ([System.IO.Path]::GetFileNameWithoutExtension($pub.Name))
+            if (Test-Path $priv) {
+                $useSSH = $true
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Found SSH key pair: $($pub.Name)" -Type "Success"
+                break
+            }
+        }
+    }
+
+    # Get selected region
+    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
+    if (-not $selectedRegion) {
+        $selectedRegion = "Global"
+    }
+
+    # Determine clone URL
+    if ($selectedRegion -eq "China") {
+        if ($useSSH) {
+            $cloneUrl = "git@gitee.com:accountbelongstox/core_node.git"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Using Gitee SSH URL (China region)" -Type "Info"
+        } else {
+            $cloneUrl = "https://gitee.com/accountbelongstox/core_node.git"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Using Gitee HTTPS URL (China region)" -Type "Info"
+        }
+    } else {
+        if ($useSSH) {
+            $cloneUrl = "git@github.com:accountbelongstox/core_node.git"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Using GitHub SSH URL (Global region)" -Type "Info"
+        } else {
+            $cloneUrl = "https://github.com/accountbelongstox/core_node.git"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Using GitHub HTTPS URL (Global region)" -Type "Info"
+        }
+    }
+
+    # Ask confirmation before cloning (default: Y)
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Ready to clone core_node project" -Type "Info"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] URL: $cloneUrl" -Type "Info"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Destination: $projectDir" -Type "Info"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Do you want to clone the project? (Y/n, timeout 10s, default: Y)" -Type "Warning"
+
+    $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $timeout = 10
+    $shouldClone = $true  # Default to YES
+
+    while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
+        Start-Sleep -Milliseconds 200
+    }
+
+    if ($host.UI.RawUI.KeyAvailable) {
+        $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
+        if ($key -eq 'n' -or $key -eq 'N') {
+            $shouldClone = $false
+        }
+    }
+
+    $stopWatch.Stop()
+
+    if (-not $shouldClone) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Clone cancelled by user" -Type "Warning"
+        return $false
+    }
+
+    # Clone the project
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Cloning core_node project..." -Type "Warning"
+
+    Push-Location $programingDir
+    try {
+        & $GitExePath clone $cloneUrl "core_node"
+
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $projectDir)) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully cloned core_node project" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Project location: $projectDir" -Type "Success"
+
+            # Ask if user wants to switch to project directory
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Project cloned successfully!" -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] You can now run dd.ps1 from: $projectDir\scripts\shells\win\dd.ps1" -Type "Info"
+
+            return $true
+        } else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to clone project (exit code: $LASTEXITCODE)" -Type "Error"
+            return $false
+        }
+    } catch {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Error cloning project: $($_.Exception.Message)" -Type "Error"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
+# Execute all functions
 Step21_InstallGit
 Ensure-GitContextMenu
+
+# Clone core_node project after Git installation
+Write-ColorMessage -Message "[Step $STEP_NUMBER] =============================================" -Type "Info"
+Clone-CoreNodeProject
+Write-ColorMessage -Message "[Step $STEP_NUMBER] =============================================" -Type "Info"

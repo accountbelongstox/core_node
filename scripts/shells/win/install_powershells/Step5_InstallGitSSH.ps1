@@ -13,7 +13,7 @@
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
 . "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
-$STEP_NUMBER = 18
+$STEP_NUMBER = 5
 
 function Test-SSHKeyPairExists {
     $sshDir = $Global:SSH_DIR

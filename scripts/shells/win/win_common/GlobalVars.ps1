@@ -463,6 +463,7 @@ $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
 $Global:NODE_DIR = "$Global:LANG_COMPILER_DIR\node"
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
+$Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
