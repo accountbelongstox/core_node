@@ -151,8 +151,9 @@ const TOOL_COMPONENT_MAP: Record<string, () => Promise<any>> = {
   password_generator_advanced: () => import('./utility/PasswordGeneratorTool.vue'),
 
   // ================== DATA TOOLS ==================
-  safelink_decoder: () => import('./data/SafelinkDecoderTool.vue'),
-  numeronym_generator: () => import('./data/NumeronymTool.vue'),
+  // Note: Using 'datatools' directory instead of 'data' (which is gitignored)
+  safelink_decoder: () => import('./datatools/SafelinkDecoderTool.vue'),
+  numeronym_generator: () => import('./datatools/NumeronymTool.vue'),
 };
 
 // Alias mappings for Laravel menu IDs to Nuxt tool IDs
