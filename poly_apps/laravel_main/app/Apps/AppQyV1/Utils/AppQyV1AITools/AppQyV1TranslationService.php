@@ -102,6 +102,19 @@ XML,
         $this->geminiClient = new GeminiClient();
     }
     
+    public function translateWithModel(
+        string $text,
+        string $targetLanguage,
+        ?string $model = null,
+        string $provider = 'openrouter',
+        array $options = []
+    ): array {
+        $type = $options['type'] ?? 'general';
+        $useCache = $options['use_cache'] ?? true;
+
+        return $this->translate($text, $targetLanguage, $type, $model, $provider, $useCache);
+    }
+
     public function translate(
         string $text,
         string $targetLanguage,
@@ -111,26 +124,26 @@ XML,
         bool $useCache = true
     ): array {
         $langCode = strtolower($targetLanguage);
-        
+
         if (!isset(self::LANGUAGES[$langCode])) {
             return [
                 'success' => false,
                 'error' => 'Unsupported language: ' . $targetLanguage,
             ];
         }
-        
+
         if ($useCache) {
             $cached = $this->getCachedTranslation($text, $langCode, $type, $provider, $model);
             if ($cached) {
                 return $cached;
             }
         }
-        
+
         $prompt = $this->buildPrompt($text, self::LANGUAGES[$langCode], $type);
-        
+
         try {
             $response = $this->callAIProvider($provider, $model, $prompt);
-            
+
             $result = [
                 'success' => true,
                 'translation' => trim($response),
@@ -141,11 +154,11 @@ XML,
                 'model' => $model,
                 'cached' => false,
             ];
-            
+
             $this->cacheTranslation($text, $langCode, $type, $provider, $model, $result);
-            
+
             return $result;
-            
+
         } catch (\Exception $e) {
             Log::error('[AppQyV1Translation] Error: ' . $e->getMessage());
             return [

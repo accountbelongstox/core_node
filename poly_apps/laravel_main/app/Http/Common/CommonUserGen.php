@@ -27,19 +27,23 @@ class CommonUserGen
     {
         $credentials = [
             'username' => $username,
-            'email' => $email,
+            'email' => !empty($email) ? $email : null,
             'phone' => null,
-            'name' => $name,
+            'name' => !empty($name) ? $name : null,
             'password' => $password,
             'sub_app_data' => [
-                'nickname' => $nickname,
+                'nickname' => !empty($nickname) ? $nickname : null,
                 'credit' => 0,
             ],
         ];
-        
+
         $result = UnifiedAuthService::register($credentials, $subAppConnection);
-        
+
         if (!$result['success']) {
+            \Log::error('[CommonUserGen] User creation failed', [
+                'username' => $username,
+                'error' => $result['error'] ?? 'Unknown error'
+            ]);
             return null;
         }
         

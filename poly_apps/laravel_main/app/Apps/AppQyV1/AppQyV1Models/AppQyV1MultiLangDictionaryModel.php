@@ -155,6 +155,40 @@ class AppQyV1MultiLangDictionaryModel extends Model
         return $results;
     }
 
+    public static function getWordsNeedingTranslation(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::forLanguage($langCode)
+            ->where(function($query) {
+                $query->where('has_translation', false)
+                    ->orWhereNull('translations');
+            })
+            ->orderBy('query_count', 'desc')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function getWordsNeedingTTS(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::forLanguage($langCode)
+            ->where(function($query) {
+                $query->whereJsonLength('tts_files', '=', 0)
+                    ->orWhereNull('tts_files');
+            })
+            ->orderBy('query_count', 'desc')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function updateWord(string $langCode, string $md5, array $data): bool
+    {
+        $word = self::findByMd5($langCode, $md5);
+        if ($word) {
+            $word->update($data);
+            return true;
+        }
+        return false;
+    }
+
     public static function getTopQueried(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
     {
         $queryCountField = AppQyV1TableMaps::getDictionaryFieldName('query_count');
