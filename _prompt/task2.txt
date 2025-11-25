@@ -99,3 +99,21 @@ Press Enter to continue, or any other key to pause (auto-continue in 5 seconds).
 只安装一个最推荐的版本。 
 
 
+/www/programing/core_node/poly_apps/laravel_main# php artisan serve 
+--host=0.0.0.0 --port=9003
+
+   WARN  Unable to respect the `PHP_CLI_SERVER_WORKERS` environment variable 
+without the `--no-reload` flag. Only creating a single server.  
+
+   INFO  Server running on [http://0.0.0.0:9003].  
+
+ 使用这个启动就是正常的，使用octane启动就有了阻塞，显然是你修改octane配置后导致
+的问题，请从以下开始排查 ···
+poly_apps\laravel_main\app\Apps\ServerManagerV1
+  你要使用该功能来重新添加域名刷新服务，而不要直接修改服务的内容。同时，你了解一下
+  ，scripts\shells\linux\debian\install_shells\131_prepare_domain_setup.sh
+  scripts\shells\linux\debian\install_shells\132_setup_domain_ssl.sh
+  scripts\shells\linux\debian\install_shells\133_setup_api_domains.sh
+  是如何调用添加的，之使用10以内的说明说一下本机deploy的规范事项到
+  development-guides\LARAVEL_GUIDE.md
+··· 
