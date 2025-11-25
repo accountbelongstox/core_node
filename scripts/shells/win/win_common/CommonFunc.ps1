@@ -1199,32 +1199,38 @@ function Invoke-WingetCommand {
     if (-not $installationResult) {
     
         Write-Host "       Installing $Id..." -ForegroundColor Cyan
-    
-        $params = "--silent --accept-package-agreements --accept-source-agreements"
+
+        # Build install command with Windows version compatibility
+        $params = "--silent --accept-source-agreements"
+        # Note: --accept-package-agreements is only supported in Windows 11 winget
+        if ($Global:isWin11) {
+            $params += " --accept-package-agreements"
+        }
         if ($InstallDir) {
             $params += " --location `"$InstallDir`""
         }
         $fullCommand = "winget install --id $Id $params"
         
-        $firstCleanOldInstallCommand = "winget uninstall $Id --silent --accept-source-agreements --accept-package-agreements"
+        # Build uninstall command with Windows version compatibility
+        $uninstallArgs = "uninstall $Id --silent --accept-source-agreements"
+        # Note: --accept-package-agreements is only supported in Windows 11 winget
+        # Windows 10 winget will fail with "Argument name was not recognized"
+        if ($Global:isWin11) {
+            $uninstallArgs += " --accept-package-agreements"
+        }
+
+        $firstCleanOldInstallCommand = "winget $uninstallArgs"
         Write-Host "       Running: $firstCleanOldInstallCommand" -ForegroundColor Cyan
-        
+
         # Start timing the uninstall process
         $uninstallStartTime = Get-Date
-        
-        # Add timeout mechanism (30 seconds) to prevent hanging
-        $uninstallJob = Start-Job -ScriptBlock {
-            param($packageId)
-            $process = Start-Process -FilePath "winget" -ArgumentList "uninstall $packageId --silent --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_uninstall_output.log" -RedirectStandardError "winget_uninstall_error.log"
-            return $process.ExitCode
-        } -ArgumentList $Id
-        
-        $uninstallCompleted = Wait-Job $uninstallJob -Timeout 30
-        
-        if ($uninstallCompleted) {
-            $uninstallExitCode = Receive-Job $uninstallJob
-            Remove-Job $uninstallJob -Force
-            
+
+        # Run uninstall with real-time output (no job for immediate feedback)
+        try {
+            $uninstallProcess = Start-Process -FilePath "winget" -ArgumentList $uninstallArgs -Wait -NoNewWindow -PassThru
+            $uninstallExitCode = $uninstallProcess.ExitCode
+            $uninstallCompleted = $true
+
             if ($uninstallExitCode -eq 0) {
                 Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
             }
@@ -1232,23 +1238,10 @@ function Invoke-WingetCommand {
                 Write-Host "       Failed to clean old installation of $Id (exit code: $uninstallExitCode), attempting precise registry cleanup..." -ForegroundColor Yellow
             }
         }
-        else {
-            Write-Host "       Uninstall operation timed out after 30 seconds, stopping job and proceeding..." -ForegroundColor Yellow
-            Stop-Job $uninstallJob -PassThru | Remove-Job -Force
-            
-            # Clean up any stuck winget processes
-            Get-Process | Where-Object { $_.ProcessName -eq "winget" } | Stop-Process -Force -ErrorAction SilentlyContinue
-            
-            # Perform WinGet environment reset to resolve hanging issues
-            Write-Host "       Performing WinGet environment reset due to timeout..." -ForegroundColor Cyan
-            $resetResult = Reset-WinGetEnvironment -PackageId $Id
-            
-            if ($resetResult.Success) {
-                Write-Host "       WinGet environment reset completed successfully" -ForegroundColor Green
-            }
-            else {
-                Write-Host "       WinGet environment reset had issues, proceeding anyway..." -ForegroundColor Yellow
-            }
+        catch {
+            Write-Host "       Uninstall operation failed with error: $($_.Exception.Message)" -ForegroundColor Yellow
+            $uninstallCompleted = $false
+            $uninstallExitCode = -1
         }
         
         if (-not $uninstallCompleted -or $uninstallExitCode -ne 0) {
@@ -1387,9 +1380,10 @@ function Invoke-WingetCommand {
                 }
                 Write-Host "" # New line after countdown
             }
-            
-            $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_install_output.log" -RedirectStandardError "winget_install_error.log"
-            
+
+            # Run installation with real-time output
+            $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru
+
             if ($process.ExitCode -eq 0) {
                 Write-Host "       Successfully installed $Id" -ForegroundColor Green
                 $installationResult = $true
@@ -1398,18 +1392,19 @@ function Invoke-WingetCommand {
                 break
             }
             else {
-                # Check for specific error types and apply appropriate fixes
-                $errorOutput = if (Test-Path "winget_install_error.log") { Get-Content "winget_install_error.log" -Raw } else { "" }
-                $isNetworkError = $errorOutput -match "0x80072ee2|InternetOpenUrl|network|connection|timeout|download"
-                $isInstallerError = $errorOutput -match "1722|1603|temporary directory|Windows Installer|msi|installer"
-                
+                Write-Host "       Installation attempt $retryAttempt failed with exit code: $($process.ExitCode)" -ForegroundColor Yellow
+                Write-Host "       Please check the output above for error details" -ForegroundColor Cyan
+
+                # Detect common error codes and apply fixes
+                $isInstallerError = ($process.ExitCode -eq 1722 -or $process.ExitCode -eq 1603)
+
                 if ($isInstallerError -and $retryAttempt -eq 1) {
-                    Write-Host "       Windows Installer error detected (attempt $retryAttempt): $($process.ExitCode)" -ForegroundColor Yellow
+                    Write-Host "       Windows Installer error detected (exit code: $($process.ExitCode))" -ForegroundColor Yellow
                     Write-Host "       Attempting installer permission repair..." -ForegroundColor Cyan
-                    
+
                     # Call permission repair function
                     $repairResult = Repair-InstallerPermissions -PackageId $Id -ForceRepair $false
-                    
+
                     if ($repairResult.Success) {
                         Write-Host "       Permission repair completed, retrying installation..." -ForegroundColor Green
                         continue
@@ -1423,30 +1418,20 @@ function Invoke-WingetCommand {
                         }
                     }
                 }
-                elseif ($isNetworkError) {
-                    Write-Host "       Network error detected (attempt $retryAttempt): $($process.ExitCode)" -ForegroundColor Yellow
-                    if ($retryAttempt -lt $maxRetries) {
-                        Write-Host "       Will retry installation due to network issue..." -ForegroundColor Cyan
-                        continue
-                    }
-                    else {
-                        Write-Host "       Max retries reached for network issues. Installation failed." -ForegroundColor Red
-                    }
+
+                # General retry logic
+                if ($retryAttempt -lt $maxRetries) {
+                    Write-Host "       Will retry installation (attempt $($retryAttempt + 1) of $maxRetries)..." -ForegroundColor Cyan
+                    continue
                 }
                 else {
-                    Write-Host "       Installation failed with exit code: $($process.ExitCode)" -ForegroundColor Red
-                    if ($retryAttempt -lt $maxRetries) {
-                        Write-Host "       Will retry installation..." -ForegroundColor Cyan
-                        continue
-                    }
+                    Write-Host "       Max retries reached. Installation failed." -ForegroundColor Red
                 }
             }
         }
-        
-        # Move log files to temporary directory
-        Move-Item $script:WINGET_OUTPUT_LOG $script:WINGET_OUTPUT_LOG_TEMP -Force -ErrorAction SilentlyContinue
-        Move-Item $script:WINGET_ERROR_LOG $script:WINGET_ERROR_LOG_TEMP -Force -ErrorAction SilentlyContinue
-        
+
+        # Note: Log files are no longer created due to real-time output mode
+
         if (-not $installationSuccess) {
             # Handle retry logic only if AllowTryInstall is true
             if ($AllowTryInstall) {
@@ -1939,9 +1924,13 @@ function Reset-WinGetEnvironment {
             
             try {
                 $packageTestJob = Start-Job -ScriptBlock {
-                    param($pkgId)
-                    winget search $pkgId --accept-source-agreements --accept-package-agreements
-                } -ArgumentList $PackageId
+                    param($pkgId, $isWin11)
+                    $searchArgs = "search $pkgId --accept-source-agreements"
+                    if ($isWin11) {
+                        $searchArgs += " --accept-package-agreements"
+                    }
+                    Invoke-Expression "winget $searchArgs"
+                } -ArgumentList $PackageId, $Global:isWin11
                 
                 $packageTestCompleted = Wait-Job $packageTestJob -Timeout 20
                 if ($packageTestCompleted) {

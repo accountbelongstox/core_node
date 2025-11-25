@@ -17,12 +17,80 @@ from pyapps.okx_price_monitor.lib import (
     Mode1PriceMonitor,
     Mode2Trader,
     TradingTimingAnalyzer,
-    ContinuousMonitor
+    ContinuousMonitor,
+    CoinDataManager
 )
 from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
 
 requests = None
 continuous_monitor_instance = None
+
+
+def check_rpc_server_availability():
+    """
+    Check if RPC server is available
+
+    Returns:
+        bool: True if server is available, False otherwise
+    """
+    global requests
+    if requests is None:
+        requests = get_third_package_requests()
+
+    health_check_url = f"{config.RPC_BASE_URL}/health"
+
+    try:
+        response = requests.get(health_check_url, timeout=2)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def wait_for_rpc_server(max_retries=None, retry_interval=5):
+    """
+    Wait for RPC server to become available
+
+    Args:
+        max_retries (int): Maximum number of retries (None = infinite)
+        retry_interval (int): Seconds to wait between retries
+
+    Returns:
+        bool: True if server became available, False if max retries reached
+    """
+    global requests
+    if requests is None:
+        requests = get_third_package_requests()
+
+    ColorPrint.red("\n" + "=" * 80)
+    ColorPrint.red("RPC SERVER NOT AVAILABLE")
+    ColorPrint.red("=" * 80)
+    ColorPrint.yellow(f"  Target: {config.RPC_BASE_URL}")
+    ColorPrint.yellow(f"  The RPC server is not running or not accessible")
+    ColorPrint.yellow(f"  Waiting for server to become available...")
+    ColorPrint.yellow(f"  Retry interval: {retry_interval} seconds")
+    if max_retries:
+        ColorPrint.yellow(f"  Max retries: {max_retries}")
+    else:
+        ColorPrint.yellow(f"  Will retry indefinitely (Ctrl+C to stop)")
+    ColorPrint.red("=" * 80)
+
+    retry_count = 0
+    while True:
+        retry_count += 1
+
+        if max_retries and retry_count > max_retries:
+            ColorPrint.red(f"\n[Error] Max retries ({max_retries}) reached")
+            return False
+
+        ColorPrint.blue(f"\n[Retry #{retry_count}] Checking RPC server availability...")
+
+        if check_rpc_server_availability():
+            ColorPrint.green(f"\n[Success] RPC server is now available!")
+            ColorPrint.green("=" * 80)
+            return True
+
+        ColorPrint.yellow(f"  Server still not available. Waiting {retry_interval} seconds...")
+        time.sleep(retry_interval)
 
 
 def call_rpc_browser_open(url):
@@ -33,7 +101,7 @@ def call_rpc_browser_open(url):
         url (str): URL to open
 
     Returns:
-        dict: Response with pageId
+        dict: Response with pageId, or None if connection failed
     """
     global requests
     if requests is None:
@@ -50,11 +118,26 @@ def call_rpc_browser_open(url):
         'htmlContent': False
     }
 
-    response = requests.post(rpc_url, json=payload, timeout=30)
-    response.raise_for_status()
+    try:
+        response = requests.post(rpc_url, json=payload, timeout=30)
+        response.raise_for_status()
 
-    result = response.json()
-    return parse_rpc_response(result)
+        result = response.json()
+        return parse_rpc_response(result)
+    except Exception as e:
+        ColorPrint.red(f"\n[Error] Failed to call RPC browser/openUrl: {str(e)}")
+        ColorPrint.yellow(f"  URL: {rpc_url}")
+        ColorPrint.yellow(f"  Target Page: {url}")
+
+        if "Connection" in str(e) or "refused" in str(e):
+            ColorPrint.red("\n[Critical] RPC server connection lost!")
+            if not wait_for_rpc_server():
+                ColorPrint.red("[Fatal] Could not reconnect to RPC server")
+                sys.exit(1)
+            ColorPrint.green("[Recovery] Retrying RPC call...")
+            return call_rpc_browser_open(url)
+        else:
+            raise
 
 
 def signal_handler(sig, frame):
@@ -83,6 +166,16 @@ def start():
     ColorPrint.green("=" * 80)
     ColorPrint.green("OKX PRICE MONITOR - INTERCEPTED URL MODE")
     ColorPrint.green("=" * 80)
+
+    # Check RPC server availability before starting
+    ColorPrint.blue("\n[Pre-check] Verifying RPC server availability...")
+    if not check_rpc_server_availability():
+        ColorPrint.yellow("[Pre-check] RPC server is not available")
+        if not wait_for_rpc_server():
+            ColorPrint.red("\n[Fatal] Cannot start without RPC server")
+            ColorPrint.red("Please start the RPC server and try again")
+            sys.exit(1)
+    ColorPrint.green("[Pre-check] RPC server is available")
 
     # Print configuration
     config.print_config()
@@ -165,6 +258,23 @@ def start():
     ColorPrint.green(f"[Step 3] Fetched {len(coin_names)} coins")
     ColorPrint.blue(f"  Sample coins: {', '.join(coin_names[:20])}...")
 
+    # Initialize database system
+    ColorPrint.blue("\n[Step 3.5] Initializing database system...")
+    coin_data_manager = CoinDataManager(
+        database_name=config.DATABASE_NAME,
+        history_hours=config.HISTORY_HOURS
+    )
+
+    if coin_data_manager.initialize(coin_names):
+        ColorPrint.green("[Step 3.5] Database system initialized successfully")
+
+        ColorPrint.blue(f"[Step 3.6] Loading {config.HISTORY_HOURS}h history from database...")
+        coin_data_manager.load_history_for_all()
+        coin_data_manager.print_statistics()
+    else:
+        ColorPrint.yellow("[Step 3.5] Database system initialization skipped")
+        coin_data_manager = None
+
     ColorPrint.blue("\n[Step 4] Initializing Mode 1: Price Monitor...")
     mode1 = Mode1PriceMonitor(coin_provider, rpc_base_url=config.RPC_BASE_URL)
 
@@ -198,6 +308,7 @@ def start():
     ColorPrint.blue("\n[Step 8] Starting Continuous Monitor...")
     continuous_monitor_instance = ContinuousMonitor(
         mode1_monitor=mode1,
+        coin_data_manager=coin_data_manager,
         fetch_interval=config.FETCH_INTERVAL_MS,
         max_history=config.MAX_HISTORY,
         save_to_file=config.SAVE_TO_FILE,

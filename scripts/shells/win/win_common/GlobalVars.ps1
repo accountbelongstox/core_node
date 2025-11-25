@@ -460,17 +460,24 @@ $Global:GIT_DEFAULT_USER = "DevOps User"
 $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
 
 # Node.js related global variables
-$Global:NODE_DIR = "$Global:LANG_COMPILER_DIR\node"
+$Global:NODE_VERSION = "24.11.1"
+$Global:NODE_DIR = Join-Path $Global:LANG_COMPILER_DIR "node-v$Global:NODE_VERSION"
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
+$Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
 # Python related global variables
-$Global:PYTHON_DIR = "$Global:LANG_COMPILER_DIR\python313"
+$Global:PYTHON_VERSION = "3.13"
+$Global:PYTHON_VERSION_COMPACT = "313"
+$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR "python$Global:PYTHON_VERSION_COMPACT"
 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
 $Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
-$Global:PYTHON_WINGET_ID = "Python.Python.3.13"
+$Global:UV_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\uv.exe"
+$Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pipx.exe"
+$Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\poetry.exe"
+$Global:PYTHON_WINGET_ID = "Python.Python.$Global:PYTHON_VERSION"
 
 # Repository Configuration - Auto-switch based on region
 $Global:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"
@@ -479,6 +486,8 @@ $Global:GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/accountbelongst
 # Git Clone URLs for project setup
 $Global:GITEE_CLONE_URL = "https://gitee.com/accountbelongstox/core_node.git"
 $Global:GITHUB_CLONE_URL = "https://github.com/accountbelongstox/core_node.git"
+$Global:GITEE_SSH_CLONE_URL = "git@gitee.com:accountbelongstox/core_node.git"
+$Global:GITHUB_SSH_CLONE_URL = "git@github.com:accountbelongstox/core_node.git"
 
 # Function to get appropriate download base URL based on region
 function Get-RegionBaseURL {
@@ -509,13 +518,46 @@ function Get-RegionURL {
     }
 }
 
-# Function to get region-specific Git clone URL
+# Function to check if SSH key pair exists
+function Test-SSHKeyPairExists {
+    $sshDir = $Global:SSH_DIR
+    if (-not (Test-Path $sshDir)) {
+        return $false
+    }
+
+    $pubKeys = Get-ChildItem -Path $sshDir -Filter "*.pub" -File -ErrorAction SilentlyContinue
+    foreach ($pub in $pubKeys) {
+        $priv = Join-Path $sshDir ([System.IO.Path]::GetFileNameWithoutExtension($pub.Name))
+        if (Test-Path $priv) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# Function to get region-specific Git clone URL (with SSH support)
 function Get-RegionCloneURL {
-    $selectedRegion = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "China"
-    if ($selectedRegion -eq "China") {
-        return $Global:GITEE_CLONE_URL
+    param(
+        [switch]$PreferSSH = $true
+    )
+
+    $selectedRegion = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "Global"
+    $hasSSHKey = Test-SSHKeyPairExists
+
+    # If PreferSSH is enabled and SSH key exists, use SSH URL
+    if ($PreferSSH -and $hasSSHKey) {
+        if ($selectedRegion -eq "China") {
+            return $Global:GITEE_SSH_CLONE_URL
+        } else {
+            return $Global:GITHUB_SSH_CLONE_URL
+        }
     } else {
-        return $Global:GITHUB_CLONE_URL
+        # Otherwise use HTTPS URL
+        if ($selectedRegion -eq "China") {
+            return $Global:GITEE_CLONE_URL
+        } else {
+            return $Global:GITHUB_CLONE_URL
+        }
     }
 }
 

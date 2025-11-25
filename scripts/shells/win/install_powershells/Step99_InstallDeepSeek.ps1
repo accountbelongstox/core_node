@@ -36,7 +36,7 @@ $deepSeekManagerPath = Join-Path $shellsWinRoot "ai_scripts\DeepSeekManager.ps1"
 . $deepSeekManagerPath
 
 $SCRIPT_INDEX = "[Step95]"
-$STEP_NUMBER = 95
+$STEP_NUMBER = 99
 
 Write-Host "$SCRIPT_INDEX Install DeepSeek-VL Local Translation Model" -ForegroundColor Cyan
 
@@ -48,19 +48,14 @@ Write-Host "$SCRIPT_INDEX Install DeepSeek-VL Local Translation Model" -Foregrou
     Boolean - True if Git is available
 #>
 function Test-GitAvailable {
-    try {
-        $gitVersion = git --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "$SCRIPT_INDEX Git is available: $gitVersion" -ForegroundColor Green
-            return $true
-        }
-    }
-    catch {
-        Write-Host "$SCRIPT_INDEX Git not found" -ForegroundColor Red
+    $gitExePath = $Global:GIT_EXE_PATH
+    if (Test-Path $gitExePath) {
+        & $gitExePath --version
+        return $true
+    } else {
+        Write-Host "$SCRIPT_INDEX Git not found at $gitExePath" -ForegroundColor Red
         return $false
     }
-
-    return $false
 }
 
 <#
@@ -150,7 +145,8 @@ function Install-DeepSeekRepository {
     }
 
     try {
-        git clone $repoUrl $TargetDirectory
+        $gitExePath = $Global:GIT_EXE_PATH
+        & $gitExePath clone $repoUrl $TargetDirectory
 
         $gitDir = Join-Path $TargetDirectory ".git"
         if (Test-Path $gitDir) {
