@@ -189,11 +189,34 @@ function Main-FixProjectLocation {
             return
         }
 
+        # Check if target directory already exists
+        if (Test-Path $TARGET_PROJECT_DIR) {
+            # Get all items in the directory (files and subdirectories)
+            $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
+
+            if ($items.Count -eq 0) {
+                # Directory is empty, remove it
+                Write-ColorMessage -Message "$SCRIPT_INDEX Target directory is empty, removing: $TARGET_PROJECT_DIR" -Type "Warning"
+                Remove-Item -Path $TARGET_PROJECT_DIR -Force -Recurse -ErrorAction SilentlyContinue
+            } else {
+                # Directory contains files
+                Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Target directory exists and contains files: $TARGET_PROJECT_DIR" -Type "Error"
+                Write-ColorMessage -Message "$SCRIPT_INDEX Please manually remove this directory before cloning" -Type "Error"
+                return
+            }
+        }
+
+        # Execute git clone directly without capturing output or exit code
         Start-Process -FilePath $gitExePath -ArgumentList "clone", $cloneUrl -Wait -NoNewWindow
 
-        # Verify clone
+        # Verify clone by checking if directory contains files
         if (Test-Path $TARGET_PROJECT_DIR) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Project cloned successfully to: $TARGET_PROJECT_DIR" -Type "Success"
+            $items = Get-ChildItem -Path $TARGET_PROJECT_DIR -Recurse -Force -ErrorAction SilentlyContinue
+            if ($items.Count -gt 0) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX Project cloned successfully to: $TARGET_PROJECT_DIR" -Type "Success"
+            } else {
+                Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
+            }
         } else {
             Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
         }
