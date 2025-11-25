@@ -1324,21 +1324,7 @@ if (-not $SkipInitialization) {
     Store-GlobalPaths
     Make-PsExecutable
     # PROJECT_DIR is already added to PATH by Set-ProjectEnvironmentVariables
-    # No need to create symlink at C:\Program Files\dd.ps1
-
-    # Sync scripts from inline winenvs to global .winenvs
-    $inlineWinenvsDir = Join-Path $Global:PROJECT_DIR "scripts\winenvs"
-    if (Test-Path $inlineWinenvsDir) {
-        Write-ColorMessage -Message "Synchronizing inline scripts to global winenvs..." -Type "Info"
-        try {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File "$script:PS_CURENT_DIR\win_common\WindowsPathFunction.ps1" "sync"
-            Write-ColorMessage -Message "Script synchronization completed" -Type "Success"
-        } catch {
-            Write-ColorMessage -Message "Failed to synchronize scripts: $($_.Exception.Message)" -Type "Warning"
-        }
-    } else {
-        Write-ColorMessage -Message "Skipping script synchronization (inline winenvs not found, project may not be cloned yet)" -Type "Info"
-    }
+    # This allows running dd.cmd from anywhere without creating symlinks or syncing scripts
 
     # Check and ensure desktop shortcut exists
     $shortcutCheckScript = Join-Path $Global:CORE_NODE_DIR "pycore\pyutils\launcher\shortcut_check.ps1"
