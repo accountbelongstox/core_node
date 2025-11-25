@@ -23,19 +23,23 @@ $STEP_NUMBER = 4
 $SCRIPT_INDEX = "[Step $STEP_NUMBER]"
 
 # Node.js package definition (extracted from ApplicationsList.ps1)
+# IMPORTANT: Use versioned directory to support upgrades
+$NodeJSVersion = "24.11.1"
+$NodeJSInstallDir = Join-Path $Global:LANG_COMPILER_DIR "node-v$NodeJSVersion"
+
 $NodeJSPackage = @{
-    Version                        = "24.11.1"
-    PackageId                      = "node-v24.11.1-win-x64"
+    Version                        = $NodeJSVersion
+    PackageId                      = "node-v$NodeJSVersion-win-x64"
     Exec                           = "node.exe"
     Name                           = "node"
-    Description                    = "Node.js 24.11.1 - JavaScript Runtime"
+    Description                    = "Node.js $NodeJSVersion - JavaScript Runtime"
     InstallType                    = "web"
     ForceToInstallDir              = $true
     VerifySuffix                   = "--version"
-    URL                            = "https://nodejs.org/dist/v24.11.1/node-v24.11.1-win-x64.zip"
+    URL                            = "https://nodejs.org/dist/v$NodeJSVersion/node-v$NodeJSVersion-win-x64.zip"
     ArchiveType                    = "zip"
-    ArchiveRootFolder              = "node-v24.11.1-win-x64"
-    AppCustomInstallDir            = $Global:NODE_DIR
+    ArchiveRootFolder              = "node-v$NodeJSVersion-win-x64"
+    AppCustomInstallDir            = $NodeJSInstallDir
     EnvVars                        = @(
         @{
             Type    = @("Path")
@@ -52,34 +56,122 @@ $NodeJSPackage = @{
     )
 }
 
-function Install-NodeJS {
-    Write-ColorMessage -Message "$SCRIPT_INDEX Installing Node.js..." -Type "Info"
+# Define paths using versioned directory
+$NodeExePath = Join-Path $NodeJSInstallDir "node.exe"
+$NpmExePath = Join-Path $NodeJSInstallDir "npm.cmd"
+$PnpmExePath = Join-Path $NodeJSInstallDir "pnpm.cmd"
+$YarnExePath = Join-Path $NodeJSInstallDir "yarn.cmd"
 
-    # Check if already installed
-    if (Test-Path $Global:NODE_EXE_PATH) {
-        $existingVersion = & $Global:NODE_EXE_PATH --version 2>&1
+# Get WindowsPathFunction.ps1 path for PATH management
+$windowsPathFunctionPath = Join-Path $winCommonDir "WindowsPathFunction.ps1"
+
+function Remove-OldNodeVersions {
+    Write-ColorMessage -Message "$SCRIPT_INDEX Checking for old Node.js versions..." -Type "Info"
+
+    # Scan for old Node.js installations
+    $langCompilerDir = $Global:LANG_COMPILER_DIR
+    if (-not (Test-Path $langCompilerDir)) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX No previous installations found" -Type "Info"
+        return
+    }
+
+    # Find all node directories (both versioned and non-versioned)
+    $oldNodeDirs = Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^node(-v[\d\.]+)?$' -and $_.FullName -ne $NodeJSInstallDir
+    }
+
+    if ($oldNodeDirs.Count -eq 0) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX No old Node.js versions found" -Type "Info"
+        return
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX Found $($oldNodeDirs.Count) old Node.js installation(s):" -Type "Warning"
+    foreach ($oldDir in $oldNodeDirs) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX   - $($oldDir.FullName)" -Type "Warning"
+
+        # Remove from PATH using WindowsPathFunction.ps1
+        Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from PATH..." -Type "Info"
+        & $windowsPathFunctionPath "remove" $oldDir.FullName
+
+        # Ask before deleting directory
+        Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (y/N, timeout 5s, default: N)" -Type "Warning"
+        $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $timeout = 5
+        $shouldDelete = $false
+
+        while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
+            Start-Sleep -Milliseconds 200
+        }
+
+        if ($host.UI.RawUI.KeyAvailable) {
+            $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
+            if ($key -eq 'y' -or $key -eq 'Y') {
+                $shouldDelete = $true
+            }
+        }
+
+        $stopWatch.Stop()
+
+        if ($shouldDelete) {
+            try {
+                Remove-Item -Path $oldDir.FullName -Recurse -Force -ErrorAction Stop
+                Write-ColorMessage -Message "$SCRIPT_INDEX   Deleted: $($oldDir.FullName)" -Type "Success"
+            } catch {
+                Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to delete: $($_.Exception.Message)" -Type "Error"
+            }
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX   Kept old installation (removed from PATH only)" -Type "Info"
+        }
+    }
+
+    # Refresh PATH
+    Write-ColorMessage -Message "$SCRIPT_INDEX Refreshing environment variables..." -Type "Info"
+    & $windowsPathFunctionPath "refresh-bat"
+}
+
+function Install-NodeJS {
+    Write-ColorMessage -Message "$SCRIPT_INDEX Installing Node.js v$NodeJSVersion..." -Type "Info"
+
+    # Remove old versions first
+    Remove-OldNodeVersions
+
+    # Check if current version already installed
+    if (Test-Path $NodeExePath) {
+        $existingVersion = & $NodeExePath --version 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX Node.js already installed: $existingVersion" -Type "Success"
-            Write-ColorMessage -Message "$SCRIPT_INDEX Path: $($Global:NODE_EXE_PATH)" -Type "Info"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Path: $NodeExePath" -Type "Info"
 
-            # Still run post-install to ensure pnpm/yarn are installed
-            $postInstallSuccess = Invoke-PostInstallCallbacks -Callbacks $NodeJSPackage.PostInstallCallbacks -ExecutablePath $Global:NODE_EXE_PATH -InstallDir $Global:NODE_DIR -PackageName $NodeJSPackage.Name
+            # Ensure it's in PATH
+            Write-ColorMessage -Message "$SCRIPT_INDEX Adding Node.js to PATH..." -Type "Info"
+            & $windowsPathFunctionPath "add" $NodeJSInstallDir
+
+            # Run post-install to ensure pnpm/yarn are installed
+            try {
+                $postInstallSuccess = Invoke-PostInstallCallbacks -Callbacks $NodeJSPackage.PostInstallCallbacks -ExecutablePath $NodeExePath -InstallDir $NodeJSInstallDir -PackageName $NodeJSPackage.Name
+                if (-not $postInstallSuccess) {
+                    Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Post-installation had issues" -Type "Warning"
+                }
+            } catch {
+                Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Post-installation failed: $($_.Exception.Message)" -Type "Warning"
+            }
+
             return $true
         }
     }
 
     # Ensure installation directory exists
-    if (-not (Test-Path $Global:NODE_DIR)) {
-        New-Item -ItemType Directory -Path $Global:NODE_DIR -Force | Out-Null
-        Write-ColorMessage -Message "$SCRIPT_INDEX Created Node.js installation directory: $($Global:NODE_DIR)" -Type "Info"
+    if (-not (Test-Path $NodeJSInstallDir)) {
+        New-Item -ItemType Directory -Path $NodeJSInstallDir -Force | Out-Null
+        Write-ColorMessage -Message "$SCRIPT_INDEX Created Node.js installation directory: $NodeJSInstallDir" -Type "Info"
     }
 
     # Download and install Node.js
-    Write-ColorMessage -Message "$SCRIPT_INDEX Downloading Node.js v$($NodeJSPackage.Version)..." -Type "Warning"
+    Write-ColorMessage -Message "$SCRIPT_INDEX Downloading Node.js v$NodeJSVersion..." -Type "Warning"
     Write-ColorMessage -Message "$SCRIPT_INDEX URL: $($NodeJSPackage.URL)" -Type "Info"
 
-    $tempZip = Join-Path $env:TEMP "node-v$($NodeJSPackage.Version)-win-x64.zip"
-    $tempExtract = Join-Path $env:TEMP "node-v$($NodeJSPackage.Version)-extract"
+    $tempZip = Join-Path $env:TEMP "node-v$NodeJSVersion-win-x64.zip"
+    $tempExtract = Join-Path $env:TEMP "node-v$NodeJSVersion-extract"
 
     try {
         # Download
@@ -96,11 +188,11 @@ function Install-NodeJS {
         # Move files to installation directory
         $extractedFolder = Join-Path $tempExtract $NodeJSPackage.ArchiveRootFolder
         if (Test-Path $extractedFolder) {
-            Write-ColorMessage -Message "$SCRIPT_INDEX Moving files to: $($Global:NODE_DIR)" -Type "Info"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Moving files to: $NodeJSInstallDir" -Type "Info"
 
             # Copy all files
             Get-ChildItem -Path $extractedFolder -Recurse | ForEach-Object {
-                $targetPath = Join-Path $Global:NODE_DIR $_.FullName.Substring($extractedFolder.Length)
+                $targetPath = Join-Path $NodeJSInstallDir $_.FullName.Substring($extractedFolder.Length)
                 if ($_.PSIsContainer) {
                     if (-not (Test-Path $targetPath)) {
                         New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
@@ -121,23 +213,27 @@ function Install-NodeJS {
         Remove-Item -Path $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
 
         # Verify installation
-        if (Test-Path $Global:NODE_EXE_PATH) {
-            $installedVersion = & $Global:NODE_EXE_PATH --version 2>&1
+        if (Test-Path $NodeExePath) {
+            $installedVersion = & $NodeExePath --version 2>&1
             if ($LASTEXITCODE -eq 0) {
                 Write-ColorMessage -Message "$SCRIPT_INDEX Node.js installed successfully: $installedVersion" -Type "Success"
-                Write-ColorMessage -Message "$SCRIPT_INDEX Path: $($Global:NODE_EXE_PATH)" -Type "Info"
+                Write-ColorMessage -Message "$SCRIPT_INDEX Path: $NodeExePath" -Type "Info"
 
-                # Add to PATH
+                # Add to PATH using WindowsPathFunction.ps1
                 Write-ColorMessage -Message "$SCRIPT_INDEX Adding Node.js to PATH..." -Type "Info"
-                Add-PathEntry -PathToAdd $Global:NODE_DIR -Scope "Machine"
+                & $windowsPathFunctionPath "add" $NodeJSInstallDir
 
                 # Run post-install callbacks (install pnpm and yarn)
-                $postInstallSuccess = Invoke-PostInstallCallbacks -Callbacks $NodeJSPackage.PostInstallCallbacks -ExecutablePath $Global:NODE_EXE_PATH -InstallDir $Global:NODE_DIR -PackageName $NodeJSPackage.Name
+                try {
+                    $postInstallSuccess = Invoke-PostInstallCallbacks -Callbacks $NodeJSPackage.PostInstallCallbacks -ExecutablePath $NodeExePath -InstallDir $NodeJSInstallDir -PackageName $NodeJSPackage.Name
 
-                if ($postInstallSuccess) {
-                    Write-ColorMessage -Message "$SCRIPT_INDEX Node.js post-installation completed successfully" -Type "Success"
-                } else {
-                    Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Node.js post-installation had issues" -Type "Warning"
+                    if ($postInstallSuccess) {
+                        Write-ColorMessage -Message "$SCRIPT_INDEX Node.js post-installation completed successfully" -Type "Success"
+                    } else {
+                        Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Node.js post-installation had issues" -Type "Warning"
+                    }
+                } catch {
+                    Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Post-installation failed: $($_.Exception.Message)" -Type "Warning"
                 }
 
                 return $true
@@ -165,8 +261,8 @@ function Test-NodeJSInstallation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Testing Node.js installation..." -Type "Info"
 
     # Test Node.js
-    if (Test-Path $Global:NODE_EXE_PATH) {
-        $nodeVersion = & $Global:NODE_EXE_PATH --version 2>&1
+    if (Test-Path $NodeExePath) {
+        $nodeVersion = & $NodeExePath --version 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js: $nodeVersion" -Type "Success"
         } else {
@@ -174,13 +270,13 @@ function Test-NodeJSInstallation {
             return $false
         }
     } else {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js: NOT FOUND" -Type "Error"
+        Write-ColorMessage -Message "$SCRIPT_INDEX   Node.js: NOT FOUND at $NodeExePath" -Type "Error"
         return $false
     }
 
     # Test npm
-    if (Test-Path $Global:NPM_EXE_PATH) {
-        $npmVersion = & $Global:NPM_EXE_PATH --version 2>&1
+    if (Test-Path $NpmExePath) {
+        $npmVersion = & $NpmExePath --version 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX   npm: $npmVersion" -Type "Success"
         } else {
@@ -191,8 +287,8 @@ function Test-NodeJSInstallation {
     }
 
     # Test pnpm
-    if (Test-Path $Global:PNPM_EXE_PATH) {
-        $pnpmVersion = & $Global:PNPM_EXE_PATH --version 2>&1
+    if (Test-Path $PnpmExePath) {
+        $pnpmVersion = & $PnpmExePath --version 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX   pnpm: $pnpmVersion" -Type "Success"
         } else {
@@ -203,8 +299,8 @@ function Test-NodeJSInstallation {
     }
 
     # Test yarn
-    if (Test-Path $Global:YARN_EXE_PATH) {
-        $yarnVersion = & $Global:YARN_EXE_PATH --version 2>&1
+    if (Test-Path $YarnExePath) {
+        $yarnVersion = & $YarnExePath --version 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-ColorMessage -Message "$SCRIPT_INDEX   yarn: $yarnVersion" -Type "Success"
         } else {
