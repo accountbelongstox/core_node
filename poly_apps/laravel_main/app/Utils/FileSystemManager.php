@@ -26,16 +26,38 @@ class FileSystemManager
 
     private static function mapExternalPath(string $path): string
     {
+        \Log::info('[FileSystemManager::mapExternalPath] Input path: ' . $path);
+
         $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
         $laravelMainDir = \App\Providers\PathMapper::getLaravelMainDir();
         $storageDir = $laravelMainDir . DIRECTORY_SEPARATOR . 'storage';
 
-        if (strpos($path, $coreNodeDir) === 0 && strpos($path, $storageDir) === false) {
+        \Log::info('[FileSystemManager::mapExternalPath] Directories', [
+            'coreNode' => $coreNodeDir,
+            'laravelMain' => $laravelMainDir,
+            'storage' => $storageDir
+        ]);
+
+        $startsWithCoreNode = strpos($path, $coreNodeDir) === 0;
+        $containsStorage = strpos($path, $storageDir) !== false;
+
+        \Log::info('[FileSystemManager::mapExternalPath] Path checks', [
+            'startsWithCoreNode' => $startsWithCoreNode,
+            'containsStorage' => $containsStorage
+        ]);
+
+        if ($startsWithCoreNode && !$containsStorage) {
             $relativePath = str_replace($coreNodeDir . DIRECTORY_SEPARATOR, '', $path);
             $mappedPath = $storageDir . DIRECTORY_SEPARATOR . 'external' . DIRECTORY_SEPARATOR . $relativePath;
 
+            \Log::info('[FileSystemManager::mapExternalPath] Mapping path', [
+                'relativePath' => $relativePath,
+                'mappedPath' => $mappedPath
+            ]);
+
             $mappedDir = dirname($mappedPath);
             if (!file_exists($mappedDir)) {
+                \Log::info('[FileSystemManager::mapExternalPath] Creating mapped dir: ' . $mappedDir);
                 @mkdir($mappedDir, 0755, true);
             }
 
@@ -45,14 +67,20 @@ class FileSystemManager
             if (!file_exists($symlinkPath) && !is_link($symlinkPath)) {
                 $symlinkDir = dirname($symlinkPath);
                 if (file_exists($symlinkDir) && is_writable($symlinkDir)) {
+                    \Log::info('[FileSystemManager::mapExternalPath] Creating symlink', [
+                        'from' => $symlinkPath,
+                        'to' => $symlinkTarget
+                    ]);
                     @symlink($symlinkTarget, $symlinkPath);
                 }
             }
 
             self::$externalPathMappings[$path] = $mappedPath;
+            \Log::info('[FileSystemManager::mapExternalPath] Returning mapped path: ' . $mappedPath);
             return $mappedPath;
         }
 
+        \Log::info('[FileSystemManager::mapExternalPath] No mapping needed, returning original path');
         return $path;
     }
 
@@ -218,7 +246,9 @@ class FileSystemManager
             return false;
         }
 
+        \Log::info('[FileSystemManager::fixPermissions] Starting for: ' . $path);
         $userInfo = SystemUserDetector::getActualUser();
+        \Log::info('[FileSystemManager::fixPermissions] Got user info', ['user' => $userInfo['username'] ?? 'unknown']);
 
         if (!$userInfo || !isset($userInfo['uid']) || !isset($userInfo['gid'])) {
             return false;

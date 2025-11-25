@@ -62,11 +62,23 @@ class ServerManagerV1OctaneServiceManager
      * Get Octane service name from path and port (PATH-BASED - RECOMMENDED)
      * Service is per-directory, not per-domain
      * Multiple domains in same directory share the same service
+     *
+     * Service naming: octane-{app_name}-{port}
+     * - poly: octane-poly-9000
+     * - AChatV1: octane-achatv1-9001
      */
     public static function getOctaneServiceNameFromPath(string $wwwDir, int $port): string
     {
-        $pathHash = self::getPathHash($wwwDir);
-        return self::OCTANE_SERVICE_PREFIX . $pathHash . '-' . $port;
+        $laravelMainDir = PathMapper::getLaravelMainDir();
+
+        // Check if this is poly (laravel_main itself)
+        if (realpath($wwwDir) === realpath($laravelMainDir)) {
+            return self::OCTANE_SERVICE_PREFIX . 'poly-' . $port;
+        }
+
+        // For apps in app/Apps, use lowercase app name
+        $appName = strtolower(basename($wwwDir));
+        return self::OCTANE_SERVICE_PREFIX . $appName . '-' . $port;
     }
 
     /**
@@ -105,22 +117,122 @@ class ServerManagerV1OctaneServiceManager
     }
 
     /**
-     * Calculate deterministic port from path hash
-     * Same directory path always gets the same port number
-     * This ensures one service per directory (shared by multiple domains)
+     * Get default workers count based on CPU cores
+     * Returns CPU core count, minimum 1, maximum 16
+     */
+    public static function getDefaultWorkers(): int
+    {
+        $cpuCores = (int)shell_exec('nproc 2>/dev/null');
+        if ($cpuCores < 1) {
+            $cpuCores = 4;
+        }
+
+        $workers = min(max($cpuCores, 1), 16);
+
+        Log::debug('Calculated default workers', [
+            'cpu_cores' => $cpuCores,
+            'workers' => $workers
+        ]);
+
+        return $workers;
+    }
+
+    /**
+     * Get app index from app directory scan
+     * Scans poly_apps/laravel_main/app/Apps and assigns index based on alphabetical order
+     * 'poly' (laravel_main itself) is always index 0
+     *
+     * @param string $wwwDir Full path to the application directory
+     * @return int App index (0 for poly, 1+ for apps in alphabetical order)
+     */
+    private static function getAppIndex(string $wwwDir): int
+    {
+        $laravelMainDir = PathMapper::getLaravelMainDir();
+
+        // Check if this is the poly app itself (laravel_main)
+        if (realpath($wwwDir) === realpath($laravelMainDir)) {
+            Log::debug('App index for poly (laravel_main)', [
+                'www_dir' => $wwwDir,
+                'index' => 0,
+                'port_offset' => 0
+            ]);
+            return 0;
+        }
+
+        // Scan app/Apps directory for other applications
+        $appsDir = $laravelMainDir . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Apps';
+
+        if (!is_dir($appsDir)) {
+            Log::warning('Apps directory not found, defaulting to index 0', [
+                'apps_dir' => $appsDir,
+                'www_dir' => $wwwDir
+            ]);
+            return 0;
+        }
+
+        $apps = [];
+        $entries = @scandir($appsDir);
+
+        if ($entries !== false) {
+            foreach ($entries as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+
+                $fullPath = $appsDir . DIRECTORY_SEPARATOR . $entry;
+                if (is_dir($fullPath)) {
+                    $apps[] = $entry;
+                }
+            }
+        }
+
+        // Sort alphabetically
+        sort($apps);
+
+        // Find index of current app
+        $appName = basename($wwwDir);
+        $index = array_search($appName, $apps);
+
+        if ($index === false) {
+            Log::warning('App not found in Apps directory, defaulting to index 0', [
+                'app_name' => $appName,
+                'www_dir' => $wwwDir,
+                'scanned_apps' => $apps
+            ]);
+            return 0;
+        }
+
+        // Apps start from index 1 (poly is 0)
+        $finalIndex = $index + 1;
+
+        Log::debug('App index calculated', [
+            'www_dir' => $wwwDir,
+            'app_name' => $appName,
+            'scanned_apps' => $apps,
+            'index' => $finalIndex,
+            'port_offset' => $finalIndex
+        ]);
+
+        return $finalIndex;
+    }
+
+    /**
+     * Calculate deterministic port from app index
+     * Port = 9000 + app_index
+     * - poly (laravel_main itself): 9000 (index 0)
+     * - Other apps in app/Apps: 9001, 9002, ... (alphabetical order)
+     *
+     * @param string $wwwDir Full path to the application directory
+     * @return int Port number
      */
     public static function getPortFromPathHash(string $wwwDir): int
     {
-        $pathHash = self::getPathHash($wwwDir);
-        // Convert first 4 chars of hash to number
-        $hashNum = hexdec(substr($pathHash, 0, 4));
-        // Map to port range 9000-9999 (1000 ports available)
-        $port = self::SWOOLE_PORT_START + ($hashNum % (self::SWOOLE_PORT_END - self::SWOOLE_PORT_START + 1));
+        $appIndex = self::getAppIndex($wwwDir);
+        $port = self::SWOOLE_PORT_START + $appIndex;
 
-        Log::debug('Calculated port from path hash', [
+        Log::debug('Calculated port from app index', [
             'www_dir' => $wwwDir,
-            'path_hash' => $pathHash,
-            'hash_num' => $hashNum,
+            'app_index' => $appIndex,
             'port' => $port
         ]);
 
@@ -133,18 +245,23 @@ class ServerManagerV1OctaneServiceManager
      */
     public static function findExistingServiceForPath(string $wwwDir): ?array
     {
-        $pathHash = self::getPathHash($wwwDir);
+        $laravelMainDir = PathMapper::getLaravelMainDir();
         $services = self::listOctaneServices();
 
+        // Determine app identifier
+        $appIdentifier = (realpath($wwwDir) === realpath($laravelMainDir))
+            ? 'poly'
+            : strtolower(basename($wwwDir));
+
         foreach ($services as $service) {
-            // Check if service name contains the path hash
-            // Service naming: octane-<path_hash>-<port>
-            if (strpos($service, self::OCTANE_SERVICE_PREFIX . $pathHash . '-') === 0) {
+            // Check if service name matches this app
+            // Service naming: octane-{app_name}-{port}
+            if (strpos($service, self::OCTANE_SERVICE_PREFIX . $appIdentifier . '-') === 0) {
                 // Extract port from service name
                 if (preg_match('/(\d+)$/', $service, $matches)) {
                     Log::info('Found existing service for path', [
                         'www_dir' => $wwwDir,
-                        'path_hash' => $pathHash,
+                        'app_identifier' => $appIdentifier,
                         'service_name' => $service,
                         'port' => (int)$matches[1]
                     ]);
@@ -152,7 +269,7 @@ class ServerManagerV1OctaneServiceManager
                     return [
                         'service_name' => $service,
                         'port' => (int)$matches[1],
-                        'path_hash' => $pathHash
+                        'app_identifier' => $appIdentifier
                     ];
                 }
             }
@@ -160,7 +277,7 @@ class ServerManagerV1OctaneServiceManager
 
         Log::debug('No existing service found for path', [
             'www_dir' => $wwwDir,
-            'path_hash' => $pathHash
+            'app_identifier' => $appIdentifier
         ]);
 
         return null;
@@ -209,12 +326,12 @@ class ServerManagerV1OctaneServiceManager
     }
 
     /**
-     * Create Octane service (PATH-BASED)
-     * SYNC: octane_service_manager.sh:create_octane_service()
+     * Create Octane service (PATH-BASED) using systemd with php artisan octane:start
+     * Simplified approach: systemd manages the process, ExecStart uses php artisan directly
      *
      * @param string $wwwDir Directory path (used for service naming)
-     * @param int|null $port Port number (auto-assigned if null)
-     * @param int $workers Number of workers
+     * @param int|null $port Port number (auto-calculated from app index if null)
+     * @param int|null $workers Number of workers (auto-calculated from CPU cores if null)
      * @param string|null $laravelPath Path to Laravel installation (defaults to $wwwDir)
      * @param string|null $serviceUser Service user (defaults based on context)
      * @param string|null $serviceGroup Service group (defaults to $serviceUser)
@@ -224,17 +341,21 @@ class ServerManagerV1OctaneServiceManager
     public static function createOctaneServiceFromPath(
         string $wwwDir,
         ?int $port = null,
-        int $workers = 4,
+        ?int $workers = null,
         ?string $laravelPath = null,
         ?string $serviceUser = null,
         ?string $serviceGroup = null,
         ?string $description = null,
         string $host = '0.0.0.0'
     ): bool {
-        // Auto-assign port if not provided
         if ($port === null) {
-            $port = self::getNextAvailablePort();
-            Log::info('Auto-assigned port', ['www_dir' => $wwwDir, 'port' => $port]);
+            $port = self::getPortFromPathHash($wwwDir);
+            Log::info('Auto-calculated port from app index', ['www_dir' => $wwwDir, 'port' => $port]);
+        }
+
+        if ($workers === null) {
+            $workers = self::getDefaultWorkers();
+            Log::info('Auto-calculated workers from CPU cores', ['workers' => $workers]);
         }
 
         if ($laravelPath === null) {
@@ -246,7 +367,6 @@ class ServerManagerV1OctaneServiceManager
             return false;
         }
 
-        // Determine service user based on context if not specified
         if ($serviceUser === null) {
             $serviceUser = self::getDefaultServiceUser();
         }
@@ -261,7 +381,7 @@ class ServerManagerV1OctaneServiceManager
 
         $pathHash = self::getPathHash($wwwDir);
 
-        Log::info('Creating Octane service (path-based)', [
+        Log::info('Creating Octane service (path-based, simplified)', [
             'service_name' => $serviceName,
             'www_dir' => $wwwDir,
             'path_hash' => $pathHash,
@@ -593,7 +713,7 @@ EOF;
     }
 
     /**
-     * Start Octane service
+     * Start Octane service via systemd
      * SYNC: octane_service_manager.sh:start_octane_service()
      */
     public static function startOctaneService(string $serviceName): bool
@@ -624,7 +744,7 @@ EOF;
     }
 
     /**
-     * Stop Octane service
+     * Stop Octane service via systemd
      * SYNC: octane_service_manager.sh:stop_octane_service()
      */
     public static function stopOctaneService(string $serviceName): bool
@@ -648,7 +768,7 @@ EOF;
     }
 
     /**
-     * Restart Octane service
+     * Restart Octane service via systemd
      * SYNC: octane_service_manager.sh:restart_octane_service()
      */
     public static function restartOctaneService(string $serviceName): bool
@@ -897,16 +1017,17 @@ EOF;
      * Create and start Octane service for path (PATH-BASED - RECOMMENDED)
      * Complete workflow for path-based service deployment with self-repair
      *
-     * IMPLEMENTATION STRATEGY (Solution 3):
+     * IMPLEMENTATION STRATEGY:
      * - One Octane service per directory path (shared by multiple domains)
-     * - Port calculated deterministically from path MD5 hash
+     * - Port calculated from app index (9000 + index based on app/Apps alphabetical order)
+     * - Workers calculated from CPU cores (auto-detect nproc)
      * - Service reuse: if service exists for path, reuse it instead of creating new one
      * - Self-repair: automatically restart failed services
      * - Idempotent: safe to run multiple times
      *
      * @param string $wwwDir Directory path
-     * @param int|null $port Port number (ignored if service exists, calculated from path if null)
-     * @param int $workers Number of workers
+     * @param int|null $port Port number (auto-calculated from app index if null)
+     * @param int|null $workers Number of workers (auto-calculated from CPU cores if null)
      * @param string|null $laravelPath Path to Laravel installation (defaults to $wwwDir)
      * @param string|null $serviceUser Service user
      * @param string|null $serviceGroup Service group
@@ -916,16 +1037,25 @@ EOF;
     public static function deployOctaneServiceFromPath(
         string $wwwDir,
         ?int $port = null,
-        int $workers = 4,
+        ?int $workers = null,
         ?string $laravelPath = null,
         ?string $serviceUser = null,
         ?string $serviceGroup = null,
         ?string $description = null,
         string $host = '0.0.0.0'
     ): bool {
+        // Auto-calculate port and workers if not provided
+        if ($port === null) {
+            $port = self::getPortFromPathHash($wwwDir);
+        }
+
+        if ($workers === null) {
+            $workers = self::getDefaultWorkers();
+        }
+
         Log::info('Deploying Octane service for path (idempotent)', [
             'www_dir' => $wwwDir,
-            'requested_port' => $port,
+            'port' => $port,
             'workers' => $workers
         ]);
 
@@ -938,40 +1068,20 @@ EOF;
                 'www_dir' => $wwwDir,
                 'service_name' => $existing['service_name'],
                 'port' => $existing['port'],
-                'path_hash' => $existing['path_hash']
+                'app_identifier' => $existing['app_identifier']
             ]);
-
-            // STEP 1.5: Update service description if provided (to reflect all domains using this service)
-            if ($description !== null) {
-                Log::info('Updating service description for shared service', [
-                    'service_name' => $existing['service_name'],
-                    'description' => $description
-                ]);
-
-                // Regenerate service file with updated description
-                if (!self::createOctaneServiceFromPath($wwwDir, $existing['port'], $workers, $laravelPath, $serviceUser, $serviceGroup, $description, $host)) {
-                    Log::warning('Failed to update service description, continuing anyway');
-                } else {
-                    // Reload systemd daemon to pick up the updated description
-                    Process::run('systemctl daemon-reload');
-                    Log::info('Service description updated successfully');
-                }
-            }
 
             // STEP 2: Self-repair - check if service is running
             $isActive = Process::run("systemctl is-active {$existing['service_name']}")->successful();
 
             if (!$isActive) {
-                // Service exists but not running - restart it (self-repair)
                 Log::warning('Existing service not running, restarting (self-repair)', [
                     'service_name' => $existing['service_name']
                 ]);
 
-                // First, try to stop any stuck processes
                 self::stopOctaneService($existing['service_name']);
                 sleep(2);
 
-                // Restart the service
                 if (!self::startOctaneService($existing['service_name'])) {
                     Log::error('Failed to restart existing service', [
                         'service_name' => $existing['service_name']
@@ -988,19 +1098,15 @@ EOF;
                 ]);
             }
 
-            // Return success - service is ready
             return true;
         }
 
-        // STEP 3: No existing service - calculate deterministic port and create new service
-        if ($port === null) {
-            $port = self::getPortFromPathHash($wwwDir);
-            Log::info('Calculated deterministic port from path', [
-                'www_dir' => $wwwDir,
-                'port' => $port,
-                'path_hash' => self::getPathHash($wwwDir)
-            ]);
-        }
+        // STEP 3: No existing service - create new service with calculated port/workers
+        Log::info('Creating new Octane service', [
+            'www_dir' => $wwwDir,
+            'port' => $port,
+            'workers' => $workers
+        ]);
 
         // STEP 4: Create new service
         if (!self::createOctaneServiceFromPath($wwwDir, $port, $workers, $laravelPath, $serviceUser, $serviceGroup, $description, $host)) {
@@ -1020,7 +1126,7 @@ EOF;
             'www_dir' => $wwwDir,
             'service' => $serviceName,
             'port' => $port,
-            'path_hash' => self::getPathHash($wwwDir),
+            'workers' => $workers,
             'description' => $description
         ]);
 
@@ -1154,100 +1260,6 @@ EOF;
             'errors' => count($results['errors'])
         ]);
 
-        // Clean up systemd cache for not-found units after removing services
-        if (count($results['removed']) > 0) {
-            $cacheResults = self::cleanupSystemdCache();
-            $results['cache_cleaned'] = count($cacheResults['cleaned']);
-            Log::info('Systemd cache cleaned after service removal', [
-                'cache_cleaned_count' => $results['cache_cleaned']
-            ]);
-        }
-
         return $results;
-    }
-
-    /**
-     * Clean up systemd cache for not-found timer references
-     * This removes the "not-found" entries from systemctl list-units output
-     *
-     * @return array Cleanup results with cleaned units
-     */
-    public static function cleanupSystemdCache(): array
-    {
-        $results = [
-            'cleaned' => [],
-            'errors' => []
-        ];
-
-        try {
-            // Step 1: Find all not-found octane units
-            $listResult = Process::run('systemctl list-units --all --state=not-found --no-legend');
-
-            if ($listResult->successful()) {
-                $lines = explode("\n", trim($listResult->output()));
-                $notFoundUnits = [];
-
-                foreach ($lines as $line) {
-                    if (empty(trim($line))) {
-                        continue;
-                    }
-
-                    // Extract unit name from systemctl output
-                    if (preg_match('/^\s*●?\s*([^\s]+)\s+not-found/', $line, $matches)) {
-                        $unitName = $matches[1];
-
-                        // Only process octane-related units
-                        if (strpos($unitName, 'octane-') === 0) {
-                            $notFoundUnits[] = $unitName;
-                        }
-                    }
-                }
-
-                // Step 2: Aggressively clean each not-found unit
-                foreach ($notFoundUnits as $unit) {
-                    Log::info('Cleaning not-found unit', ['unit' => $unit]);
-
-                    // Try to stop (will fail but clears some cache)
-                    Process::run("systemctl stop $unit 2>/dev/null");
-
-                    // Try to disable (will fail but clears some cache)
-                    Process::run("systemctl disable $unit 2>/dev/null");
-
-                    // Mask then unmask to force systemd to forget about it
-                    Process::run("systemctl mask $unit 2>/dev/null");
-                    Process::run("systemctl unmask $unit 2>/dev/null");
-
-                    // Try to reset the specific unit
-                    Process::run("systemctl reset-failed $unit 2>/dev/null");
-
-                    $results['cleaned'][] = $unit;
-                }
-            }
-
-            // Step 3: Clear journal entries for cleaned units
-            foreach ($results['cleaned'] as $unit) {
-                Process::run("journalctl --vacuum-time=1s -u $unit 2>/dev/null");
-            }
-
-            // Step 4: Reload systemd daemon to refresh unit cache
-            Process::run('systemctl daemon-reload');
-
-            // Step 5: Reset failed units to clear references
-            Process::run('systemctl reset-failed');
-
-            // Step 6: One more daemon-reload to ensure cache is fully refreshed
-            Process::run('systemctl daemon-reload');
-
-            Log::info('Systemd cache cleanup completed', [
-                'cleaned_count' => count($results['cleaned']),
-                'cleaned_units' => $results['cleaned']
-            ]);
-
-            return $results;
-        } catch (\Exception $e) {
-            Log::error('Failed to clean systemd cache', ['error' => $e->getMessage()]);
-            $results['errors'][] = $e->getMessage();
-            return $results;
-        }
     }
 }
