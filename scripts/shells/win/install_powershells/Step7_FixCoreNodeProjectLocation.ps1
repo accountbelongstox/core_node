@@ -68,7 +68,7 @@ function Find-CoreNodeProjects {
             if (Test-Path $gitDir) {
                 # Check if not already in list
                 $alreadyFound = @($possibleLocations | Where-Object { $_.Path -eq $loc })
-                if (-not $alreadyFound) {
+                if ($alreadyFound.Count -eq 0) {
                     $possibleLocations += @{
                         Path = $loc
                         IsGitRepo = $true
@@ -168,15 +168,44 @@ function Main-FixProjectLocation {
 
     if ($projects.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No core_node projects found" -Type "Warning"
-        Write-ColorMessage -Message "$SCRIPT_INDEX Please clone the project first using Step6_InstallGit.ps1" -Type "Info"
+        Write-ColorMessage -Message "$SCRIPT_INDEX Cloning project to target location..." -Type "Info"
+
+        # Get clone URL
+        $selectedRegion = Get-GlobalVar -key "SELECTED_REGION"
+        $cloneUrl = Get-RegionCloneURL
+
+        # Ensure parent directory exists
+        if (-not (Test-Path $TARGET_PROGRAMING_DIR)) {
+            New-Item -ItemType Directory -Path $TARGET_PROGRAMING_DIR -Force
+        }
+
+        # Clone project
+        Set-Location $TARGET_PROGRAMING_DIR
+
+        $gitExePath = $Global:GIT_EXE_PATH
+        if (-not (Test-Path $gitExePath)) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Git not found at $gitExePath" -Type "Error"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Please install Git first using Step6_InstallGit.ps1" -Type "Error"
+            return
+        }
+
+        Start-Process -FilePath $gitExePath -ArgumentList "clone", $cloneUrl -Wait -NoNewWindow
+
+        # Verify clone
+        if (Test-Path $TARGET_PROJECT_DIR) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Project cloned successfully to: $TARGET_PROJECT_DIR" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
+        }
+
         return
     }
 
     # Check if project is already at correct location
     $correctLocationProject = @($projects | Where-Object { Test-IsCorrectLocation -Path $_.Path })
 
-    if ($correctLocationProject) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX Project already at correct location: $($correctLocationProject.Path)" -Type "Success"
+    if ($correctLocationProject.Count -gt 0) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Project already at correct location: $($correctLocationProject[0].Path)" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX No action needed" -Type "Success"
         return
     }

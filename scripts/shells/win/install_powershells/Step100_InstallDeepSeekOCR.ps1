@@ -73,19 +73,14 @@ function Get-DeepSeekOCRStatus {
 }
 
 function Test-GitAvailable {
-    try {
-        $gitVersion = git --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "$SCRIPT_INDEX Git is available: $gitVersion" -ForegroundColor Green
-            return $true
-        }
-    }
-    catch {
-        Write-Host "$SCRIPT_INDEX Git is not installed" -ForegroundColor Red
-        Write-Host "$SCRIPT_INDEX Please install Git from: https://git-scm.com/" -ForegroundColor Yellow
+    $gitExePath = $Global:GIT_EXE_PATH
+    if (Test-Path $gitExePath) {
+        & $gitExePath --version
+        return $true
+    } else {
+        Write-Host "$SCRIPT_INDEX Git not found at $gitExePath" -ForegroundColor Red
         return $false
     }
-    return $false
 }
 
 function Test-PythonAvailable {
@@ -147,7 +142,8 @@ function Install-DeepSeekOCRRepository {
     }
 
     try {
-        git clone $REPO_URL $TargetDirectory
+        $gitExePath = $Global:GIT_EXE_PATH
+        & $gitExePath clone $REPO_URL $TargetDirectory
 
         $gitDir = Join-Path $TargetDirectory ".git"
         if (Test-Path $gitDir) {

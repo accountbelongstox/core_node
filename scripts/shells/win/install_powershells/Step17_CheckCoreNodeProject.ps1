@@ -81,7 +81,7 @@ if (-not $NEEDS_CLONE) {
 }
 
 # Get selected region and clone URL
-$SELECTED_REGION = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "China"
+$SELECTED_REGION = Get-GlobalVar -key "SELECTED_REGION"
 $CLONE_URL = Get-RegionCloneURL
 
 Write-Host "$SCRIPT_INDEX Selected region: $SELECTED_REGION" -ForegroundColor Cyan
@@ -194,7 +194,15 @@ try {
     
     # Execute git clone
     Write-Host "$SCRIPT_INDEX Executing: git clone $CLONE_URL" -ForegroundColor Cyan
-    Start-Process -FilePath "git" -ArgumentList "clone", $CLONE_URL -Wait -NoNewWindow
+
+    $GIT_EXE_PATH = $Global:GIT_EXE_PATH
+    if (-not (Test-Path $GIT_EXE_PATH)) {
+        Write-Host "$SCRIPT_INDEX ERROR: Git not found at $GIT_EXE_PATH" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX Please install Git first using Step6_InstallGit.ps1" -ForegroundColor Red
+        exit 1
+    }
+
+    Start-Process -FilePath $GIT_EXE_PATH -ArgumentList "clone", $CLONE_URL -Wait -NoNewWindow
 
     # Verify clone success
     if (Test-Path $PROJECT_DIR) {

@@ -1311,12 +1311,17 @@ if (-not $SkipInitialization) {
     Create-Symlink
 
     # Sync scripts from inline winenvs to global .winenvs
-    Write-ColorMessage -Message "Synchronizing inline scripts to global winenvs..." -Type "Info"
-    try {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File "$script:PS_CURENT_DIR\win_common\WindowsPathFunction.ps1" "sync"
-        Write-ColorMessage -Message "Script synchronization completed" -Type "Success"
-    } catch {
-        Write-ColorMessage -Message "Failed to synchronize scripts: $($_.Exception.Message)" -Type "Warning"
+    $inlineWinenvsDir = Join-Path $Global:PROJECT_DIR "scripts\winenvs"
+    if (Test-Path $inlineWinenvsDir) {
+        Write-ColorMessage -Message "Synchronizing inline scripts to global winenvs..." -Type "Info"
+        try {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "$script:PS_CURENT_DIR\win_common\WindowsPathFunction.ps1" "sync"
+            Write-ColorMessage -Message "Script synchronization completed" -Type "Success"
+        } catch {
+            Write-ColorMessage -Message "Failed to synchronize scripts: $($_.Exception.Message)" -Type "Warning"
+        }
+    } else {
+        Write-ColorMessage -Message "Skipping script synchronization (inline winenvs not found, project may not be cloned yet)" -Type "Info"
     }
 
     # Check and ensure desktop shortcut exists
@@ -1325,11 +1330,6 @@ if (-not $SkipInitialization) {
         Write-ColorMessage -Message "Checking desktop shortcut..." -Type "Info"
         try {
             & powershell -NoProfile -ExecutionPolicy Bypass -File $shortcutCheckScript
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "Desktop shortcut check completed" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "Desktop shortcut check completed with warnings" -Type "Warning"
-            }
         } catch {
             Write-ColorMessage -Message "Failed to check desktop shortcut: $($_.Exception.Message)" -Type "Warning"
         }

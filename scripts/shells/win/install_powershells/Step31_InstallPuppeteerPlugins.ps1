@@ -41,14 +41,14 @@ function Install-NpmPackage {
 }
 
 # Install Git if not present (required for rebrowser-patches)
-$gitPath = Get-Command git -ErrorAction SilentlyContinue
-if (-not $gitPath) {
-    Write-Host "[$ScriptIndex] Git not found. Please install Git first for patch support." -ForegroundColor Yellow
+$gitExePath = $Global:GIT_EXE_PATH
+if (-not (Test-Path $gitExePath)) {
+    Write-Host "[$ScriptIndex] Git not found at $gitExePath. Please install Git first for patch support." -ForegroundColor Yellow
 } else {
-    Write-Host "[$ScriptIndex] Git found at: $($gitPath.Source)" -ForegroundColor Green
+    Write-Host "[$ScriptIndex] Git found at: $gitExePath" -ForegroundColor Green
 
     # Add Git usr/bin to PATH for patch command
-    $gitUsrBin = Join-Path (Split-Path (Split-Path $gitPath.Source -Parent) -Parent) "usr\bin"
+    $gitUsrBin = Join-Path (Split-Path (Split-Path $gitExePath -Parent) -Parent) "usr\bin"
     if (Test-Path $gitUsrBin) {
         $env:PATH = "$env:PATH;$gitUsrBin"
         Write-Host "[$ScriptIndex] Added Git usr/bin to PATH: $gitUsrBin" -ForegroundColor Green

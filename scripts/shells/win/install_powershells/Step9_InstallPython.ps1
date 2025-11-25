@@ -179,13 +179,9 @@ function Install-Python {
             # Add to PATH
             Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
             & $windowsPathFunctionPath "add" $PythonInstallDir
-                & $windowsPathFunctionPath "add" (Join-Path $PythonInstallDir "Scripts")
+            & $windowsPathFunctionPath "add" (Join-Path $PythonInstallDir "Scripts")
 
-                return $true
-            } else {
-                Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Python verification failed" -Type "Error"
-                return $false
-            }
+            return $true
         } else {
             Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Python executable not found after installation" -Type "Error"
             return $false
@@ -344,7 +340,6 @@ function Install-CommonPackages {
             & $PipExePath @pipArgs
 
             $successCount++
-            }
         } catch {
             Write-ColorMessage -Message "$SCRIPT_INDEX   WARNING: Exception installing $package - $($_.Exception.Message)" -Type "Warning"
         }
