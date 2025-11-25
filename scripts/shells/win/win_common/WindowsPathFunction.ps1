@@ -66,16 +66,9 @@ if ($winBuild -ge 22000) {
 $Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"
 
-$scriptCurrentPath = $PSScriptRoot
-$winDirPath = Split-Path $scriptCurrentPath -Parent
-$shellsDirPath = Split-Path $winDirPath -Parent
-$scriptsDirPath = Split-Path $shellsDirPath -Parent
-$projectDirPath = Split-Path $scriptsDirPath -Parent
-
-$Global:PROJECT_ROOT_DIR = Split-Path $projectDirPath -Parent
-$Global:PROJECT_DIR = $projectDirPath
-$Global:PROJECT_SCRIPTS_DIR = $scriptsDirPath
-$Global:INLINE_WINENVS_DIR = Join-Path $scriptsDirPath "winenvs"  # Inline scripts directory - scripts travel with code
+# Do not modify PROJECT_ROOT_DIR, PROJECT_DIR, PROJECT_SCRIPTS_DIR, INLINE_WINENVS_DIR
+# These variables are defined in GlobalVars.ps1 and should not be overridden
+# WindowsPathFunction.ps1 is only responsible for PATH management functions
 
 function Write-Log {
     param (

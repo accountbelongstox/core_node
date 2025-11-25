@@ -30,26 +30,28 @@ $installerScriptsListPath = Join-Path $INSTALL_POWERSHELLS_DIR "InstallerScripts
 # =============================================================================
 function Get-ExecutionMode {
     # Detect if running in project mode or installation mode
-    # Use PS_CURENT_DIR to determine mode instead of script path
+    # Check if running from .core_node directory (installation mode) or project directory (project mode)
     $currentDir = $script:PS_CURENT_DIR
     $userProfileDir = [Environment]::GetFolderPath("UserProfile")
-    
-    # Check if running from user profile directory (installation mode)
-    if ($currentDir -like "$userProfileDir*") {
+    $coreNodeInstallDir = Join-Path $userProfileDir ".core_node"
+
+    # Check if running from .core_node installation directory
+    if ($currentDir -like "$coreNodeInstallDir*") {
         return "INSTALLATION"
     }
-    # Otherwise, it's project mode (running from development directory)
+    # Otherwise, it's project mode (running from project directory)
     else {
         return "PROJECT"
     }
 }
 
 function Test-InitializationRequired {
-    # Check if script is running from user profile directory (not initialized)
+    # Check if script is running from .core_node directory (not initialized)
     $currentDir = Get-Location
     $userProfileDir = [Environment]::GetFolderPath("UserProfile")
-    
-    if ($currentDir.Path -like "$userProfileDir*") {
+    $coreNodeInstallDir = Join-Path $userProfileDir ".core_node"
+
+    if ($currentDir.Path -like "$coreNodeInstallDir*") {
         return $true
     }
     return $false
@@ -57,9 +59,9 @@ function Test-InitializationRequired {
 
 function Show-InitializationMenu {
     Write-Host "`n" -NoNewline
-    Write-Host "=" * 60 -ForegroundColor Cyan
+    Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host "  CORE NODE INITIALIZATION REQUIRED" -ForegroundColor Yellow
-    Write-Host "=" * 60 -ForegroundColor Cyan
+    Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host ""
     Write-Host "The script is running from user profile directory." -ForegroundColor White
     Write-Host "This indicates that the development environment is not yet initialized." -ForegroundColor White
@@ -69,23 +71,27 @@ function Show-InitializationMenu {
     Write-Host "  2. Continue without initialization" -ForegroundColor White
     Write-Host "  3. Exit" -ForegroundColor White
     Write-Host ""
-    
+
     do {
-        $choice = Read-Host "Please select an option (1-3)"
+        $choice = Read-Host "Please select an option (1-3, Enter for default)"
+        if ($choice -eq "") {
+            Write-Host "Using default: Initialize development environment" -ForegroundColor Green
+            return "initialize"
+        }
         switch ($choice) {
             "1" { return "initialize" }
             "2" { return "continue" }
             "3" { return "exit" }
-            default { Write-Host "Invalid choice. Please enter 1, 2, or 3." -ForegroundColor Red }
+            default { Write-Host "Invalid choice. Please enter 1, 2, 3, or press Enter for default." -ForegroundColor Red }
         }
     } while ($true)
 }
 
 function Show-RegionSelectionMenu {
     Write-Host "`n" -NoNewline
-    Write-Host "=" * 60 -ForegroundColor Cyan
+    Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host "  SELECT REGION FOR PROJECT CLONE" -ForegroundColor Yellow
-    Write-Host "=" * 60 -ForegroundColor Cyan
+    Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Please select the region for cloning the project:" -ForegroundColor White
     Write-Host ""
@@ -112,9 +118,9 @@ function Show-RegionSelectionMenu {
 
 function Initialize-DevelopmentEnvironment {
     Write-Host "`n" -NoNewline
-    Write-Host "=" * 60 -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Green
     Write-Host "  INITIALIZING DEVELOPMENT ENVIRONMENT" -ForegroundColor Green
-    Write-Host "=" * 60 -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Green
     Write-Host ""
     
     # Show region selection menu
@@ -207,16 +213,27 @@ function Initialize-DevelopmentEnvironment {
             return $false
         }
         
+        # Verify project directory is correct
+        $expectedProjectDir = "D:\programing\core_node"
+        if ($projectDir -ne $expectedProjectDir) {
+            Write-Host "[WARNING] Project directory mismatch!" -ForegroundColor Yellow
+            Write-Host "[WARNING] Expected: $expectedProjectDir" -ForegroundColor Yellow
+            Write-Host "[WARNING] Found: $projectDir" -ForegroundColor Yellow
+            Write-Host "[*] Please remove old project directory or update PROJECT_ROOT_DIR in GlobalVars.ps1" -ForegroundColor Cyan
+        }
+
         # Switch to project directory and execute dd.ps1 directly
-        Write-Host "[*] Switching to project directory..." -ForegroundColor Cyan
+        Write-Host "[*] Switching to project directory: $projectDir" -ForegroundColor Cyan
+        Write-Host ""
         try {
             Set-Location $projectDir
             $ddPs1Path = Join-Path $projectDir "scripts\shells\win\dd.ps1"
             if (Test-Path $ddPs1Path) {
                 Write-Host "[OK] Launching dd.ps1 from project directory..." -ForegroundColor Green
-                Write-Host "[*] Please use dd.cmd in the project directory for future runs" -ForegroundColor Yellow
                 Write-Host ""
                 & $ddPs1Path
+                # dd.ps1 execution completed, exit initialization
+                exit 0
             } else {
                 Write-Host "[ERROR] dd.ps1 not found at: $ddPs1Path" -ForegroundColor Red
                 return $false
@@ -225,12 +242,6 @@ function Initialize-DevelopmentEnvironment {
             Write-Host "[ERROR] Failed to execute dd.ps1: $_" -ForegroundColor Red
             return $false
         }
-        
-        Write-Host "`n" -NoNewline
-        Write-Host "=" * 60 -ForegroundColor Green
-        Write-Host "  INITIALIZATION COMPLETED SUCCESSFULLY" -ForegroundColor Green
-        Write-Host "=" * 60 -ForegroundColor Green
-        return $true
         
     } catch {
         Write-Host "[ERROR] Initialization failed: $_" -ForegroundColor Red
@@ -243,15 +254,19 @@ function Initialize-DevelopmentEnvironment {
 # =============================================================================
 function Add-ProjectDirToPath {
     try {
-        # Load GlobalVars.ps1 to get PROJECT_DIR
+        # Load GlobalVars.ps1 to get PROJECT_DIR (GlobalVars.ps1 is the single source of truth)
         $globalVarsPath = Join-Path $WIN_COMMON_DIR "GlobalVars.ps1"
+
         if (Test-Path $globalVarsPath) {
             . $globalVarsPath
-            
+
+            # PROJECT_DIR should always be D:\programing\core_node (from GlobalVars.ps1)
+            Write-Host "[*] Using PROJECT_DIR from GlobalVars.ps1: $($Global:PROJECT_DIR)" -ForegroundColor Cyan
+
             # Add PROJECT_DIR to PATH if not already present
             $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
             $paths = $currentPath -split ';'
-            
+
             if (-not ($paths -contains $Global:PROJECT_DIR)) {
                 Write-Host "[*] Adding PROJECT_DIR to system PATH: $($Global:PROJECT_DIR)" -ForegroundColor Cyan
                 $newPath = $currentPath + ";" + $Global:PROJECT_DIR
