@@ -137,3 +137,4 @@ scripts\shells\win\install_powershells\postinstall\PhpPostInstallProcessor.ps1  
 深度扫描并与之前的代码配合。
 ···
 node没有验证版本且没自动升级，给node的安装目录加上版本号，如果发现有旧的版本，移除环境变量，使用 scripts\shells\win\win_common\WindowsPathFunction.ps1
+当移除旧环境变量归，需要扫描旧的目录位置，比如D:\.dev_win10\node* ，这是一个up node的新方法 。

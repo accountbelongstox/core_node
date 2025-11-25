@@ -460,7 +460,8 @@ $Global:GIT_DEFAULT_USER = "DevOps User"
 $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
 
 # Node.js related global variables
-$Global:NODE_DIR = "$Global:LANG_COMPILER_DIR\node"
+$Global:NODE_VERSION = "24.11.1"
+$Global:NODE_DIR = Join-Path $Global:LANG_COMPILER_DIR "node-v$Global:NODE_VERSION"
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
