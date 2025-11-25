@@ -129,8 +129,8 @@ class AppQyV1TTSService
             return $cached;
         }
         
-        $hash = $this->generateHash($text, $langCode, $textType, $rate);
-        $relativePath = $langCode . '/' . $textType . '/' . $speedKey . '/' . $hash . '.mp3';
+        $namespace = substr($md5, 0, 2);
+        $relativePath = $langCode . '/' . $textType . '/' . $speedKey . '/' . $namespace . '/' . $md5 . '.mp3';
         $fullPath = $this->audioDir . '/' . $relativePath;
         
         if (file_exists($fullPath)) {

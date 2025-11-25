@@ -24,6 +24,9 @@ When developing features, **always check and extend `common/` libraries first** 
 - ✅ Keep common code **generic and configurable**
 - ❌ Avoid adding app-specific business logic to common layer
 
+### ⚠️ CRITICAL: Source Code vs Build Directory
+**Rule:** ALWAYS modify source code in `poly_apps/nuxt_main/`, NEVER modify `_build_dir/` (auto-synced 1:1 mirror). Convert error paths: `_build_dir/nuxt_factory/linux/_app_{namespace}/` → `poly_apps/nuxt_main/`.
+
 ### Pages Directory Management Pattern
 **Rule:** The `pages/` directory is **automatically managed** by the multi-app architecture. **DO NOT edit files in `pages/` directly.**
 

@@ -1,0 +1,101 @@
+注意，有一个脚本已经不存在了。从dd.
+cmd查看下载脚本的调用逻辑。
+
+需要输出两次密码确认。
+先查看  php artisan sys:ini 的 注册机制。
+
+注意你要使用poly_apps\laravel_main\app\Apps\ServerManagerV1 的命令行来管理nginx和octane服务，和各个app的deploy情况（其中可以deploy laravel app/nuxt app 本机的），不要直接使用php artisan 操作服务。因这样不能重复运行代码修正问题。
+同时请不要使用fix等一些其他命令，直接使用添加命令，并确保 ServerManagerV1 反复添加会修正系统。
+
+而且这个切换并没有起作用，而是黑屏。不应该是先exit再切换，而是直接切换目录 并exec cmd命令。
+
+修正根据 规范 development-guides\LARAVEL_GUIDE.md，修正所有应用。
+
+在前端无论用那个密码都没有登陆成功。
+注意，不是所有 api路由都要排除在权限认证之外r.
+这里给的显示，实际上什么也没有。
+
+修正所有一致性的问题。
+
+先修正  IT Tools
+88+
+
+Browser Automation
+
+Windows Operations
+
+Nginx Management 菜单不能来回切换的问题，特别是 Windows Operations。在修正过程中你要按堆满抽象出构架。 
+
+现在有没有存在，当修正源码目录 ，比如 poly_apps\nuxt_main\app_ittools_pages 有没有自动检测 复制替换到编译目录 factory dir /pages 的逻辑。
+查看一下 ./poly_apps/nuxt_main/scripts/ poly_apps\laravel_main\app\Apps\ServerManagerV1
+同时在debug模式下还要立即刷新页面。 
+
+显然是切换后没有输出导致的。
+
+
+poly_apps/nuxt_main/app_ittools_pages 为什么下面就只有一个页面，根据新的规范将其所有 页都移到app_ittools_pages g下，参考 poly_apps/nuxt_main/app_main_pages
+新的规范 不再使用components_app_ittools 这样的，如果文档 有冲突，你更新文档 。development-guides\NUXT_MULTI_APP_ARCHITECTURE.md 
+为了快速修复，你使用复制命令复制文件，再修改代码。
+
+http://192.168.50.2:9003/# 查看web规范，现在给Development Tools
+页的左菜单添加一个代码显示  ，如果登陆状态，直接加载代码，未登陆时提示登陆，之后将显示 php map path中映射的 ncore目录下的代码树，左边是文件结构，右边是文件显示，编辑区域 ，使用一个简单的html和js来交互，左边的文件夹点烟器击后会展开，文件点击后会编辑，同时有复制相对路径 的右菜单。
+编辑的文件可以点保存。整个页改为dart模式。
+
+
+
+IT Tools 88+ Browser Automation Windows Operations Nginx Management 顶部菜单当在 Windows Operations时，还是无法切换到其他。同时在最顶部增加一个登陆状态 ，之后，注意每个app都可以有多个api端点，根据规范，设置一系列api。现在，给nuxt整 个底层先设置几个api，主api  api.si.12gm.com 副api  api.si.gm15.com local api(注意本地不是https) local.api.12gm.com  local.api.gm15.com  192.168.2.1  / 192.168.50.2 注意这些都放在公共配置里，之后子app将扩展和使用这个基本配置。
+现在给  IT Tools 扩展出端点，以上api那个能用用那个，然后缓存在系统，检测时同步检测。之后使用 api/user api/register  api/login登陆。在顶部有登陆区区域。可以显示账号，登陆按钮等。
+
+目前逻辑显示是错的 C:\Users\accou\core_node 是临时目录 ，是用来初始化项目的， D:\programing\core_node 才是正式项目的目录，现在将临时目录误以为正式目录了。
+
+Use WindowsPathFunction.ps1 v1.0.0; help ?
+[*] CORE_NODE_DIR: D:\programing\core_node
+[*] PS_CURRENT_DIR: D:\programing\core_node\scripts\shells\win
+[*] SHELLS_DIR: D:\programing\core_node\scripts\shells
+[*] PROJECT_DIR: D:\programing\core_node
+[*] PROJECT_SCRIPTS_DIR: D:\programing\core_node\scripts
+[*] PROJECT_WIN_SCRIPTS_DIR: D:\programing\core_node\scripts\shells\win
+[*] Setting project environment variables...
+Path D:\.dev_win10\.winenvs already exists
+Path D:\programing\core_node\scripts\winenvs already exists
+Path D:\programing\core_node already exists
+[OK] Added PROJECT_DIR to PATH: D:\programing\core_node
+Path D:\.dev_win10\.winenvs already exists
+Path D:\programing\core_node\scripts\winenvs already exists
+Path D:\programing\core_node\scripts already exists
+[OK] Added PROJECT_SCRIPTS_DIR to PATH: D:\programing\core_node\scripts
+Path D:\.dev_win10\.winenvs already exists
+Path D:\programing\core_node\scripts\winenvs already exists
+Generated: C:\Users\accou\AppData\Local\Temp\refresh_env.cmd
+[*] Setting common environment variables...
+[OK] Set DISABLE_AUTOUPDATER=1 (Claude Code auto-update disabled)
+[OK] Set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+[OK] Set Python UTF-8 encoding variables
+[OK] Set LC_ALL=C.UTF-8
+[OK] Set CORE_NODE_PROJECT_ROOT=D:\programing\core_node
+[OK] Common environment variables configured successfully
+[*] Performing full initialization...
+[OK] All .ps1 files processed!
+[*] Synchronizing inline scripts to global winenvs...
+[OK] Script synchronization completed
+[*] Checking desktop shortcut...
+[OK] Initialization complete!
+
+Press Enter to continue, or any other key to pause (auto-continue in 5 seconds)...
+这是一个错误连接的C:\Program Files\dd.ps1，是要调用、应该是添加project dir到环境变量，而不是Link这个文件。
+
+
+
+
+
+
+
+
+
+
+注意使用公共方法 ，公共下载方法  common fun .ps1， 下载的文件如果存在且有效，可以跳过。 文件名也要改了。
+
+
+
+
+

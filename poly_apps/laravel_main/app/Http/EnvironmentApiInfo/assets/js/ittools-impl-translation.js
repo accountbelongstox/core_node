@@ -366,13 +366,9 @@ ITTools.Implementations.Translation = {
     async loadLanguageTemplates() {
         try {
             const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/templates', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                }
+                method: 'GET'
             });
-            
+
             if (!response.ok) {
                 console.error('Failed to load language templates:', response.status);
                 return;
@@ -553,15 +549,11 @@ ITTools.Implementations.Translation = {
         
         try {
             console.log('Loading models for:', forSimple ? 'simple' : 'learning');
-            
+
             const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/models', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                }
+                method: 'GET'
             });
-            
+
             if (!response.ok) {
                 console.error('Failed to load models:', response.status, response.statusText);
                 const errorText = await response.text();
@@ -694,16 +686,12 @@ ITTools.Implementations.Translation = {
     async translateWithGoogle(sourceText, targetLang) {
         const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/simple/google', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
             body: JSON.stringify({
                 text: sourceText,
                 target_language: targetLang
             })
         });
-        
+
         const result = await response.json();
         
         if (result.success) {
@@ -719,13 +707,9 @@ ITTools.Implementations.Translation = {
         const modelSelect = document.getElementById('simple-ai-model-select');
         const modelIndex = modelSelect ? parseInt(modelSelect.value) : 0;
         const type = document.getElementById('translation-type').value;
-        
+
         const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/translate', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
             body: JSON.stringify({
                 text: sourceText,
                 target_language: targetLang,
@@ -733,7 +717,7 @@ ITTools.Implementations.Translation = {
                 model: modelIndex
             })
         });
-        
+
         const result = await response.json();
         
         if (result.success) {
@@ -787,10 +771,6 @@ ITTools.Implementations.Translation = {
         try {
             const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/learning', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
                 body: JSON.stringify({
                     text: sourceText,
                     target_languages: selectedLangs,
@@ -801,7 +781,7 @@ ITTools.Implementations.Translation = {
                     skip_cache: skipCache
                 })
             });
-            
+
             const result = await response.json();
             
             if (result.success) {
@@ -893,11 +873,7 @@ ITTools.Implementations.Translation = {
     async triggerTaskProcessing() {
         try {
             await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/process-next', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
+                method: 'POST'
             });
         } catch (error) {
             console.error('Failed to trigger task processing:', error);
@@ -1311,16 +1287,12 @@ ITTools.Implementations.Translation = {
         try {
             const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/translation/simple/google', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
                 body: JSON.stringify({
                     text: text.substring(0, 100),
                     target_language: 'en'
                 })
             });
-            
+
             const result = await response.json();
             
             if (result.success && result.src_lang) {
@@ -1342,10 +1314,6 @@ ITTools.Implementations.Translation = {
             
             const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/tts/generate', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
                 body: JSON.stringify({
                     text: text,
                     language: language,
@@ -1355,7 +1323,7 @@ ITTools.Implementations.Translation = {
                     }
                 })
             });
-            
+
             const result = await response.json();
             
             return {
@@ -1480,9 +1448,6 @@ if (!ITTools.TTS) {
                     if (!audioUrl) {
                         const response = await AuthHelper.makeAuthenticatedRequest('/api/app_qy_v1/ai_tools/tts/generate', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
                             body: JSON.stringify({
                                 text: text,
                                 language: lang,
@@ -1490,7 +1455,7 @@ if (!ITTools.TTS) {
                                 options: {}
                             })
                         });
-                        
+
                         const result = await response.json();
                         
                         if (result.success) {

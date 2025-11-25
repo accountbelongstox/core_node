@@ -61,19 +61,19 @@ php artisan nuxt:service:refresh <appname> <port> <debug_flag>
 ```
 
 参数：
-- `appname` - 应用名称 (如: codemart, ittools, main)
-- `port` - 端口号 (如: 3000, 3001, 3002)
+- `appname` - 应用名称 (如: codemart, ittools, pymatrix)
+- `port` - 端口号 (从 10000 开始，如: 10000, 10001, 10002)
 - `debug_flag` - 0=production, 1=debug
 
 ### 服务命名规则
 ```
-nuxt-polyapp-{appname}.service
+nuxt-{appname}.service
 ```
 
 示例：
-- `nuxt-polyapp-codemart.service`
-- `nuxt-polyapp-ittools.service`
-- `nuxt-polyapp-main.service`
+- `nuxt-codemart.service`
+- `nuxt-ittools.service`
+- `nuxt-pymatrix.service`
 
 ## 返回信息
 
@@ -85,16 +85,16 @@ nuxt-polyapp-{appname}.service
 ===============================================================================
 
 Service Details:
-  Name: nuxt-polyapp-codemart.service
-  Port: 3000
+  Name: nuxt-codemart.service
+  Port: 10000
   Mode: debug (dev + watcher)
 
 Management Commands:
-  Start   : sudo systemctl start nuxt-polyapp-codemart.service
-  Stop    : sudo systemctl stop nuxt-polyapp-codemart.service
-  Restart : sudo systemctl restart nuxt-polyapp-codemart.service
-  Status  : sudo systemctl status nuxt-polyapp-codemart.service
-  Logs    : sudo journalctl -u nuxt-polyapp-codemart.service -f
+  Start   : sudo systemctl start nuxt-codemart.service
+  Stop    : sudo systemctl stop nuxt-codemart.service
+  Restart : sudo systemctl restart nuxt-codemart.service
+  Status  : sudo systemctl status nuxt-codemart.service
+  Logs    : sudo journalctl -u nuxt-codemart.service -f
 
 ✓ Service refreshed successfully!
 ```

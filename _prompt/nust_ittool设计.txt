@@ -1,0 +1,28 @@
+IT Tools 88+ Browser Automation Windows Operations Nginx Management 顶部菜单当在 Windows Operations时，还是无法切换到其他。同时在最顶部增加一个登陆状态 ，之后，注意每个app都可以有多个api端点，根据规范，设置一系列api。现在，给nuxt整 个底层先设置几个api，主api  api.si.12gm.com 副api  api.si.gm15.com local api(注意本地不是https) local.api.12gm.com  local.api.gm15.com  192.168.2.1  / 192.168.50.2 注意这些都放在公共配置里，之后子app将扩展和使用这个基本配置。
+现在给  IT Tools 扩展出端点，以上api那个能用用那个，然后缓存在系统，检测时同步检测。之后使用 api/user api/register  api/login登陆。在顶部有登陆区区域。可以显示账号，登陆按钮等。
+
+对刚刚的api 分层构架请更新到 文档  
+加上一个本地ip端口，和远程API端口，远程 默认为无，本地默认为9003.加在公共配置，同时子APP也可以扩展改变。
+
+使用全局，当有api可用时就要使用为全局可用。
+
+Cannot read properties of undefined (reading 'getActiveBaseUrl')
+同时你查看  poly_apps\laravel_main 添加一个共公的 /health 和影响本项目 
+
+在nuxt中注明，如何和laravel做基础的交互。
+
+将刚刚的api端口 规范 更新 /www/programing/core_node/development-guides/NODE_NCORE_GUIDE.md中冲突的部份，最多用5行来描述。
+
+> 现在先建立一个统一的api请求器，先查看全局的nuxt有没有基类的http 
+websockt的封装，并移到正确的公共区，如果没有你要封装一个强大的，并用5行以
+内更新文档  /www/programing/core_node/development-guides/NODE_NCORE_GUIDE
+.md，说明使用统一http封装器是为了方便使用中间件，之后在api－http-websockt
+封装上带上healty检测，如果不能访问的时候，post/get等请求将放入队列，并等
+待再试，队列只放post请求，重试时间为2秒。之后，在封装器里支持 CSRF 
+的请求和use，之后，/www/programing/core_node/poly_apps/laravel_main/
+      app/Http/EnvironmentApiInfo/debug_interface_template.html 
+扫描其中的 /debug-assets/js/ittools-menu-config.js ，先完成 IT Tools
+88+
+
+的开发进度指导，其中要要说晨Nuxt 需要的对应功能和端点去那里查看，之后你完
+成开发指南就可以了，你不必写这个代码，我让另一个AI写。 

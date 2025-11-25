@@ -355,6 +355,7 @@ class UserSyncService
                         meaning_en TEXT,
                         meaning_zh TEXT,
                         ai_reviewed INTEGER DEFAULT 0,
+                        tts_generated INTEGER DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
@@ -391,6 +392,7 @@ class UserSyncService
                     translation TEXT,
                     sample_images TEXT,
                     ai_reviewed INTEGER DEFAULT 0,
+                    tts_generated INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
