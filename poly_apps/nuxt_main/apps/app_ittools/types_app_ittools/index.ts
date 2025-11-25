@@ -35,6 +35,11 @@ export interface Tool {
   createdAt?: string;
   updatedAt?: string;
   isNew?: boolean;
+  // Auth requirements
+  requiresAuth?: boolean;
+  requiredRole?: 'user' | 'admin' | 'premium';
+  // Client-side execution (no backend needed)
+  clientSide?: boolean;
 }
 
 export interface ToolExample {
