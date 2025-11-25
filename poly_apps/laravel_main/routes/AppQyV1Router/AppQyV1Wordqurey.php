@@ -14,9 +14,15 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController as WordQController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordLookupController;
+
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;
+
 Route::prefix($apiVersionPrefix)->group(function () {
+    Route::get('/lookup', [AppQyV1WordLookupController::class, 'lookup']);
+    Route::post('/lookup/batch', [AppQyV1WordLookupController::class, 'batchLookup']);
+    
     Route::middleware(['client.token'])->group(function () {
         Route::any('/word_exists', [WordQController::class, 'wordExists']);
         Route::any('/qurey_word', [WordQController::class, 'checkWord']);

@@ -77,14 +77,21 @@ class ServerManagerV1NuxtServiceManager
 
     /**
      * Get service status
+     * @param string $serviceNameOrAppname Service name (e.g., "nuxt-polyapp-codemart") or app name (e.g., "codemart")
      */
-    public static function getServiceStatus(string $serviceName): array
+    public static function getServiceStatus(string $serviceNameOrAppname): array
     {
+        $serviceName = str_starts_with($serviceNameOrAppname, self::NUXT_SERVICE_PREFIX)
+            ? $serviceNameOrAppname
+            : self::getNuxtServiceName($serviceNameOrAppname);
+
+        $exists = self::serviceExists($serviceName);
         $isActiveResult = Process::run("systemctl is-active $serviceName");
         $isEnabledResult = Process::run("systemctl is-enabled $serviceName");
 
         return [
             'name' => $serviceName,
+            'exists' => $exists,
             'active' => trim($isActiveResult->output()) === 'active',
             'enabled' => trim($isEnabledResult->output()) === 'enabled',
             'status' => trim($isActiveResult->output())
@@ -138,30 +145,30 @@ class ServerManagerV1NuxtServiceManager
 
     /**
      * Scan available Nuxt apps from source directory
-     * Looks for app_*_pages directories in nuxt_main
+     * Looks for app_* directories in nuxt_main/apps
      *
      * @return array List of available app names
      */
     public static function scanAvailableApps(): array
     {
         $coreNodeDir = PathMapper::getCoreNodeDir();
-        $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
-        
-        if (!is_dir($nuxtMainPath)) {
+        $appsPath = "$coreNodeDir/poly_apps/nuxt_main/apps";
+
+        if (!is_dir($appsPath)) {
             return [];
         }
 
         $apps = [];
-        $entries = scandir($nuxtMainPath);
+        $entries = scandir($appsPath);
 
         foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
 
-            // Match app_*_pages pattern
-            if (preg_match('/^app_(.+)_pages$/', $entry, $matches)) {
-                $appDir = "$nuxtMainPath/$entry";
+            // Match app_* pattern in apps directory
+            if (preg_match('/^app_(.+)$/', $entry, $matches)) {
+                $appDir = "$appsPath/$entry";
                 if (is_dir($appDir)) {
                     $apps[] = $matches[1];
                 }
@@ -181,9 +188,9 @@ class ServerManagerV1NuxtServiceManager
     public static function validateAppExists(string $appname): bool
     {
         $coreNodeDir = PathMapper::getCoreNodeDir();
-        $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
-        $appDir = "$nuxtMainPath/app_{$appname}_pages";
-        
+        $appsPath = "$coreNodeDir/poly_apps/nuxt_main/apps";
+        $appDir = "$appsPath/app_{$appname}";
+
         return is_dir($appDir);
     }
 

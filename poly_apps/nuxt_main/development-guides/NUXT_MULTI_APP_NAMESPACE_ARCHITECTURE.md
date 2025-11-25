@@ -1,7 +1,7 @@
 # Nuxt Multi-App Namespace Architecture
 
-**Version:** 6.0 (Updated: 2025-11-10)
-**Status:** ✅ COMPLETE
+**Version:** 7.0 (Updated: 2025-11-25)
+**Status:** ✅ COMPLETE - **NEW SIMPLIFIED STRUCTURE**
 
 ---
 
@@ -25,21 +25,21 @@ When developing features, **always check and extend `common/` libraries first** 
 - ❌ Avoid adding app-specific business logic to common layer
 
 ### Entry Point Pattern
-**Rule:** `pages/index.{namespace}.vue` should **ONLY import a single component**, with all logic in the app component.
+**Rule:** `app_{namespace}_pages/index.vue` should **ONLY import a single component**, with all logic in the app component.
 
 **Required Pattern:**
 ```vue
-<!-- AI WARNING: Edit components under apps/app_{namespace}/components_app_{namespace}/{namespace}_index/ instead -->
+<!-- AI WARNING: Edit app_{namespace}_pages/index.vue and components under app_{namespace}_pages/components/ -->
 <template>
   <{Namespace}App />
 </template>
 
 <script setup lang="ts">
-import {Namespace}App from '@/apps/app_{namespace}/components_app_{namespace}/{namespace}_index/{Namespace}App.vue';
+import {Namespace}App from '@/app_{namespace}_pages/components/{namespace}_index/{Namespace}App.vue';
 </script>
 ```
 
-**Example:** `pages/index.ittools.vue` → `components_app_ittools/ittools_index/ItToolsApp.vue`
+**Example:** `app_ittools_pages/index.vue` → `app_ittools_pages/components/ittools_index/ItToolsApp.vue`
 
 ---
 
@@ -51,21 +51,29 @@ import {Namespace}App from '@/apps/app_{namespace}/components_app_{namespace}/{n
 - Shared resources via global `common/` layer
 - API requests tagged with `X-App-Namespace` header
 
-### Directory Structure
+### Directory Structure (NEW SIMPLIFIED)
 ```
 poly_apps/nuxt_main/
-├── apps/app_{namespace}/          # App-specific code
-│   ├── components_app_{namespace}/ # App components
-│   ├── composables_app_{namespace}/# App composables
-│   ├── stores_app_{namespace}/     # App stores
-│   ├── layouts_app_{namespace}/    # App layouts
-│   ├── i18n_app_{namespace}/       # App translations
-│   │   └── locales/
-│   │       ├── en.json
-│   │       ├── zh.json
-│   │       ├── ja.json
-│   │       └── fa.json
-│   └── config_app_{namespace}/     # App config
+├── app_{namespace}_pages/          # ✨ ALL app code in ONE directory (NO suffix!)
+│   ├── components/                 # App components (clean naming)
+│   │   ├── {namespace}_index/      # Main app component
+│   │   │   └── {Namespace}App.vue
+│   │   └── ...                     # Other components
+│   ├── composables/                # App composables
+│   ├── stores/                     # App stores
+│   ├── services/                   # App services
+│   ├── types/                      # App types
+│   ├── config/                     # App config
+│   ├── constants/                  # App constants
+│   ├── styles/                     # App styles
+│   ├── i18n/locales/               # App translations
+│   │   ├── en.json
+│   │   ├── zh.json
+│   │   ├── ja.json
+│   │   └── fa.json
+│   ├── theme/                      # App theme
+│   └── index.vue                   # ✨ Entry point (imports single component)
+├── app_main_pages/                 # Main app (reference structure)
 ├── common/                         # Shared foundation
 │   ├── components/ui/
 │   ├── composables/
@@ -74,8 +82,14 @@ poly_apps/nuxt_main/
 │   └── plugins/
 ├── i18n/locales/                   # Global translations
 ├── configs/{namespace}.config.ts   # App configs
-├── composables/useRouteNamespace.ts# Namespace detection
-└── pages/index.{namespace}.vue     # App entry pages
+└── composables/useRouteNamespace.ts# Namespace detection
+```
+
+**🚨 DEPRECATED (DO NOT USE):**
+```
+❌ apps/app_{namespace}/components_app_{namespace}/  # OLD - Don't use
+❌ apps/app_{namespace}/stores_app_{namespace}/      # OLD - Don't use
+❌ pages/index.{namespace}.vue                       # OLD - Don't use
 ```
 
 ---
@@ -191,53 +205,72 @@ node scripts/switch-app-entry-plus.js ittools --mode build
 | **Utils** | `common/utils/` | localStorage | Pure functions, type-safe |
 | **Plugins** | `common/plugins/` | app-config.client, theme.client | Global initialization, no namespace hardcoding |
 
-### App-Specific Layer Standards
+### App-Specific Layer Standards (NEW SIMPLIFIED)
 
 | Category | Location | Naming / Structure | Rules |
 |----------|----------|-------------------|-------|
-| **Components** | `components_app_{namespace}/` | `{namespace}_index/{Namespace}App.vue` (main)<br>`{namespace}_index_components/` (sub-components)<br>`{feature}/` (feature modules) | App-specific UI, can import common, no cross-app imports |
-| **Stores** | `stores_app_{namespace}/` | `deviceStore.ts`, `groupStore.ts` | App-specific state, can compose common stores, no cross-app imports |
-| **Services** | `services/api/{namespace}/` or<br>`services_app_{namespace}/` | `{namespace}-{resource}-api.ts` | Must add `X-App-Namespace` header, no cross-namespace imports |
-| **Composables** | `composables_app_{namespace}/` | App-specific composables | Can use common composables, no cross-app imports |
-| **Config** | `config_app_{namespace}/` | Tool registries, constants | App-specific config only |
+| **Components** | `app_{namespace}_pages/components/` | `{namespace}_index/{Namespace}App.vue` (main)<br>`{namespace}_index_components/` (sub-components)<br>`{feature}/` (feature modules) | App-specific UI, can import common, no cross-app imports |
+| **Stores** | `app_{namespace}_pages/stores/` | `deviceStore.ts`, `groupStore.ts` | App-specific state, can compose common stores, no cross-app imports |
+| **Services** | `app_{namespace}_pages/services/` | `{namespace}-{resource}-api.ts`, `api-client.ts` | Must add `X-App-Namespace` header, no cross-namespace imports |
+| **Composables** | `app_{namespace}_pages/composables/` | App-specific composables | Can use common composables, no cross-app imports |
+| **Config** | `app_{namespace}_pages/config/` | Tool registries, constants | App-specific config only |
+| **Types** | `app_{namespace}_pages/types/` | `index.ts` | App-specific TypeScript types |
+| **Constants** | `app_{namespace}_pages/constants/` | Constants and configs | App-specific constants |
+| **Styles** | `app_{namespace}_pages/styles/` | CSS/SCSS files | App-specific styles |
+| **i18n** | `app_{namespace}_pages/i18n/locales/` | Translation files | App-specific translations |
 
 **Component Naming Examples:**
-- Main: `ittools_index/ItToolsApp.vue`, `pymatrix_index/PyMatrixApp.vue`
-- Sub: `ittools_index_components/CategoryTreePanel.vue`
-- Feature: `tools/converter/Base64ConverterTool.vue`
+- Main: `components/ittools_index/ItToolsApp.vue`, `components/pymatrix_index/PyMatrixApp.vue`
+- Sub: `components/ittools_index_components/CategoryTreePanel.vue`
+- Feature: `components/tools/converter/Base64ConverterTool.vue`
 
 ---
 
 ## 📋 Namespace Rules
 
-### ✅ DO
-1. Use consistent namespace across all layers
-2. Put common code in `common/`
-3. Validate namespace with TypeScript types
-4. Prefix app-specific directories with `app_{namespace}`
+### ✅ DO (NEW SIMPLIFIED ARCHITECTURE)
+1. Use `app_{namespace}_pages/` directory for ALL app code
+2. Use clean directory names (components, stores, services) - NO SUFFIX
+3. Put common code in `common/`
+4. Validate namespace with TypeScript types
 5. Include HTTP header for API requests
 6. Support all global languages in app i18n
 7. Use `useAppI18n()` for merged translations
+8. Import with clean paths: `@/app_{namespace}_pages/components/...`
 
-### ❌ DON'T
-1. Hardcode namespace strings
-2. Mix namespaces in single file
-3. Skip namespace validation
-4. Create routes without prefixes
-5. Duplicate common code in app directories
-6. Reference other app's code
-7. Put app-specific translations in global i18n
-8. Skip languages in app i18n files
+### ❌ DON'T (DEPRECATED PATTERNS)
+1. ❌ Use `apps/app_{namespace}/components_app_{namespace}/` (OLD structure)
+2. ❌ Use `pages/index.{namespace}.vue` (OLD entry pattern)
+3. ❌ Use suffix naming like `stores_app_{namespace}` (OLD naming)
+4. Hardcode namespace strings
+5. Mix namespaces in single file
+6. Skip namespace validation
+7. Create routes without prefixes
+8. Duplicate common code in app directories
+9. Reference other app's code
+10. Put app-specific translations in global i18n
+11. Skip languages in app i18n files
 
 ---
 
-## 🚀 Adding New App
+## 🚀 Adding New App (NEW SIMPLIFIED STRUCTURE)
 
 | Step | Action | Files/Locations |
 |------|--------|----------------|
-| 1. Create Dirs | App structure | `apps/app_myapp/{components,composables,stores,layouts,i18n_app_myapp/locales}_app_myapp`<br>`services/api/myapp/` |
+| 1. Create Dir | App structure | `app_myapp_pages/` with subdirs:<br>  - `components/` (with `myapp_index/MyappApp.vue`)<br>  - `composables/`<br>  - `stores/`<br>  - `services/`<br>  - `types/`<br>  - `config/`<br>  - `constants/`<br>  - `styles/`<br>  - `i18n/locales/`<br>  - `theme/`<br>  - `index.vue` (entry point) |
 | 2. Register | Namespace | `utils/namespace-registry.ts`: `... \| 'myapp'`<br>`composables/useRouteNamespace.ts`: `myapp: { prefix: '/myapp' }` |
-| 3. Create Files | Entry & config | `pages/index.myapp.vue` (imports `MyappApp.vue`)<br>`components_app_myapp/myapp_index/MyappApp.vue`<br>`configs/myapp.config.ts`<br>`layouts/myapp.vue`<br>`services/api/myapp/myapp-main-api.ts` (with `X-App-Namespace` header)<br>`i18n_app_myapp/locales/{en,zh,ja,fa}.json` |
+| 3. Create Files | Entry & config | `app_myapp_pages/index.vue` (imports `MyappApp.vue`)<br>`app_myapp_pages/components/myapp_index/MyappApp.vue`<br>`configs/myapp.config.ts`<br>`layouts/myapp.vue`<br>`app_myapp_pages/services/myapp-main-api.ts` (with `X-App-Namespace` header)<br>`app_myapp_pages/i18n/locales/{en,zh,ja,fa}.json` |
+
+**Quick Start Template:**
+```bash
+# Create new app structure
+mkdir -p app_myapp_pages/{components/myapp_index,composables,stores,services,types,config,constants,styles,i18n/locales,theme}
+
+# Copy reference structure from app_main_pages
+cp -r app_main_pages/components/... app_myapp_pages/components/
+cp app_main_pages/index.vue app_myapp_pages/index.vue
+# Edit and customize for your app
+```
 
 ---
 

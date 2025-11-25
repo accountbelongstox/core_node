@@ -9,15 +9,18 @@ use Illuminate\Support\Facades\Log;
 
 class UnifiedAuthService
 {
-    public static function register(array $credentials, string $subAppConnection = null): array
+    public static function register(array $credentials, ?string $subAppConnection = null): array
     {
         DB::beginTransaction();
         
         try {
-            $existingUser = User::where('username', $credentials['username'])
-                ->orWhere('email', $credentials['email'])
-                ->first();
-            
+            $existingUser = User::where(function($query) use ($credentials) {
+                $query->where('username', $credentials['username']);
+                if (!empty($credentials['email'])) {
+                    $query->orWhere('email', $credentials['email']);
+                }
+            })->first();
+
             if ($existingUser) {
                 DB::rollBack();
                 return [
@@ -79,7 +82,7 @@ class UnifiedAuthService
         }
     }
     
-    public static function login(string $username, string $password, string $subAppConnection = null): array
+    public static function login(string $username, string $password, ?string $subAppConnection = null): array
     {
         try {
             $mainUser = User::where('username', $username)
@@ -145,7 +148,7 @@ class UnifiedAuthService
         }
     }
     
-    public static function resetPassword(string $username, string $newPassword, string $subAppConnection = null): array
+    public static function resetPassword(string $username, string $newPassword, ?string $subAppConnection = null): array
     {
         DB::beginTransaction();
         

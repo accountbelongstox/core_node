@@ -210,15 +210,63 @@ class AppQyV1TranslationController extends Controller
     {
         $request->validate([
             'text' => 'required|string',
-            'languages' => 'required|array',
+            'target_languages' => 'required|array',
+            'target_languages.*' => 'required|string',
             'options' => 'nullable|array',
             'model' => 'nullable|integer',
+            'generate_audio' => 'nullable|boolean',
+            'translation_method' => 'nullable|string',
+            'skip_cache' => 'nullable|boolean',
         ]);
-        
+
+        $modelInfo = $this->resolveModelId($request->input('model'));
+        $targetLanguages = $request->input('target_languages');
+        $text = $request->input('text');
+        $generateAudio = $request->input('generate_audio', false);
+
+        $results = [];
+
+        foreach ($targetLanguages as $targetLang) {
+            try {
+                $translation = $this->translationService->translateWithModel(
+                    text: $text,
+                    targetLanguage: $targetLang,
+                    model: $modelInfo['model'] ?? null,
+                    provider: $modelInfo['provider'] ?? 'google',
+                    options: $request->input('options', [])
+                );
+
+                if ($translation['success']) {
+                    $results[$targetLang] = [
+                        'translation' => $translation['translation'],
+                        'provider' => $translation['provider'] ?? 'unknown',
+                    ];
+
+                    if ($generateAudio && isset($translation['translation'])) {
+                        $ttsService = new \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService();
+                        $audioResult = $ttsService->generateAudio($translation['translation'], $targetLang, 'sentence');
+
+                        if ($audioResult['success']) {
+                            $results[$targetLang]['audio_url'] = $audioResult['audio_url'];
+                        }
+                    }
+                } else {
+                    $results[$targetLang] = [
+                        'error' => $translation['error'] ?? 'Translation failed',
+                    ];
+                }
+            } catch (\Exception $e) {
+                $results[$targetLang] = [
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
         return response()->json([
-            'success' => false,
-            'error' => 'Learning mode not yet implemented in AppQyV1',
-            'message' => 'This feature is coming soon',
+            'success' => true,
+            'status' => 'completed',
+            'result' => $results,
+            'processing_time' => 0,
         ]);
     }
     

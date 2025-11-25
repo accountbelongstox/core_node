@@ -14,7 +14,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 use Illuminate\Routing\Controller as BaseController;
-use App\Apps\AppQyV1\AppQyV1Gvar\Gvar;
+use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
 class AppQyV1ApiDocumentationController extends BaseController
 {
     public static function apiDocs()

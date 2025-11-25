@@ -1,4 +1,4 @@
-import { STORAGE_KEYS, API_BASE_URL } from '../base-constants';
+import { STORAGE_KEYS, API_BASE_URL } from '@/common/constants/base-constants';
 
 export const CODEMART_API_ENDPOINTS = {
   PROJECTS: `${API_BASE_URL}/api/codemart/projects`,

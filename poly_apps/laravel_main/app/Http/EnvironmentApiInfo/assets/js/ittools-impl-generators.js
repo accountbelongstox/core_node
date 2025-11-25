@@ -53,11 +53,7 @@ ITTools.Implementations.QRCodeGenerator = {
         document.getElementById('qr-code-result').innerHTML = '<p>Generating QR Code...</p>';
         
         try {
-            const response = await fetch('/api/ittools/v1/web/qr-code/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, size: parseInt(size) })
-            });
+            const response = await APIClient.post('/api/ittools/v1/web/qr-code/generate', { text, size: parseInt(size) }, { includeAuth: false });
             const result = await response.json();
             
             if (result.success) {
@@ -127,11 +123,7 @@ ITTools.Implementations.WiFiQRGenerator = {
         document.getElementById('wifi-qr-result').innerHTML = '<p>Generating WiFi QR Code...</p>';
         
         try {
-            const response = await fetch('/api/ittools/v1/web/wifi-qr-code/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ssid, password, security })
-            });
+            const response = await APIClient.post('/api/ittools/v1/web/wifi-qr-code/generate', { ssid, password, security }, { includeAuth: false });
             const result = await response.json();
             
             if (result.success) {

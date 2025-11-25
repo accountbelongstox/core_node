@@ -83,10 +83,17 @@ This codebase is designed to support multiple applications simultaneously. Each 
 
 ## 8. Development Process and Restrictions
 
-- **Reuse Priority Principle**: 
+- **Reuse Priority Principle**:
     1.  Before implementing new functionality, **must** first check the `app/Utils` directory to confirm if available functionality already exists.
     2.  If it doesn't exist, analyze whether this functionality might be reused by other applications. If yes, it should be added to `app/Utils`.
     3.  If functionality is strictly limited to a single application, it should follow naming conventions and be added to the `app/Apps/{appNameWithVersion}/Utils/` directory.
+
+## 9. File System Operations Standards
+
+- **Required Classes**: Use `App\Utils\FileSystemManager` for all file/directory operations. Use `App\Utils\SystemUserDetector` to get actual logged-in user.
+- **Auto Permission Fix**: FileSystemManager automatically fixes ownership to actual user (detected via /home scan on desktop systems) after all operations.
+- **Prohibited Native Functions**: Do not use `file_put_contents()`, `file_get_contents()`, `mkdir()`, `copy()`, `rename()`, `scandir()`, etc. directly. Use FileSystemManager methods instead.
+- **Required Methods**: `FileSystemManager::writeFile()`, `::readFile()`, `::mkdir()`, `::ensureDirectoryExists()`, `::copy()`, `::rename()`, `::scandir()`, `::exists()`, `::isFile()`, `::isDir()`, `::fixPermissions()`, `::fixPermissionsRecursive()`.
 
 ## 10. MCP (Model Context Protocol) Application Rules
 
@@ -106,9 +113,9 @@ MCP applications follow these differentiated rules:
 - **MCP Resources Organization**: MCP Resources must be placed in the `app/Mcp/Resources/` directory, with naming format `{appNameWithVersion}{ResourceName}Resource.php`.
 - **MCP Prompts Organization**: MCP Prompts must be placed in the `app/Mcp/Prompts/` directory, with naming format `{appNameWithVersion}{PromptName}Prompt.php`.
 
-## 11. PHP Calling Python (pycore) Standards
+## 12. PHP Calling Python (pycore) Standards
 
-### 11.1 CallPycoreUtils General Standards
+### 12.1 CallPycoreUtils General Standards
 - **Location**: `app/CallPycoreUtils/`
 - **Naming**: `Pycore{FeatureName}Util.php`
 - **Architecture**: Laravel App → CallPycoreUtils → Python pycore/pyutils
@@ -120,7 +127,7 @@ MCP applications follow these differentiated rules:
 - **Timeout**: Set reasonable timeout based on feature characteristics (recommended: fast queries 30s, normal processing 300s, batch processing 600s)
 - **Return Format**: Uniformly return Array format, must at least include success field
 
-## 9. Unique Web Entry Point Debugging
+## 11. Unique Web Entry Point Debugging
 - This project retains a unique web entry point `routes/web.php`, which only has route (1): `/api_info` displays a JSON data, which will reference `App\Http\EnvironmentApiInfo\Index` and centrally reference all apps' `ApiInfo` as well as common `app/Http/EnvironmentApiInfo/*` collection information. Note that it is collected by `app/Http/EnvironmentApiInfo/Index.php` (the `routes/web.php` file cannot be modified). The content to be collected is all files under `app/Http/EnvironmentApiInfo/*` and each app's `ApiInfo`. Return this information via web route `/` for debugging. In addition to public information, supports parameters to selectively display a specific app's `ApiInfo`
 - This project retains a unique web entry point `routes/web.php`, which only has route: (2) `/` displays a fully functional HTML page (please do not use Laravel -vue and other functions for development, reduce complexity, especially this Laravel does not depend on node/package.json). The HTML displayed by the `/` route will reference `/api_info`'s public_info and `api_reference` for display and debugging. Please add debugging functionality for each API. Need a complete selection/debugging page.
 - `routes/web.php` also extends `POST /api_params_cache/save` / `/api_params_cache/load` / `/api_params_cache/list` for API debugging data exchange
