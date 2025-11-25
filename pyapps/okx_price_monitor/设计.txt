@@ -123,3 +123,16 @@
 scripts\shells\win\install_powershells\postinstall\PhpPostInstallProcessor.ps1  scripts\shells\win\install_powershells\Step7_InstallPHP.ps1 你确认整合了吗。
 
 但要注意，要和前面的功能深度整合。
+
+再次核对：···
+查看dd.cmd的初始化逻辑 当脚 本跑到 安装完git后 C:\Users\accou\.core_node\scripts\shells\win\install_powershells\Step5_InstallGit.ps1 
+之后将切换到目录   D:\programing 直接clone本项目，也就是说在 Step5_InstallGit 之前，不能创建 D:\programing\core_node目录，但要确保 D:\programing的存在。
+同时，如果Step4_InstallGitSSH.ps1 执行成功了，也就是有.ssh了，将使用ssh clone，注意global/regine的url选择。
+同时，确保所有 install_powershells 脚 本都加入到下载目录 。
+同时，clone本项目的时候 提示，是否修正项目位置，由于安装Step4_InstallGitSSH需要 node的支持 ，现在将node提取为单独的脚本放到 Step5_InstallGit
+之后，
+同时，调整index序号后面的自动+，同时更新所有下载脚本，包含了文件名的。
+同时，将 Step12_InstallApplications 中以及 ApplicationsList node的定义抽像为脚本，还要与原来的回调关联 PackageManagerInvokes PostInstallCallbackProcessor。
+同时，很有可能这是第一次安装，所以环境变量设置了也不生效，所有node/pnpm/npm/git都要使用绝对路径 。
+深度扫描并与之前的代码配合。
+···

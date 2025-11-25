@@ -296,13 +296,17 @@ $Global:BasePackages = @{
         )
     }
     NodeJS     = @{
-        PackageId                       = "OpenJS.NodeJS.LTS"
+        Version                        = "24.11.1"
+        PackageId                      = "node-v24.11.1-win-x64"
         Exec                           = "node.exe"
         Name                           = "node"
-        Description                    = "NodeJS - JavaScript Runtime"
-        InstallType                    = "winget"
+        Description                    = "Node.js 24.11.1 - JavaScript Runtime"
+        InstallType                    = "web"
         ForceToInstallDir              = $true
         VerifySuffix                   = "--version"
+        URL                            = "https://nodejs.org/dist/v24.11.1/node-v24.11.1-win-x64.zip"
+        ArchiveType                    = "zip"
+        ArchiveRootFolder              = "node-v24.11.1-win-x64"
         EnvVars                        = @(
             @{
                 Type    = @("Path")
@@ -310,13 +314,12 @@ $Global:BasePackages = @{
             }
         )
         DesktopShortcuts               = $null
-        AdditionalInstallationPackages = @(
-            @{
-                installType    = "npm"
-                installPackage = @("yarn", "pnpm", "pm2")
-            }
-        )
         PostInstallCallbacks = @(
+            @{
+                Type       = "node"
+                Operation  = "install_pnpm_yarn"
+                Description = "Install pnpm and yarn package managers"
+            },
             @{
                 Type       = "configurator"
                 Executable = "npm.cmd"
@@ -1438,12 +1441,13 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         # TODO: Unknown callback requirements and exact download mechanism for Cursor Agent
     }
     Antigravity = @{
-        PackageId         = "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/1.11.2-6251250307170304/windows-x64/Antigravity.exe"
+        PackageId         = "Google.Antigravity"
+        Version           = "1.11.5"
         Exec              = "Antigravity.exe"
         Name              = "Antigravity"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
         Description       = "Antigravity desktop client"
-        InstallType       = "web"
+        InstallType       = "winget"
         ForceToInstallDir = $true
         VerifySuffix      = ""
         AdditionalKeywords = @("antigravity", "antigravity.exe")
