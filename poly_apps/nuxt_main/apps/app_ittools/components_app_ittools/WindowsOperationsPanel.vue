@@ -1,218 +1,152 @@
 <template>
-  <div class="space-y-6">
-    <!-- Quick Actions -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">
-        <i class="fas fa-windows text-blue-600 mr-2"></i>
-        Windows Operations
-      </h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <button
-          @click="getSystemInfo"
-          :disabled="isProcessing"
-          class="p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-desktop text-2xl"></i>
-          <span class="font-medium">System Info</span>
-          <span class="text-sm text-blue-600">Get system details</span>
+  <div class="windows-panel">
+    <!-- Windows Operations -->
+    <div class="bento-card actions-card">
+      <div class="card-header">
+        <i class="fab fa-windows header-icon"></i>
+        <h2>Windows Operations</h2>
+      </div>
+      
+      <div class="actions-grid">
+        <button @click="getSystemInfo" :disabled="isProcessing" class="action-btn blue">
+          <i class="fas fa-desktop"></i>
+          <span class="action-title">System Info</span>
+          <span class="action-desc">Get system details</span>
         </button>
 
-        <button
-          @click="getInstalledApps"
-          :disabled="isProcessing"
-          class="p-4 bg-green-50 hover:bg-green-100 rounded-lg text-green-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-apps text-2xl"></i>
-          <span class="font-medium">Installed Apps</span>
-          <span class="text-sm text-green-600">List applications</span>
+        <button @click="getInstalledApps" :disabled="isProcessing" class="action-btn green">
+          <i class="fas fa-th-large"></i>
+          <span class="action-title">Installed Apps</span>
+          <span class="action-desc">List applications</span>
         </button>
 
-        <button
-          @click="checkAdminRights"
-          :disabled="isProcessing"
-          class="p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-purple-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-user-shield text-2xl"></i>
-          <span class="font-medium">Check Admin</span>
-          <span class="text-sm text-purple-600">Verify privileges</span>
+        <button @click="checkAdminRights" :disabled="isProcessing" class="action-btn purple">
+          <i class="fas fa-user-shield"></i>
+          <span class="action-title">Check Admin</span>
+          <span class="action-desc">Verify privileges</span>
         </button>
 
-        <button
-          @click="killProcessByPort"
-          :disabled="isProcessing"
-          class="p-4 bg-orange-50 hover:bg-orange-100 rounded-lg text-orange-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-network-wired text-2xl"></i>
-          <span class="font-medium">Kill by Port</span>
-          <span class="text-sm text-orange-600">Free port usage</span>
+        <button @click="killProcessByPort" :disabled="isProcessing" class="action-btn orange">
+          <i class="fas fa-network-wired"></i>
+          <span class="action-title">Kill by Port</span>
+          <span class="action-desc">Free port usage</span>
         </button>
 
-        <button
-          @click="executePowerShell"
-          :disabled="isProcessing"
-          class="p-4 bg-red-50 hover:bg-red-100 rounded-lg text-red-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-terminal text-2xl"></i>
-          <span class="font-medium">PowerShell</span>
-          <span class="text-sm text-red-600">Execute script</span>
+        <button @click="executePowerShell" :disabled="isProcessing" class="action-btn red">
+          <i class="fas fa-terminal"></i>
+          <span class="action-title">PowerShell</span>
+          <span class="action-desc">Execute script</span>
         </button>
 
-        <button
-          @click="createShortcut"
-          :disabled="isProcessing"
-          class="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-link text-2xl"></i>
-          <span class="font-medium">Create Shortcut</span>
-          <span class="text-sm text-gray-600">Desktop shortcut</span>
+        <button @click="createShortcut" :disabled="isProcessing" class="action-btn gray">
+          <i class="fas fa-link"></i>
+          <span class="action-title">Create Shortcut</span>
+          <span class="action-desc">Desktop shortcut</span>
         </button>
       </div>
     </div>
 
     <!-- Python Operations -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">
-        <i class="fab fa-python text-yellow-600 mr-2"></i>
-        Python Operations (ptyhon)
-      </h3>
+    <div class="bento-card actions-card">
+      <div class="card-header">
+        <i class="fab fa-python header-icon python"></i>
+        <h3>Python Operations</h3>
+      </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <button
-          @click="checkPythonInstallation"
-          :disabled="isProcessing"
-          class="p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg text-yellow-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fab fa-python text-2xl"></i>
-          <span class="font-medium">Check Python</span>
-          <span class="text-sm text-yellow-600">Verify installation</span>
+      <div class="actions-grid">
+        <button @click="checkPythonInstallation" :disabled="isProcessing" class="action-btn yellow">
+          <i class="fab fa-python"></i>
+          <span class="action-title">Check Python</span>
+          <span class="action-desc">Verify installation</span>
         </button>
 
-        <button
-          @click="createVirtualEnv"
-          :disabled="isProcessing"
-          class="p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-indigo-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-cube text-2xl"></i>
-          <span class="font-medium">Create Venv</span>
-          <span class="text-sm text-indigo-600">Virtual environment</span>
+        <button @click="createVirtualEnv" :disabled="isProcessing" class="action-btn indigo">
+          <i class="fas fa-cube"></i>
+          <span class="action-title">Create Venv</span>
+          <span class="action-desc">Virtual environment</span>
         </button>
 
-        <button
-          @click="installPythonPackage"
-          :disabled="isProcessing"
-          class="p-4 bg-teal-50 hover:bg-teal-100 rounded-lg text-teal-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-pipette text-2xl"></i>
-          <span class="font-medium">Install Package</span>
-          <span class="text-sm text-teal-600">pip install</span>
+        <button @click="installPythonPackage" :disabled="isProcessing" class="action-btn teal">
+          <i class="fas fa-box"></i>
+          <span class="action-title">Install Package</span>
+          <span class="action-desc">pip install</span>
         </button>
 
-        <button
-          @click="runPythonScript"
-          :disabled="isProcessing"
-          class="p-4 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-cyan-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-play text-2xl"></i>
-          <span class="font-medium">Run Script</span>
-          <span class="text-sm text-cyan-600">Execute .py file</span>
+        <button @click="runPythonScript" :disabled="isProcessing" class="action-btn cyan">
+          <i class="fas fa-play"></i>
+          <span class="action-title">Run Script</span>
+          <span class="action-desc">Execute .py file</span>
         </button>
 
-        <button
-          @click="listPythonEnvs"
-          :disabled="isProcessing"
-          class="p-4 bg-lime-50 hover:bg-lime-100 rounded-lg text-lime-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-list text-2xl"></i>
-          <span class="font-medium">List Envs</span>
-          <span class="text-sm text-lime-600">Virtual environments</span>
+        <button @click="listPythonEnvs" :disabled="isProcessing" class="action-btn lime">
+          <i class="fas fa-list"></i>
+          <span class="action-title">List Envs</span>
+          <span class="action-desc">Virtual environments</span>
         </button>
 
-        <button
-          @click="checkPythonModules"
-          :disabled="isProcessing"
-          class="p-4 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-emerald-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-cogs text-2xl"></i>
-          <span class="font-medium">Check Modules</span>
-          <span class="text-sm text-emerald-600">Installed packages</span>
+        <button @click="checkPythonModules" :disabled="isProcessing" class="action-btn emerald">
+          <i class="fas fa-cogs"></i>
+          <span class="action-title">Check Modules</span>
+          <span class="action-desc">Installed packages</span>
         </button>
       </div>
     </div>
 
     <!-- Results Section -->
-    <div v-if="result" class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-3">Results</h3>
-      <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-        <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
+    <div v-if="result" class="bento-card results-card">
+      <div class="card-header">
+        <i class="fas fa-terminal header-icon"></i>
+        <h3>Results</h3>
+      </div>
+      <div class="results-content">
+        <pre>{{ JSON.stringify(result, null, 2) }}</pre>
       </div>
     </div>
 
     <!-- System Status -->
-    <div v-if="systemStatus" class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-3">System Status</h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div>
-          <span class="text-sm text-gray-500">Platform:</span>
-          <span class="ml-2 font-medium">{{ systemStatus.platform }}</span>
+    <div v-if="systemStatus" class="bento-card status-card">
+      <div class="card-header">
+        <i class="fas fa-server header-icon"></i>
+        <h3>System Status</h3>
+      </div>
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="item-label">Platform</span>
+          <span class="item-value">{{ systemStatus.platform }}</span>
         </div>
-        <div>
-          <span class="text-sm text-gray-500">Arch:</span>
-          <span class="ml-2 font-medium">{{ systemStatus.arch }}</span>
+        <div class="status-item">
+          <span class="item-label">Arch</span>
+          <span class="item-value">{{ systemStatus.arch }}</span>
         </div>
-        <div>
-          <span class="text-sm text-gray-500">Node Version:</span>
-          <span class="ml-2 font-medium">{{ systemStatus.nodeVersion }}</span>
+        <div class="status-item">
+          <span class="item-label">Node Version</span>
+          <span class="item-value">{{ systemStatus.nodeVersion }}</span>
         </div>
-        <div>
-          <span class="text-sm text-gray-500">Admin Rights:</span>
-          <span class="ml-2 font-medium" :class="systemStatus.isAdmin ? 'text-green-600' : 'text-red-600'">
+        <div class="status-item">
+          <span class="item-label">Admin Rights</span>
+          <span class="item-value" :class="systemStatus.isAdmin ? 'success' : 'error'">
             {{ systemStatus.isAdmin ? 'Yes' : 'No' }}
           </span>
         </div>
-        <div>
-          <span class="text-sm text-gray-500">Python Installed:</span>
-          <span class="ml-2 font-medium" :class="systemStatus.pythonInstalled ? 'text-green-600' : 'text-red-600'">
+        <div class="status-item">
+          <span class="item-label">Python Installed</span>
+          <span class="item-value" :class="systemStatus.pythonInstalled ? 'success' : 'error'">
             {{ systemStatus.pythonInstalled ? 'Yes' : 'No' }}
           </span>
         </div>
-        <div>
-          <span class="text-sm text-gray-500">System Drive:</span>
-          <span class="ml-2 font-medium">{{ systemStatus.systemDrive }}</span>
+        <div class="status-item">
+          <span class="item-label">System Drive</span>
+          <span class="item-value">{{ systemStatus.systemDrive }}</span>
         </div>
       </div>
     </div>
 
     <!-- Modals -->
-    <KillPortModal
-      v-if="showKillPortModal"
-      @close="showKillPortModal = false"
-      @kill="handleKillPort"
-    />
-
-    <PowerShellModal
-      v-if="showPowerShellModal"
-      @close="showPowerShellModal = false"
-      @execute="handleExecutePowerShell"
-    />
-
-    <ShortcutModal
-      v-if="showShortcutModal"
-      @close="showShortcutModal = false"
-      @create="handleCreateShortcut"
-    />
-
-    <PythonPackageModal
-      v-if="showPythonPackageModal"
-      @close="showPythonPackageModal = false"
-      @install="handleInstallPythonPackage"
-    />
-
-    <PythonScriptModal
-      v-if="showPythonScriptModal"
-      @close="showPythonScriptModal = false"
-      @run="handleRunPythonScript"
-    />
+    <KillPortModal v-if="showKillPortModal" @close="showKillPortModal = false" @kill="handleKillPort" />
+    <PowerShellModal v-if="showPowerShellModal" @close="showPowerShellModal = false" @execute="handleExecutePowerShell" />
+    <ShortcutModal v-if="showShortcutModal" @close="showShortcutModal = false" @create="handleCreateShortcut" />
+    <PythonPackageModal v-if="showPythonPackageModal" @close="showPythonPackageModal = false" @install="handleInstallPythonPackage" />
+    <PythonScriptModal v-if="showPythonScriptModal" @close="showPythonScriptModal = false" @run="handleRunPythonScript" />
   </div>
 </template>
 
@@ -233,15 +167,13 @@ const showShortcutModal = ref(false);
 const showPythonPackageModal = ref(false);
 const showPythonScriptModal = ref(false);
 
-// Windows operations via MCP
 const getSystemInfo = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await callMcpTool('windows_get_system_info', {});
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
@@ -251,11 +183,10 @@ const getSystemInfo = async () => {
 const getInstalledApps = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await callMcpTool('windows_get_installed_apps', {});
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
@@ -265,92 +196,71 @@ const getInstalledApps = async () => {
 const checkAdminRights = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await callMcpTool('windows_check_admin', {});
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-const killProcessByPort = () => {
-  showKillPortModal.value = true;
-};
+const killProcessByPort = () => { showKillPortModal.value = true; };
 
 const handleKillPort = async (data: { port: number }) => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('windows_kill_port', {
-      port: data.port
-    });
+    const response = await callMcpTool('windows_kill_port', { port: data.port });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-const executePowerShell = () => {
-  showPowerShellModal.value = true;
-};
+const executePowerShell = () => { showPowerShellModal.value = true; };
 
 const handleExecutePowerShell = async (data: { command: string; elevated: boolean }) => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('windows_execute_powershell', {
-      command: data.command,
-      elevated: data.elevated
-    });
+    const response = await callMcpTool('windows_execute_powershell', { command: data.command, elevated: data.elevated });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-const createShortcut = () => {
-  showShortcutModal.value = true;
-};
+const createShortcut = () => { showShortcutModal.value = true; };
 
 const handleCreateShortcut = async (data: { targetPath: string; shortcutPath: string; options: any }) => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('windows_create_shortcut', {
-      targetPath: data.targetPath,
-      shortcutPath: data.shortcutPath,
-      options: data.options
-    });
+    const response = await callMcpTool('windows_create_shortcut', { targetPath: data.targetPath, shortcutPath: data.shortcutPath, options: data.options });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-// Python operations via MCP
 const checkPythonInstallation = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await callMcpTool('python_check_installation', {});
     result.value = response;
-    if (response.pythonInstalled) {
+    if (response.pythonInstalled && systemStatus.value) {
       systemStatus.value.pythonInstalled = true;
     }
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
@@ -360,55 +270,40 @@ const checkPythonInstallation = async () => {
 const createVirtualEnv = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('python_create_venv', {
-      name: 'venv_' + Date.now()
-    });
+    const response = await callMcpTool('python_create_venv', { name: 'venv_' + Date.now() });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-const installPythonPackage = () => {
-  showPythonPackageModal.value = true;
-};
+const installPythonPackage = () => { showPythonPackageModal.value = true; };
 
 const handleInstallPythonPackage = async (data: { packageName: string; environment?: string }) => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('python_install_package', {
-      packageName: data.packageName,
-      environment: data.environment
-    });
+    const response = await callMcpTool('python_install_package', { packageName: data.packageName, environment: data.environment });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-const runPythonScript = () => {
-  showPythonScriptModal.value = true;
-};
+const runPythonScript = () => { showPythonScriptModal.value = true; };
 
 const handleRunPythonScript = async (data: { scriptPath: string; arguments?: string[] }) => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('python_run_script', {
-      scriptPath: data.scriptPath,
-      arguments: data.arguments || []
-    });
+    const response = await callMcpTool('python_run_script', { scriptPath: data.scriptPath, arguments: data.arguments || [] });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
@@ -418,11 +313,10 @@ const handleRunPythonScript = async (data: { scriptPath: string; arguments?: str
 const listPythonEnvs = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await callMcpTool('python_list_envs', {});
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
@@ -432,38 +326,29 @@ const listPythonEnvs = async () => {
 const checkPythonModules = async () => {
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await callMcpTool('python_check_modules', {
-      environment: 'default'
-    });
+    const response = await callMcpTool('python_check_modules', { environment: 'default' });
     result.value = response;
-  } catch (error) {
+  } catch (error: any) {
     result.value = { error: error.message };
   } finally {
     isProcessing.value = false;
   }
 };
 
-// Initialize system status
 onMounted(() => {
   systemStatus.value = {
-    platform: require('os').platform(),
-    arch: require('os').arch(),
-    nodeVersion: process.version,
-    isAdmin: false, // Will be updated via MCP call
-    pythonInstalled: false, // Will be updated via MCP call
-    systemDrive: process.env.SystemDrive || 'C:'
+    platform: 'win32',
+    arch: 'x64',
+    nodeVersion: 'v18.x',
+    isAdmin: false,
+    pythonInstalled: false,
+    systemDrive: 'C:'
   };
 });
 
-// Placeholder for MCP tool calls - this would be implemented with actual MCP communication
 const callMcpTool = async (toolName: string, params: any) => {
-  // This is a placeholder - in a real implementation, this would make
-  // actual calls to the MCP server running in the background
   console.log(`Calling MCP tool: ${toolName}`, params);
-
-  // Simulate different responses based on tool name
   switch (toolName) {
     case 'windows_get_system_info':
       return {
@@ -472,10 +357,10 @@ const callMcpTool = async (toolName: string, params: any) => {
           platform: 'win32',
           release: '10.0.19042',
           architecture: 'x64',
-          hostname: require('os').hostname(),
-          totalMemory: Math.round(require('os').totalmem() / 1024 / 1024 / 1024) + 'GB',
-          freeMemory: Math.round(require('os').freemem() / 1024 / 1024 / 1024) + 'GB',
-          uptime: Math.round(require('os').uptime() / 3600) + ' hours'
+          hostname: 'localhost',
+          totalMemory: '16GB',
+          freeMemory: '8GB',
+          uptime: '24 hours'
         }
       };
     case 'python_check_installation':
@@ -498,3 +383,180 @@ const callMcpTool = async (toolName: string, params: any) => {
   }
 };
 </script>
+
+<style scoped>
+.windows-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-bento, 12px);
+}
+
+.bento-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.actions-card, .results-card, .status-card {
+  padding: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.header-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 12px;
+  color: white;
+  font-size: 1rem;
+}
+
+.header-icon.python {
+  background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+}
+
+.card-header h2, .card-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn i:first-child {
+  font-size: 1.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.action-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.action-desc {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.action-btn.blue { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2); }
+.action-btn.blue i:first-child { color: #3b82f6; }
+
+.action-btn.green { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.2); }
+.action-btn.green i:first-child { color: #22c55e; }
+
+.action-btn.purple { background: rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.2); }
+.action-btn.purple i:first-child { color: #8b5cf6; }
+
+.action-btn.orange { background: rgba(249, 115, 22, 0.08); border-color: rgba(249, 115, 22, 0.2); }
+.action-btn.orange i:first-child { color: #f97316; }
+
+.action-btn.red { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); }
+.action-btn.red i:first-child { color: #ef4444; }
+
+.action-btn.gray { background: rgba(107, 114, 128, 0.08); border-color: rgba(107, 114, 128, 0.2); }
+.action-btn.gray i:first-child { color: #6b7280; }
+
+.action-btn.yellow { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); }
+.action-btn.yellow i:first-child { color: #f59e0b; }
+
+.action-btn.indigo { background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); }
+.action-btn.indigo i:first-child { color: #6366f1; }
+
+.action-btn.teal { background: rgba(20, 184, 166, 0.08); border-color: rgba(20, 184, 166, 0.2); }
+.action-btn.teal i:first-child { color: #14b8a6; }
+
+.action-btn.cyan { background: rgba(6, 182, 212, 0.08); border-color: rgba(6, 182, 212, 0.2); }
+.action-btn.cyan i:first-child { color: #06b6d4; }
+
+.action-btn.lime { background: rgba(132, 204, 22, 0.08); border-color: rgba(132, 204, 22, 0.2); }
+.action-btn.lime i:first-child { color: #84cc16; }
+
+.action-btn.emerald { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); }
+.action-btn.emerald i:first-child { color: #10b981; }
+
+.results-content {
+  background: rgba(249, 250, 251, 0.8);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 12px;
+  padding: 1rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.results-content pre {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.8125rem;
+  color: #374151;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.item-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.item-value {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.item-value.success { color: #22c55e; }
+.item-value.error { color: #ef4444; }
+</style>
