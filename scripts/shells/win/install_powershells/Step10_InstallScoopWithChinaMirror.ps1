@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Step number for this script
-$STEP_NUMBER = 5
+$STEP_NUMBER = 10
 
 # Import variable management functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
@@ -141,27 +141,38 @@ function Install-ScoopWithChinaMirror {
     if ($isFirstInstall) {
         try {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Configuring Scoop..." -Type "Warning"
-            
-            # Add essential buckets
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding essential buckets..." -Type "Warning"
-            if (-not (& scoop bucket list | Select-String "main")) {
-                if ($Global:RegionIsChina) {
-                    & $SCOOP_EXE bucket add main https://ghproxy.cc/https://github.com/ScoopInstaller/Main
-                } else {
-                    & $SCOOP_EXE bucket add main
-                }
-            }
-            
-            if (-not (& scoop bucket list | Select-String "extras")) {
-                if ($Global:RegionIsChina) {
-                    & $SCOOP_EXE bucket add extras https://ghproxy.cc/https://github.com/ScoopInstaller/Extras
-                } else {
-                    & $SCOOP_EXE bucket add extras
-                }
-            }
 
-            # Update Scoop
-            & $SCOOP_EXE update
+            # Check if Git is available before adding buckets
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking for Git availability..." -Type "Info"
+            $gitExePath = $Global:GIT_EXE_PATH
+
+            if (-not (Test-Path $gitExePath)) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git not found at $gitExePath" -Type "Warning"
+            } else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Git found at: $gitExePath" -Type "Success"
+                & $gitExePath --version
+
+                # Add essential buckets
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding essential buckets..." -Type "Warning"
+                if (-not (& scoop bucket list | Select-String "main")) {
+                    if ($Global:RegionIsChina) {
+                        & $SCOOP_EXE bucket add main https://ghproxy.cc/https://github.com/ScoopInstaller/Main
+                    } else {
+                        & $SCOOP_EXE bucket add main
+                    }
+                }
+
+                if (-not (& scoop bucket list | Select-String "extras")) {
+                    if ($Global:RegionIsChina) {
+                        & $SCOOP_EXE bucket add extras https://ghproxy.cc/https://github.com/ScoopInstaller/Extras
+                    } else {
+                        & $SCOOP_EXE bucket add extras
+                    }
+                }
+
+                # Update Scoop
+                & $SCOOP_EXE update
+            }
         }
         catch {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to configure Scoop: $_" -Type "Warning"

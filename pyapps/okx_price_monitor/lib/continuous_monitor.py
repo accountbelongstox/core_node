@@ -24,8 +24,9 @@ class ContinuousMonitor:
     All batches complete = 1 tick.
     """
 
-    def __init__(self, mode1_monitor, fetch_interval=None, max_history=None, save_to_file=None, fetch_mode=None, concurrency=None):
+    def __init__(self, mode1_monitor, coin_data_manager=None, fetch_interval=None, max_history=None, save_to_file=None, fetch_mode=None, concurrency=None):
         self.mode1_monitor = mode1_monitor
+        self.coin_data_manager = coin_data_manager
 
         # Use config values if not specified
         self.fetch_interval = (fetch_interval or config.FETCH_INTERVAL_MS) / 1000.0
@@ -44,6 +45,11 @@ class ContinuousMonitor:
 
         self.monitor_thread = None
         self.stop_event = threading.Event()
+
+        # Trading alert thresholds from config
+        self.alert_threshold_30s = config.ALERT_CHANGE_30S_THRESHOLD
+        self.alert_threshold_1min = config.ALERT_CHANGE_1MIN_THRESHOLD
+        self.alert_threshold_2min = config.ALERT_CHANGE_2MIN_THRESHOLD
 
     def initialize(self, page_id):
         """
@@ -104,6 +110,7 @@ class ContinuousMonitor:
             return
 
         fetch_time = datetime.now().isoformat()
+        timestamp_ms = int(datetime.now().timestamp() * 1000)
         self.last_fetch_time = fetch_time
         self.last_fetch_data = price_data
         self.tick_count += 1
@@ -120,8 +127,103 @@ class ContinuousMonitor:
         data_count = len(price_data.get('data', [])) if isinstance(price_data, dict) else 0
         ColorPrint.green(f"[ContinuousMonitor] Tick #{self.tick_count} complete at {fetch_time} ({data_count} records)")
 
+        # Update database with price data
+        if self.coin_data_manager and self.coin_data_manager.is_initialized():
+            self._update_database(price_data, timestamp_ms)
+
+        # Check for trading alerts
+        if self.coin_data_manager and self.coin_data_manager.is_initialized():
+            self._check_trading_alerts()
+
         if self.save_to_file:
             self._save_to_file(fetch_time, price_data)
+
+    def _update_database(self, price_data, timestamp_ms):
+        """
+        Update database with price data
+
+        Args:
+            price_data (dict): Price data from fetch
+            timestamp_ms (int): Timestamp in milliseconds
+        """
+        try:
+            # Extract coin prices from price_data
+            data_list = price_data.get('data', [])
+
+            if not data_list:
+                return
+
+            # Prepare batch updates
+            batch_updates = {}
+
+            for coin_data in data_list:
+                coin_symbol = coin_data.get('currency', '').upper()
+                if not coin_symbol:
+                    continue
+
+                # Prepare price data for database
+                price_info = {
+                    'timestamp_ms': timestamp_ms,
+                    'timestamp': datetime.fromtimestamp(timestamp_ms / 1000).isoformat(),
+                    'price': float(coin_data.get('price', 0)),
+                    'price_change_24h': float(coin_data.get('priceChange', 0)),
+                    'volume_24h': float(coin_data.get('volume24h', 0)) if coin_data.get('volume24h') else None,
+                    'market_cap': float(coin_data.get('marketCap', 0)) if coin_data.get('marketCap') else None,
+                    'raw_data': json.dumps(coin_data)
+                }
+
+                batch_updates[coin_symbol] = price_info
+
+            # Batch update all coins
+            results = self.coin_data_manager.batch_update_prices(batch_updates)
+
+            # Count successful updates
+            success_count = sum(1 for v in results.values() if v)
+            duplicate_count = len(results) - success_count
+
+            if success_count > 0:
+                ColorPrint.blue(f"[ContinuousMonitor] DB: Saved {success_count} records, Skipped {duplicate_count} duplicates")
+
+        except Exception as e:
+            ColorPrint.red(f"[ContinuousMonitor] Database update error: {e}")
+
+    def _check_trading_alerts(self):
+        """
+        Check for trading alerts across all coins
+        """
+        try:
+            alerts = self.coin_data_manager.check_all_trading_alerts(
+                threshold_30s=self.alert_threshold_30s,
+                threshold_1min=self.alert_threshold_1min,
+                threshold_2min=self.alert_threshold_2min
+            )
+
+            if alerts:
+                ColorPrint.yellow("\n" + "=" * 70)
+                ColorPrint.yellow("TRADING ALERTS")
+                ColorPrint.yellow("=" * 70)
+
+                for alert in alerts:
+                    coin_symbol = alert['coin_symbol']
+                    current_price = alert['current_price']
+
+                    ColorPrint.green(f"\n  {coin_symbol}: ${current_price}")
+
+                    for alert_info in alert['alerts']:
+                        period = alert_info['period']
+                        change = alert_info['change']
+                        direction = alert_info['direction']
+                        threshold = alert_info['threshold']
+
+                        if direction == 'up':
+                            ColorPrint.green(f"    {period}: +{change:.2f}% (threshold: {threshold}%)")
+                        else:
+                            ColorPrint.red(f"    {period}: {change:.2f}% (threshold: -{threshold}%)")
+
+                ColorPrint.yellow("=" * 70 + "\n")
+
+        except Exception as e:
+            ColorPrint.red(f"[ContinuousMonitor] Alert check error: {e}")
 
     def _save_to_file(self, timestamp, data):
         """
@@ -200,7 +302,7 @@ class ContinuousMonitor:
             'timestamp': self.last_fetch_time,
             'data': self.last_fetch_data,
             'is_running': self.is_running,
-            'fetch_count': self.fetch_count
+            'tick_count': self.tick_count
         }
 
     def get_history(self, limit=100):
@@ -228,9 +330,10 @@ class ContinuousMonitor:
             'is_initialized': self.is_initialized,
             'page_id': self.page_id,
             'fetch_interval': self.fetch_interval,
-            'fetch_count': self.fetch_count,
+            'tick_count': self.tick_count,
             'last_fetch_time': self.last_fetch_time,
             'history_count': len(self.price_history),
             'max_history': self.max_history,
-            'save_to_file': self.save_to_file
+            'save_to_file': self.save_to_file,
+            'database_enabled': self.coin_data_manager is not None and self.coin_data_manager.is_initialized()
         }

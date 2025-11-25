@@ -16,7 +16,7 @@
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 
-$STEP_NUMBER = 5
+$STEP_NUMBER = 6
 
 # Create complete Git package object
 $GitPackage = @{
@@ -189,16 +189,27 @@ function Step21_InstallGit {
 function SetGetEnvGit {
     if (Test-Path $GIT_EXE_PATH) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Adding Git to environment variables..." -Type "Info"
-        
+
         # Add Git cmd directory to PATH (WindowsPathFunction.ps1 will auto-detect if it's a file)
         & $windowsPathFunctionPath "add" $GIT_EXE_PATH
-        
+
         # Add Git bin directory to PATH (contains other Git tools)
         $gitBinDir = Join-Path $GIT_INSTALL_DIR "bin"
         if (Test-Path $gitBinDir) {
             & $windowsPathFunctionPath "add" $gitBinDir
         }
-        
+
+        # Refresh environment variables in current session for immediate availability
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Refreshing environment variables in current session..." -Type "Info"
+        & $windowsPathFunctionPath "refresh-bat"
+        $refreshBatchPath = Join-Path $env:TEMP "refresh_env.cmd"
+        if (Test-Path $refreshBatchPath) {
+            & $refreshBatchPath
+        }
+
+        # Manually refresh PATH in current PowerShell session
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully added Git to environment variables" -Type "Success"
     }
     else {
@@ -298,6 +309,7 @@ function Ensure-GitContextMenu {
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
 
-# Execute both functions
+
+# Execute all functions
 Step21_InstallGit
 Ensure-GitContextMenu

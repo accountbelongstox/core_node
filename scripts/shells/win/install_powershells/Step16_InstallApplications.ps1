@@ -274,11 +274,11 @@ function Get-ValidatedPackageId {
     Write-DebugLog -Message "Get-ValidatedPackageId - InstallType: '$InstallType', PackageId: '$PackageId'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
     Write-DebugLog -Message "SubInstallMethod exists: $($null -ne $SubInstallMethod)" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
     if ($SubInstallMethod) {
-        Write-DebugLog -Message "SubInstallMethod.InstallType: '$($SubInstallMethod.ContainsKey("InstallType") ? $SubInstallMethod.InstallType : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
-        Write-DebugLog -Message "SubInstallMethod.PackageId: '$($SubInstallMethod.ContainsKey("PackageId") ? $SubInstallMethod.PackageId : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+        Write-DebugLog -Message "SubInstallMethod.InstallType: '$(if ($SubInstallMethod.ContainsKey("InstallType")) { $SubInstallMethod.InstallType } else { 'NOT SET' })'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+        Write-DebugLog -Message "SubInstallMethod.PackageId: '$(if ($SubInstallMethod.ContainsKey("PackageId")) { $SubInstallMethod.PackageId } else { 'NOT SET' })'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
     }
-    Write-DebugLog -Message "PackageMeta.InstallType: '$($PackageMeta.ContainsKey("InstallType") ? $PackageMeta.InstallType : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
-    Write-DebugLog -Message "PackageMeta.PackageId: '$($PackageMeta.ContainsKey("PackageId") ? $PackageMeta.PackageId : 'NOT SET')'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "PackageMeta.InstallType: '$(if ($PackageMeta.ContainsKey("InstallType")) { $PackageMeta.InstallType } else { 'NOT SET' })'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "PackageMeta.PackageId: '$(if ($PackageMeta.ContainsKey("PackageId")) { $PackageMeta.PackageId } else { 'NOT SET' })'" -Category "VALIDATION" -Color "Yellow" -LocalDebug $LocalDebugMode
 
     # Check if PackageId is required for this install type
     $RequiredTypes = @("winget", "choco", "scoop", "web", "uvx", "pipx", "uv", "poetry", "cargo", "go", "gem", "brew")
@@ -418,6 +418,12 @@ function Install-PackageManager {
         [string]$BaseDirectory = "BaseDir"
     )
 
+    # Check package filter early to avoid unnecessary processing
+    if (-not (Test-PackageFilter -PackageName $PackageName -PackageMeta $PackageMeta)) {
+        Write-Host "$SCRIPT_INDEX Skipping $PackageName - does not match filter '$($script:PackageNameFilter)'" -ForegroundColor Yellow
+        return $null
+    }
+
     # Check if InstallType exists
     if (-not $PackageMeta.ContainsKey("InstallType")) {
         Write-Host "$SCRIPT_INDEX Error: Package $PackageName has no InstallType, skipping installation" -ForegroundColor Red -BackgroundColor White
@@ -442,13 +448,19 @@ function Install-PackageManager {
             try {
                 $result = Install-BasePackage -PackageName $PackageName -PackageMeta $PackageMeta -BaseDirectory $BaseDirectory -SubInstallMethod $method
 
-                # Check if installation was successful (non-null and non-empty result)
+                # Check if installation was successful - verify that executable exists
                 if ($result -and $result -ne "" -and $null -ne $result) {
-                    Write-Host "$SCRIPT_INDEX Successfully installed $PackageName via $methodType, skipping remaining methods" -ForegroundColor Green
-                    return $result
+                    # Additional validation: check if the result is a valid file path
+                    if (Test-Path $result -ErrorAction SilentlyContinue) {
+                        Write-Host "$SCRIPT_INDEX Successfully installed $PackageName via $methodType (verified at: $result), skipping remaining methods" -ForegroundColor Green
+                        return $result
+                    }
+                    else {
+                        Write-Host "$SCRIPT_INDEX Installation via $methodType returned path but file not found: $result, trying next method..." -ForegroundColor Yellow
+                    }
                 }
                 else {
-                    Write-Host "$SCRIPT_INDEX Installation via $methodType failed for $PackageName, trying next method..." -ForegroundColor Yellow
+                    Write-Host "$SCRIPT_INDEX Installation via $methodType failed for $PackageName (null/empty result), trying next method..." -ForegroundColor Yellow
                 }
             }
             catch {
@@ -521,6 +533,30 @@ function Get-PackageParameters {
     }
 }
 
+# Function to resolve installation directory with custom directory support
+function Get-ResolvedInstallDirectory {
+    param(
+        [string]$BaseDir,
+        [string]$Name,
+        [string]$AppCustomInstallDir,
+        [ref]$ForceToInstallDirRef
+    )
+
+    $InstallDir = Join-Path $BaseDir $Name
+
+    if (-not [string]::IsNullOrEmpty($AppCustomInstallDir)) {
+        Write-Host "$SCRIPT_INDEX AppCustomInstallDir is specified, using custom install directory: $AppCustomInstallDir" -ForegroundColor Cyan
+        $InstallDir = $AppCustomInstallDir
+        # Only disable ForceToInstallDir if it was originally false
+        # If it was true, keep it true to force installation to custom directory
+        if (-not $ForceToInstallDirRef.Value) {
+            Write-Host "$SCRIPT_INDEX ForceToInstallDir remains: $($ForceToInstallDirRef.Value)" -ForegroundColor Yellow
+        }
+    }
+
+    return $InstallDir
+}
+
 # Function to handle standard package manager installations
 function Invoke-StandardPackageInstallation {
     param(
@@ -544,6 +580,14 @@ function Invoke-StandardPackageInstallation {
             $resolvedPackageName = $PackageName
             Write-Host "$SCRIPT_INDEX Using PackageName as NPM package: $resolvedPackageName" -ForegroundColor Cyan
         }
+
+        # Validate that we have a valid package name
+        if ([string]::IsNullOrEmpty($resolvedPackageName)) {
+            Write-Host "$SCRIPT_INDEX Error: No valid NPM package name found (checked: PackageId, NpmPackageName, PackageName)" -ForegroundColor Red
+            Write-Host "$SCRIPT_INDEX PackageId: '$PackageId', NpmPackageName: '$($PackageMeta.NpmPackageName)', PackageName: '$PackageName'" -ForegroundColor Yellow
+            return $null
+        }
+
         $PackageId = $resolvedPackageName
     }
 
@@ -582,7 +626,7 @@ function Install-BasePackage {
     # DEBUG: Log package installation attempt
     Write-DebugLog -Message "Install-BasePackage called for: $PackageName" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
     Write-DebugLog -Message "PackageMeta keys: $($PackageMeta.Keys -join ', ')" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
-    Write-DebugLog -Message "SubInstallMethod: $($null -eq $SubInstallMethod ? 'NULL' : 'PROVIDED')" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
+    Write-DebugLog -Message "SubInstallMethod: $(if ($null -eq $SubInstallMethod) { 'NULL' } else { 'PROVIDED' })" -Category "STEP12" -Color "Cyan" -LocalDebug $LocalDebugMode
 
     # Validate package ID and install type at the beginning
     $validationResult = Get-ValidatedPackageId -PackageMeta $PackageMeta -SubInstallMethod $SubInstallMethod
@@ -591,11 +635,7 @@ function Install-BasePackage {
         return $null
     }
 
-    # Check if this package should be installed based on filter
-    if (-not (Test-PackageFilter -PackageName $PackageName -PackageMeta $PackageMeta)) {
-        Write-Host "$SCRIPT_INDEX Skipping $PackageName - does not match filter '$($script:PackageNameFilter)'" -ForegroundColor Yellow
-        return
-    }
+    # Note: Package filter check is now done in Install-PackageManager to avoid redundant combo method attempts
 
     # Get common package parameters
     $packageParams = Get-PackageParameters -PackageName $PackageName -PackageMeta $PackageMeta -SubInstallMethod $SubInstallMethod
@@ -631,10 +671,11 @@ function Install-BasePackage {
         "McpDir" { $Global:MCP_DEPLOY_DIR }
         default { $Global:LANG_COMPILER_DIR }
     }
-    
+
     # Initialize variables
     $executable = $null
     $installed = $false
+    $InstallDir = ""
     
     Write-Host "$SCRIPT_INDEX Installing $DESCRIPTION (Name: $NAME)" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX Package ID: $PACKAGE_ID" -ForegroundColor Cyan
@@ -643,12 +684,7 @@ function Install-BasePackage {
     # Handle different installation types
     switch ($InstallType) {
         "winget" {
-            $InstallDir = Join-Path $baseDir $NAME
-            if (-not [string]::IsNullOrEmpty($AppCustomInstallDir)) {
-                Write-Host "$SCRIPT_INDEX AppCustomInstallDir is specified for $PackageName, using custom install directory" -ForegroundColor Cyan
-                $FORCE_TO_INSTALL_DIR = $false
-                $InstallDir = $AppCustomInstallDir
-            }
+            $InstallDir = Get-ResolvedInstallDirectory -BaseDir $baseDir -Name $NAME -AppCustomInstallDir $AppCustomInstallDir -ForceToInstallDirRef ([ref]$FORCE_TO_INSTALL_DIR)
             Write-Host "$SCRIPT_INDEX Base Directory: $BaseDirectory ($baseDir)" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Install Dir: $InstallDir" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX ForceToInstallDir: $FORCE_TO_INSTALL_DIR" -ForegroundColor Cyan
@@ -667,7 +703,7 @@ function Install-BasePackage {
         "web" {
             # Web download installation - use PackageId as DownloadUrl
             $DownloadUrl = $PACKAGE_ID
-            
+
             $ExecutableName = if ($SubInstallMethod -and $SubInstallMethod.ContainsKey("ExecutableName")) {
                 $SubInstallMethod.ExecutableName
             } elseif ($PackageMeta.ContainsKey("ExecutableName")) {
@@ -675,14 +711,9 @@ function Install-BasePackage {
             } else {
                 $EXEC_NAME
             }
-            
+
             # Set installation directory for web downloads
-            $InstallDir = Join-Path $baseDir $NAME
-            if (-not [string]::IsNullOrEmpty($AppCustomInstallDir)) {
-                Write-Host "$SCRIPT_INDEX AppCustomInstallDir is specified for $PackageName, using custom install directory" -ForegroundColor Cyan
-                $FORCE_TO_INSTALL_DIR = $false
-                $InstallDir = $AppCustomInstallDir
-            }
+            $InstallDir = Get-ResolvedInstallDirectory -BaseDir $baseDir -Name $NAME -AppCustomInstallDir $AppCustomInstallDir -ForceToInstallDirRef ([ref]$FORCE_TO_INSTALL_DIR)
             Write-Host "$SCRIPT_INDEX Base Directory: $BaseDirectory ($baseDir)" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Install Dir: $InstallDir" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX ForceToInstallDir: $FORCE_TO_INSTALL_DIR" -ForegroundColor Cyan
@@ -744,7 +775,7 @@ function Install-BasePackage {
             Write-Host "$SCRIPT_INDEX Installation may have failed. You can try manual installation:" -ForegroundColor Yellow
 
             # Provide appropriate manual installation suggestions based on InstallType
-            switch ($INSTALL_TYPE.ToLower()) {
+            switch ($InstallType.ToLower()) {
                 "npm" {
                     Write-Host "$SCRIPT_INDEX   npm install -g $PACKAGE_ID" -ForegroundColor Yellow
                     Write-Host "$SCRIPT_INDEX   yarn global add $PACKAGE_ID" -ForegroundColor Yellow
@@ -901,6 +932,11 @@ function Install-BasePackage {
             if ($DESKTOP_CATEGORIES -and $DESKTOP_CATEGORIES.Count -gt 0) {
                 foreach ($category in $DESKTOP_CATEGORIES) {
                     if ($category -and $category -ne "") {
+                        # Track desktop category
+                        if ($script:InstalledDesktopCategories -notcontains $category) {
+                            $script:InstalledDesktopCategories += $category
+                        }
+
                         # Debug: Print all parameters passed to Create-DesktopShortcutsForPackage
                         Write-Host "$SCRIPT_INDEX [DEBUG] Create-DesktopShortcutsForPackage Parameters:" -ForegroundColor Magenta
                         Write-Host "$SCRIPT_INDEX   - ShortcutName: '$shortcutName' (Type: $(if ($shortcutName) { $shortcutName.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
@@ -908,7 +944,7 @@ function Install-BasePackage {
                         Write-Host "$SCRIPT_INDEX   - IconPath: '$iconPath' (Type: $(if ($iconPath) { $iconPath.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
                         Write-Host "$SCRIPT_INDEX   - CategoryName: '$category' (Type: $(if ($category) { $category.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
                         Write-Host "$SCRIPT_INDEX   - ScanKeywords: '$($scanKeywords -join ', ')' (Type: $(if ($scanKeywords) { $scanKeywords.GetType().Name } else { 'null' }), Count: $(if ($scanKeywords) { $scanKeywords.Count } else { 0 }))" -ForegroundColor Magenta
-                        
+
                         Create-DesktopShortcutsForPackage -ShortcutName $shortcutName -ExePath $executable -IconPath $iconPath -CategoryName $category -ScanKeywords $scanKeywords
                     }
                     else {
@@ -1041,21 +1077,8 @@ function Install-BasePackage {
         Write-Host "$SCRIPT_INDEX Skipping desktop cleanup for $PackageName (no executable found)" -ForegroundColor Yellow
     }
 
-    # Perform final desktop organization after custom scripts installation
-    Write-Host "$SCRIPT_INDEX Performing final desktop organization after custom scripts..." -ForegroundColor Cyan
-    try {
-        $postScriptsOrganization = Invoke-DesktopIconOrganization -ShowSummary $false -ExtractIcons $false
-
-        if ($postScriptsOrganization.Errors.Count -eq 0) {
-            Write-Host "$SCRIPT_INDEX Post-scripts desktop organization completed successfully!" -ForegroundColor Green
-        }
-        else {
-            Write-Host "$SCRIPT_INDEX Post-scripts desktop organization completed with warnings" -ForegroundColor Yellow
-        }
-    }
-    catch {
-        Write-Host "$SCRIPT_INDEX Post-scripts desktop organization failed: $($_.Exception.Message)" -ForegroundColor Red
-    }
+    # Note: Final desktop organization is now performed once after all packages are installed
+    # to avoid redundant executions (moved to main script after all installation loops)
 
     Write-Host "$SCRIPT_INDEX $PackageName installation completed." -ForegroundColor Green
     Write-Host ""
@@ -1175,7 +1198,27 @@ if (Test-PackageGroupFilter -GroupName "DevSoftwarePackages") {
     }
 }
 
-Write-Host "$SCRIPT_INDEX All installation and organization tasks completed." -ForegroundColor Green
+Write-Host "$SCRIPT_INDEX All package installations completed." -ForegroundColor Green
+
+# Perform final desktop organization once after all packages are installed
+Write-Host "$SCRIPT_INDEX Performing final desktop organization after all installations..." -ForegroundColor Cyan
+try {
+    $finalOrganization = Invoke-DesktopIconOrganization -ShowSummary $true -ExtractIcons $false
+
+    if ($finalOrganization.Errors.Count -eq 0) {
+        Write-Host "$SCRIPT_INDEX Final desktop organization completed successfully!" -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX Summary: Shortcuts found: $($finalOrganization.ShortcutsFound), Organized: $($finalOrganization.ShortcutsOrganized)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "$SCRIPT_INDEX Final desktop organization completed with warnings" -ForegroundColor Yellow
+        foreach ($err in $finalOrganization.Errors) {
+            Write-Host "$SCRIPT_INDEX Warning: $err" -ForegroundColor Yellow
+        }
+    }
+}
+catch {
+    Write-Host "$SCRIPT_INDEX Final desktop organization failed: $($_.Exception.Message)" -ForegroundColor Red
+}
 
 # Install custom scripts and commands
 Write-Host "$SCRIPT_INDEX Installing custom scripts and commands..." -ForegroundColor Cyan

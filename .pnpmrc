@@ -1,4 +1,4 @@
-# pnpm configuration for Electron project
+﻿# pnpm configuration for Electron project
 
 # Use hoisted node_modules structure (better for Electron)
 node-linker=hoisted

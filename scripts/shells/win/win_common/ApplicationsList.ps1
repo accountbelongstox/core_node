@@ -295,46 +295,8 @@ $Global:BasePackages = @{
             }
         )
     }
-    NodeJS     = @{
-        PackageId                       = "OpenJS.NodeJS.LTS"
-        Exec                           = "node.exe"
-        Name                           = "node"
-        Description                    = "NodeJS - JavaScript Runtime"
-        InstallType                    = "winget"
-        ForceToInstallDir              = $true
-        VerifySuffix                   = "--version"
-        EnvVars                        = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("node.exe")
-            }
-        )
-        DesktopShortcuts               = $null
-        AdditionalInstallationPackages = @(
-            @{
-                installType    = "npm"
-                installPackage = @("yarn", "pnpm", "pm2")
-            }
-        )
-        PostInstallCallbacks = @(
-            @{
-                Type       = "configurator"
-                Executable = "npm.cmd"
-                GlobalParameters = @()  # No mirror configuration for Global region
-                NonGlobalParameters = @(
-                    @("config", "set", "registry", "https://registry.npmmirror.com"),
-                    @("config", "set", "disturl", "https://npmmirror.com/dist"),
-                    @("config", "set", "electron_mirror", "https://npmmirror.com/mirrors/electron/"),
-                    @("config", "set", "sass_binary_site", "https://npmmirror.com/mirrors/node-sass"),
-                    @("config", "set", "phantomjs_cdnurl", "https://npmmirror.com/mirrors/phantomjs")
-                )
-            },
-            @{
-                Type = "pnpm_config_separator"
-                Description = "Create .pnpmrc to separate pnpm configuration from npm configuration"
-            }
-        )
-    }
+    # NodeJS configuration moved to Step4_InstallNodeJS.ps1
+    # Node.js is now installed and configured by Step4_InstallNodeJS.ps1 directly
     Python313  = @{
         Version           = "3.13"
         PackageId          = "Python.Python.3.13"
@@ -445,51 +407,6 @@ $Global:BasePackages = @{
                     @("config", "set", "global.index-url", "https://mirrors.huaweicloud.com/repository/pypi/simple"),
                     @("config", "set", "global.trusted-host", "mirrors.huaweicloud.com")
                 )
-            }
-        )
-    }
-    PHP84      = @{
-        Exec              = "php.exe"
-        Name              = "php84"
-        Description       = "PHP 8.4 - Server-side scripting language"
-        InstallType       = "combo"
-        ForceToInstallDir = $true
-        VerifySuffix      = "--version"
-        AdditionalKeywords = @("php-cli", "php8")
-        ComboMethods      = @(
-            @{
-                InstallType = "winget"
-                PackageId   = "PHP.PHP.8.4"
-            }
-            @{
-                InstallType    = "choco"
-                PackageId      = "php"
-                ChocoOptions   = @("--version=8.4")
-            }
-            @{
-                InstallType = "scoop"
-                PackageId   = "php84"
-            }
-            @{
-                InstallType     = "web"
-                PackageId       = "php-8.4.12-Win32-vs17-x64.zip"
-                DownloadUrl     = "https://downloads.php.net/~windows/releases/php-8.4.12-Win32-vs17-x64.zip"
-                ExecutableName  = "php.exe"
-                IsArchive       = $true
-                ArchiveType     = "zip"
-            }
-        )
-        EnvVars           = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("php.exe", "composer.exe", "composer.bat")
-            }
-        )
-        DesktopShortcuts  = $null
-        PostInstallCallbacks = @(
-            @{
-                Type = "php"
-                Operation = "full_setup"
             }
         )
     }
@@ -1483,12 +1400,13 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         # TODO: Unknown callback requirements and exact download mechanism for Cursor Agent
     }
     Antigravity = @{
-        PackageId         = "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/1.11.2-6251250307170304/windows-x64/Antigravity.exe"
+        PackageId         = "Google.Antigravity"
+        Version           = "1.11.5"
         Exec              = "Antigravity.exe"
         Name              = "Antigravity"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
         Description       = "Antigravity desktop client"
-        InstallType       = "web"
+        InstallType       = "winget"
         ForceToInstallDir = $true
         VerifySuffix      = ""
         AdditionalKeywords = @("antigravity", "antigravity.exe")

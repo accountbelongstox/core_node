@@ -58,6 +58,15 @@ from pycore.database.models.app_voice import (
     VoiceCacheDbDoneModel,
 )
 
+# ===== OKX App Models =====
+from pycore.database.models.app_okx import (
+    OKXDynamicTableRegistry,
+    CoinPriceHistoryModelFactory,
+    TimestampDeduplicator,
+    GlobalTimestampDeduplicator,
+    CoinDataObject,
+)
+
 # ===== Total Export =====
 __all__ = [
     # Core definitions
@@ -88,4 +97,11 @@ __all__ = [
     # Voice app models
     'VoiceDictionariesModel',
     'VoiceCacheDbDoneModel',
+
+    # OKX app models
+    'OKXDynamicTableRegistry',
+    'CoinPriceHistoryModelFactory',
+    'TimestampDeduplicator',
+    'GlobalTimestampDeduplicator',
+    'CoinDataObject',
 ]

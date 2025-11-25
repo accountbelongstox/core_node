@@ -12,7 +12,7 @@
 
 # Declare all variables at the beginning
 $ErrorActionPreference = "Stop"
-$STEP_NUMBER = 80
+$STEP_NUMBER = 84
 
 # System compatibility variables
 $script:WindowsVersion = $null

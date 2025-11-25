@@ -56,25 +56,51 @@ function Initialize-BaseStructure {
     $baseDirectories = @{
         "BASE_DIR"                = $BASE_DIR
         "APPS_DIR"                = $APPS_DIR
-        "TEMP_DIR"                = $TEMP_DIR     
-        "DOWNLOADS_DIR"           = $DOWNLOADS_DIR 
-        "LOGS_DIR"                = $LOGS_DIR 
-        "LOG_FILE"                = $LOG_FILE 
-        "PROJECT_ROOT_DIR"        = $PROJECT_ROOT_DIR 
-        "PROJECT_DIR"             = $PROJECT_DIR 
-        "PROJECT_SCRIPTS_DIR"     = $PROJECT_SCRIPTS_DIR 
-        "PROJECT_WIN_SCRIPTS_DIR" = $PROJECT_WIN_SCRIPTS_DIR 
-        "CHOCO_DIR"               = $CHOCO_DIR 
-        "SCOOP_CACHE_DIR"         = $SCOOP_CACHE_DIR 
-        "SCOOP_DIR"               = $SCOOP_DIR 
-        "SCOOP_GLOBAL_DIR"        = $SCOOP_GLOBAL_DIR 
-        "CHOCO_CACHE_DIR"         = $CHOCO_CACHE_DIR 
+        "TEMP_DIR"                = $TEMP_DIR
+        "DOWNLOADS_DIR"           = $DOWNLOADS_DIR
+        "LOGS_DIR"                = $LOGS_DIR
+        "LOG_FILE"                = $LOG_FILE
+        "PROJECT_ROOT_DIR"        = $PROJECT_ROOT_DIR
+        "PROJECT_DIR"             = $PROJECT_DIR
+        "PROJECT_SCRIPTS_DIR"     = $PROJECT_SCRIPTS_DIR
+        "PROJECT_WIN_SCRIPTS_DIR" = $PROJECT_WIN_SCRIPTS_DIR
+        "CHOCO_DIR"               = $CHOCO_DIR
+        "SCOOP_CACHE_DIR"         = $SCOOP_CACHE_DIR
+        "SCOOP_DIR"               = $SCOOP_DIR
+        "SCOOP_GLOBAL_DIR"        = $SCOOP_GLOBAL_DIR
+        "CHOCO_CACHE_DIR"         = $CHOCO_CACHE_DIR
     }
+
+    # Normalize PROJECT_DIR path for comparison
+    $normalizedProjectDir = $PROJECT_DIR.TrimEnd('\')
 
     # Create directories and save variables
     $stepCount = 1
     foreach ($dir in $baseDirectories.GetEnumerator()) {
         $formattedStep = "0.{0:00}" -f $stepCount
+        $normalizedDirValue = $dir.Value.TrimEnd('\')
+
+        # Check if this is PROJECT_DIR itself
+        if ($normalizedDirValue -eq $normalizedProjectDir) {
+            if (-not (Test-Path $PROJECT_DIR)) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping $($dir.Key): $($dir.Value) (PROJECT_DIR must be cloned via Step7, not created manually)" -Type "Warning"
+                $stepCount++
+                continue
+            }
+        }
+
+        # Check if this is a subdirectory of PROJECT_DIR (but not PROJECT_DIR itself)
+        $isProjectSubDir = $normalizedDirValue.StartsWith("$normalizedProjectDir\", [System.StringComparison]::OrdinalIgnoreCase)
+
+        if ($isProjectSubDir) {
+            # This is a subdirectory of PROJECT_DIR, check if PROJECT_DIR exists
+            if (-not (Test-Path $PROJECT_DIR)) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping $($dir.Key): $($dir.Value) (PROJECT_DIR does not exist)" -Type "Warning"
+                $stepCount++
+                continue
+            }
+        }
+
         if (-not (Test-Path $dir.Value)) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Creating directory: $($dir.Value)" -Type "Warning"
             New-Item -ItemType Directory -Path $dir.Value -Force | Out-Null

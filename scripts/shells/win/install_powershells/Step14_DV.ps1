@@ -15,7 +15,7 @@
 . "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 # Define step number
-$STEP_NUMBER = 8
+$STEP_NUMBER = 14
 
 # Check if already configured
 if (Test-Path $Global:STEP8_DV_INSTALLED_FLAG) {

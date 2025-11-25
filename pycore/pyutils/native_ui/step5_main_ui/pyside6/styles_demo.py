@@ -77,7 +77,7 @@ class StylesDemoWindow(QMainWindow):
         content_layout.setContentsMargins(30, 30, 30, 30)
 
         # 标题
-        title = QLabel(f"✨ {style_name.upper()} 样式预览")
+        title = QLabel(f"[*] {style_name.upper()} Style Preview")
         title.setFont(QFont("Microsoft YaHei UI", 20, QFont.Bold))
         title.setStyleSheet("color: #2c3e50; padding: 10px 0;")
         content_layout.addWidget(title)
@@ -201,9 +201,9 @@ def main():
     window = StylesDemoWindow(style_key, style_func if style_key != "default" else None)
     window.show()
 
-    print(f"\n✨ 样式演示：{style_name} ({style_key})")
-    print(f"💡 提示：运行 'python {sys.argv[0]} [样式名]' 来查看其他样式")
-    print(f"   可用样式：{', '.join(styles.keys())}\n")
+    print(f"\n[*] Style Demo: {style_name} ({style_key})")
+    print(f"[!] Tip: Run 'python {sys.argv[0]} [style_name]' to view other styles")
+    print(f"    Available styles: {', '.join(styles.keys())}\n")
 
     sys.exit(app.exec())
 

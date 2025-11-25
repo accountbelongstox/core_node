@@ -13,6 +13,7 @@ from pyapps.okx_price_monitor.lib.mode2_trader import Mode2Trader, TradingTiming
 from pyapps.okx_price_monitor.lib.continuous_monitor import ContinuousMonitor
 from pyapps.okx_price_monitor.lib.url_cache_manager import URLCacheManager
 from pyapps.okx_price_monitor.lib.central_timer import CentralTimer
+from pyapps.okx_price_monitor.lib.coin_data_manager import CoinDataManager
 
 __all__ = [
     'OKXMonitorConfig',
@@ -24,4 +25,5 @@ __all__ = [
     'ContinuousMonitor',
     'URLCacheManager',
     'CentralTimer',
+    'CoinDataManager',
 ]
