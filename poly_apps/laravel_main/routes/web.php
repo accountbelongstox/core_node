@@ -152,14 +152,24 @@ Route::prefix('code-browser')->group(function () {
 
         $processedName = trim($name);
         $processedName = preg_replace('/\s+/', ' ', $processedName);
-        $words = explode(' ', $processedName);
-        $words = array_map(function($word) {
-            return ucfirst(strtolower($word));
-        }, $words);
-        $processedName = implode(' ', $words);
+
+        if (strpos($processedName, ' ') !== false) {
+            $words = explode(' ', $processedName);
+            $words = array_map(function($word) {
+                return ucfirst(strtolower($word));
+            }, $words);
+            $processedName = implode(' ', $words);
+        } else {
+            $processedName = ucfirst(strtolower($processedName));
+        }
 
         if (!preg_match('/\.md$/i', $processedName)) {
             $processedName .= '.md';
+        }
+
+        if (preg_match('/[<>:"|?*\x00-\x1F]/', $processedName)) {
+            \Log::error('[PROMPT_CREATE] Invalid characters in filename');
+            return response()->json(['error' => 'Filename contains invalid characters'], 400);
         }
 
         \Log::info('[PROMPT_CREATE] Processed name', ['name' => $processedName]);
@@ -196,4 +206,5 @@ Route::prefix('code-browser')->group(function () {
 
     Route::post('/prompts/translate', [CodeBrowserFileOpsController::class, 'translatePrompt']);
     Route::post('/prompts/translate-name', [CodeBrowserFileOpsController::class, 'translatePromptName']);
+    Route::post('/prompts/translate-line', [CodeBrowserFileOpsController::class, 'translateSingleLine']);
 });

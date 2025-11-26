@@ -248,7 +248,7 @@ const CodeBrowser = {
 
     getFileIcon(extension) {
         const icons = {
-            'php': '🐘', 'js': '📜', 'py': '🐍', 'html': '🌐',
+            'php': '🐘', 'js': '📜', 'py': '🔷', 'html': '🌐',
             'css': '🎨', 'json': '📋', 'md': '📝', 'txt': '📄',
             'yaml': '⚙️', 'yml': '⚙️', 'xml': '📰', 'sh': '💻', 'sql': '🗄️'
         };
@@ -522,6 +522,113 @@ const CodeBrowser = {
     closeConfirmDialog() {
         document.getElementById('confirm-dialog').style.display = 'none';
         this.confirmCallback = null;
+    },
+
+    async translateChineseLines() {
+        if (!this.contextMenuTarget || this.contextMenuTargetType !== 'file') return;
+        document.getElementById('file-context-menu').style.display = 'none';
+
+        try {
+            const response = await APIClient.get(`/code-browser/read-file?path=${encodeURIComponent(this.contextMenuTarget)}`);
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Error reading file: ' + data.error);
+                return;
+            }
+
+            const lines = data.content.split('\n');
+            const translatedLines = [];
+            let hasChanges = false;
+            let translatedCount = 0;
+
+            console.log(`[CodeBrowser] Translating file line-by-line: ${this.contextMenuTarget}`);
+            document.getElementById('file-status').textContent = 'Translating Chinese lines...';
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (!/[\u4e00-\u9fa5]/.test(line)) {
+                    translatedLines.push(line);
+                    continue;
+                }
+
+                console.log(`[CodeBrowser] Translating line ${i + 1}/${lines.length}`);
+                document.getElementById('file-status').textContent = `Translating line ${i + 1}/${lines.length}...`;
+
+                try {
+                    const translateResponse = await APIClient.post('/code-browser/prompts/translate-line', {
+                        line: line
+                    });
+
+                    const translateData = await translateResponse.json();
+
+                    if (translateData.error) {
+                        console.error(`[CodeBrowser] Translation error for line ${i + 1}:`, translateData.error);
+                        translatedLines.push(line);
+                        continue;
+                    }
+
+                    if (translateData.success && translateData.translated) {
+                        if (translateData.translated !== line) {
+                            console.log(`[CodeBrowser] ✓ Line ${i + 1} translated`);
+                            translatedLines.push(translateData.translated);
+                            hasChanges = true;
+                            translatedCount++;
+                        } else {
+                            translatedLines.push(line);
+                        }
+                    } else {
+                        translatedLines.push(line);
+                    }
+                } catch (error) {
+                    console.error(`[CodeBrowser] Failed to translate line ${i + 1}:`, error);
+                    translatedLines.push(line);
+                }
+            }
+
+            if (hasChanges) {
+                const newContent = translatedLines.join('\n');
+                console.log(`[CodeBrowser] Translation complete. ${translatedCount} lines translated. Saving file...`);
+                document.getElementById('file-status').textContent = 'Saving translated content...';
+
+                const saveResponse = await APIClient.post('/code-browser/save-file', {
+                    path: this.contextMenuTarget,
+                    content: newContent
+                });
+
+                const saveData = await saveResponse.json();
+
+                if (saveData.error) {
+                    alert('Error saving file: ' + saveData.error);
+                    document.getElementById('file-status').textContent = 'Save failed';
+                } else {
+                    console.log(`[CodeBrowser] ✓ File saved successfully: ${this.contextMenuTarget}`);
+                    document.getElementById('file-status').textContent = `Translation complete! ${translatedCount} lines translated and saved.`;
+
+                    if (this.currentFile && this.currentFile.path === this.contextMenuTarget) {
+                        document.getElementById('code-editor').value = newContent;
+                        this.isModified = false;
+                    }
+
+                    setTimeout(() => {
+                        document.getElementById('file-status').textContent = `${(saveData.size / 1024).toFixed(2)} KB - Modified: ${saveData.modified}`;
+                    }, 3000);
+                }
+            } else {
+                console.log('[CodeBrowser] No Chinese lines found for translation');
+                document.getElementById('file-status').textContent = 'No Chinese lines found';
+                setTimeout(() => {
+                    if (this.currentFile && this.currentFile.path) {
+                        document.getElementById('file-status').textContent = `${(data.size / 1024).toFixed(2)} KB - Modified: ${data.modified}`;
+                    }
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Translation failed:', error);
+            alert('Failed to translate file. Please check console for details.');
+            document.getElementById('file-status').textContent = 'Translation failed';
+        }
     },
 
     shouldSkipCache(path) {

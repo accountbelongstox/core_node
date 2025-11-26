@@ -287,6 +287,55 @@ fi
 save_state "SELECTED_PREFIXES" "$SELECTED_PREFIXES"
 save_state "PHP_VERSION" "$php_version"
 
+# Verify chokidar installation (always run to ensure proper setup)
+echo ""
+echo "[$SCRIPT_INDEX] =================================="
+echo "[$SCRIPT_INDEX] VERIFYING OCTANE DEPENDENCIES"
+echo "[$SCRIPT_INDEX] =================================="
+echo "[$SCRIPT_INDEX] Checking chokidar for hot-reload support..."
+echo "[$SCRIPT_INDEX] Note: This step always runs to ensure proper installation"
+
+laravel_dir=$(get_laravel_dir)
+if [ -d "$laravel_dir" ]; then
+    cd "$laravel_dir"
+
+    if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+        node_ver=$(node --version)
+        pnpm_ver=$(pnpm --version)
+        echo "[$SCRIPT_INDEX] [OK]Node.js: $node_ver"
+        echo "[$SCRIPT_INDEX] [OK]pnpm: $pnpm_ver"
+
+        echo "[$SCRIPT_INDEX] Installing/Verifying chokidar..."
+        if [ -d "node_modules/chokidar" ]; then
+            echo "[$SCRIPT_INDEX] chokidar exists, verifying..."
+            pnpm install --save-dev chokidar >/dev/null 2>&1
+        else
+            echo "[$SCRIPT_INDEX] Installing chokidar..."
+            pnpm install --save-dev chokidar >/dev/null 2>&1
+        fi
+
+        if [ -d "node_modules/chokidar" ]; then
+            chokidar_ver=$(pnpm list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "installed")
+            echo "[$SCRIPT_INDEX] [OK]chokidar: $chokidar_ver"
+
+            if node -e "require('chokidar'); console.log('OK')" 2>/dev/null | grep -q "OK"; then
+                echo "[$SCRIPT_INDEX] [OK]chokidar test passed - hot-reload ready"
+            else
+                echo "[$SCRIPT_INDEX] [WARN]chokidar test failed but module exists"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] [ERROR]chokidar installation failed"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] [WARN]Node.js/pnpm not found - hot-reload unavailable"
+        echo "[$SCRIPT_INDEX] Install Node.js and pnpm to enable Octane --watch mode"
+    fi
+
+    cd - >/dev/null
+else
+    echo "[$SCRIPT_INDEX] [ERROR]Laravel directory not found"
+fi
+
 # Display summary
 echo ""
 echo "[$SCRIPT_INDEX] =================================="

@@ -354,8 +354,8 @@ class CodeBrowserFileOpsController
         foreach ($lines as $line) {
             if ($this->containsChinese($line)) {
                 $translated = $this->translateLine($line);
-                if ($translated) {
-                    $translatedLines[] = $line . ' -> ' . $translated;
+                if ($translated && trim($translated) !== '' && $translated !== $line) {
+                    $translatedLines[] = $translated;
                     $hasChanges = true;
                 } else {
                     $translatedLines[] = $line;
@@ -418,6 +418,50 @@ class CodeBrowserFileOpsController
         ]);
     }
 
+    public function translateSingleLine(Request $request)
+    {
+        if (!$this->checkAuthentication($request)) {
+            return response()->json([
+                'error' => 'Please login to access translation features',
+                'authenticated' => false
+            ], 401);
+        }
+
+        $line = null;
+        $translated = null;
+
+        $line = $request->input('line');
+
+        if ($line === null || $line === '') {
+            return response()->json([
+                'success' => true,
+                'translated' => ''
+            ]);
+        }
+
+        if (!$this->containsChinese($line)) {
+            return response()->json([
+                'success' => true,
+                'translated' => $line
+            ]);
+        }
+
+        $translated = $this->translateLine($line);
+
+        if (!$translated) {
+            return response()->json([
+                'error' => 'Translation failed',
+                'original' => $line
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'original' => $line,
+            'translated' => $translated
+        ]);
+    }
+
     private function containsChinese($text)
     {
         return preg_match('/[\x{4e00}-\x{9fa5}]/u', $text) > 0;
@@ -425,27 +469,28 @@ class CodeBrowserFileOpsController
 
     private function translateLine($line)
     {
-        $token = null;
-        $response = null;
-        $data = null;
-
-        $token = env('TRANSLATION_PASSCODE', '12345678');
-
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(30)->post(url('/translation/simple/google'), [
-                'text' => $line,
-                'target_language' => 'en',
-                'passcode' => $token
-            ]);
+            $translatorUtil = new \App\CallPycoreUtils\PycoreTranslatorUtil();
 
-            $data = $response->json();
+            $result = $translatorUtil->translateSingle(
+                $line,
+                'auto',
+                'en',
+                true
+            );
 
-            if ($data['success'] && isset($data['translated_text'])) {
-                return $data['translated_text'];
+            if (isset($result['error'])) {
+                error_log('[CodeBrowserFileOpsController] Translation error: ' . $result['error']);
+                return null;
+            }
+
+            if (isset($result['translated_text']) && !empty($result['translated_text'])) {
+                return $result['translated_text'];
             }
 
             return null;
         } catch (\Exception $e) {
+            error_log('[CodeBrowserFileOpsController] Translation exception: ' . $e->getMessage());
             return null;
         }
     }

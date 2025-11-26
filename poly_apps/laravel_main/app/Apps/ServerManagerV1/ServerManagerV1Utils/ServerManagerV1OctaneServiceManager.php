@@ -523,6 +523,29 @@ class ServerManagerV1OctaneServiceManager
     }
 
     /**
+     * Check if running in desktop environment
+     * Desktop environments get hot-reload via --watch flag
+     */
+    private static function isDesktopEnvironment(): bool
+    {
+        if (getenv('DISPLAY') || getenv('WAYLAND_DISPLAY')) {
+            return true;
+        }
+
+        $result = Process::run('systemctl --user is-active --quiet graphical-session.target 2>/dev/null');
+        if ($result->successful()) {
+            return true;
+        }
+
+        $result = Process::run('dpkg -l 2>/dev/null | grep -qE "ubuntu-desktop|gnome-shell|kde-plasma|xfce4"');
+        if ($result->successful()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Generate systemd service file content (PATH-BASED)
      * SYNC: octane_service_manager.sh:create_octane_service() cat > service_file
      *
@@ -533,6 +556,7 @@ class ServerManagerV1OctaneServiceManager
      * - Configurable service user (default: root for CLI, www-data for API)
      * - Path-based naming: One service per directory, shared by multiple domains
      * - Configurable host binding (0.0.0.0 for all IPs, 127.0.0.1 for localhost only)
+     * - Desktop environment: Adds --watch flag for hot reload
      */
     private static function generateServiceFileContentFromPath(
         string $wwwDir,
@@ -561,9 +585,19 @@ class ServerManagerV1OctaneServiceManager
 
         $phpBinary = PathMapper::getPhpBinaryPath();
 
+        $isDesktop = self::isDesktopEnvironment();
+        $watchFlag = $isDesktop ? ' --watch' : '';
+        $envNote = $isDesktop ? ' (Desktop: Hot-reload enabled)' : ' (Server: 48h timer)';
+
+        Log::info('Generating Octane service', [
+            'is_desktop' => $isDesktop,
+            'watch_enabled' => $isDesktop,
+            'service' => $serviceName
+        ]);
+
         return <<<EOF
 [Unit]
-Description=Laravel Octane Server for path {$pathHash} on port {$port}{$descLine}
+Description=Laravel Octane Server for path {$pathHash} on port {$port}{$descLine}{$envNote}
 After=network.target mysql.service redis.service
 Wants=network-online.target
 
@@ -572,7 +606,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart={$phpBinary} {$laravelPath}/artisan octane:start --host={$host} --port={$port} --workers={$workers}
+ExecStart={$phpBinary} {$laravelPath}/artisan octane:start --host={$host} --port={$port} --workers={$workers}{$watchFlag}
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -590,6 +624,7 @@ SyslogIdentifier={$serviceName}
 
 # Environment
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="NODE_PATH=/usr/local/lib/node_modules"
 
 # Security
 PrivateTmp=true
@@ -1254,6 +1289,193 @@ EOF;
         }
 
         Log::info('Octane services cleanup completed', [
+            'scanned' => $results['scanned'],
+            'removed' => count($results['removed']),
+            'kept' => count($results['kept']),
+            'errors' => count($results['errors'])
+        ]);
+
+        return $results;
+    }
+
+    /**
+     * Clean up systemd cache for not-found and failed units
+     * Removes orphaned timer files and resets failed states
+     *
+     * @return array Cleanup results
+     */
+    public static function cleanupSystemdCache(): array
+    {
+        $results = [
+            'cleaned' => [],
+            'orphaned_timers' => [],
+            'errors' => []
+        ];
+
+        Log::info('Cleaning systemd cache for Octane services');
+
+        $notFoundUnits = [];
+        $result = Process::run('systemctl list-units --type=service --all | grep "' . self::OCTANE_SERVICE_PREFIX . '" | grep "not-found"');
+
+        if ($result->successful()) {
+            $lines = explode("\n", trim($result->output()));
+            foreach ($lines as $line) {
+                if (preg_match('/●\s+(' . self::OCTANE_SERVICE_PREFIX . '[^\s]+)\.service/', $line, $matches)) {
+                    $notFoundUnits[] = $matches[1];
+                }
+            }
+        }
+
+        foreach ($notFoundUnits as $unit) {
+            $resetResult = Process::run("systemctl reset-failed {$unit}.service 2>&1");
+            if ($resetResult->successful()) {
+                $results['cleaned'][] = $unit;
+                Log::info('Cleaned not-found unit from systemd cache', ['unit' => $unit]);
+            } else {
+                $results['errors'][] = "Failed to reset {$unit}: " . $resetResult->errorOutput();
+            }
+        }
+
+        $timerFiles = glob(self::SYSTEMD_DIR . '/' . self::OCTANE_SERVICE_PREFIX . '*.timer');
+        foreach ($timerFiles as $timerFile) {
+            $timerName = basename($timerFile, '.timer');
+            $serviceFile = self::SYSTEMD_DIR . '/' . $timerName . '.service';
+
+            if (!file_exists($serviceFile)) {
+                if (@unlink($timerFile)) {
+                    $results['orphaned_timers'][] = basename($timerFile);
+                    Log::info('Removed orphaned timer file', ['timer' => basename($timerFile)]);
+                } else {
+                    $results['errors'][] = "Failed to remove orphaned timer: " . basename($timerFile);
+                }
+            }
+        }
+
+        Process::run('systemctl daemon-reload');
+        Process::run('systemctl reset-failed');
+
+        Log::info('Systemd cache cleanup completed', [
+            'cleaned' => count($results['cleaned']),
+            'orphaned_timers' => count($results['orphaned_timers']),
+            'errors' => count($results['errors'])
+        ]);
+
+        return $results;
+    }
+
+    /**
+     * Get all valid services based on current app structure
+     * Returns array of service names that SHOULD exist based on calculation
+     *
+     * @return array List of valid service names
+     */
+    public static function getValidServiceNames(): array
+    {
+        $validServices = [];
+        $laravelMainDir = PathMapper::getLaravelMainDir();
+
+        $validServices[] = self::getOctaneServiceNameFromPath($laravelMainDir, self::SWOOLE_PORT_START);
+
+        $appsDir = $laravelMainDir . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Apps';
+        if (is_dir($appsDir)) {
+            $apps = [];
+            $entries = @scandir($appsDir);
+
+            if ($entries !== false) {
+                foreach ($entries as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+
+                    $fullPath = $appsDir . DIRECTORY_SEPARATOR . $entry;
+                    if (is_dir($fullPath)) {
+                        $apps[] = $entry;
+                    }
+                }
+            }
+
+            sort($apps);
+
+            foreach ($apps as $index => $appName) {
+                $appDir = $appsDir . DIRECTORY_SEPARATOR . $appName;
+                $port = self::SWOOLE_PORT_START + ($index + 1);
+                $serviceName = self::getOctaneServiceNameFromPath($appDir, $port);
+                $validServices[] = $serviceName;
+            }
+        }
+
+        Log::debug('Calculated valid service names', [
+            'count' => count($validServices),
+            'services' => $validServices
+        ]);
+
+        return $validServices;
+    }
+
+    /**
+     * Clean up all services not in valid calculation range
+     * Removes services with wrong naming or ports outside calculated range
+     *
+     * @return array Cleanup results
+     */
+    public static function cleanupInvalidServices(): array
+    {
+        $results = [
+            'scanned' => 0,
+            'removed' => [],
+            'kept' => [],
+            'errors' => []
+        ];
+
+        Log::info('Cleaning up invalid Octane services');
+
+        $allServices = self::listOctaneServices();
+        $results['scanned'] = count($allServices);
+
+        $validServices = self::getValidServiceNames();
+
+        foreach ($allServices as $service) {
+            if (strpos($service, 'octane-hot-reload') === 0 || strpos($service, 'octane-auto-restart') === 0) {
+                $results['kept'][] = $service . ' (system service)';
+                continue;
+            }
+
+            $shouldKeep = false;
+
+            foreach ($validServices as $validService) {
+                if ($service === $validService) {
+                    $shouldKeep = true;
+                    break;
+                }
+            }
+
+            if (!$shouldKeep) {
+                try {
+                    Log::info('Removing invalid service (not in calculation range)', [
+                        'service' => $service,
+                        'valid_services' => $validServices
+                    ]);
+
+                    if (self::removeOctaneService($service)) {
+                        $results['removed'][] = $service;
+                    } else {
+                        $results['errors'][] = "Failed to remove: $service";
+                    }
+                } catch (\Exception $e) {
+                    $results['errors'][] = "Error removing $service: " . $e->getMessage();
+                    Log::error('Failed to remove invalid service', [
+                        'service' => $service,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            } else {
+                $results['kept'][] = $service;
+            }
+        }
+
+        self::cleanupSystemdCache();
+
+        Log::info('Invalid services cleanup completed', [
             'scanned' => $results['scanned'],
             'removed' => count($results['removed']),
             'kept' => count($results['kept']),
