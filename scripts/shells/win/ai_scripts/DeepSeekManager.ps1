@@ -236,7 +236,7 @@ function Get-DeepSeekConfig {
     String - Python command
 #>
 function Get-PythonCommand {
-    # Priority 1: Use absolute path from GlobalVars (Anaconda Python)
+    # Priority 1: Use absolute path from GlobalVars (Python 3.12 standalone)
     if ($Global:PYTHON_EXE_PATH -and (Test-Path $Global:PYTHON_EXE_PATH)) {
         return $Global:PYTHON_EXE_PATH
     }
