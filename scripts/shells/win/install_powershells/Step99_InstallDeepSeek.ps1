@@ -29,9 +29,12 @@
 
 $scriptRoot = $PSScriptRoot
 $shellsWinRoot = Split-Path $scriptRoot -Parent
-$commonFuncPath = Join-Path $shellsWinRoot "win_common\CommonFunc.ps1"
+$winCommonDir = Join-Path $shellsWinRoot "win_common"
+$globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
+$commonFuncPath = Join-Path $winCommonDir "CommonFunc.ps1"
 $deepSeekManagerPath = Join-Path $shellsWinRoot "ai_scripts\DeepSeekManager.ps1"
 
+. $globalVarsPath
 . $commonFuncPath
 . $deepSeekManagerPath
 

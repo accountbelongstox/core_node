@@ -64,7 +64,10 @@ Write-Host ""
 # Define winget package IDs
 $cmakeWingetId = "Kitware.CMake"
 $ninjaWingetId = "Ninja-build.Ninja"
-$pythonWingetId = "Python.Python.3.12"
+
+# Python paths from GlobalVars (Anaconda Python)
+$pythonExePathGlobal = $Global:PYTHON_EXE_PATH
+$condaExePathGlobal = $Global:CONDA_EXE_PATH
 
 # Check Visual Studio 2022 installation
 Write-Host "  [$SCRIPT_INDEX] Checking Visual Studio 2022 prerequisites..." -ForegroundColor Cyan
@@ -181,40 +184,31 @@ else {
 }
 Write-Host ""
 
-# Check and install Python
+# Check Python (uses Anaconda Python from GlobalVars)
 Write-Host "  [$SCRIPT_INDEX] ================================================" -ForegroundColor Cyan
-Write-Host "  [$SCRIPT_INDEX] Installing Python 3" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] Checking Python 3 (Anaconda)" -ForegroundColor Cyan
 Write-Host "  [$SCRIPT_INDEX] ================================================" -ForegroundColor Cyan
 
-$pythonExePath = Get-Command python -ErrorAction SilentlyContinue
-if ($pythonExePath) {
-    $pythonVersion = & python --version 2>&1
-    Write-Host "  [$SCRIPT_INDEX] Python is already installed: $pythonVersion" -ForegroundColor Green
-    Write-Host "  [$SCRIPT_INDEX] Path: $($pythonExePath.Source)" -ForegroundColor Gray
+# Priority 1: Check absolute path from GlobalVars
+if ($pythonExePathGlobal -and (Test-Path $pythonExePathGlobal)) {
+    $pythonVersion = & $pythonExePathGlobal --version 2>&1
+    Write-Host "  [$SCRIPT_INDEX] Python is installed (Anaconda): $pythonVersion" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX] Path: $pythonExePathGlobal" -ForegroundColor Gray
     $pythonInstalled = $true
 }
 else {
-    Write-Host "  [$SCRIPT_INDEX] Python not found, installing via winget..." -ForegroundColor Yellow
-
-    $pythonInstallProcess = Start-Process -FilePath "winget" -ArgumentList "install --id $pythonWingetId --silent --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow -PassThru
-
-    if ($pythonInstallProcess.ExitCode -eq 0) {
-        Write-Host "  [$SCRIPT_INDEX] Python installed successfully" -ForegroundColor Green
+    # Priority 2: Check if python is in PATH
+    $pythonInPath = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonInPath) {
+        $pythonVersion = & python --version 2>&1
+        Write-Host "  [$SCRIPT_INDEX] Python is installed: $pythonVersion" -ForegroundColor Green
+        Write-Host "  [$SCRIPT_INDEX] Path: $($pythonInPath.Source)" -ForegroundColor Gray
         $pythonInstalled = $true
-
-        # Verify installation
-        $pythonExePath = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonExePath) {
-            $pythonVersion = & python --version 2>&1
-            Write-Host "  [$SCRIPT_INDEX] Python version: $pythonVersion" -ForegroundColor Green
-        }
-        else {
-            Write-Host "  [$SCRIPT_INDEX] WARNING: Python installed but not found in PATH" -ForegroundColor Yellow
-            Write-Host "  [$SCRIPT_INDEX] You may need to restart your terminal" -ForegroundColor Yellow
-        }
     }
     else {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to install Python (Exit Code: $($pythonInstallProcess.ExitCode))" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] Python not found" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Please run Step9_InstallPython.ps1 to install Anaconda Python" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Expected path: $pythonExePathGlobal" -ForegroundColor Gray
         $pythonInstalled = $false
     }
 }
@@ -281,7 +275,7 @@ else {
         Write-Host "  [$SCRIPT_INDEX]   Ninja:  winget install Ninja-build.Ninja" -ForegroundColor Gray
     }
     if (-not $pythonInstalled) {
-        Write-Host "  [$SCRIPT_INDEX]   Python: winget install Python.Python.3.12" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step9_InstallPython.ps1 to install Anaconda" -ForegroundColor Gray
     }
 }
 

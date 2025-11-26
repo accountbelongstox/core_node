@@ -13,6 +13,7 @@ import time
 import hashlib
 import re
 import inspect
+import platform
 from typing import List, Callable, Optional
 
 columns = shutil.get_terminal_size().columns
@@ -20,6 +21,49 @@ columns = shutil.get_terminal_size().columns
 # Auto-detect MCP mode from environment variable
 # This must be done at module import time, before ColorPrint class is defined
 _AUTO_MCP_MODE = os.environ.get('PYCORE_MCP_MODE', '').lower() in ('1', 'true', 'yes')
+
+# Enable ANSI color support on Windows
+# This must be done before any colored output
+def _enable_windows_ansi_support():
+    """Enable ANSI escape sequence support on Windows console"""
+    if platform.system() != 'Windows':
+        return True
+    
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        # Get stdout handle
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        if handle == -1:
+            return False
+        
+        # Get current console mode
+        mode = ctypes.c_ulong()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        
+        # Enable virtual terminal processing
+        new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        if not kernel32.SetConsoleMode(handle, new_mode):
+            return False
+        
+        # Also enable for stderr
+        STD_ERROR_HANDLE = -12
+        err_handle = kernel32.GetStdHandle(STD_ERROR_HANDLE)
+        if err_handle != -1:
+            err_mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(err_handle, ctypes.byref(err_mode)):
+                kernel32.SetConsoleMode(err_handle, err_mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        
+        return True
+    except Exception:
+        return False
+
+# Initialize Windows ANSI support at module load
+_WINDOWS_ANSI_ENABLED = _enable_windows_ansi_support()
 
 
 class ColorPrintCallback:
