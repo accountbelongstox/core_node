@@ -10,6 +10,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+$scriptRoot = $PSScriptRoot
+$shellsWinRoot = Split-Path $scriptRoot -Parent
+$winCommonDir = Join-Path $shellsWinRoot "win_common"
+$globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
+
+. $globalVarsPath
+
 $SCRIPT_INDEX = "[Step96]"
 $MODEL_NAME = "DeepSeek-OCR"
 $REPO_URL = "https://github.com/deepseek-ai/DeepSeek-OCR.git"
@@ -84,37 +91,17 @@ function Test-GitAvailable {
 }
 
 function Test-PythonAvailable {
-    $pythonCommand = ""
+    $pythonCommand = $Global:PYTHON_EXE_PATH
 
-    $commands = @("python", "python3")
-    foreach ($cmd in $commands) {
-        try {
-            $version = & $cmd --version 2>&1
-            if ($version -match "Python (\d+)\.(\d+)") {
-                $major = [int]$matches[1]
-                $minor = [int]$matches[2]
-
-                if ($major -eq 3 -and $minor -ge 12) {
-                    $pythonCommand = $cmd
-                    Write-Host "$SCRIPT_INDEX Python is available: $version" -ForegroundColor Green
-                    Write-Host "$SCRIPT_INDEX Python version is sufficient (3.12+)" -ForegroundColor Green
-                    break
-                }
-                elseif ($major -eq 3 -and $minor -ge 8) {
-                    Write-Host "$SCRIPT_INDEX WARNING: Python $major.$minor found, but 3.12+ is recommended" -ForegroundColor Yellow
-                    $pythonCommand = $cmd
-                    break
-                }
-            }
-        }
-        catch {
-            continue
+    if (-not $pythonCommand -or -not (Test-Path $pythonCommand)) {
+        $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+        if ($pythonCommand) {
+            $pythonCommand = $pythonCommand.Source
         }
     }
 
     if (-not $pythonCommand) {
-        Write-Host "$SCRIPT_INDEX Python 3.12+ is required but not found" -ForegroundColor Red
-        Write-Host "$SCRIPT_INDEX Please install Python from: https://python.org/" -ForegroundColor Yellow
+        Write-Host "$SCRIPT_INDEX Python not found. Run Step9_InstallPython.ps1" -ForegroundColor Red
         return @{ Available = $false; Command = "" }
     }
 
