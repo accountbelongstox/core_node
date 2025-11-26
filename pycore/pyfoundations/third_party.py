@@ -51,11 +51,17 @@ ColorPrint = _ColorPrintWrapper
 # Maps the required import name to the official PyPI package name.
 # All new third-party dependencies for any tool must be added here.
 #
+# Version constraints can be specified using pip syntax (e.g., "package<2.0,>=1.5")
+# Version constraints for dependency compatibility:
+#   - Pillow<11,>=10: required by tkhtmlview 0.3.1 (needs Pillow<11,>=10)
+#   - numpy<2.3.0,>=2: required by opencv-python (needs numpy<2.3.0,>=2)
+#
 # IMPORTANT: DO NOT MODIFY platform-specific package filtering logic below
 # Windows-only packages are automatically skipped on Linux/Mac systems
 DEPENDENCY_MAP = {
     # PIL is a common name for the Pillow package
-    "PIL": "Pillow",
+    # Version constraint: tkhtmlview 0.3.1 requires Pillow<11,>=10
+    "PIL": "Pillow<11,>=10",
 
     # For computer vision tasks
     "cv2": "opencv-python",
@@ -72,7 +78,8 @@ DEPENDENCY_MAP = {
     # For YOLO training and deep learning
     "torch": "torch",
     "ultralytics": "ultralytics",
-    "numpy": "numpy",
+    # Version constraint: opencv-python requires numpy<2.3.0,>=2
+    "numpy": "numpy<2.3.0,>=2",
 
     # For ADB communication (pyutils.device)
     "adb_shell": "adb-shell",
