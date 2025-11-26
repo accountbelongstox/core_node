@@ -44,15 +44,18 @@ $CommonPythonPackages = @(
 )
 
 # Required packages from pycore/pyfoundations/third_party.py DEPENDENCY_MAP
+# Version constraints for dependency compatibility:
+#   - Pillow<11: required by tkhtmlview 0.3.1 (needs Pillow<11,>=10)
+#   - numpy<2.3.0: required by opencv-python (needs numpy<2.3.0,>=2)
 $RequiredPythonPackages = @(
-    "Pillow",
+    "Pillow<11,>=10",
     "opencv-python",
     "pyautogui",
     "psutil",
     "mss",
     "torch",
     "ultralytics",
-    "numpy",
+    "numpy<2.3.0,>=2",
     "adb-shell",
     "av",
     "uvicorn[standard]",
