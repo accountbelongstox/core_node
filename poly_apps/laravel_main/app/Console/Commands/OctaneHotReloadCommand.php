@@ -240,19 +240,37 @@ class OctaneHotReloadCommand extends Command
 
         $changeCount = count($changes['modified']) + count($changes['added']) + count($changes['deleted']);
 
+        if ($changeCount === 0) {
+            return;
+        }
+
+        $phpModified = array_filter($changes['modified'], fn($file) => str_ends_with($file, '.php'));
+        $phpAdded = array_filter($changes['added'], fn($file) => str_ends_with($file, '.php'));
+        $phpDeleted = array_filter($changes['deleted'], fn($file) => str_ends_with($file, '.php'));
+        $phpChangeCount = count($phpModified) + count($phpAdded) + count($phpDeleted);
+
         $this->warn('');
-        $this->warn('[' . date('Y-m-d H:i:s') . '] Detected ' . $changeCount . ' file change(s)');
+        $this->warn('[' . date('Y-m-d H:i:s') . '] Detected ' . $changeCount . ' file change(s) (' . $phpChangeCount . ' PHP files)');
 
         foreach ($changes['modified'] as $file) {
-            $this->line('  Modified: ' . $this->getRelativePath($file));
+            $isPhp = str_ends_with($file, '.php');
+            $this->line('  Modified: ' . $this->getRelativePath($file) . ($isPhp ? ' [PHP]' : ''));
         }
 
         foreach ($changes['added'] as $file) {
-            $this->line('  Added: ' . $this->getRelativePath($file));
+            $isPhp = str_ends_with($file, '.php');
+            $this->line('  Added: ' . $this->getRelativePath($file) . ($isPhp ? ' [PHP]' : ''));
         }
 
         foreach ($changes['deleted'] as $file) {
-            $this->line('  Deleted: ' . $this->getRelativePath($file));
+            $isPhp = str_ends_with($file, '.php');
+            $this->line('  Deleted: ' . $this->getRelativePath($file) . ($isPhp ? ' [PHP]' : ''));
+        }
+
+        if ($phpChangeCount === 0) {
+            $this->info('No PHP files changed, skipping reload.');
+            $this->info('');
+            return;
         }
 
         $this->info('Reloading Octane services...');
@@ -278,22 +296,28 @@ class OctaneHotReloadCommand extends Command
             $output = [];
             $returnCode = 0;
 
-            exec('systemctl list-units --type=service --all 2>/dev/null | grep "octane-" | awk \'{print $1}\' | sed \'s/.service$//\'', $output, $returnCode);
+            exec('systemctl list-units --type=service --state=running 2>/dev/null | grep "octane-poly-" | awk \'{print $1}\'', $output, $returnCode);
 
             if (empty($output)) {
-                $this->warn('No Octane services found');
+                $this->warn('No Octane worker services found');
                 return false;
             }
 
             $successCount = 0;
             $failCount = 0;
 
-            foreach ($output as $serviceName) {
-                $serviceName = trim($serviceName);
+            foreach ($output as $serviceLine) {
+                $serviceLine = trim($serviceLine);
 
-                if (empty($serviceName)) {
+                if (empty($serviceLine)) {
                     continue;
                 }
+
+                if (!preg_match('/^(octane-poly-\d+)\.service$/', $serviceLine, $matches)) {
+                    continue;
+                }
+
+                $serviceName = $matches[1];
 
                 $restartOutput = [];
                 $restartCode = 0;
@@ -304,7 +328,7 @@ class OctaneHotReloadCommand extends Command
                     $this->line("  ✓ Restarted {$serviceName}");
                     $successCount++;
                 } else {
-                    $this->error("  ✗ Failed to restart {$serviceName}");
+                    $this->error("  ✗ Failed to restart {$serviceName}: " . implode("\n", $restartOutput));
                     $failCount++;
                 }
             }

@@ -506,61 +506,61 @@ install_via_web() {
 
 
 
-# Function to fix npm global binary permissions
-fix_npm_permissions() {
-    log_message "Fixing npm global binary permissions..."
+# Function to fix pnpm global binary permissions
+fix_pnpm_permissions() {
+    log_message "Fixing pnpm global binary permissions..."
 
-    # Get npm global bin directory
-    local npm_global_bin
-    npm_global_bin=$(npm config get prefix 2>/dev/null)
+    # Get pnpm global bin directory
+    local pnpm_global_bin
+    pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
 
-    if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
-        # Set executable permissions for all binaries in npm global bin directory
-        $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
-        log_message "Fixed executable permissions for all binaries in: $npm_global_bin/bin"
+    if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin/bin" ]; then
+        # Set executable permissions for all binaries in pnpm global bin directory
+        $USE_SUDO find "$pnpm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
+        log_message "Fixed executable permissions for all binaries in: $pnpm_global_bin/bin"
 
         # Count how many binaries were fixed
-        local binary_count=$(find "$npm_global_bin/bin" -type f -name "*" 2>/dev/null | wc -l)
-        log_message "Fixed permissions for $binary_count npm global binaries"
+        local binary_count=$(find "$pnpm_global_bin/bin" -type f -name "*" 2>/dev/null | wc -l)
+        log_message "Fixed permissions for $binary_count pnpm global binaries"
 
         # Use new comprehensive permission fix function
-        if command -v fix_npm_global_permissions_from_common_functions >/dev/null 2>&1; then
-            fix_npm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
+        if command -v fix_pnpm_global_permissions_from_common_functions >/dev/null 2>&1; then
+            fix_pnpm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
                 log_message "$line"
             done
         fi
 
         return 0
     else
-        log_message "Warning: Could not determine npm global bin directory"
+        log_message "Warning: Could not determine pnpm global bin directory"
         return 1
     fi
 }
 
-# Function to install via npm
-install_via_npm() {
+# Function to install via pnpm
+install_via_pnpm() {
     local package_id="$1"
     local app_name="$2"
 
     if ! command_exists npm; then
-        log_message "npm is not installed. Cannot install $app_name"
+        log_message "pnpm is not installed. Cannot install $app_name"
         return 1
     fi
 
     log_message "Installing $app_name via npm: $package_id"
-    if timeout 300 npm install -g "$package_id"; then
+    if timeout 300 pnpm add -g "$package_id"; then
         log_message "Successfully installed $app_name via npm"
 
-        # Fix permissions for npm global binaries
+        # Fix permissions for pnpm global binaries
         fix_npm_permissions
 
-        # Get npm global prefix and fix permissions for the specific package
-        local npm_global_prefix=$(npm config get prefix 2>/dev/null)
-        if [ -n "$npm_global_prefix" ]; then
-            # Fix permissions for the entire npm installation
+        # Get pnpm global prefix and fix permissions for the specific package
+        local pnpm_global_prefix=$(pnpm config get prefix 2>/dev/null)
+        if [ -n "$pnpm_global_prefix" ]; then
+            # Fix permissions for the entire pnpm installation
             if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-                log_message "Fixing permissions for npm installation at: $npm_global_prefix"
-                fix_installation_permissions_from_common_functions "$npm_global_prefix" "755" "true" 2>&1 | while IFS= read -r line; do
+                log_message "Fixing permissions for pnpm installation at: $pnpm_global_prefix"
+                fix_installation_permissions_from_common_functions "$pnpm_global_prefix" "755" "true" 2>&1 | while IFS= read -r line; do
                     log_message "$line"
                 done
             fi
@@ -803,7 +803,7 @@ install_application() {
             create_launch_script "$lookup_app"
         fi
 
-        # For npm packages, refresh the symlink to point directly to npm binary
+        # For pnpm packages, refresh the symlink to point directly to pnpm binary
         if [ "$install_method" = "npm" ]; then
             log_message "Refreshing npm package links for $display_name"
             refresh_npm_package_links "$exec_name" "$lookup_app"
@@ -853,7 +853,7 @@ install_application() {
         log_message "Creating launch script for $display_name"
         create_launch_script "$lookup_app"
         
-        # For npm packages, also refresh the direct symlink
+        # For pnpm packages, also refresh the direct symlink
         if [ "$install_method" = "npm" ]; then
             refresh_npm_package_links "$exec_name" "$lookup_app"
         fi
@@ -1088,15 +1088,15 @@ refresh_npm_package_links() {
     local exec_name="$1"
     local lookup_app="$2"
     
-    # Get npm global bin directory
-    local npm_global_bin=$(npm config get prefix 2>/dev/null)
+    # Get pnpm global bin directory
+    local pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
     local binary_path=""
     
-    if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
-        binary_path="$npm_global_bin/bin/$exec_name"
+    if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin/bin" ]; then
+        binary_path="$pnpm_global_bin/bin/$exec_name"
     fi
     
-    # Fallback to which if npm bin directory not available
+    # Fallback to which if pnpm bin directory not available
     if [ -z "$binary_path" ] || [ ! -e "$binary_path" ]; then
         binary_path=$(which "$exec_name" 2>/dev/null)
         if [ -z "$binary_path" ]; then
@@ -1107,7 +1107,7 @@ refresh_npm_package_links() {
     
     log_message "Refreshing links for npm package: $exec_name"
     
-    # Create symbolic link in /usr/local/bin pointing directly to npm binary
+    # Create symbolic link in /usr/local/bin pointing directly to pnpm binary
     local link_path="/usr/local/bin/$exec_name"
     
     # Check if link already points to correct target
@@ -1127,7 +1127,7 @@ refresh_npm_package_links() {
         log_message "Removed existing link/file: $link_path"
     fi
     
-    # Create new symbolic link directly to npm binary
+    # Create new symbolic link directly to pnpm binary
     $USE_SUDO ln -sf "$binary_path" "$link_path"
     log_message "Created symbolic link: $link_path -> $binary_path"
     
@@ -1148,14 +1148,14 @@ refresh_environment() {
         $USE_SUDO chmod 755 "/usr/local/super_scripts"
     fi
     
-    # Get npm global bin directory
-    local npm_global_bin=$(npm config get prefix 2>/dev/null)
-    if [ -z "$npm_global_bin" ] || [ ! -d "$npm_global_bin/bin" ]; then
-        log_message "Warning: Could not determine npm global bin directory"
+    # Get pnpm global bin directory
+    local pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
+    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin/bin" ]; then
+        log_message "Warning: Could not determine pnpm global bin directory"
         return 1
     fi
     
-    log_message "NPM global bin directory: $npm_global_bin/bin"
+    log_message "NPM global bin directory: $pnpm_global_bin/bin"
     
     # Process all AI packages that use npm installation method
     local npm_packages=("gemini" "claude" "codex" "auggie")
@@ -1170,7 +1170,7 @@ refresh_environment() {
             log_message "Processing $package ($exec_name)..."
             
             # Check if the binary exists in npm global bin
-            local binary_path="$npm_global_bin/bin/$exec_name"
+            local binary_path="$pnpm_global_bin/bin/$exec_name"
             if [ -f "$binary_path" ]; then
                 log_message "Found binary: $binary_path"
                 
@@ -1181,13 +1181,13 @@ refresh_environment() {
                 # Extract the actual command from launch_command (remove "which exec && $USE_SUDO")
                 local actual_command=$(echo "$launch_command" | sed 's/which [^&]* && \$USE_SUDO //')
 
-                # For npm packages, replace relative paths with absolute paths
+                # For pnpm packages, replace relative paths with absolute paths
                 local processed_command="$actual_command"
                 if [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
                     # Extract the executable name after "node"
                     local node_exec=$(echo "$actual_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
                     if [ -n "$node_exec" ]; then
-                        # Use absolute path to the npm binary (without $@ here, it will be added below)
+                        # Use absolute path to the pnpm binary (without $@ here, it will be added below)
                         processed_command="node $binary_path"
                     fi
                 fi
@@ -1210,7 +1210,7 @@ refresh_environment() {
 # Package: $package_id
 
 # Add npm global bin to PATH
-export PATH="\$PATH:$npm_global_bin/bin"
+export PATH="\$PATH:$pnpm_global_bin/bin"
 
 # Execute the launch command
 $final_command "\$@"
@@ -1674,7 +1674,7 @@ main() {
     # Fix npm permissions after all installations
     log_message ""
     log_message "=========================================="
-    log_message "Fixing npm global binary permissions..."
+    log_message "Fixing pnpm global binary permissions..."
     log_message "=========================================="
     fix_npm_permissions
 
