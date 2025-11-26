@@ -20,7 +20,7 @@ $STEP_NUMBER = 30
 
 # Chrome Application ID
 $CHROME_ID = "Google.Chrome"
-function Step26_InstallChrome {
+function Step30_InstallChrome {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Chrome..." -Type "Info"
 
     # Define Chrome paths
@@ -106,7 +106,7 @@ function Step26_InstallChrome {
 }
 
 # Step 6B: Install Chrome Beta
-function Step26_InstallChromeBeta {
+function Step30_InstallChromeBeta {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Chrome Beta..." -Type "Info"
     # Define Chrome Beta paths
     $chromeBetaDefaultPath = "C:\Program Files\Google\Chrome Beta"
@@ -185,5 +185,5 @@ function Step26_InstallChromeBeta {
     }
 }
 
-Step26_InstallChrome
-Step26_InstallChromeBeta
+Step30_InstallChrome
+Step30_InstallChromeBeta

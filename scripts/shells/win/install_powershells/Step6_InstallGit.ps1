@@ -135,7 +135,7 @@ function Configure-Git {
     }
 }
 
-function Step21_InstallGit {
+function Step6_InstallGit {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing and configuring Git..." -Type "Info"
 
     # Check Git installation by flag file and executable
@@ -311,5 +311,5 @@ function Ensure-GitContextMenu {
 
 
 # Execute all functions
-Step21_InstallGit
+Step6_InstallGit
 Ensure-GitContextMenu

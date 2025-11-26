@@ -385,7 +385,7 @@ localhostForwarding=true
     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL configuration completed" -Type "Success"
 }
 
-function Step80_InstallWSL {
+function Step84_InstallWSL {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Starting WSL installation with compatibility checks..." -Type "Info"
     
     # Step 1: Detect Windows version
@@ -511,45 +511,68 @@ function Step80_InstallWSL {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Current WSL distributions:" -Type "Info"
     Write-Host $wslList
 
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking for Ubuntu 24.04..." -Type "Info"
-    $distros = & wsl -l -q
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Found distributions: $($distros -join ', ')" -Type "Info"
-
-    if ($distros -contains "Ubuntu-24.04") {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Ubuntu 24.04 is already installed." -Type "Success"
-    } else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Ubuntu 24.04 not found. Installing..." -Type "Warning"
-        try {
-            & wsl --install -d Ubuntu-24.04
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Ubuntu 24.04 installed successfully." -Type "Success"
-            } else {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Ubuntu 24.04." -Type "Error"
-                return
+    # Step 8: Configure default user to root for all Ubuntu distributions (always run, even if already installed)
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Step 8: Configuring default user to root for Ubuntu distributions..." -Type "Info"
+    
+    $distros = & wsl -l -q 2>&1
+    $ubuntuDistros = @()
+    
+    foreach ($distro in $distros) {
+        if ($distro) {
+            # Clean the string (remove null characters from UTF-16 encoding)
+            $cleanDistro = $distro.ToString() -replace '\x00', ''
+            $cleanDistro = $cleanDistro.Trim()
+            
+            # Check if it's an Ubuntu distribution
+            if ($cleanDistro -match "Ubuntu" -and $cleanDistro -ne "" -and $cleanDistro -ne "NAME") {
+                $ubuntuDistros += $cleanDistro
             }
-        } catch {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Error during Ubuntu 24.04 installation: $_" -Type "Error"
-            return
         }
     }
-
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking default user for Ubuntu 24.04..." -Type "Info"
-    $defaultUser = & wsl -d Ubuntu-24.04 cat /etc/wsl.conf 2>$null | Select-String -Pattern "default="
-
-    if ($defaultUser -notmatch "default=root") {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting root as default user for Ubuntu 24.04..." -Type "Warning"
-        try {
-            & wsl -d Ubuntu-24.04 bash -c "echo -e '[user]\ndefault=root' > /etc/wsl.conf"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user set to root for Ubuntu 24.04." -Type "Success"
-        } catch {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Error setting default user to root: $_" -Type "Error"
+    
+    if ($ubuntuDistros.Count -gt 0) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Found Ubuntu distributions: $($ubuntuDistros -join ', ')" -Type "Info"
+        
+        foreach ($distroName in $ubuntuDistros) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking default user for $distroName..." -Type "Info"
+            
+            try {
+                # Check current wsl.conf
+                $wslConfContent = & wsl -d $distroName cat /etc/wsl.conf 2>&1
+                
+                if ($wslConfContent -match "default=root") {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user is already root for $distroName." -Type "Success"
+                } else {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting root as default user for $distroName..." -Type "Warning"
+                    
+                    # Create or update wsl.conf with root as default user
+                    & wsl -d $distroName bash -c "echo -e '[user]\ndefault=root' > /etc/wsl.conf"
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user set to root for $distroName." -Type "Success"
+                    } else {
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set default user for $distroName." -Type "Warning"
+                    }
+                }
+            } catch {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Error configuring $distroName : $_" -Type "Error"
+            }
         }
+        
+        # Restart WSL to apply changes
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Restarting WSL to apply user configuration changes..." -Type "Info"
+        & wsl --shutdown
+        Start-Sleep -Seconds 3
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL restarted." -Type "Success"
     } else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user is already root for Ubuntu 24.04." -Type "Success"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] No Ubuntu distributions found. Skipping user configuration." -Type "Info"
     }
 
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL and Ubuntu 24.04 setup completed." -Type "Success"
+    # Note: Ubuntu distribution installation is handled by Step85_InstallWSLUbuntu24.ps1
+    # This script sets up WSL infrastructure (features, kernel, etc.) and configures existing distributions
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL setup completed." -Type "Success"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Run Step85_InstallWSLUbuntu24.ps1 to install Ubuntu distribution." -Type "Info"
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
 
-Step80_InstallWSL
+Step84_InstallWSL

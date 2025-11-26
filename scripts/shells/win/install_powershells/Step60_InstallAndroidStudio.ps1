@@ -87,7 +87,7 @@ function Add-AdbToPathIfExists {
     }
 }
 
-function Step56_InstallAndroidStudio {
+function Step60_InstallAndroidStudio {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Android Studio..." -Type "Info"
     
     # Create installation directories if they don't exist
@@ -181,4 +181,4 @@ function Step56_InstallAndroidStudio {
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
 
-Step56_InstallAndroidStudio
+Step60_InstallAndroidStudio

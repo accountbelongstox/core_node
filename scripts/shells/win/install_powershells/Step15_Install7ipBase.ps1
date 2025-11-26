@@ -21,7 +21,7 @@ $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_com
 
 $STEP_NUMBER = 15
 
-function Step11_InstallBaseTools {
+function Step15_InstallBaseTools {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing base tools..." -Type "Info"
     # Install 7-Zip
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting up 7-Zip..." -Type "Info"
@@ -144,4 +144,4 @@ function Step11_InstallBaseTools {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Base tools installation completed" -Type "Success"
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
-Step11_InstallBaseTools
+Step15_InstallBaseTools

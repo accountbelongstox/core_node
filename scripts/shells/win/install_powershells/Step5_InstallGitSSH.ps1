@@ -162,7 +162,7 @@ function Clean-DecryptedFiles {
     }
 }
 
-function Step18_InstallGitSSH {
+function Step5_InstallGitSSH {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] === Step 18: Installing Git SSH Keys ===" -Type "Info"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] This step will install SSH keys for Git authentication." -Type "Warning"
     if (Test-SSHKeyPairExists) {
@@ -183,5 +183,5 @@ function Step18_InstallGitSSH {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Private key: $($Global:SSH_KEY_PATH)" -Type "Info"
 }
 
-Step18_InstallGitSSH
+Step5_InstallGitSSH
 Clean-DecryptedFiles

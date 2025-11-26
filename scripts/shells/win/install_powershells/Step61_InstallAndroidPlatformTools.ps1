@@ -228,7 +228,7 @@ function Test-AdbInstallation {
     return $false
 }
 
-function Step57_InstallAndroidPlatformTools {
+function Step61_InstallAndroidPlatformTools {
     param(
         [string]$DriveLetter = "C"
     )
@@ -266,4 +266,4 @@ function Step57_InstallAndroidPlatformTools {
     return $true
 }
 
-Step57_InstallAndroidPlatformTools
+Step61_InstallAndroidPlatformTools

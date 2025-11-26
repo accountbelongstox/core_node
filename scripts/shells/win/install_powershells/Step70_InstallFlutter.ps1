@@ -18,7 +18,7 @@ $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_com
 
 $STEP_NUMBER = 70
 
-function Step66_InstallFlutter {
+function Step70_InstallFlutter {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Flutter..." -Type "Info"
 
     # Create installation directory if it doesn't exist
@@ -125,4 +125,4 @@ function Step66_InstallFlutter {
     }
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
-Step66_InstallFlutter
+Step70_InstallFlutter

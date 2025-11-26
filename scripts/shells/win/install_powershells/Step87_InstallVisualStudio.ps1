@@ -15,7 +15,7 @@
 
 $STEP_NUMBER = 87
 
-function Step81_InstallVisualStudio {
+function Step87_InstallVisualStudio {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Visual Studio 2022..." -Type "Info"
 
     # Check Windows version compatibility
@@ -244,4 +244,4 @@ function Set-VisualStudioHardLinks {
     return $true
 }
 
-Step81_InstallVisualStudio
+Step87_InstallVisualStudio

@@ -38,7 +38,7 @@ $deepSeekManagerPath = Join-Path $shellsWinRoot "ai_scripts\DeepSeekManager.ps1"
 . $commonFuncPath
 . $deepSeekManagerPath
 
-$SCRIPT_INDEX = "[Step95]"
+$SCRIPT_INDEX = "[Step99]"
 $STEP_NUMBER = 99
 
 Write-Host "$SCRIPT_INDEX Install DeepSeek-VL Local Translation Model" -ForegroundColor Cyan

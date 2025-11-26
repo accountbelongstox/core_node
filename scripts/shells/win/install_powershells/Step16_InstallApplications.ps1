@@ -78,7 +78,7 @@ param(
 # Local debug configuration for this script
 $LocalDebugMode = $true  # Set to $false to disable debug output for this script only
 
-$SCRIPT_INDEX = "[Step12]"      
+$SCRIPT_INDEX = "[Step16]"      
 Write-Host "$SCRIPT_INDEX Install Base Packages (winget preferred)" -ForegroundColor Cyan
 
 # Test debug function with local debug mode

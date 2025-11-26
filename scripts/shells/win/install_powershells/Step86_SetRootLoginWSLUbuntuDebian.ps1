@@ -263,7 +263,7 @@ function Verify-WSLRootConfiguration {
     }
 }
 
-function Step81_SetRootLoginWSLUbuntuDebian {
+function Step86_SetRootLoginWSLUbuntuDebian {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Step 81: Set Root Login for WSL Ubuntu/Debian Distributions" -Type "Info"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] This script will configure WSL Ubuntu/Debian distributions to use root as default user" -Type "Info"
     
@@ -274,4 +274,4 @@ function Step81_SetRootLoginWSLUbuntuDebian {
 }
 
 # Execute the main function
-Step81_SetRootLoginWSLUbuntuDebian
+Step86_SetRootLoginWSLUbuntuDebian

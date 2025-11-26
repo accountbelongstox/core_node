@@ -22,7 +22,7 @@ param(
 )
 
 # Script Index for logging
-$SCRIPT_INDEX = "Step90"
+$SCRIPT_INDEX = "Step94"
 
 # Resolve absolute paths for script dependencies
 $scriptRoot = $PSScriptRoot
