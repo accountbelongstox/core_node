@@ -93,7 +93,8 @@ export default defineNuxtConfig({
 
     css: [
         '~/assets/css/app.css',
-        '~/assets/css/apps/app_pymatrix_theme.css'
+        '~/assets/css/apps/app_pymatrix_theme.css',
+        '~/apps/app_ittools/styles_app_ittools/holographic.css'
     ],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 

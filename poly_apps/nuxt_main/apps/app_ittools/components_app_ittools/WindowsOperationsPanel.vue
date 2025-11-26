@@ -1,142 +1,102 @@
 <template>
-  <div class="windows-panel">
+  <div class="it-tools-panel">
     <!-- Windows Operations -->
-    <div class="bento-card actions-card">
-      <div class="card-header">
-        <i class="fab fa-windows header-icon"></i>
-        <h2>Windows Operations</h2>
+    <div class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fab fa-windows"></i>
+          <span>Windows Operations</span>
+        </div>
       </div>
       
-      <div class="actions-grid">
-        <button @click="getSystemInfo" :disabled="isProcessing" class="action-btn blue">
-          <i class="fas fa-desktop"></i>
-          <span class="action-title">System Info</span>
-          <span class="action-desc">Get system details</span>
-        </button>
-
-        <button @click="getInstalledApps" :disabled="isProcessing" class="action-btn green">
-          <i class="fas fa-th-large"></i>
-          <span class="action-title">Installed Apps</span>
-          <span class="action-desc">List applications</span>
-        </button>
-
-        <button @click="checkAdminRights" :disabled="isProcessing" class="action-btn purple">
-          <i class="fas fa-user-shield"></i>
-          <span class="action-title">Check Admin</span>
-          <span class="action-desc">Verify privileges</span>
-        </button>
-
-        <button @click="killProcessByPort" :disabled="isProcessing" class="action-btn orange">
-          <i class="fas fa-network-wired"></i>
-          <span class="action-title">Kill by Port</span>
-          <span class="action-desc">Free port usage</span>
-        </button>
-
-        <button @click="executePowerShell" :disabled="isProcessing" class="action-btn red">
-          <i class="fas fa-terminal"></i>
-          <span class="action-title">PowerShell</span>
-          <span class="action-desc">Execute script</span>
-        </button>
-
-        <button @click="createShortcut" :disabled="isProcessing" class="action-btn gray">
-          <i class="fas fa-link"></i>
-          <span class="action-title">Create Shortcut</span>
-          <span class="action-desc">Desktop shortcut</span>
-        </button>
+      <div class="panel-body">
+        <div class="bento-grid bento-grid-auto">
+          <button v-for="action in WINDOWS_ACTIONS_LIST" :key="action.id" @click="handleAction(action.id)" :disabled="isProcessing" class="action-card" :class="action.colorClass">
+            <div class="action-card-icon" :class="action.colorClass">
+              <i :class="action.icon"></i>
+            </div>
+            <span class="action-card-title">{{ action.name }}</span>
+            <span class="action-card-desc">{{ action.description }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Python Operations -->
-    <div class="bento-card actions-card">
-      <div class="card-header">
-        <i class="fab fa-python header-icon python"></i>
-        <h3>Python Operations</h3>
+    <div class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title python">
+          <i class="fab fa-python"></i>
+          <span>Python Operations</span>
+        </div>
       </div>
 
-      <div class="actions-grid">
-        <button @click="checkPythonInstallation" :disabled="isProcessing" class="action-btn yellow">
-          <i class="fab fa-python"></i>
-          <span class="action-title">Check Python</span>
-          <span class="action-desc">Verify installation</span>
-        </button>
-
-        <button @click="createVirtualEnv" :disabled="isProcessing" class="action-btn indigo">
-          <i class="fas fa-cube"></i>
-          <span class="action-title">Create Venv</span>
-          <span class="action-desc">Virtual environment</span>
-        </button>
-
-        <button @click="installPythonPackage" :disabled="isProcessing" class="action-btn teal">
-          <i class="fas fa-box"></i>
-          <span class="action-title">Install Package</span>
-          <span class="action-desc">pip install</span>
-        </button>
-
-        <button @click="runPythonScript" :disabled="isProcessing" class="action-btn cyan">
-          <i class="fas fa-play"></i>
-          <span class="action-title">Run Script</span>
-          <span class="action-desc">Execute .py file</span>
-        </button>
-
-        <button @click="listPythonEnvs" :disabled="isProcessing" class="action-btn lime">
-          <i class="fas fa-list"></i>
-          <span class="action-title">List Envs</span>
-          <span class="action-desc">Virtual environments</span>
-        </button>
-
-        <button @click="checkPythonModules" :disabled="isProcessing" class="action-btn emerald">
-          <i class="fas fa-cogs"></i>
-          <span class="action-title">Check Modules</span>
-          <span class="action-desc">Installed packages</span>
-        </button>
+      <div class="panel-body">
+        <div class="bento-grid bento-grid-auto">
+          <button v-for="action in PYTHON_ACTIONS_LIST" :key="action.id" @click="handleAction(action.id)" :disabled="isProcessing" class="action-card" :class="action.colorClass">
+            <div class="action-card-icon" :class="action.colorClass">
+              <i :class="action.icon"></i>
+            </div>
+            <span class="action-card-title">{{ action.name }}</span>
+            <span class="action-card-desc">{{ action.description }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Results Section -->
-    <div v-if="result" class="bento-card results-card">
-      <div class="card-header">
-        <i class="fas fa-terminal header-icon"></i>
-        <h3>Results</h3>
+    <div v-if="result" class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fas fa-terminal"></i>
+          <span>Results</span>
+        </div>
       </div>
-      <div class="results-content">
-        <pre>{{ JSON.stringify(result, null, 2) }}</pre>
+      <div class="panel-body">
+        <div class="terminal-output glass-scroll">
+          <pre>{{ JSON.stringify(result, null, 2) }}</pre>
+        </div>
       </div>
     </div>
 
     <!-- System Status -->
-    <div v-if="systemStatus" class="bento-card status-card">
-      <div class="card-header">
-        <i class="fas fa-server header-icon"></i>
-        <h3>System Status</h3>
+    <div v-if="systemStatus" class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fas fa-server"></i>
+          <span>System Status</span>
+        </div>
       </div>
-      <div class="status-grid">
-        <div class="status-item">
-          <span class="item-label">Platform</span>
-          <span class="item-value">{{ systemStatus.platform }}</span>
-        </div>
-        <div class="status-item">
-          <span class="item-label">Arch</span>
-          <span class="item-value">{{ systemStatus.arch }}</span>
-        </div>
-        <div class="status-item">
-          <span class="item-label">Node Version</span>
-          <span class="item-value">{{ systemStatus.nodeVersion }}</span>
-        </div>
-        <div class="status-item">
-          <span class="item-label">Admin Rights</span>
-          <span class="item-value" :class="systemStatus.isAdmin ? 'success' : 'error'">
-            {{ systemStatus.isAdmin ? 'Yes' : 'No' }}
-          </span>
-        </div>
-        <div class="status-item">
-          <span class="item-label">Python Installed</span>
-          <span class="item-value" :class="systemStatus.pythonInstalled ? 'success' : 'error'">
-            {{ systemStatus.pythonInstalled ? 'Yes' : 'No' }}
-          </span>
-        </div>
-        <div class="status-item">
-          <span class="item-label">System Drive</span>
-          <span class="item-value">{{ systemStatus.systemDrive }}</span>
+      <div class="panel-body">
+        <div class="bento-grid bento-grid-3">
+          <div class="status-item-card">
+            <span class="label-glass">Platform</span>
+            <span class="status-value">{{ systemStatus.platform }}</span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">Arch</span>
+            <span class="status-value">{{ systemStatus.arch }}</span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">Node Version</span>
+            <span class="status-value">{{ systemStatus.nodeVersion }}</span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">Admin Rights</span>
+            <span :class="['tag-glass', systemStatus.isAdmin ? 'tag-success' : 'tag-error']">
+              {{ systemStatus.isAdmin ? 'Yes' : 'No' }}
+            </span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">Python Installed</span>
+            <span :class="['tag-glass', systemStatus.pythonInstalled ? 'tag-success' : 'tag-error']">
+              {{ systemStatus.pythonInstalled ? 'Yes' : 'No' }}
+            </span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">System Drive</span>
+            <span class="status-value">{{ systemStatus.systemDrive }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -158,6 +118,25 @@ import ShortcutModal from './ShortcutModal.vue';
 import PythonPackageModal from './PythonPackageModal.vue';
 import PythonScriptModal from './PythonScriptModal.vue';
 
+// Actions configuration
+const WINDOWS_ACTIONS_LIST = [
+  { id: 'systemInfo', name: 'System Info', icon: 'fas fa-desktop', description: 'Get system details', colorClass: 'blue' },
+  { id: 'installedApps', name: 'Installed Apps', icon: 'fas fa-th-large', description: 'List applications', colorClass: 'green' },
+  { id: 'checkAdmin', name: 'Check Admin', icon: 'fas fa-user-shield', description: 'Verify privileges', colorClass: 'purple' },
+  { id: 'killPort', name: 'Kill by Port', icon: 'fas fa-network-wired', description: 'Free port usage', colorClass: 'orange' },
+  { id: 'powerShell', name: 'PowerShell', icon: 'fas fa-terminal', description: 'Execute script', colorClass: 'red' },
+  { id: 'createShortcut', name: 'Create Shortcut', icon: 'fas fa-link', description: 'Desktop shortcut', colorClass: 'gray' }
+];
+
+const PYTHON_ACTIONS_LIST = [
+  { id: 'checkPython', name: 'Check Python', icon: 'fab fa-python', description: 'Verify installation', colorClass: 'yellow' },
+  { id: 'createVenv', name: 'Create Venv', icon: 'fas fa-cube', description: 'Virtual environment', colorClass: 'indigo' },
+  { id: 'installPackage', name: 'Install Package', icon: 'fas fa-box', description: 'pip install', colorClass: 'teal' },
+  { id: 'runScript', name: 'Run Script', icon: 'fas fa-play', description: 'Execute .py file', colorClass: 'cyan' },
+  { id: 'listEnvs', name: 'List Envs', icon: 'fas fa-list', description: 'Virtual environments', colorClass: 'lime' },
+  { id: 'checkModules', name: 'Check Modules', icon: 'fas fa-cogs', description: 'Installed packages', colorClass: 'emerald' }
+];
+
 const isProcessing = ref(false);
 const result = ref<any>(null);
 const systemStatus = ref<any>(null);
@@ -166,6 +145,23 @@ const showPowerShellModal = ref(false);
 const showShortcutModal = ref(false);
 const showPythonPackageModal = ref(false);
 const showPythonScriptModal = ref(false);
+
+const handleAction = (actionId: string) => {
+  switch (actionId) {
+    case 'systemInfo': getSystemInfo(); break;
+    case 'installedApps': getInstalledApps(); break;
+    case 'checkAdmin': checkAdminRights(); break;
+    case 'killPort': showKillPortModal.value = true; break;
+    case 'powerShell': showPowerShellModal.value = true; break;
+    case 'createShortcut': showShortcutModal.value = true; break;
+    case 'checkPython': checkPythonInstallation(); break;
+    case 'createVenv': createVirtualEnv(); break;
+    case 'installPackage': showPythonPackageModal.value = true; break;
+    case 'runScript': showPythonScriptModal.value = true; break;
+    case 'listEnvs': listPythonEnvs(); break;
+    case 'checkModules': checkPythonModules(); break;
+  }
+};
 
 const getSystemInfo = async () => {
   isProcessing.value = true;
@@ -206,8 +202,6 @@ const checkAdminRights = async () => {
   }
 };
 
-const killProcessByPort = () => { showKillPortModal.value = true; };
-
 const handleKillPort = async (data: { port: number }) => {
   isProcessing.value = true;
   result.value = null;
@@ -221,8 +215,6 @@ const handleKillPort = async (data: { port: number }) => {
   }
 };
 
-const executePowerShell = () => { showPowerShellModal.value = true; };
-
 const handleExecutePowerShell = async (data: { command: string; elevated: boolean }) => {
   isProcessing.value = true;
   result.value = null;
@@ -235,8 +227,6 @@ const handleExecutePowerShell = async (data: { command: string; elevated: boolea
     isProcessing.value = false;
   }
 };
-
-const createShortcut = () => { showShortcutModal.value = true; };
 
 const handleCreateShortcut = async (data: { targetPath: string; shortcutPath: string; options: any }) => {
   isProcessing.value = true;
@@ -280,8 +270,6 @@ const createVirtualEnv = async () => {
   }
 };
 
-const installPythonPackage = () => { showPythonPackageModal.value = true; };
-
 const handleInstallPythonPackage = async (data: { packageName: string; environment?: string }) => {
   isProcessing.value = true;
   result.value = null;
@@ -294,8 +282,6 @@ const handleInstallPythonPackage = async (data: { packageName: string; environme
     isProcessing.value = false;
   }
 };
-
-const runPythonScript = () => { showPythonScriptModal.value = true; };
 
 const handleRunPythonScript = async (data: { scriptPath: string; arguments?: string[] }) => {
   isProcessing.value = true;
@@ -385,178 +371,36 @@ const callMcpTool = async (toolName: string, params: any) => {
 </script>
 
 <style scoped>
-.windows-panel {
+.panel-title.python i {
+  color: #f59e0b;
+}
+
+.status-item-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-bento, 12px);
-}
-
-.bento-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-.actions-card, .results-card, .status-card {
-  padding: 1.5rem;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.header-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  border-radius: 12px;
-  color: white;
-  font-size: 1rem;
-}
-
-.header-icon.python {
-  background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
-}
-
-.card-header h2, .card-header h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-.actions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1rem;
-}
-
-.action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 0.5rem;
-  padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(229, 231, 235, 0.6);
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.action-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.action-btn i:first-child {
-  font-size: 1.75rem;
-  margin-bottom: 0.25rem;
-}
-
-.action-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
-}
-
-.action-desc {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-.action-btn.blue { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2); }
-.action-btn.blue i:first-child { color: #3b82f6; }
-
-.action-btn.green { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.2); }
-.action-btn.green i:first-child { color: #22c55e; }
-
-.action-btn.purple { background: rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.2); }
-.action-btn.purple i:first-child { color: #8b5cf6; }
-
-.action-btn.orange { background: rgba(249, 115, 22, 0.08); border-color: rgba(249, 115, 22, 0.2); }
-.action-btn.orange i:first-child { color: #f97316; }
-
-.action-btn.red { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); }
-.action-btn.red i:first-child { color: #ef4444; }
-
-.action-btn.gray { background: rgba(107, 114, 128, 0.08); border-color: rgba(107, 114, 128, 0.2); }
-.action-btn.gray i:first-child { color: #6b7280; }
-
-.action-btn.yellow { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); }
-.action-btn.yellow i:first-child { color: #f59e0b; }
-
-.action-btn.indigo { background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); }
-.action-btn.indigo i:first-child { color: #6366f1; }
-
-.action-btn.teal { background: rgba(20, 184, 166, 0.08); border-color: rgba(20, 184, 166, 0.2); }
-.action-btn.teal i:first-child { color: #14b8a6; }
-
-.action-btn.cyan { background: rgba(6, 182, 212, 0.08); border-color: rgba(6, 182, 212, 0.2); }
-.action-btn.cyan i:first-child { color: #06b6d4; }
-
-.action-btn.lime { background: rgba(132, 204, 22, 0.08); border-color: rgba(132, 204, 22, 0.2); }
-.action-btn.lime i:first-child { color: #84cc16; }
-
-.action-btn.emerald { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); }
-.action-btn.emerald i:first-child { color: #10b981; }
-
-.results-content {
-  background: rgba(249, 250, 251, 0.8);
-  border: 1px solid rgba(229, 231, 235, 0.6);
-  border-radius: 12px;
   padding: 1rem;
-  max-height: 300px;
-  overflow-y: auto;
+  background: var(--glass-bg-light);
+  border-radius: var(--radius-md);
 }
 
-.results-content pre {
-  font-family: 'Monaco', 'Menlo', monospace;
-  font-size: 0.8125rem;
-  color: #374151;
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.status-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.item-label {
-  font-size: 0.75rem;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.item-value {
+.status-value {
   font-size: 0.9375rem;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--color-text);
 }
 
-.item-value.success { color: #22c55e; }
-.item-value.error { color: #ef4444; }
+/* Action Card Colors */
+.action-card.blue .action-card-icon { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+.action-card.green .action-card-icon { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
+.action-card.purple .action-card-icon { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+.action-card.orange .action-card-icon { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+.action-card.red .action-card-icon { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+.action-card.gray .action-card-icon { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); }
+.action-card.yellow .action-card-icon { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.action-card.indigo .action-card-icon { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); }
+.action-card.teal .action-card-icon { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); }
+.action-card.cyan .action-card-icon { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+.action-card.lime .action-card-icon { background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%); }
+.action-card.emerald .action-card-icon { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
 </style>
