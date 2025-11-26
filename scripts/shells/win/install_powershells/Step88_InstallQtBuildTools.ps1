@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script Index for logging
-$SCRIPT_INDEX = "Step84"
+$SCRIPT_INDEX = "Step88"
 
 # Resolve absolute paths for script dependencies
 $scriptRoot = $PSScriptRoot

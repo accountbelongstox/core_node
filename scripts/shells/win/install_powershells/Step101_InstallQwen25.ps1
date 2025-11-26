@@ -17,7 +17,7 @@ $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 
 . $globalVarsPath
 
-$SCRIPT_INDEX = "[Step97]"
+$SCRIPT_INDEX = "[Step101]"
 $MODEL_NAME = "Qwen2.5-0.5B-Instruct"
 $MODEL_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
 $REQUIRED_PYTHON_VERSION = "3.8"

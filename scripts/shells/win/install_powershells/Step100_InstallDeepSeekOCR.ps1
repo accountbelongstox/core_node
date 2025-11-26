@@ -17,7 +17,7 @@ $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 
 . $globalVarsPath
 
-$SCRIPT_INDEX = "[Step96]"
+$SCRIPT_INDEX = "[Step100]"
 $MODEL_NAME = "DeepSeek-OCR"
 $REPO_URL = "https://github.com/deepseek-ai/DeepSeek-OCR.git"
 $MODEL_PATH = "deepseek-ai/DeepSeek-OCR"

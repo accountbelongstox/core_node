@@ -14,7 +14,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # Script metadata
-$SCRIPT_INDEX = "[Step9]"
+$SCRIPT_INDEX = "[Step13]"
 $SCRIPT_VERSION = "3.0"
 
 # Import required modules

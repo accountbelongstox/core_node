@@ -17,7 +17,7 @@ $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 
 . $globalVarsPath
 
-$SCRIPT_INDEX = "[Step98]"
+$SCRIPT_INDEX = "[Step102]"
 $MODEL_NAME = "NLLB-200"
 $MODEL_PATH = "facebook/nllb-200-distilled-600M"
 $REQUIRED_PYTHON_VERSION = "3.8"

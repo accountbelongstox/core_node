@@ -113,7 +113,7 @@ function Initialize-BaseStructure {
 }
 
 # Step 1: Initialize Base Directories
-function Step6_InitializeBaseDirectories {
+function Step1_InitializeBaseDirectories {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Initializing base directories..." -Type "Info"
 
     # Get system name from variable storage
@@ -244,4 +244,4 @@ function Test-AndInstallWinGet {
 
 Test-SystemRequirements
 Initialize-BaseStructure
-Step6_InitializeBaseDirectories
+Step1_InitializeBaseDirectories

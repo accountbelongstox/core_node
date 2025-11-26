@@ -138,7 +138,7 @@ function Set-PHPEnvironmentVariables {
 }
 
 
-function Step7_InstallPHP {
+function Step12_InstallPHP {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing PHP $PHP_VERSION for Laravel development..." -Type "Info"
 
     # Check if PHP binary exists
@@ -212,4 +212,4 @@ function Step7_InstallPHP {
 }
 
 # Execute PHP installation
-Step7_InstallPHP
+Step12_InstallPHP

@@ -23,7 +23,7 @@ $script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_commo
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
 
-$script:STEP_NUMBER = 80
+$script:STEP_NUMBER = 85
 $script:UBUNTU_VERSION = $Global:UBUNTU_VERSION
 $script:UBUNTU_DISTRO_NAME = "Ubuntu-$script:UBUNTU_VERSION"
 $script:UBUNTU_WSL_URL = $Global:UBUNTU_WSL_DOWNLOAD_URL
@@ -240,6 +240,39 @@ function Get-UbuntuWSLFile {
             Remove-Item $script:UBUNTU_WSL_LOCAL_PATH -Force
         }
     }
+    
+    # Prompt user for static package download (default Y with 10s timeout)
+    Write-StepMessage -Message "Do you want to download Ubuntu WSL static package? [Y/n] (Auto-continue in 10 seconds with 'Y')" -Type "Warning"
+    Write-StepMessage -Message "Static package URL: $script:UBUNTU_WSL_URL" -Type "Info"
+    
+    $useStaticPackage = $true
+    $timeout = 10
+    $startTime = Get-Date
+    $endTime = $startTime.AddSeconds($timeout)
+    
+    while ((Get-Date) -lt $endTime) {
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            $char = $key.KeyChar.ToString().ToUpper()
+            
+            if ($char -eq "N") {
+                Write-Host ""
+                $useStaticPackage = $false
+                Write-StepMessage -Message "Using native WSL installation method instead" -Type "Info"
+                break
+            } elseif ($char -eq "Y" -or $key.Key -eq [ConsoleKey]::Enter) {
+                Write-Host ""
+                break
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    
+    if (-not $useStaticPackage) {
+        return $null
+    }
+    
+    Write-StepMessage -Message "Using static package download method" -Type "Info"
     
     # Test download availability
     if (Test-UbuntuDownload) {
