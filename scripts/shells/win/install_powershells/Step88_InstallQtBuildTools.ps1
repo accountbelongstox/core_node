@@ -65,9 +65,8 @@ Write-Host ""
 $cmakeWingetId = "Kitware.CMake"
 $ninjaWingetId = "Ninja-build.Ninja"
 
-# Python paths from GlobalVars (Anaconda Python)
+# Python paths from GlobalVars (Python 3.12 standalone)
 $pythonExePathGlobal = $Global:PYTHON_EXE_PATH
-$condaExePathGlobal = $Global:CONDA_EXE_PATH
 
 # Check Visual Studio 2022 installation
 Write-Host "  [$SCRIPT_INDEX] Checking Visual Studio 2022 prerequisites..." -ForegroundColor Cyan
@@ -184,15 +183,15 @@ else {
 }
 Write-Host ""
 
-# Check Python (uses Anaconda Python from GlobalVars)
+# Check Python (uses Python 3.12 standalone from GlobalVars)
 Write-Host "  [$SCRIPT_INDEX] ================================================" -ForegroundColor Cyan
-Write-Host "  [$SCRIPT_INDEX] Checking Python 3 (Anaconda)" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] Checking Python 3 (Python 3.12)" -ForegroundColor Cyan
 Write-Host "  [$SCRIPT_INDEX] ================================================" -ForegroundColor Cyan
 
 # Priority 1: Check absolute path from GlobalVars
 if ($pythonExePathGlobal -and (Test-Path $pythonExePathGlobal)) {
     $pythonVersion = & $pythonExePathGlobal --version 2>&1
-    Write-Host "  [$SCRIPT_INDEX] Python is installed (Anaconda): $pythonVersion" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX] Python is installed (Python 3.12): $pythonVersion" -ForegroundColor Green
     Write-Host "  [$SCRIPT_INDEX] Path: $pythonExePathGlobal" -ForegroundColor Gray
     $pythonInstalled = $true
 }
@@ -207,7 +206,7 @@ else {
     }
     else {
         Write-Host "  [$SCRIPT_INDEX] Python not found" -ForegroundColor Yellow
-        Write-Host "  [$SCRIPT_INDEX] Please run Step9_InstallPython.ps1 to install Anaconda Python" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Please run Step9_InstallPython.ps1 to install Python 3.12" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] Expected path: $pythonExePathGlobal" -ForegroundColor Gray
         $pythonInstalled = $false
     }
@@ -275,7 +274,7 @@ else {
         Write-Host "  [$SCRIPT_INDEX]   Ninja:  winget install Ninja-build.Ninja" -ForegroundColor Gray
     }
     if (-not $pythonInstalled) {
-        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step9_InstallPython.ps1 to install Anaconda" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step9_InstallPython.ps1 to install Python 3.12" -ForegroundColor Gray
     }
 }
 
