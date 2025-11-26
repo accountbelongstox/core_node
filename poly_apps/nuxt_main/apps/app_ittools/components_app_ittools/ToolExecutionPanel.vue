@@ -130,6 +130,7 @@ import { TOOL_PARAMS } from '../config_app_ittools/tool-params';
 import UniversalToolForm from './tools/UniversalToolForm.vue';
 import { getToolComponent } from './tools/tool-registry';
 import { appLogger } from '../services_app_ittools/logger';
+import { getCategoryIcon } from '@/apps/app_ittools/constants_app_ittools/ui-config';
 
 const props = defineProps<{
   tool: Tool | null;
@@ -172,16 +173,6 @@ const canExecute = computed(() => {
   }
   return true;
 });
-
-const getCategoryIcon = (category: string): string => {
-  const icons: Record<string, string> = {
-    crypto: 'fas fa-lock', converter: 'fas fa-exchange-alt', web: 'fas fa-globe',
-    text: 'fas fa-font', math: 'fas fa-calculator', network: 'fas fa-network-wired',
-    media: 'fas fa-photo-video', development: 'fas fa-code', measurement: 'fas fa-ruler',
-    data: 'fas fa-database'
-  };
-  return icons[category] || 'fas fa-folder';
-};
 
 const handleExecute = async () => {
   if (!props.tool || isExecuting.value || !canExecute.value) return;

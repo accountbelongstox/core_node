@@ -17,14 +17,14 @@
             <i class="fas fa-rocket"></i>
           </div>
           <div class="brand">
-            <h1 class="text-gradient">Developer Hub</h1>
-            <p>Web Automation & Developer Tools</p>
+            <h1 class="text-gradient">{{ APP_CONFIG.name }}</h1>
+            <p>{{ APP_CONFIG.tagline }}</p>
           </div>
         </div>
         <div class="header-center">
           <nav class="main-tabs">
             <button
-              v-for="tab in mainTabs"
+              v-for="tab in MAIN_TABS"
               :key="tab.id"
               @click="switchTab(tab.id)"
               class="tab-btn"
@@ -51,7 +51,7 @@
       <div v-if="activeMainTab === 'ittools'" class="category-menu-bar glass">
         <div class="category-menu-row">
           <div
-            v-for="cat in categoryMenuRow1"
+            v-for="cat in CATEGORY_MENU_ROW_1"
             :key="cat.id"
             class="category-menu-item"
             :class="{ active: activeDropdown === cat.id }"
@@ -81,7 +81,7 @@
         </div>
         <div class="category-menu-row">
           <div
-            v-for="cat in categoryMenuRow2"
+            v-for="cat in CATEGORY_MENU_ROW_2"
             :key="cat.id"
             class="category-menu-item"
             :class="{ active: activeDropdown === cat.id }"
@@ -138,7 +138,7 @@
                     @click="jumpToCategory(category.id)"
                     class="menu-item"
                   >
-                    <i :class="category.icon" class="menu-item-icon"></i>
+                    <i :class="getCategoryIcon(category.id)" class="menu-item-icon"></i>
                     <span>{{ category.name }}</span>
                     <span class="tag-glass">{{ category.count }}</span>
                   </button>
@@ -236,21 +236,21 @@
             <!-- Stats Row -->
             <div class="stats-row">
               <div class="bento-card stat-card">
-                <span class="stat-icon">🧰</span>
+                <span class="stat-icon">{{ STAT_ICONS.totalTools }}</span>
                 <div class="stat-info">
                   <span class="stat-value">{{ itToolsStore.allTools.length }}</span>
                   <span class="stat-label">Total Tools</span>
                 </div>
               </div>
               <div class="bento-card stat-card">
-                <span class="stat-icon">🗂️</span>
+                <span class="stat-icon">{{ STAT_ICONS.categories }}</span>
                 <div class="stat-info">
                   <span class="stat-value">{{ categoryTree.children.length }}</span>
                   <span class="stat-label">Categories</span>
                 </div>
               </div>
               <div class="bento-card stat-card">
-                <span class="stat-icon">⭐</span>
+                <span class="stat-icon">{{ STAT_ICONS.favorites }}</span>
                 <div class="stat-info">
                   <span class="stat-value">{{ favoriteIds.length }}</span>
                   <span class="stat-label">Favorites</span>
@@ -326,7 +326,7 @@
 
       <!-- Footer -->
       <footer class="app-footer glass">
-        <span>&copy; 2025 Developer Hub. Built with Nuxt.js 3 & Vue.js 3</span>
+        <span>&copy; {{ APP_CONFIG.copyright }}. Built with {{ APP_CONFIG.framework }}</span>
         <div class="footer-links">
           <a href="#">Documentation</a>
           <a href="#">Support</a>
@@ -363,31 +363,19 @@ import BrowserAutomationPanel from '@/apps/app_ittools/components_app_ittools/Br
 import WindowsOperationsPanel from '@/apps/app_ittools/components_app_ittools/WindowsOperationsPanel.vue';
 import NginxManagementPanel from '@/apps/app_ittools/components_app_ittools/NginxManagementPanel.vue';
 import { useApiClient } from '@/apps/app_ittools/composables_app_ittools/useApiClient';
-import { appLogger, type LogEntry, type LogLevel } from '@/apps/app_ittools/services_app_ittools/logger';
+import { appLogger, type LogEntry } from '@/apps/app_ittools/services_app_ittools/logger';
 
-const mainTabs = [
-  { id: 'ittools', name: 'IT Tools', icon: 'fas fa-tools', badge: '88+' },
-  { id: 'browser', name: 'Browser Automation', icon: 'fas fa-globe' },
-  { id: 'windows', name: 'Windows Operations', icon: 'fab fa-windows' },
-  { id: 'nginx', name: 'Nginx Management', icon: 'fas fa-server' }
-];
-
-// Category menu configuration (two rows like Laravel)
-const categoryMenuRow1 = [
-  { id: 'crypto', name: 'Crypto & Security', icon: 'fas fa-lock' },
-  { id: 'converter', name: 'Converters', icon: 'fas fa-exchange-alt' },
-  { id: 'media', name: 'Image Tools', icon: 'fas fa-image' },
-  { id: 'web', name: 'Web Dev', icon: 'fas fa-globe' },
-  { id: 'math', name: 'Calculator Tools', icon: 'fas fa-calculator' },
-  { id: 'development', name: 'Development', icon: 'fas fa-code' }
-];
-
-const categoryMenuRow2 = [
-  { id: 'text', name: 'Text Tools', icon: 'fas fa-font' },
-  { id: 'network', name: 'Network Tools', icon: 'fas fa-network-wired' },
-  { id: 'data', name: 'Data Tools', icon: 'fas fa-database' },
-  { id: 'measurement', name: 'Utility Tools', icon: 'fas fa-ruler' }
-];
+// Import centralized configuration
+import {
+  MAIN_TABS,
+  CATEGORY_MENU_ROW_1,
+  CATEGORY_MENU_ROW_2,
+  DEFAULT_EXPANDED_CATEGORIES,
+  STAT_ICONS,
+  APP_CONFIG,
+  getCategoryIcon,
+  getCategoryColor
+} from '@/apps/app_ittools/constants_app_ittools/ui-config';
 
 const itToolsStore = useItToolsStore();
 const apiClient = useApiClient();
@@ -398,7 +386,7 @@ const router = useRouter();
 const activeMainTab = ref('ittools');
 const sidebarCollapsed = ref(false);
 const expandedRootCategories = ref<string[]>(['all']);
-const expandedCategories = ref<string[]>(['crypto', 'converter', 'web', 'text', 'development']);
+const expandedCategories = ref<string[]>([...DEFAULT_EXPANDED_CATEGORIES]);
 const quickNavOpen = ref(false);
 const searchQuery = ref('');
 const showSearchResults = ref(false);
@@ -466,25 +454,6 @@ const closeDropdown = () => {
   dropdownTimeout = setTimeout(() => {
     activeDropdown.value = null;
   }, 150);
-};
-
-const getCategoryIcon = (id: string): string => {
-  const icons: Record<string, string> = {
-    crypto: 'fas fa-lock', converter: 'fas fa-exchange-alt', web: 'fas fa-globe',
-    text: 'fas fa-font', math: 'fas fa-calculator', network: 'fas fa-network-wired',
-    media: 'fas fa-photo-video', development: 'fas fa-code', measurement: 'fas fa-ruler',
-    data: 'fas fa-database'
-  };
-  return icons[id] || 'fas fa-folder';
-};
-
-const getCategoryColor = (id: string): string => {
-  const colors: Record<string, string> = {
-    crypto: '#8b5cf6', converter: '#06b6d4', web: '#3b82f6', text: '#10b981',
-    math: '#f59e0b', network: '#ef4444', media: '#ec4899', development: '#6366f1',
-    measurement: '#14b8a6', data: '#f97316'
-  };
-  return colors[id] || '#6b7280';
 };
 
 const switchTab = (tabId: string) => { 
@@ -623,7 +592,7 @@ watch(activeTool, (tool) => {
 .logo {
   width: 44px;
   height: 44px;
-  background: var(--gradient-accent);
+  background: var(--gradient-primary);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -641,7 +610,7 @@ watch(activeTool, (tool) => {
 
 .brand p {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   margin: 0;
 }
 
@@ -666,25 +635,25 @@ watch(activeTool, (tool) => {
   border-radius: var(--radius-md);
   font-size: 0.875rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .tab-btn:hover {
-  background: rgba(99, 102, 241, 0.06);
-  color: #4f46e5;
+  background: var(--gradient-hover);
+  color: var(--color-primary-dark);
 }
 
 .tab-btn.active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%);
+  background: var(--gradient-active);
   border-color: rgba(99, 102, 241, 0.25);
-  color: #4f46e5;
+  color: var(--color-primary-dark);
 }
 
 .tab-badge {
   padding: 0.125rem 0.5rem;
-  background: var(--gradient-accent);
+  background: var(--gradient-primary);
   color: white;
   font-size: 0.7rem;
   font-weight: 600;
@@ -707,25 +676,25 @@ watch(activeTool, (tool) => {
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 .connection-status.connected {
   background: rgba(34, 197, 94, 0.1);
   border-color: rgba(34, 197, 94, 0.2);
-  color: #16a34a;
+  color: var(--color-success);
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
-  background: #ef4444;
+  background: var(--color-error);
   border-radius: 50%;
   animation: pulse 2s infinite;
 }
 
 .connected .status-dot {
-  background: #22c55e;
+  background: var(--color-success);
 }
 
 @keyframes pulse {
@@ -742,18 +711,18 @@ watch(activeTool, (tool) => {
   background: var(--glass-bg);
   border: 1px solid rgba(229, 231, 235, 0.6);
   border-radius: var(--radius-md);
-  color: #6b7280;
+  color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .icon-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--gradient-hover);
   border-color: rgba(99, 102, 241, 0.2);
-  color: #4f46e5;
+  color: var(--color-primary-dark);
 }
 
-/* Category Menu Bar (Like Laravel) */
+/* Category Menu Bar */
 .category-menu-bar {
   margin: 0 var(--space-bento);
   margin-top: var(--space-bento);
@@ -781,29 +750,29 @@ watch(activeTool, (tool) => {
   padding: 0.5rem 0.875rem;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #4b5563;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
 .category-menu-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4f46e5;
+  background: var(--gradient-hover);
+  color: var(--color-primary-dark);
 }
 
 .category-menu-item.active .category-menu-btn {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%);
-  color: #4f46e5;
+  background: var(--gradient-active);
+  color: var(--color-primary-dark);
 }
 
 .dropdown-arrow {
   font-size: 0.625rem;
   opacity: 0.6;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-fast);
 }
 
 .category-menu-item.active .dropdown-arrow {
@@ -818,7 +787,7 @@ watch(activeTool, (tool) => {
   max-height: 320px;
   overflow-y: auto;
   padding: 0.5rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   z-index: 100;
   margin-top: 4px;
 }
@@ -831,22 +800,22 @@ watch(activeTool, (tool) => {
   padding: 0.5rem 0.75rem;
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
-  color: #374151;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   text-align: left;
 }
 
 .dropdown-tool-item:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4f46e5;
+  background: var(--gradient-hover);
+  color: var(--color-primary-dark);
 }
 
 .dropdown-tool-item i {
   width: 16px;
-  color: #6366f1;
+  color: var(--color-primary);
   opacity: 0.7;
 }
 
@@ -867,7 +836,7 @@ watch(activeTool, (tool) => {
   flex-direction: column;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
 }
 
 .sidebar-panel.collapsed {
@@ -889,16 +858,16 @@ watch(activeTool, (tool) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--gradient-hover);
   border: none;
-  border-radius: 8px;
-  color: #6366f1;
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .collapse-btn:hover {
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--gradient-active);
 }
 
 .sidebar-content {
@@ -918,18 +887,18 @@ watch(activeTool, (tool) => {
   justify-content: space-between;
   width: 100%;
   padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  background: var(--gradient-hover);
   border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: var(--radius-md);
   font-size: 0.875rem;
   font-weight: 600;
-  color: #4f46e5;
+  color: var(--color-primary-dark);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .quick-jump-btn:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+  background: var(--gradient-active);
 }
 
 .quick-jump-btn i:first-child {
@@ -943,40 +912,6 @@ watch(activeTool, (tool) => {
   gap: 0.25rem;
 }
 
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem 0.875rem;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  color: #4b5563;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-}
-
-.menu-item:hover {
-  background: rgba(99, 102, 241, 0.06);
-  color: #4f46e5;
-}
-
-.menu-item-icon {
-  width: 16px;
-  color: #6366f1;
-}
-
-.tag-glass {
-  margin-left: auto;
-  padding: 0.125rem 0.5rem;
-  background: rgba(107, 114, 128, 0.1);
-  border-radius: 10px;
-  font-size: 0.7rem;
-  color: #6b7280;
-}
-
 /* Categories Tree */
 .categories-tree {
   flex: 1;
@@ -987,7 +922,7 @@ watch(activeTool, (tool) => {
   align-items: center;
   justify-content: space-between;
   padding: 0.875rem 1rem;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  background: var(--gradient-hover);
   border-radius: var(--radius-md);
   cursor: pointer;
   margin-bottom: 0.5rem;
@@ -998,12 +933,12 @@ watch(activeTool, (tool) => {
   align-items: center;
   gap: 0.625rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text-secondary);
 }
 
 .count-badge {
   padding: 0.125rem 0.5rem;
-  background: var(--gradient-accent);
+  background: var(--gradient-primary);
   color: white;
   font-size: 0.7rem;
   font-weight: 600;
@@ -1029,19 +964,19 @@ watch(activeTool, (tool) => {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: 0.8125rem;
-  color: #4b5563;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   text-align: left;
 }
 
 .category-btn:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--gradient-hover);
 }
 
 .category-btn.expanded {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4f46e5;
+  background: var(--gradient-hover);
+  color: var(--color-primary-dark);
 }
 
 .category-btn i:first-child {
@@ -1063,7 +998,7 @@ watch(activeTool, (tool) => {
 
 .expand-icon {
   font-size: 0.625rem;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-fast);
 }
 
 .expand-icon.rotated {
@@ -1088,20 +1023,20 @@ watch(activeTool, (tool) => {
   border: none;
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   text-align: left;
 }
 
 .tool-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4f46e5;
+  background: var(--gradient-hover);
+  color: var(--color-primary-dark);
 }
 
 .tool-btn.active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%);
-  color: #4f46e5;
+  background: var(--gradient-active);
+  color: var(--color-primary-dark);
   font-weight: 500;
 }
 
@@ -1118,7 +1053,7 @@ watch(activeTool, (tool) => {
 }
 
 .star-icon {
-  color: #f59e0b;
+  color: var(--color-warning);
   font-size: 0.625rem;
 }
 
@@ -1151,7 +1086,7 @@ watch(activeTool, (tool) => {
   left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
+  color: var(--color-text-light);
 }
 
 .search-input {
@@ -1161,7 +1096,7 @@ watch(activeTool, (tool) => {
   border: 1px solid rgba(229, 231, 235, 0.6);
   border-radius: var(--radius-md);
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .search-input:focus {
@@ -1183,13 +1118,13 @@ watch(activeTool, (tool) => {
   background: rgba(107, 114, 128, 0.1);
   border: none;
   border-radius: 6px;
-  color: #6b7280;
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 
 .clear-btn:hover {
   background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .search-results {
@@ -1213,7 +1148,7 @@ watch(activeTool, (tool) => {
   border: none;
   border-bottom: 1px solid rgba(229, 231, 235, 0.3);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--transition-fast);
   text-align: left;
 }
 
@@ -1222,22 +1157,22 @@ watch(activeTool, (tool) => {
 }
 
 .result-item:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--gradient-hover);
 }
 
 .result-item i {
-  color: #6366f1;
+  color: var(--color-primary);
 }
 
 .result-name {
   flex: 1;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--color-text);
 }
 
 .result-cat {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--color-text-light);
   padding: 0.125rem 0.5rem;
   background: rgba(107, 114, 128, 0.08);
   border-radius: 6px;
@@ -1269,12 +1204,12 @@ watch(activeTool, (tool) => {
 .stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--color-text);
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1306,7 +1241,7 @@ watch(activeTool, (tool) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--gradient-accent);
+  background: var(--gradient-primary);
   color: white;
   border-radius: var(--radius-md);
   font-size: 1.25rem;
@@ -1315,13 +1250,13 @@ watch(activeTool, (tool) => {
 .tool-title h2 {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--color-text);
   margin: 0;
 }
 
 .tool-title p {
   font-size: 0.8125rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   margin: 0.25rem 0 0;
 }
 
@@ -1331,35 +1266,7 @@ watch(activeTool, (tool) => {
   overflow-y: auto;
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  color: #9ca3af;
-}
-
-.empty-state i {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.empty-state h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #374151;
-  margin: 0;
-}
-
-.empty-state p {
-  font-size: 0.875rem;
-  margin: 0.5rem 0 0;
-}
-
-/* Recent Tools Bar (Bottom) */
+/* Recent Tools Bar */
 .recent-tools-bar {
   display: flex;
   align-items: center;
@@ -1374,7 +1281,7 @@ watch(activeTool, (tool) => {
   gap: 0.5rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
@@ -1394,30 +1301,20 @@ watch(activeTool, (tool) => {
   border: 1px solid rgba(229, 231, 235, 0.6);
   border-radius: 16px;
   font-size: 0.75rem;
-  color: #4b5563;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .recent-tool-chip:hover {
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--gradient-hover);
   border-color: rgba(99, 102, 241, 0.2);
-  color: #4f46e5;
+  color: var(--color-primary-dark);
 }
 
 .recent-tool-chip i {
   font-size: 0.625rem;
   opacity: 0.7;
-}
-
-/* Bento Card */
-.bento-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 /* Footer */
@@ -1429,7 +1326,7 @@ watch(activeTool, (tool) => {
   margin: 0 var(--space-bento) var(--space-bento);
   border-radius: var(--radius-xl);
   font-size: 0.8125rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
 }
 
 .footer-links {
@@ -1438,13 +1335,13 @@ watch(activeTool, (tool) => {
 }
 
 .footer-links a {
-  color: #6b7280;
+  color: var(--color-text-muted);
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: color var(--transition-fast);
 }
 
 .footer-links a:hover {
-  color: #4f46e5;
+  color: var(--color-primary-dark);
 }
 
 /* Log Panel */
@@ -1464,7 +1361,7 @@ watch(activeTool, (tool) => {
   gap: 0.625rem;
   width: 100%;
   padding: 0.875rem 1.25rem;
-  background: var(--gradient-accent);
+  background: var(--gradient-primary);
   border: none;
   color: white;
   font-size: 0.875rem;
@@ -1480,7 +1377,7 @@ watch(activeTool, (tool) => {
 .log-empty {
   padding: 1rem;
   text-align: center;
-  color: #9ca3af;
+  color: var(--color-text-light);
   font-size: 0.8125rem;
 }
 
@@ -1501,18 +1398,18 @@ watch(activeTool, (tool) => {
   text-transform: uppercase;
 }
 
-.log-level.info { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-.log-level.success { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
-.log-level.warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-.log-level.error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.log-level.info { background: rgba(59, 130, 246, 0.1); color: var(--color-info); }
+.log-level.success { background: rgba(34, 197, 94, 0.1); color: var(--color-success); }
+.log-level.warning { background: rgba(245, 158, 11, 0.1); color: var(--color-warning); }
+.log-level.error { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
 
 .log-message {
   flex: 1;
-  color: #374151;
+  color: var(--color-text-secondary);
 }
 
 .log-time {
-  color: #9ca3af;
+  color: var(--color-text-light);
   font-size: 0.75rem;
 }
 
@@ -1531,7 +1428,7 @@ watch(activeTool, (tool) => {
 }
 
 .expand-enter-active, .expand-leave-active {
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
   overflow: hidden;
 }
 .expand-enter-from, .expand-leave-to {
@@ -1544,82 +1441,18 @@ watch(activeTool, (tool) => {
 }
 
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-normal);
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
 
 .dropdown-enter-active, .dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
   transform-origin: top;
 }
 .dropdown-enter-from, .dropdown-leave-to {
   opacity: 0;
   transform: scaleY(0.9) translateY(-4px);
-}
-
-/* Glass utilities */
-.glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-.glass-strong {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08);
-}
-
-.glass-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-
-.glass-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.glass-scroll::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.2);
-  border-radius: 2px;
-}
-
-.btn-glass {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.875rem;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(229, 231, 235, 0.6);
-  border-radius: 10px;
-  font-size: 0.8125rem;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-glass:hover {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.2);
-  color: #4f46e5;
-}
-
-.label-glass {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #6366f1;
-}
-
-.text-gradient {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 </style>
