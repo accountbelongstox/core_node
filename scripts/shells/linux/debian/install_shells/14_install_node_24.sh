@@ -168,10 +168,12 @@ detect_and_fix_previous_issues() {
     return 0
 }
 
-# Function to configure npm mirror and global settings
+# Function to configure pnpm mirror and global settings
 configure_npm_settings() {
-    local npm_bin="$NODE_BIN_DIR/npm"
+    echo "Configuring pnpm and npm settings..."
 
+    # First ensure npm is available (comes with Node.js)
+    local npm_bin="$NODE_BIN_DIR/npm"
     if [ ! -f "$npm_bin" ]; then
         echo "Warning: npm binary not found at $npm_bin, trying system npm..."
         npm_bin=$(which npm 2>/dev/null)
@@ -180,48 +182,40 @@ configure_npm_settings() {
             return 1
         fi
     fi
-    
-    if [ -n "$NPM_CONFIG_PREFIX" ]; then
-        echo "Clearing NPM_CONFIG_PREFIX environment variable"
-        unset NPM_CONFIG_PREFIX
-        if [ -f /etc/environment ]; then
-            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
-        fi
-    fi
 
-    # Configure registry based on region
-    if [ "$SELECTED_REGION" = "China" ]; then
-        echo "Region is set to China, configuring npm to use China mirror..."
+    # Install pnpm globally using npm if not already installed
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "Installing pnpm globally..."
         if [ "$(id -u)" -eq 0 ]; then
-            "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+            "$npm_bin" install -g pnpm
         else
-            $USE_SUDO "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+            $USE_SUDO "$npm_bin" install -g pnpm
         fi
-    else
-        echo "Region is Global, resetting npm to default registry..."
-        if [ "$(id -u)" -eq 0 ]; then
-            "$npm_bin" config set registry https://registry.npmjs.org/
-        else
-            $USE_SUDO "$npm_bin" config set registry https://registry.npmjs.org/
+
+        # Create symlink for pnpm
+        local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+        if [ -f "$pnpm_path" ]; then
+            $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm
+            echo "Created symlink: /usr/local/bin/pnpm -> $pnpm_path"
         fi
     fi
 
-    # Use Node.js installation directory for npm globals (standard practice)
-    local npm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    echo "Setting npm global directory to: $npm_global_dir"
+    # Configure pnpm
+    if command -v pnpm >/dev/null 2>&1; then
+        # Configure registry based on region
+        if [ "$SELECTED_REGION" = "China" ]; then
+            echo "Region is set to China, configuring pnpm to use China mirror..."
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+        else
+            echo "Region is Global, using default pnpm registry..."
+            pnpm config set registry https://registry.npmjs.org/
+        fi
 
-    # Clear any existing prefix configuration that might conflict
-    if [ "$(id -u)" -eq 0 ]; then
-        # When running as root, remove user-specific npmrc that might conflict
-        rm -f /home/*/.npmrc 2>/dev/null || true
-        rm -f /root/.npmrc 2>/dev/null || true
-        "$npm_bin" config set prefix "$npm_global_dir"
+        echo "pnpm configuration completed:"
+        pnpm config list
     else
-        "$npm_bin" config set prefix "$npm_global_dir"
+        echo "Warning: pnpm installation failed, falling back to npm"
     fi
-
-    echo "npm configuration completed:"
-    "$npm_bin" config list
 }
 
 check_node_installation() {

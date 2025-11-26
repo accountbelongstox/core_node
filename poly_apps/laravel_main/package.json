@@ -6,7 +6,6 @@
         "build": ""
     },
     "devDependencies": {
-    },
-    "dependencies": {
+        "chokidar": "^5.0.0"
     }
 }

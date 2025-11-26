@@ -229,6 +229,83 @@ up_20251115_install_octane() {
 }
 
 # ============================================================================
+# UP: 20251127_install_chokidar
+# Date: 2025-11-27
+# Description: Install chokidar for Octane hot-reload functionality
+# Idempotent: Always runs to verify and fix installation
+# ============================================================================
+up_20251127_install_chokidar() {
+    local version="20251127_install_chokidar"
+
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}[UP] Running: $version${NC}"
+    echo -e "${CYAN}[UP] Date: 2025-11-27${NC}"
+    echo -e "${CYAN}[UP] Description: Install chokidar for hot-reload${NC}"
+    echo -e "${CYAN}[UP] Note: Always runs to ensure proper installation${NC}"
+    echo -e "${CYAN}========================================${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    if [ -z "$laravel_dir" ]; then
+        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
+        return 1
+    fi
+
+    cd "$laravel_dir" || return 1
+
+    echo -e "${BLUE}[UP] Step 1: Checking Node.js and pnpm...${NC}"
+    if ! command -v node &> /dev/null; then
+        echo -e "${RED}[UP] ERROR: Node.js not found${NC}"
+        echo -e "${YELLOW}[UP] Please install Node.js first${NC}"
+        return 1
+    fi
+
+    if ! command -v pnpm &> /dev/null; then
+        echo -e "${RED}[UP] ERROR: pnpm not found${NC}"
+        echo -e "${YELLOW}[UP] Please install pnpm first (npm install -g pnpm)${NC}"
+        return 1
+    fi
+
+    local node_version=$(node --version)
+    local pnpm_version=$(pnpm --version)
+    echo -e "${GREEN}[UP] OK Node.js: $node_version${NC}"
+    echo -e "${GREEN}[UP] OK pnpm: $pnpm_version${NC}"
+
+    echo -e "${BLUE}[UP] Step 2: Checking/Installing chokidar (always runs)...${NC}"
+
+    if [ -d "node_modules/chokidar" ]; then
+        echo -e "${BLUE}[UP] chokidar exists, verifying installation...${NC}"
+        pnpm install --save-dev chokidar 2>&1 | grep -E "(up to date|added|updated|Progress)" || true
+    else
+        echo -e "${BLUE}[UP] Installing chokidar...${NC}"
+        pnpm install --save-dev chokidar
+    fi
+
+    echo -e "${BLUE}[UP] Step 3: Verifying chokidar installation...${NC}"
+    if [ -d "node_modules/chokidar" ]; then
+        local chokidar_version=$(pnpm list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "unknown")
+        echo -e "${GREEN}[UP] OK chokidar installed (version: $chokidar_version)${NC}"
+    else
+        echo -e "${RED}[UP] ERROR: chokidar not found after installation${NC}"
+        return 1
+    fi
+
+    echo -e "${BLUE}[UP] Step 4: Testing chokidar functionality...${NC}"
+    if node -e "require('chokidar'); console.log('OK')" 2>/dev/null | grep -q "OK"; then
+        echo -e "${GREEN}[UP] OK chokidar can be loaded successfully${NC}"
+    else
+        echo -e "${YELLOW}[UP] WARNING: chokidar test failed, but continuing...${NC}"
+    fi
+
+    mark_up_applied "$version"
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}[UP] $version completed successfully${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    return 0
+}
+
+# ============================================================================
 # REUSABLE FUNCTIONS - Can be called from other scripts
 # ============================================================================
 
@@ -413,6 +490,7 @@ run_all_ups() {
 
     up_20251115_install_laravel_mcp || failed=1
     up_20251115_install_octane || failed=1
+    up_20251127_install_chokidar || failed=1
 
     if [ $failed -eq 0 ]; then
         echo -e "${GREEN}[UP] All updates applied successfully${NC}"

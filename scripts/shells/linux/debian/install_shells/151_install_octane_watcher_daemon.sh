@@ -18,10 +18,12 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 
-SERVICE_NAME="octane-auto-restart"
-HOT_RELOAD_SERVICE="octane-hot-reload"
-OLD_SERVICE_NAME="laravel-octane-watcher"
-OCTANE_MANAGER_SCRIPT="$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+# Legacy service names to clean up
+OLD_SERVICES=(
+    "octane-hot-reload"
+    "octane-auto-restart"
+    "laravel-octane-watcher"
+)
 
 # Detect if this is a desktop environment
 is_desktop_environment() {
@@ -44,93 +46,109 @@ is_desktop_environment() {
 }
 
 echo "========================================="
-echo "Laravel Octane Auto-Management Setup"
+echo "Laravel Octane Hot-Reload Configuration"
 echo "========================================="
 echo ""
 
-if is_desktop_environment; then
-    echo "Desktop environment detected!"
-    echo "Installing HOT RELOAD service for development"
-    echo ""
-    echo "This service monitors Laravel files and automatically"
-    echo "reloads Octane services when changes are detected."
-    echo ""
-    echo "Purpose: Hot reload for active development"
-    INSTALL_MODE="hot-reload"
-else
-    echo "Server environment detected!"
-    echo "Installing AUTO-RESTART timer for production"
-    echo ""
-    echo "This creates a systemd timer to automatically restart"
-    echo "all Octane services every 48 hours at midnight."
-    echo ""
-    echo "Purpose: Prevent memory leaks in long-running Swoole processes"
-    INSTALL_MODE="auto-restart"
-fi
-
-echo "Script: $OCTANE_MANAGER_SCRIPT restart-all"
+echo "NOTICE: Hot-reload management has been migrated to PHP"
+echo ""
+echo "Hot-reload is now automatically handled by ServerManagerV1:"
 echo ""
 
-# Check if octane manager script exists
-if [ ! -f "$OCTANE_MANAGER_SCRIPT" ]; then
-    echo "Error: Octane manager script not found at $OCTANE_MANAGER_SCRIPT"
-    exit 1
+if is_desktop_environment; then
+    echo "✓ Desktop Environment Detected"
+    echo "  • Octane services will start with --watch flag"
+    echo "  • Automatic hot-reload on file changes (powered by chokidar)"
+    echo "  • Watches: app/, config/, routes/, database/, resources/"
+    echo ""
+    echo "Configuration:"
+    echo "  • Edit config/octane.php to customize watch settings"
+    echo "  • Node.js and chokidar are required for --watch mode"
+    INSTALL_MODE="desktop"
+else
+    echo "✓ Server Environment Detected"
+    echo "  • Octane services will use 48-hour auto-restart timer"
+    echo "  • Prevents memory leaks in long-running processes"
+    echo "  • Timer restarts services every 48 hours"
+    echo ""
+    INSTALL_MODE="server"
 fi
 
-# Clean up all possible old/conflicting services
-echo "Checking for old services to remove..."
+echo "Management:"
+echo "  • Add domains:  php artisan servermanager:website add <domain> --php-mode=swoole"
+echo "  • List sites:   php artisan servermanager:website summary"
+echo "  • Cleanup old:  php artisan servermanager:website cleanup"
+echo ""
+
+# Clean up all old legacy services
+echo "Cleaning up legacy services..."
 CLEANED=0
 
-# Remove old file watcher service
-if systemctl list-units --all | grep -q "$OLD_SERVICE_NAME.service"; then
-    echo "  Removing old file watcher service: $OLD_SERVICE_NAME"
-    $USE_SUDO systemctl stop "$OLD_SERVICE_NAME.service" 2>/dev/null || true
-    $USE_SUDO systemctl disable "$OLD_SERVICE_NAME.service" 2>/dev/null || true
-    $USE_SUDO rm -f "/etc/systemd/system/$OLD_SERVICE_NAME.service"
-    CLEANED=$((CLEANED + 1))
-fi
+for service_name in "${OLD_SERVICES[@]}"; do
+    # Check for service file
+    if [ -f "/etc/systemd/system/${service_name}.service" ]; then
+        echo "  Removing legacy service: $service_name"
+        $USE_SUDO systemctl stop "${service_name}.service" 2>/dev/null || true
+        $USE_SUDO systemctl disable "${service_name}.service" 2>/dev/null || true
+        $USE_SUDO rm -f "/etc/systemd/system/${service_name}.service"
+        CLEANED=$((CLEANED + 1))
+    fi
 
-# If installing hot-reload, remove auto-restart timer/service
-if [ "$INSTALL_MODE" = "hot-reload" ]; then
-    if systemctl list-units --all | grep -q "$SERVICE_NAME.timer"; then
-        echo "  Removing conflicting auto-restart timer: $SERVICE_NAME"
-        $USE_SUDO systemctl stop "$SERVICE_NAME.timer" 2>/dev/null || true
-        $USE_SUDO systemctl disable "$SERVICE_NAME.timer" 2>/dev/null || true
-        $USE_SUDO rm -f "/etc/systemd/system/$SERVICE_NAME.timer"
+    # Check for timer file
+    if [ -f "/etc/systemd/system/${service_name}.timer" ]; then
+        echo "  Removing legacy timer: $service_name"
+        $USE_SUDO systemctl stop "${service_name}.timer" 2>/dev/null || true
+        $USE_SUDO systemctl disable "${service_name}.timer" 2>/dev/null || true
+        $USE_SUDO rm -f "/etc/systemd/system/${service_name}.timer"
         CLEANED=$((CLEANED + 1))
     fi
-    if systemctl list-units --all | grep -q "$SERVICE_NAME.service"; then
-        echo "  Removing conflicting auto-restart service: $SERVICE_NAME"
-        $USE_SUDO systemctl stop "$SERVICE_NAME.service" 2>/dev/null || true
-        $USE_SUDO systemctl disable "$SERVICE_NAME.service" 2>/dev/null || true
-        $USE_SUDO rm -f "/etc/systemd/system/$SERVICE_NAME.service"
-        CLEANED=$((CLEANED + 1))
-    fi
-fi
-
-# If installing auto-restart, remove hot-reload service
-if [ "$INSTALL_MODE" = "auto-restart" ]; then
-    if systemctl list-units --all | grep -q "$HOT_RELOAD_SERVICE.service"; then
-        echo "  Removing conflicting hot-reload service: $HOT_RELOAD_SERVICE"
-        $USE_SUDO systemctl stop "$HOT_RELOAD_SERVICE.service" 2>/dev/null || true
-        $USE_SUDO systemctl disable "$HOT_RELOAD_SERVICE.service" 2>/dev/null || true
-        $USE_SUDO rm -f "/etc/systemd/system/$HOT_RELOAD_SERVICE.service"
-        CLEANED=$((CLEANED + 1))
-    fi
-fi
+done
 
 if [ $CLEANED -gt 0 ]; then
-    echo "✓ Cleaned up $CLEANED old service(s)"
+    echo "✓ Cleaned up $CLEANED legacy service(s)"
     $USE_SUDO systemctl daemon-reload
+    $USE_SUDO systemctl reset-failed 2>/dev/null || true
     echo ""
 else
-    echo "✓ No old services found"
+    echo "✓ No legacy services found"
     echo ""
 fi
 
-# Install based on environment
-if [ "$INSTALL_MODE" = "hot-reload" ]; then
-    # Desktop environment: Install hot reload service
+# Check chokidar installation
+echo "Checking chokidar installation (required for --watch mode)..."
+cd "$LARAVEL_MAIN_PATH"
+
+if [ ! -d "node_modules/chokidar" ]; then
+    echo "⚠ chokidar not found, installing..."
+    if command -v pnpm &> /dev/null; then
+        pnpm install --save-dev chokidar
+        echo "✓ chokidar installed"
+    else
+        echo "✗ pnpm not found. Please install pnpm to enable hot-reload"
+        echo "  Run: npm install -g pnpm"
+        echo "  You can still use Octane without hot-reload"
+    fi
+else
+    echo "✓ chokidar already installed"
+fi
+
+echo ""
+echo "Installation complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Configure Octane watch settings in config/octane.php"
+echo "  2. Deploy your websites with: php artisan servermanager:website add <domain>"
+echo "  3. Services will automatically use hot-reload in desktop environment"
+echo ""
+
+exit 0
+
+# OLD CODE BELOW - KEPT FOR REFERENCE BUT NOT EXECUTED
+# =======================================================
+exit 0
+
+if [ "$INSTALL_MODE" = "hot-reload-old" ]; then
+    # This section is deprecated
     SERVICE_FILE="/etc/systemd/system/${HOT_RELOAD_SERVICE}.service"
 
     echo "Creating hot reload service..."
