@@ -52,11 +52,11 @@ $USE_SUDO apt-get install -y \
     libcairo2 \
     libatspi2.0-0
 
-# Function to install npm package
-install_npm_package() {
+# Function to install pnpm package
+install_pnpm_package() {
     local package=$1
     echo "[$SCRIPT_INDEX] Installing $package..."
-    if npm install -g "$package"; then
+    if pnpm add -g "$package"; then
         echo "[$SCRIPT_INDEX] $package installed successfully"
         return 0
     else
@@ -67,28 +67,28 @@ install_npm_package() {
 
 # Install rebrowser packages (best anti-detection)
 echo "[$SCRIPT_INDEX] Installing rebrowser packages..."
-install_npm_package "rebrowser-puppeteer-core"
-install_npm_package "rebrowser-puppeteer"
+install_pnpm_package "rebrowser-puppeteer-core"
+install_pnpm_package "rebrowser-puppeteer"
 
 # Install puppeteer-real-browser
 echo "[$SCRIPT_INDEX] Installing puppeteer-real-browser..."
-install_npm_package "puppeteer-real-browser"
+install_pnpm_package "puppeteer-real-browser"
 
 # Install puppeteer-extra and plugins
 echo "[$SCRIPT_INDEX] Installing puppeteer-extra and plugins..."
-install_npm_package "puppeteer-extra"
-install_npm_package "puppeteer-extra-plugin-stealth"
-install_npm_package "puppeteer-extra-plugin-adblocker"
-install_npm_package "puppeteer-extra-plugin-anonymize-ua"
-install_npm_package "puppeteer-extra-plugin-user-preferences"
-install_npm_package "puppeteer-extra-plugin-recaptcha"
-install_npm_package "puppeteer-extra-plugin-block-resources"
+install_pnpm_package "puppeteer-extra"
+install_pnpm_package "puppeteer-extra-plugin-stealth"
+install_pnpm_package "puppeteer-extra-plugin-adblocker"
+install_pnpm_package "puppeteer-extra-plugin-anonymize-ua"
+install_pnpm_package "puppeteer-extra-plugin-user-preferences"
+install_pnpm_package "puppeteer-extra-plugin-recaptcha"
+install_pnpm_package "puppeteer-extra-plugin-block-resources"
 
 # Apply rebrowser patches to puppeteer-core if installed
 echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
-if npm list -g puppeteer-core >/dev/null 2>&1; then
+if pnpm list -g puppeteer-core >/dev/null 2>&1; then
     echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
-    npx rebrowser-patches@latest patch --packageName puppeteer-core || true
+    pnpm dlx rebrowser-patches@latest patch --packageName puppeteer-core || true
 fi
 
 echo "[$SCRIPT_INDEX] Puppeteer anti-detection plugins installation completed"

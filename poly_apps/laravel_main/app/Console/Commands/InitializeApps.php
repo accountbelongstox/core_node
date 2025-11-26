@@ -17,6 +17,10 @@ class InitializeApps extends Command
         $this->info('Initializing system...');
         $this->newLine();
 
+        $this->info('Checking Octane hot-reload dependencies...');
+        $this->installChokidar();
+        $this->newLine();
+
         $this->info('Creating external storage directories...');
         $directories = [
             'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
@@ -498,6 +502,72 @@ class InitializeApps extends Command
 
         } catch (\Exception $e) {
             $this->error("  ❌ Migration error: " . $e->getMessage());
+        }
+    }
+
+    private function installChokidar()
+    {
+        $laravelPath = base_path();
+        $chokidarPath = $laravelPath . '/node_modules/chokidar';
+
+        $this->line("  <fg=cyan>Checking Node.js and pnpm...</>");
+
+        exec('command -v node 2>&1', $nodeOutput, $nodeCode);
+        exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
+
+        if ($nodeCode !== 0) {
+            $this->warn("  ⚠️  Node.js not found - hot-reload will not be available");
+            $this->line("     Install Node.js to enable Octane --watch mode");
+            return;
+        }
+
+        if ($pnpmCode !== 0) {
+            $this->warn("  ⚠️  pnpm not found - hot-reload will not be available");
+            $this->line("     Install pnpm to enable Octane --watch mode (npm install -g pnpm)");
+            return;
+        }
+
+        exec('node --version 2>&1', $nodeVersion);
+        exec('pnpm --version 2>&1', $pnpmVersion);
+        $this->line("  ✓ Node.js: " . trim($nodeVersion[0] ?? 'unknown'));
+        $this->line("  ✓ pnpm: " . trim($pnpmVersion[0] ?? 'unknown'));
+
+        $this->line("  <fg=cyan>Installing/Verifying chokidar (always runs)...</>");
+
+        $originalDir = getcwd();
+        chdir($laravelPath);
+
+        if (is_dir($chokidarPath)) {
+            $this->line("  ⟳ chokidar exists, verifying installation...");
+            exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
+        } else {
+            $this->line("  ⬇ Installing chokidar...");
+            exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
+        }
+
+        chdir($originalDir);
+
+        if ($code !== 0) {
+            $this->warn("  ⚠️  chokidar installation had issues:");
+            foreach (array_slice($output, -3) as $line) {
+                $this->line("     " . $line);
+            }
+            return;
+        }
+
+        if (is_dir($chokidarPath)) {
+            exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
+            $version = trim($versionOutput[0] ?? 'unknown');
+            $this->line("  ✅ chokidar installed: {$version}");
+
+            exec('node -e "require(\'chokidar\'); console.log(\'OK\')" 2>&1', $testOutput, $testCode);
+            if ($testCode === 0 && isset($testOutput[0]) && trim($testOutput[0]) === 'OK') {
+                $this->line("  ✅ chokidar test passed - hot-reload ready");
+            } else {
+                $this->warn("  ⚠️  chokidar test failed but module exists");
+            }
+        } else {
+            $this->error("  ❌ chokidar not found after installation");
         }
     }
 }

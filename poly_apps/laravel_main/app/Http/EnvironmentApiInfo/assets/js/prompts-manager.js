@@ -6,24 +6,78 @@ const PromptsManager = {
     translating: false,
     lastEditTimes: new Map(),
     lastSaveTimes: new Map(),
+    lastTranslationTimes: new Map(),
     translatedNames: new Map(),
     windowZIndex: 30000,
-    autoTranslateDelay: 10000,
-    autoSaveDelay: 5000,
+    autoTranslateDelay: 5000,
+    autoSaveDelay: 2000,
     nameTranslationQueue: new Set(),
     nameTranslating: false,
+    sentenceAudioMap: new Map(),
+    currentPlayingIndex: -1,
+    lastPlayedIndex: -1,
+    playbackSpeed: 1.0,
+    currentAudio: null,
+    isPlaying: false,
+    loopPlayback: false,
+    currentPlayingPath: null,
+    subtitleElement: null,
+    editorContextMenu: null,
 
     async init() {
         const authResult = await this.checkAuth();
         this.createPromptsMenu(authResult.authenticated);
         this.loadNameTranslationsCache();
+        this.createSubtitleElement();
+        this.setupGlobalKeyboardListener();
         if (authResult.authenticated) {
             await this.loadPrompts();
+            await this.scanAllPromptsForTranslation();
             this.startAutoTranslateChecker();
             this.startAutoSaveChecker();
             this.startNameTranslationChecker();
+            this.startFileContentTranslationChecker();
         }
         window.addEventListener('click', (e) => this.handleWindowClick(e));
+    },
+
+    createSubtitleElement() {
+        this.subtitleElement = document.createElement('div');
+        this.subtitleElement.id = 'prompts-subtitle';
+        this.subtitleElement.style.cssText = `
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            max-width: 80%;
+            text-align: center;
+            z-index: 100000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            line-height: 1.6;
+        `;
+        document.body.appendChild(this.subtitleElement);
+    },
+
+    setupGlobalKeyboardListener() {
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                const target = e.target;
+                const isInCodeBrowser = document.getElementById('code-browser-section');
+                const isInEditor = target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable;
+
+                if (isInCodeBrowser && !isInEditor) {
+                    e.preventDefault();
+                    this.toggleGlobalPlayback();
+                }
+            }
+        });
     },
 
     async checkAuth() {
@@ -63,9 +117,12 @@ const PromptsManager = {
         `;
 
         const label = document.createElement('span');
+        label.id = 'prompts-menu-label';
         label.textContent = 'Tasks/Prompts:';
         label.style.cssText = 'color: #cccccc; font-size: 13px; font-weight: 500; flex-shrink: 0;';
         menuBar.appendChild(label);
+
+        this.translateMenuLabel();
 
         const createBtn = document.createElement('button');
         createBtn.textContent = isAuthenticated ? '+ New Task' : '+ New Task (Login Required)';
@@ -214,10 +271,19 @@ const PromptsManager = {
         if (!rawName || !rawName.trim()) return;
 
         let processedName = rawName.trim()
-            .replace(/\s+/g, ' ')
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
+            .replace(/\s+/g, ' ');
+
+        if (processedName.includes(' ')) {
+            const words = processedName.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+            processedName = words.join(' ');
+
+            if (!confirm(`Your filename contains spaces. It will be saved as:\n"${processedName}"\n\nIs this correct?`)) {
+                return;
+            }
+        } else {
+            processedName = processedName.charAt(0).toUpperCase() + processedName.slice(1).toLowerCase();
+        }
 
         if (!processedName.toLowerCase().endsWith('.md')) {
             processedName += '.md';
@@ -374,8 +440,11 @@ const PromptsManager = {
 
         header.appendChild(buttonContainer);
 
+        const mainContainer = document.createElement('div');
+        mainContainer.style.cssText = 'flex: 1; display: flex; overflow: hidden;';
+
         const editorContainer = document.createElement('div');
-        editorContainer.style.cssText = 'flex: 1; padding: 16px; overflow: hidden; display: flex; flex-direction: column;';
+        editorContainer.style.cssText = 'flex: 0 0 60%; padding: 16px; overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid #3c3c3c;';
 
         const editor = document.createElement('textarea');
         editor.id = `${windowId}-editor`;
@@ -398,8 +467,57 @@ const PromptsManager = {
         editor.value = content;
 
         editorContainer.appendChild(editor);
+
+        const audioPanel = document.createElement('div');
+        audioPanel.id = `${windowId}-audio-panel`;
+        audioPanel.style.cssText = 'flex: 0 0 40%; display: flex; flex-direction: column; background: #252526;';
+
+        const audioControls = document.createElement('div');
+        audioControls.style.cssText = 'padding: 12px; border-bottom: 1px solid #3c3c3c; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;';
+
+        const prevBtn = this.createAudioButton('⏮ Prev', () => this.playPrevious(path));
+        const nextBtn = this.createAudioButton('Next ⏭', () => this.playNext(path));
+        const latestBtn = this.createAudioButton('▶ Latest', () => this.playLatest(path));
+
+        const speedLabel = document.createElement('span');
+        speedLabel.textContent = 'Speed:';
+        speedLabel.style.cssText = 'color: #ccc; font-size: 11px; margin-left: 8px;';
+
+        const speedControl = document.createElement('input');
+        speedControl.type = 'range';
+        speedControl.min = '0.5';
+        speedControl.max = '2.0';
+        speedControl.step = '0.1';
+        speedControl.value = '1.0';
+        speedControl.style.cssText = 'width: 80px;';
+        speedControl.addEventListener('input', (e) => {
+            this.playbackSpeed = parseFloat(e.target.value);
+            speedValue.textContent = this.playbackSpeed.toFixed(1) + 'x';
+        });
+
+        const speedValue = document.createElement('span');
+        speedValue.textContent = '1.0x';
+        speedValue.style.cssText = 'color: #ccc; font-size: 11px; min-width: 35px;';
+
+        audioControls.appendChild(prevBtn);
+        audioControls.appendChild(nextBtn);
+        audioControls.appendChild(latestBtn);
+        audioControls.appendChild(speedLabel);
+        audioControls.appendChild(speedControl);
+        audioControls.appendChild(speedValue);
+
+        const audioList = document.createElement('div');
+        audioList.id = `${windowId}-audio-list`;
+        audioList.style.cssText = 'flex: 1; overflow-y: auto; padding: 8px;';
+
+        audioPanel.appendChild(audioControls);
+        audioPanel.appendChild(audioList);
+
+        mainContainer.appendChild(editorContainer);
+        mainContainer.appendChild(audioPanel);
+
         windowElement.appendChild(header);
-        windowElement.appendChild(editorContainer);
+        windowElement.appendChild(mainContainer);
         document.body.appendChild(windowElement);
 
         this.makeDraggable(windowElement, header);
@@ -413,12 +531,32 @@ const PromptsManager = {
             lastContent: content,
             isDirty: false,
             statusIndicator: statusIndicator,
-            saveBtn: saveBtn
+            saveBtn: saveBtn,
+            audioList: audioList,
+            sentences: []
         });
 
         editor.addEventListener('input', () => this.onEditorInput(path));
         editor.addEventListener('blur', () => this.onEditorBlur(path));
         editor.addEventListener('focus', () => this.onEditorFocus(path));
+        editor.addEventListener('contextmenu', (e) => this.showEditorContextMenu(e, path));
+
+        this.createEditorContextMenu();
+
+        this.lastEditTimes.set(path, Date.now());
+
+        if (this.containsChinese(content)) {
+            this.translationQueue.set(path, {
+                content: editor.value,
+                modified: modified,
+                scheduledTime: Date.now(),
+                isBackground: false
+            });
+        } else if (content.trim()) {
+            setTimeout(() => {
+                this.updateAudioForWindow(path, content);
+            }, 500);
+        }
 
         this.activeWindow = path;
     },
@@ -535,6 +673,13 @@ const PromptsManager = {
         window.isDirty = true;
         this.lastEditTimes.set(path, Date.now());
         this.updateWindowStatus(path, 'Modified (unsaved)');
+
+        this.translationQueue.set(path, {
+            content: window.editor.value,
+            modified: window.modified,
+            scheduledTime: Date.now(),
+            isBackground: false
+        });
     },
 
     onEditorBlur(path) {
@@ -616,10 +761,6 @@ const PromptsManager = {
         for (const [path, window] of this.windows.entries()) {
             if (!window.isDirty) continue;
 
-            if (window.editor === document.activeElement) {
-                continue;
-            }
-
             const lastEdit = this.lastEditTimes.get(path) || 0;
             const lastSave = this.lastSaveTimes.get(path) || 0;
 
@@ -646,10 +787,6 @@ const PromptsManager = {
                 continue;
             }
 
-            if (window.editor === document.activeElement) {
-                continue;
-            }
-
             const lastEdit = this.lastEditTimes.get(path) || 0;
             if (now - lastEdit < this.autoTranslateDelay) {
                 continue;
@@ -668,41 +805,110 @@ const PromptsManager = {
         this.updateWindowStatus(path, 'Translating...');
 
         try {
-            const response = await APIClient.post('/code-browser/prompts/translate', {
-                path: path,
-                last_modified: window.modified
-            });
+            const content = window.editor.value;
+            const lines = content.split('\n');
+            const translatedLines = [];
+            let hasChanges = false;
+            let translatedCount = 0;
+            let totalChineseLines = 0;
 
-            const data = await response.json();
+            console.log(`[PromptsManager] Translating file line-by-line: ${path}`);
 
-            if (data.error && data.modified) {
-                this.updateWindowStatus(path, 'Translation skipped (file changed)');
-                return;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (window.isDirty) {
+                    console.log('[PromptsManager] File was modified during translation, aborting');
+                    this.updateWindowStatus(path, 'Translation aborted (file edited)');
+                    setTimeout(() => {
+                        if (!window.isDirty) {
+                            this.updateWindowStatus(path, '');
+                        }
+                    }, 3000);
+                    return;
+                }
+
+                if (!this.containsChinese(line)) {
+                    translatedLines.push(line);
+                    continue;
+                }
+
+                totalChineseLines++;
+                console.log(`[PromptsManager] Translating line ${i + 1}/${lines.length}`);
+                this.updateWindowStatus(path, `Translating line ${i + 1}/${lines.length}...`);
+
+                try {
+                    const response = await APIClient.post('/code-browser/prompts/translate-line', {
+                        line: line
+                    });
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        console.error(`[PromptsManager] Translation error for line ${i + 1}:`, data.error);
+                        translatedLines.push(line);
+                        continue;
+                    }
+
+                    if (data.success && data.translated) {
+                        if (data.translated !== line) {
+                            console.log(`[PromptsManager]   ✓ Line ${i + 1} translated`);
+                            translatedLines.push(data.translated);
+                            hasChanges = true;
+                            translatedCount++;
+                        } else {
+                            translatedLines.push(line);
+                        }
+                    } else {
+                        translatedLines.push(line);
+                    }
+                } catch (error) {
+                    console.error(`[PromptsManager] Failed to translate line ${i + 1}:`, error);
+                    translatedLines.push(line);
+                }
             }
 
-            if (data.success && data.has_changes) {
-                const currentContent = window.editor.value;
+            if (hasChanges) {
+                const newContent = translatedLines.join('\n');
+                console.log(`[PromptsManager] Translation complete. ${translatedCount}/${totalChineseLines} Chinese lines translated. Saving file...`);
+                this.updateWindowStatus(path, 'Saving translated content...');
 
-                await this.saveWindow(path);
+                const saveResponse = await APIClient.post('/code-browser/save-file', {
+                    path: path,
+                    content: newContent
+                });
 
-                const response2 = await APIClient.get(`/code-browser/read-file?path=${encodeURIComponent(path)}`);
-                const newData = await response2.json();
+                const saveData = await saveResponse.json();
 
-                if (window.editor.value === currentContent && !window.isDirty) {
-                    window.editor.value = newData.content;
-                    window.lastContent = newData.content;
-                    window.modified = newData.modified;
-                    this.updateWindowStatus(path, 'Translated');
-
+                if (saveData.error) {
+                    console.error(`[PromptsManager] Failed to save file:`, saveData.error);
+                    this.updateWindowStatus(path, 'Save failed');
                     setTimeout(() => {
                         if (!window.isDirty) {
                             this.updateWindowStatus(path, '');
                         }
                     }, 3000);
                 } else {
-                    this.updateWindowStatus(path, 'Translation done (not reloaded)');
+                    console.log(`[PromptsManager] ✓ File saved successfully: ${path}`);
+                    window.editor.value = newContent;
+                    window.savedContent = newContent;
+                    window.isDirty = false;
+
+                    this.lastTranslationTimes.set(path, Date.now());
+
+                    this.updateWindowStatus(path, `✓ Translated and saved (${translatedCount} lines) - Generating audio...`);
+
+                    await this.updateAudioForWindow(path, newContent);
+
+                    setTimeout(() => {
+                        if (!window.isDirty) {
+                            this.updateWindowStatus(path, '');
+                        }
+                    }, 3000);
                 }
             } else {
+                console.log('[PromptsManager] No translation needed for:', path);
+                this.lastTranslationTimes.set(path, Date.now());
                 this.updateWindowStatus(path, 'No translation needed');
                 setTimeout(() => {
                     if (!window.isDirty) {
@@ -713,6 +919,12 @@ const PromptsManager = {
         } catch (error) {
             console.error('Translation failed:', error);
             this.updateWindowStatus(path, 'Translation failed');
+            setTimeout(() => {
+                const window = this.windows.get(path);
+                if (window && !window.isDirty) {
+                    this.updateWindowStatus(path, '');
+                }
+            }, 3000);
         } finally {
             this.translating = false;
         }
@@ -734,6 +946,7 @@ const PromptsManager = {
         try {
             const translated = await this.translateText(name);
             if (translated) {
+                console.log(`[PromptsManager] Translated filename: "${name}" -> "${translated}"`);
                 this.translatedNames.set(name, translated);
                 this.saveNameTranslationCache(name, translated);
                 await this.loadPrompts();
@@ -796,5 +1009,592 @@ const PromptsManager = {
 
     containsChinese(text) {
         return /[\u4e00-\u9fa5]/.test(text);
+    },
+
+    async translateMenuLabel() {
+        const label = document.getElementById('prompts-menu-label');
+        if (!label) return;
+
+        const originalText = label.textContent;
+        const browserLang = navigator.language || navigator.userLanguage;
+
+        if (browserLang.startsWith('zh')) {
+            const cached = localStorage.getItem('menu_label_zh');
+            if (cached) {
+                label.textContent = cached;
+                label.title = originalText;
+                return;
+            }
+
+            try {
+                const translated = await this.translateText(originalText);
+                if (translated && translated !== originalText) {
+                    localStorage.setItem('menu_label_zh', translated);
+                    label.textContent = translated;
+                    label.title = originalText;
+                }
+            } catch (error) {
+                console.error('Failed to translate menu label:', error);
+            }
+        }
+    },
+
+    async scanAllPromptsForTranslation() {
+        try {
+            console.log('[PromptsManager] Scanning all prompts for translation...');
+            const response = await APIClient.get('/code-browser/prompts');
+            const data = await response.json();
+
+            if (!data.items || data.items.length === 0) {
+                console.log('[PromptsManager] No prompts to scan');
+                return;
+            }
+
+            for (const item of data.items) {
+                const fileResponse = await APIClient.get(`/code-browser/read-file?path=${encodeURIComponent(item.path)}`);
+                const fileData = await fileResponse.json();
+
+                if (fileData.content && this.containsChinese(fileData.content)) {
+                    console.log(`[PromptsManager] File "${item.name}" contains Chinese, adding to translation queue`);
+                    this.translationQueue.set(item.path, {
+                        content: fileData.content,
+                        modified: fileData.modified,
+                        scheduledTime: Date.now(),
+                        isBackground: true
+                    });
+                }
+            }
+
+            console.log(`[PromptsManager] Scan complete. ${this.translationQueue.size} file(s) queued for translation`);
+        } catch (error) {
+            console.error('[PromptsManager] Error scanning prompts:', error);
+        }
+    },
+
+    startFileContentTranslationChecker() {
+        setInterval(() => {
+            this.checkAndTranslateAllFiles();
+        }, 5000);
+    },
+
+    async checkAndTranslateAllFiles() {
+        if (this.translating) return;
+
+        const now = Date.now();
+
+        console.log(`[PromptsManager] Checking ${this.translationQueue.size} file(s) in translation queue`);
+
+        for (const [path, data] of this.translationQueue.entries()) {
+            const window = this.windows.get(path);
+
+            const contentToCheck = window ? window.editor.value : data.content;
+
+            if (!this.containsChinese(contentToCheck)) {
+                console.log(`[PromptsManager] Skipping ${path}: no Chinese content`);
+                this.translationQueue.delete(path);
+                continue;
+            }
+
+            const lastEditTime = this.lastEditTimes.get(path) || 0;
+            const lastTranslationTime = this.lastTranslationTimes.get(path) || 0;
+
+            const timeSinceEdit = lastEditTime ? Math.floor((now - lastEditTime) / 1000) : 'never';
+            const timeSinceTranslation = lastTranslationTime ? Math.floor((now - lastTranslationTime) / 1000) : 'never';
+
+            if (lastEditTime > 0 && now - lastEditTime < 5000) {
+                console.log(`[PromptsManager] Skipping ${path}: edited ${timeSinceEdit}s ago (need 5s)`);
+                continue;
+            }
+
+            if (lastEditTime > 0 && lastTranslationTime > 0 && lastEditTime <= lastTranslationTime) {
+                console.log(`[PromptsManager] Skipping ${path}: already translated (edit: ${timeSinceEdit}s ago, translation: ${timeSinceTranslation}s ago)`);
+                continue;
+            }
+
+            if (lastEditTime === 0 && lastTranslationTime === 0) {
+                console.log(`[PromptsManager] Background file ${path} ready for translation`);
+            }
+
+            console.log(`[PromptsManager] File needs translation: ${path} (edited ${timeSinceEdit}s ago, last translated ${timeSinceTranslation}s ago)`);
+
+            if (window) {
+                await this.translatePromptContent(path);
+            } else {
+                await this.translateBackgroundFile(path, data);
+            }
+            break;
+        }
+    },
+
+    async translateBackgroundFile(path, fileData) {
+        this.translating = true;
+
+        try {
+            console.log(`[PromptsManager] Translating file line-by-line: ${path}`);
+
+            const lines = fileData.content.split('\n');
+            const translatedLines = [];
+            let hasChanges = false;
+            let translatedCount = 0;
+            let totalChineseLines = 0;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (!this.containsChinese(line)) {
+                    translatedLines.push(line);
+                    continue;
+                }
+
+                totalChineseLines++;
+                console.log(`[PromptsManager] Translating line ${i + 1}/${lines.length}: "${line.substring(0, 50)}${line.length > 50 ? '...' : ''}"`);
+
+                try {
+                    const response = await APIClient.post('/code-browser/prompts/translate-line', {
+                        line: line
+                    });
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        console.error(`[PromptsManager] Translation error for line ${i + 1}:`, data.error);
+                        translatedLines.push(line);
+                        continue;
+                    }
+
+                    if (data.success && data.translated) {
+                        if (data.translated !== line) {
+                            console.log(`[PromptsManager]   ✓ Line ${i + 1} translated: "${data.translated.substring(0, 50)}${data.translated.length > 50 ? '...' : ''}"`);
+                            translatedLines.push(data.translated);
+                            hasChanges = true;
+                            translatedCount++;
+                        } else {
+                            translatedLines.push(line);
+                        }
+                    } else {
+                        translatedLines.push(line);
+                    }
+                } catch (error) {
+                    console.error(`[PromptsManager] Failed to translate line ${i + 1}:`, error);
+                    translatedLines.push(line);
+                }
+            }
+
+            if (hasChanges) {
+                const newContent = translatedLines.join('\n');
+                console.log(`[PromptsManager] Translation complete. ${translatedCount}/${totalChineseLines} Chinese lines translated. Saving file...`);
+
+                const saveResponse = await APIClient.post('/code-browser/save-file', {
+                    path: path,
+                    content: newContent
+                });
+
+                const saveData = await saveResponse.json();
+
+                if (saveData.error) {
+                    console.error(`[PromptsManager] Failed to save file:`, saveData.error);
+                } else {
+                    console.log(`[PromptsManager] ✓ File saved successfully: ${path}`);
+
+                    this.lastTranslationTimes.set(path, Date.now());
+
+                    const window = this.windows.get(path);
+                    if (window && window.editor) {
+                        window.editor.value = newContent;
+                        window.savedContent = newContent;
+                        console.log(`[PromptsManager] ✓ Editor content updated`);
+                    }
+                }
+            } else {
+                console.log(`[PromptsManager] No translation changes for: ${path}`);
+                this.lastTranslationTimes.set(path, Date.now());
+            }
+        } catch (error) {
+            console.error(`[PromptsManager] Translation process failed for ${path}:`, error);
+        } finally {
+            this.translating = false;
+        }
+    },
+
+    createAudioButton(text, onclick) {
+        const btn = document.createElement('button');
+        btn.textContent = text;
+        btn.style.cssText = `
+            padding: 6px 12px;
+            background: #0e639c;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.2s;
+        `;
+        btn.onmouseover = () => btn.style.background = '#1177bb';
+        btn.onmouseout = () => btn.style.background = '#0e639c';
+        btn.onclick = onclick;
+        return btn;
+    },
+
+    splitIntoSentences(text) {
+        const sentences = [];
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+
+            const parts = line.split(/([.。!！?？]+)/);
+            let current = '';
+
+            for (let i = 0; i < parts.length; i++) {
+                current += parts[i];
+                if (i % 2 === 1 && current.trim()) {
+                    sentences.push(current.trim());
+                    current = '';
+                }
+            }
+
+            if (current.trim()) {
+                sentences.push(current.trim());
+            }
+        }
+
+        return sentences;
+    },
+
+    async requestTTS(text) {
+        try {
+            const response = await APIClient.post('/tts/generate', {
+                text: text,
+                language: 'en',
+                type: 'sentence'
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                console.error('[PromptsManager] TTS generation error:', data.error);
+                return null;
+            }
+
+            if (data.success && data.audio_url) {
+                return data.audio_url;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[PromptsManager] TTS request failed:', error);
+            return null;
+        }
+    },
+
+    async updateAudioForWindow(path, translatedText) {
+        const window = this.windows.get(path);
+        if (!window) return;
+
+        const sentences = this.splitIntoSentences(translatedText);
+        window.sentences = [];
+
+        window.audioList.innerHTML = '';
+
+        for (let i = 0; i < sentences.length; i++) {
+            const sentence = sentences[i];
+            const sentenceData = {
+                text: sentence,
+                audioUrl: null,
+                index: i,
+                element: null
+            };
+
+            const sentenceEl = document.createElement('div');
+            sentenceEl.style.cssText = 'padding: 8px; margin-bottom: 4px; background: #1e1e1e; border-radius: 3px; display: flex; gap: 8px; align-items: start; border: 1px solid #3c3c3c;';
+
+            const playBtn = document.createElement('button');
+            playBtn.innerHTML = '▶';
+            playBtn.style.cssText = 'width: 24px; height: 24px; border: none; background: #0e639c; color: #fff; border-radius: 3px; cursor: pointer; font-size: 10px; flex-shrink: 0;';
+            playBtn.onclick = () => {
+                if (playBtn.innerHTML === '⏹') {
+                    this.stopPlayback();
+                } else {
+                    this.playSentence(path, i);
+                }
+            };
+
+            const textEl = document.createElement('div');
+            textEl.textContent = sentence;
+            textEl.style.cssText = 'flex: 1; color: #ccc; font-size: 12px; line-height: 1.5;';
+
+            const statusEl = document.createElement('span');
+            statusEl.textContent = '⏳';
+            statusEl.style.cssText = 'color: #888; font-size: 11px;';
+
+            sentenceEl.appendChild(playBtn);
+            sentenceEl.appendChild(textEl);
+            sentenceEl.appendChild(statusEl);
+
+            window.audioList.appendChild(sentenceEl);
+
+            sentenceData.element = sentenceEl;
+            sentenceData.playBtn = playBtn;
+            sentenceData.statusEl = statusEl;
+            window.sentences.push(sentenceData);
+
+            const audioUrl = await this.requestTTS(sentence);
+            if (audioUrl) {
+                sentenceData.audioUrl = audioUrl;
+                statusEl.textContent = '✓';
+                statusEl.style.color = '#6a9955';
+
+                if (i === sentences.length - 1 && this.lastPlayedIndex !== -1) {
+                    this.lastPlayedIndex = i;
+                    this.playSentence(path, i);
+                }
+            } else {
+                statusEl.textContent = '✗';
+                statusEl.style.color = '#f48771';
+            }
+        }
+
+        if (this.lastPlayedIndex === -1 && sentences.length > 0) {
+            this.lastPlayedIndex = 0;
+        }
+    },
+
+    playSentence(path, index) {
+        const window = this.windows.get(path);
+        if (!window || !window.sentences[index]) return;
+
+        const sentence = window.sentences[index];
+        if (!sentence.audioUrl) {
+            console.log('[PromptsManager] Audio not ready for sentence:', sentence.text);
+            return;
+        }
+
+        if (this.currentAudio) {
+            this.currentAudio.pause();
+        }
+
+        window.sentences.forEach((s) => {
+            if (s.playBtn) {
+                s.playBtn.innerHTML = '▶';
+                s.playBtn.style.background = '#0e639c';
+            }
+        });
+
+        this.currentAudio = new Audio(sentence.audioUrl);
+        this.currentAudio.playbackRate = this.playbackSpeed;
+
+        sentence.playBtn.innerHTML = '⏹';
+        sentence.playBtn.style.background = '#c72e2e';
+
+        this.showSubtitle(sentence.text);
+
+        this.currentAudio.onended = () => {
+            sentence.playBtn.innerHTML = '▶';
+            sentence.playBtn.style.background = '#0e639c';
+            this.hideSubtitle();
+        };
+
+        this.currentAudio.play();
+
+        window.sentences.forEach((s, i) => {
+            if (s.element) {
+                s.element.style.background = i === index ? '#264f78' : '#1e1e1e';
+            }
+        });
+
+        this.currentPlayingIndex = index;
+        this.lastPlayedIndex = index;
+
+        console.log(`[PromptsManager] Playing sentence ${index + 1}/${window.sentences.length} at ${this.playbackSpeed}x speed`);
+    },
+
+    playPrevious(path) {
+        const window = this.windows.get(path);
+        if (!window || window.sentences.length === 0) return;
+
+        let index = this.currentPlayingIndex > 0 ? this.currentPlayingIndex - 1 : 0;
+        this.playSentence(path, index);
+    },
+
+    playNext(path) {
+        const window = this.windows.get(path);
+        if (!window || window.sentences.length === 0) return;
+
+        let index = this.currentPlayingIndex < window.sentences.length - 1 ? this.currentPlayingIndex + 1 : window.sentences.length - 1;
+        this.playSentence(path, index);
+    },
+
+    playLatest(path) {
+        const window = this.windows.get(path);
+        if (!window || window.sentences.length === 0) return;
+
+        if (this.lastPlayedIndex >= 0 && this.lastPlayedIndex < window.sentences.length) {
+            this.playSentence(path, this.lastPlayedIndex);
+        } else {
+            this.playSentence(path, window.sentences.length - 1);
+        }
+    },
+
+    createEditorContextMenu() {
+        if (this.editorContextMenu) return;
+
+        this.editorContextMenu = document.createElement('div');
+        this.editorContextMenu.id = 'editor-context-menu';
+        this.editorContextMenu.style.cssText = `
+            display: none;
+            position: fixed;
+            background: #252526;
+            border: 1px solid #454545;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            z-index: 100000;
+            min-width: 200px;
+            border-radius: 4px;
+            padding: 4px 0;
+        `;
+
+        const translateItem = document.createElement('div');
+        translateItem.textContent = '🌐 Translate & Play Now';
+        translateItem.style.cssText = 'padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;';
+        translateItem.onmouseover = () => translateItem.style.background = '#094771';
+        translateItem.onmouseout = () => translateItem.style.background = 'transparent';
+        translateItem.onclick = () => {
+            this.editorContextMenu.style.display = 'none';
+            const path = this.editorContextMenu.dataset.path;
+            if (path) this.translateAndPlayImmediately(path);
+        };
+
+        this.editorContextMenu.appendChild(translateItem);
+        document.body.appendChild(this.editorContextMenu);
+
+        document.addEventListener('click', () => {
+            this.editorContextMenu.style.display = 'none';
+        });
+    },
+
+    showEditorContextMenu(e, path) {
+        e.preventDefault();
+        this.createEditorContextMenu();
+        this.editorContextMenu.dataset.path = path;
+        this.editorContextMenu.style.left = e.clientX + 'px';
+        this.editorContextMenu.style.top = e.clientY + 'px';
+        this.editorContextMenu.style.display = 'block';
+    },
+
+    async translateAndPlayImmediately(path) {
+        await this.translatePromptContent(path);
+    },
+
+    toggleGlobalPlayback() {
+        if (this.isPlaying) {
+            this.stopPlayback();
+        } else {
+            this.startGlobalPlayback();
+        }
+    },
+
+    startGlobalPlayback() {
+        const paths = Array.from(this.windows.keys());
+        if (paths.length === 0) return;
+
+        this.loopPlayback = true;
+        this.currentPlayingPath = this.activeWindow || paths[0];
+
+        const window = this.windows.get(this.currentPlayingPath);
+        if (!window || window.sentences.length === 0) return;
+
+        let startIndex = 0;
+        for (let i = 0; i < window.sentences.length; i++) {
+            if (window.sentences[i].element && window.sentences[i].element.style.background === 'rgb(38, 79, 120)') {
+                startIndex = i;
+                break;
+            }
+        }
+
+        this.isPlaying = true;
+        this.playSentenceWithLoop(this.currentPlayingPath, startIndex);
+    },
+
+    stopPlayback() {
+        this.isPlaying = false;
+        this.loopPlayback = false;
+        if (this.currentAudio) {
+            this.currentAudio.pause();
+            this.currentAudio = null;
+        }
+        this.hideSubtitle();
+
+        this.windows.forEach((window) => {
+            window.sentences.forEach((s) => {
+                if (s.playBtn) {
+                    s.playBtn.innerHTML = '▶';
+                    s.playBtn.style.background = '#0e639c';
+                }
+            });
+        });
+    },
+
+    playSentenceWithLoop(path, index) {
+        if (!this.isPlaying || !this.loopPlayback) return;
+
+        const window = this.windows.get(path);
+        if (!window || !window.sentences[index]) {
+            if (this.loopPlayback) {
+                this.playSentenceWithLoop(path, 0);
+            }
+            return;
+        }
+
+        const sentence = window.sentences[index];
+        if (!sentence.audioUrl) {
+            const nextIndex = index + 1 < window.sentences.length ? index + 1 : 0;
+            setTimeout(() => this.playSentenceWithLoop(path, nextIndex), 100);
+            return;
+        }
+
+        if (this.currentAudio) {
+            this.currentAudio.pause();
+        }
+
+        this.currentAudio = new Audio(sentence.audioUrl);
+        this.currentAudio.playbackRate = this.playbackSpeed;
+
+        sentence.playBtn.innerHTML = '⏹';
+        sentence.playBtn.style.background = '#c72e2e';
+
+        window.sentences.forEach((s, i) => {
+            if (s.element) {
+                s.element.style.background = i === index ? '#264f78' : '#1e1e1e';
+            }
+        });
+
+        this.showSubtitle(sentence.text);
+
+        this.currentAudio.onended = () => {
+            sentence.playBtn.innerHTML = '▶';
+            sentence.playBtn.style.background = '#0e639c';
+            this.hideSubtitle();
+
+            if (this.loopPlayback) {
+                const nextIndex = index + 1 < window.sentences.length ? index + 1 : 0;
+                setTimeout(() => this.playSentenceWithLoop(path, nextIndex), 300);
+            }
+        };
+
+        this.currentAudio.play();
+        this.currentPlayingIndex = index;
+        this.lastPlayedIndex = index;
+
+        console.log(`[PromptsManager] Playing sentence ${index + 1}/${window.sentences.length} at ${this.playbackSpeed}x speed (Loop: ${this.loopPlayback})`);
+    },
+
+    showSubtitle(text) {
+        if (!this.subtitleElement) return;
+        this.subtitleElement.textContent = text;
+        this.subtitleElement.style.display = 'block';
+    },
+
+    hideSubtitle() {
+        if (!this.subtitleElement) return;
+        this.subtitleElement.style.display = 'none';
     }
 };
