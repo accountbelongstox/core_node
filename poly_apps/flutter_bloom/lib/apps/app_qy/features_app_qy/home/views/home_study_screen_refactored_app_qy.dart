@@ -242,7 +242,6 @@ class _HomeStudyScreenRefactoredAppQyState extends State<HomeStudyScreenRefactor
 
   Widget _buildStatsCard() {
     return ThemeExtensionsAppQy.qyFrostedContainer(
-      blurAmount: 15,
       padding: const EdgeInsets.all(ThemeDimensions.spacing20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,7 +561,7 @@ class _HomeStudyScreenRefactoredAppQyState extends State<HomeStudyScreenRefactor
                 onTap: () => context.push(QyAppRoutesProvider.routeCourseIelts),
               ),
               _buildQuickActionChip(
-                label: QyAppLocalizationKeys.qyAiStudy.tr(context),
+                label: 'AI Study',
                 icon: Icons.psychology_rounded,
                 onTap: () => context.push(QyAppRoutesProvider.routeAiStudy),
               ),
