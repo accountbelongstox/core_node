@@ -1200,6 +1200,12 @@ def get_third_package_pyaudiowpatch():
     return _PACKAGE_CACHE['pyaudiowpatch']
 
 
+# OKX exchange API
+def get_third_package_okx():
+    """Get okx package (python-okx, lazy load)"""
+    return _lazy_import('okx', 'import okx')
+
+
 __all__ = [
     # Dependency management utilities
     'check_system_package_installed',
@@ -1272,4 +1278,6 @@ __all__ = [
     'get_third_package_pygetwindow',
     'get_third_package_uiautomation',
     'get_third_package_pyaudiowpatch',
+    # OKX exchange API
+    'get_third_package_okx',
 ]

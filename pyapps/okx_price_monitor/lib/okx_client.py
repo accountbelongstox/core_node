@@ -28,7 +28,10 @@ class OKXClient:
         Args:
             use_auth (bool): Whether to use authentication for private API calls
         """
-        okx = get_third_package_okx()
+        get_third_package_okx()
+
+        import okx.MarketData as MarketData
+        import okx.PublicData as PublicData
 
         self.use_auth = use_auth
         self.api_key = None
@@ -46,44 +49,41 @@ class OKXClient:
                     "Need LOCAL_TEST_PASSWORD_1 (API Key) and LOCAL_TEST_API_KEY_1 (Secret Key)"
                 )
 
-        self.market_api = okx.Market.MarketAPI(
-            api_key=self.api_key or '',
-            api_secret_key=self.secret_key or '',
-            passphrase=self.passphrase or '',
-            flag='0'
-        )
-
-        if use_auth:
-            self.account_api = okx.Account.AccountAPI(
+            self.market_api = MarketData.MarketAPI(
                 api_key=self.api_key,
                 api_secret_key=self.secret_key,
                 passphrase=self.passphrase,
                 flag='0'
             )
 
-            self.trade_api = okx.Trade.TradeAPI(
+            self.public_api = PublicData.PublicAPI(
                 api_key=self.api_key,
                 api_secret_key=self.secret_key,
                 passphrase=self.passphrase,
                 flag='0'
             )
 
-            self.public_api = okx.Public.PublicAPI(
+            import okx.Account as Account
+            import okx.Trade as Trade
+
+            self.account_api = Account.AccountAPI(
+                api_key=self.api_key,
+                api_secret_key=self.secret_key,
+                passphrase=self.passphrase,
+                flag='0'
+            )
+
+            self.trade_api = Trade.TradeAPI(
                 api_key=self.api_key,
                 api_secret_key=self.secret_key,
                 passphrase=self.passphrase,
                 flag='0'
             )
         else:
+            self.market_api = MarketData.MarketAPI(flag='0')
+            self.public_api = PublicData.PublicAPI(flag='0')
             self.account_api = None
             self.trade_api = None
-
-            self.public_api = okx.Public.PublicAPI(
-                api_key='',
-                api_secret_key='',
-                passphrase='',
-                flag='0'
-            )
 
     def get_instruments(self, inst_type: str = "SPOT") -> dict:
         """
