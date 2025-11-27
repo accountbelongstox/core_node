@@ -34,6 +34,9 @@ import uuid
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
+# Add parent directory to path to import third_party
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from third_party import Image, ImageOps
 
 class ImageProcessor:
