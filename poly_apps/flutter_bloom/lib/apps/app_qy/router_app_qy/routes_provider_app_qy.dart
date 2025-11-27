@@ -14,51 +14,51 @@ import 'package:go_router/go_router.dart';
 
 // Import QY App Refactored Screens (MVC Architecture)
 // Authentication
-import '../features_app_qy/auth/views/login_phone_screen_refactored_app_qy.dart';
+// import '../features_app_qy/auth/views/login_phone_screen_refactored_app_qy.dart';
 // Home
 import '../features_app_qy/home/views/home_study_screen_refactored_app_qy.dart';
-import '../features_app_qy/home/views/home_search_screen_refactored_app_qy.dart';
+// import '../features_app_qy/home/views/home_search_screen_refactored_app_qy.dart';
 // Course
-import '../features_app_qy/course/views/course_ielts_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_plans_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_detail_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_lesson_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_progress_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_review_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_search_screen_refactored_app_qy.dart';
-import '../features_app_qy/course/views/course_certificate_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_ielts_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_plans_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_detail_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_lesson_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_progress_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_review_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_search_screen_refactored_app_qy.dart';
+// import '../features_app_qy/course/views/course_certificate_screen_refactored_app_qy.dart';
 // Word
-import '../features_app_qy/word/views/word_book_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_listening_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_dictation_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_flashcard_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_review_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_listening_1_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_listening_dictation_1_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_listening_dictation_2_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_listening_free_screen_refactored_app_qy.dart';
-import '../features_app_qy/word/views/word_listening_sleep_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_book_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_listening_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_dictation_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_flashcard_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_review_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_listening_1_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_listening_dictation_1_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_listening_dictation_2_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_listening_free_screen_refactored_app_qy.dart';
+// import '../features_app_qy/word/views/word_listening_sleep_screen_refactored_app_qy.dart';
 // Profile
-import '../features_app_qy/profile/views/about_screen_refactored_app_qy.dart';
-import '../features_app_qy/profile/views/certificate_center_screen_refactored_app_qy.dart';
-import '../features_app_qy/profile/views/more_features_screen_refactored_app_qy.dart';
-import '../features_app_qy/profile/views/profile_achievements_screen_refactored_app_qy.dart';
+// import '../features_app_qy/profile/views/about_screen_refactored_app_qy.dart';
+// import '../features_app_qy/profile/views/certificate_center_screen_refactored_app_qy.dart';
+// import '../features_app_qy/profile/views/more_features_screen_refactored_app_qy.dart';
+// import '../features_app_qy/profile/views/profile_achievements_screen_refactored_app_qy.dart';
 // Settings
 import '../features_app_qy/settings/views/settings_screen_refactored_app_qy.dart';
-import '../features_app_qy/settings/views/account_settings_screen_refactored_app_qy.dart';
-import '../features_app_qy/settings/views/display_mode_screen_refactored_app_qy.dart';
-import '../features_app_qy/settings/views/help_center_screen_refactored_app_qy.dart';
-import '../features_app_qy/settings/views/recommend_settings_screen_refactored_app_qy.dart';
-import '../features_app_qy/settings/views/reminder_settings_screen_refactored_app_qy.dart';
+// import '../features_app_qy/settings/views/account_settings_screen_refactored_app_qy.dart';
+// import '../features_app_qy/settings/views/display_mode_screen_refactored_app_qy.dart';
+// import '../features_app_qy/settings/views/help_center_screen_refactored_app_qy.dart';
+// import '../features_app_qy/settings/views/recommend_settings_screen_refactored_app_qy.dart';
+// import '../features_app_qy/settings/views/reminder_settings_screen_refactored_app_qy.dart';
 // Social
-import '../features_app_qy/social/views/checkin_challenge_screen_refactored_app_qy.dart';
-import '../features_app_qy/social/views/message_center_screen_refactored_app_qy.dart';
+// import '../features_app_qy/social/views/checkin_challenge_screen_refactored_app_qy.dart';
+// import '../features_app_qy/social/views/message_center_screen_refactored_app_qy.dart';
 // AI Study
-import '../features_app_qy/ai_study/views/ai_study_screen_refactored_app_qy.dart';
+// import '../features_app_qy/ai_study/views/ai_study_screen_refactored_app_qy.dart';
 // Discover
-import '../features_app_qy/discover/views/discover_screen_refactored_app_qy.dart';
+// import '../features_app_qy/discover/views/discover_screen_refactored_app_qy.dart';
 // Other
-import '../features_app_qy/other/views/image_001_screen_refactored_app_qy.dart';
+// import '../features_app_qy/other/views/image_001_screen_refactored_app_qy.dart';
 
 // [DEPRECATED - MS] Old screens - Not used in refactored routes
 // import '../features_app_qy/splash/views/splash_screen.dart';

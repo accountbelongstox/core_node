@@ -66,13 +66,25 @@ class ColorsAppQy {
     end: Alignment.bottomRight,
     colors: [qyGradientStart, qyGradientMiddle, qyGradientEnd],
   );
-  
+
+  static LinearGradient get qySecondaryGradient => const LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [qyGradientTealStart, qyGradientTealEnd],
+  );
+
+  static LinearGradient get qyAccentGradient => const LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [qyGradientPinkStart, qyGradientPinkEnd],
+  );
+
   static LinearGradient get qyTealGradient => const LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [qyGradientTealStart, qyGradientTealEnd],
   );
-  
+
   static LinearGradient get qyPinkGradient => const LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -95,6 +107,15 @@ class ColorsAppQy {
     colors: [
       qyFrostWhite,
       qyFrostLight,
+    ],
+  );
+
+  static LinearGradient get qyFrostedGlassGradient => LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      qyGlassWhite,
+      qyGlassLight,
     ],
   );
   
