@@ -1,4 +1,5 @@
 {
+    "_comment": "IMPORTANT: When developing any MCP service, you MUST update all 4 template files: mcpWindowsTemplate.json, mcpLinuxTemplate.json, mcpUbuntoDesktopTemplate.json, mcpWSLTemplate.json",
     "mcpServers": {
         "AutoContext7MCP": {
             "type": "streamable-http",
@@ -8,94 +9,17 @@
                 "Accept": "application/json, text/event-stream"
             }
         },
-        "AlibabaDataworks": {
-            "command": "node",
-            "args": [
-                "alibabacloud-dataworks-mcp-server"
-            ],
-            "env": {
-                "REGION": "your_dataworks_open_api_region_id_here",
-                "ALIBABA_CLOUD_ACCESS_KEY_ID": "your_alibaba_cloud_access_key_id",
-                "ALIBABA_CLOUD_ACCESS_KEY_SECRET": "your_alibaba_cloud_access_key_secret",
-                "TOOL_CATEGORIES": "optional_your_tool_categories_here_ex_UTILS",
-                "TOOL_NAMES": "optional_your_tool_names_here_ex_ListProjects"
-            },
-            "disabled": true,
-            "autoApprove": []
-        },
-        "FeedbackEnhanced": {
-            "command": "uvx",
-            "args": [
-                "mcp-feedback-enhanced@latest"
-            ],
-            "env": {
-                "MCP_DEBUG": "false",
-                "MCP_WEB_HOST": "127.0.0.1",
-                "MCP_WEB_PORT": "8765",
-                "MCP_LANGUAGE": "en"
-            },
-            "disabled": false,
-            "autoApprove": []
-        },
-        "AICollaboration": {
-            "command": "python3",
-            "args": [
-                "/mnt/d/programing/core_node/ncore/mcp_server/ai_collaboration/main.py"
-            ],
-            "env": {
-                "MCP_ALLOW_ALL_PATHS": "true"
-            },
-            "disabled": false,
-            "autoApprove": [
-                "register_role",
-                "get_role_list",
-                "write_log",
-                "read_logs",
-                "ask_question",
-                "answer_question",
-                "get_pending_questions",
-                "health_check",
-                "restart_service",
-                "get_storage_stats",
-                "get_log_summary",
-                "get_qa_statistics",
-                "get_question_history",
-                "search_logs"
-            ]
-        },
         "MCPUnifiedServer": {
             "command": "python3",
             "args": [
-                "/mnt/d/programing/core_node/pymain.py",
-                "app=mcp"
+                "/mnt/d/programing/core_node/ncore/mcp_server/unifiedmcp/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"
             },
             "disabled": false,
-            "autoApprove": [
-                "get_file_info_with_ocr_and_document_parsing_tool",
-                "generate_placeholder_image_with_ocr_tool",
-                "query_file_processing_history_tool",
-                "clear_file_cache_tool",
-                "database_namespace_negotiation_tool",
-                "database_register_and_connect_tool",
-                "database_execute_query_with_safety_tool",
-                "database_batch_operations_tool",
-                "database_schema_inspection_tool",
-                "database_get_statistics_tool",
-                "database_health_check_tool",
-                "codebase_get_directory_tree_tool",
-                "codebase_find_files_by_pattern_tool",
-                "codebase_search_content_tool",
-                "codebase_get_file_content_tool",
-                "codebase_analyze_statistics_tool",
-                "codebase_describe_directory_tool",
-                "codebase_scan_framework_apps_tool",
-                "codebase_health_check_tool"
-            ],
             "timeout": 120000,
-            "description": "Unified MCP Server v2.0: File Processing + Database Management + Codebase Analysis (19 tools total). Consolidates McpAlchemy, CodebaseScanner, and CodebaseContentHub."
+            "description": "Unified MCP Server: Independent MCP service with HTTP proxy to PyCore backend (59000). 20 tools total: File Processing (4), Database (7), Codebase (8), System (1). Includes OCR, document parsing, database operations, codebase analysis. Does not require pycore dependency to start."
         }
     }
 }
