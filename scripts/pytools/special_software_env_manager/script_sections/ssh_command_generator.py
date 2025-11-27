@@ -73,10 +73,17 @@ if (-not $scriptCurrentPath) {
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
 $projectRootPath = Split-Path $scriptsDirPath -Parent
+$shellsDirPath = Join-Path $scriptsDirPath "shells"
+$winDirPath = Join-Path $shellsDirPath "win"
+$winCommonDirPath = Join-Path $winDirPath "win_common"
 Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 #endregion
+
+$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+. $windowsPathFunctionScript
+Set-CoreNodePaths
 """
 
         load_secret_manager = f"""
@@ -98,31 +105,33 @@ if (Get-Command python -ErrorAction SilentlyContinue) {{
 }}
 
 # Use relative path from script location to project root
-$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
+$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
+$fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
+$fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret reader script: $secretReaderScript" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
-
 function Get-SSHSecret {{
     param([string]$KeyName)
-    if (-not $pythonExecutable) {{ return $null }}
+    if (-not $pythonExecutable) {{ return "" }}
     Write-Host "[DEBUG] Loading SSH secret key: $KeyName" -ForegroundColor DarkGray
 
-    # Save current directory and switch to project root
     $originalLocation = Get-Location
     Set-Location $projectRootPath
 
-    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
-    $args = @($secretManagerScript, 'get_secret_key', $KeyName)
-    $result = (& $pythonExecutable $args 2>$null)
+    $result = & $pythonExecutable $secretReaderScript $KeyName
+    $exitCode = $LASTEXITCODE
+    Set-Location $originalLocation
 
-    # Remove BOM character if present
-    if ($result -and $result.Length -gt 0 -and [int][char]$result[0] -eq 0xFEFF) {{
-        $result = $result.Substring(1)
+    if ($exitCode -ne 0 -or -not $result) {{
+        Write-Host "[WARNING] Secret reader failed for $KeyName" -ForegroundColor Yellow
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        return ""
     }}
 
-    # Restore original directory
-    Set-Location $originalLocation
+    if ($result.StartsWith([char]0xFEFF)) {{
+        $result = $result.Substring(1)
+    }}
 
     return $result
 }}

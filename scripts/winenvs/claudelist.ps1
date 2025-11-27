@@ -4,6 +4,14 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$scriptsDirPath = Split-Path $PSScriptRoot -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
+$winCommonDirPath = Join-Path (Join-Path $scriptsDirPath "shells") "win"
+$winCommonDirPath = Join-Path $winCommonDirPath "win_common"
+$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+. $windowsPathFunctionScript
+Set-CoreNodePaths
+
 Write-Host ""
 Write-Host "Claude AI Environment Variables Available Commands:" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
