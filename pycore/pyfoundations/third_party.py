@@ -155,6 +155,9 @@ DEPENDENCY_MAP = {
     # For Google Translate API (unofficial)
     "googletrans": "googletrans",
     "httpx": "httpx",
+
+    # For OKX exchange API
+    "okx": "python-okx",
 }
 
 # Optional packages - won't cause import failure if missing
