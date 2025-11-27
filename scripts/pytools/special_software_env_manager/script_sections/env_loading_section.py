@@ -17,74 +17,105 @@ class EnvLoadingSectionGenerator:
             return ""
 
         load_secret_manager = f"""
-#region Load Environment Variables via Secret Reader
+#region Load Environment Variables from Secret Files
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Detect Python executable (Windows prioritizes 'python' over 'python3')
-$pythonExecutable = $null
-if (Get-Command python -ErrorAction SilentlyContinue) {{
-    $pythonExecutable = "python"
-}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
-    $pythonExecutable = "python3"
-}} else {{
-    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
-    exit 1
-}}
-
-# Use relative path from script location to project root
-$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
-Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] Secret reader script: $secretReaderScript" -ForegroundColor DarkGray
+# Secret files directory
+$secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
+Write-Host "[DEBUG] Secret directory: $secretDir" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
+function Read-SecretFile {{
+    <#
+    .SYNOPSIS
+        Reads secret value from file with UTF-8 BOM handling.
+    
+    .DESCRIPTION
+        Enhanced function to read secret files from .secret_keys\.secret_ignore directory.
+        Handles UTF-8 BOM, empty lines, and provides detailed error messages.
+    
+    .PARAMETER FilePath
+        Full path to the secret file to read.
+    
+    .OUTPUTS
+        String. The secret value (first non-empty line) or empty string if failed.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath
+    )
+    
+    $value = ""
+    $fixInstruction = "Run dd.cmd (Secret Decryption Fix) to decrypt secret files"
+    
+    if (-not (Test-Path $FilePath)) {{
+        Write-Host "[WARNING] Secret file not found: $FilePath" -ForegroundColor Yellow
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        return ""
+    }}
+    
+    try {{
+        # Read file content using System.IO.File for reliable UTF-8 handling
+        $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+        
+        # Check for UTF-8 BOM (EF BB BF) and remove it if present
+        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {{
+            $bytes = $bytes[3..($bytes.Length - 1)]
+        }}
+        
+        # Convert bytes to string using UTF-8 encoding
+        $content = [System.Text.Encoding]::UTF8.GetString($bytes)
+        
+        # Get first non-empty line
+        $lines = $content -split "`r?`n"
+        foreach ($line in $lines) {{
+            $trimmedLine = $line.Trim()
+            if ($trimmedLine) {{
+                $value = $trimmedLine
+                break
+            }}
+        }}
+    }} catch {{
+        Write-Host "[ERROR] Failed to read secret file: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        $value = ""
+    }}
+    
+    if (-not $value) {{
+        Write-Host "[WARNING] Secret value is empty or file is empty: $FilePath" -ForegroundColor Yellow
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+    }}
+    
+    return $value
+}}
+
 function Get-SecretValue {{
+    <#
+    .SYNOPSIS
+        Gets secret value by key name and sets environment variable.
+    
+    .DESCRIPTION
+        Enhanced function that reads secret from file and provides detailed logging.
+        Calls Read-SecretFile for actual file reading.
+    
+    .PARAMETER KeyName
+        Secret key name (filename in .secret_ignore directory).
+    
+    .OUTPUTS
+        String. The secret value or empty string if failed.
+    #>
     param([string]$KeyName)
     Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
 
-    # Save current directory and switch to project root
-    $originalLocation = Get-Location
-    Set-Location $projectRootPath
-
-    # Build quoted argument string (avoid -ArgumentList)
-    $rawArguments = @(
-        $secretReaderScript,
-        $KeyName
-    )
-    $quotedArguments = $rawArguments | ForEach-Object {{
-        if (-not $_) {{ '' }}
-        elseif ($_ -match '\s') {{ "`"$($_)`"" }}
-        else {{ $_ }}
-    }}
-    $argumentString = ($quotedArguments -join ' ').Trim()
-
-    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
-    Write-Host "[DEBUG] Command: $pythonExecutable $argumentString" -ForegroundColor DarkGray
-
-    $value = ""
-    $fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
-    $fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
-
-    $value = & $pythonExecutable $secretReaderScript $KeyName
-    $exitCode = $LASTEXITCODE
-    Set-Location $originalLocation
-
-    if ($LASTEXITCODE -eq $null) {{
-        Write-Host "[ERROR] Unable to execute Python process." -ForegroundColor Red
-        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
-        $value = ""
-    }}
-
-    if ($exitCode -ne 0 -or -not $value) {{
-        Write-Host "[WARNING] Secret reader failed or returned empty value." -ForegroundColor Yellow
-        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
-        $value = ""
-    }} elseif ($value.StartsWith([char]0xFEFF)) {{
-        $value = $value.Substring(1)
-    }}
+    $secretFile = Join-Path $secretDir $KeyName
+    Write-Host "[DEBUG] Secret file path: $secretFile" -ForegroundColor DarkGray
+    
+    # Call enhanced read function
+    $value = Read-SecretFile -FilePath $secretFile
 
     if ($value) {{
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
@@ -92,8 +123,6 @@ function Get-SecretValue {{
             $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
             Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
         }}
-    }} else {{
-        Write-Host "[WARNING] Secret value empty. Run dd.cmd -> Secret Decryption Fix if needed." -ForegroundColor Yellow
     }}
 
     return $value
@@ -148,7 +177,7 @@ if ($env:{var['Name']}) {{
 
         return f"""
 # =============================================================================
-# Load Environment Variables from Secret Manager
+# Load Environment Variables from Secret Files
 # =============================================================================
 echo ""
 echo "============================================================"
@@ -156,48 +185,92 @@ echo "Loading Environment Variables"
 echo "============================================================"
 echo ""
 
-python_exec="python3"
-if ! command -v "$python_exec" &> /dev/null; then
-    if command -v python &> /dev/null; then
-        python_exec="python"
-    else
-        echo "[ERROR] Python is required to load secrets"
-        exit 1
-    fi
-fi
-
-# Use relative path from script location to project root
-secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
-
-echo "[DEBUG] Python executable: $python_exec"
+# Secret files directory
+secret_dir="$projectRootPath/.secret_keys/.secret_ignore"
+echo "[DEBUG] Secret directory: $secret_dir"
 echo "[DEBUG] Project root: $projectRootPath"
-echo "[DEBUG] Secret manager script: $secret_manager_script"
-echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
+
+read_secret_file() {{
+    # =============================================================================
+    # Enhanced function to read secret files with UTF-8 BOM handling
+    # =============================================================================
+    # Usage: read_secret_file <file_path>
+    # Output: Secret value (first non-empty line) or empty string
+    # =============================================================================
+    local file_path="$1"
+    local value=""
+    local fix_instruction="Run dd.sh (Secret Decryption Fix) to decrypt secret files"
+    
+    if [ ! -f "$file_path" ]; then
+        echo "[WARNING] Secret file not found: $file_path" >&2
+        echo "[ACTION] $fix_instruction" >&2
+        echo ""
+        return 1
+    fi
+    
+    # Check if file starts with UTF-8 BOM (EF BB BF) by reading first 3 bytes
+    local first_bytes=$(head -c 3 "$file_path" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \\n' 2>/dev/null || echo "")
+    local has_bom=0
+    if [ "$first_bytes" = "efbbbf" ]; then
+        has_bom=1
+    fi
+    
+    # Read file content, handling BOM correctly
+    if [ "$has_bom" -eq 1 ]; then
+        # File has UTF-8 BOM, skip first 3 bytes using dd
+        while IFS= read -r line || [ -n "$line" ]; do
+            # Trim whitespace
+            trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < <(dd if="$file_path" bs=1 skip=3 2>/dev/null)
+    else
+        # No BOM, read file normally
+        while IFS= read -r line || [ -n "$line" ]; do
+            # Trim whitespace
+            trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < "$file_path"
+    fi
+    
+    if [ -z "$value" ]; then
+        echo "[WARNING] Secret file is empty or contains no valid content: $file_path" >&2
+        echo "[ACTION] $fix_instruction" >&2
+        echo ""
+        return 1
+    fi
+    
+    echo "$value"
+    return 0
+}}
 
 load_secret_value() {{
+    # =============================================================================
+    # Enhanced function to load secret value and set environment variable
+    # =============================================================================
+    # Usage: load_secret_value <key_name> <env_name> <display_name> <default_value>
+    # Calls read_secret_file for actual file reading
+    # =============================================================================
     local key_name="$1"
     local env_name="$2"
     local display_name="$3"
     local default_value="$4"
     local value=""
+    local secret_file="$secret_dir/$key_name"
+    local fix_instruction="Run dd.sh (Secret Decryption Fix) to decrypt secret files"
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
-    echo "[DEBUG] Python command: PYTHONPATH=\"$projectRootPath\" $python_exec \"$secret_manager_script\" get_secret_key \"$key_name\""
+    echo "[DEBUG] Secret file: $secret_file"
 
-    # Capture stderr to temp file for debugging
-    local tmp_err=$(mktemp)
-    # Use PYTHONPATH instead of cd
-    value=$(PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
-    local exit_code=$?
+    # Call enhanced read function
+    value=$(read_secret_file "$secret_file")
+    local read_exit_code=$?
 
-    # Show stderr if there were errors
-    if [ -s "$tmp_err" ]; then
-        echo "[DEBUG] Python stderr:"
-        cat "$tmp_err"
-    fi
-    rm -f "$tmp_err"
-
-    echo "[DEBUG] Exit code: $exit_code"
     echo "[DEBUG] Returned value length: ${{#value}}"
 
     # Use default value if secret loading failed and default is provided
@@ -207,7 +280,7 @@ load_secret_value() {{
     fi
 
     if [ -n "$value" ]; then
-        export "$env_name"=\"$value\"
+        export "$env_name"="$value"
         if [ -n "$default_value" ] && [ "$value" = "$default_value" ]; then
             echo "[SUCCESS] Loaded $display_name = $value (default)"
         else
@@ -229,6 +302,7 @@ load_secret_value() {{
     fi
 
     echo "[WARNING] Failed to load $display_name (empty value returned)"
+    echo "[ACTION] $fix_instruction"
     return 1
 }}
 

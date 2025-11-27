@@ -221,74 +221,105 @@ Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
 Write-Host ""
 #endregion
 
-#region Load Environment Variables via Secret Reader
+#region Load Environment Variables from Secret Files
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Detect Python executable (Windows prioritizes 'python' over 'python3')
-$pythonExecutable = $null
-if (Get-Command python -ErrorAction SilentlyContinue) {
-    $pythonExecutable = "python"
-} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
-    $pythonExecutable = "python3"
-} else {
-    Write-Host "[ERROR] Python not found. Cannot load secrets." -ForegroundColor Red
-    exit 1
-}
-
-# Use relative path from script location to project root
-$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
-Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] Secret reader script: $secretReaderScript" -ForegroundColor DarkGray
+# Secret files directory
+$secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
+Write-Host "[DEBUG] Secret directory: $secretDir" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
+function Read-SecretFile {
+    <#
+    .SYNOPSIS
+        Reads secret value from file with UTF-8 BOM handling.
+    
+    .DESCRIPTION
+        Enhanced function to read secret files from .secret_keys\.secret_ignore directory.
+        Handles UTF-8 BOM, empty lines, and provides detailed error messages.
+    
+    .PARAMETER FilePath
+        Full path to the secret file to read.
+    
+    .OUTPUTS
+        String. The secret value (first non-empty line) or empty string if failed.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath
+    )
+    
+    $value = ""
+    $fixInstruction = "Run dd.cmd (Secret Decryption Fix) to decrypt secret files"
+    
+    if (-not (Test-Path $FilePath)) {
+        Write-Host "[WARNING] Secret file not found: $FilePath" -ForegroundColor Yellow
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        return ""
+    }
+    
+    try {
+        # Read file content using System.IO.File for reliable UTF-8 handling
+        $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+        
+        # Check for UTF-8 BOM (EF BB BF) and remove it if present
+        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+            $bytes = $bytes[3..($bytes.Length - 1)]
+        }
+        
+        # Convert bytes to string using UTF-8 encoding
+        $content = [System.Text.Encoding]::UTF8.GetString($bytes)
+        
+        # Get first non-empty line
+        $lines = $content -split "`r?`n"
+        foreach ($line in $lines) {
+            $trimmedLine = $line.Trim()
+            if ($trimmedLine) {
+                $value = $trimmedLine
+                break
+            }
+        }
+    } catch {
+        Write-Host "[ERROR] Failed to read secret file: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        $value = ""
+    }
+    
+    if (-not $value) {
+        Write-Host "[WARNING] Secret value is empty or file is empty: $FilePath" -ForegroundColor Yellow
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+    }
+    
+    return $value
+}
+
 function Get-SecretValue {
+    <#
+    .SYNOPSIS
+        Gets secret value by key name and sets environment variable.
+    
+    .DESCRIPTION
+        Enhanced function that reads secret from file and provides detailed logging.
+        Calls Read-SecretFile for actual file reading.
+    
+    .PARAMETER KeyName
+        Secret key name (filename in .secret_ignore directory).
+    
+    .OUTPUTS
+        String. The secret value or empty string if failed.
+    #>
     param([string]$KeyName)
     Write-Host "[DEBUG] Loading secret key: $KeyName" -ForegroundColor DarkGray
 
-    # Save current directory and switch to project root
-    $originalLocation = Get-Location
-    Set-Location $projectRootPath
-
-    # Build quoted argument string (avoid -ArgumentList)
-    $rawArguments = @(
-        $secretReaderScript,
-        $KeyName
-    )
-    $quotedArguments = $rawArguments | ForEach-Object {
-        if (-not $_) { '' }
-        elseif ($_ -match '\s') { "`"$($_)`"" }
-        else { $_ }
-    }
-    $argumentString = ($quotedArguments -join ' ').Trim()
-
-    Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
-    Write-Host "[DEBUG] Command: $pythonExecutable $argumentString" -ForegroundColor DarkGray
-
-    $value = ""
-    $fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
-    $fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
-
-    $value = & $pythonExecutable $secretReaderScript $KeyName
-    $exitCode = $LASTEXITCODE
-    Set-Location $originalLocation
-
-    if ($LASTEXITCODE -eq $null) {
-        Write-Host "[ERROR] Unable to execute Python process." -ForegroundColor Red
-        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
-        $value = ""
-    }
-
-    if ($exitCode -ne 0 -or -not $value) {
-        Write-Host "[WARNING] Secret reader failed or returned empty value." -ForegroundColor Yellow
-        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
-        $value = ""
-    } elseif ($value.StartsWith([char]0xFEFF)) {
-        $value = $value.Substring(1)
-    }
+    $secretFile = Join-Path $secretDir $KeyName
+    Write-Host "[DEBUG] Secret file path: $secretFile" -ForegroundColor DarkGray
+    
+    # Call enhanced read function
+    $value = Read-SecretFile -FilePath $secretFile
 
     if ($value) {
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
@@ -296,8 +327,6 @@ function Get-SecretValue {
             $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
             Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
         }
-    } else {
-        Write-Host "[WARNING] Secret value empty. Run dd.cmd -> Secret Decryption Fix if needed." -ForegroundColor Yellow
     }
 
     return $value
