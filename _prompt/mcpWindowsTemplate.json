@@ -1,14 +1,6 @@
 {
+    "_comment": "IMPORTANT: When developing any MCP service, you MUST update all 4 template files: mcpWindowsTemplate.json, mcpLinuxTemplate.json, mcpUbuntoDesktopTemplate.json, mcpWSLTemplate.json",
     "mcpServers": {
-        "promptx": {
-            "command": "cmd",
-            "args": [
-                "/c",
-                "npx",
-                "-y",
-                "@promptx/mcp-server"
-            ]
-        },
         "AutoContext7MCP": {
             "type": "streamable-http",
             "url": "https://mcp.context7.com/mcp",
@@ -20,36 +12,14 @@
         "MCPUnifiedServer": {
             "command": "python",
             "args": [
-                "D:/programing/core_node/pymain.py",
-                "app=mcp"
+                "D:/programing/core_node/ncore/mcp_server/unifiedmcp/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"
             },
             "disabled": false,
-            "autoApprove": [
-                "get_file_info_with_ocr_and_document_parsing_tool",
-                "generate_placeholder_image_with_ocr_tool",
-                "query_file_processing_history_tool",
-                "clear_file_cache_tool",
-                "database_namespace_negotiation_tool",
-                "database_register_and_connect_tool",
-                "database_execute_query_with_safety_tool",
-                "database_batch_operations_tool",
-                "database_schema_inspection_tool",
-                "database_get_statistics_tool",
-                "database_health_check_tool",
-                "codebase_get_directory_tree_tool",
-                "codebase_find_files_by_pattern_tool",
-                "codebase_search_content_tool",
-                "codebase_get_file_content_tool",
-                "codebase_analyze_statistics_tool",
-                "codebase_describe_directory_tool",
-                "codebase_scan_framework_apps_tool",
-                "codebase_health_check_tool"
-            ],
             "timeout": 120000,
-            "description": "Unified MCP Server v2.0: File Processing + Database Management + Codebase Analysis (19 tools total). Consolidates McpAlchemy, CodebaseScanner, and CodebaseContentHub."
+            "description": "Unified MCP Server: Independent MCP service with HTTP proxy to PyCore backend (59000). 20 tools total: File Processing (4), Database (7), Codebase (8), System (1). Includes OCR, document parsing, database operations, codebase analysis. Does not require pycore dependency to start."
         }
     }
 }
