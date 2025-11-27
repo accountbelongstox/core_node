@@ -46,18 +46,23 @@ class McpV1ScreenshotCtl
             $id = $request->input('id');
             $description = $request->input('description', '');
             $keywords = $request->input('keywords', []);
+            $replace = $request->input('replace', false);
 
             // Parse keywords if string
             if (is_string($keywords)) {
                 $keywords = array_filter(array_map('trim', explode(',', $keywords)));
             }
 
+            // Convert replace to boolean
+            $replace = filter_var($replace, FILTER_VALIDATE_BOOLEAN);
+
             // Upload screenshot
             $result = $this->screenshotService->uploadScreenshot(
                 $uploadedFile->getRealPath(),
                 $id,
                 $description,
-                $keywords
+                $keywords,
+                $replace
             );
 
             if (!$result['success']) {
@@ -272,5 +277,165 @@ class McpV1ScreenshotCtl
             'Content-Type' => $screenshot['mime_type'],
             'Content-Disposition' => 'inline; filename="' . $screenshot['original_name'] . '"'
         ]);
+    }
+
+    /**
+     * Stream screenshot file with extension in URL (for AI recognition)
+     *
+     * GET /api/mcp/v1/screenshots/{id}.jpg
+     * GET /api/mcp/v1/screenshots/{id}.png
+     *
+     * @param string $id
+     * @param string $ext
+     * @return mixed
+     */
+    public function streamFileWithExt($id, $ext)
+    {
+        // Just call the existing streamFile method - the extension is for URL recognition only
+        return $this->streamFile($id);
+    }
+
+    /**
+     * Upload multiple screenshots and merge them into one image
+     *
+     * POST /api/mcp/v1/screenshots/upload-merge
+     *
+     * Request body:
+     * - images[]: Array of image files
+     * - descriptions[]: Array of descriptions (optional, same index as images)
+     * - keyword: Common keyword for the merged image
+     * - id: Custom ID (optional)
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function uploadAndMerge(Request $request): JsonResponse
+    {
+        try {
+            // Check for uploaded files
+            if (!$request->hasFile('images')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'No image files provided. Use images[] field for multiple files.'
+                ], 400);
+            }
+
+            $uploadedFiles = $request->file('images');
+            if (!is_array($uploadedFiles)) {
+                $uploadedFiles = [$uploadedFiles];
+            }
+
+            if (count($uploadedFiles) < 1) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'At least 1 image is required'
+                ], 400);
+            }
+
+            // Get descriptions array
+            $descriptions = $request->input('descriptions', []);
+            if (is_string($descriptions)) {
+                $descriptions = json_decode($descriptions, true) ?: [];
+            }
+
+            // Get keyword and optional ID
+            $keyword = $request->input('keyword', '');
+            $id = $request->input('id');
+            $replace = filter_var($request->input('replace', false), FILTER_VALIDATE_BOOLEAN);
+
+            // Collect file paths
+            $filePaths = [];
+            foreach ($uploadedFiles as $file) {
+                $filePaths[] = $file->getRealPath();
+            }
+
+            // Call service to merge and upload
+            $result = $this->screenshotService->uploadAndMerge($filePaths, $descriptions, $keyword, $id, $replace);
+
+            if (!$result['success']) {
+                return response()->json($result, 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Images merged and uploaded successfully',
+                'data' => $result['screenshot']
+            ]);
+
+        } catch (\Exception $e) {
+            error_log('[McpV1ScreenshotCtl] Upload merge error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Upload merge failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Upload multiple screenshots individually (batch upload without merge)
+     *
+     * POST /api/mcp/v1/screenshots/upload-batch
+     *
+     * Request body:
+     * - images[]: Array of image files
+     * - descriptions[]: Array of descriptions (optional)
+     * - keyword: Common keyword for all images
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function uploadBatch(Request $request): JsonResponse
+    {
+        try {
+            // Check for uploaded files
+            if (!$request->hasFile('images')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'No image files provided. Use images[] field for multiple files.'
+                ], 400);
+            }
+
+            $uploadedFiles = $request->file('images');
+            if (!is_array($uploadedFiles)) {
+                $uploadedFiles = [$uploadedFiles];
+            }
+
+            // Get descriptions array
+            $descriptions = $request->input('descriptions', []);
+            if (is_string($descriptions)) {
+                $descriptions = json_decode($descriptions, true) ?: [];
+            }
+
+            // Get keyword
+            $keyword = $request->input('keyword', '');
+
+            // Collect file paths
+            $filePaths = [];
+            foreach ($uploadedFiles as $file) {
+                $filePaths[] = $file->getRealPath();
+            }
+
+            // Call service to batch upload
+            $result = $this->screenshotService->uploadBatch($filePaths, $descriptions, $keyword);
+
+            $statusCode = $result['success'] ? 200 : 207; // 207 Multi-Status if partial success
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => sprintf(
+                    'Batch upload completed: %d/%d successful',
+                    $result['success_count'],
+                    $result['total']
+                ),
+                'data' => $result
+            ], $statusCode);
+
+        } catch (\Exception $e) {
+            error_log('[McpV1ScreenshotCtl] Batch upload error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Batch upload failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

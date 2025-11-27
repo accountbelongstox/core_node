@@ -22,11 +22,11 @@ import 'localization_app_qy/en_app_qy.dart';
 import 'localization_app_qy/zh_app_qy.dart';
 import 'providers_app_qy/qy_user_provider.dart';
 import 'controller_app_qy/settings_controller_app_qy.dart';
+import 'controller_app_qy/learning_controller_app_qy.dart';
+import 'controller_app_qy/auth_controller_app_qy.dart';
 import 'services_app_qy/api_service_app_qy.dart';
-import 'features_app_qy/home/domain/service/learning_service.dart';
-import 'features_app_qy/home/controllers/learning_controller_app_qy.dart';
-import 'features_app_qy/course/domain/service/course_service.dart';
-import 'features_app_qy/course/controllers/course_controller_app_qy.dart';
+import 'services_app_qy/vocabulary_service_app_qy.dart';
+import 'services_app_qy/auth_service_app_qy.dart';
 import 'models_app_qy/user_model_app_qy.dart';
 
 /// QY App specific widget
@@ -55,26 +55,24 @@ class QyApp extends StatelessWidget {
 /// This entry point can be used to launch only the QY app
 /// with specific configurations and customizations
 Future<void> main() async {
-  // Create QY-specific user provider instance
   final QyUserProvider qyUserProvider = QyUserProvider();
   final GoRouter routerConfig = QyAppRoutesProvider.createRouter();
 
-  // Create singleton instances
   final ApiServiceAppQy apiService = ApiServiceAppQy();
-  final LearningService learningService = LearningService(apiService: apiService);
-  final CourseService courseService = CourseService(apiService: apiService);
+  final VocabularyServiceAppQy vocabularyService = VocabularyServiceAppQy();
+  final AuthServiceAppQy authService = AuthServiceAppQy();
 
   await runCommonApp(
     appName: QyAppConfig.appName,
-    appId: QyAppConfig.appId, // Specific app ID for app-specific routing
-    appSettings: QyAppSettings.getQyAppSettings(), // QY specific settings
+    appId: QyAppConfig.appId,
+    appSettings: QyAppSettings.getQyAppSettings(),
     enAppLocales: EnAppQy.locales,
     zhAppLocales: ZhAppQy.locales,
     initialRoute: QyAppRoutesProvider.routeHome,
     homeRoute: QyAppRoutesProvider.routeHome,
     routerConfig: routerConfig,
-    appPrefs: prefsAppQy, // Pass QY specific SharedPreferences instance
-    customUserProvider: qyUserProvider, // Pass QY-specific user provider
+    appPrefs: prefsAppQy,
+    customUserProvider: qyUserProvider,
     customApp: QyApp(routerConfig: routerConfig),
     scopedProvidersBuilder: (commonSettingsController) => [
       ChangeNotifierProvider<SettingsControllerAppQy>(
@@ -85,19 +83,23 @@ Future<void> main() async {
         create: (_) => UserModelAppQy.empty(),
         lazy: false,
       ),
+      ChangeNotifierProvider<VocabularyServiceAppQy>.value(
+        value: vocabularyService,
+      ),
       ChangeNotifierProvider<LearningControllerAppQy>(
         create: (_) => LearningControllerAppQy(
-          learningService: learningService,
+          vocabularyService: vocabularyService,
         ),
         lazy: false,
       ),
-      ChangeNotifierProvider<CourseControllerAppQy>(
-        create: (_) => CourseControllerAppQy(
-          courseService: courseService,
-        ),
+      ChangeNotifierProvider<AuthServiceAppQy>.value(
+        value: authService,
+      ),
+      ChangeNotifierProvider<AuthControllerAppQy>(
+        create: (_) => AuthControllerAppQy(authService: authService),
         lazy: false,
       ),
     ],
-    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
+    initializeUnifiedStorage: true,
   );
 }

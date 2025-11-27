@@ -59,12 +59,14 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .mcp-module-container {
     flex: 1;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .mcp-module-header {
@@ -90,7 +92,7 @@
 
 .mcp-module-content {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
 }
 
 /* Button Styles */
@@ -318,26 +320,33 @@
 /* Modal Styles */
 .mcp-modal {
     display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 10000;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.85) !important;
+    z-index: 999999 !important;
     align-items: center;
     justify-content: center;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .mcp-modal-content {
     background: #252526;
     border-radius: 8px;
     width: 600px;
-    max-width: 90%;
-    max-height: 90vh;
+    max-width: 90vw;
+    max-height: 85vh;
     display: flex;
     flex-direction: column;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    position: relative;
+    z-index: 1000000 !important;
+    margin: auto;
 }
 
 .mcp-modal-header {
@@ -449,4 +458,911 @@
 .mcp-ss-detail-panel::-webkit-scrollbar-thumb:hover,
 .mcp-modal-body::-webkit-scrollbar-thumb:hover {
     background: #4c4c4c;
+}
+
+/* Success Button */
+.mcp-btn-success {
+    background: #28a745;
+    color: #ffffff;
+}
+
+.mcp-btn-success:hover {
+    background: #34c759;
+}
+
+/* Large Modal */
+.mcp-modal-lg {
+    width: 800px;
+}
+
+/* Batch Upload Styles */
+.mcp-batch-items {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    padding: 8px;
+    background: #1e1e1e;
+}
+
+.mcp-batch-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px;
+    background: #252526;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 1px solid #3c3c3c;
+}
+
+.mcp-batch-item:last-child {
+    margin-bottom: 0;
+}
+
+.mcp-batch-item-preview {
+    width: 100px;
+    height: 80px;
+    flex-shrink: 0;
+    background: #1e1e1e;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mcp-batch-item-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.mcp-batch-item-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mcp-batch-item-name {
+    font-size: 12px;
+    color: #4ec9b0;
+    font-weight: 600;
+}
+
+.mcp-batch-desc-input {
+    width: 100%;
+    background: #1e1e1e;
+    border: 1px solid #3c3c3c;
+    color: #d4d4d4;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.mcp-batch-desc-input:focus {
+    outline: none;
+    border-color: #0e639c;
+}
+
+.mcp-batch-desc-input::placeholder {
+    color: #666;
+}
+
+/* Checkbox Styles */
+.mcp-form-group input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+.mcp-form-group label:has(input[type="checkbox"]) {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+/* Screenshot URL Section */
+.mcp-ss-url-section {
+    margin-top: 20px;
+    padding: 16px;
+    background: #1e1e1e;
+    border-radius: 4px;
+    border: 1px solid #3c3c3c;
+}
+
+.mcp-ss-url-section h4 {
+    margin: 0 0 8px 0;
+    color: #4ec9b0;
+    font-size: 14px;
+}
+
+.mcp-hint {
+    font-size: 12px;
+    color: #888;
+    margin: 0 0 16px 0;
+}
+
+.mcp-url-group {
+    margin-bottom: 12px;
+}
+
+.mcp-url-group label {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.mcp-ss-detail-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Task Dispatch Module */
+.mcp-td-split-view {
+    display: flex;
+    height: 100%;
+}
+
+.mcp-td-categories-panel {
+    width: 280px;
+    border-right: 1px solid #3c3c3c;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+}
+
+.mcp-td-panel-header {
+    padding: 12px 16px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    font-weight: 600;
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.mcp-td-categories {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.mcp-td-category-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #252526;
+    border-radius: 4px;
+    border: 1px solid #3c3c3c;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mcp-td-category-item:hover {
+    background: #2a2d2e;
+    border-color: #4c4c4c;
+}
+
+.mcp-td-category-item.active {
+    background: #37373d;
+    border-color: #0e639c;
+}
+
+.mcp-td-cat-name {
+    font-weight: 600;
+    color: #ccc;
+    margin-bottom: 4px;
+}
+
+.mcp-td-cat-id {
+    font-size: 11px;
+    color: #4ec9b0;
+    font-family: 'Consolas', monospace;
+}
+
+.mcp-td-tasks-panel {
+    flex: 1;
+    overflow-y: auto;
+    background: #1e1e1e;
+}
+
+.mcp-td-tasks-header {
+    padding: 16px 20px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mcp-td-tasks-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #ccc;
+}
+
+.mcp-td-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #888;
+}
+
+.mcp-td-stats span {
+    padding: 4px 8px;
+    background: #1e1e1e;
+    border-radius: 4px;
+}
+
+.mcp-td-tasks-list {
+    padding: 16px;
+}
+
+.mcp-td-task-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #252526;
+    border-radius: 4px;
+    border: 1px solid #3c3c3c;
+}
+
+.mcp-td-task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.mcp-td-task-file {
+    color: #ccc;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.mcp-td-task-status {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.mcp-td-task-status.pending {
+    background: #664d03;
+    color: #ffca28;
+}
+
+.mcp-td-task-status.in-progress {
+    background: #0d47a1;
+    color: #64b5f6;
+}
+
+.mcp-td-task-status.completed {
+    background: #1b5e20;
+    color: #81c784;
+}
+
+.mcp-td-task-meta {
+    font-size: 11px;
+    color: #888;
+}
+
+.mcp-td-empty,
+.mcp-pm-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #888;
+}
+
+.mcp-td-detail-empty,
+.mcp-pm-detail-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #888;
+    font-size: 14px;
+}
+
+/* Prompt Mappings Module */
+.mcp-pm-split-view {
+    display: flex;
+    height: 100%;
+}
+
+.mcp-pm-list-panel {
+    width: 250px;
+    border-right: 1px solid #3c3c3c;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+}
+
+.mcp-pm-panel-header {
+    padding: 12px 16px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    font-weight: 600;
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.mcp-pm-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.mcp-pm-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #252526;
+    border-radius: 4px;
+    border: 1px solid #3c3c3c;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mcp-pm-item:hover {
+    background: #2a2d2e;
+}
+
+.mcp-pm-item.active {
+    background: #37373d;
+    border-color: #0e639c;
+}
+
+.mcp-pm-item-name {
+    color: #4ec9b0;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.mcp-pm-item-info {
+    font-size: 10px;
+    color: #888;
+}
+
+.mcp-pm-editor-panel {
+    flex: 1;
+    overflow-y: auto;
+    background: #1e1e1e;
+}
+
+.mcp-pm-editor {
+    padding: 20px;
+}
+
+.mcp-pm-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+.mcp-pm-editor-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #4ec9b0;
+}
+
+.mcp-pm-editor-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.mcp-pm-preview {
+    margin-top: 20px;
+    padding: 16px;
+    background: #252526;
+    border-radius: 4px;
+}
+
+.mcp-pm-preview h4 {
+    margin: 0 0 12px 0;
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.mcp-pm-preview-content {
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.mcp-pm-preview-prefix {
+    color: #4ec9b0;
+    padding: 4px 0;
+    white-space: pre-wrap;
+}
+
+.mcp-pm-preview-body {
+    color: #888;
+    padding: 8px 0;
+    border-top: 1px dashed #3c3c3c;
+    border-bottom: 1px dashed #3c3c3c;
+    margin: 4px 0;
+}
+
+.mcp-pm-preview-suffix {
+    color: #dcdcaa;
+    padding: 4px 0;
+    white-space: pre-wrap;
+}
+
+/* Settings Module */
+.mcp-settings-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #252526;
+    border-radius: 8px;
+}
+
+.mcp-settings-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #ccc;
+}
+
+.mcp-settings-info {
+    color: #888;
+}
+
+.mcp-settings-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+.mcp-settings-stat:last-child {
+    border-bottom: none;
+}
+
+.mcp-settings-stat label {
+    color: #888;
+}
+
+.mcp-settings-stat span {
+    color: #4ec9b0;
+    font-weight: 600;
+}
+
+.mcp-settings-stat code {
+    color: #ce9178;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.mcp-settings-endpoints {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mcp-endpoint-item {
+    display: flex;
+    gap: 12px;
+    padding: 8px 12px;
+    background: #1e1e1e;
+    border-radius: 4px;
+}
+
+.mcp-endpoint-item label {
+    color: #888;
+    min-width: 150px;
+    font-size: 12px;
+}
+
+.mcp-endpoint-item code {
+    color: #4ec9b0;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+}
+
+/* Error state */
+.mcp-error {
+    padding: 20px;
+    text-align: center;
+    color: #f44336;
+}
+
+/* ========================================
+   Mobile Responsive Styles
+   ======================================== */
+
+/* Tablet and below (max-width: 1024px) */
+@media screen and (max-width: 1024px) {
+    .mcp-ss-list-panel {
+        width: 280px;
+    }
+    
+    .mcp-td-categories-panel {
+        width: 220px;
+    }
+    
+    .mcp-pm-list-panel {
+        width: 200px;
+    }
+}
+
+/* Mobile (max-width: 768px) */
+@media screen and (max-width: 768px) {
+    /* Main container - stack vertically */
+    .mcp-container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100%;
+        overflow: visible;
+    }
+    
+    /* Menu - horizontal scrollable tabs */
+    .mcp-menu {
+        width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: visible;
+        border-right: none;
+        border-bottom: 1px solid #3c3c3c;
+        min-height: 50px;
+        flex-shrink: 0;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    
+    .mcp-menu::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .mcp-menu-header {
+        display: none;
+    }
+    
+    #mcp-menu-container {
+        display: flex;
+        flex-direction: row;
+        width: max-content;
+        min-width: 100%;
+    }
+    
+    .mcp-menu-item {
+        flex-shrink: 0;
+        padding: 12px 16px;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .mcp-menu-item.active {
+        border-left-color: transparent;
+        border-bottom-color: #0e639c;
+        background: #37373d;
+    }
+    
+    .mcp-menu-icon {
+        font-size: 16px;
+    }
+    
+    .mcp-menu-text {
+        font-size: 12px;
+    }
+    
+    /* Content area */
+    .mcp-content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+    
+    /* Module header */
+    .mcp-module-header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+        align-items: flex-start;
+    }
+    
+    .mcp-module-header h2 {
+        font-size: 16px;
+    }
+    
+    .mcp-module-actions {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .mcp-module-actions .mcp-btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+        justify-content: center;
+        padding: 10px 12px;
+    }
+    
+    /* Screenshot module - stack panels */
+    .mcp-ss-split-view {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .mcp-ss-list-panel {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #3c3c3c;
+        max-height: 250px;
+    }
+    
+    .mcp-ss-list {
+        padding: 8px;
+    }
+    
+    .mcp-ss-list-item {
+        padding: 10px;
+    }
+    
+    .mcp-ss-detail-panel {
+        min-height: 400px;
+    }
+    
+    .mcp-ss-detail-content {
+        padding: 12px;
+    }
+    
+    .mcp-ss-detail-header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .mcp-ss-detail-actions {
+        width: 100%;
+    }
+    
+    .mcp-ss-detail-actions .mcp-btn {
+        flex: 1;
+    }
+    
+    .mcp-ss-detail-image {
+        padding: 10px;
+    }
+    
+    .mcp-ss-detail-image img {
+        max-height: 300px;
+    }
+    
+    /* URL section */
+    .mcp-ss-url-section {
+        padding: 12px;
+    }
+    
+    .mcp-url-box {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .mcp-url-box input {
+        font-size: 11px;
+        padding: 8px;
+    }
+    
+    .mcp-url-box .mcp-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Task dispatch module */
+    .mcp-td-split-view {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .mcp-td-categories-panel {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #3c3c3c;
+        max-height: 200px;
+    }
+    
+    .mcp-td-tasks-panel {
+        min-height: 300px;
+    }
+    
+    .mcp-td-tasks-header {
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+    }
+    
+    .mcp-td-stats {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .mcp-td-stats span {
+        flex: 1;
+        text-align: center;
+        min-width: calc(33% - 6px);
+    }
+    
+    /* Prompt mappings module */
+    .mcp-pm-split-view {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .mcp-pm-list-panel {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #3c3c3c;
+        max-height: 200px;
+    }
+    
+    .mcp-pm-editor-panel {
+        min-height: 400px;
+    }
+    
+    .mcp-pm-editor {
+        padding: 12px;
+    }
+    
+    .mcp-pm-editor-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    .mcp-pm-editor-actions {
+        width: 100%;
+    }
+    
+    .mcp-pm-editor-actions .mcp-btn {
+        flex: 1;
+    }
+    
+    /* Modal */
+    .mcp-modal-content {
+        width: 95vw;
+        max-width: 95vw;
+        max-height: 90vh;
+        margin: 16px;
+        border-radius: 8px;
+    }
+    
+    .mcp-modal-lg {
+        width: 95vw;
+    }
+    
+    .mcp-modal-header {
+        padding: 12px 16px;
+    }
+    
+    .mcp-modal-header h3 {
+        font-size: 14px;
+    }
+    
+    .mcp-modal-body {
+        padding: 16px;
+    }
+    
+    .mcp-modal-footer {
+        padding: 12px 16px;
+        flex-direction: column;
+    }
+    
+    .mcp-modal-footer .mcp-btn {
+        width: 100%;
+    }
+    
+    /* Batch upload */
+    .mcp-batch-item {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .mcp-batch-item-preview {
+        width: 100%;
+        height: 120px;
+    }
+    
+    /* Settings */
+    .mcp-settings-section {
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .mcp-endpoint-item {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .mcp-endpoint-item label {
+        min-width: auto;
+    }
+    
+    .mcp-endpoint-item code {
+        word-break: break-all;
+        font-size: 11px;
+    }
+    
+    /* Form elements */
+    .mcp-form-group input[type="text"],
+    .mcp-form-group input[type="file"],
+    .mcp-form-group textarea {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 12px;
+    }
+    
+    .mcp-btn {
+        padding: 10px 14px;
+        font-size: 13px;
+    }
+    
+    .mcp-btn-sm {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+}
+
+/* Small mobile (max-width: 480px) */
+@media screen and (max-width: 480px) {
+    .mcp-menu-item {
+        padding: 8px 10px;
+    }
+    
+    .mcp-menu-icon {
+        font-size: 16px;
+    }
+    
+    .mcp-menu-text {
+        font-size: 11px;
+    }
+    
+    .mcp-module-header h2 {
+        font-size: 14px;
+    }
+    
+    .mcp-module-actions .mcp-btn {
+        min-width: 100%;
+        font-size: 12px;
+    }
+    
+    .mcp-ss-list-panel {
+        max-height: 200px;
+    }
+    
+    .mcp-ss-list-item-header {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .mcp-ss-detail-image img {
+        max-height: 200px;
+    }
+    
+    .mcp-info-row span {
+        font-size: 12px;
+        word-break: break-all;
+    }
+    
+    .mcp-td-categories-panel,
+    .mcp-pm-list-panel {
+        max-height: 150px;
+    }
+    
+    .mcp-settings-stat {
+        flex-direction: column;
+        gap: 4px;
+    }
 }

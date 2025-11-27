@@ -39,32 +39,81 @@ class FlutterAppSelector:
         # All keys are now defined in unified_variable_system.py for consistency
 
     def get_user_input_key(self) -> Dict[str, Any]:
-        """Get a single key input from user with support for arrow keys"""
-        try:
-            import msvcrt
-            key = msvcrt.getch()
+        """Get a single key input from user with support for arrow keys (cross-platform)"""
+        import sys
+        import platform
 
-            # Handle special keys (arrow keys return two bytes)
-            if key == b'\xe0':  # Special key prefix on Windows
+        system = platform.system()
+
+        if system == 'Windows':
+            # Windows: Use msvcrt
+            try:
+                import msvcrt
                 key = msvcrt.getch()
-                if key == b'H':  # Up arrow
-                    return {"type": "arrow", "direction": "up", "code": 38}
-                elif key == b'P':  # Down arrow
-                    return {"type": "arrow", "direction": "down", "code": 40}
-                elif key == b'K':  # Left arrow
-                    return {"type": "arrow", "direction": "left", "code": 37}
-                elif key == b'M':  # Right arrow
-                    return {"type": "arrow", "direction": "right", "code": 39}
-            elif key == b'\r':  # Enter
-                return {"type": "key", "char": "enter", "code": 13}
-            elif key == b'\x1b':  # Escape
-                return {"type": "key", "char": "escape", "code": 27}
-            else:
-                return {"type": "key", "char": key.decode('utf-8').upper(), "code": ord(key)}
-        except ImportError:
-            # For non-Windows systems, fallback to simple input
-            user_input = input().strip().upper()
-            return {"type": "key", "char": user_input, "code": 0}
+
+                # Handle special keys (arrow keys return two bytes)
+                if key == b'\xe0':  # Special key prefix on Windows
+                    key = msvcrt.getch()
+                    if key == b'H':  # Up arrow
+                        return {"type": "arrow", "direction": "up", "code": 38}
+                    elif key == b'P':  # Down arrow
+                        return {"type": "arrow", "direction": "down", "code": 40}
+                    elif key == b'K':  # Left arrow
+                        return {"type": "arrow", "direction": "left", "code": 37}
+                    elif key == b'M':  # Right arrow
+                        return {"type": "arrow", "direction": "right", "code": 39}
+                elif key == b'\r':  # Enter
+                    return {"type": "key", "char": "enter", "code": 13}
+                elif key == b'\x1b':  # Escape
+                    return {"type": "key", "char": "escape", "code": 27}
+                else:
+                    return {"type": "key", "char": key.decode('utf-8').upper(), "code": ord(key)}
+            except ImportError:
+                # Fallback if msvcrt not available
+                user_input = input().strip().upper()
+                return {"type": "key", "char": user_input, "code": 0}
+        else:
+            # Linux/macOS: Use termios for raw keyboard input
+            try:
+                import termios
+                import tty
+
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+
+                try:
+                    tty.setraw(fd)
+                    ch = sys.stdin.read(1)
+
+                    # Handle escape sequences (arrow keys, etc.)
+                    if ch == '\x1b':  # ESC
+                        # Read next characters to determine if it's an escape sequence
+                        ch2 = sys.stdin.read(1)
+                        if ch2 == '[':
+                            ch3 = sys.stdin.read(1)
+                            if ch3 == 'A':  # Up arrow
+                                return {"type": "arrow", "direction": "up", "code": 38}
+                            elif ch3 == 'B':  # Down arrow
+                                return {"type": "arrow", "direction": "down", "code": 40}
+                            elif ch3 == 'C':  # Right arrow
+                                return {"type": "arrow", "direction": "right", "code": 39}
+                            elif ch3 == 'D':  # Left arrow
+                                return {"type": "arrow", "direction": "left", "code": 37}
+                        # Standalone ESC key
+                        return {"type": "key", "char": "escape", "code": 27}
+                    elif ch == '\r' or ch == '\n':  # Enter
+                        return {"type": "key", "char": "enter", "code": 13}
+                    elif ch == '\x03':  # Ctrl+C
+                        raise KeyboardInterrupt
+                    else:
+                        return {"type": "key", "char": ch.upper(), "code": ord(ch)}
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+            except (ImportError, AttributeError, termios.error):
+                # Fallback for systems without termios (very rare)
+                user_input = input().strip().upper()
+                return {"type": "key", "char": user_input, "code": 0}
 
     def select_application(self) -> Dict[str, Any]:
         """

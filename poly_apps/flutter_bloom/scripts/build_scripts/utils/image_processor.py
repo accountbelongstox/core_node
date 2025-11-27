@@ -34,7 +34,7 @@ import uuid
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
-from PIL import Image, ImageOps
+from third_party import Image, ImageOps
 
 class ImageProcessor:
     def __init__(self, flutter_root_dir: Optional[Path] = None):
