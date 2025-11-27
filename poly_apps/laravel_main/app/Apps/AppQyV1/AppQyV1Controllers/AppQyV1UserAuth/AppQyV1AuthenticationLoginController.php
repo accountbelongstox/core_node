@@ -26,6 +26,7 @@ use App\Http\Common\CommonAvatarPublic;
 use App\Http\Common\CommonAuthService;
 use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use Illuminate\Routing\Controller as BaseController;
 class AppQyV1AuthenticationLoginController extends BaseController
 {
@@ -358,6 +359,33 @@ class AppQyV1AuthenticationLoginController extends BaseController
             // Add legacy compatibility fields
             $response['token'] = $authData['login_token']; // Legacy field name
             $response['login_by'] = $authData['login_by']; // Legacy field name
+            
+            // Add user learning data
+            $user = $authData['user'];
+            $learningLanguages = $user->learning_languages ?? ['en'];
+            $nativeLanguage = $user->native_language ?? 'zh';
+            
+            // Get learning stats for all languages or first learning language
+            $langCode = !empty($learningLanguages) ? $learningLanguages[0] : 'en';
+            $learningStats = AppQyV1UserLearningProgressModel::getUserStats($user->id, $langCode);
+            
+            // Enhance user data in response
+            $response['data']['user']['learning_languages'] = $learningLanguages;
+            $response['data']['user']['native_language'] = $nativeLanguage;
+            $response['data']['user']['learning_stats'] = $learningStats;
+            
+            // Add stats to top level for compatibility
+            if (isset($learningStats['stats'])) {
+                $stats = $learningStats['stats'];
+                $response['data']['user']['total_words'] = $stats['total'] ?? $stats['total_words'] ?? 0;
+                $response['data']['user']['learned_words'] = $stats['learned'] ?? $stats['learned_words'] ?? 0;
+                $response['data']['user']['mastered_words'] = $stats['mastered'] ?? $stats['mastered_words'] ?? 0;
+                $response['data']['user']['review_due_words'] = $stats['review_due'] ?? $stats['review_due_words'] ?? 0;
+                $response['data']['user']['today_new_words'] = $stats['today_learned'] ?? 0;
+                $response['data']['user']['today_review_words'] = $stats['today_reviewed'] ?? 0;
+                $response['data']['user']['streak_days'] = $stats['streak_days'] ?? 0;
+                $response['data']['user']['study_days'] = $stats['study_days'] ?? 0;
+            }
             
             return response()->json($response);
             

@@ -103,8 +103,6 @@ flutter:
     - assets/apps/app_travel/innerdata/
 
     # QY App assets (English learning app)
-    - assets/apps/app_qy/test_images/
-    - assets/apps/app_qy/test_images/dictionaries/
 
   fonts:
     - family: Roboto

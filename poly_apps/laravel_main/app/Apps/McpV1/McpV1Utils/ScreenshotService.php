@@ -3,15 +3,17 @@
 namespace App\Apps\McpV1\McpV1Utils;
 
 use App\Providers\PathMapper;
+use App\Utils\ImageProcessUtil;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Str;
 
 /**
  * Screenshot Management Service (McpV1)
  *
  * Manages screenshots with metadata (id, description, keywords)
- * - Files stored outside code directory in /www/shared-data/screenshots/
+ * - Files stored in Laravel uploads directory (writable)
  * - File names encoded to prevent encoding issues
- * - Metadata stored in-memory (can be persisted to database if needed)
+ * - Metadata stored in Laravel data directory
  *
  * Supports both MCP (Model Context Protocol) and web API interfaces
  * Following Laravel 12.x MCP specifications
@@ -26,18 +28,17 @@ class ScreenshotService
 
     public function __construct()
     {
-        // Store screenshots outside code directory
-        $sharedDataDir = PathMapper::getSharedData();
-        $this->storageDirectory = $sharedDataDir . DIRECTORY_SEPARATOR . 'screenshots';
+        // Store screenshots in Laravel uploads directory (writable)
+        $uploadsDir = PathMapper::getLaravelUploadsDir();
+        $this->storageDirectory = $uploadsDir . DIRECTORY_SEPARATOR . 'mcp_screenshots';
 
-        if (!file_exists($this->storageDirectory)) {
-            mkdir($this->storageDirectory, 0755, true);
-        }
+        // Ensure directory exists using FileSystemManager
+        FileSystemManager::ensureDirectoryExists($this->storageDirectory);
 
-        // Metadata file in code directory (can be committed)
-        $baseDir = PathMapper::getCoreNodeDir();
-        $promptsDir = $baseDir . DIRECTORY_SEPARATOR . '_prompts';
-        $this->metadataFile = $promptsDir . DIRECTORY_SEPARATOR . '.screenshots-metadata.json';
+        // Metadata file in Laravel data directory
+        $dataDir = PathMapper::getLaravelDataDir();
+        FileSystemManager::ensureDirectoryExists($dataDir);
+        $this->metadataFile = $dataDir . DIRECTORY_SEPARATOR . '.mcp-screenshots-metadata.json';
 
         $this->loadMetadata();
     }
@@ -47,9 +48,12 @@ class ScreenshotService
      */
     private function loadMetadata()
     {
-        if (file_exists($this->metadataFile)) {
-            $data = json_decode(file_get_contents($this->metadataFile), true);
-            $this->screenshots = $data['screenshots'] ?? [];
+        if (FileSystemManager::exists($this->metadataFile)) {
+            $content = FileSystemManager::readFile($this->metadataFile);
+            if ($content !== false) {
+                $data = json_decode($content, true);
+                $this->screenshots = $data['screenshots'] ?? [];
+            }
         }
     }
 
@@ -64,7 +68,7 @@ class ScreenshotService
             'updated_at' => date('Y-m-d H:i:s')
         ];
 
-        file_put_contents(
+        FileSystemManager::writeFile(
             $this->metadataFile,
             json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
@@ -77,9 +81,10 @@ class ScreenshotService
      * @param string|null $id Custom ID (optional, auto-generated if not provided)
      * @param string|null $description Description
      * @param array $keywords Keywords array
+     * @param bool $replace Whether to replace existing screenshot with same ID
      * @return array Result with screenshot info
      */
-    public function uploadScreenshot($filePath, $id = null, $description = null, $keywords = [])
+    public function uploadScreenshot($filePath, $id = null, $description = null, $keywords = [], $replace = false)
     {
         if (!file_exists($filePath)) {
             return ['error' => 'File not found', 'success' => false];
@@ -89,7 +94,11 @@ class ScreenshotService
         if ($id === null) {
             $id = $this->generateId();
         } elseif ($this->exists($id)) {
-            return ['error' => 'Screenshot ID already exists', 'success' => false];
+            if (!$replace) {
+                return ['error' => 'Screenshot ID already exists', 'success' => false, 'exists' => true, 'existing_id' => $id];
+            }
+            // Delete existing screenshot before replacing
+            $this->delete($id);
         }
 
         // Get file info
@@ -97,18 +106,48 @@ class ScreenshotService
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         $mimeType = mime_content_type($filePath);
 
-        // Validate image type
-        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'])) {
-            return ['error' => 'Invalid image format', 'success' => false];
+        // Supported image formats (extension and mime type mapping)
+        $supportedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'tif', 'avif', 'heic', 'heif'];
+        $supportedMimeTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+            'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon',
+            'image/tiff', 'image/avif', 'image/heic', 'image/heif'
+        ];
+
+        // Validate by extension OR mime type (more flexible)
+        $isValidExtension = in_array($extension, $supportedExtensions);
+        $isValidMimeType = in_array($mimeType, $supportedMimeTypes);
+
+        if (!$isValidExtension && !$isValidMimeType) {
+            return ['error' => 'Invalid image format. Supported: ' . implode(', ', $supportedExtensions), 'success' => false];
+        }
+
+        // If extension is missing or invalid but mime is valid, derive extension from mime
+        if (!$isValidExtension && $isValidMimeType) {
+            $mimeToExt = [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+                'image/bmp' => 'bmp',
+                'image/svg+xml' => 'svg',
+                'image/x-icon' => 'ico',
+                'image/vnd.microsoft.icon' => 'ico',
+                'image/tiff' => 'tiff',
+                'image/avif' => 'avif',
+                'image/heic' => 'heic',
+                'image/heif' => 'heif'
+            ];
+            $extension = $mimeToExt[$mimeType] ?? 'png';
         }
 
         // Generate encoded filename (UUID-based to avoid encoding issues)
         $encodedFilename = Str::uuid()->toString() . '.' . $extension;
         $targetPath = $this->storageDirectory . DIRECTORY_SEPARATOR . $encodedFilename;
 
-        // Copy file to storage
-        if (!copy($filePath, $targetPath)) {
-            return ['error' => 'Failed to copy file', 'success' => false];
+        // Copy file to storage using FileSystemManager
+        if (!FileSystemManager::copy($filePath, $targetPath)) {
+            return ['error' => 'Failed to copy file to storage', 'success' => false];
         }
 
         // Store metadata
@@ -236,9 +275,9 @@ class ScreenshotService
 
         $screenshot = $this->screenshots[$id];
 
-        // Delete file
-        if (file_exists($screenshot['file_path'])) {
-            unlink($screenshot['file_path']);
+        // Delete file using FileSystemManager
+        if (FileSystemManager::exists($screenshot['file_path'])) {
+            FileSystemManager::delete($screenshot['file_path']);
         }
 
         // Remove from metadata
@@ -260,8 +299,8 @@ class ScreenshotService
         $count = 0;
 
         foreach ($this->screenshots as $id => $screenshot) {
-            if (file_exists($screenshot['file_path'])) {
-                unlink($screenshot['file_path']);
+            if (FileSystemManager::exists($screenshot['file_path'])) {
+                FileSystemManager::delete($screenshot['file_path']);
                 $count++;
             }
         }
@@ -329,6 +368,163 @@ class ScreenshotService
             'total_size' => $totalSize,
             'total_size_mb' => round($totalSize / 1024 / 1024, 2),
             'storage_directory' => $this->storageDirectory
+        ];
+    }
+
+    /**
+     * Upload multiple screenshots and merge them into one image
+     *
+     * @param array $filePaths Array of uploaded file paths
+     * @param array $descriptions Array of descriptions (same index as files)
+     * @param string $keyword Common keyword for the merged image
+     * @param string|null $id Custom ID (optional)
+     * @return array Result with merged screenshot info
+     */
+    public function uploadAndMerge(array $filePaths, array $descriptions = [], string $keyword = '', ?string $id = null, bool $replace = false)
+    {
+        if (empty($filePaths)) {
+            return ['error' => 'No files provided', 'success' => false];
+        }
+
+        // Validate all files exist
+        foreach ($filePaths as $index => $filePath) {
+            if (!file_exists($filePath)) {
+                return ['error' => "File not found at index $index: $filePath", 'success' => false];
+            }
+        }
+
+        // Generate or validate ID
+        if ($id === null) {
+            $id = $this->generateId();
+        } elseif ($this->exists($id)) {
+            if (!$replace) {
+                return ['error' => 'Screenshot ID already exists', 'success' => false, 'exists' => true, 'existing_id' => $id];
+            }
+            // Delete existing screenshot before replacing
+            $this->delete($id);
+        }
+
+        try {
+            // Merge images using common utility
+            $mergeResult = ImageProcessUtil::mergeImagesVertically($filePaths, $descriptions);
+
+            if (!isset($mergeResult['success']) || !$mergeResult['success']) {
+                return ['error' => 'Failed to merge images', 'success' => false];
+            }
+
+            $mergedPath = $mergeResult['path'];
+
+            // Get merged file info
+            $extension = 'png';
+            $mimeType = 'image/png';
+
+            // Generate encoded filename
+            $encodedFilename = Str::uuid()->toString() . '.' . $extension;
+            $targetPath = $this->storageDirectory . DIRECTORY_SEPARATOR . $encodedFilename;
+
+            // Move merged file to storage using FileSystemManager
+            if (!FileSystemManager::copy($mergedPath, $targetPath)) {
+                return ['error' => 'Failed to save merged file', 'success' => false];
+            }
+            // Clean up temp file
+            @unlink($mergedPath);
+
+            // Build description from all provided descriptions
+            $combinedDescription = '';
+            if (!empty($descriptions)) {
+                $combinedDescription = implode(' | ', array_filter($descriptions));
+            }
+
+            // Build keywords array
+            $keywords = [];
+            if (!empty($keyword)) {
+                $keywords[] = $keyword;
+            }
+            $keywords[] = 'merged';
+            $keywords[] = count($filePaths) . '_images';
+
+            // Store metadata
+            $screenshot = [
+                'id' => $id,
+                'original_name' => 'merged_' . count($filePaths) . '_images.png',
+                'encoded_filename' => $encodedFilename,
+                'file_path' => $targetPath,
+                'description' => $combinedDescription,
+                'keywords' => $keywords,
+                'mime_type' => $mimeType,
+                'size' => filesize($targetPath),
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+                'merged_info' => [
+                    'image_count' => $mergeResult['image_count'],
+                    'width' => $mergeResult['width'],
+                    'height' => $mergeResult['height'],
+                    'individual_descriptions' => $descriptions
+                ]
+            ];
+
+            $this->screenshots[$id] = $screenshot;
+            $this->saveMetadata();
+
+            error_log('[ScreenshotService] Uploaded merged screenshot: ' . $id . ' (' . count($filePaths) . ' images)');
+
+            return [
+                'success' => true,
+                'screenshot' => $screenshot
+            ];
+
+        } catch (\Exception $e) {
+            error_log('[ScreenshotService] Merge error: ' . $e->getMessage());
+            return ['error' => 'Merge failed: ' . $e->getMessage(), 'success' => false];
+        }
+    }
+
+    /**
+     * Upload multiple screenshots individually (batch upload without merge)
+     *
+     * @param array $filePaths Array of uploaded file paths
+     * @param array $descriptions Array of descriptions
+     * @param string $keyword Common keyword
+     * @return array Result with all uploaded screenshots
+     */
+    public function uploadBatch(array $filePaths, array $descriptions = [], string $keyword = '')
+    {
+        $results = [];
+        $successCount = 0;
+        $failCount = 0;
+
+        foreach ($filePaths as $index => $filePath) {
+            $description = $descriptions[$index] ?? '';
+            $keywords = [];
+            if (!empty($keyword)) {
+                $keywords[] = $keyword;
+            }
+
+            $result = $this->uploadScreenshot($filePath, null, $description, $keywords);
+
+            if ($result['success']) {
+                $successCount++;
+                $results[] = [
+                    'index' => $index,
+                    'success' => true,
+                    'screenshot' => $result['screenshot']
+                ];
+            } else {
+                $failCount++;
+                $results[] = [
+                    'index' => $index,
+                    'success' => false,
+                    'error' => $result['error']
+                ];
+            }
+        }
+
+        return [
+            'success' => $failCount === 0,
+            'total' => count($filePaths),
+            'success_count' => $successCount,
+            'fail_count' => $failCount,
+            'results' => $results
         ];
     }
 }

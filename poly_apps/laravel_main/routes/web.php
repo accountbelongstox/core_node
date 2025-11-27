@@ -245,12 +245,16 @@ Route::prefix('api/mcp/v1/task-dispatch')->group(function () {
 // @see https://laravel.com/docs/12.x/mcp
 Route::prefix('api/mcp/v1/screenshots')->group(function () {
     Route::post('/upload', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'upload']);
+    Route::post('/upload-merge', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'uploadAndMerge']);
+    Route::post('/upload-batch', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'uploadBatch']);
     Route::get('/latest', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getLatest']);
     Route::get('/search', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'search']);
     Route::get('/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getStats']);
     Route::get('/', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getAll']);
     Route::get('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getById']);
     Route::get('/{id}/file', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFile']);
+    // Support URLs with image extension for AI recognition: /screenshots/{id}.jpg, /screenshots/{id}.png, etc.
+    Route::get('/{id}.{ext}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFileWithExt'])->where('ext', 'jpg|jpeg|png|gif|webp|bmp');
     Route::delete('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'delete']);
     Route::delete('/clear-all/confirm', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'clearAll']);
 });
