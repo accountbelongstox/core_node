@@ -99,8 +99,7 @@ A
 ### 4.1 App Directory Structure
 ```
 pyapps/{appname}/
-├── {appname}_main.py       # STANDARD entry point
-├── main.py                 # FALLBACK entry point
+├── {appname}_main.py       # Entry point
 ├── {appname}_config/       # [Optional] UI configuration App configuration
 ├── {appname}_i18n/         # [Optional] Multi-language
 │   ├── i18n_keys.py       # App-specific i18n key constants (extends I18nKeys)
@@ -116,8 +115,7 @@ pyapps/{appname}/
 **Directory Naming:** All optional directories use `{appname}_` prefix as namespace
 
 ### 4.2 Entry Point Convention
-- STANDARD: `{appname}_main.py` - Primary entry point
-- FALLBACK: `main.py` - Secondary entry point
+- STANDARD: `{appname}_main.py` - Entry point
 - Must define `start()` or `main()` function
 
 ### 4.3 Multi-Language (i18n)

@@ -205,7 +205,7 @@ echo ""
 #endregion
 
 # =============================================================================
-# Load Environment Variables from Secret Manager
+# Load Environment Variables from Secret Files
 # =============================================================================
 echo ""
 echo "============================================================"
@@ -213,48 +213,92 @@ echo "Loading Environment Variables"
 echo "============================================================"
 echo ""
 
-python_exec="python3"
-if ! command -v "$python_exec" &> /dev/null; then
-    if command -v python &> /dev/null; then
-        python_exec="python"
-    else
-        echo "[ERROR] Python is required to load secrets"
-        exit 1
-    fi
-fi
-
-# Use relative path from script location to project root
-secret_manager_script="$projectRootPath/pycore/pyfoundations/secret_manager.py"
-
-echo "[DEBUG] Python executable: $python_exec"
+# Secret files directory
+secret_dir="$projectRootPath/.secret_keys/.secret_ignore"
+echo "[DEBUG] Secret directory: $secret_dir"
 echo "[DEBUG] Project root: $projectRootPath"
-echo "[DEBUG] Secret manager script: $secret_manager_script"
-echo "[DEBUG] Script file exists: $([ -f "$secret_manager_script" ] && echo "YES" || echo "NO")"
+
+read_secret_file() {
+    # =============================================================================
+    # Enhanced function to read secret files with UTF-8 BOM handling
+    # =============================================================================
+    # Usage: read_secret_file <file_path>
+    # Output: Secret value (first non-empty line) or empty string
+    # =============================================================================
+    local file_path="$1"
+    local value=""
+    local fix_instruction="Run dd.sh (Secret Decryption Fix) to decrypt secret files"
+    
+    if [ ! -f "$file_path" ]; then
+        echo "[WARNING] Secret file not found: $file_path" >&2
+        echo "[ACTION] $fix_instruction" >&2
+        echo ""
+        return 1
+    fi
+    
+    # Check if file starts with UTF-8 BOM (EF BB BF) by reading first 3 bytes
+    local first_bytes=$(head -c 3 "$file_path" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n' 2>/dev/null || echo "")
+    local has_bom=0
+    if [ "$first_bytes" = "efbbbf" ]; then
+        has_bom=1
+    fi
+    
+    # Read file content, handling BOM correctly
+    if [ "$has_bom" -eq 1 ]; then
+        # File has UTF-8 BOM, skip first 3 bytes using dd
+        while IFS= read -r line || [ -n "$line" ]; do
+            # Trim whitespace
+            trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < <(dd if="$file_path" bs=1 skip=3 2>/dev/null)
+    else
+        # No BOM, read file normally
+        while IFS= read -r line || [ -n "$line" ]; do
+            # Trim whitespace
+            trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < "$file_path"
+    fi
+    
+    if [ -z "$value" ]; then
+        echo "[WARNING] Secret file is empty or contains no valid content: $file_path" >&2
+        echo "[ACTION] $fix_instruction" >&2
+        echo ""
+        return 1
+    fi
+    
+    echo "$value"
+    return 0
+}
 
 load_secret_value() {
+    # =============================================================================
+    # Enhanced function to load secret value and set environment variable
+    # =============================================================================
+    # Usage: load_secret_value <key_name> <env_name> <display_name> <default_value>
+    # Calls read_secret_file for actual file reading
+    # =============================================================================
     local key_name="$1"
     local env_name="$2"
     local display_name="$3"
     local default_value="$4"
     local value=""
+    local secret_file="$secret_dir/$key_name"
+    local fix_instruction="Run dd.sh (Secret Decryption Fix) to decrypt secret files"
 
     echo "[DEBUG] Loading secret key: $key_name -> $env_name"
-    echo "[DEBUG] Python command: PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name""
+    echo "[DEBUG] Secret file: $secret_file"
 
-    # Capture stderr to temp file for debugging
-    local tmp_err=$(mktemp)
-    # Use PYTHONPATH instead of cd
-    value=$(PYTHONPATH="$projectRootPath" $python_exec "$secret_manager_script" get_secret_key "$key_name" 2>"$tmp_err")
-    local exit_code=$?
+    # Call enhanced read function
+    value=$(read_secret_file "$secret_file")
+    local read_exit_code=$?
 
-    # Show stderr if there were errors
-    if [ -s "$tmp_err" ]; then
-        echo "[DEBUG] Python stderr:"
-        cat "$tmp_err"
-    fi
-    rm -f "$tmp_err"
-
-    echo "[DEBUG] Exit code: $exit_code"
     echo "[DEBUG] Returned value length: ${#value}"
 
     # Use default value if secret loading failed and default is provided
@@ -286,6 +330,7 @@ load_secret_value() {
     fi
 
     echo "[WARNING] Failed to load $display_name (empty value returned)"
+    echo "[ACTION] $fix_instruction"
     return 1
 }
 

@@ -1,3 +1,14 @@
+先更新，稍候我们将测试。
+
+
+_prompt\mcpLinuxTemplate.json _prompt\mcpUbuntoDesktopTemplate.json
+_prompt\mcpWindowsTemplate.json _prompt\mcpWSLTemplate.json 更新文档冲突，表示
+ 开发任何MCP服务都要更新上面几个文件  development-guides\MCPSERVER_GUIDE.md
+之后你根据规范更新。同是现只不再需要AlibabaDataworks FeedbackEnhanced
+AICollaboration 等服务。只需要刚刚的，也不需要指定 "autoApprove": [
+
+
+
 ] [Step 84] Step 7: Handling WSL installation/upgrade...
 [!] [Step 84] WSL is not installed. Installing...
 [!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')

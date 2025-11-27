@@ -22,6 +22,24 @@
 注意使用 pycore\pyutils\rpc_v2 作为路由支持，你先全面了解一下 pycore\pyutils\rpc_v2
 
 ···
+
+
+
+> pyapps\okx_price_monitor  https://www.okx.com/docs-v5/en/#overview-websocket-login 参考 文档 以及本地
+development-guides\PYTHON_PYCORE.md 规范 ，现在使用#   - API Key: from
+.secret_keys/.secret_ignore/LOCAL_TEST_PASSWORD_1
+    #   - Secret Key: from .secret_keys/.secret_ignore/LOCAL_TEST_API_KEY_1
+  作为  api key /secrete key。然后先读取所有 币，打印。
+  ⎿  API Error: Connection error.
+
+> https://www.okx.com/docs-v5/en/#overview 读取文档 。
+  ⎿  API Error: Connection error.
+
+> 使用 https://pypi.org/project/python-okx/ 该SDK
+  ⎿  Interrupted · What should Claude do instead?
+
+> pip install python-okx
+
 沿用之前的代码风格。
 
 
