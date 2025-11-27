@@ -49,10 +49,16 @@ if (-not $scriptCurrentPath) {
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
 $projectRootPath = Split-Path $scriptsDirPath -Parent
+$winDirPath = Join-Path (Join-Path $scriptsDirPath "shells") "win"
+$winCommonDirPath = Join-Path $winDirPath "win_common"
 Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 #endregion
+
+$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+. $windowsPathFunctionScript
+Set-CoreNodePaths
 
 #region Load SSH Configuration via PyCore caller
 Write-Host ""
