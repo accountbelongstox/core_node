@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-OKX Price Monitor Library
+OKX Price Monitor - Lib Package
 
-Provides OKX monitoring and trading utilities.
+Shared library modules (minimal, most moved to new architecture).
+Only keeps actively used modules:
+- models.py: Database models (used by foundation/database_handler.py)
+- okx_auth.py: OKX authentication (used by foundation/coin_provider.py)
+- rpc_utils.py: RPC utilities (used by services/grid_display.py)
 """
 
-from pyapps.okx_price_monitor.lib.config import OKXMonitorConfig, config
-from pyapps.okx_price_monitor.lib.coin_provider import CoinProvider
-from pyapps.okx_price_monitor.lib.mode1_price_monitor import Mode1PriceMonitor
-from pyapps.okx_price_monitor.lib.mode2_trader import Mode2Trader, TradingTimingAnalyzer
-from pyapps.okx_price_monitor.lib.continuous_monitor import ContinuousMonitor
-from pyapps.okx_price_monitor.lib.url_cache_manager import URLCacheManager
-from pyapps.okx_price_monitor.lib.central_timer import CentralTimer
-from pyapps.okx_price_monitor.lib.coin_data_manager import CoinDataManager
+from pyapps.okx_price_monitor.lib.okx_auth import OKXAuth
+from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
 
 __all__ = [
-    'OKXMonitorConfig',
-    'config',
-    'CoinProvider',
-    'Mode1PriceMonitor',
-    'Mode2Trader',
-    'TradingTimingAnalyzer',
-    'ContinuousMonitor',
-    'URLCacheManager',
-    'CentralTimer',
-    'CoinDataManager',
+    'OKXAuth',
+    'parse_rpc_response',
 ]
