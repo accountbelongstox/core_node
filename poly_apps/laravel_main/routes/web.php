@@ -19,6 +19,7 @@ use App\Http\EnvironmentApiInfo\ClipboardController;
 use App\Http\EnvironmentApiInfo\CodeBrowserController;
 use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
 use App\Http\EnvironmentApiInfo\StaticResourceController;
+use App\Http\EnvironmentApiInfo\ChunkedUploadController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
@@ -131,6 +132,7 @@ Route::prefix('code-browser')->group(function () {
     Route::post('/restore-file', [CodeBrowserFileOpsController::class, 'restoreFile']);
     Route::post('/rename-item', [CodeBrowserFileOpsController::class, 'renameItem']);
     Route::post('/auto-rename-to-english', [CodeBrowserFileOpsController::class, 'autoRenameToEnglish']);
+    Route::post('/clean-broken-symlinks', [CodeBrowserFileOpsController::class, 'cleanBrokenSymlinks']);
     Route::get('/prompts', [CodeBrowserFileOpsController::class, 'getPrompts']);
 
     Route::post('/prompts/create', function (\Illuminate\Http\Request $request) {
@@ -229,6 +231,28 @@ Route::prefix('api/mcp/v1/task-dispatch')->group(function () {
     Route::get('/queue/{categoryId}/search', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'searchTasks']);
     Route::put('/queue/{categoryId}/tasks/{taskId}/status', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'updateTaskStatus']);
     Route::get('/queue/{categoryId}/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getQueueStats']);
+
+    // Prompt Mappings
+    Route::get('/mappings', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getAllMappings']);
+    Route::get('/mappings/{categoryId}', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getCategoryMapping']);
+    Route::put('/mappings/{categoryId}', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'updateCategoryMapping']);
+    Route::post('/mappings/{categoryId}/reset', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'resetCategoryMapping']);
+    Route::delete('/mappings/{categoryId}', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'deleteCategoryMapping']);
+});
+
+// McpV1 Screenshot Management System (MCP + Web API)
+// Following Laravel 12.x MCP specifications
+// @see https://laravel.com/docs/12.x/mcp
+Route::prefix('api/mcp/v1/screenshots')->group(function () {
+    Route::post('/upload', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'upload']);
+    Route::get('/latest', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getLatest']);
+    Route::get('/search', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'search']);
+    Route::get('/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getStats']);
+    Route::get('/', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getAll']);
+    Route::get('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getById']);
+    Route::get('/{id}/file', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFile']);
+    Route::delete('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'delete']);
+    Route::delete('/clear-all/confirm', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'clearAll']);
 });
 
 Route::prefix('static-resources')->group(function () {
@@ -238,6 +262,12 @@ Route::prefix('static-resources')->group(function () {
     Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
     Route::post('/rename', [StaticResourceController::class, 'renameItem']);
     Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
+
+    Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
+    Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
+    Route::post('/chunked-upload/check', [ChunkedUploadController::class, 'checkProgress']);
+    Route::post('/chunked-upload/merge', [ChunkedUploadController::class, 'mergeChunks']);
+    Route::post('/chunked-upload/cancel', [ChunkedUploadController::class, 'cancelUpload']);
 });
 
 Route::prefix('startup-monitor')->group(function () {

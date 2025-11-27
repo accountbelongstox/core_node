@@ -72,14 +72,9 @@ class TaskCategoryService
         $this->baseDirectory = $baseDirectory ?? PathMapper::getCoreNodeDir();
         $this->promptsDirectory = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
 
-        $sharedDataDir = PathMapper::getSharedData();
-        $taskDispatchDir = $sharedDataDir . DIRECTORY_SEPARATOR . 'task-dispatch';
-
-        if (!file_exists($taskDispatchDir)) {
-            mkdir($taskDispatchDir, 0755, true);
-        }
-
-        $this->categoriesConfigFile = $taskDispatchDir . DIRECTORY_SEPARATOR . 'categories.json';
+        // 使用 _prompts/.categories.json 作为配置文件（可提交到git）
+        // 数据文件存储在 _prompts/task-data/ 中（不提交）
+        $this->categoriesConfigFile = $this->promptsDirectory . DIRECTORY_SEPARATOR . '.categories.json';
 
         $this->ensureDefaultStructure();
     }
@@ -112,15 +107,15 @@ class TaskCategoryService
     {
         $config = [
             'version' => '1.0',
-            'categories' => $this->defaultCategories,
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s')
+            'categories' => $this->defaultCategories
         ];
 
         file_put_contents(
             $this->categoriesConfigFile,
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        error_log('[TaskCategoryService] Created categories config at: ' . $this->categoriesConfigFile);
     }
 
     /**
@@ -259,6 +254,12 @@ class TaskCategoryService
             }
 
             $fullPath = $categoryPath . DIRECTORY_SEPARATOR . $file;
+
+            // Skip broken symlinks
+            if (is_link($fullPath) && !file_exists($fullPath)) {
+                error_log('[TaskCategoryService] Skipping broken symlink: ' . $fullPath);
+                continue;
+            }
 
             if (is_file($fullPath)) {
                 $relativePath = empty($category['path'])
