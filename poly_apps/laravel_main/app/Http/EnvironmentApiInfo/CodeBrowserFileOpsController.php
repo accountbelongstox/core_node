@@ -64,31 +64,76 @@ class CodeBrowserFileOpsController
         $relativePath = $request->input('path');
 
         if (!$relativePath) {
+            error_log('[CodeBrowserFileOpsController] deleteFile: Path is required');
             return response()->json(['error' => 'Path is required'], 400);
         }
 
         $fullPath = $this->baseDirectory . DIRECTORY_SEPARATOR . $relativePath;
+        error_log('[CodeBrowserFileOpsController] deleteFile: fullPath=' . $fullPath);
 
         if (!$this->isPathSafe($fullPath)) {
+            error_log('[CodeBrowserFileOpsController] deleteFile: Access denied for path=' . $fullPath);
             return response()->json(['error' => 'Access denied'], 403);
         }
 
-        if (!FileSystemManager::exists($fullPath) || !FileSystemManager::isFile($fullPath)) {
+        if (!FileSystemManager::exists($fullPath)) {
+            error_log('[CodeBrowserFileOpsController] deleteFile: File not found at path=' . $fullPath);
             return response()->json(['error' => 'File not found'], 404);
+        }
+
+        if (!FileSystemManager::isFile($fullPath)) {
+            error_log('[CodeBrowserFileOpsController] deleteFile: Path is not a file: ' . $fullPath);
+            return response()->json(['error' => 'Path is not a file'], 400);
         }
 
         $deleteTargetPath = $this->deleteDirectory . DIRECTORY_SEPARATOR . $relativePath;
         $deleteTargetDir = dirname($deleteTargetPath);
+        error_log('[CodeBrowserFileOpsController] deleteFile: deleteTargetPath=' . $deleteTargetPath);
+        error_log('[CodeBrowserFileOpsController] deleteFile: deleteTargetDir=' . $deleteTargetDir);
+        error_log('[CodeBrowserFileOpsController] deleteFile: deleteDirectory=' . $this->deleteDirectory);
+        error_log('[CodeBrowserFileOpsController] deleteFile: deleteDirectory exists=' . (file_exists($this->deleteDirectory) ? 'yes' : 'no'));
+        error_log('[CodeBrowserFileOpsController] deleteFile: deleteDirectory is_dir=' . (is_dir($this->deleteDirectory) ? 'yes' : 'no'));
+        error_log('[CodeBrowserFileOpsController] deleteFile: deleteDirectory writable=' . (is_writable($this->deleteDirectory) ? 'yes' : 'no'));
 
-        FileSystemManager::ensureDirectoryExists($deleteTargetDir);
+        if (!FileSystemManager::ensureDirectoryExists($deleteTargetDir)) {
+            error_log('[CodeBrowserFileOpsController] deleteFile: Failed to create delete target directory: ' . $deleteTargetDir);
+            error_log('[CodeBrowserFileOpsController] deleteFile: Parent of deleteTargetDir=' . dirname($deleteTargetDir));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Parent exists=' . (file_exists(dirname($deleteTargetDir)) ? 'yes' : 'no'));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Parent writable=' . (is_writable(dirname($deleteTargetDir)) ? 'yes' : 'no'));
+            return response()->json(['error' => 'Failed to create target directory', 'path' => $deleteTargetDir], 500);
+        }
 
         if (FileSystemManager::exists($deleteTargetPath)) {
-            FileSystemManager::delete($deleteTargetPath);
+            error_log('[CodeBrowserFileOpsController] deleteFile: Target already exists, deleting: ' . $deleteTargetPath);
+            if (!FileSystemManager::delete($deleteTargetPath)) {
+                error_log('[CodeBrowserFileOpsController] deleteFile: Failed to delete existing target file');
+                return response()->json(['error' => 'Failed to delete existing target file'], 500);
+            }
         }
 
-        if (!FileSystemManager::rename($fullPath, $deleteTargetPath)) {
-            return response()->json(['error' => 'Failed to delete file'], 500);
+        error_log('[CodeBrowserFileOpsController] deleteFile: Attempting rename from ' . $fullPath . ' to ' . $deleteTargetPath);
+
+        try {
+            $result = FileSystemManager::rename($fullPath, $deleteTargetPath);
+        } catch (\Throwable $e) {
+            $errorMessage = $e->getMessage();
+            error_log('[CodeBrowserFileOpsController] deleteFile: Rename failed - ' . $errorMessage);
+            error_log('[CodeBrowserFileOpsController] deleteFile: Source exists: ' . (file_exists($fullPath) ? 'yes' : 'no'));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Source readable: ' . (is_readable($fullPath) ? 'yes' : 'no'));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Source writable: ' . (is_writable($fullPath) ? 'yes' : 'no'));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Source parent writable: ' . (is_writable(dirname($fullPath)) ? 'yes' : 'no'));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Target dir exists: ' . (file_exists($deleteTargetDir) ? 'yes' : 'no'));
+            error_log('[CodeBrowserFileOpsController] deleteFile: Target dir writable: ' . (is_writable($deleteTargetDir) ? 'yes' : 'no'));
+
+            return response()->json([
+                'error' => 'Failed to move file to _delete directory',
+                'details' => $errorMessage,
+                'source' => $fullPath,
+                'target' => $deleteTargetPath
+            ], 500);
         }
+
+        error_log('[CodeBrowserFileOpsController] deleteFile: Success');
 
         return response()->json([
             'success' => true,

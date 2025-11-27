@@ -408,7 +408,7 @@ const CodeBrowser = {
         document.getElementById('file-context-menu').style.display = 'none';
     },
 
-    deleteFile() {
+    async deleteFile() {
         if (!this.contextMenuTarget) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
@@ -416,20 +416,18 @@ const CodeBrowser = {
             'Delete File',
             `Are you sure you want to move this file to _delete directory?\n\n${this.contextMenuTarget}`,
             async () => {
-                try {
-                    const response = await APIClient.post('/code-browser/delete-file', { path: this.contextMenuTarget });
+                const response = await APIClient.post('/code-browser/delete-file', { path: this.contextMenuTarget });
+                const data = await response.json();
 
-                    const data = await response.json();
-                    if (data.error) {
-                        alert('Error: ' + data.error);
-                        return;
-                    }
-
-                    console.log('File deleted successfully');
-                    this.refreshTree();
-                } catch (error) {
-                    console.error('Failed to delete file:', error);
+                if (data.error) {
+                    const errorDetails = data.details ? `\n\nDetails: ${data.details}\nSource: ${data.source}\nTarget: ${data.target}` : '';
+                    alert('Error: ' + data.error + errorDetails);
+                    console.error('Delete file error:', data);
+                    return;
                 }
+
+                console.log('File deleted successfully');
+                this.refreshTree();
             }
         );
     },

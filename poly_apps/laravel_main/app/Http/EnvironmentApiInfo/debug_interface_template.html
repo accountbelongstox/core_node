@@ -746,10 +746,10 @@
 
     <!-- Context Menu for File Tree -->
     <div id="file-context-menu" style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10000; min-width: 180px; border-radius: 4px; padding: 4px 0;">
-        <div onclick="CodeBrowser.copyRelativePath()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+        <div onclick="CodeBrowser.copyRelativePath()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-copy-path">
             📋 Copy Relative Path
         </div>
-        <div onclick="CodeBrowser.copyAbsolutePath()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+        <div onclick="CodeBrowser.copyAbsolutePath()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-copy-abspath">
             📋 Copy Absolute Path
         </div>
         <div onclick="CodeBrowser.renameItem()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-rename">
