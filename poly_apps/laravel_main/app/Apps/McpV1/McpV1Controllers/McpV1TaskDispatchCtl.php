@@ -5,6 +5,7 @@ namespace App\Apps\McpV1\McpV1Controllers;
 use App\Http\Controllers\Controller;
 use App\Apps\McpV1\McpV1Utils\TaskCategoryService;
 use App\Apps\McpV1\McpV1Utils\TaskQueueService;
+use App\Apps\McpV1\McpV1Utils\PromptMappingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -26,11 +27,13 @@ class McpV1TaskDispatchCtl extends Controller
 {
     private $categoryService;
     private $queueService;
+    private $mappingService;
 
     public function __construct()
     {
         $this->categoryService = new TaskCategoryService();
         $this->queueService = new TaskQueueService();
+        $this->mappingService = new PromptMappingService();
     }
 
     /**
@@ -515,6 +518,243 @@ class McpV1TaskDispatchCtl extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to retrieve queue statistics',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all prompt mappings
+     *
+     * MCP & Web: GET /api/mcp/v1/task-dispatch/mappings
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getAllMappings(Request $request): JsonResponse
+    {
+        Log::info('McpV1: Get all prompt mappings');
+
+        try {
+            $mappings = $this->mappingService->getAllMappings();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'mappings' => $mappings,
+                    'total' => count($mappings)
+                ],
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to get mappings', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to retrieve prompt mappings',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get mapping for specific category
+     *
+     * MCP & Web: GET /api/mcp/v1/task-dispatch/mappings/{categoryId}
+     *
+     * @param Request $request
+     * @param string $categoryId
+     * @return JsonResponse
+     */
+    public function getCategoryMapping(Request $request, string $categoryId): JsonResponse
+    {
+        Log::info('McpV1: Get category mapping', ['category' => $categoryId]);
+
+        try {
+            $mapping = $this->mappingService->getCategoryMapping($categoryId);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'category_id' => $categoryId,
+                    'mapping' => $mapping
+                ],
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to get category mapping', [
+                'category' => $categoryId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to retrieve category mapping',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Update mapping for specific category
+     *
+     * MCP & Web: PUT /api/mcp/v1/task-dispatch/mappings/{categoryId}
+     *
+     * @param Request $request
+     * @param string $categoryId
+     * @return JsonResponse
+     */
+    public function updateCategoryMapping(Request $request, string $categoryId): JsonResponse
+    {
+        Log::info('McpV1: Update category mapping', [
+            'category' => $categoryId,
+            'input' => $request->all()
+        ]);
+
+        try {
+            $validator = Validator::make($request->all(), [
+                'prefix' => 'nullable|string',
+                'suffix' => 'nullable|string',
+                'replace_map' => 'nullable|array'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Validation failed',
+                    'details' => $validator->errors()
+                ], 400);
+            }
+
+            $prefix = $request->input('prefix', '');
+            $suffix = $request->input('suffix', '');
+            $replaceMap = $request->input('replace_map', []);
+
+            $result = $this->mappingService->updateCategoryMapping(
+                $categoryId,
+                $prefix,
+                $suffix,
+                $replaceMap
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to update category mapping', [
+                'category' => $categoryId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to update category mapping',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset mapping to default
+     *
+     * MCP & Web: POST /api/mcp/v1/task-dispatch/mappings/{categoryId}/reset
+     *
+     * @param Request $request
+     * @param string $categoryId
+     * @return JsonResponse
+     */
+    public function resetCategoryMapping(Request $request, string $categoryId): JsonResponse
+    {
+        Log::info('McpV1: Reset category mapping', ['category' => $categoryId]);
+
+        try {
+            $result = $this->mappingService->resetCategoryMapping($categoryId);
+
+            if (!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Failed to reset mapping'
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to reset category mapping', [
+                'category' => $categoryId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to reset category mapping',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete mapping for specific category
+     *
+     * MCP & Web: DELETE /api/mcp/v1/task-dispatch/mappings/{categoryId}
+     *
+     * @param Request $request
+     * @param string $categoryId
+     * @return JsonResponse
+     */
+    public function deleteCategoryMapping(Request $request, string $categoryId): JsonResponse
+    {
+        Log::info('McpV1: Delete category mapping', ['category' => $categoryId]);
+
+        try {
+            $result = $this->mappingService->deleteCategoryMapping($categoryId);
+
+            if (!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Failed to delete mapping'
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'category_id' => $categoryId,
+                    'deleted' => true
+                ],
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to delete category mapping', [
+                'category' => $categoryId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to delete category mapping',
                 'details' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
