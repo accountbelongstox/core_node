@@ -9,6 +9,7 @@ Monitors OKX cryptocurrency prices and trading data through RPC.
 import time
 import signal
 import sys
+import threading
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pyapps.okx_price_monitor.lib import (
@@ -21,9 +22,11 @@ from pyapps.okx_price_monitor.lib import (
     CoinDataManager
 )
 from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
+from pyapps.okx_price_monitor.web_server import OKXWebServer
 
 requests = None
 continuous_monitor_instance = None
+web_server_instance = None
 
 
 def check_rpc_server_availability():
@@ -93,12 +96,14 @@ def wait_for_rpc_server(max_retries=None, retry_interval=5):
         time.sleep(retry_interval)
 
 
-def call_rpc_browser_open(url):
+def call_rpc_browser_open(url, retry_count=0, max_retries=3):
     """
-    Call RPC browser/openUrl endpoint
+    Call RPC browser/openUrl endpoint with retry logic
 
     Args:
         url (str): URL to open
+        retry_count (int): Current retry attempt
+        max_retries (int): Maximum number of retries
 
     Returns:
         dict: Response with pageId, or None if connection failed
@@ -125,31 +130,52 @@ def call_rpc_browser_open(url):
         result = response.json()
         return parse_rpc_response(result)
     except Exception as e:
-        ColorPrint.red(f"\n[Error] Failed to call RPC browser/openUrl: {str(e)}")
+        error_msg = str(e)
+
+        # Check if it's a "detached frame" error
+        if "detached" in error_msg.lower() and retry_count < max_retries:
+            ColorPrint.yellow(f"\n[Warning] Navigation failed with detached frame (attempt {retry_count + 1}/{max_retries})")
+            ColorPrint.yellow(f"  Target Page: {url}")
+            ColorPrint.yellow(f"  Retrying in 1 second...")
+            time.sleep(1)
+            return call_rpc_browser_open(url, retry_count + 1, max_retries)
+
+        ColorPrint.red(f"\n[Error] Failed to call RPC browser/openUrl: {error_msg}")
         ColorPrint.yellow(f"  URL: {rpc_url}")
         ColorPrint.yellow(f"  Target Page: {url}")
+        ColorPrint.yellow(f"  Retry count: {retry_count}/{max_retries}")
 
-        if "Connection" in str(e) or "refused" in str(e):
+        if "Connection" in error_msg or "refused" in error_msg:
             ColorPrint.red("\n[Critical] RPC server connection lost!")
             if not wait_for_rpc_server():
                 ColorPrint.red("[Fatal] Could not reconnect to RPC server")
                 sys.exit(1)
             ColorPrint.green("[Recovery] Retrying RPC call...")
-            return call_rpc_browser_open(url)
+            return call_rpc_browser_open(url, 0, max_retries)
         else:
-            raise
+            # If max retries reached, raise the error
+            if retry_count >= max_retries:
+                ColorPrint.red(f"\n[Fatal] Failed after {max_retries} retries")
+                raise
+            # Otherwise, retry
+            ColorPrint.yellow(f"  Retrying ({retry_count + 1}/{max_retries})...")
+            time.sleep(1)
+            return call_rpc_browser_open(url, retry_count + 1, max_retries)
 
 
 def signal_handler(sig, frame):
     """
     Handle Ctrl+C signal
     """
-    global continuous_monitor_instance
+    global continuous_monitor_instance, web_server_instance
 
     ColorPrint.yellow("\n[Main] Received interrupt signal (Ctrl+C)")
 
     if continuous_monitor_instance:
         continuous_monitor_instance.stop()
+
+    if web_server_instance:
+        ColorPrint.yellow("[Main] Stopping Web server...")
 
     ColorPrint.green("\n[Main] Application stopped")
     sys.exit(0)
@@ -159,7 +185,7 @@ def start():
     """
     Start OKX Price Monitor application
     """
-    global continuous_monitor_instance
+    global continuous_monitor_instance, web_server_instance
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -305,7 +331,24 @@ def start():
     ColorPrint.blue("\n[Step 7] Running Trading Timing Analyzer...")
     analysis_result = timing_analyzer.analyze(price_data)
 
-    ColorPrint.blue("\n[Step 8] Starting Continuous Monitor...")
+    ColorPrint.blue("\n[Step 8] Starting Web Server...")
+    web_server_instance = OKXWebServer(coin_data_manager=coin_data_manager)
+
+    # Start web server in background thread
+    web_thread = threading.Thread(
+        target=web_server_instance.start,
+        daemon=True
+    )
+    web_thread.start()
+
+    ColorPrint.green("[Step 8] Web server started on background thread")
+    ColorPrint.blue(f"  Web Interface: http://localhost:{config.WEB_PORT}/")
+    ColorPrint.blue(f"  API Endpoint: http://localhost:{config.WEB_PORT}/rpc/{{route}}")
+
+    # Wait a moment for web server to start
+    time.sleep(2)
+
+    ColorPrint.blue("\n[Step 9] Starting Continuous Monitor...")
     continuous_monitor_instance = ContinuousMonitor(
         mode1_monitor=mode1,
         coin_data_manager=coin_data_manager,
