@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Browser Bridge - Management Panel</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e8e8e8;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    header h1 {
+      font-size: 28px;
+      color: #00d4ff;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      color: #888;
+      font-size: 14px;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 15px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #666;
+    }
+
+    .status-dot.online {
+      background: #00ff88;
+      box-shadow: 0 0 10px #00ff88;
+    }
+
+    .status-dot.offline {
+      background: #ff4444;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .card h2 {
+      font-size: 18px;
+      color: #00d4ff;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group input[type="password"],
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d4ff, #0099cc);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0,212,255,0.4);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00ff88, #00cc6a);
+      color: #000;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ff4444, #cc0000);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .log-container {
+      background: rgba(0,0,0,0.4);
+      border-radius: 6px;
+      padding: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .log-entry.info { color: #00d4ff; }
+    .log-entry.success { color: #00ff88; }
+    .log-entry.error { color: #ff4444; }
+    .log-entry.warn { color: #ffaa00; }
+
+    .log-time {
+      color: #666;
+      margin-right: 10px;
+    }
+
+    .tabs-list {
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 6px;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+
+    .tab-item.active {
+      border-left: 3px solid #00ff88;
+    }
+
+    .tab-item img {
+      width: 16px;
+      height: 16px;
+    }
+
+    .tab-item .tab-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-item .tab-actions {
+      display: flex;
+      gap: 5px;
+    }
+
+    .tab-item .tab-actions button {
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .quick-actions button {
+      padding: 15px;
+      font-size: 12px;
+    }
+
+    .command-input {
+      display: flex;
+      gap: 10px;
+    }
+
+    .command-input input {
+      flex: 1;
+    }
+
+    .test-result {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .recording {
+      animation: pulse 1s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Browser Bridge</h1>
+      <p>Remote Control Panel - Control browser remotely via API</p>
+      <div class="status-bar">
+        <div class="status-item">
+          <span class="status-dot" id="apiStatus"></span>
+          <span>API Connection</span>
+        </div>
+        <div class="status-item">
+          <span class="status-dot" id="wsStatus"></span>
+          <span>WebSocket</span>
+        </div>
+        <div class="status-item">
+          <span class="status-dot" id="audioStatus"></span>
+          <span>Audio Stream</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- API Configuration -->
+      <div class="card">
+        <h2>API Configuration</h2>
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="enableRemote">
+            <label for="enableRemote">Enable Remote Control</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>API Base URL</label>
+          <input type="text" id="apiUrl" placeholder="http://your-server.com/api">
+        </div>
+        <div class="form-group">
+          <label>WebSocket URL (Realtime)</label>
+          <input type="text" id="wsUrl" placeholder="ws://your-server.com/ws">
+        </div>
+        <div class="form-group">
+          <label>Auth Token</label>
+          <input type="password" id="authToken" placeholder="Your API token">
+        </div>
+        <div class="form-group">
+          <label>Polling Interval (ms)</label>
+          <input type="number" id="pollingInterval" value="5000" min="1000" max="60000">
+        </div>
+        <div class="form-group">
+          <label>Device ID</label>
+          <input type="text" id="deviceId" readonly>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="saveConfig">Save Configuration</button>
+          <button class="btn btn-success" id="startService">Start Service</button>
+          <button class="btn btn-danger" id="stopService">Stop Service</button>
+        </div>
+      </div>
+
+      <!-- Audio Streaming -->
+      <div class="card">
+        <h2>Audio Streaming</h2>
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="enableAudioStream">
+            <label for="enableAudioStream">Enable Audio Streaming</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Audio Stream URL</label>
+          <input type="text" id="audioStreamUrl" placeholder="ws://your-server.com/audio">
+        </div>
+        <div class="form-group">
+          <label>Chunk Interval (ms)</label>
+          <input type="number" id="audioChunkInterval" value="1000" min="500" max="5000">
+        </div>
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="includeMic" checked>
+            <label for="includeMic">Include Microphone</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="saveLocalCopy">
+            <label for="saveLocalCopy">Save Local Copy</label>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-success" id="startAudio">Start Audio</button>
+          <button class="btn btn-danger" id="stopAudio">Stop Audio</button>
+        </div>
+      </div>
+
+      <!-- Tab Management -->
+      <div class="card">
+        <h2>Tab Management</h2>
+        <div class="command-input">
+          <input type="text" id="urlInput" placeholder="Enter URL to open">
+          <button class="btn btn-primary" id="openUrl">Open</button>
+        </div>
+        <div class="tabs-list" id="tabsList">
+          <!-- Tabs will be listed here -->
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="refreshTabs">Refresh List</button>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card">
+        <h2>Quick Actions</h2>
+        <div class="quick-actions">
+          <button class="btn btn-primary" id="takeScreenshot">Take Screenshot</button>
+          <button class="btn btn-primary" id="getHtml">Get Page HTML</button>
+          <button class="btn btn-primary" id="getConsole">Get Console Logs</button>
+          <button class="btn btn-primary" id="reloadPage">Reload Page</button>
+        </div>
+        <div class="test-result" id="actionResult" style="display:none;"></div>
+      </div>
+
+      <!-- Manual Command -->
+      <div class="card">
+        <h2>Manual Command</h2>
+        <div class="form-group">
+          <label>Command</label>
+          <select id="commandSelect">
+            <option value="open_url">Open URL</option>
+            <option value="close_url">Close URL</option>
+            <option value="switch_tab">Switch Tab</option>
+            <option value="screenshot">Screenshot</option>
+            <option value="get_html">Get HTML</option>
+            <option value="get_console">Get Console</option>
+            <option value="execute_script">Execute Script</option>
+            <option value="click">Click Element</option>
+            <option value="input">Input Text</option>
+            <option value="navigate">Navigate</option>
+            <option value="reload">Reload</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Parameters (JSON)</label>
+          <textarea id="commandParams" placeholder='{"url": "https://example.com"}'></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="executeCommand">Execute</button>
+        </div>
+        <div class="test-result" id="commandResult" style="display:none;"></div>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="card">
+        <h2>Activity Log</h2>
+        <div class="log-container" id="logContainer">
+          <!-- Logs will appear here -->
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="clearLogs">Clear Logs</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Documentation -->
+    <div class="card" style="margin-top: 20px;">
+      <h2>API Specification <button class="btn btn-secondary" style="float:right;padding:5px 10px;font-size:11px;" onclick="copyApiSpec()">Copy to Clipboard</button></h2>
+      <div style="font-size: 12px; line-height: 1.6;">
+        <p style="margin-bottom: 15px; color: #888;">Copy this specification to your backend developer or AI to integrate with this extension.</p>
+        <pre id="apiSpec" style="background: #000; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; font-size: 11px;">
+# Browser Bridge - Remote Control API Specification
+
+## Overview
+This Chrome extension connects to your server via HTTP polling and WebSocket for real-time browser control.
+
+## Server Requirements
+- HTTP API endpoint for polling commands
+- WebSocket endpoint for real-time communication and audio streaming
+- CORS enabled for chrome-extension:// origins
+
+---
+
+## HTTP API Endpoints
+
+### 1. POST /poll - Extension polls for commands
+Request:
+```json
+{
+  "deviceId": "device_xxxxx",
+  "timestamp": 1701234567890,
+  "status": {
+    "isExecutingTask": false,
+    "audioStreamActive": false,
+    "realtimeConnected": true
+  }
+}
+```
+
+Response (with command):
+```json
+{
+  "command": "open_url",
+  "params": {
+    "url": "https://example.com",
+    "newTab": true,
+    "active": true
+  }
+}
+```
+
+Response (no command):
+```json
+{
+  "command": null
+}
+```
+
+### 2. POST /result - Extension sends command results
+Request:
+```json
+{
+  "deviceId": "device_xxxxx",
+  "command": "screenshot",
+  "result": {
+    "success": true,
+    "data": { "screenshot": "data:image/png;base64,..." }
+  },
+  "timestamp": 1701234567890
+}
+```
+
+---
+
+## WebSocket Protocol
+
+### Connection
+- URL: ws://your-server/ws
+- Binary type: arraybuffer (for audio chunks)
+
+### Messages from Extension
+
+1. Register device:
+```json
+{ "type": "register", "deviceId": "device_xxxxx" }
+```
+
+2. Command result:
+```json
+{
+  "type": "command_result",
+  "command": "screenshot",
+  "result": { "success": true, "data": {...} },
+  "timestamp": 1701234567890
+}
+```
+
+3. Screenshot data:
+```json
+{
+  "type": "screenshot",
+  "data": "data:image/png;base64,...",
+  "timestamp": 1701234567890
+}
+```
+
+4. Audio chunks: Binary WebM audio data (not JSON)
+
+### Messages to Extension (Commands)
+```json
+{
+  "command": "open_url",
+  "params": { "url": "https://example.com" }
+}
+```
+
+---
+
+## Available Commands
+
+| Command | Parameters | Description |
+|---------|------------|-------------|
+| open_url | url, newTab?, active? | Open URL in new/current tab |
+| close_url | url OR pattern | Close tabs matching URL |
+| close_tab | tabId? | Close specific or current tab |
+| switch_tab | tabId OR url | Switch to tab |
+| screenshot | format?, quality? | Capture visible tab |
+| get_html | tabId?, selector? | Get rendered HTML |
+| get_console | tabId?, clear? | Get console logs |
+| get_tabs | - | List all tabs |
+| execute_script | code | Run JavaScript |
+| click | selector OR x,y | Click element |
+| input | selector, value, clear? | Input text |
+| navigate | url, tabId? | Navigate tab |
+| reload | tabId?, bypassCache? | Reload page |
+| start_audio | - | Start audio streaming |
+| stop_audio | - | Stop audio streaming |
+
+---
+
+## Command Examples
+
+### Open URL
+```json
+{ "command": "open_url", "params": { "url": "https://google.com", "newTab": true } }
+```
+
+### Screenshot
+```json
+{ "command": "screenshot", "params": { "format": "png", "quality": 92 } }
+```
+
+### Get Page HTML
+```json
+{ "command": "get_html", "params": { "selector": "#main-content" } }
+```
+
+### Click Element
+```json
+{ "command": "click", "params": { "selector": "button.submit" } }
+```
+
+### Input Text
+```json
+{ "command": "input", "params": { "selector": "#search-box", "value": "hello world" } }
+```
+
+### Execute JavaScript
+```json
+{ "command": "execute_script", "params": { "code": "return document.title" } }
+```
+
+---
+
+## Audio Streaming
+
+When audio streaming is enabled:
+1. Extension captures tab audio + optional microphone
+2. Audio chunks (WebM format) sent via WebSocket as binary
+3. Chunk interval configurable (default 1000ms)
+
+To receive audio:
+- Listen for binary WebSocket messages
+- Each chunk is a valid WebM audio segment
+- Concatenate chunks for complete audio
+
+---
+
+## Python Server Example
+
+```python
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import asyncio
+import websockets
+
+app = Flask(__name__)
+CORS(app)
+
+commands = {}  # device_id -> [command_queue]
+
+@app.route('/poll', methods=['POST'])
+def poll():
+    data = request.json
+    device_id = data['deviceId']
+    if device_id in commands and commands[device_id]:
+        return jsonify(commands[device_id].pop(0))
+    return jsonify({'command': None})
+
+@app.route('/result', methods=['POST'])
+def result():
+    data = request.json
+    print(f"Result: {data['command']} -> {data['result']}")
+    return jsonify({'status': 'ok'})
+
+# WebSocket handler
+async def ws_handler(websocket, path):
+    async for message in websocket:
+        if isinstance(message, bytes):
+            # Audio chunk
+            print(f"Audio: {len(message)} bytes")
+        else:
+            # JSON message
+            data = json.loads(message)
+            print(f"Message: {data}")
+
+if __name__ == '__main__':
+    app.run(port=8080)
+```
+
+---
+
+## Node.js Server Example
+
+```javascript
+const express = require('express');
+const cors = require('cors');
+const WebSocket = require('ws');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const commands = {};
+
+app.post('/poll', (req, res) => {
+  const { deviceId } = req.body;
+  if (commands[deviceId]?.length) {
+    res.json(commands[deviceId].shift());
+  } else {
+    res.json({ command: null });
+  }
+});
+
+app.post('/result', (req, res) => {
+  console.log('Result:', req.body);
+  res.json({ status: 'ok' });
+});
+
+app.listen(8080);
+
+// WebSocket
+const wss = new WebSocket.Server({ port: 8081 });
+wss.on('connection', (ws) => {
+  ws.on('message', (data) => {
+    if (Buffer.isBuffer(data)) {
+      console.log('Audio:', data.length, 'bytes');
+    } else {
+      console.log('Message:', JSON.parse(data));
+    }
+  });
+});
+```
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="command-handler.js"></script>
+  <script src="options.js"></script>
+  <script>
+    function copyApiSpec() {
+      const spec = document.getElementById('apiSpec').textContent;
+      navigator.clipboard.writeText(spec).then(() => {
+        alert('API specification copied to clipboard!');
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+      });
+    }
+  </script>
+</body>
+</html>
+

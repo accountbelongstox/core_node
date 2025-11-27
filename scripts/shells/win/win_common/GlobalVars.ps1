@@ -468,11 +468,11 @@ $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
-# Python 3.12 standalone installation (no conda)
-$Global:PYTHON_VERSION = "3.12"
-$Global:PYTHON_VERSION_COMPACT = "312"
-$Global:PYTHON_WINGET_ID = "Python.Python.3.12"
-$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR "python312"
+# Python 3.11 standalone installation (no conda)
+$Global:PYTHON_VERSION = "3.11"
+$Global:PYTHON_VERSION_COMPACT = "311"
+$Global:PYTHON_WINGET_ID = "Python.Python.3.11"
+$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR "python311"
 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
 $Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
 $Global:UV_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\uv.exe"

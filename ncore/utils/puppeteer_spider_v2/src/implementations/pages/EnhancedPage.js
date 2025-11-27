@@ -279,11 +279,42 @@ class EnhancedPage extends StandardPage {
                 }
             }
 
-            // Navigate to URL
-            if (waitForComplete) {
-                await targetPage.goto(url, { waitUntil: 'domcontentloaded', timeout });
-            } else {
-                await targetPage.goto(url, { timeout });
+            // Wait for any pending navigation to complete before navigating
+            try {
+                await targetPage.waitForNavigation({ timeout: 1000, waitUntil: 'domcontentloaded' }).catch(() => {});
+            } catch (e) {
+                // Ignore timeout - no pending navigation
+            }
+
+            // Navigate to URL with retry logic
+            let navigationSuccess = false;
+            let lastError = null;
+            const maxRetries = 2;
+
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    if (waitForComplete) {
+                        await targetPage.goto(url, { waitUntil: 'domcontentloaded', timeout });
+                    } else {
+                        await targetPage.goto(url, { timeout });
+                    }
+                    navigationSuccess = true;
+                    break;
+                } catch (navError) {
+                    lastError = navError;
+                    if (navError.message && navError.message.includes('detached')) {
+                        logger.warn(`Navigation attempt ${attempt} failed with detached frame, retrying...`);
+                        if (attempt < maxRetries) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    } else {
+                        throw navError;
+                    }
+                }
+            }
+
+            if (!navigationSuccess) {
+                throw lastError || new Error('Navigation failed after retries');
             }
 
             if (logging) {
