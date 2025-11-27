@@ -47,6 +47,13 @@ class LocalSecretManager:
                 content = target_file.read_text(encoding='utf-8').strip()
                 if content:
                     return content
+            except UnicodeDecodeError:
+                try:
+                    target_file.unlink()
+                    ColorMessage.write(f'Corrupted secret file removed: {key_name}', 'warning')
+                except OSError:
+                    pass
+                return None
             except OSError:
                 return None
         return None
