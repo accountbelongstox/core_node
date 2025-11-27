@@ -129,29 +129,71 @@ function Remove-OldPythonVersions {
         return
     }
 
+    # Clean all Python-related PATH entries first
+    Write-ColorMessage -Message "$SCRIPT_INDEX Cleaning all old Python PATH entries..." -Type "Info"
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+    if ($machinePath) {
+        $machinePathArray = $machinePath -split ';'
+        $cleanedMachinePath = @()
+        $removedCount = 0
+
+        foreach ($pathEntry in $machinePathArray) {
+            if ($pathEntry -match 'python\d+' -or $pathEntry -match '\\Python\d+' -or ($pathEntry -match 'Python' -and $pathEntry -ne $PythonInstallDir -and $pathEntry -ne (Join-Path $PythonInstallDir "Scripts"))) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from Machine PATH: $pathEntry" -Type "Warning"
+                $removedCount++
+            } else {
+                if ($pathEntry.Trim() -ne "") {
+                    $cleanedMachinePath += $pathEntry
+                }
+            }
+        }
+
+        if ($removedCount -gt 0) {
+            $newMachinePath = $cleanedMachinePath -join ';'
+            [Environment]::SetEnvironmentVariable("Path", $newMachinePath, "Machine")
+            Write-ColorMessage -Message "$SCRIPT_INDEX Removed $removedCount old Python PATH entries from Machine PATH" -Type "Success"
+        }
+    }
+
+    if ($userPath) {
+        $userPathArray = $userPath -split ';'
+        $cleanedUserPath = @()
+        $removedCount = 0
+
+        foreach ($pathEntry in $userPathArray) {
+            if ($pathEntry -match 'python\d+' -or $pathEntry -match '\\Python\d+' -or ($pathEntry -match 'Python' -and $pathEntry -ne $PythonInstallDir -and $pathEntry -ne (Join-Path $PythonInstallDir "Scripts"))) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from User PATH: $pathEntry" -Type "Warning"
+                $removedCount++
+            } else {
+                if ($pathEntry.Trim() -ne "") {
+                    $cleanedUserPath += $pathEntry
+                }
+            }
+        }
+
+        if ($removedCount -gt 0) {
+            $newUserPath = $cleanedUserPath -join ';'
+            [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+            Write-ColorMessage -Message "$SCRIPT_INDEX Removed $removedCount old Python PATH entries from User PATH" -Type "Success"
+        }
+    }
+
     # Find all Python directories (versioned)
     $oldPythonDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -match '^python\d+$' -and $_.FullName -ne $PythonInstallDir
     })
 
-    if ($oldPythonDirs.Count -eq 0) {
+    if (-not $oldPythonDirs -or $oldPythonDirs.Count -eq 0) {
         Write-ColorMessage -Message "$SCRIPT_INDEX No old Python versions found" -Type "Info"
+        Write-RefreshBatch
         return
     }
 
     Write-ColorMessage -Message "$SCRIPT_INDEX Found $($oldPythonDirs.Count) old Python installation(s):" -Type "Warning"
     foreach ($oldDir in $oldPythonDirs) {
         Write-ColorMessage -Message "$SCRIPT_INDEX   - $($oldDir.FullName)" -Type "Warning"
-
-        # Remove from PATH using WindowsPathFunction.ps1
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from PATH..." -Type "Info"
-        Remove-Path -PathToRemove $oldDir.FullName
-
-        # Also remove Scripts directory from PATH
-        $oldScriptsDir = Join-Path $oldDir.FullName "Scripts"
-        if (Test-Path $oldScriptsDir) {
-            Remove-Path -PathToRemove $oldScriptsDir
-        }
 
         # Ask before deleting directory
         Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (y/N, timeout 5s, default: N, press Enter to continue)" -Type "Warning"
@@ -180,7 +222,7 @@ function Remove-OldPythonVersions {
                 Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to delete: $($_.Exception.Message)" -Type "Error"
             }
         } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   Kept old installation (removed from PATH only)" -Type "Info"
+            Write-ColorMessage -Message "$SCRIPT_INDEX   Kept old installation" -Type "Info"
         }
     }
 
