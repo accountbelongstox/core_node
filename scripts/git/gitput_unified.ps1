@@ -606,6 +606,13 @@ function Invoke-GitOperations {
                     }
                     Write-Host ""
 
+                    # Ask if user wants to skip encryption
+                    Write-Host "Skip encryption? (y/N): " -NoNewline -ForegroundColor Yellow
+                    $skipResponse = Read-Host
+                    if ($skipResponse -eq 'y' -or $skipResponse -eq 'Y') {
+                        Write-ColorText "Skipping encryption as requested." -ForegroundColor Yellow
+                    } else {
+
                     Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
 
                 # Find disguise.js in scripts directory
@@ -697,6 +704,7 @@ function Invoke-GitOperations {
                     Write-ColorText "WARNING: disguise.js not found in scripts directory." -ForegroundColor Yellow
                     Write-ColorText "Continuing with git push. Please encrypt sensitive files manually." -ForegroundColor Yellow
                 }
+                    } # End of else block for "Skip encryption? N"
             } else {
                 Write-ColorText "SUCCESS: No unencrypted sensitive files found." -ForegroundColor Green
             }
