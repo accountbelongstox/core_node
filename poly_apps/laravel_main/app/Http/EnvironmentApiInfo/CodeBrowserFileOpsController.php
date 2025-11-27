@@ -239,6 +239,80 @@ class CodeBrowserFileOpsController
         ]);
     }
 
+    public function autoRenameToEnglish(Request $request)
+    {
+        $path = null;
+        $fullPath = null;
+        $currentName = null;
+        $translated = null;
+        $parentDir = null;
+        $newPath = null;
+        $newRelativePath = null;
+
+        $path = $request->input('path');
+
+        if (!$path) {
+            return response()->json(['error' => 'Path is required'], 400);
+        }
+
+        $fullPath = $this->baseDirectory . DIRECTORY_SEPARATOR . $path;
+
+        if (!$this->isPathSafe($fullPath)) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        if (!FileSystemManager::exists($fullPath)) {
+            return response()->json(['error' => 'File not found'], 404);
+        }
+
+        $currentName = basename($fullPath);
+
+        if (!$this->containsChinese($currentName)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Filename already in English',
+                'renamed' => false,
+                'path' => $path
+            ]);
+        }
+
+        $translated = $this->translateLine($currentName);
+
+        if (!$translated) {
+            return response()->json([
+                'error' => 'Translation failed'
+            ], 500);
+        }
+
+        $parentDir = dirname($fullPath);
+        $newPath = $parentDir . DIRECTORY_SEPARATOR . $translated;
+
+        if (FileSystemManager::exists($newPath)) {
+            return response()->json([
+                'error' => 'File with translated name already exists',
+                'translated_name' => $translated
+            ], 409);
+        }
+
+        if (!FileSystemManager::rename($fullPath, $newPath)) {
+            return response()->json([
+                'error' => 'Failed to rename file'
+            ], 500);
+        }
+
+        $newRelativePath = str_replace($this->baseDirectory . DIRECTORY_SEPARATOR, '', $newPath);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'File automatically renamed to English',
+            'renamed' => true,
+            'original_name' => $currentName,
+            'translated_name' => $translated,
+            'old_path' => $path,
+            'new_path' => $newRelativePath
+        ]);
+    }
+
     public function getPrompts(Request $request)
     {
         if (!$this->checkAuthentication($request)) {
@@ -412,6 +486,9 @@ class CodeBrowserFileOpsController
 
         if ($hasChanges) {
             $newContent = implode("\n", $translatedLines);
+
+            $this->cleanupOldBackups($fullPath);
+
             FileSystemManager::writeFile($fullPath, $newContent);
         }
 
@@ -420,6 +497,41 @@ class CodeBrowserFileOpsController
             'has_changes' => $hasChanges,
             'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath))
         ]);
+    }
+
+    private function cleanupOldBackups($filePath)
+    {
+        $directory = dirname($filePath);
+        $filename = basename($filePath);
+        $pattern = $filename . '.bak.*';
+
+        $backups = [];
+        $entries = FileSystemManager::scandir($directory);
+
+        if (!$entries) {
+            return;
+        }
+
+        foreach ($entries as $entry) {
+            if (fnmatch($pattern, $entry)) {
+                $backupPath = $directory . DIRECTORY_SEPARATOR . $entry;
+                if (FileSystemManager::isFile($backupPath)) {
+                    $backups[] = [
+                        'path' => $backupPath,
+                        'mtime' => FileSystemManager::filemtime($backupPath)
+                    ];
+                }
+            }
+        }
+
+        usort($backups, function($a, $b) {
+            return $b['mtime'] - $a['mtime'];
+        });
+
+        $keepCount = 3;
+        for ($i = $keepCount; $i < count($backups); $i++) {
+            FileSystemManager::delete($backups[$i]['path']);
+        }
     }
 
     public function translatePromptName(Request $request)

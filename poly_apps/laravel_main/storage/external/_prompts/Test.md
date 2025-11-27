@@ -11,3 +11,7 @@ In the translation of prompts, when a voice is requested, do not read it immedia
 First remove many unnecessary catches, both front and back ends.
 
 The _delete directory is in the project root directory, see laravel php map path ncore dir.
+Can you find the laravel main project directory of this project, read the documentation, and then find the code broswer's web and backend interaction?
+Do not back up for testing.
+
+Test automatic cleanup.

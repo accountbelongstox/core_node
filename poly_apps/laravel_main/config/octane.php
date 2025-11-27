@@ -181,16 +181,20 @@ return [
     | the --watch option offered by Octane. If any of the directories and
     | files are changed, Octane will automatically reload your workers.
     |
+    | Optimized configuration:
+    | - Only monitors PHP files to avoid unnecessary reloads
+    | - Excludes static resources (JS, CSS, images, etc.)
+    | - Excludes vendor, node_modules, storage, cache directories
+    | - Monitors critical files: composer.lock, .env
+    |
     */
 
     'watch' => [
-        'app',
-        'bootstrap',
+        'app/**/*.php',
+        'bootstrap/**/*.php',
         'config/**/*.php',
         'database/**/*.php',
-        'public/**/*.php',
-        'resources/**/*.php',
-        'routes',
+        'routes/**/*.php',
         'composer.lock',
         '.env',
     ],
