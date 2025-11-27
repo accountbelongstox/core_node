@@ -20,17 +20,23 @@ class TaskQueueService
 {
     private $baseDirectory;
     private $queueDirectory;
+    private $mappingService;
 
     public function __construct($baseDirectory = null)
     {
         $this->baseDirectory = $baseDirectory ?? PathMapper::getCoreNodeDir();
 
-        $sharedDataDir = PathMapper::getSharedData();
-        $this->queueDirectory = $sharedDataDir . DIRECTORY_SEPARATOR . 'task-dispatch' . DIRECTORY_SEPARATOR . 'queues';
+        // Store queue data in _prompts/task-data/queues/ (not committed to git)
+        // Fall back to shared-data if needed for static file mapping
+        $promptsDir = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
+        $this->queueDirectory = $promptsDir . DIRECTORY_SEPARATOR . 'task-data' . DIRECTORY_SEPARATOR . 'queues';
 
         if (!file_exists($this->queueDirectory)) {
             mkdir($this->queueDirectory, 0755, true);
+            error_log('[TaskQueueService] Created queue directory: ' . $this->queueDirectory);
         }
+
+        $this->mappingService = new PromptMappingService();
     }
 
     /**
@@ -117,8 +123,9 @@ class TaskQueueService
      * @param string $categoryId 分类ID
      * @param string $filePath 文件路径（相对于_prompts）
      * @param string $content 文件内容
+     * @param bool $applyMapping 是否应用提示词映射（默认true）
      */
-    public function addFileToQueue($categoryId, $filePath, $content)
+    public function addFileToQueue($categoryId, $filePath, $content, $applyMapping = true)
     {
         $queue = $this->loadCategoryQueue($categoryId);
 
@@ -128,6 +135,12 @@ class TaskQueueService
         // 为每个段落创建任务
         foreach ($paragraphs as $paragraph) {
             $taskId = 'task_' . uniqid();
+
+            // Apply mapping to content
+            $originalContent = $paragraph['content'];
+            $processedContent = $applyMapping
+                ? $this->mappingService->applyMapping($categoryId, $originalContent)
+                : $originalContent;
 
             // 检查是否已存在相同内容的任务（通过hash）
             $exists = false;
@@ -145,7 +158,8 @@ class TaskQueueService
                     'id' => $taskId,
                     'file' => $filePath,
                     'paragraph_index' => $paragraph['index'],
-                    'content' => $paragraph['content'],
+                    'content' => $processedContent,
+                    'original_content' => $originalContent,
                     'content_hash' => $paragraph['hash'],
                     'status' => 'pending',
                     'created_at' => date('Y-m-d H:i:s'),

@@ -254,12 +254,111 @@ class ItToolsV1ImageUtil
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;
-        
+
         while ($bytes >= 1024 && $i < count($units) - 1) {
             $bytes /= 1024;
             $i++;
         }
-        
+
         return round($bytes, 2) . ' ' . $units[$i];
+    }
+
+    public static function mergeImagesVertically(array $imagePaths, array $descriptions = [], string $outputPath = null): array
+    {
+        $images = [];
+        $maxWidth = 0;
+        $totalHeight = 0;
+        $titleHeight = 80;
+        $fontSize = 24;
+        $padding = 20;
+        $titleBgColor = [255, 255, 255];
+        $titleTextColor = [0, 0, 0];
+
+        foreach ($imagePaths as $index => $imagePath) {
+            if (!file_exists($imagePath)) {
+                throw new \InvalidArgumentException("Image file not found: $imagePath");
+            }
+
+            $imageInfo = self::getImageInfo($imagePath);
+            $image = self::createImageFromFile($imagePath, $imageInfo['mime']);
+
+            $images[] = [
+                'resource' => $image,
+                'width' => $imageInfo['width'],
+                'height' => $imageInfo['height'],
+                'description' => $descriptions[$index] ?? null
+            ];
+
+            $maxWidth = max($maxWidth, $imageInfo['width']);
+
+            if (!empty($descriptions[$index])) {
+                $totalHeight += $titleHeight;
+            }
+
+            $totalHeight += $imageInfo['height'];
+        }
+
+        $mergedImage = imagecreatetruecolor($maxWidth, $totalHeight);
+
+        imagealphablending($mergedImage, false);
+        imagesavealpha($mergedImage, true);
+
+        $white = imagecolorallocate($mergedImage, 255, 255, 255);
+        imagefilledrectangle($mergedImage, 0, 0, $maxWidth, $totalHeight, $white);
+
+        $currentY = 0;
+        $fontPath = __DIR__ . '/../../../../../../storage/fonts/simhei.ttf';
+
+        if (!file_exists($fontPath)) {
+            $fontPath = null;
+        }
+
+        foreach ($images as $imageData) {
+            if (!empty($imageData['description'])) {
+                $titleBg = imagecolorallocate($mergedImage, $titleBgColor[0], $titleBgColor[1], $titleBgColor[2]);
+                $titleText = imagecolorallocate($mergedImage, $titleTextColor[0], $titleTextColor[1], $titleTextColor[2]);
+
+                imagefilledrectangle($mergedImage, 0, $currentY, $maxWidth, $currentY + $titleHeight, $titleBg);
+
+                if ($fontPath) {
+                    $textBox = imagettfbbox($fontSize, 0, $fontPath, $imageData['description']);
+                    $textWidth = abs($textBox[4] - $textBox[0]);
+                    $textHeight = abs($textBox[5] - $textBox[1]);
+
+                    $textX = ($maxWidth - $textWidth) / 2;
+                    $textY = $currentY + ($titleHeight + $textHeight) / 2;
+
+                    imagettftext($mergedImage, $fontSize, 0, $textX, $textY, $titleText, $fontPath, $imageData['description']);
+                } else {
+                    $textX = $padding;
+                    $textY = $currentY + ($titleHeight / 2);
+
+                    imagestring($mergedImage, 5, $textX, $textY - 8, $imageData['description'], $titleText);
+                }
+
+                $currentY += $titleHeight;
+            }
+
+            $offsetX = ($maxWidth - $imageData['width']) / 2;
+            imagecopy($mergedImage, $imageData['resource'], $offsetX, $currentY, 0, 0, $imageData['width'], $imageData['height']);
+
+            $currentY += $imageData['height'];
+
+            imagedestroy($imageData['resource']);
+        }
+
+        $tempPath = $outputPath ?: tempnam(sys_get_temp_dir(), 'img_merged_') . '.png';
+        imagepng($mergedImage, $tempPath);
+
+        imagedestroy($mergedImage);
+
+        return [
+            'path' => $tempPath,
+            'width' => $maxWidth,
+            'height' => $totalHeight,
+            'image_count' => count($images),
+            'file_size' => filesize($tempPath),
+            'file_size_readable' => self::formatBytes(filesize($tempPath))
+        ];
     }
 }
