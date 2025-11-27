@@ -165,7 +165,7 @@ class ApiServiceAppQy {
   }
   
   Future<Map<String, dynamic>> getUserLanguages() async {
-    return get(ApiEndpointsAppQy.userLanguages);
+    return get(ApiEndpointsAppQy.userGetLanguages);
   }
   
   Future<Map<String, dynamic>> setUserLanguages({
