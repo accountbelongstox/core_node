@@ -216,6 +216,28 @@ Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
 Write-Host ""
 #endregion
 
+#region Secure input helpers
+function Convert-SecureStringToPlainText {
+    param([System.Security.SecureString]$SecureString)
+    if (-not $SecureString) {
+        return ""
+    }
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
+    try {
+        return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
+function Read-SecretManagerInput {
+    param([string]$PromptLine)
+    $promptMessage = "$PromptLine (input hidden)"
+    $secureInput = Read-Host $promptMessage -AsSecureString
+    return Convert-SecureStringToPlainText $secureInput
+}
+#endregion
+
 #region Load Environment Variables via PyCore caller
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -248,15 +270,21 @@ function Get-SecretValue {
     $originalLocation = Get-Location
     Set-Location $projectRootPath
 
-    # Use -ArgumentList for proper parameter passing
-    $argumentList = @(
+    # Build quoted argument string (avoid -ArgumentList)
+    $rawArguments = @(
         $secretManagerScript,
         'get_secret_key',
         $KeyName
     )
+    $quotedArguments = $rawArguments | ForEach-Object {
+        if (-not $_) { '' }
+        elseif ($_ -match '\s') { "`"$($_)`"" }
+        else { $_ }
+    }
+    $argumentString = ($quotedArguments -join ' ').Trim()
 
     Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
-    Write-Host "[DEBUG] Command: $pythonExecutable -ArgumentList $($argumentList -join ', ')" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable $argumentString" -ForegroundColor DarkGray
 
     # Use ProcessStartInfo for reliable output capture with proper argument handling
     $value = $null
@@ -266,14 +294,12 @@ function Get-SecretValue {
     try {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $pythonExecutable
-        $psi.Arguments = ($argumentList | ForEach-Object { 
-            if ($_ -match ' ') { "`"$_`"" } 
-            else { $_ } 
-        }) -join ' '
+        $psi.Arguments = $argumentString
         $psi.WorkingDirectory = $projectRootPath
         $psi.UseShellExecute = $false
         $psi.RedirectStandardOutput = $true
         $psi.RedirectStandardError = $true
+        $psi.RedirectStandardInput = $true
         $psi.CreateNoWindow = $true
         $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
         $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
@@ -281,17 +307,131 @@ function Get-SecretValue {
         # Set environment variables to force Python to use UTF-8 encoding
         $psi.Environment["PYTHONIOENCODING"] = "utf-8"
         $psi.Environment["PYTHONUTF8"] = "1"
+        $stdoutBuilder = New-Object System.Text.StringBuilder
+        $stderrBuilder = New-Object System.Text.StringBuilder
         
         $process = New-Object System.Diagnostics.Process
         $process.StartInfo = $psi
         
         [void]$process.Start()
-        $value = $process.StandardOutput.ReadToEnd().Trim()
-        $errorOutput = $process.StandardError.ReadToEnd().Trim()
+        $stdInWriter = $process.StandardInput
+        if ($stdInWriter) {
+            $stdInWriter.AutoFlush = $true
+        }
+
+        $stdoutReader = $process.StandardOutput
+        $stderrReader = $process.StandardError
+        $stdoutLineBuffer = New-Object System.Text.StringBuilder
+        $promptState = @{
+            enterHandled        = $false
+            confirmHandled      = $false
+            enterPromptShown    = $false
+            confirmPromptShown  = $false
+        }
+
+        function Handle-StdoutCompletedLine {
+            param([string]$Line)
+            if ($null -eq $Line -or $Line -eq "") {
+                return
+            }
+
+            if ($Line -match '^\[SECRET_MANAGER\]') {
+                Write-Host $Line -ForegroundColor Cyan
+            }
+
+            [void]$stdoutBuilder.AppendLine($Line)
+        }
+
+        function Handle-SecretPrompt {
+            param(
+                [string]$PromptKey,
+                [string]$PromptText
+            )
+
+            if (-not $stdInWriter) {
+                return
+            }
+
+            switch ($PromptKey) {
+                "enter" {
+                    if (-not $promptState.enterHandled) {
+                        $response = Read-SecretManagerInput $PromptText
+                        $stdInWriter.WriteLine($response)
+                        $promptState.enterHandled = $true
+                        $promptState.confirmHandled = $false
+                    }
+                }
+                "confirm" {
+                    if (-not $promptState.confirmHandled) {
+                        $response = Read-SecretManagerInput $PromptText
+                        $stdInWriter.WriteLine($response)
+                        $promptState.confirmHandled = $true
+                    }
+                }
+            }
+        }
+
+        while (-not $process.HasExited -or -not $stdoutReader.EndOfStream -or -not $stderrReader.EndOfStream) {
+            while ($stdoutReader.Peek() -ne -1) {
+                $charCode = $stdoutReader.Read()
+                if ($charCode -lt 0) { break }
+                $char = [char]$charCode
+
+                if ($char -eq "`r") {
+                    continue
+                }
+
+                if ($char -eq "`n") {
+                    $line = $stdoutLineBuffer.ToString()
+                    $stdoutLineBuffer.Clear() | Out-Null
+                    Handle-StdoutCompletedLine $line
+                    $promptState.enterHandled = $false
+                    $promptState.confirmHandled = $false
+                    $promptState.enterPromptShown = $false
+                    $promptState.confirmPromptShown = $false
+                    continue
+                }
+
+                [void]$stdoutLineBuffer.Append($char)
+                $currentBuffer = $stdoutLineBuffer.ToString()
+
+                if ($currentBuffer -match '\[SECRET_MANAGER\].*Enter decryption password') {
+                    if (-not $promptState.enterPromptShown) {
+                        Write-Host $currentBuffer -ForegroundColor Cyan
+                        $promptState.enterPromptShown = $true
+                    }
+                    Handle-SecretPrompt -PromptKey "enter" -PromptText "[SECRET_MANAGER] Enter decryption password"
+                } elseif ($currentBuffer -match '\[SECRET_MANAGER\].*Confirm decryption password') {
+                    if (-not $promptState.confirmPromptShown) {
+                        Write-Host $currentBuffer -ForegroundColor Cyan
+                        $promptState.confirmPromptShown = $true
+                    }
+                    Handle-SecretPrompt -PromptKey "confirm" -PromptText "[SECRET_MANAGER] Confirm decryption password"
+                }
+            }
+
+            while ($stderrReader.Peek() -ne -1) {
+                $stderrLine = $stderrReader.ReadLine()
+                if ($null -ne $stderrLine) {
+                    [void]$stderrBuilder.AppendLine($stderrLine)
+                    Write-Host "[PYTHON-ERR] $stderrLine" -ForegroundColor Yellow
+                }
+            }
+
+            Start-Sleep -Milliseconds 50
+        }
+
+        $remainingStdout = $stdoutLineBuffer.ToString()
+        if ($remainingStdout) {
+            Handle-StdoutCompletedLine $remainingStdout
+        }
+
         $process.WaitForExit()
         $exitCode = $process.ExitCode
         $process.Dispose()
-        
+
+        $value = $stdoutBuilder.ToString().Trim()
+        $errorOutput = $stderrBuilder.ToString().Trim()
         # Remove BOM character if present
         if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
             $value = $value.Substring(1)
@@ -305,15 +445,7 @@ function Get-SecretValue {
             $env:PYTHONUTF8 = "1"
             
             # Build command with proper quoting
-            $cmdParts = @($pythonExecutable)
-            foreach ($arg in $argumentList) {
-                if ($arg -match ' ') {
-                    $cmdParts += "`"$arg`""
-                } else {
-                    $cmdParts += $arg
-                }
-            }
-            $cmd = $cmdParts -join ' '
+            $cmd = "$pythonExecutable $argumentString"
             
             # Execute and capture output
             $allOutput = Invoke-Expression $cmd 2>&1

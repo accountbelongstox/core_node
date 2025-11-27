@@ -120,6 +120,58 @@ function Get-PipMirrorConfig {
     }
 }
 
+function Remove-PythonPathEntries {
+    param (
+        [string]$Scope
+    )
+
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", $Scope)
+    if (-not $currentPath) {
+        return 0
+    }
+
+    $pathArray = $currentPath -split ';'
+    $cleanedPath = @()
+    $removedCount = 0
+    $currentPythonDir = Normalize-WindowsPath $PythonInstallDir
+    $currentScriptsDir = Normalize-WindowsPath (Join-Path $PythonInstallDir "Scripts")
+
+    foreach ($pathEntry in $pathArray) {
+        if ([string]::IsNullOrWhiteSpace($pathEntry)) {
+            continue
+        }
+
+        $normalizedEntry = Normalize-WindowsPath $pathEntry
+
+        if ($normalizedEntry -eq $currentPythonDir -or $normalizedEntry -eq $currentScriptsDir) {
+            $cleanedPath += $pathEntry
+            continue
+        }
+
+        if ($pathEntry -match 'python\d+' -or $pathEntry -match '\\Python\d+' -or $pathEntry -match '\\Python\\') {
+            Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from $Scope PATH: $pathEntry" -Type "Warning"
+            $removedCount++
+        } else {
+            $cleanedPath += $pathEntry
+        }
+    }
+
+    if ($removedCount -gt 0) {
+        $newPath = $cleanedPath -join ';'
+
+        if ($Scope -eq "Machine") {
+            Backup-Environment
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPath -ErrorAction Stop
+        } else {
+            [Environment]::SetEnvironmentVariable("Path", $newPath, $Scope)
+        }
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX Removed $removedCount old Python PATH entries from $Scope PATH" -Type "Success"
+    }
+
+    return $removedCount
+}
+
 function Remove-OldPythonVersions {
     Write-ColorMessage -Message "$SCRIPT_INDEX Checking for old Python versions..." -Type "Info"
 
@@ -129,58 +181,15 @@ function Remove-OldPythonVersions {
         return
     }
 
-    # Clean all Python-related PATH entries first
     Write-ColorMessage -Message "$SCRIPT_INDEX Cleaning all old Python PATH entries..." -Type "Info"
-    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 
-    if ($machinePath) {
-        $machinePathArray = $machinePath -split ';'
-        $cleanedMachinePath = @()
-        $removedCount = 0
+    $machineRemoved = Remove-PythonPathEntries -Scope "Machine"
+    $userRemoved = Remove-PythonPathEntries -Scope "User"
 
-        foreach ($pathEntry in $machinePathArray) {
-            if ($pathEntry -match 'python\d+' -or $pathEntry -match '\\Python\d+' -or ($pathEntry -match 'Python' -and $pathEntry -ne $PythonInstallDir -and $pathEntry -ne (Join-Path $PythonInstallDir "Scripts"))) {
-                Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from Machine PATH: $pathEntry" -Type "Warning"
-                $removedCount++
-            } else {
-                if ($pathEntry.Trim() -ne "") {
-                    $cleanedMachinePath += $pathEntry
-                }
-            }
-        }
-
-        if ($removedCount -gt 0) {
-            $newMachinePath = $cleanedMachinePath -join ';'
-            [Environment]::SetEnvironmentVariable("Path", $newMachinePath, "Machine")
-            Write-ColorMessage -Message "$SCRIPT_INDEX Removed $removedCount old Python PATH entries from Machine PATH" -Type "Success"
-        }
+    if ($machineRemoved -eq 0 -and $userRemoved -eq 0) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX No old Python PATH entries found" -Type "Info"
     }
 
-    if ($userPath) {
-        $userPathArray = $userPath -split ';'
-        $cleanedUserPath = @()
-        $removedCount = 0
-
-        foreach ($pathEntry in $userPathArray) {
-            if ($pathEntry -match 'python\d+' -or $pathEntry -match '\\Python\d+' -or ($pathEntry -match 'Python' -and $pathEntry -ne $PythonInstallDir -and $pathEntry -ne (Join-Path $PythonInstallDir "Scripts"))) {
-                Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from User PATH: $pathEntry" -Type "Warning"
-                $removedCount++
-            } else {
-                if ($pathEntry.Trim() -ne "") {
-                    $cleanedUserPath += $pathEntry
-                }
-            }
-        }
-
-        if ($removedCount -gt 0) {
-            $newUserPath = $cleanedUserPath -join ';'
-            [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
-            Write-ColorMessage -Message "$SCRIPT_INDEX Removed $removedCount old Python PATH entries from User PATH" -Type "Success"
-        }
-    }
-
-    # Find all Python directories (versioned)
     $oldPythonDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -match '^python\d+$' -and $_.FullName -ne $PythonInstallDir
     })
@@ -195,7 +204,13 @@ function Remove-OldPythonVersions {
     foreach ($oldDir in $oldPythonDirs) {
         Write-ColorMessage -Message "$SCRIPT_INDEX   - $($oldDir.FullName)" -Type "Warning"
 
-        # Ask before deleting directory
+        Remove-Path -PathToRemove $oldDir.FullName
+
+        $oldScriptsDir = Join-Path $oldDir.FullName "Scripts"
+        if (Test-Path $oldScriptsDir) {
+            Remove-Path -PathToRemove $oldScriptsDir
+        }
+
         Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (y/N, timeout 5s, default: N, press Enter to continue)" -Type "Warning"
         $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
         $timeout = 5
@@ -226,7 +241,6 @@ function Remove-OldPythonVersions {
         }
     }
 
-    # Refresh PATH
     Write-ColorMessage -Message "$SCRIPT_INDEX Refreshing environment variables..." -Type "Info"
     Write-RefreshBatch
 }
