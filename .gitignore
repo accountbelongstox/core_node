@@ -19,6 +19,7 @@ webpack_dist/
 **/secret_keys/raw/
 **/secret_keys/raw/*
 **/secret_keys/raw/**
+**/storage/**
 # Deployment configs should be committed (contains encrypted files)
 .AppleDouble
 .LSOverride

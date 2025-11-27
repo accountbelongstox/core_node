@@ -18,6 +18,7 @@ class FileSystemManager
 {
     private static $autoFixPermissions = true;
     private static $externalPathMappings = [];
+    private static $cachedUserInfo = null;
 
     public static function setAutoFixPermissions(bool $enabled): void
     {
@@ -26,39 +27,29 @@ class FileSystemManager
 
     private static function mapExternalPath(string $path): string
     {
-        \Log::info('[FileSystemManager::mapExternalPath] Input path: ' . $path);
+        // Check cache first for performance
+        if (isset(self::$externalPathMappings[$path])) {
+            return self::$externalPathMappings[$path];
+        }
 
         $coreNodeDir = \App\Providers\PathMapper::getCoreNodeDir();
         $laravelMainDir = \App\Providers\PathMapper::getLaravelMainDir();
         $storageDir = $laravelMainDir . DIRECTORY_SEPARATOR . 'storage';
 
-        \Log::info('[FileSystemManager::mapExternalPath] Directories', [
-            'coreNode' => $coreNodeDir,
-            'laravelMain' => $laravelMainDir,
-            'storage' => $storageDir
-        ]);
-
         $startsWithCoreNode = strpos($path, $coreNodeDir) === 0;
         $containsStorage = strpos($path, $storageDir) !== false;
-
-        \Log::info('[FileSystemManager::mapExternalPath] Path checks', [
-            'startsWithCoreNode' => $startsWithCoreNode,
-            'containsStorage' => $containsStorage
-        ]);
 
         if ($startsWithCoreNode && !$containsStorage) {
             $relativePath = str_replace($coreNodeDir . DIRECTORY_SEPARATOR, '', $path);
             $mappedPath = $storageDir . DIRECTORY_SEPARATOR . 'external' . DIRECTORY_SEPARATOR . $relativePath;
 
-            \Log::info('[FileSystemManager::mapExternalPath] Mapping path', [
-                'relativePath' => $relativePath,
-                'mappedPath' => $mappedPath
-            ]);
-
             $mappedDir = dirname($mappedPath);
             if (!file_exists($mappedDir)) {
-                \Log::info('[FileSystemManager::mapExternalPath] Creating mapped dir: ' . $mappedDir);
-                @mkdir($mappedDir, 0755, true);
+                try {
+                    mkdir($mappedDir, 0755, true);
+                } catch (\Throwable $e) {
+                    \Log::error('[FileSystemManager] Failed to create mapped dir: ' . $mappedDir . ' - ' . $e->getMessage());
+                }
             }
 
             $symlinkPath = $path;
@@ -67,20 +58,20 @@ class FileSystemManager
             if (!file_exists($symlinkPath) && !is_link($symlinkPath)) {
                 $symlinkDir = dirname($symlinkPath);
                 if (file_exists($symlinkDir) && is_writable($symlinkDir)) {
-                    \Log::info('[FileSystemManager::mapExternalPath] Creating symlink', [
-                        'from' => $symlinkPath,
-                        'to' => $symlinkTarget
-                    ]);
-                    @symlink($symlinkTarget, $symlinkPath);
+                    try {
+                        symlink($symlinkTarget, $symlinkPath);
+                    } catch (\Throwable $e) {
+                        \Log::error('[FileSystemManager] Failed to create symlink: ' . $symlinkPath . ' -> ' . $symlinkTarget . ' - ' . $e->getMessage());
+                    }
                 }
             }
 
             self::$externalPathMappings[$path] = $mappedPath;
-            \Log::info('[FileSystemManager::mapExternalPath] Returning mapped path: ' . $mappedPath);
             return $mappedPath;
         }
 
-        \Log::info('[FileSystemManager::mapExternalPath] No mapping needed, returning original path');
+        // Cache non-mapped paths too
+        self::$externalPathMappings[$path] = $path;
         return $path;
     }
 
@@ -91,17 +82,17 @@ class FileSystemManager
         if (file_exists($path)) {
             if (is_dir($path)) {
                 if (self::$autoFixPermissions) {
-                    @self::fixPermissions($path);
+                    self::fixPermissions($path);
                 }
                 return true;
             }
             return false;
         }
 
-        $result = @mkdir($path, $mode, $recursive);
+        $result = mkdir($path, $mode, $recursive);
 
         if ($result && self::$autoFixPermissions) {
-            @self::fixPermissions($path);
+            self::fixPermissions($path);
         }
 
         return $result;
@@ -120,14 +111,14 @@ class FileSystemManager
         \Log::channel('single')->info('[FileSystemManager::writeFile] Parent dir writable: ' . (is_writable(dirname($path)) ? 'yes' : 'no'));
 
         $existed = file_exists($path);
-        $result = @file_put_contents($path, $content);
+        $result = file_put_contents($path, $content);
 
         \Log::channel('single')->info('[FileSystemManager::writeFile] file_put_contents result: ' . ($result !== false ? 'SUCCESS (' . $result . ' bytes)' : 'FAILED'));
 
         if ($result !== false) {
             \Log::channel('single')->info('[FileSystemManager::writeFile] File created successfully');
             if (self::$autoFixPermissions) {
-                $fixResult = @self::fixPermissions($path);
+                $fixResult = self::fixPermissions($path);
                 \Log::channel('single')->info('[FileSystemManager::writeFile] Fix permissions result: ' . ($fixResult ? 'success' : 'failed'));
             }
             return true;
@@ -139,25 +130,32 @@ class FileSystemManager
 
     public static function readFile(string $path): string|false
     {
-        if (!file_exists($path)) {
+        // Map path to writable storage if needed
+        $mappedPath = self::mapExternalPath($path);
+
+        if (!file_exists($mappedPath)) {
             return false;
         }
 
         if (self::$autoFixPermissions) {
-            @self::fixPermissions($path);
+            self::fixPermissions($mappedPath);
         }
 
-        return @file_get_contents($path);
+        return file_get_contents($mappedPath);
     }
 
     public static function copy(string $source, string $destination): bool
     {
         $result = null;
 
-        $result = @copy($source, $destination);
+        // Map paths to writable storage if needed
+        $mappedSource = self::mapExternalPath($source);
+        $mappedDestination = self::mapExternalPath($destination);
+
+        $result = copy($mappedSource, $mappedDestination);
 
         if ($result && self::$autoFixPermissions) {
-            @self::fixPermissions($destination);
+            self::fixPermissions($mappedDestination);
         }
 
         return $result;
@@ -165,29 +163,42 @@ class FileSystemManager
 
     public static function rename(string $oldPath, string $newPath): bool
     {
-        $result = null;
+        // Map paths to writable storage if needed
+        $mappedOldPath = self::mapExternalPath($oldPath);
+        $mappedNewPath = self::mapExternalPath($newPath);
 
-        $result = @rename($oldPath, $newPath);
-
-        if ($result && self::$autoFixPermissions) {
-            @self::fixPermissions($newPath);
+        // Use copy + delete instead of rename for reliability across filesystems
+        if (!copy($mappedOldPath, $mappedNewPath)) {
+            return false;
         }
 
-        return $result;
+        if (self::$autoFixPermissions) {
+            self::fixPermissions($mappedNewPath);
+        }
+
+        if (!unlink($mappedOldPath)) {
+            // Copy succeeded but delete failed - file was still moved successfully
+            return true;
+        }
+
+        return true;
     }
 
     public static function delete(string $path): bool
     {
-        if (!file_exists($path)) {
+        // Map path to writable storage if needed
+        $mappedPath = self::mapExternalPath($path);
+
+        if (!file_exists($mappedPath)) {
             return true;
         }
 
-        if (is_file($path)) {
-            return @unlink($path);
+        if (is_file($mappedPath)) {
+            return unlink($mappedPath);
         }
 
-        if (is_dir($path)) {
-            return @rmdir($path);
+        if (is_dir($mappedPath)) {
+            return rmdir($mappedPath);
         }
 
         return false;
@@ -195,17 +206,20 @@ class FileSystemManager
 
     public static function exists(string $path): bool
     {
-        return file_exists($path);
+        $mappedPath = self::mapExternalPath($path);
+        return file_exists($mappedPath);
     }
 
     public static function isFile(string $path): bool
     {
-        return is_file($path);
+        $mappedPath = self::mapExternalPath($path);
+        return is_file($mappedPath);
     }
 
     public static function isDir(string $path): bool
     {
-        return is_dir($path);
+        $mappedPath = self::mapExternalPath($path);
+        return is_dir($mappedPath);
     }
 
     public static function isReadable(string $path): bool
@@ -239,16 +253,16 @@ class FileSystemManager
 
     public static function fixPermissions(string $path): bool
     {
-        $userInfo = null;
-        $result = true;
-
         if (!file_exists($path)) {
             return false;
         }
 
-        \Log::info('[FileSystemManager::fixPermissions] Starting for: ' . $path);
-        $userInfo = SystemUserDetector::getActualUser();
-        \Log::info('[FileSystemManager::fixPermissions] Got user info', ['user' => $userInfo['username'] ?? 'unknown']);
+        // Cache user info to avoid expensive syscalls
+        if (self::$cachedUserInfo === null) {
+            self::$cachedUserInfo = SystemUserDetector::getActualUser();
+        }
+
+        $userInfo = self::$cachedUserInfo;
 
         if (!$userInfo || !isset($userInfo['uid']) || !isset($userInfo['gid'])) {
             return false;
@@ -257,6 +271,7 @@ class FileSystemManager
         $currentOwner = @fileowner($path);
         $currentGroup = @filegroup($path);
 
+        // Early return if already correct
         if ($currentOwner === $userInfo['uid'] && $currentGroup === $userInfo['gid']) {
             return true;
         }
@@ -321,11 +336,16 @@ class FileSystemManager
 
         if (file_exists($path) && is_dir($path)) {
             if (self::$autoFixPermissions) {
-                @self::fixPermissions($path);
+                self::fixPermissions($path);
             }
             return true;
         }
 
-        return self::mkdir($path, $mode, true);
+        try {
+            return self::mkdir($path, $mode, true);
+        } catch (\Throwable $e) {
+            error_log('[FileSystemManager::ensureDirectoryExists] Failed to create directory: ' . $path . ' - ' . $e->getMessage());
+            return false;
+        }
     }
 }

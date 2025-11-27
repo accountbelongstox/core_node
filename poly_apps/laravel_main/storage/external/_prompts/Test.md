@@ -3,3 +3,11 @@ When playing automatically, you can click the stop button of the voice item to s
 At the same time, there is a hidden subtitle area displayed at the bottom of the top of the entire web page. When the click is playing, real-time subtitles will be displayed and hidden after playing.
 
 Also do not create a backup file of tasks/prompts.bak. At the same time, use \n and to split sentences. Instead of using . because sometimes . is the file extension.
+You need to use \n and periods, but globally.
+Confirm the following again. At the same time, the textarea right-click menu should add a copy function, and the selected one can be copied.
+Now look at the file tree function on the left. In the expanded folder, there was a right-click function on the file. Please look for the original code. Now you don’t see the right-click function after clicking it.
+Don't use catch to block some error, but fix it.
+In the translation of prompts, when a voice is requested, do not read it immediately, but delay it for 2 seconds. Due to HTML reasons, there will actually be a blank period when the requested audio starts to play sound. Please solve this problem.
+First remove many unnecessary catches, both front and back ends.
+
+The _delete directory is in the project root directory, see laravel php map path ncore dir.
