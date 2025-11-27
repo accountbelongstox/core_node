@@ -93,6 +93,11 @@ Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 # Path resolution algorithm:
 #   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
+# Ensure PATH is prepared via WindowsPathFunction script
+$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+. $windowsPathFunctionScript
+Set-CoreNodePaths
+
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING

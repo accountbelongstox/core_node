@@ -624,6 +624,26 @@ function Add-ScriptContentToWinEnvs {
     }
 }
 
+# Ensure project directories are appended to PATH so dd.cmd and winenv scripts are globally accessible.
+function Set-CoreNodePaths {
+    $pathsToAdd = @()
+
+    if ($Global:PROJECT_DIR) {
+        $pathsToAdd += (Normalize-WindowsPath $Global:PROJECT_DIR)
+        $pathsToAdd += (Normalize-WindowsPath (Join-Path $Global:PROJECT_DIR "scripts"))
+        $pathsToAdd += (Normalize-WindowsPath (Join-Path $Global:PROJECT_DIR "scripts\winenvs"))
+    }
+
+    if ($Global:CORE_NODE_DIR -and $Global:CORE_NODE_DIR -ne $Global:PROJECT_DIR) {
+        $pathsToAdd += (Normalize-WindowsPath $Global:CORE_NODE_DIR)
+    }
+
+    $pathsToAdd = $pathsToAdd | Where-Object { $_ }
+    foreach ($pathToAdd in $pathsToAdd) {
+        Add-Path -newPath $pathToAdd
+    }
+}
+
 # DEPRECATED: Ensure-InlineWinEnvsDir is no longer used
 # We now simply add PROJECT_DIR to PATH instead of managing separate inline/global directories
 function Ensure-InlineWinEnvsDir {
@@ -875,6 +895,9 @@ switch ($action) {
         } else {
             Add-ExecToInline -execPath $param1
         }
+    }
+    "setcorepaths" {
+        Set-CoreNodePaths
     }
     "sync" {
         if ($param1 -eq "-Force" -or $param1 -eq "force") {
