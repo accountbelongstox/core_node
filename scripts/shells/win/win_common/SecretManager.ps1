@@ -217,6 +217,23 @@ function Invoke-SecretDecryptAll {
         } finally {
             [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
         }
+
+        $securePasswordConfirm = Read-Host -Prompt "[SECRET_DECRYPT_ALL] Confirm decryption password" -AsSecureString
+        $BSTRConfirm = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePasswordConfirm)
+        try {
+            $passwordConfirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTRConfirm)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTRConfirm)
+        }
+
+        if ($Password -ne $passwordConfirm) {
+            Write-Error "[SECRET_DECRYPT_ALL] ERROR: Passwords do not match"
+            $Password = $null
+            $passwordConfirm = $null
+            return $false
+        }
+
+        $passwordConfirm = $null
     }
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
