@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKX Price Monitor - Dashboard</title>
+
+    <!-- CSS Files -->
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/menu.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <!-- Application Container -->
+    <div id="app-container">
+
+        <!-- Top Menu -->
+        <header id="top-menu" class="top-menu">
+            <div class="menu-left">
+                <div class="app-logo">
+                    <span class="logo-icon">💹</span>
+                    <span class="logo-text">OKX Price Monitor</span>
+                </div>
+            </div>
+
+            <nav class="menu-center">
+                <ul class="nav-items" id="top-nav-items">
+                    <!-- Populated by menu.js -->
+                </ul>
+            </nav>
+
+            <div class="menu-right">
+                <div class="status-indicator">
+                    <span class="status-dot online"></span>
+                    <span class="status-text">Online</span>
+                </div>
+                <div class="user-menu">
+                    <span class="user-icon">👤</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div id="main-content" class="main-content">
+
+            <!-- Left Sidebar -->
+            <aside id="left-menu" class="left-menu">
+                <div class="menu-header">
+                    <button id="left-menu-toggle" class="menu-toggle-btn">☰</button>
+                    <span class="menu-title">Navigation</span>
+                </div>
+
+                <nav class="menu-nav">
+                    <ul class="menu-items" id="left-nav-items">
+                        <!-- Populated by menu.js -->
+                    </ul>
+                </nav>
+            </aside>
+
+            <!-- Center Content -->
+            <main id="center-content" class="center-content">
+                <div class="content-header">
+                    <h1 id="page-title">Dashboard</h1>
+                    <div class="content-actions">
+                        <button class="btn btn-primary" id="refresh-btn">
+                            <span class="btn-icon">🔄</span>
+                            <span class="btn-text">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="page-content" class="page-content">
+                    <!-- Page content loaded dynamically -->
+                    <div class="welcome-message">
+                        <h2>Welcome to OKX Price Monitor</h2>
+                        <p>Select an option from the left menu to get started.</p>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Sidebar -->
+            <aside id="right-menu" class="right-menu">
+                <div class="menu-header">
+                    <span class="menu-title">Info Panel</span>
+                    <button id="right-menu-toggle" class="menu-toggle-btn">☰</button>
+                </div>
+
+                <div class="info-sections">
+                    <!-- Notifications Section -->
+                    <section class="info-section">
+                        <h3 class="section-title">
+                            <span class="section-icon">🔔</span>
+                            Notifications
+                        </h3>
+                        <div id="notifications-content" class="section-content">
+                            <p class="no-data">No notifications</p>
+                        </div>
+                    </section>
+
+                    <!-- Quick Stats Section -->
+                    <section class="info-section">
+                        <h3 class="section-title">
+                            <span class="section-icon">⚡</span>
+                            Quick Stats
+                        </h3>
+                        <div id="quick-stats-content" class="section-content">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Coins:</span>
+                                <span class="stat-value" id="stat-total-coins">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Database:</span>
+                                <span class="stat-value" id="stat-database">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">History Hours:</span>
+                                <span class="stat-value" id="stat-history-hours">-</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Bottom Menu / Footer -->
+        <footer id="bottom-menu" class="bottom-menu">
+            <div class="footer-left">
+                <span class="footer-item">
+                    <span class="footer-icon">🟢</span>
+                    <span class="footer-text" id="footer-status">Status: Online</span>
+                </span>
+            </div>
+
+            <div class="footer-center">
+                <span class="footer-item">
+                    <span class="footer-text" id="footer-info">OKX Price Monitor v1.0.0</span>
+                </span>
+            </div>
+
+            <div class="footer-right">
+                <span class="footer-item">
+                    <span class="footer-text" id="footer-time">--:--:--</span>
+                </span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading...</div>
+    </div>
+
+    <!-- Configuration & Core Scripts -->
+    <script src="config.js"></script>
+
+    <!-- Utility Scripts -->
+    <script src="js/api.js"></script>
+
+    <!-- Layout & UI Scripts -->
+    <script src="js/layout.js"></script>
+    <script src="js/menu.js"></script>
+
+    <!-- Page Scripts -->
+    <script src="js/pages/history_stats.js"></script>
+
+    <!-- Main Application Script -->
+    <script>
+        // Initialize application on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('[App] Initializing OKX Price Monitor...');
+
+            // Initialize layout
+            if (window.AppLayout) {
+                window.AppLayout.init();
+            }
+
+            // Initialize menu system
+            if (window.AppMenu) {
+                window.AppMenu.init();
+            }
+
+            // Load quick stats
+            loadQuickStats();
+
+            // Update clock every second
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            console.log('[App] Application initialized successfully');
+        });
+
+        // Update clock in footer
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('footer-time').textContent = timeString;
+        }
+
+        // Load quick stats
+        async function loadQuickStats() {
+            try {
+                const result = await window.API.call('api/coins/stats');
+
+                if (result.success && result.data) {
+                    document.getElementById('stat-total-coins').textContent = result.data.total_coins || '0';
+                    document.getElementById('stat-database').textContent = result.data.database_name || '-';
+                    document.getElementById('stat-history-hours').textContent = result.data.history_hours || '-';
+                }
+            } catch (error) {
+                console.error('[App] Failed to load quick stats:', error);
+            }
+        }
+
+        // Refresh data periodically
+        setInterval(() => {
+            loadQuickStats();
+
+            // Refresh current page if available
+            if (window.currentPageRefresh) {
+                window.currentPageRefresh();
+            }
+        }, AppConfig.ui.refreshInterval);
+    </script>
+</body>
+</html>
