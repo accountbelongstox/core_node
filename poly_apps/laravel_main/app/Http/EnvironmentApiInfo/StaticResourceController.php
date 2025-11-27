@@ -51,7 +51,8 @@ class StaticResourceController
 
         return response()->json([
             'items' => $items,
-            'path' => $path ?: 'static'
+            'path' => $path ?: 'static',
+            'realPath' => $this->baseDirectory
         ]);
     }
 
@@ -188,7 +189,7 @@ class StaticResourceController
                         $currentPath = $currentPath . DIRECTORY_SEPARATOR . $safeDirName;
 
                         if (!FileSystemManager::exists($currentPath)) {
-                            FileSystemManager::makeDirectory($currentPath, 0755, true);
+                            FileSystemManager::mkdir($currentPath, 0755, true);
                         }
                     }
                 }
@@ -284,22 +285,15 @@ class StaticResourceController
     {
         $parentPath = null;
         $dirName = null;
-        $translateName = null;
         $fullPath = null;
 
         $parentPath = $request->input('parent_path', '');
         $dirName = $request->input('dir_name');
-        $translateName = $request->input('translate_name', false);
 
         if (!$dirName) {
             return response()->json([
                 'error' => 'Directory name is required'
             ], 400);
-        }
-
-        $safeName = $dirName;
-        if ($translateName) {
-            $safeName = $this->sanitizeFileName($dirName);
         }
 
         $parentFullPath = $this->baseDirectory . ($parentPath ? DIRECTORY_SEPARATOR . $parentPath : '');
@@ -316,26 +310,27 @@ class StaticResourceController
             ], 404);
         }
 
-        $fullPath = $parentFullPath . DIRECTORY_SEPARATOR . $safeName;
+        $fullPath = $parentFullPath . DIRECTORY_SEPARATOR . $dirName;
 
         if (FileSystemManager::exists($fullPath)) {
             return response()->json([
-                'error' => 'Directory already exists'
+                'error' => 'Directory already exists',
+                'existing_path' => $dirName
             ], 409);
         }
 
-        if (!FileSystemManager::makeDirectory($fullPath, 0755, true)) {
+        if (!FileSystemManager::mkdir($fullPath, 0755, true)) {
             return response()->json([
                 'error' => 'Failed to create directory'
             ], 500);
         }
 
-        $relativePath = $parentPath ? $parentPath . DIRECTORY_SEPARATOR . $safeName : $safeName;
+        $relativePath = $parentPath ? $parentPath . DIRECTORY_SEPARATOR . $dirName : $dirName;
 
         return response()->json([
             'success' => true,
             'path' => $relativePath,
-            'name' => $safeName
+            'name' => $dirName
         ]);
     }
 
