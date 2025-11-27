@@ -1,406 +1,220 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-OKX Price Monitor Application
+OKX Price Monitor - API Mode
 
-Monitors OKX cryptocurrency prices and trading data through RPC.
+Main entry point for the layered architecture.
+Uses direct API calls to OKX API v5.
 """
 
 import time
 import signal
 import sys
 import threading
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
-from pyapps.okx_price_monitor.lib import (
-    config,
-    CoinProvider,
-    Mode1PriceMonitor,
-    Mode2Trader,
-    TradingTimingAnalyzer,
-    ContinuousMonitor,
-    CoinDataManager
+
+from pyapps.okx_price_monitor.core import config
+from pyapps.okx_price_monitor.foundation import CoinProvider, DatabaseHandler, Printer
+from pyapps.okx_price_monitor.services import (
+    PriceMonitor,
+    TradingStrategy,
+    TradeExecutor,
+    GridDisplay
 )
-from pyapps.okx_price_monitor.lib.rpc_utils import parse_rpc_response
-from pyapps.okx_price_monitor.web_server import OKXWebServer
-
-requests = None
-continuous_monitor_instance = None
-web_server_instance = None
 
 
-def check_rpc_server_availability():
+class OKXMonitorApp:
     """
-    Check if RPC server is available
-
-    Returns:
-        bool: True if server is available, False otherwise
+    OKX Monitor Application
+    
+    Main application class coordinating all services.
     """
-    global requests
-    if requests is None:
-        requests = get_third_package_requests()
-
-    health_check_url = f"{config.RPC_BASE_URL}/health"
-
-    try:
-        response = requests.get(health_check_url, timeout=2)
-        return response.status_code == 200
-    except Exception:
-        return False
-
-
-def wait_for_rpc_server(max_retries=None, retry_interval=5):
-    """
-    Wait for RPC server to become available
-
-    Args:
-        max_retries (int): Maximum number of retries (None = infinite)
-        retry_interval (int): Seconds to wait between retries
-
-    Returns:
-        bool: True if server became available, False if max retries reached
-    """
-    global requests
-    if requests is None:
-        requests = get_third_package_requests()
-
-    ColorPrint.red("\n" + "=" * 80)
-    ColorPrint.red("RPC SERVER NOT AVAILABLE")
-    ColorPrint.red("=" * 80)
-    ColorPrint.yellow(f"  Target: {config.RPC_BASE_URL}")
-    ColorPrint.yellow(f"  The RPC server is not running or not accessible")
-    ColorPrint.yellow(f"  Waiting for server to become available...")
-    ColorPrint.yellow(f"  Retry interval: {retry_interval} seconds")
-    if max_retries:
-        ColorPrint.yellow(f"  Max retries: {max_retries}")
-    else:
-        ColorPrint.yellow(f"  Will retry indefinitely (Ctrl+C to stop)")
-    ColorPrint.red("=" * 80)
-
-    retry_count = 0
-    while True:
-        retry_count += 1
-
-        if max_retries and retry_count > max_retries:
-            ColorPrint.red(f"\n[Error] Max retries ({max_retries}) reached")
-            return False
-
-        ColorPrint.blue(f"\n[Retry #{retry_count}] Checking RPC server availability...")
-
-        if check_rpc_server_availability():
-            ColorPrint.green(f"\n[Success] RPC server is now available!")
-            ColorPrint.green("=" * 80)
-            return True
-
-        ColorPrint.yellow(f"  Server still not available. Waiting {retry_interval} seconds...")
-        time.sleep(retry_interval)
-
-
-def call_rpc_browser_open(url, retry_count=0, max_retries=3):
-    """
-    Call RPC browser/openUrl endpoint with retry logic
-
-    Args:
-        url (str): URL to open
-        retry_count (int): Current retry attempt
-        max_retries (int): Maximum number of retries
-
-    Returns:
-        dict: Response with pageId, or None if connection failed
-    """
-    global requests
-    if requests is None:
-        requests = get_third_package_requests()
-
-    rpc_url = f"{config.RPC_BASE_URL}/rpc/browser/openUrl"
-
-    payload = {
-        'url': url,
-        'matchMode': 'sameOrigin',
-        'waitUntil': config.WAIT_UNTIL,
-        'timeout': config.REQUEST_TIMEOUT,
-        'screenshot': False,
-        'htmlContent': False
-    }
-
-    try:
-        response = requests.post(rpc_url, json=payload, timeout=30)
-        response.raise_for_status()
-
-        result = response.json()
-        return parse_rpc_response(result)
-    except Exception as e:
-        error_msg = str(e)
-
-        # Check if it's a "detached frame" error
-        if "detached" in error_msg.lower() and retry_count < max_retries:
-            ColorPrint.yellow(f"\n[Warning] Navigation failed with detached frame (attempt {retry_count + 1}/{max_retries})")
-            ColorPrint.yellow(f"  Target Page: {url}")
-            ColorPrint.yellow(f"  Retrying in 1 second...")
-            time.sleep(1)
-            return call_rpc_browser_open(url, retry_count + 1, max_retries)
-
-        ColorPrint.red(f"\n[Error] Failed to call RPC browser/openUrl: {error_msg}")
-        ColorPrint.yellow(f"  URL: {rpc_url}")
-        ColorPrint.yellow(f"  Target Page: {url}")
-        ColorPrint.yellow(f"  Retry count: {retry_count}/{max_retries}")
-
-        if "Connection" in error_msg or "refused" in error_msg:
-            ColorPrint.red("\n[Critical] RPC server connection lost!")
-            if not wait_for_rpc_server():
-                ColorPrint.red("[Fatal] Could not reconnect to RPC server")
-                sys.exit(1)
-            ColorPrint.green("[Recovery] Retrying RPC call...")
-            return call_rpc_browser_open(url, 0, max_retries)
+    
+    def __init__(self):
+        self.printer = Printer(prefix="[OKXMonitor]")
+        self.running = False
+        
+        self.coin_provider = None
+        self.database_handler = None
+        self.price_monitor = None
+        self.trading_strategy = None
+        self.trade_executor = None
+        self.grid_display = None
+    
+    def initialize(self):
+        """Initialize all components"""
+        self.printer.header("OKX PRICE MONITOR - API MODE")
+        
+        config.print_config()
+        
+        self.printer.info("\n[Step 1] Initializing Coin Provider...")
+        self.coin_provider = CoinProvider(
+            inst_type=config.DEFAULT_INST_TYPE,
+            use_auth=config.USE_AUTH
+        )
+        self.printer.success("Coin Provider initialized")
+        
+        self.printer.info("\n[Step 2] Initializing Database Handler...")
+        self.database_handler = DatabaseHandler(database_name=config.DATABASE_NAME)
+        if self.database_handler.initialize():
+            self.printer.success("Database Handler initialized")
         else:
-            # If max retries reached, raise the error
-            if retry_count >= max_retries:
-                ColorPrint.red(f"\n[Fatal] Failed after {max_retries} retries")
-                raise
-            # Otherwise, retry
-            ColorPrint.yellow(f"  Retrying ({retry_count + 1}/{max_retries})...")
-            time.sleep(1)
-            return call_rpc_browser_open(url, retry_count + 1, max_retries)
+            self.printer.warning("Database initialization failed - continuing without database")
+            self.database_handler = None
+        
+        self.printer.info("\n[Step 3] Setting up trading pairs...")
+        
+        if config.MONITOR_SPECIFIC_PAIRS:
+            trading_pairs = config.MONITOR_SPECIFIC_PAIRS
+            self.printer.success(f"Using {len(trading_pairs)} specified trading pairs")
+        elif config.PRELOAD_ALL_INSTRUMENTS:
+            instruments = self.coin_provider.fetch_instruments()
+            self.printer.success(f"Fetched {len(instruments)} instruments")
+            trading_pairs = self.coin_provider.get_trading_pairs(quote_currency="USDT")
+            self.printer.success(f"Found {len(trading_pairs)} USDT trading pairs")
+        else:
+            trading_pairs = ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
+            self.printer.info(f"Using default {len(trading_pairs)} trading pairs")
+            self.printer.info("Set MONITOR_SPECIFIC_PAIRS or PRELOAD_ALL_INSTRUMENTS=True in config for more")
+        
+        self.printer.info("\n[Step 4] Initializing Price Monitor...")
+        self.price_monitor = PriceMonitor(
+            coin_provider=self.coin_provider,
+            database_handler=self.database_handler
+        )
+        self.price_monitor.set_trading_pairs(trading_pairs)
+        self.printer.success("Price Monitor initialized")
+        
+        self.printer.info("\n[Step 5] Initializing Trading Strategy...")
+        self.trading_strategy = TradingStrategy()
+        self.printer.success("Trading Strategy initialized")
+        
+        self.printer.info("\n[Step 6] Initializing Trade Executor...")
+        self.trade_executor = TradeExecutor(simulation_mode=True)
+        self.printer.success("Trade Executor initialized (SIMULATION MODE)")
+        
+        self.printer.info("\n[Step 7] Initializing Grid Display...")
+        self.grid_display = GridDisplay(rpc_base_url=config.RPC_BASE_URL)
+        self.grid_display.enable()
+        self.printer.success("Grid Display initialized")
+        
+        if self.database_handler:
+            self.printer.info(f"\n[Step 8] Loading {config.HISTORY_HOURS}h history from database...")
+            self.price_monitor.load_history_from_database(hours=config.HISTORY_HOURS)
+            self.database_handler.print_statistics()
+        
+        self.printer.header("INITIALIZATION COMPLETE")
+    
+    def run_single_tick(self):
+        """Run a single monitoring tick"""
+        tick_result = self.price_monitor.run_tick()
+        
+        if not tick_result['success']:
+            self.printer.error("Tick failed")
+            return
+        
+        tickers = tick_result['tickers']
+        
+        self.grid_display.display_tickers(tickers, title=f"TICK #{tick_result['tick']}")
+        
+        signals = self.trading_strategy.analyze_batch(tickers)
+        
+        if signals:
+            self.trading_strategy.print_signals(signals)
+            self.grid_display.display_signals(signals)
+            
+            orders = self.trade_executor.execute_signals(signals[:5])
+            if orders:
+                self.trade_executor.print_order_history(limit=5)
+        
+        significant_changes = self.price_monitor.detect_significant_changes(
+            threshold=config.ALERT_CHANGE_1MIN_THRESHOLD
+        )
+        
+        if significant_changes:
+            self.printer.warning(f"\n⚠️  {len(significant_changes)} significant price changes detected!")
+            for change in significant_changes[:5]:
+                self.printer.warning(
+                    f"  {change['inst_id']}: {change['change_1min']:+.2f}% (1min)"
+                )
+    
+    def run_continuous(self):
+        """Run continuous monitoring loop"""
+        self.running = True
+        
+        self.printer.header("CONTINUOUS MONITORING STARTED")
+        self.printer.info(f"Fetch interval: {config.FETCH_INTERVAL_MS}ms")
+        self.printer.info("Press Ctrl+C to stop")
+        self.printer.separator()
+        
+        fetch_interval = config.get_fetch_interval_seconds()
+        
+        try:
+            while self.running:
+                start_time = time.time()
+                
+                self.run_single_tick()
+                
+                elapsed = time.time() - start_time
+                sleep_time = max(0, fetch_interval - elapsed)
+                
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                
+        except KeyboardInterrupt:
+            self.printer.warning("\nReceived interrupt signal")
+            self.stop()
+    
+    def stop(self):
+        """Stop the application"""
+        self.running = False
+        
+        self.printer.header("STOPPING APPLICATION")
+        
+        if self.price_monitor:
+            stats = self.price_monitor.get_statistics()
+            self.grid_display.display_statistics(stats, title="Price Monitor Statistics")
+        
+        if self.trading_strategy:
+            stats = self.trading_strategy.get_signal_statistics()
+            self.grid_display.display_statistics(stats, title="Trading Strategy Statistics")
+        
+        if self.trade_executor:
+            stats = self.trade_executor.get_statistics()
+            self.grid_display.display_statistics(stats, title="Trade Executor Statistics")
+        
+        self.printer.success("\nApplication stopped gracefully")
+
+
+app_instance = None
 
 
 def signal_handler(sig, frame):
-    """
-    Handle Ctrl+C signal
-    """
-    global continuous_monitor_instance, web_server_instance
-
-    ColorPrint.yellow("\n[Main] Received interrupt signal (Ctrl+C)")
-
-    if continuous_monitor_instance:
-        continuous_monitor_instance.stop()
-
-    if web_server_instance:
-        ColorPrint.yellow("[Main] Stopping Web server...")
-
-    ColorPrint.green("\n[Main] Application stopped")
+    """Handle Ctrl+C signal"""
+    global app_instance
+    
+    if app_instance:
+        app_instance.stop()
+    
     sys.exit(0)
 
 
 def start():
-    """
-    Start OKX Price Monitor application
-    """
-    global continuous_monitor_instance, web_server_instance
-
+    """Start the OKX Monitor application"""
+    global app_instance
+    
     signal.signal(signal.SIGINT, signal_handler)
-
-    ColorPrint.green("=" * 80)
-    ColorPrint.green("OKX PRICE MONITOR - INTERCEPTED URL MODE")
-    ColorPrint.green("=" * 80)
-
-    # Check RPC server availability before starting
-    ColorPrint.blue("\n[Pre-check] Verifying RPC server availability...")
-    if not check_rpc_server_availability():
-        ColorPrint.yellow("[Pre-check] RPC server is not available")
-        if not wait_for_rpc_server():
-            ColorPrint.red("\n[Fatal] Cannot start without RPC server")
-            ColorPrint.red("Please start the RPC server and try again")
-            sys.exit(1)
-    ColorPrint.green("[Pre-check] RPC server is available")
-
-    # Print configuration
-    config.print_config()
-
-    ColorPrint.blue(f"\n[Step 1] Opening {len(config.BASE_PAGES)} pages to collect URLs...")
-
-    page_ids = []
-    for i, page_url in enumerate(config.BASE_PAGES, 1):
-        ColorPrint.yellow(f"\n[Step 1.{i}] Opening page: {page_url}")
-        open_result = call_rpc_browser_open(page_url)
-
-        page_id = open_result.get('pageId')
-        tab_action = open_result.get('tabAction', 'unknown')
-        page_ids.append(page_id)
-
-        ColorPrint.green(f"  Page ID: {page_id}, Tab Action: {tab_action}")
-
-        ColorPrint.yellow(f"  ⏳ Waiting 5 seconds for URLs to be intercepted...")
-        time.sleep(5)  # Wait for page to load and URLs to be intercepted
-
-        # Check intercepted URLs for this page
-        import uuid
-        request_id = str(uuid.uuid4())[:8]
-        ColorPrint.blue(f"  🔍 [REQ-{request_id}] Querying intercepted URLs for pageId: {page_id}")
-        rpc_url = f"{config.RPC_BASE_URL}/rpc/browser/getInterceptedApiUrls"
-        payload = {'pageId': page_id, 'clearAfterGet': False, 'requestId': request_id}
-
-        try:
-            response = requests.post(rpc_url, json=payload, timeout=30)
-
-            # Debug: Show raw response
-            ColorPrint.yellow(f"  📡 [REQ-{request_id}] HTTP Status: {response.status_code}")
-
-            result = response.json()
-
-            # Debug: Show response structure
-            ColorPrint.yellow(f"  📦 [REQ-{request_id}] RPC Response keys: {list(result.keys())}")
-
-            # RPC framework wraps response in 'result' field
-            if result.get('success') and 'result' in result:
-                actual_data = result.get('result', {})
-                ColorPrint.yellow(f"  📦 [REQ-{request_id}] Actual data keys: {list(actual_data.keys())}")
-                ColorPrint.yellow(f"  📦 [REQ-{request_id}] RPC Response: success={actual_data.get('success')}, count={actual_data.get('count', 'N/A')}, requestId={actual_data.get('requestId', 'N/A')}")
-
-                if actual_data.get('success'):
-                    urls = actual_data.get('urls', [])
-                    ColorPrint.yellow(f"  📦 [REQ-{request_id}] URLs array type: {type(urls)}, length: {len(urls)}")
-                    ColorPrint.blue(f"  ✅ Intercepted {len(urls)} URLs so far:")
-
-                    if len(urls) > 0:
-                        for j, url_obj in enumerate(urls[-3:], 1):  # Show last 3 URLs
-                            url = url_obj.get('url', '')
-                            status = url_obj.get('status', 'N/A')
-                            ColorPrint.yellow(f"    [{j}] Status {status}:")
-                            ColorPrint.yellow(f"        {url}")
-                    else:
-                        ColorPrint.red(f"  ⚠️ URLs array is empty!")
-                else:
-                    ColorPrint.red(f"  ❌ Failed to get intercepted URLs: {actual_data.get('error')}")
-            else:
-                ColorPrint.red(f"  ❌ RPC call failed: {result.get('error', 'Unknown error')}")
-        except Exception as e:
-            ColorPrint.red(f"  ❌ Exception querying URLs: {str(e)}")
-            import traceback
-            ColorPrint.red(traceback.format_exc())
-
-    ColorPrint.green(f"[Step 1] All pages opened successfully")
-    ColorPrint.green(f"  Total pages: {len(page_ids)}")
-
-    # Use the first page ID for subsequent operations
-    page_id = page_ids[0]
-
-    ColorPrint.blue("\n[Step 2] Initializing Coin Provider (Shared)...")
-    coin_provider = CoinProvider(rpc_base_url=config.RPC_BASE_URL)
-
-    ColorPrint.blue("\n[Step 3] Fetching coin list...")
-    coins_info = coin_provider.get_coins_info(page_id)
-    coin_names = coin_provider.get_coin_names(page_id)
-
-    ColorPrint.green(f"[Step 3] Fetched {len(coin_names)} coins")
-    ColorPrint.blue(f"  Sample coins: {', '.join(coin_names[:20])}...")
-
-    # Initialize database system
-    ColorPrint.blue("\n[Step 3.5] Initializing database system...")
-    coin_data_manager = CoinDataManager(
-        database_name=config.DATABASE_NAME,
-        history_hours=config.HISTORY_HOURS
-    )
-
-    if coin_data_manager.initialize(coin_names):
-        ColorPrint.green("[Step 3.5] Database system initialized successfully")
-
-        ColorPrint.blue(f"[Step 3.6] Loading {config.HISTORY_HOURS}h history from database...")
-        coin_data_manager.load_history_for_all()
-        coin_data_manager.print_statistics()
-    else:
-        ColorPrint.yellow("[Step 3.5] Database system initialization skipped")
-        coin_data_manager = None
-
-    ColorPrint.blue("\n[Step 4] Initializing Mode 1: Price Monitor...")
-    mode1 = Mode1PriceMonitor(coin_provider, rpc_base_url=config.RPC_BASE_URL)
-
-    # Use all coins from provider, with batch size from config
-    batch_size = config.get_batch_size(len(coin_names))
-    mode1.set_currencies(coin_names, batch_size=batch_size)
-    ColorPrint.blue(f"  Total currencies: {len(coin_names)}, Batch size: {batch_size}")
-
-    ColorPrint.blue(f"\n[Step 5] Running initial fetch (mode: {config.FETCH_MODE.upper()})...")
-    if config.FETCH_MODE == 'intercepted':
-        price_data = mode1.fetch_from_intercepted_urls(page_id)
-    elif config.FETCH_MODE == 'single_url':
-        price_data = mode1.fetch_all_single_url(page_id)
-    elif config.FETCH_MODE == 'concurrent':
-        price_data = mode1.fetch_all_batches_concurrent(page_id, concurrency=config.CONCURRENCY)
-    else:  # sequential
-        price_data = mode1.fetch_all_batches(page_id)
-
-    if price_data:
-        mode1.print_prices(price_data)
-
-    ColorPrint.blue("\n[Step 6] Initializing Mode 2: Trading System...")
-    mode2 = Mode2Trader(coin_provider, rpc_base_url=config.RPC_BASE_URL)
-    timing_analyzer = TradingTimingAnalyzer()
-
-    mode2.run(page_id)
-
-    ColorPrint.blue("\n[Step 7] Running Trading Timing Analyzer...")
-    analysis_result = timing_analyzer.analyze(price_data)
-
-    ColorPrint.blue("\n[Step 8] Starting Web Server...")
-    web_server_instance = OKXWebServer(coin_data_manager=coin_data_manager)
-
-    # Start web server in background thread
-    web_thread = threading.Thread(
-        target=web_server_instance.start,
-        daemon=True
-    )
-    web_thread.start()
-
-    ColorPrint.green("[Step 8] Web server started on background thread")
-    ColorPrint.blue(f"  Web Interface: http://localhost:{config.WEB_PORT}/")
-    ColorPrint.blue(f"  API Endpoint: http://localhost:{config.WEB_PORT}/rpc/{{route}}")
-
-    # Wait a moment for web server to start
-    time.sleep(2)
-
-    ColorPrint.blue("\n[Step 9] Starting Continuous Monitor...")
-    continuous_monitor_instance = ContinuousMonitor(
-        mode1_monitor=mode1,
-        coin_data_manager=coin_data_manager,
-        fetch_interval=config.FETCH_INTERVAL_MS,
-        max_history=config.MAX_HISTORY,
-        save_to_file=config.SAVE_TO_FILE,
-        fetch_mode=config.FETCH_MODE,
-        concurrency=config.CONCURRENCY
-    )
-
-    continuous_monitor_instance.initialize(page_id)
-    continuous_monitor_instance.start()
-
-    ColorPrint.green("\n" + "=" * 80)
-    ColorPrint.green("OKX PRICE MONITOR RUNNING")
-    ColorPrint.green("=" * 80)
-    ColorPrint.yellow("\nContinuous monitoring active:")
-    ColorPrint.yellow(f"  - Total currencies: {len(coin_names)}")
-    ColorPrint.yellow(f"  - Fetch mode: {config.FETCH_MODE.upper()}")
-
-    if config.FETCH_MODE == 'intercepted':
-        ColorPrint.yellow(f"  - Using intercepted URLs from {len(config.BASE_PAGES)} pages")
-        ColorPrint.yellow("  - All currencies merged in single request")
-    elif config.FETCH_MODE == 'single_url':
-        ColorPrint.yellow("  - All currencies in single URL request")
-    elif config.FETCH_MODE == 'concurrent':
-        total_batches = (len(coin_names) + batch_size - 1) // batch_size
-        ColorPrint.yellow(f"  - Batch size: {batch_size} ({total_batches} batches per tick)")
-        ColorPrint.yellow(f"  - Concurrency: {config.CONCURRENCY}")
-    else:  # sequential
-        total_batches = (len(coin_names) + batch_size - 1) // batch_size
-        ColorPrint.yellow(f"  - Batch size: {batch_size} ({total_batches} batches per tick)")
-
-    ColorPrint.yellow(f"  - Tick interval: {config.FETCH_INTERVAL_MS}ms")
-    ColorPrint.yellow(f"  - Saving data: {config.SAVE_TO_FILE}")
-    ColorPrint.yellow("  - Press Ctrl+C to stop")
-    ColorPrint.green("=" * 80)
-
-    try:
-        while True:
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-        signal_handler(None, None)
+    
+    app_instance = OKXMonitorApp()
+    app_instance.initialize()
+    
+    app_instance.run_continuous()
 
 
 def main():
-    """
-    Main entry point (fallback)
-    """
+    """Main entry point"""
     start()
 
 
 if __name__ == '__main__':
     start()
+
