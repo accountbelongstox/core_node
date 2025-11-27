@@ -12,7 +12,7 @@ import webbrowser
 from pathlib import Path
 from typing import Dict, Any
 
-from flask import Flask, render_template_string, jsonify, request, send_file, Response
+from third_party import Flask, render_template_string, jsonify, request, send_file, Response
 from utils.source_scanner import SourceScanner
 
 class SourceViewerServer:

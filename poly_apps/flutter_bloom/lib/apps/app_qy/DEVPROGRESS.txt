@@ -1,0 +1,401 @@
+APP_QY DEVELOPMENT PROGRESS
+============================
+
+Backend API: http://192.168.50.2:9000
+Backend Module: AppQyV1 (Laravel)
+
+=== ANALYSIS RESULTS ===
+
+ISSUES FOUND:
+1. [CRITICAL] API baseUrl hardcoded to example.com instead of 192.168.50.2:9000
+2. [CRITICAL] API service uses wrong import path ../../../common/network/network_framework.dart
+3. [HIGH] Theme not using glassmorphism/frosted glass effects as required
+4. [HIGH] No bento-box layout implementation
+5. [HIGH] Data definitions scattered across files (not centralized)
+6. [MEDIUM] Routes reference non-existent routes (routeNotifications, routeSearch, etc)
+7. [MEDIUM] theme_extensions_app_qy.dart incorrectly imports app_example resources
+8. [MEDIUM] home_screen.dart references non-existent routes (routeUrgentFundraising, etc)
+9. [LOW] Storage not using global storagev2 system properly
+
+=== REFACTORING PLAN ===
+
+PHASE 1: Core Infrastructure
+- [x] Create DEVPROGRESS.txt
+- [ ] Fix api_config_app_qy.dart - set correct baseUrl
+- [ ] Fix api_endpoints_app_qy.dart - define AppQyV1 endpoints
+- [ ] Fix api_service_app_qy.dart - correct imports
+
+PHASE 2: Theme System
+- [ ] Create colors_app_qy.dart with glassmorphism palette
+- [ ] Update theme_extensions_app_qy.dart - remove example imports
+- [ ] Add frosted glass, holographic white, blur effects
+
+PHASE 3: Data Centralization
+- [ ] Create vocabulary models in models_app_qy/
+- [ ] Create user learning progress model
+- [ ] Create word group model
+
+PHASE 4: API Integration (AppQyV1)
+- [ ] Implement user sync service
+- [ ] Implement vocabulary library service
+- [ ] Implement learning progress service
+- [ ] Implement TTS service integration
+
+PHASE 5: UI Refactoring
+- [ ] Refactor home screen with bento-box layout
+- [ ] Use common widgets from lib/common/widgets/
+- [ ] Apply glassmorphism theme
+
+PHASE 6: Routes Cleanup
+- [ ] Remove non-existent route references
+- [ ] Fix home_screen.dart route pushes
+
+=== PROGRESS LOG ===
+
+[2025-11-27] Initial analysis completed
+- Identified 9 major issues
+- Created refactoring plan
+- Starting Phase 1
+
+[2025-11-27] Phase 1 completed
+- Fixed api_config_app_qy.dart - baseUrl set to 192.168.50.2:9000
+- Created api_endpoints_app_qy.dart with AppQyV1 endpoints
+- Rewrote api_service_app_qy.dart with correct imports and Dio integration
+
+[2025-11-27] Phase 2 completed
+- Created colors_app_qy.dart with glassmorphism palette
+- Rewrote theme_extensions_app_qy.dart with frosted glass effects
+- Added holographic white, blur backgrounds, dynamic shimmer gradients
+
+[2025-11-27] Phase 3 completed
+- Created vocabulary_models_app_qy.dart (centralized data models)
+  - VocabularyCollectionModel
+  - WordCardModel
+  - TtsFileModel
+  - LearningStatsModel
+  - SupportedLanguageModel
+
+[2025-11-27] Phase 4 in progress
+- Created vocabulary_service_app_qy.dart for backend integration
+- Created learning_controller_app_qy.dart for state management
+
+[2025-11-27] Phase 5 completed
+- Created home_study_screen_refactored_app_qy.dart with bento-box layout
+- Used glassmorphism theme and frosted glass effects
+- Fixed all route references to use existing routes only
+
+[2025-11-27] Phase 6 completed
+- Updated storage_app_qy.dart with vocabulary-specific methods
+- Added AppQyV1 integration keys
+- Added TTS caching support
+- Added offline sync support
+
+=== FILES CREATED/MODIFIED ===
+
+Created/Rewritten:
+- config_app_qy/api_config_app_qy.dart (rewritten - fixed baseUrl to 192.168.50.2:9000)
+- config_app_qy/api_endpoints_app_qy.dart (new - AppQyV1 endpoints)
+- config_app_qy/storage_app_qy.dart (updated - vocabulary storage methods)
+- services_app_qy/api_service_app_qy.dart (rewritten - Dio integration)
+- services_app_qy/vocabulary_service_app_qy.dart (new - vocabulary service)
+- resources_app_qy/colors_app_qy.dart (new - glassmorphism palette)
+- resources_app_qy/theme_extensions_app_qy.dart (rewritten - frosted glass effects)
+- models_app_qy/vocabulary_models_app_qy.dart (new - centralized models)
+- controller_app_qy/learning_controller_app_qy.dart (new - learning state)
+- features_app_qy/home/views/home_study_screen_refactored_app_qy.dart (new - bento layout)
+- main_app_qy.dart (updated - new providers)
+- DEVPROGRESS.txt (this file)
+
+[2025-11-27] Login Implementation Phase
+- Created backend supported languages endpoint (AppQyV1SupportedLanguagesController)
+  - Hardcoded 75+ languages aligned with edge-tts
+  - Endpoints: /api/dict/v1/system/supported-languages
+- Extended UserModelAppQy with all required fields from FLUTTER端单词记忆.txt
+  - Learning languages, native language
+  - Learning stats (total_words, learned_words, mastered_words, etc.)
+  - Progress tracking, streak days, badges, VIP status
+- Created AuthServiceAppQy for login/logout/verification
+  - Supports username/password, phone/verification code, user token login
+  - Token management and storage
+  - User data synchronization
+- Created AuthControllerAppQy for state management
+- Updated backend login response to include learning data
+  - Added learning_languages, native_language
+  - Added learning_stats with comprehensive stats
+  - Added top-level stats fields for compatibility
+- Fixed API endpoints to use correct paths (/api/dict/v1/*)
+- Integrated AuthController into main_app_qy.dart providers
+
+=== FILES CREATED/MODIFIED (Login Phase) ===
+
+Backend:
+- app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1System/AppQyV1SupportedLanguagesController.php (new)
+- app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1UserAuth/AppQyV1AuthenticationLoginController.php (updated)
+- routes/AppQyV1Router/AppQyV1System.php (updated - added language routes)
+
+Frontend:
+- models_app_qy/user_model_app_qy.dart (rewritten - extended with all fields)
+- services_app_qy/auth_service_app_qy.dart (new)
+- controller_app_qy/auth_controller_app_qy.dart (new)
+- config_app_qy/api_endpoints_app_qy.dart (updated - fixed paths)
+- services_app_qy/api_service_app_qy.dart (updated - added language methods)
+- main_app_qy.dart (updated - added auth providers)
+
+[2025-11-28] Login UI Implementation Completed
+- Created login_screen_refactored_app_qy.dart with glassmorphism design
+  - Supports username/password login
+  - Supports phone/verification code login
+  - Uses AuthServiceAppQy from services_app_qy
+  - Implements frosted glass effect and dynamic shimmer gradient
+  - Terms and privacy policy agreement checkbox
+  - Login mode switching (username vs phone)
+  - Countdown timer for verification code resend
+  - Error handling with snackbar notifications
+  - Navigation to language selection after successful login
+
+- Created language_selection_screen_app_qy.dart with glassmorphism design
+  - Fetches supported languages from backend (75+ languages)
+  - Multiple selection for learning languages
+  - Single selection for native language
+  - Frosted glass card design with icons
+  - Shows language names in both English and native script
+  - TTS availability indicator
+  - Saves language preferences to backend via API
+  - Refreshes user data after saving
+  - Navigation to home screen after completion
+
+=== FILES CREATED/MODIFIED (Login UI Phase) ===
+
+Frontend:
+- features_app_qy/auth/views/login_screen_refactored_app_qy.dart (new)
+- features_app_qy/auth/views/language_selection_screen_app_qy.dart (new)
+
+=== DATA FORMAT ALIGNMENT VERIFIED ===
+
+Backend → Frontend alignment confirmed:
+✅ Login endpoint returns user data with learning_languages, native_language, learning_stats
+✅ UserModelAppQy.fromJson() correctly parses all backend fields
+✅ Supported languages endpoint returns 75+ languages with voice IDs
+✅ SupportedLanguageModel.fromJson() correctly parses language data
+✅ AuthServiceAppQy handles token storage and user data synchronization
+✅ API routes configured correctly (/api/dict/v1/login, /api/dict/v1/system/supported-languages)
+
+[2025-11-28] Settings System Implementation Completed
+- Created comprehensive settings data model (settings_model_app_qy.dart)
+  - LanguageVoiceSettings: 15 settings for language/TTS/pronunciation
+  - LearningSettings: 18 settings for daily goals/review/difficulty
+  - DisplaySettings: 24 settings for theme/fonts/layout/animations
+  - NotificationSettings: 13 settings for reminders/do-not-disturb
+  - DataStorageSettings: 7 settings for sync/backup/cache
+  - Total: 77+ granular settings aligned with requirements doc
+
+- Created SettingsServiceAppQy for persistence
+  - Integration with StorageAppQy (global storage)
+  - CRUD operations for all settings categories
+  - Import/export functionality
+  - Reset to defaults
+  - Cache management
+
+- Created SettingsControllerRefactoredAppQy
+  - Provider-based state management
+  - Separate update methods for each setting type
+  - Convenience methods for common toggles
+  - Error handling with loading states
+  - Reactive updates with ChangeNotifier
+
+- Created SettingsScreenRefactoredAppQy
+  - Glassmorphism design with frosted glass effects
+  - Bento-box layout (2x2 grid) for main categories
+  - User profile section with avatar
+  - Quick toggles section for common settings
+  - Data & storage management section
+  - About & logout section
+  - Dynamic shimmer background gradient
+  - Responsive and scrollable layout
+
+- Created SETTINGS_IMPLEMENTATION.txt
+  - Comprehensive documentation of all 77+ settings
+  - Architecture overview
+  - UI/UX features documentation
+  - Integration points
+  - Code quality notes
+  - Testing checklist
+  - Developer usage guide
+
+=== FILES CREATED/MODIFIED (Settings Phase) ===
+
+Frontend:
+- models_app_qy/settings_model_app_qy.dart (new - 77+ settings)
+- services_app_qy/settings_service_app_qy.dart (new)
+- controller_app_qy/settings_controller_refactored_app_qy.dart (new)
+- features_app_qy/settings/views/settings_screen_refactored_app_qy.dart (new)
+- SETTINGS_IMPLEMENTATION.txt (new - detailed documentation)
+
+=== SETTINGS ARCHITECTURE ===
+
+Data Flow:
+1. UI (Settings Screen) → Controller → Service → Storage
+2. Storage changes trigger ChangeNotifier updates
+3. UI reactively updates via Provider/Consumer
+
+Categories Implemented:
+✅ Language & Voice (15 settings)
+✅ Learning (18 settings)
+✅ Display (24 settings)
+✅ Notifications (13 settings)
+✅ Data & Storage (7 settings)
+
+Total: 77+ settings fully typed and documented
+
+Design Principles Applied:
+✅ Single source of truth (no data duplication)
+✅ Centralized state management
+✅ Global storage integration
+✅ Glassmorphism UI theme
+✅ Bento-box layout
+✅ Modular architecture
+✅ Type safety
+
+[2025-11-28] Settings-Login Integration & Vocabulary System Completed
+- Created SettingsScreenV2RefactoredAppQy with login state awareness
+  - Differentiates between logged-in and non-logged-in user sections
+  - Login prompt section for non-authenticated users
+  - "My Account" section visible only when logged in
+  - Learning languages management option (navigates to language selection)
+  - App language switching with immediate rebuild via FlutterLocalization
+  - General Settings bento-box (4 cards): Languages, Learning, Display, Notifications
+  - Quick toggles for common settings
+  - Data & Storage section with cache management
+  - About section with version info and logout (only when logged in)
+  - Glassmorphism design with frosted glass sections
+
+- Created LearningLanguagesScreenAppQy
+  - Multi-select learning languages with checkbox UI
+  - Single-select native language with radio button UI
+  - Syncs selections to backend via setUserLanguages API
+  - Refreshes user data after successful save
+  - Routes to vocabulary collections screen after save
+  - Frosted glass sections with gradient icon badges
+  - Shows language native names and TTS availability
+  - Prevents saving without selecting at least one learning language
+
+- Implemented Backend Vocabulary Recommendation API
+  - Created AppQyV1VocabularyRecommendationController.php
+  - 40+ predefined vocabulary collections across 6 languages
+    - English, Japanese, Korean, French, German, Spanish
+  - 6 categories: exam, business, daily, travel, technical, academic
+  - 3 difficulty levels: beginner (1-2), intermediate (3-4), advanced (5)
+  - Features:
+    - Filter by level, category, language
+    - Popularity tags (10+ collections marked popular)
+    - Difficulty calculation (1-5 scale)
+    - Estimated study days calculation
+    - Per-user selection tracking
+    - Select/deselect collections
+    - Get selected collections list
+  - Routes added to AppQyV1Learning.php:
+    - GET /api/dict/v1/learning/recommendations
+    - POST /api/dict/v1/learning/collections/select
+    - GET /api/dict/v1/learning/collections/selected
+
+- Created Frontend Vocabulary System
+  - VocabularyRecommendationModel added to vocabulary_models_app_qy.dart
+    - Properties: id, name, langCode, totalWords, level, category, isSelected, isPopular, difficulty, estimatedDays
+    - Helper methods: categoryDisplay, difficultyDisplay
+  - VocabularyRecommendationServiceAppQy (new service)
+    - getRecommendations(): fetch recommendations with filters
+    - selectCollection(): toggle collection selection
+    - getSelectedCollections(): get user's selected collections
+    - filterRecommendations(): client-side filtering
+    - sortRecommendations(): multiple sort options (popular, difficulty, words, time)
+  - API endpoints added to api_endpoints_app_qy.dart
+
+- Created VocabularyCollectionsScreenAppQy
+  - Loads recommendations based on user's learning languages
+  - Filter chips UI: All, Exam, Daily, Business, Popular
+  - Sort dropdown: Popular, Difficulty (Low/High), Words (Few/Many), Time (Short/Long)
+  - Beautiful collection cards with:
+    - Category-specific gradient colors
+    - Language code badge
+    - Category icon badge (book/briefcase/home/flight/code/school)
+    - Popularity star badge
+    - Word count, difficulty level, estimated days display
+    - Selection toggle with immediate backend sync
+  - Glassmorphism design with frosted glass cards
+  - Dynamic shimmer background gradient
+  - Empty state message when no collections match filters
+  - Pull-to-refresh support
+  - Responsive grid layout
+
+- Implemented Locale Switching with Immediate Rebuild
+  - Updated SettingsControllerRefactoredAppQy
+    - Added FlutterLocalization instance
+    - updateAppLanguage() now calls _localization.translate()
+  - Removed incorrect LocalizationManager usage from settings screen
+  - Locale change flow:
+    1. User selects language in settings dialog
+    2. Controller saves setting and calls FlutterLocalization.translate()
+    3. FlutterLocalization triggers _onTranslatedLanguage callback
+    4. Callback triggers setState() in _FlutterBloomMainAppState
+    5. Entire MaterialApp rebuilds immediately
+    6. All screens show new language instantly
+
+=== FILES CREATED/MODIFIED (Settings-Login Integration Phase) ===
+
+Backend:
+- app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Learning/AppQyV1VocabularyRecommendationController.php (new)
+- routes/AppQyV1Router/AppQyV1Learning.php (updated - added recommendation routes)
+
+Frontend:
+- features_app_qy/settings/views/settings_screen_v2_refactored_app_qy.dart (new)
+- features_app_qy/learning/views/learning_languages_screen_app_qy.dart (new)
+- features_app_qy/learning/views/vocabulary_collections_screen_app_qy.dart (new)
+- models_app_qy/vocabulary_models_app_qy.dart (updated - added VocabularyRecommendationModel)
+- services_app_qy/vocabulary_recommendation_service_app_qy.dart (new)
+- controller_app_qy/settings_controller_refactored_app_qy.dart (updated - locale switching)
+- config_app_qy/api_endpoints_app_qy.dart (updated - vocabulary endpoints)
+
+=== INTEGRATION FLOW COMPLETED ===
+
+Complete User Journey:
+1. Settings → "Learning Languages" option (logged-in users only)
+2. Learning Languages Screen → Select multiple learning languages + native language → Save
+3. Backend updates user languages
+4. Redirect to Vocabulary Collections Screen
+5. Collections Screen → Displays recommendations based on selected languages
+6. User filters/sorts and selects desired collections
+7. Selections sync to backend immediately
+8. App language changes trigger immediate full app rebuild
+
+Design Patterns Applied:
+✅ Settings differentiate logged-in vs non-logged-in states
+✅ Language changes trigger immediate locale rebuild
+✅ Multi-language vocabulary support (extensible to 75+ languages)
+✅ Glassmorphism UI throughout
+✅ Bento-box layouts where applicable
+✅ Frosted glass effects and dynamic shimmer
+✅ Centralized state management with Provider
+✅ Global storage integration
+✅ Type-safe models with copyWith methods
+✅ Service layer for API communication
+✅ Immediate UI feedback on all changes
+
+=== REMAINING TODO ===
+
+Settings Sub-Screens:
+1. Language/Voice settings detail screen
+2. Learning settings detail screen
+3. Display settings detail screen
+4. Notification settings detail screen
+5. Data/Storage settings detail screen
+
+Other Features:
+6. Add routes for login, language selection, settings, learning languages, vocabulary collections screens
+7. Add settings localization keys (Chinese/English)
+8. Backend API for user settings sync
+9. Word flashcard screen with new design
+10. Offline sync functionality
+11. TTS playback with cached audio
+12. End-to-end testing of complete flow
+
+

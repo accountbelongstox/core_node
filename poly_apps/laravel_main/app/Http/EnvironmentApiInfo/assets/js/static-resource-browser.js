@@ -8,13 +8,194 @@ const StaticResourceBrowser = {
     folderContents: {},
     CHUNK_SIZE: 5 * 1024 * 1024,
     activeUploads: new Map(),
+    
+    // Video player state
+    videoPlayer: null,
+    videoPlaylist: [],
+    currentVideoIndex: -1,
+    isFileListExpanded: false,
+    isPlaylistExpanded: false,
+    videoNavTimeout: null,
 
     async init() {
         console.log('[StaticResourceBrowser] Initializing...');
         this.loadExpandedState();
+        this.loadVideoSettings();
         await this.loadFileList();
         await this.loadExpandedFolders();
         this.setupEventListeners();
+        this.setupVideoHoverEvents();
+    },
+    
+    // Load video settings from localStorage
+    loadVideoSettings() {
+        const skipIntro = localStorage.getItem('video-skip-intro');
+        const autoPlayNext = localStorage.getItem('video-auto-play-next');
+        
+        if (skipIntro !== null) {
+            const skipInput = document.getElementById('video-skip-intro');
+            if (skipInput) skipInput.value = skipIntro;
+        }
+        if (autoPlayNext !== null) {
+            const autoPlayCheckbox = document.getElementById('video-auto-play-next');
+            if (autoPlayCheckbox) autoPlayCheckbox.checked = autoPlayNext === 'true';
+        }
+    },
+    
+    // Save video settings to localStorage
+    saveVideoSettings() {
+        const skipInput = document.getElementById('video-skip-intro');
+        const autoPlayCheckbox = document.getElementById('video-auto-play-next');
+        
+        if (skipInput) localStorage.setItem('video-skip-intro', skipInput.value);
+        if (autoPlayCheckbox) localStorage.setItem('video-auto-play-next', autoPlayCheckbox.checked);
+    },
+    
+    // Setup hover events for showing video controls
+    setupVideoHoverEvents() {
+        const container = document.getElementById('preview-container');
+        if (container) {
+            container.addEventListener('mousemove', () => this.showVideoNav());
+            container.addEventListener('touchstart', () => this.showVideoNav());
+        }
+    },
+    
+    // Show floating video navigation
+    showVideoNav() {
+        const leftNav = document.getElementById('video-nav-left');
+        const rightNav = document.getElementById('video-nav-right');
+        const settingsBar = document.getElementById('video-settings-bar');
+        
+        if (leftNav) leftNav.classList.add('visible');
+        if (rightNav) rightNav.classList.add('visible');
+        if (settingsBar && settingsBar.classList.contains('floating')) {
+            settingsBar.classList.add('visible');
+        }
+        
+        clearTimeout(this.videoNavTimeout);
+        this.videoNavTimeout = setTimeout(() => this.hideVideoNav(), 3000);
+    },
+    
+    // Hide floating video navigation
+    hideVideoNav() {
+        const leftNav = document.getElementById('video-nav-left');
+        const rightNav = document.getElementById('video-nav-right');
+        const settingsBar = document.getElementById('video-settings-bar');
+        
+        if (leftNav) leftNav.classList.remove('visible');
+        if (rightNav) rightNav.classList.remove('visible');
+        if (settingsBar && settingsBar.classList.contains('floating')) {
+            settingsBar.classList.remove('visible');
+        }
+    },
+    
+    // Toggle file list (slide from left on mobile)
+    toggleFileList() {
+        const panel = document.getElementById('static-file-list-panel');
+        const overlay = document.getElementById('file-list-overlay');
+        const toggleBtn = document.getElementById('mobile-file-list-toggle');
+        
+        if (panel) {
+            this.isFileListExpanded = !this.isFileListExpanded;
+            panel.classList.toggle('expanded', this.isFileListExpanded);
+            
+            if (overlay) {
+                overlay.classList.toggle('active', this.isFileListExpanded);
+            }
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('hidden', this.isFileListExpanded);
+            }
+        }
+    },
+    
+    // Close file list (for mobile)
+    closeFileList() {
+        if (window.innerWidth <= 768 && this.isFileListExpanded) {
+            this.toggleFileList();
+        }
+    },
+    
+    // Toggle playlist panel
+    togglePlaylist() {
+        const panel = document.getElementById('video-playlist-panel');
+        if (panel) {
+            this.isPlaylistExpanded = !this.isPlaylistExpanded;
+            panel.classList.toggle('expanded', this.isPlaylistExpanded);
+        }
+    },
+    
+    // Smart sort function for files
+    smartSort(items) {
+        const chineseNumbers = {
+            '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+            '十': 10, '十一': 11, '十二': 12, '十三': 13, '十四': 14, '十五': 15, '十六': 16, '十七': 17, '十八': 18, '十九': 19,
+            '二十': 20, '二十一': 21, '二十二': 22, '二十三': 23, '二十四': 24, '二十五': 25, '二十六': 26, '二十七': 27, '二十八': 28, '二十九': 29,
+            '三十': 30, '三十一': 31, '三十二': 32, '三十三': 33, '三十四': 34, '三十五': 35, '三十六': 36, '三十七': 37, '三十八': 38, '三十九': 39,
+            '四十': 40, '五十': 50, '六十': 60, '七十': 70, '八十': 80, '九十': 90, '一百': 100
+        };
+        
+        const extractNumber = (name) => {
+            // Try various patterns to extract number
+            const patterns = [
+                // Pattern: 第X课, 第X章, 第X集
+                /第([零一二三四五六七八九十百千]+)[课章集节篇]/,
+                /第(\d+)[课章集节篇]/,
+                // Pattern: (1), [1], 【1】, @1, ＠1
+                /[\(（\[【@＠](\d+)[\)）\]】]?/,
+                // Pattern: 1. or 1、or 1_ or 1-
+                /^(\d+)[\.、_\-\s]/,
+                // Pattern: starts with number
+                /^(\d+)/,
+                // Chinese numbers at start
+                /^([零一二三四五六七八九十百千]+)[、\.]/,
+                // Pattern: Lesson 1, Episode 1, etc.
+                /(?:lesson|episode|chapter|part|ep|ch)\s*(\d+)/i,
+            ];
+            
+            for (const pattern of patterns) {
+                const match = name.match(pattern);
+                if (match) {
+                    const numStr = match[1];
+                    // Check if it's a Chinese number
+                    if (chineseNumbers.hasOwnProperty(numStr)) {
+                        return chineseNumbers[numStr];
+                    }
+                    // Check for compound Chinese numbers like 二十一
+                    for (const [cn, num] of Object.entries(chineseNumbers)) {
+                        if (numStr === cn) {
+                            return num;
+                        }
+                    }
+                    // Try parsing as integer
+                    const num = parseInt(numStr, 10);
+                    if (!isNaN(num)) {
+                        return num;
+                    }
+                }
+            }
+            return Infinity; // No number found, sort to end
+        };
+        
+        return [...items].sort((a, b) => {
+            // Folders first
+            if (a.type === 'directory' && b.type !== 'directory') return -1;
+            if (a.type !== 'directory' && b.type === 'directory') return 1;
+            
+            const numA = extractNumber(a.name);
+            const numB = extractNumber(b.name);
+            
+            // If both have numbers, sort by number
+            if (numA !== Infinity && numB !== Infinity) {
+                if (numA !== numB) return numA - numB;
+            }
+            
+            // If only one has a number, it comes first
+            if (numA !== Infinity && numB === Infinity) return -1;
+            if (numA === Infinity && numB !== Infinity) return 1;
+            
+            // Fallback to alphabetical
+            return a.name.localeCompare(b.name, 'zh-CN', { numeric: true });
+        });
     },
 
     async loadExpandedFolders() {
@@ -177,8 +358,11 @@ const StaticResourceBrowser = {
     renderItems(items, depth) {
         let html = '';
         const indent = depth * 20;
+        
+        // Apply smart sorting
+        const sortedItems = this.smartSort(items);
 
-        items.forEach(item => {
+        sortedItems.forEach(item => {
             if (item.type === 'directory') {
                 const isExpanded = this.expandedFolders.has(item.path);
                 const arrow = isExpanded ? '▼' : '▶';
@@ -349,9 +533,18 @@ const StaticResourceBrowser = {
         const container = document.getElementById('preview-container');
         const fileName = document.getElementById('preview-file-name');
         const fileInfo = document.getElementById('preview-file-info');
+        const settingsBar = document.getElementById('video-settings-bar');
+        const playlistPanel = document.getElementById('video-playlist-panel');
 
         fileName.textContent = path.split('/').pop();
         fileInfo.textContent = 'Loading...';
+        
+        // Dispose previous video player if exists
+        this.disposeVideoPlayer();
+        
+        // Hide video controls by default
+        if (settingsBar) settingsBar.style.display = 'none';
+        if (playlistPanel) playlistPanel.style.display = 'none';
 
         try {
             const response = await fetch(`/static-resources/read-file?path=${encodeURIComponent(path)}`);
@@ -371,12 +564,8 @@ const StaticResourceBrowser = {
                          alt="${data.path}">
                 `;
             } else if (mimeType.startsWith('video/')) {
-                container.innerHTML = `
-                    <video controls style="max-width: 100%; max-height: 100%;">
-                        <source src="/static-resources/stream-file?path=${encodeURIComponent(path)}" type="${mimeType}">
-                        Your browser does not support the video tag.
-                    </video>
-                `;
+                // Use Video.js for video playback
+                this.setupVideoPlayer(path, mimeType, data);
             } else if (mimeType.startsWith('audio/')) {
                 container.innerHTML = `
                     <div style="text-align: center; width: 100%;">
@@ -389,25 +578,275 @@ const StaticResourceBrowser = {
                 `;
             } else if (data.isText && data.content) {
                 container.innerHTML = `
-                    <textarea readonly style="width: 100%; height: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #333; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; resize: none; tab-size: 4;">${data.content}</textarea>
+                    <textarea readonly style="width: 100%; height: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #333; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; resize: none; tab-size: 4;">${this.escapeHtml(data.content)}</textarea>
                 `;
             } else {
                 container.innerHTML = `
-                    <div style="text-align: center; color: #888;">
-                        <p style="font-size: 48px; margin-bottom: 20px;">${this.getFileIcon(mimeType, data.extension)}</p>
-                        <p style="font-size: 16px; margin-bottom: 10px;">${data.path.split('/').pop()}</p>
-                        <p style="font-size: 13px; color: #666;">${data.mimeType}</p>
-                        <p style="font-size: 13px; color: #666; margin-top: 10px;">${this.formatFileSize(data.size)}</p>
+                    <div class="static-preview-empty">
+                        <div class="static-preview-empty-icon">${this.getFileIcon(mimeType, data.extension)}</div>
+                        <p class="static-preview-empty-text">${data.path.split('/').pop()}</p>
+                        <p class="static-preview-empty-hint">${data.mimeType} | ${this.formatFileSize(data.size)}</p>
                         <button onclick="window.open('/static-resources/stream-file?path=${encodeURIComponent(path)}', '_blank')"
-                                style="margin-top: 20px; padding: 10px 20px; background: #0e639c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                class="video-nav-btn" style="margin-top: 20px;">
                             Download / Open
                         </button>
                     </div>
                 `;
             }
+            
+            // Close file list on mobile after selecting a file
+            this.closeFileList();
         } catch (error) {
             console.error('[StaticResourceBrowser] Preview error:', error);
             container.innerHTML = `<div style="color: #dc3545; text-align: center;">Failed to load file</div>`;
+        }
+    },
+    
+    // Escape HTML to prevent XSS
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+    
+    // Setup Video.js player
+    setupVideoPlayer(path, mimeType, data) {
+        const container = document.getElementById('preview-container');
+        const settingsBar = document.getElementById('video-settings-bar');
+        const playlistPanel = document.getElementById('video-playlist-panel');
+        
+        // Build video playlist from current folder
+        this.buildVideoPlaylist(path);
+        
+        // Create video element with floating nav buttons
+        const navLeftHtml = document.getElementById('video-nav-left') ? '' : `
+            <div id="video-nav-left" class="video-nav-floating left">
+                <button class="video-nav-btn large" id="video-prev-btn-float" onclick="StaticResourceBrowser.playPrevVideo()" disabled>⏮</button>
+            </div>
+        `;
+        const navRightHtml = document.getElementById('video-nav-right') ? '' : `
+            <div id="video-nav-right" class="video-nav-floating right">
+                <button class="video-nav-btn large" id="video-next-btn-float" onclick="StaticResourceBrowser.playNextVideo()" disabled>⏭</button>
+            </div>
+        `;
+        
+        container.innerHTML = `
+            ${navLeftHtml}
+            ${navRightHtml}
+            <div class="video-js-wrapper">
+                <video id="static-video-player" class="video-js vjs-big-play-centered vjs-fluid"
+                       controls preload="auto" playsinline>
+                    <source src="/static-resources/stream-file?path=${encodeURIComponent(path)}" type="${mimeType}">
+                    <p class="vjs-no-js">Please enable JavaScript to view this video.</p>
+                </video>
+            </div>
+        `;
+        
+        // Initialize Video.js
+        if (typeof videojs !== 'undefined') {
+            this.videoPlayer = videojs('static-video-player', {
+                controls: true,
+                autoplay: false,
+                preload: 'auto',
+                fluid: true,
+                responsive: true,
+                playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
+                controlBar: {
+                    children: [
+                        'playToggle',
+                        'volumePanel',
+                        'currentTimeDisplay',
+                        'timeDivider',
+                        'durationDisplay',
+                        'progressControl',
+                        'playbackRateMenuButton',
+                        'fullscreenToggle'
+                    ]
+                }
+            });
+            
+            // Apply skip intro when video loads
+            this.videoPlayer.on('loadedmetadata', () => {
+                this.applySkipIntro();
+            });
+            
+            // Handle video ended - auto play next
+            this.videoPlayer.on('ended', () => {
+                const autoPlayCheckbox = document.getElementById('video-auto-play-next');
+                if (autoPlayCheckbox && autoPlayCheckbox.checked) {
+                    this.playNextVideo();
+                }
+            });
+            
+            // Handle fullscreen change
+            this.videoPlayer.on('fullscreenchange', () => {
+                this.handleFullscreenChange();
+            });
+            
+            // Save settings when changed
+            const skipInput = document.getElementById('video-skip-intro');
+            const autoPlayCheckbox = document.getElementById('video-auto-play-next');
+            
+            if (skipInput) {
+                skipInput.removeEventListener('change', this.saveVideoSettings);
+                skipInput.addEventListener('change', () => this.saveVideoSettings());
+            }
+            if (autoPlayCheckbox) {
+                autoPlayCheckbox.removeEventListener('change', this.saveVideoSettings);
+                autoPlayCheckbox.addEventListener('change', () => this.saveVideoSettings());
+            }
+        } else {
+            // Fallback to native video
+            container.innerHTML = `
+                <video controls style="max-width: 100%; max-height: 100%;">
+                    <source src="/static-resources/stream-file?path=${encodeURIComponent(path)}" type="${mimeType}">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+        }
+        
+        // Show video settings bar
+        if (settingsBar) {
+            settingsBar.style.display = 'flex';
+        }
+        
+        // Update playlist count badge
+        const countBadge = document.getElementById('playlist-count-badge');
+        if (countBadge) {
+            countBadge.textContent = this.videoPlaylist.length;
+        }
+        
+        // Render playlist (collapsed by default)
+        this.renderVideoPlaylist();
+        
+        this.updateVideoNavButtons();
+        
+        // Show nav on initial load
+        this.showVideoNav();
+    },
+    
+    // Handle fullscreen change
+    handleFullscreenChange() {
+        const isFullscreen = this.videoPlayer && this.videoPlayer.isFullscreen();
+        const settingsBar = document.getElementById('video-settings-bar');
+        
+        if (isFullscreen) {
+            // In fullscreen, make settings bar floating
+            if (settingsBar) {
+                settingsBar.classList.add('floating');
+            }
+        } else {
+            // Exit fullscreen on mobile, keep floating
+            if (window.innerWidth > 768 && settingsBar) {
+                settingsBar.classList.remove('floating');
+            }
+        }
+    },
+    
+    // Dispose video player
+    disposeVideoPlayer() {
+        if (this.videoPlayer) {
+            try {
+                this.videoPlayer.dispose();
+            } catch (e) {
+                console.log('[StaticResourceBrowser] Video player dispose:', e);
+            }
+            this.videoPlayer = null;
+        }
+    },
+    
+    // Apply skip intro setting
+    applySkipIntro() {
+        const skipInput = document.getElementById('video-skip-intro');
+        if (skipInput && this.videoPlayer) {
+            const skipSeconds = parseInt(skipInput.value) || 0;
+            if (skipSeconds > 0) {
+                this.videoPlayer.currentTime(skipSeconds);
+            }
+        }
+    },
+    
+    // Build video playlist from current folder
+    buildVideoPlaylist(currentPath) {
+        const folderPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        const items = this.folderContents[folderPath] || this.folderContents[''] || [];
+        
+        // Filter videos and apply smart sorting
+        const videos = items.filter(item => 
+            item.type === 'file' && item.mimeType && item.mimeType.startsWith('video/')
+        );
+        this.videoPlaylist = this.smartSort(videos);
+        
+        this.currentVideoIndex = this.videoPlaylist.findIndex(item => item.path === currentPath);
+    },
+    
+    // Render video playlist
+    renderVideoPlaylist() {
+        const playlistContainer = document.getElementById('video-playlist');
+        const countSpan = document.getElementById('video-playlist-count');
+        
+        if (!playlistContainer) return;
+        
+        if (countSpan) {
+            countSpan.textContent = `${this.currentVideoIndex + 1} / ${this.videoPlaylist.length}`;
+        }
+        
+        playlistContainer.innerHTML = this.videoPlaylist.map((item, index) => `
+            <div class="video-playlist-item ${index === this.currentVideoIndex ? 'active' : ''}"
+                 onclick="StaticResourceBrowser.playVideoAtIndex(${index})">
+                <span class="video-playlist-item-index">${index + 1}</span>
+                <span class="video-playlist-item-name">${item.name}</span>
+            </div>
+        `).join('');
+        
+        // Scroll active item into view
+        const activeItem = playlistContainer.querySelector('.video-playlist-item.active');
+        if (activeItem) {
+            activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    },
+    
+    // Play video at specific index
+    playVideoAtIndex(index) {
+        if (index >= 0 && index < this.videoPlaylist.length) {
+            const video = this.videoPlaylist[index];
+            this.previewFile(video.path, video.mimeType);
+        }
+    },
+    
+    // Play next video
+    playNextVideo() {
+        if (this.currentVideoIndex < this.videoPlaylist.length - 1) {
+            this.playVideoAtIndex(this.currentVideoIndex + 1);
+        }
+    },
+    
+    // Play previous video
+    playPrevVideo() {
+        if (this.currentVideoIndex > 0) {
+            this.playVideoAtIndex(this.currentVideoIndex - 1);
+        }
+    },
+    
+    // Update navigation buttons state
+    updateVideoNavButtons() {
+        const prevBtn = document.getElementById('video-prev-btn');
+        const nextBtn = document.getElementById('video-next-btn');
+        const prevBtnFloat = document.getElementById('video-prev-btn-float');
+        const nextBtnFloat = document.getElementById('video-next-btn-float');
+        
+        const isPrevDisabled = this.currentVideoIndex <= 0;
+        const isNextDisabled = this.currentVideoIndex >= this.videoPlaylist.length - 1;
+        
+        if (prevBtn) prevBtn.disabled = isPrevDisabled;
+        if (nextBtn) nextBtn.disabled = isNextDisabled;
+        if (prevBtnFloat) prevBtnFloat.disabled = isPrevDisabled;
+        if (nextBtnFloat) nextBtnFloat.disabled = isNextDisabled;
+        
+        // Update playlist count badge
+        const countBadge = document.getElementById('playlist-count-badge');
+        if (countBadge) {
+            countBadge.textContent = `${this.currentVideoIndex + 1}/${this.videoPlaylist.length}`;
         }
     },
 

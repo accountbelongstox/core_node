@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
-from PIL import Image
+from third_party import Image
 
 class SourceScanner:
     """Comprehensive scanner for Flutter project resources"""
