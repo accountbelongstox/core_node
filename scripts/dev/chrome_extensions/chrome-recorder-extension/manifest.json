@@ -1,0 +1,23 @@
+{
+  "name": "Browser Bridge - Remote Control",
+  "description": "Remote control Chrome browser via API. Features: tab management, audio streaming, screenshot, HTML capture, console logs, and more.",
+  "version": "2.0",
+  "manifest_version": 3,
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_icon": "icons/not-recording.png",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "permissions": ["tabCapture", "offscreen", "activeTab", "tabs", "scripting", "storage", "alarms", "browsingData"],
+  "host_permissions": ["<all_urls>"],
+  "web_accessible_resources": [
+    {
+      "resources": ["permission.html", "offscreen.html", "command-handler.js", "options.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

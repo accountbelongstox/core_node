@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Browser Bridge</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 380px;
+      max-height: 580px;
+      overflow-y: auto;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 12px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e8e8e8;
+      padding: 12px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .header h1 {
+      font-size: 16px;
+      color: #00d4ff;
+      margin-bottom: 5px;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #666;
+    }
+
+    .status-dot.online {
+      background: #00ff88;
+      box-shadow: 0 0 6px #00ff88;
+    }
+
+    .status-dot.scanning {
+      background: #ffaa00;
+      animation: pulse 0.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .card h3 {
+      font-size: 12px;
+      color: #00d4ff;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    .form-row label {
+      width: 70px;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    .form-row input[type="text"],
+    .form-row input[type="number"],
+    .form-row select {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 11px;
+    }
+
+    .form-row input:focus,
+    .form-row select:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+
+    .form-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d4ff, #0099cc);
+      color: #fff;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00ff88, #00cc6a);
+      color: #000;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ff4444, #cc0000);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.1);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .btn-group .btn {
+      flex: 1;
+    }
+
+    .big-button {
+      width: 100%;
+      padding: 14px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .discovered-services {
+      max-height: 80px;
+      overflow-y: auto;
+      margin-top: 6px;
+    }
+
+    .service-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+      background: rgba(0,255,136,0.1);
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-size: 10px;
+    }
+
+    .service-item.selected {
+      background: rgba(0,212,255,0.2);
+      border: 1px solid #00d4ff;
+    }
+
+    .log-area {
+      background: rgba(0,0,0,0.4);
+      border-radius: 4px;
+      padding: 6px;
+      max-height: 60px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 10px;
+    }
+
+    .log-entry {
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .log-entry.success { color: #00ff88; }
+    .log-entry.error { color: #ff4444; }
+    .log-entry.info { color: #00d4ff; }
+    .log-entry.warn { color: #ffaa00; }
+
+    .collapsible {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .collapsible::after {
+      content: ' ▼';
+      font-size: 8px;
+    }
+
+    .collapsible.collapsed::after {
+      content: ' ▶';
+    }
+
+    .collapse-content {
+      display: block;
+    }
+
+    .collapse-content.hidden {
+      display: none;
+    }
+
+    .quick-link {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .quick-link a {
+      color: #00d4ff;
+      text-decoration: none;
+      font-size: 11px;
+    }
+
+    .quick-link a:hover {
+      text-decoration: underline;
+    }
+
+    .tag {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(0,212,255,0.2);
+      color: #00d4ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🌉 Browser Bridge</h1>
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-dot" id="apiStatus"></span>
+        <span>API</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot" id="wsStatus"></span>
+        <span>WebSocket</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot" id="audioStatus"></span>
+        <span>Audio</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- One-Click Start -->
+  <button class="btn btn-success big-button" id="startAll">
+    ▶ Start All Services
+  </button>
+  <button class="btn btn-danger big-button" id="stopAll" style="display:none;">
+    ■ Stop All Services
+  </button>
+
+  <!-- Service Discovery -->
+  <div class="card">
+    <h3>
+      <span class="collapsible" id="toggleDiscovery">Service Discovery</span>
+      <span class="tag" id="discoveryStatus">Not scanned</span>
+    </h3>
+    <div class="collapse-content" id="discoveryContent">
+      <div class="form-row">
+        <label>API URL:</label>
+        <input type="text" id="apiUrl" placeholder="Auto or http://192.168.x.x:9000">
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="scanNetwork">🔍 Scan Network</button>
+        <button class="btn btn-secondary" id="testConnection">Test</button>
+      </div>
+      <div class="discovered-services" id="discoveredServices"></div>
+    </div>
+  </div>
+
+  <!-- Recording Settings -->
+  <div class="card">
+    <h3>
+      <span class="collapsible collapsed" id="toggleRecording">Recording Settings</span>
+    </h3>
+    <div class="collapse-content hidden" id="recordingContent">
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="enableAudio" checked>
+          Enable Audio Capture
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="includeMic" checked>
+          Include Microphone
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="streamAudio" checked>
+          Stream to Server
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="saveLocal">
+          Save Local Copy
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Interval:</label>
+        <input type="number" id="chunkInterval" value="1000" min="500" max="5000" step="500">
+        <span style="color:#888">ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remote Control Settings -->
+  <div class="card">
+    <h3>
+      <span class="collapsible collapsed" id="toggleRemote">Remote Control</span>
+    </h3>
+    <div class="collapse-content hidden" id="remoteContent">
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="enablePolling" checked>
+          Enable Command Polling
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Poll Interval:</label>
+        <input type="number" id="pollingInterval" value="3000" min="1000" max="30000" step="1000">
+        <span style="color:#888">ms</span>
+      </div>
+      <div class="form-row">
+        <label>WebSocket:</label>
+        <input type="text" id="wsUrl" placeholder="Auto (port 9001)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Auxiliary Features -->
+  <div class="card">
+    <h3>
+      <span class="collapsible" id="toggleAux">Auxiliary Features</span>
+      <span class="tag" id="auxStatus">-</span>
+    </h3>
+    <div class="collapse-content" id="auxContent">
+      
+      <!-- Daily Auto-Refresh Sites -->
+      <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:#00d4ff;">📅 Daily Auto-Refresh</span>
+          <span class="tag" id="checkinStatus" style="font-size:9px;">-</span>
+        </div>
+        <div id="checkinSites" style="max-height: 80px; overflow-y: auto; margin-bottom: 6px;">
+          <!-- Sites will be listed here -->
+        </div>
+        <div class="form-row" style="gap: 4px; margin-bottom: 6px;">
+          <input type="text" id="newSiteUrl" placeholder="https://example.com" style="flex:2;font-size:10px;padding:4px;">
+          <button class="btn btn-secondary" id="addSiteBtn" style="padding:4px 8px;font-size:10px;">+Add</button>
+        </div>
+        <button class="btn btn-success" id="checkinAllBtn" style="width:100%;padding:6px;font-size:11px;">🔄 Refresh All Now</button>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;margin-bottom:8px;">
+        <div style="font-size:11px;color:#00d4ff;margin-bottom:6px;">⚡ Quick Actions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+          <button class="btn btn-secondary" id="clearCacheBtn" style="padding:6px;font-size:10px;">🗑️ Clear Cache</button>
+          <button class="btn btn-secondary" id="reloadExtBtn" style="padding:6px;font-size:10px;">🔄 Reload Ext</button>
+          <button class="btn btn-secondary" id="closeOtherTabsBtn" style="padding:6px;font-size:10px;">✖️ Close Others</button>
+          <button class="btn btn-secondary" id="screenshotBtn" style="padding:6px;font-size:10px;">📷 Screenshot</button>
+        </div>
+      </div>
+
+      <!-- Preset Sites -->
+      <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;">
+        <div style="font-size:11px;color:#00d4ff;margin-bottom:6px;">🔗 Preset Sites</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;" id="presetSites">
+          <button class="btn btn-secondary" style="padding:4px 8px;font-size:9px;" onclick="addPresetSite('anyrouter.top/console', 'AnyRouter')">+AnyRouter</button>
+          <button class="btn btn-secondary" style="padding:4px 8px;font-size:9px;" onclick="addPresetSite('github.com', 'GitHub')">+GitHub</button>
+          <button class="btn btn-secondary" style="padding:4px 8px;font-size:9px;" onclick="addPresetSite('gmail.com', 'Gmail')">+Gmail</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Activity Log -->
+  <div class="card">
+    <h3>Activity Log</h3>
+    <div class="log-area" id="logArea">
+      <div class="log-entry info">Ready to connect...</div>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="quick-link">
+    <a href="#" id="openFullPanel">Open Full Management Panel</a>
+  </div>
+
+  <script src="daily-checkin.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
