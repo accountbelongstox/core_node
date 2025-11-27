@@ -240,6 +240,8 @@ return [
         'options' => [
             'enable_coroutine' => true,
             'task_enable_coroutine' => true,
+            'package_max_length' => 50 * 1024 * 1024 * 1024,
+            'buffer_output_size' => 100 * 1024 * 1024,
         ],
     ],
 

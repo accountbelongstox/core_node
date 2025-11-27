@@ -8,6 +8,7 @@
 
     <!-- NAMESPACE: External CSS Imports -->
     <link rel="stylesheet" href="/debug-assets/css/ittools-layout.css">
+    <link rel="stylesheet" href="/debug-assets/css/mcp-manager.css">
     
     <style>
         /* NAMESPACE: Main Layout Styles */
@@ -533,6 +534,13 @@
                         <span class="menu-tooltip">Static Resources</span>
                     </a>
                 </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('mcp-manager')" data-section="mcp-manager">
+                        <span class="menu-icon">📸</span>
+                        <span class="menu-text">MCP Manager</span>
+                        <span class="menu-tooltip">MCP Manager</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -711,7 +719,8 @@
                                 <button onclick="AuthHelper.showAuthModal()" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Login Now</button>
                             </div>
                             <div id="code-browser-content" style="display: none;">
-                                <div style="display: flex; height: 70vh; background: #1e1e1e;">
+                                <!-- Upper Panel: File Browser & Editor -->
+                                <div style="display: flex; height: 45vh; background: #1e1e1e; border-bottom: 2px solid #333;">
                                     <!-- File Tree (Left Panel) -->
                                     <div id="file-tree-panel" style="width: 300px; border-right: 1px solid #333; overflow-y: auto; background: #252526; color: #cccccc;">
                                         <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
@@ -741,6 +750,37 @@
                                             <textarea id="code-editor" style="width: 100%; height: 100%; padding: 15px; background: #1e1e1e; color: #d4d4d4; border: none; outline: none; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; resize: none; tab-size: 4;" placeholder="Select a file to edit..." readonly></textarea>
                                         </div>
                                     </div>
+                                </div>
+
+                                <!-- Lower Panel: Tasks/Prompts & Mapping Manager -->
+                                <div style="display: flex; height: 35vh; background: #1e1e1e;">
+                                    <!-- Tasks/Prompts List (Left Panel) -->
+                                    <div id="prompts-tasks-panel" style="width: 300px; border-right: 1px solid #333; overflow-y: auto; background: #252526; color: #cccccc;">
+                                        <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
+                                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                                <span style="font-weight: 500; font-size: 13px;">📝 Tasks/Prompts</span>
+                                                <div>
+                                                    <button onclick="PromptsTasksManager.showNewTaskDialog()" style="background: transparent; border: none; color: #28a745; cursor: pointer; font-size: 14px; padding: 2px 6px;" title="New Task">+</button>
+                                                    <button onclick="PromptsTasksManager.refresh()" style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;" title="Refresh">🔄</button>
+                                                </div>
+                                            </div>
+                                            <!-- Category Selector -->
+                                            <select id="prompt-category-selector" style="width: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 5px; font-size: 12px; border-radius: 3px;">
+                                                <option value="global">Global</option>
+                                                <option value="mcp-dev">MCP Development</option>
+                                                <option value="ncore-dev">NCORE Development</option>
+                                                <option value="pycore-dev">PYCORE Development</option>
+                                                <option value="laravel-main-dev">Laravel Main</option>
+                                                <option value="nuxt-dev">NUXT Development</option>
+                                            </select>
+                                        </div>
+                                        <div id="prompts-tasks-list" style="padding: 5px; font-size: 13px;">
+                                            <div style="padding: 20px; text-align: center; color: #888;">Select a category</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Prompt Mapping Manager (Right Panel) -->
+                                    <div id="prompt-mapping-panel-embedded" style="flex: 1; background: #1e1e1e; overflow-y: auto;"></div>
                                 </div>
                             </div>
                         </div>
@@ -795,13 +835,45 @@
                     </div>
                 </div>
 
+                <!-- NAMESPACE: MCP Manager Section -->
+                <div id="mcp-manager-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>MCP Manager</h2>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; color: #666;">Manage MCP (Model Context Protocol) features and resources</p>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div id="mcp-manager-content">
+                                <div class="mcp-container">
+                                    <div class="mcp-menu">
+                                        <div class="mcp-menu-header">MCP Manager</div>
+                                        <div id="mcp-menu-container"></div>
+                                    </div>
+                                    <div class="mcp-content">
+                                        <div id="mcp-content-container"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 
     <!-- Context Menu for Static Resources -->
     <div id="static-context-menu" style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
-        <div id="static-menu-upload-to" onclick="StaticResourceBrowser.uploadToFolder()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+        <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📂 Enter this folder
+        </div>
+        <div id="static-menu-expand-all" onclick="StaticResourceBrowser.expandAllFromMenu()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬇️ Expand all subfolders
+        </div>
+        <div id="static-menu-collapse-all" onclick="StaticResourceBrowser.collapseAllFromMenu()" style="padding: 8px 16px; cursor: pointer; color: #ce9178; font-size: 13px; display: none;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬆️ Collapse all subfolders
+        </div>
+        <div id="static-menu-upload-to" onclick="StaticResourceBrowser.uploadToFolder()" style="padding: 8px 16px; cursor: pointer; color: #dcdcaa; font-size: 13px; display: none; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
             📤 Upload to this folder
         </div>
         <div onclick="StaticResourceBrowser.renameWithTranslation()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
@@ -826,7 +898,7 @@
             </div>
             <div style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
                 <button onclick="StaticResourceBrowser.closeUploadDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
-                <button id="upload-btn" onclick="StaticResourceBrowser.executeUpload()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'" disabled>Upload</button>
+                <button id="upload-btn" onclick="StaticResourceBrowser.executeUploadWithChunking()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'" disabled>Upload</button>
             </div>
         </div>
     </div>
@@ -1046,16 +1118,25 @@
             } else if (sectionType === 'code-browser') {
                 document.getElementById('code-browser-section').classList.add('active');
                 document.getElementById('page-title').textContent = 'Code Browser';
-                document.getElementById('page-description').textContent = 'Browse and edit Core Node directory files';
+                document.getElementById('page-description').textContent = 'Browse, edit files, manage tasks and prompt mappings';
                 if (typeof CodeBrowser !== 'undefined') {
                     CodeBrowser.init();
                 }
+                // Initialize integrated modules
+                initCodeBrowserIntegratedModules();
             } else if (sectionType === 'static-resources') {
                 document.getElementById('static-resources-section').classList.add('active');
                 document.getElementById('page-title').textContent = 'Static Resources';
                 document.getElementById('page-description').textContent = 'Browse and manage static media files';
                 if (typeof StaticResourceBrowser !== 'undefined') {
                     StaticResourceBrowser.init();
+                }
+            } else if (sectionType === 'mcp-manager') {
+                document.getElementById('mcp-manager-section').classList.add('active');
+                document.getElementById('page-title').textContent = 'MCP Manager';
+                document.getElementById('page-description').textContent = 'Manage MCP features including screenshots, task dispatch, and prompt mappings';
+                if (typeof McpManager !== 'undefined') {
+                    McpManager.init();
                 }
             }
 
@@ -2358,13 +2439,41 @@
     <!-- Static Resource Browser Module -->
     <script src="/debug-assets/js/static-resource-browser.js"></script>
 
+    <!-- Prompts/Tasks Manager Module (Integrated with Code Browser) -->
+    <script src="/debug-assets/js/prompts-tasks-manager.js"></script>
+
+    <!-- Prompt Mapping Manager Module -->
+    <script src="/debug-assets/js/prompt-mapping-manager.js"></script>
+
+    <!-- MCP Manager Module -->
+    <script src="/debug-assets/js/mcp-manager.js"></script>
+
     <script>
-        // Initialize Prompts Manager when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof PromptsManager !== 'undefined') {
-                PromptsManager.init();
+        // NOTE: PromptsManager.init() is DISABLED
+        // The old PromptsManager created a menu bar at the top of Code Browser
+        // We now use PromptsTasksManager in the lower panel instead
+        // document.addEventListener('DOMContentLoaded', function() {
+        //     if (typeof PromptsManager !== 'undefined') {
+        //         PromptsManager.init();
+        //     }
+        // });
+
+        // Initialize integrated modules when Code Browser section is shown
+        let codeBrowserIntegratedModulesInitialized = false;
+        function initCodeBrowserIntegratedModules() {
+            if (codeBrowserIntegratedModulesInitialized) return;
+            codeBrowserIntegratedModulesInitialized = true;
+
+            // Initialize Prompts/Tasks Manager (left panel in lower section)
+            if (typeof PromptsTasksManager !== 'undefined') {
+                PromptsTasksManager.init();
             }
-        });
+
+            // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
+            if (typeof PromptMappingManager !== 'undefined') {
+                PromptMappingManager.init('#prompt-mapping-panel-embedded');
+            }
+        }
     </script>
 </body>
 </html>

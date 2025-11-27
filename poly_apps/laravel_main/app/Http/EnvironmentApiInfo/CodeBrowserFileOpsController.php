@@ -86,6 +86,14 @@ class CodeBrowserFileOpsController
             return response()->json(['error' => 'Path is not a file'], 400);
         }
 
+        // Handle symbolic links: delete the actual file, not just the link
+        $actualPath = $fullPath;
+        $isSymlink = is_link($fullPath);
+        if ($isSymlink) {
+            $actualPath = realpath($fullPath);
+            error_log('[CodeBrowserFileOpsController] deleteFile: File is a symlink, actual path=' . $actualPath);
+        }
+
         $deleteTargetPath = $this->deleteDirectory . DIRECTORY_SEPARATOR . $relativePath;
         $deleteTargetDir = dirname($deleteTargetPath);
         error_log('[CodeBrowserFileOpsController] deleteFile: deleteTargetPath=' . $deleteTargetPath);
@@ -114,7 +122,30 @@ class CodeBrowserFileOpsController
         error_log('[CodeBrowserFileOpsController] deleteFile: Attempting rename from ' . $fullPath . ' to ' . $deleteTargetPath);
 
         try {
-            $result = FileSystemManager::rename($fullPath, $deleteTargetPath);
+            // If it's a symlink, move the actual file, then remove the symlink
+            if ($isSymlink && $actualPath && file_exists($actualPath)) {
+                error_log('[CodeBrowserFileOpsController] deleteFile: Moving actual file from ' . $actualPath . ' to ' . $deleteTargetPath);
+
+                // Move the actual file
+                $result = FileSystemManager::rename($actualPath, $deleteTargetPath);
+
+                // Remove the symlink
+                if ($result && is_link($fullPath)) {
+                    error_log('[CodeBrowserFileOpsController] deleteFile: Removing symlink at ' . $fullPath);
+                    unlink($fullPath);
+                }
+            } else {
+                // Regular file or broken symlink
+                if ($isSymlink && !file_exists($actualPath)) {
+                    // Broken symlink - just remove it
+                    error_log('[CodeBrowserFileOpsController] deleteFile: Removing broken symlink at ' . $fullPath);
+                    unlink($fullPath);
+                    $result = true;
+                } else {
+                    // Regular file
+                    $result = FileSystemManager::rename($fullPath, $deleteTargetPath);
+                }
+            }
         } catch (\Throwable $e) {
             $errorMessage = $e->getMessage();
             error_log('[CodeBrowserFileOpsController] deleteFile: Rename failed - ' . $errorMessage);
@@ -666,5 +697,51 @@ class CodeBrowserFileOpsController
         }
 
         return strpos($realPath, $this->baseDirectory) === 0;
+    }
+
+    /**
+     * Clean broken symlinks in a directory
+     */
+    public function cleanBrokenSymlinks(Request $request)
+    {
+        if (!$this->checkAuthentication($request)) {
+            return response()->json(['error' => 'Authentication required'], 401);
+        }
+
+        $relativePath = $request->input('path', '_prompts');
+        $fullPath = $this->baseDirectory . DIRECTORY_SEPARATOR . $relativePath;
+
+        if (!$this->isPathSafe($fullPath)) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        if (!is_dir($fullPath)) {
+            return response()->json(['error' => 'Path is not a directory'], 400);
+        }
+
+        $cleaned = 0;
+        $files = scandir($fullPath);
+
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+
+            $itemPath = $fullPath . DIRECTORY_SEPARATOR . $file;
+
+            // Check if it's a broken symlink
+            if (is_link($itemPath) && !file_exists($itemPath)) {
+                error_log('[CodeBrowserFileOpsController] cleanBrokenSymlinks: Removing broken link: ' . $itemPath);
+                if (unlink($itemPath)) {
+                    $cleaned++;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'cleaned' => $cleaned,
+            'message' => "Cleaned $cleaned broken symlink(s)"
+        ]);
     }
 }
