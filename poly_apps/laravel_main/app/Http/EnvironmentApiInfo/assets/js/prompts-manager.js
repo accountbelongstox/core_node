@@ -1236,29 +1236,9 @@ const PromptsManager = {
     },
 
     splitIntoSentences(text) {
-        const sentences = [];
-        const lines = text.split('\n');
-
-        for (const line of lines) {
-            if (!line.trim()) continue;
-
-            const parts = line.split(/([.。!！?？]+)/);
-            let current = '';
-
-            for (let i = 0; i < parts.length; i++) {
-                current += parts[i];
-                if (i % 2 === 1 && current.trim()) {
-                    sentences.push(current.trim());
-                    current = '';
-                }
-            }
-
-            if (current.trim()) {
-                sentences.push(current.trim());
-            }
-        }
-
-        return sentences;
+        return text.split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
     },
 
     async requestTTS(text) {
@@ -1381,6 +1361,7 @@ const PromptsManager = {
         });
 
         this.currentAudio = new Audio(sentence.audioUrl);
+        this.currentAudio.preload = 'auto';
         this.currentAudio.playbackRate = this.playbackSpeed;
 
         sentence.playBtn.innerHTML = '⏹';
@@ -1394,8 +1375,6 @@ const PromptsManager = {
             this.hideSubtitle();
         };
 
-        this.currentAudio.play();
-
         window.sentences.forEach((s, i) => {
             if (s.element) {
                 s.element.style.background = i === index ? '#264f78' : '#1e1e1e';
@@ -1405,7 +1384,22 @@ const PromptsManager = {
         this.currentPlayingIndex = index;
         this.lastPlayedIndex = index;
 
-        console.log(`[PromptsManager] Playing sentence ${index + 1}/${window.sentences.length} at ${this.playbackSpeed}x speed`);
+        // Wait for audio to be loaded before playing to avoid blank period
+        const playAudio = () => {
+            this.currentAudio.play().catch(err => {
+                console.error('[PromptsManager] Audio play failed:', err);
+            });
+            console.log(`[PromptsManager] Playing sentence ${index + 1}/${window.sentences.length} at ${this.playbackSpeed}x speed`);
+        };
+
+        if (this.currentAudio.readyState >= 3) {
+            // Audio already loaded
+            playAudio();
+        } else {
+            // Wait for audio to load
+            this.currentAudio.addEventListener('canplaythrough', playAudio, { once: true });
+            this.currentAudio.load();
+        }
     },
 
     playPrevious(path) {
@@ -1463,7 +1457,18 @@ const PromptsManager = {
             if (path) this.translateAndPlayImmediately(path);
         };
 
+        const copyItem = document.createElement('div');
+        copyItem.textContent = '📋 Copy Selected Text';
+        copyItem.style.cssText = 'padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;';
+        copyItem.onmouseover = () => copyItem.style.background = '#094771';
+        copyItem.onmouseout = () => copyItem.style.background = 'transparent';
+        copyItem.onclick = () => {
+            this.editorContextMenu.style.display = 'none';
+            this.copyEditorSelection();
+        };
+
         this.editorContextMenu.appendChild(translateItem);
+        this.editorContextMenu.appendChild(copyItem);
         document.body.appendChild(this.editorContextMenu);
 
         document.addEventListener('click', () => {
@@ -1475,13 +1480,40 @@ const PromptsManager = {
         e.preventDefault();
         this.createEditorContextMenu();
         this.editorContextMenu.dataset.path = path;
+        this.editorContextMenu.targetEditor = e.target;
         this.editorContextMenu.style.left = e.clientX + 'px';
         this.editorContextMenu.style.top = e.clientY + 'px';
         this.editorContextMenu.style.display = 'block';
     },
 
     async translateAndPlayImmediately(path) {
+        // Set lastPlayedIndex to trigger auto-play after translation
+        this.lastPlayedIndex = 0;
         await this.translatePromptContent(path);
+    },
+
+    async copyEditorSelection() {
+        const editor = this.editorContextMenu.targetEditor;
+        if (!editor) return;
+
+        const selectedText = editor.value.substring(editor.selectionStart, editor.selectionEnd);
+        const textToCopy = selectedText || editor.value;
+
+        try {
+            await navigator.clipboard.writeText(textToCopy);
+            console.log(`[PromptsManager] Copied ${selectedText ? 'selected text' : 'all content'} to clipboard`);
+
+            // Show brief feedback
+            const originalText = this.editorContextMenu.querySelector('div:last-child').textContent;
+            this.editorContextMenu.querySelector('div:last-child').textContent = selectedText ? '✓ Copied Selected!' : '✓ Copied All!';
+            setTimeout(() => {
+                if (this.editorContextMenu.querySelector('div:last-child')) {
+                    this.editorContextMenu.querySelector('div:last-child').textContent = originalText;
+                }
+            }, 1500);
+        } catch (err) {
+            console.error('[PromptsManager] Failed to copy:', err);
+        }
     },
 
     toggleGlobalPlayback() {
@@ -1556,6 +1588,7 @@ const PromptsManager = {
         }
 
         this.currentAudio = new Audio(sentence.audioUrl);
+        this.currentAudio.preload = 'auto';
         this.currentAudio.playbackRate = this.playbackSpeed;
 
         sentence.playBtn.innerHTML = '⏹';
@@ -1580,11 +1613,25 @@ const PromptsManager = {
             }
         };
 
-        this.currentAudio.play();
         this.currentPlayingIndex = index;
         this.lastPlayedIndex = index;
 
-        console.log(`[PromptsManager] Playing sentence ${index + 1}/${window.sentences.length} at ${this.playbackSpeed}x speed (Loop: ${this.loopPlayback})`);
+        // Wait for audio to be loaded before playing to avoid blank period
+        const playAudio = () => {
+            this.currentAudio.play().catch(err => {
+                console.error('[PromptsManager] Audio play failed:', err);
+            });
+            console.log(`[PromptsManager] Playing sentence ${index + 1}/${window.sentences.length} at ${this.playbackSpeed}x speed (Loop: ${this.loopPlayback})`);
+        };
+
+        if (this.currentAudio.readyState >= 3) {
+            // Audio already loaded
+            playAudio();
+        } else {
+            // Wait for audio to load
+            this.currentAudio.addEventListener('canplaythrough', playAudio, { once: true });
+            this.currentAudio.load();
+        }
     },
 
     showSubtitle(text) {
