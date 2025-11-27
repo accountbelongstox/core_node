@@ -161,9 +161,12 @@ class CodeBrowserController
         $content = null;
         $fullPath = null;
         $extension = null;
+        $backupFilename = null;
 
         $relativePath = $request->input('path');
         $content = $request->input('content');
+        $skipBackup = $request->input('skip_backup', false);
+        $cleanupOldBackups = $request->input('cleanup_old_backups', false);
 
         if (!$relativePath || $content === null) {
             return response()->json([
@@ -200,8 +203,15 @@ class CodeBrowserController
             ], 403);
         }
 
-        $backup = $fullPath . '.bak.' . date('YmdHis');
-        FileSystemManager::copy($fullPath, $backup);
+        if (!$skipBackup) {
+            $backup = $fullPath . '.bak.' . date('YmdHis');
+            FileSystemManager::copy($fullPath, $backup);
+            $backupFilename = basename($backup);
+        }
+
+        if ($cleanupOldBackups) {
+            $this->cleanupOldBackups($fullPath);
+        }
 
         if (!FileSystemManager::writeFile($fullPath, $content)) {
             return response()->json([
@@ -209,13 +219,49 @@ class CodeBrowserController
             ], 500);
         }
 
-        return response()->json([
+        $response = [
             'success' => true,
             'message' => 'File saved successfully',
             'path' => $relativePath,
-            'backup' => basename($backup),
             'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath))
-        ]);
+        ];
+
+        if ($backupFilename) {
+            $response['backup'] = $backupFilename;
+        }
+
+        return response()->json($response);
+    }
+
+    private function cleanupOldBackups($filePath)
+    {
+        $directory = dirname($filePath);
+        $filename = basename($filePath);
+        $pattern = $filename . '.bak.*';
+
+        $backups = [];
+        $entries = FileSystemManager::scandir($directory);
+
+        foreach ($entries as $entry) {
+            if (fnmatch($pattern, $entry)) {
+                $backupPath = $directory . DIRECTORY_SEPARATOR . $entry;
+                if (FileSystemManager::isFile($backupPath)) {
+                    $backups[] = [
+                        'path' => $backupPath,
+                        'mtime' => FileSystemManager::filemtime($backupPath)
+                    ];
+                }
+            }
+        }
+
+        usort($backups, function($a, $b) {
+            return $b['mtime'] - $a['mtime'];
+        });
+
+        $keepCount = 3;
+        for ($i = $keepCount; $i < count($backups); $i++) {
+            FileSystemManager::delete($backups[$i]['path']);
+        }
     }
 
     private function isPathSafe($path)

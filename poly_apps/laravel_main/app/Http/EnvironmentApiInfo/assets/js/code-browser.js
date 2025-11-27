@@ -502,6 +502,36 @@ const CodeBrowser = {
         document.getElementById('rename-input').value = '';
     },
 
+    async autoRenameToEnglish() {
+        if (!this.contextMenuTarget) return;
+        document.getElementById('file-context-menu').style.display = 'none';
+
+        try {
+            const response = await APIClient.post('/code-browser/auto-rename-to-english', {
+                path: this.contextMenuTarget
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                alert(data.error || 'Failed to auto-rename file');
+                return;
+            }
+
+            if (data.renamed) {
+                console.log(`File auto-renamed: ${data.original_name} → ${data.translated_name}`);
+                alert(`Successfully renamed:\n${data.original_name}\n→\n${data.translated_name}`);
+            } else {
+                alert(data.message || 'Filename already in English');
+            }
+
+            this.refreshTree();
+        } catch (error) {
+            console.error('Failed to auto-rename file:', error);
+            alert('Failed to auto-rename file');
+        }
+    },
+
     showConfirmDialog(title, message, callback) {
         document.getElementById('confirm-title').textContent = title;
         document.getElementById('confirm-message').textContent = message;
