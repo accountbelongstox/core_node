@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PIL import Image
+from third_party import Image
 
 class PlatformImageScanner:
     """Scanner for platform-specific images (Android, macOS, Windows, Web)"""
