@@ -526,6 +526,13 @@
                         <span class="menu-tooltip">Code Browser</span>
                     </a>
                 </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('static-resources')" data-section="static-resources">
+                        <span class="menu-icon">🎬</span>
+                        <span class="menu-text">Static Resources</span>
+                        <span class="menu-tooltip">Static Resources</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -740,6 +747,107 @@
                     </div>
                 </div>
 
+                <!-- NAMESPACE: Static Resources Section -->
+                <div id="static-resources-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Static Resources - Media Browser</h2>
+                            <p id="static-resources-path-display" style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-family: monospace;"></p>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div id="static-resources-content">
+                                <div style="display: flex; height: 70vh; background: #1e1e1e;">
+                                    <!-- File List (Left Panel) -->
+                                    <div id="static-file-list-panel" style="width: 350px; border-right: 1px solid #333; overflow-y: auto; background: #252526; color: #cccccc;">
+                                        <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
+                                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                                <span style="font-weight: 500; font-size: 13px;">🎬 Static Resources</span>
+                                                <div>
+                                                    <button onclick="StaticResourceBrowser.showCreateDirDialog()" style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;" title="New Folder">📁+</button>
+                                                    <button onclick="StaticResourceBrowser.refreshList()" style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;" title="Refresh">🔄</button>
+                                                    <button onclick="StaticResourceBrowser.showUploadDialog()" style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;" title="Upload Files">📤</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="static-file-list" style="padding: 5px; font-size: 13px;">
+                                            <div style="padding: 20px; text-align: center; color: #888;">Loading...</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Preview Panel (Right Panel) -->
+                                    <div style="flex: 1; display: flex; flex-direction: column; background: #1e1e1e;">
+                                        <div style="padding: 10px 15px; border-bottom: 1px solid #333; background: #2d2d30; display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <span id="preview-file-name" style="font-weight: 500; font-size: 14px; color: #cccccc;">No file selected</span>
+                                                <span id="preview-file-info" style="margin-left: 15px; font-size: 12px; color: #888;"></span>
+                                            </div>
+                                        </div>
+                                        <div id="preview-container" style="flex: 1; overflow: auto; padding: 20px; display: flex; align-items: center; justify-content: center;">
+                                            <div style="text-align: center; color: #888;">
+                                                <p style="font-size: 16px; margin-bottom: 10px;">📂 Select a file to preview</p>
+                                                <p style="font-size: 13px;">Supports images, videos, audio, and text files</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu for Static Resources -->
+    <div id="static-context-menu" style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
+        <div id="static-menu-upload-to" onclick="StaticResourceBrowser.uploadToFolder()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📤 Upload to this folder
+        </div>
+        <div onclick="StaticResourceBrowser.renameWithTranslation()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            🌐 Rename to English
+        </div>
+    </div>
+
+    <!-- Upload Dialog -->
+    <div id="upload-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📤 Upload Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div id="upload-drop-zone" style="border: 2px dashed #454545; border-radius: 8px; padding: 60px 20px; text-align: center; background: #1e1e1e; cursor: pointer;" onclick="document.getElementById('upload-file-input').click()">
+                    <p style="color: #888; font-size: 16px; margin-bottom: 10px;">📁 Drag and drop files or folders here</p>
+                    <p style="color: #666; font-size: 13px;">or click to browse</p>
+                    <input type="file" id="upload-file-input" multiple webkitdirectory directory style="display: none;">
+                </div>
+                <div id="upload-file-list" style="margin-top: 15px; max-height: 200px; overflow-y: auto;"></div>
+                <p id="upload-target-path" style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Target: /</p>
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeUploadDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="upload-btn" onclick="StaticResourceBrowser.executeUpload()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'" disabled>Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Directory Dialog -->
+    <div id="create-dir-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📁 Create New Folder</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input type="text" id="new-dir-name" placeholder="Folder name..." style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; padding: 10px; background: #1e1e1e; border-radius: 4px;">
+                    <input type="checkbox" id="translate-dir-name" style="margin-right: 10px; cursor: pointer;">
+                    <label for="translate-dir-name" style="color: #cccccc; font-size: 13px; cursor: pointer;">🌐 Translate to English automatically</label>
+                </div>
+                <p id="create-dir-target-path" style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Parent: /</p>
+            </div>
+            <div style="padding: 16px 24px; border-bottom: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeCreateDirDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="create-dir-btn" onclick="StaticResourceBrowser.executeCreateDir()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'">Create</button>
             </div>
         </div>
     </div>
@@ -754,6 +862,9 @@
         </div>
         <div onclick="CodeBrowser.renameItem()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-rename">
             ✏️ Rename
+        </div>
+        <div onclick="CodeBrowser.autoRenameToEnglish()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-auto-rename">
+            🔤 Auto Rename to English
         </div>
         <div onclick="CodeBrowser.translateChineseLines()" style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'" id="menu-translate">
             🌐 Translate Chinese Lines
@@ -938,6 +1049,13 @@
                 document.getElementById('page-description').textContent = 'Browse and edit Core Node directory files';
                 if (typeof CodeBrowser !== 'undefined') {
                     CodeBrowser.init();
+                }
+            } else if (sectionType === 'static-resources') {
+                document.getElementById('static-resources-section').classList.add('active');
+                document.getElementById('page-title').textContent = 'Static Resources';
+                document.getElementById('page-description').textContent = 'Browse and manage static media files';
+                if (typeof StaticResourceBrowser !== 'undefined') {
+                    StaticResourceBrowser.init();
                 }
             }
 
@@ -2236,6 +2354,9 @@
 
     <!-- Prompts Manager Module -->
     <script src="/debug-assets/js/prompts-manager.js"></script>
+
+    <!-- Static Resource Browser Module -->
+    <script src="/debug-assets/js/static-resource-browser.js"></script>
 
     <script>
         // Initialize Prompts Manager when page loads
