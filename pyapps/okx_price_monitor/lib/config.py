@@ -20,6 +20,12 @@ class OKXMonitorConfig:
     RPC_BASE_URL = 'http://127.0.0.1:58000'
 
     # ============================================================
+    # Web Server Configuration
+    # ============================================================
+    WEB_PORT = 58888
+    WEB_HOST = '0.0.0.0'
+
+    # ============================================================
     # Page Configuration
     # ============================================================
     # Pages to visit for collecting URLs (market prices)
@@ -186,6 +192,7 @@ class OKXMonitorConfig:
         ColorPrint.green("OKX MONITOR CONFIGURATION")
         ColorPrint.green("=" * 60)
         ColorPrint.blue(f"  RPC Base URL: {cls.RPC_BASE_URL}")
+        ColorPrint.blue(f"  Web Server: http://{cls.WEB_HOST}:{cls.WEB_PORT}")
         ColorPrint.blue(f"  Base Pages: {len(cls.BASE_PAGES)} pages (page 1-{len(cls.BASE_PAGES)})")
         ColorPrint.blue(f"  Fetch Mode: {cls.FETCH_MODE.upper()}")
         ColorPrint.blue(f"  Fetch Interval: {cls.FETCH_INTERVAL_MS}ms")
