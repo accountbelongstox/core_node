@@ -36,6 +36,12 @@ class FileSystemManager
         $laravelMainDir = \App\Providers\PathMapper::getLaravelMainDir();
         $storageDir = $laravelMainDir . DIRECTORY_SEPARATOR . 'storage';
 
+        // Don't map the root directories themselves
+        if ($path === $coreNodeDir || $path === $laravelMainDir || $path === $storageDir) {
+            self::$externalPathMappings[$path] = $path;
+            return $path;
+        }
+
         $startsWithCoreNode = strpos($path, $coreNodeDir) === 0;
         $containsStorage = strpos($path, $storageDir) !== false;
 
@@ -101,31 +107,42 @@ class FileSystemManager
     public static function writeFile(string $path, string $content): bool
     {
         $result = null;
-        $existed = null;
 
         $path = self::mapExternalPath($path);
 
-        \Log::channel('single')->info('[FileSystemManager::writeFile] Attempting to write to: ' . $path);
-        \Log::channel('single')->info('[FileSystemManager::writeFile] Content length: ' . strlen($content));
-        \Log::channel('single')->info('[FileSystemManager::writeFile] Parent dir exists: ' . (is_dir(dirname($path)) ? 'yes' : 'no'));
-        \Log::channel('single')->info('[FileSystemManager::writeFile] Parent dir writable: ' . (is_writable(dirname($path)) ? 'yes' : 'no'));
-
-        $existed = file_exists($path);
-        $result = file_put_contents($path, $content);
-
-        \Log::channel('single')->info('[FileSystemManager::writeFile] file_put_contents result: ' . ($result !== false ? 'SUCCESS (' . $result . ' bytes)' : 'FAILED'));
-
-        if ($result !== false) {
-            \Log::channel('single')->info('[FileSystemManager::writeFile] File created successfully');
-            if (self::$autoFixPermissions) {
-                $fixResult = self::fixPermissions($path);
-                \Log::channel('single')->info('[FileSystemManager::writeFile] Fix permissions result: ' . ($fixResult ? 'success' : 'failed'));
-            }
-            return true;
+        $userInfo = self::$cachedUserInfo;
+        if ($userInfo === null) {
+            $userInfo = SystemUserDetector::getActualUser();
+            self::$cachedUserInfo = $userInfo;
         }
 
-        \Log::channel('single')->error('[FileSystemManager::writeFile] FAILED to write file');
-        return false;
+        $parentDir = dirname($path);
+        if (!file_exists($parentDir)) {
+            self::mkdir($parentDir, 0755, true);
+        }
+
+        if (self::$autoFixPermissions && file_exists($parentDir)) {
+            self::fixPermissions($parentDir);
+        }
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'fsm_');
+        file_put_contents($tempFile, $content);
+
+        $escapedSource = escapeshellarg($tempFile);
+        $escapedDest = escapeshellarg($path);
+        $username = escapeshellarg($userInfo['username']);
+
+        $command = "sudo -u {$username} cp {$escapedSource} {$escapedDest} 2>&1";
+        $output = shell_exec($command);
+        $result = file_exists($path);
+
+        @unlink($tempFile);
+
+        if ($result && self::$autoFixPermissions) {
+            self::fixPermissions($path);
+        }
+
+        return $result;
     }
 
     public static function readFile(string $path): string|false
@@ -146,13 +163,34 @@ class FileSystemManager
 
     public static function copy(string $source, string $destination): bool
     {
-        $result = null;
-
-        // Map paths to writable storage if needed
         $mappedSource = self::mapExternalPath($source);
         $mappedDestination = self::mapExternalPath($destination);
 
-        $result = copy($mappedSource, $mappedDestination);
+        $userInfo = self::$cachedUserInfo;
+        if ($userInfo === null) {
+            $userInfo = SystemUserDetector::getActualUser();
+            self::$cachedUserInfo = $userInfo;
+        }
+
+        if (self::$autoFixPermissions) {
+            if (file_exists($mappedSource)) {
+                self::fixPermissions($mappedSource);
+            }
+
+            $destParent = dirname($mappedDestination);
+            if (file_exists($destParent)) {
+                self::fixPermissions($destParent);
+            }
+        }
+
+        $escapedSource = escapeshellarg($mappedSource);
+        $escapedDest = escapeshellarg($mappedDestination);
+        $username = escapeshellarg($userInfo['username']);
+
+        $command = "sudo -u {$username} cp {$escapedSource} {$escapedDest} 2>&1";
+        shell_exec($command);
+
+        $result = file_exists($mappedDestination);
 
         if ($result && self::$autoFixPermissions) {
             self::fixPermissions($mappedDestination);
@@ -163,12 +201,55 @@ class FileSystemManager
 
     public static function rename(string $oldPath, string $newPath): bool
     {
-        // Map paths to writable storage if needed
-        $mappedOldPath = self::mapExternalPath($oldPath);
+        $resolvedOldPath = realpath($oldPath);
+        if ($resolvedOldPath === false) {
+            error_log('[FileSystemManager::rename] Source path does not exist: ' . $oldPath);
+            return false;
+        }
+
+        $mappedOldPath = self::mapExternalPath($resolvedOldPath);
         $mappedNewPath = self::mapExternalPath($newPath);
 
-        // Use copy + delete instead of rename for reliability across filesystems
-        if (!copy($mappedOldPath, $mappedNewPath)) {
+        error_log('[FileSystemManager::rename] Original old path: ' . $oldPath);
+        error_log('[FileSystemManager::rename] Resolved old path: ' . $resolvedOldPath);
+        error_log('[FileSystemManager::rename] Mapped old path: ' . $mappedOldPath);
+        error_log('[FileSystemManager::rename] Mapped new path: ' . $mappedNewPath);
+
+        $userInfo = self::$cachedUserInfo;
+        if ($userInfo === null) {
+            $userInfo = SystemUserDetector::getActualUser();
+            self::$cachedUserInfo = $userInfo;
+        }
+
+        if (self::$autoFixPermissions) {
+            if (file_exists($mappedOldPath)) {
+                self::fixPermissions($mappedOldPath);
+            }
+
+            $sourceParent = dirname($mappedOldPath);
+            if (file_exists($sourceParent)) {
+                self::fixPermissions($sourceParent);
+            }
+
+            $targetParent = dirname($mappedNewPath);
+            if (file_exists($targetParent)) {
+                self::fixPermissions($targetParent);
+            }
+        }
+
+        $escapedSource = escapeshellarg($mappedOldPath);
+        $escapedDest = escapeshellarg($mappedNewPath);
+        $username = escapeshellarg($userInfo['username']);
+
+        $command = "sudo -u {$username} cp {$escapedSource} {$escapedDest} 2>&1";
+        $output = shell_exec($command);
+
+        error_log('[FileSystemManager::rename] Copy command: ' . $command);
+        error_log('[FileSystemManager::rename] Copy output: ' . ($output ?: '(empty)'));
+        error_log('[FileSystemManager::rename] Dest exists after copy: ' . (file_exists($mappedNewPath) ? 'yes' : 'no'));
+
+        if (!file_exists($mappedNewPath)) {
+            error_log('[FileSystemManager::rename] FAILED - destination does not exist');
             return false;
         }
 
@@ -176,50 +257,78 @@ class FileSystemManager
             self::fixPermissions($mappedNewPath);
         }
 
-        if (!unlink($mappedOldPath)) {
-            // Copy succeeded but delete failed - file was still moved successfully
-            return true;
+        $command = "sudo -u {$username} rm {$escapedSource} 2>&1";
+        $output = shell_exec($command);
+        error_log('[FileSystemManager::rename] Delete command: ' . $command);
+        error_log('[FileSystemManager::rename] Delete command output: ' . ($output ?: '(empty)'));
+
+        $sourceStillExists = file_exists($mappedOldPath);
+        error_log('[FileSystemManager::rename] Source still exists after delete: ' . ($sourceStillExists ? 'yes' : 'no'));
+
+        if ($sourceStillExists) {
+            error_log('[FileSystemManager::rename] FAILED - source file was not deleted');
+            return false;
         }
 
+        error_log('[FileSystemManager::rename] SUCCESS');
         return true;
     }
 
     public static function delete(string $path): bool
     {
-        // Map path to writable storage if needed
         $mappedPath = self::mapExternalPath($path);
 
         if (!file_exists($mappedPath)) {
             return true;
         }
 
+        $userInfo = self::$cachedUserInfo;
+        if ($userInfo === null) {
+            $userInfo = SystemUserDetector::getActualUser();
+            self::$cachedUserInfo = $userInfo;
+        }
+
+        if (self::$autoFixPermissions) {
+            self::fixPermissions($mappedPath);
+
+            $parent = dirname($mappedPath);
+            if (file_exists($parent)) {
+                self::fixPermissions($parent);
+            }
+        }
+
+        $escapedPath = escapeshellarg($mappedPath);
+        $username = escapeshellarg($userInfo['username']);
+
         if (is_file($mappedPath)) {
-            return unlink($mappedPath);
+            $command = "sudo -u {$username} rm {$escapedPath} 2>&1";
+            shell_exec($command);
+        } elseif (is_dir($mappedPath)) {
+            $command = "sudo -u {$username} rmdir {$escapedPath} 2>&1";
+            shell_exec($command);
         }
 
-        if (is_dir($mappedPath)) {
-            return rmdir($mappedPath);
-        }
-
-        return false;
+        return !file_exists($mappedPath);
     }
 
     public static function exists(string $path): bool
     {
+        if (file_exists($path)) {
+            return true;
+        }
+
         $mappedPath = self::mapExternalPath($path);
         return file_exists($mappedPath);
     }
 
     public static function isFile(string $path): bool
     {
-        $mappedPath = self::mapExternalPath($path);
-        return is_file($mappedPath);
+        return is_file($path);
     }
 
     public static function isDir(string $path): bool
     {
-        $mappedPath = self::mapExternalPath($path);
-        return is_dir($mappedPath);
+        return is_dir($path);
     }
 
     public static function isReadable(string $path): bool

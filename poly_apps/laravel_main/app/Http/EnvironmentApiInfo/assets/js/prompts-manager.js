@@ -13,6 +13,8 @@ const PromptsManager = {
     autoSaveDelay: 2000,
     nameTranslationQueue: new Set(),
     nameTranslating: false,
+    renameQueue: new Set(),
+    renaming: false,
     sentenceAudioMap: new Map(),
     currentPlayingIndex: -1,
     lastPlayedIndex: -1,
@@ -32,10 +34,12 @@ const PromptsManager = {
         this.setupGlobalKeyboardListener();
         if (authResult.authenticated) {
             await this.loadPrompts();
+            await this.scanAllPromptsForRenaming();
             await this.scanAllPromptsForTranslation();
             this.startAutoTranslateChecker();
             this.startAutoSaveChecker();
             this.startNameTranslationChecker();
+            this.startAutoRenameChecker();
             this.startFileContentTranslationChecker();
         }
         window.addEventListener('click', (e) => this.handleWindowClick(e));
@@ -69,10 +73,9 @@ const PromptsManager = {
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 const target = e.target;
-                const isInCodeBrowser = document.getElementById('code-browser-section');
                 const isInEditor = target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable;
 
-                if (isInCodeBrowser && !isInEditor) {
+                if (!isInEditor) {
                     e.preventDefault();
                     this.toggleGlobalPlayback();
                 }
@@ -875,7 +878,9 @@ const PromptsManager = {
 
                 const saveResponse = await APIClient.post('/code-browser/save-file', {
                     path: path,
-                    content: newContent
+                    content: newContent,
+                    skip_backup: true,
+                    cleanup_old_backups: true
                 });
 
                 const saveData = await saveResponse.json();
@@ -1009,6 +1014,83 @@ const PromptsManager = {
 
     containsChinese(text) {
         return /[\u4e00-\u9fa5]/.test(text);
+    },
+
+    async scanAllPromptsForRenaming() {
+        try {
+            console.log('[PromptsManager] Scanning all prompts for auto-renaming...');
+            const response = await APIClient.get('/code-browser/prompts');
+            const data = await response.json();
+
+            if (!data.items || data.items.length === 0) {
+                console.log('[PromptsManager] No prompts to scan for renaming');
+                return;
+            }
+
+            for (const item of data.items) {
+                const filename = item.name;
+                if (this.containsChinese(filename)) {
+                    console.log(`[PromptsManager] File "${filename}" contains Chinese, queuing for auto-rename`);
+                    this.renameQueue.add(item.path);
+                }
+            }
+
+            console.log(`[PromptsManager] Scan complete. ${this.renameQueue.size} file(s) queued for auto-rename`);
+        } catch (error) {
+            console.error('[PromptsManager] Error scanning prompts for renaming:', error);
+        }
+    },
+
+    startAutoRenameChecker() {
+        setInterval(() => {
+            this.checkAndAutoRename();
+        }, 2000);
+    },
+
+    async checkAndAutoRename() {
+        if (this.renaming || this.renameQueue.size === 0) return;
+
+        const path = Array.from(this.renameQueue)[0];
+        this.renameQueue.delete(path);
+
+        this.renaming = true;
+        try {
+            await this.autoRenameFile(path);
+        } catch (error) {
+            console.error(`[PromptsManager] Failed to auto-rename ${path}:`, error);
+        } finally {
+            this.renaming = false;
+        }
+    },
+
+    async autoRenameFile(path) {
+        try {
+            console.log(`[PromptsManager] Auto-renaming file: ${path}`);
+            const response = await APIClient.post('/code-browser/auto-rename-to-english', {
+                path: path
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.renamed) {
+                console.log(`[PromptsManager] File renamed: ${data.original_name} → ${data.translated_name}`);
+                await this.loadPrompts();
+
+                const openWindow = this.windows.get(path);
+                if (openWindow) {
+                    this.closeWindow(path);
+                    setTimeout(() => {
+                        this.openPrompt(data.new_path);
+                    }, 100);
+                }
+            } else if (data.success && !data.renamed) {
+                console.log(`[PromptsManager] File already in English: ${path}`);
+            } else {
+                console.error(`[PromptsManager] Auto-rename failed: ${data.error}`);
+            }
+        } catch (error) {
+            console.error(`[PromptsManager] Auto-rename error for ${path}:`, error);
+        }
     },
 
     async translateMenuLabel() {
@@ -1186,7 +1268,9 @@ const PromptsManager = {
 
                 const saveResponse = await APIClient.post('/code-browser/save-file', {
                     path: path,
-                    content: newContent
+                    content: newContent,
+                    skip_backup: true,
+                    cleanup_old_backups: true
                 });
 
                 const saveData = await saveResponse.json();
@@ -1295,7 +1379,10 @@ const PromptsManager = {
                 if (playBtn.innerHTML === '⏹') {
                     this.stopPlayback();
                 } else {
-                    this.playSentence(path, i);
+                    this.loopPlayback = true;
+                    this.isPlaying = true;
+                    this.currentPlayingPath = path;
+                    this.playSentenceWithLoop(path, i);
                 }
             };
 

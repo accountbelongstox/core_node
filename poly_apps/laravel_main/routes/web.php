@@ -18,9 +18,11 @@ use App\Http\EnvironmentApiInfo\ApiParamsCache;
 use App\Http\EnvironmentApiInfo\ClipboardController;
 use App\Http\EnvironmentApiInfo\CodeBrowserController;
 use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
+use App\Http\EnvironmentApiInfo\StaticResourceController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
+use App\Http\Controllers\StartupMonitorController;
 
 /*
 |--------------------------------------------------------------------------
@@ -128,6 +130,7 @@ Route::prefix('code-browser')->group(function () {
     Route::post('/delete-file', [CodeBrowserFileOpsController::class, 'deleteFile']);
     Route::post('/restore-file', [CodeBrowserFileOpsController::class, 'restoreFile']);
     Route::post('/rename-item', [CodeBrowserFileOpsController::class, 'renameItem']);
+    Route::post('/auto-rename-to-english', [CodeBrowserFileOpsController::class, 'autoRenameToEnglish']);
     Route::get('/prompts', [CodeBrowserFileOpsController::class, 'getPrompts']);
 
     Route::post('/prompts/create', function (\Illuminate\Http\Request $request) {
@@ -207,4 +210,38 @@ Route::prefix('code-browser')->group(function () {
     Route::post('/prompts/translate', [CodeBrowserFileOpsController::class, 'translatePrompt']);
     Route::post('/prompts/translate-name', [CodeBrowserFileOpsController::class, 'translatePromptName']);
     Route::post('/prompts/translate-line', [CodeBrowserFileOpsController::class, 'translateSingleLine']);
+});
+
+// McpV1 Task Dispatch System (MCP + Web API)
+// Following Laravel 12.x MCP specifications
+// @see https://laravel.com/docs/12.x/mcp
+Route::prefix('api/mcp/v1/task-dispatch')->group(function () {
+    // Task Categories
+    Route::get('/categories', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getCategories']);
+    Route::get('/categories/{categoryId}/files', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getCategoryFiles']);
+    Route::post('/categories', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'createCategory']);
+
+    // Task Queue
+    Route::post('/queue/add-file', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'addFileToQueue']);
+    Route::get('/queue/{categoryId}/tasks', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getTasks']);
+    Route::get('/queue/{categoryId}/last-task', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getLastTask']);
+    Route::get('/queue/{categoryId}/has-latest', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'hasLatestTask']);
+    Route::get('/queue/{categoryId}/search', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'searchTasks']);
+    Route::put('/queue/{categoryId}/tasks/{taskId}/status', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'updateTaskStatus']);
+    Route::get('/queue/{categoryId}/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getQueueStats']);
+});
+
+Route::prefix('static-resources')->group(function () {
+    Route::get('/file-tree', [StaticResourceController::class, 'getFileTree']);
+    Route::get('/read-file', [StaticResourceController::class, 'readFile']);
+    Route::get('/stream-file', [StaticResourceController::class, 'streamFile']);
+    Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
+    Route::post('/rename', [StaticResourceController::class, 'renameItem']);
+    Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
+});
+
+Route::prefix('startup-monitor')->group(function () {
+    Route::get('/logs', [StartupMonitorController::class, 'getLogs']);
+    Route::get('/view', [StartupMonitorController::class, 'viewLogs']);
+    Route::get('/health', [StartupMonitorController::class, 'healthCheck']);
 });
