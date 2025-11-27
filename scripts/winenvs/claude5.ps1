@@ -68,6 +68,11 @@ Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 # Path resolution algorithm:
 #   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
+# Ensure PATH is prepared via WindowsPathFunction script
+$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+. $windowsPathFunctionScript
+Set-CoreNodePaths
+
 #region Custom User Directory Configuration
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
@@ -216,7 +221,7 @@ Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
 Write-Host ""
 #endregion
 
-#region Load Environment Variables via PyCore caller
+#region Load Environment Variables via Secret Reader
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Loading Environment Variables" -ForegroundColor Yellow
@@ -235,9 +240,9 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
 }
 
 # Use relative path from script location to project root
-$secretManagerScript = Join-Path $projectRootPath "pycore\pyfoundations\secret_manager.py"
+$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] Secret manager script: $secretManagerScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret reader script: $secretReaderScript" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
 function Get-SecretValue {
@@ -248,127 +253,51 @@ function Get-SecretValue {
     $originalLocation = Get-Location
     Set-Location $projectRootPath
 
-    # Use -ArgumentList for proper parameter passing
-    $argumentList = @(
-        $secretManagerScript,
-        'get_secret_key',
+    # Build quoted argument string (avoid -ArgumentList)
+    $rawArguments = @(
+        $secretReaderScript,
         $KeyName
     )
+    $quotedArguments = $rawArguments | ForEach-Object {
+        if (-not $_) { '' }
+        elseif ($_ -match '\s') { "`"$($_)`"" }
+        else { $_ }
+    }
+    $argumentString = ($quotedArguments -join ' ').Trim()
 
     Write-Host "[DEBUG] Working directory: $projectRootPath" -ForegroundColor DarkGray
-    Write-Host "[DEBUG] Command: $pythonExecutable -ArgumentList $($argumentList -join ', ')" -ForegroundColor DarkGray
+    Write-Host "[DEBUG] Command: $pythonExecutable $argumentString" -ForegroundColor DarkGray
 
-    # Use ProcessStartInfo for reliable output capture with proper argument handling
-    $value = $null
-    $errorOutput = $null
-    $exitCode = 0
-    
-    try {
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = $pythonExecutable
-        $psi.Arguments = ($argumentList | ForEach-Object { 
-            if ($_ -match ' ') { "`"$_`"" } 
-            else { $_ } 
-        }) -join ' '
-        $psi.WorkingDirectory = $projectRootPath
-        $psi.UseShellExecute = $false
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-        $psi.CreateNoWindow = $true
-        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
-        $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
-        
-        # Set environment variables to force Python to use UTF-8 encoding
-        $psi.Environment["PYTHONIOENCODING"] = "utf-8"
-        $psi.Environment["PYTHONUTF8"] = "1"
-        
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $psi
-        
-        [void]$process.Start()
-        $value = $process.StandardOutput.ReadToEnd().Trim()
-        $errorOutput = $process.StandardError.ReadToEnd().Trim()
-        $process.WaitForExit()
-        $exitCode = $process.ExitCode
-        $process.Dispose()
-        
-        # Remove BOM character if present
-        if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
-            $value = $value.Substring(1)
-        }
-        
-    } catch {
-        # Fallback: use direct call with proper argument escaping
-        try {
-            # Set environment variables for UTF-8 encoding
-            $env:PYTHONIOENCODING = "utf-8"
-            $env:PYTHONUTF8 = "1"
-            
-            # Build command with proper quoting
-            $cmdParts = @($pythonExecutable)
-            foreach ($arg in $argumentList) {
-                if ($arg -match ' ') {
-                    $cmdParts += "`"$arg`""
-                } else {
-                    $cmdParts += $arg
-                }
-            }
-            $cmd = $cmdParts -join ' '
-            
-            # Execute and capture output
-            $allOutput = Invoke-Expression $cmd 2>&1
-            $exitCode = $LASTEXITCODE
-            
-            # Separate stdout and stderr
-            $stdoutLines = @()
-            $stderrLines = @()
-            
-            foreach ($item in $allOutput) {
-                if ($item -is [System.Management.Automation.ErrorRecord]) {
-                    $stderrLines += $item.ToString()
-                } else {
-                    $line = $item.ToString().Trim()
-                    # Filter out traceback lines
-                    if ($line -and -not ($line -match '^Traceback|^File "|^    |^Error:|^Warning:')) {
-                        $stdoutLines += $line
-                    }
-                }
-            }
-            
-            $value = $stdoutLines -join "`n"
-            $errorOutput = $stderrLines -join "`n"
-            
-            # Remove BOM character if present
-            if ($value -and $value.Length -gt 0 -and [int][char]$value[0] -eq 0xFEFF) {
-                $value = $value.Substring(1)
-            }
-            
-        } catch {
-            Write-Host "[ERROR] Failed to execute Python: $($_.Exception.Message)" -ForegroundColor Red
-            $exitCode = 1
-        }
-    }
+    $value = ""
+    $fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
+    $fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
 
-    # Restore original directory
+    $value = & $pythonExecutable $secretReaderScript $KeyName
+    $exitCode = $LASTEXITCODE
     Set-Location $originalLocation
 
-    Write-Host "[DEBUG] Exit code: $exitCode" -ForegroundColor DarkGray
+    if ($LASTEXITCODE -eq $null) {
+        Write-Host "[ERROR] Unable to execute Python process." -ForegroundColor Red
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        $value = ""
+    }
 
-    # Show error output if any (only for real errors)
-    if ($errorOutput -and $exitCode -ne 0) {
-        Write-Host "[DEBUG] Python stderr:" -ForegroundColor Yellow
-        Write-Host $errorOutput -ForegroundColor Yellow
+    if ($exitCode -ne 0 -or -not $value) {
+        Write-Host "[WARNING] Secret reader failed or returned empty value." -ForegroundColor Yellow
+        Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
+        $value = ""
+    } elseif ($value.StartsWith([char]0xFEFF)) {
+        $value = $value.Substring(1)
     }
 
     if ($value) {
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
-        # Show masked preview (first 4 chars + *** + last 4 chars)
         if ($value.Length -gt 8) {
             $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
             Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
         }
     } else {
-        Write-Host "[DEBUG] Returned empty value" -ForegroundColor Yellow
+        Write-Host "[WARNING] Secret value empty. Run dd.cmd -> Secret Decryption Fix if needed." -ForegroundColor Yellow
     }
 
     return $value

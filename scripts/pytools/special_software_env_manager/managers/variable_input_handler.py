@@ -89,9 +89,9 @@ class VariableInputHandler:
         if auto_filled_variables is None:
             auto_filled_variables = set()
 
-        display_name = var['DisplayName']
+        var_name = var.get('Name', '')
+        display_name = var.get('DisplayName', var_name)
         description = var.get('Description', '')
-        var_name = var['Name']
         input_type = var.get('InputType', 'Text')
 
         # Check if this is a menu selection type
@@ -173,8 +173,8 @@ class VariableInputHandler:
         target_token_variable = None
         auto_filled_variables = set()
 
-        for var_index, var in enumerate(config['Variables']):
-            var_name = var['Name']
+        for var_index, var in enumerate(config.get('Variables', [])):
+            var_name = var.get('Name', '')
             input_type = var.get('InputType', 'Text')
 
             # Get existing value

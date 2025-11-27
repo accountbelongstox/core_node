@@ -343,6 +343,9 @@ class CoinDataManager:
         coin_data = self._coins[coin_key]
         summary = coin_data.get_history_summary()
 
+        # Add history hours configuration
+        summary['history_hours'] = self.history_hours
+
         # Add price changes
         summary['change_30s'] = coin_data.get_price_change_30s()
         summary['change_1min'] = coin_data.get_price_change_1min()
