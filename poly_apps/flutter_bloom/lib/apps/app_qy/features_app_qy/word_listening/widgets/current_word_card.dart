@@ -1,167 +1,172 @@
 /// Current word card widget for word listening
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, localization
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/theme/app_theme.dart';
+import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/buttons/primary_button.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class CurrentWordCard extends StatelessWidget {
-  const CurrentWordCard({super.key});
+  final String word;
+  final String phonetic;
+  final String translation;
+  final String? example;
+  final String? exampleTranslation;
+  final VoidCallback? onAddToVocabulary;
+  final VoidCallback? onMarkAsLearned;
+
+  const CurrentWordCard({
+    super.key,
+    required this.word,
+    required this.phonetic,
+    required this.translation,
+    this.example,
+    this.exampleTranslation,
+    this.onAddToVocabulary,
+    this.onMarkAsLearned,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryGreen.withOpacity(0.1),
-            AppTheme.secondaryGreen.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryGreen.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'resilient',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '/rɪˈzɪliənt/',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.volume_up,
-                  color: AppTheme.primaryGreen,
-                  size: 28,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '有弹性的；能迅速恢复的',
-            style: const TextStyle(
-              fontSize: 18,
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppTheme.primaryGreen.withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return GlassCard(
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.spacing24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(
-                  '例句',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryGreen,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        word,
+                        style: ThemeTextStyles.headlineLarge.copyWith(
+                          color: ColorsAppQy.qyTextPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: ThemeDimensions.spacing4),
+                      Text(
+                        phonetic,
+                        style: ThemeTextStyles.bodyLarge.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'She\'s a resilient person who bounces back from adversity.',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: AppTheme.textPrimary,
-                    height: 1.4,
+                Container(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing12),
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+                    borderRadius: ThemeDimensions.borderRadiusM,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '她是一个有韧性的人，能够从逆境中恢复过来。',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    height: 1.4,
+                  child: Icon(
+                    Icons.volume_up,
+                    color: ColorsAppQy.qyPrimary,
+                    size: ThemeDimensions.iconSizeL,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // Add to new words
-                  },
-                  icon: const Icon(Icons.add_circle_outline),
-                  label: const Text('添加到生词本'),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppTheme.primaryGreen),
-                    foregroundColor: AppTheme.primaryGreen,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+            SizedBox(height: ThemeDimensions.spacing16),
+            Text(
+              translation,
+              style: ThemeTextStyles.headlineSmall.copyWith(
+                color: ColorsAppQy.qyTextPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (example != null) ...[
+              SizedBox(height: ThemeDimensions.spacing16),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(ThemeDimensions.spacing16),
+                decoration: BoxDecoration(
+                  color: ColorsAppQy.qyFrostWhite.withOpacity(0.8),
+                  borderRadius: ThemeDimensions.borderRadiusM,
+                  border: Border.all(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.2),
+                    width: 1,
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Mark as learned
-                  },
-                  icon: const Icon(Icons.check_circle),
-                  label: const Text('已掌握'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      QyAppLocalizationKeys.qyListeningExample.tr(context),
+                      style: ThemeTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: ColorsAppQy.qyPrimary,
+                      ),
+                    ),
+                    SizedBox(height: ThemeDimensions.spacing8),
+                    Text(
+                      example!,
+                      style: ThemeTextStyles.bodyLarge.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (exampleTranslation != null) ...[
+                      SizedBox(height: ThemeDimensions.spacing8),
+                      Text(
+                        exampleTranslation!,
+                        style: ThemeTextStyles.bodyMedium.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
-          ),
-        ],
+            SizedBox(height: ThemeDimensions.spacing16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onAddToVocabulary,
+                    icon: Icon(Icons.add_circle_outline),
+                    label: Text(QyAppLocalizationKeys.qyListeningAddToVocab.tr(context)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: ColorsAppQy.qyPrimary),
+                      foregroundColor: ColorsAppQy.qyPrimary,
+                      padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: ThemeDimensions.borderRadiusM,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: ThemeDimensions.spacing12),
+                Expanded(
+                  child: PrimaryButton(
+                    onPressed: onMarkAsLearned,
+                    text: QyAppLocalizationKeys.qyWordBookMastered.tr(context),
+                    icon: Icons.check_circle,
+                    backgroundColor: ColorsAppQy.qyAccent,
+                    foregroundColor: ColorsAppQy.qyTextOnPrimary,
+                    isFullWidth: true,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusL,
     );
   }
 }

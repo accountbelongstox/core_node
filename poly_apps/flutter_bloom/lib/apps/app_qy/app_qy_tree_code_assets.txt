@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-28 13:48:08
+Generated: 2025-11-28 14:45:05
 App: app_qy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom

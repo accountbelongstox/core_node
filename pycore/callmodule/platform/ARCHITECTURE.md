@@ -7,15 +7,22 @@ pycore_module_caller.py
     ↓
 launch_platform_aware() [pycore/callmodule/platform/launcher.py]
     ↓
-ServiceLauncher [pycore/pylauncher/launcher.py]
-    ↓ (Singleton Detection)
-SingletonDetector [pycore/pylauncher/singleton_detector.py]
+ServiceLauncher.start() [pycore/pylauncher/launcher.py]
+    ↓ (第一步：单例检测)
+    _singleton_detect()
+    ↓ (只调用一次，内部处理所有重试)
+SingletonDetector.detect_and_bind() [pycore/pylauncher/singleton_detector.py]
+    ↓ (使用 HTTP 协议通信)
+    - 扫描端口范围
+    - 发现旧实例 → 发送 SHUTDOWN 请求
+    - 等待旧实例关闭
+    - 重试绑定端口（最多3次，每次间隔0.5s）
     ↓ (State Check via THREAD_BUS)
-THREAD_BUS [pycore/pyfoundations/thread_bus.py]
-    ↓ (If singleton OK)
-Platform-Specific UI:
-    - Windows: launch_windows_tray() [pycore/callmodule/platform/windows_tray.py]
-    - Linux: launch_linux_service() [pycore/callmodule/platform/linux_service.py]
+THREAD_BUS.is_busy() / request_shutdown()
+    ↓ (如果单例检测成功)
+launch_windows_tray() / launch_linux_service()
+    ↓
+启动 RPC v2 服务器和 UI
 ```
 
 ---
@@ -27,18 +34,20 @@ Platform-Specific UI:
 每个组件只负责一件事：
 
 - **`launch_platform_aware()`**: 平台检测和启动流程协调
-- **`ServiceLauncher`**: 单例检测和服务生命周期管理
-- **`SingletonDetector`**: 单例协议通信
-- **`THREAD_BUS`**: 全局状态管理（busy/idle）
+- **`ServiceLauncher`**: 单例检测调用和服务生命周期管理（不实现检测逻辑）
+- **`SingletonDetector`**: 单例协议通信和重试逻辑（HTTP客户端）
+- **`THREAD_BUS`**: 全局状态管理（busy/idle）和 shutdown 协调
 - **`windows_tray.py` / `linux_service.py`**: 平台特定的 UI 和 RPC 服务器
 
 ### 2. No Redundancy - 避免冗余
 
 **CRITICAL**: 单例检测逻辑**只存在于一个地方**：
-- ✅ `ServiceLauncher` 内部调用 `SingletonDetector`
+- ✅ `launcher.py._singleton_detect()` **只调用一次** `SingletonDetector.detect_and_bind()`
+- ✅ `SingletonDetector` 内部处理**所有重试逻辑**
 - ❌ **不要**在 `launch_platform_aware()` 中重复实现单例检测
 - ❌ **不要**在 `windows_tray.py` 中重复实现单例检测
 - ❌ **不要**在 `linux_service.py` 中重复实现单例检测
+- ❌ **不要**在 `launcher.py` 中实现重试逻辑
 
 ### 3. Parameter Passing - 参数传递
 
@@ -47,12 +56,16 @@ Platform-Specific UI:
 ```python
 # ✅ 正确：通过参数传递
 launcher = ServiceLauncher(config)
-launcher.start()  # 内部处理单例
+success = launcher.start()  # 内部调用 _singleton_detect() 一次
+if not success:
+    return  # 单例冲突，退出
+
 singleton_port = launcher.detection_result.port
 launch_windows_tray(launcher=launcher, singleton_port=singleton_port)
 
-# ❌ 错误：在多个文件中重复判断
+# ❌ 错误：在多个文件中重复判断或重试
 # 不要在 windows_tray.py 中再次调用 SingletonDetector.detect_and_bind()
+# 不要在 launcher.py 中实现重试循环
 ```
 
 ---
@@ -65,7 +78,7 @@ launch_windows_tray(launcher=launcher, singleton_port=singleton_port)
 
 **Responsibility**:
 - 创建 `ServiceLauncher` 配置
-- 调用 `ServiceLauncher.start()` 进行单例检测
+- 调用 `ServiceLauncher.start()` 进行单例检测（**只调用一次**）
 - 根据平台启动对应的 UI
 
 **Key Code**:
@@ -79,7 +92,7 @@ def launch_platform_aware(host='0.0.0.0', port=59000, debug=False):
         services={'heartbeat': {}}
     )
 
-    # 2. 启动 ServiceLauncher（处理单例检测）
+    # 2. 启动 ServiceLauncher（处理单例检测）- 只调用一次
     launcher = ServiceLauncher(config)
     if not launcher.start():
         return  # 单例冲突，退出
@@ -97,7 +110,119 @@ def launch_platform_aware(host='0.0.0.0', port=59000, debug=False):
 **What it DOES NOT do**:
 - ❌ 不执行单例检测（由 ServiceLauncher 负责）
 - ❌ 不处理单例协议通信（由 SingletonDetector 负责）
+- ❌ 不实现重试逻辑（由 SingletonDetector 内部处理）
 - ❌ 不管理 busy 状态（由 THREAD_BUS 负责）
+
+---
+
+### 2. `ServiceLauncher` - 服务启动器
+
+**Location**: `pycore/pylauncher/launcher.py`
+
+**Responsibility**:
+- 调用单例检测（**只调用一次**，不重试）
+- 管理服务生命周期
+- 提供 shutdown 接口
+
+**Key Code**:
+```python
+class ServiceLauncher:
+    def start(self) -> bool:
+        # 第一步：单例检测
+        if self.config.singleton and not self._singleton_detect():
+            return False  # 单例冲突，返回 False
+
+        # 第二步：启动服务（heartbeat等）
+        for name, cfg in self.config.services.items():
+            instance = SERVICE_STARTERS[name](cfg)
+            self.services[name] = instance
+
+        return True
+
+    def _singleton_detect(self) -> bool:
+        """只调用一次 SingletonDetector，所有重试逻辑在 SingletonDetector 内部"""
+        self.singleton_detector = SingletonDetector(
+            app_id=self.config.app_id,
+            shutdown_existing=self.config.shutdown_existing,
+            ...
+        )
+
+        # 只调用一次，内部处理所有重试
+        detection = self.singleton_detector.detect_and_bind()
+        self.detection_result = detection
+
+        return detection.is_primary
+```
+
+**What it DOES NOT do**:
+- ❌ 不实现单例协议（HTTP通信）
+- ❌ 不实现重试逻辑（由 SingletonDetector 处理）
+- ❌ 不循环调用 `detect_and_bind()`
+
+---
+
+### 3. `SingletonDetector` - 单例检测器
+
+**Location**: `pycore/pylauncher/singleton_detector.py`
+
+**Responsibility**:
+- **实现单例协议**（使用 HTTP socket 通信）
+- **实现所有重试逻辑**（端口扫描、shutdown重试、绑定重试）
+- 监听新实例的请求
+
+**Key Features**:
+1. **HTTP 协议通信**：使用简单的 TCP socket + JSON 协议
+2. **端口范围扫描**：从 `port_start` 扫描到 `port_start + port_range`
+3. **Shutdown 协商**：发送 SHUTDOWN 请求，等待旧实例关闭
+4. **绑定重试**：shutdown 成功后，重试绑定端口（最多3次，每次间隔0.5s）
+
+**Key Code**:
+```python
+class SingletonDetector:
+    def detect_and_bind(self) -> DetectionResult:
+        """扫描端口并尝试成为 PRIMARY，内部处理所有重试逻辑"""
+        for port in range(port_start, port_start + port_range):
+            # 尝试连接
+            response = self._try_connect_and_verify(port)
+
+            if response:  # 发现旧实例
+                if self.shutdown_existing:
+                    # 发送 SHUTDOWN 请求（内部等待1.5秒）
+                    if self.send_shutdown_to_existing(port):
+                        # 重试绑定端口（最多3次）
+                        for retry in range(3):
+                            if self._try_bind_port(port):
+                                return DetectionResult(is_primary=True)
+                            time.sleep(0.5)  # 等待端口释放
+
+                        # 重试失败
+                        return DetectionResult(is_primary=False, ...)
+                else:
+                    # 不 shutdown，返回 SECONDARY
+                    return DetectionResult(is_primary=False, existing_port=port)
+
+            # 端口空闲，尝试绑定
+            if self._try_bind_port(port):
+                return DetectionResult(is_primary=True, port=port)
+
+        # 扫描完所有端口，失败
+        return DetectionResult(is_primary=False, message="No available ports")
+```
+
+**Protocol Messages**:
+```json
+// CHECK: 检查实例是否存在
+{"protocol": "PYCORE_SINGLETON_V1", "type": "CHECK", "app_id": "..."}
+
+// ALIVE: 实例存在响应
+{"protocol": "PYCORE_SINGLETON_V1", "type": "ALIVE", "is_primary": true}
+
+// SHUTDOWN: 请求关闭
+{"protocol": "PYCORE_SINGLETON_V1", "type": "SHUTDOWN"}
+
+// SHUTDOWN_ACK: 关闭确认
+{"protocol": "PYCORE_SINGLETON_V1", "type": "SHUTDOWN_ACK", "accepted": true}
+```
 
 ---
 

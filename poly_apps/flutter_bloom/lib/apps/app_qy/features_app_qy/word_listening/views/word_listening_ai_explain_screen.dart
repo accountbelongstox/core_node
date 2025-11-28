@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
-import 'package:qyflutter/common/theme/base/theme_effects.dart';
-import 'package:qyflutter/common/theme/base/theme_gradients.dart';
 import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
 import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
 import 'package:qyflutter/common/widgets/buttons/primary_button.dart';
@@ -96,11 +94,14 @@ class _WordListeningAIExplainScreenState
 
     if (cachedData != null) {
       setState(() {
-        _aiExplanation = cachedData['explanation'] ?? '';
-        _etymology = cachedData['etymology'] ?? '';
-        _synonyms = List<String>.from(cachedData['synonyms'] ?? []);
-        _antonyms = List<String>.from(cachedData['antonyms'] ?? []);
-        _collocations = List<String>.from(cachedData['collocations'] ?? []);
+        _aiExplanation = (cachedData['explanation'] as String?) ?? '';
+        _etymology = (cachedData['etymology'] as String?) ?? '';
+        _synonyms =
+            List<String>.from((cachedData['synonyms'] as List<dynamic>?) ?? []);
+        _antonyms =
+            List<String>.from((cachedData['antonyms'] as List<dynamic>?) ?? []);
+        _collocations = List<String>.from(
+            (cachedData['collocations'] as List<dynamic>?) ?? []);
         _isLoading = false;
       });
       return;
@@ -136,11 +137,12 @@ In business environments, this word is often used to describe specific business 
     );
 
     setState(() {
-      _aiExplanation = data['explanation'] ?? '';
-      _etymology = data['etymology'] ?? '';
-      _synonyms = List<String>.from(data['synonyms'] ?? []);
-      _antonyms = List<String>.from(data['antonyms'] ?? []);
-      _collocations = List<String>.from(data['collocations'] ?? []);
+      _aiExplanation = (data['explanation'] as String?) ?? '';
+      _etymology = (data['etymology'] as String?) ?? '';
+      _synonyms = List<String>.from((data['synonyms'] as List<dynamic>?) ?? []);
+      _antonyms = List<String>.from((data['antonyms'] as List<dynamic>?) ?? []);
+      _collocations =
+          List<String>.from((data['collocations'] as List<dynamic>?) ?? []);
       _isLoading = false;
     });
   }
@@ -284,7 +286,7 @@ In business environments, this word is often used to describe specific business 
       blurAmount: 15.0,
       opacity: 0.25,
       backgroundColor: ColorsAppQy.qyHolographicWhite,
-      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      borderRadius: ThemeDimensions.borderRadiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -316,8 +318,7 @@ In business environments, this word is often used to describe specific business 
             padding: EdgeInsets.all(ThemeDimensions.spacing12),
             decoration: BoxDecoration(
               color: ColorsAppQy.qyFrostWhite.withOpacity(0.5),
-              borderRadius:
-                  BorderRadius.circular(ThemeDimensions.borderRadiusM),
+              borderRadius: ThemeDimensions.borderRadiusM,
               border: Border.all(
                 color: ColorsAppQy.qyBorderLight.withOpacity(0.3),
               ),
@@ -375,7 +376,7 @@ In business environments, this word is often used to describe specific business 
       blurAmount: 12.0,
       opacity: 0.2,
       backgroundColor: ColorsAppQy.qyGlassWhite,
-      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      borderRadius: ThemeDimensions.borderRadiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -385,8 +386,7 @@ In business environments, this word is often used to describe specific business 
                 padding: EdgeInsets.all(ThemeDimensions.spacing8),
                 decoration: BoxDecoration(
                   color: ColorsAppQy.qyPrimary.withOpacity(0.1),
-                  borderRadius:
-                      BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Icon(
                   Icons.psychology,
@@ -423,7 +423,7 @@ In business environments, this word is often used to describe specific business 
       blurAmount: 12.0,
       opacity: 0.2,
       backgroundColor: ColorsAppQy.qyGlassLight,
-      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      borderRadius: ThemeDimensions.borderRadiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -433,8 +433,7 @@ In business environments, this word is often used to describe specific business 
                 padding: EdgeInsets.all(ThemeDimensions.spacing8),
                 decoration: BoxDecoration(
                   color: ColorsAppQy.qySecondary.withOpacity(0.1),
-                  borderRadius:
-                      BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Icon(
                   Icons.history,
@@ -473,7 +472,7 @@ In business environments, this word is often used to describe specific business 
       blurAmount: 10.0,
       opacity: 0.2,
       backgroundColor: ColorsAppQy.qyGlassWhite,
-      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      borderRadius: ThemeDimensions.borderRadiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -504,8 +503,7 @@ In business environments, this word is often used to describe specific business 
                   ),
                   decoration: BoxDecoration(
                     color: ColorsAppQy.qyPrimary.withOpacity(0.1),
-                    borderRadius:
-                        BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                    borderRadius: ThemeDimensions.borderRadiusS,
                     border: Border.all(
                       color: ColorsAppQy.qyPrimary.withOpacity(0.3),
                     ),
@@ -530,7 +528,7 @@ In business environments, this word is often used to describe specific business 
       blurAmount: 10.0,
       opacity: 0.2,
       backgroundColor: ColorsAppQy.qyGlassWhite,
-      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      borderRadius: ThemeDimensions.borderRadiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -561,8 +559,7 @@ In business environments, this word is often used to describe specific business 
                   ),
                   decoration: BoxDecoration(
                     color: ColorsAppQy.qyError.withOpacity(0.1),
-                    borderRadius:
-                        BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                    borderRadius: ThemeDimensions.borderRadiusS,
                     border: Border.all(
                       color: ColorsAppQy.qyError.withOpacity(0.3),
                     ),
@@ -587,7 +584,7 @@ In business environments, this word is often used to describe specific business 
       blurAmount: 12.0,
       opacity: 0.2,
       backgroundColor: ColorsAppQy.qyGlassWhite,
-      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      borderRadius: ThemeDimensions.borderRadiusL,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -597,8 +594,7 @@ In business environments, this word is often used to describe specific business 
                 padding: EdgeInsets.all(ThemeDimensions.spacing8),
                 decoration: BoxDecoration(
                   color: ColorsAppQy.qySecondary.withOpacity(0.1),
-                  borderRadius:
-                      BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Icon(
                   Icons.link,
@@ -672,8 +668,7 @@ In business environments, this word is often used to describe specific business 
               width: 2,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(ThemeDimensions.borderRadiusL),
+              borderRadius: ThemeDimensions.borderRadiusL,
             ),
           ),
           child: SizedBox(
