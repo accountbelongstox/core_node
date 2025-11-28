@@ -65,7 +65,7 @@ def launch_platform_aware(host='0.0.0.0', port=59000, debug=False):
 
     # Start voice subtitle UI (always start, hidden initially)
     ColorPrint.blue("[Launcher] Starting voice subtitle UI...")
-    from pycore.pyctl.voice_subtitle.ui import start_voice_subtitle_ui
+    from pycore.pyctl.desktop.ui import start_voice_subtitle_ui
     ui_thread = start_voice_subtitle_ui()
     ColorPrint.green("[Launcher] Voice subtitle UI thread started")
 

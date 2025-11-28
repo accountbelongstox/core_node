@@ -16,8 +16,8 @@ from pycore import ColorPrint
 from pycore.pyutils.clipboard.clipboard_monitor import get_clipboard_monitor
 from pycore.pyutils.window_screenshot import WindowScreenshot
 from pycore.pyutils.gemini import gemini_manager
-from pycore.pyctl.voice_subtitle import get_voice_subtitle_queue
-from pycore.pyctl.voice_subtitle.processor import process_text_input, process_image_input
+from pycore.pyctl.desktop import get_voice_subtitle_queue
+from pycore.pyctl.desktop.processor import process_text_input, process_image_input
 
 
 class VoiceSubtitleBackgroundServices:

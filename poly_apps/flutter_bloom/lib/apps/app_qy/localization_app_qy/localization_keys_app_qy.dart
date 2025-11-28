@@ -90,6 +90,7 @@ class QyAppLocalizationKeys {
   static const String qyLogoutFailed = 'qy_logout_failed';
   static const String qyYesLogout = 'qy_yes_logout';
   static const String qyLogin = 'qy_login';
+  static const String qyLoginFailed = 'qy_login_failed';
   static const String qyRegister = 'qy_register';
   static const String qyForgotPassword = 'qy_forgot_password';
   static const String qyResetPassword = 'qy_reset_password';
@@ -1406,6 +1407,15 @@ class QyAppLocalizationKeys {
   static const String qyEnterCode = 'qy_enter_code';
   static const String qySendCode = 'qy_send_code';
   static const String qyAgreeToTermsPrefix = 'qy_agree_to_terms_prefix';
+  static const String qyVerificationCode = 'qy_verification_code';
+  static const String qyLoginToContinue = 'qy_login_to_continue';
+  static const String qyLoginWithUsername = 'qy_login_with_username';
+  static const String qyLoginWithPhone = 'qy_login_with_phone';
+  static const String qyAgreeToTermsAndPrivacy = 'qy_agree_to_terms_and_privacy';
+  static const String qyPleaseAgreeToTerms = 'qy_please_agree_to_terms';
+  static const String qyPleaseEnterPhoneAndCode = 'qy_please_enter_phone_and_code';
+  static const String qyPleaseEnterUsernameAndPassword = 'qy_please_enter_username_and_password';
+  static const String qyFailedToSendCode = 'qy_failed_to_send_code';
   static const String qyUserAgreement = 'qy_user_agreement';
   static const String qyAnd = 'qy_and';
   static const String qyGetCode = 'qy_get_code';

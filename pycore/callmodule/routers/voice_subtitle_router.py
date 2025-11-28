@@ -12,9 +12,9 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from pycore import ColorPrint
-from pycore.pyctl.voice_subtitle import get_voice_subtitle_queue
-from pycore.pyctl.voice_subtitle.processor import process_text_input, process_image_input
-from pycore.pyctl.voice_subtitle.background_services import get_background_services
+from pycore.pyctl.desktop import get_voice_subtitle_queue
+from pycore.pyctl.desktop.processor import process_text_input, process_image_input
+from pycore.pyctl.desktop.background_services import get_background_services
 
 
 # ============================================================

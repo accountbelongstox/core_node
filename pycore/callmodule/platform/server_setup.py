@@ -94,15 +94,23 @@ def create_rpc_server(host='0.0.0.0', port=59000, debug=False):
     server.app.include_router(code_sync_router)
     ColorPrint.green("[Server] Code sync routes registered at /code-sync/*")
 
-    # Mount static directory for subtitle UI assets
-    subtitle_ui_dir = Path(__file__).parent.parent.parent / "pyctl" / "voice_subtitle" / "ui"
-    if subtitle_ui_dir.exists():
+    # Mount static directory for desktop UI assets
+    desktop_ui_dir = Path(__file__).parent.parent.parent / "pyctl" / "desktop" / "ui"
+    if desktop_ui_dir.exists():
+        server.app.mount(
+            "/desktop",
+            StaticFiles(directory=str(desktop_ui_dir), html=True),
+            name="desktop_ui_static"
+        )
+        ColorPrint.green(f"[Server] Static files mounted at /desktop/* from {desktop_ui_dir}")
+
+        # Also mount at /voice-subtitle for backward compatibility
         server.app.mount(
             "/voice-subtitle",
-            StaticFiles(directory=str(subtitle_ui_dir), html=True),
-            name="subtitle_ui_static"
+            StaticFiles(directory=str(desktop_ui_dir), html=True),
+            name="voice_subtitle_ui_static"
         )
-        ColorPrint.green(f"[Server] Static files mounted at /voice-subtitle/* from {subtitle_ui_dir}")
+        ColorPrint.green(f"[Server] Static files also mounted at /voice-subtitle/* (backward compatibility)")
 
     # Note: RPC JavaScript client is served at /js/rpc/* by FastAPIRPCServer (built-in)
 
@@ -115,7 +123,7 @@ def create_rpc_server(host='0.0.0.0', port=59000, debug=False):
 
     # Initialize voice subtitle window manager (for subtitle mode window adjustments)
     try:
-        from pycore.pyctl.voice_subtitle.window_manager import get_window_manager
+        from pycore.pyctl.desktop.window_manager import get_window_manager
         window_manager = get_window_manager()
         ColorPrint.green("[Server] Voice subtitle window manager initialized")
     except ImportError as e:
