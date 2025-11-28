@@ -12,7 +12,7 @@ from typing import Optional
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_pygame
-from pycore.pyctl.voice_subtitle.queue_manager import get_voice_subtitle_queue
+from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
 
 
 class VoiceSubtitlePlayer:

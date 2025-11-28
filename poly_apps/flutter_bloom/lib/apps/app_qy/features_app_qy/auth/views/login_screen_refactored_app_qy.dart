@@ -59,14 +59,14 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
 
   Future<void> _handleLogin(AuthServiceAppQy authService) async {
     if (!_agreedToTerms) {
-      _showError('Please agree to the terms and privacy policy');
+      _showError(QyAppLocalizationKeys.qyPleaseAgreeToTerms.tr(context));
       return;
     }
 
     bool success;
     if (_isPhoneLogin) {
       if (_phoneController.text.isEmpty || _codeController.text.isEmpty) {
-        _showError('Please enter phone number and verification code');
+        _showError(QyAppLocalizationKeys.qyPleaseEnterPhoneAndCode.tr(context));
         return;
       }
 
@@ -76,7 +76,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       );
     } else {
       if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
-        _showError('Please enter username and password');
+        _showError(QyAppLocalizationKeys.qyPleaseEnterUsernameAndPassword.tr(context));
         return;
       }
 
@@ -89,13 +89,13 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     if (success && mounted) {
       context.go('/language-selection');
     } else if (mounted) {
-      _showError(authService.error ?? 'Login failed');
+      _showError(authService.error ?? QyAppLocalizationKeys.qyLoginFailed.tr(context));
     }
   }
 
   Future<void> _handleSendCode(AuthServiceAppQy authService) async {
     if (_phoneController.text.isEmpty) {
-      _showError('Please enter phone number');
+      _showError(QyAppLocalizationKeys.qyPleaseEnterPhone.tr(context));
       return;
     }
 
@@ -111,7 +111,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       });
       _startCountdown();
     } else {
-      _showError(authService.error ?? 'Failed to send code');
+      _showError(authService.error ?? QyAppLocalizationKeys.qyFailedToSendCode.tr(context));
     }
   }
 
@@ -259,7 +259,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 ),
                 const SizedBox(height: ThemeDimensions.spacing8),
                 Text(
-                  'Login to continue learning',
+                  QyAppLocalizationKeys.qyLoginToContinue.tr(context),
                   style: ThemeTextStyles.caption.copyWith(
                     color: ColorsAppQy.qyTextSecondary,
                   ),
@@ -285,14 +285,14 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       children: [
         _buildInputField(
           controller: _usernameController,
-          label: 'Username',
+          label: QyAppLocalizationKeys.qyUsername.tr(context),
           icon: Icons.person_outline_rounded,
           keyboardType: TextInputType.text,
         ),
         const SizedBox(height: ThemeDimensions.spacing16),
         _buildInputField(
           controller: _passwordController,
-          label: 'Password',
+          label: QyAppLocalizationKeys.qyPassword.tr(context),
           icon: Icons.lock_outline_rounded,
           obscureText: _obscurePassword,
           keyboardType: TextInputType.visiblePassword,
@@ -317,7 +317,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       children: [
         _buildInputField(
           controller: _phoneController,
-          label: 'Phone Number',
+          label: QyAppLocalizationKeys.qyPhoneNumber.tr(context),
           icon: Icons.phone_outlined,
           keyboardType: TextInputType.phone,
         ),
@@ -327,7 +327,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
             Expanded(
               child: _buildInputField(
                 controller: _codeController,
-                label: 'Verification Code',
+                label: QyAppLocalizationKeys.qyVerificationCode.tr(context),
                 icon: Icons.sms_outlined,
                 keyboardType: TextInputType.number,
               ),
@@ -409,7 +409,9 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 : null,
           ),
           child: Text(
-            _countdown > 0 ? '${_countdown}s' : 'Send',
+            _countdown > 0 
+                ? '${_countdown}s' 
+                : QyAppLocalizationKeys.qySendCode.tr(context),
             style: ThemeTextStyles.button.copyWith(
               color: Colors.white,
               fontSize: 14,
@@ -448,7 +450,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 : null,
           ),
           child: Text(
-            'Login',
+            QyAppLocalizationKeys.qyLogin.tr(context),
             style: ThemeTextStyles.button.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -483,7 +485,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
         const SizedBox(width: ThemeDimensions.spacing8),
         Flexible(
           child: Text(
-            'I agree to the Terms and Privacy Policy',
+            QyAppLocalizationKeys.qyAgreeToTermsAndPrivacy.tr(context),
             style: ThemeTextStyles.caption.copyWith(
               color: ColorsAppQy.qyTextSecondary,
             ),
@@ -502,8 +504,8 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       },
       child: Text(
         _isPhoneLogin
-            ? 'Login with Username'
-            : 'Login with Phone',
+            ? QyAppLocalizationKeys.qyLoginWithUsername.tr(context)
+            : QyAppLocalizationKeys.qyLoginWithPhone.tr(context),
         style: ThemeTextStyles.body.copyWith(
           color: ColorsAppQy.qyPrimary,
           fontWeight: FontWeight.w600,

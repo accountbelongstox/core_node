@@ -13,7 +13,7 @@ from typing import Optional, List, Dict
 
 from pycore import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-from pycore.pyctl.voice_subtitle import get_voice_subtitle_queue
+from pycore.pyctl.desktop import get_voice_subtitle_queue
 from pycore.pyutils.edge_tts import get_edge_tts_client
 from pycore.pyutils.translator import GoogleTranslator
 from pycore.pyutils.gemini import gemini_manager
