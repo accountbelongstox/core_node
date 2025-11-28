@@ -60,8 +60,8 @@ class SettingsControllerAppQy extends ChangeNotifier {
 
   Future<void> toggleTheme() async {
     _storage.toggleDarkMode();
-    // Also update common settings controller
-    await _commonSettingsController.setSetting('theme_mode', isDarkMode ? 'dark' : 'light');
+    // Also update common settings controller for immediate UI refresh
+    await _commonSettingsController.setSetting('theme_dark_mode', isDarkMode);
     notifyListeners();
   }
 
@@ -104,13 +104,19 @@ class SettingsControllerAppQy extends ChangeNotifier {
 
   // Gets the current locale identifier
   String getCurrentLocaleIdentifier() {
-    return _storage.getLocale() ?? _localization.currentLocale?.languageCode ?? 'zh';
+    return _storage.getLocale() ??
+        _localization.currentLocale?.languageCode ??
+        'zh';
   }
 
   // Change language and notify UI
   Future<void> changeLanguage(String languageCode) async {
     _storage.setLocale(languageCode);
     _localization.translate(languageCode);
+
+    // Sync with common SettingsController for immediate UI refresh
+    await _commonSettingsController.changeLanguage(languageCode);
+
     notifyListeners();
   }
 

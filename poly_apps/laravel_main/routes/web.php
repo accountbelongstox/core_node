@@ -259,6 +259,17 @@ Route::prefix('api/mcp/v1/screenshots')->group(function () {
     Route::delete('/clear-all/confirm', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'clearAll']);
 });
 
+// McpV1 Placeholder Image Generator (MCP + Web API)
+// Generate placeholder images with customizable text and real/simple modes
+Route::prefix('api/mcp/v1/placeholders')->group(function () {
+    Route::post('/generate', [\App\Apps\McpV1\McpV1Controllers\McpV1PlaceholderCtl::class, 'generate']);
+    Route::get('/', [\App\Apps\McpV1\McpV1Controllers\McpV1PlaceholderCtl::class, 'list']);
+    Route::get('/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1PlaceholderCtl::class, 'stats']);
+    Route::post('/cleanup', [\App\Apps\McpV1\McpV1Controllers\McpV1PlaceholderCtl::class, 'cleanup']);
+    Route::get('/{uuid}/download', [\App\Apps\McpV1\McpV1Controllers\McpV1PlaceholderCtl::class, 'download']);
+    Route::delete('/{uuid}', [\App\Apps\McpV1\McpV1Controllers\McpV1PlaceholderCtl::class, 'delete']);
+});
+
 Route::prefix('static-resources')->group(function () {
     Route::get('/file-tree', [StaticResourceController::class, 'getFileTree']);
     Route::get('/read-file', [StaticResourceController::class, 'readFile']);

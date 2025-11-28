@@ -11,10 +11,18 @@ Main framework class that integrates all components:
 - Tick timer thread
 
 Thread Model:
-- Main thread: Qt event loop (UI)
-- Tick thread: Periodic tasks timer
+- Main thread: Qt event loop (UI) - All GUI operations execute here
+- Tick thread: Periodic tasks timer - Background timer thread
+- Tray thread: System tray event loop - Separate thread for tray operations
+- RPC v2 thread: FastAPI/Uvicorn server - HTTP/WebSocket server thread
+- THREAD_BUS: Cross-thread event bus - Routes events safely between threads
+
+IMPORTANT: All GUI operations (show/hide/move/resize) MUST execute in Qt main thread.
+THREAD_BUS events use Qt signals to ensure thread safety.
 """
 
+import sys
+import os
 import threading
 import time
 from typing import Optional, Callable, List
@@ -24,9 +32,7 @@ from PySide6.QtCore import QObject, Signal, Slot, QTimer, Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 
-# Import startup window (tkinter)
-import sys
-import os
+from pycore import THREAD_BUS, ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window import StartupWindow, ColorPrintCapture
 
 # Import PySide6 components
@@ -125,6 +131,17 @@ class PySide6Framework(QObject):
     closing = Signal()
     closed = Signal()
     tick = Signal()  # Forwarded from tick timer
+
+    # Internal signals for thread-safe THREAD_BUS control
+    # These signals ensure GUI operations execute in Qt main thread
+    _thread_bus_show_signal = Signal()
+    _thread_bus_hide_signal = Signal()
+    _thread_bus_toggle_signal = Signal()
+    _thread_bus_move_signal = Signal(int, int)  # x, y
+    _thread_bus_resize_signal = Signal(int, int)  # width, height
+    _thread_bus_close_signal = Signal()
+    _thread_bus_minimize_signal = Signal()
+    _thread_bus_maximize_signal = Signal()
 
     def __init__(
         self,
@@ -345,6 +362,21 @@ class PySide6Framework(QObject):
         if self.tick_timer:
             self.tick_timer.tick.connect(self._on_tick)
 
+        # THREAD_BUS internal signal connections (thread-safe)
+        # These signals are emitted from THREAD_BUS event handlers (any thread)
+        # and execute their slots in the Qt main thread automatically
+        self._thread_bus_show_signal.connect(self.show_window)
+        self._thread_bus_hide_signal.connect(self.hide_window)
+        self._thread_bus_toggle_signal.connect(self.toggle_window)
+        self._thread_bus_move_signal.connect(self._do_move_window)
+        self._thread_bus_resize_signal.connect(self._do_resize_window)
+        self._thread_bus_close_signal.connect(self.quit)
+        self._thread_bus_minimize_signal.connect(self._do_minimize_window)
+        self._thread_bus_maximize_signal.connect(self._do_maximize_window)
+
+        # THREAD_BUS event listeners (always enabled)
+        self._setup_thread_bus_listeners()
+
     # ========== Window Actions ==========
 
     @Slot()
@@ -388,6 +420,32 @@ class PySide6Framework(QObject):
         """Handle tick timer event."""
         self.tick.emit()
 
+    # ========== THREAD_BUS Signal Slots (Thread-Safe Helpers) ==========
+
+    @Slot(int, int)
+    def _do_move_window(self, x: int, y: int):
+        """Move window (called via signal in Qt main thread)."""
+        if self.main_window:
+            self.main_window.move(x, y)
+
+    @Slot(int, int)
+    def _do_resize_window(self, width: int, height: int):
+        """Resize window (called via signal in Qt main thread)."""
+        if self.main_window:
+            self.main_window.resize(width, height)
+
+    @Slot()
+    def _do_minimize_window(self):
+        """Minimize window (called via signal in Qt main thread)."""
+        if self.main_window:
+            self.main_window.minimize_window()
+
+    @Slot()
+    def _do_maximize_window(self):
+        """Toggle maximize window (called via signal in Qt main thread)."""
+        if self.main_window:
+            self.main_window.toggle_maximize()
+
     # ========== Public Methods ==========
 
     def show_window(self):
@@ -429,6 +487,115 @@ class PySide6Framework(QObject):
     def is_running(self) -> bool:
         """Check if application is running."""
         return self._started
+
+    # ========== THREAD_BUS Integration ==========
+
+    def _setup_thread_bus_listeners(self):
+        """
+        Setup THREAD_BUS event listeners for window control (always enabled).
+
+        IMPORTANT: These event handlers may be called from ANY thread (Tray, RPC v2, etc.).
+        They emit Qt signals which automatically execute in the Qt main thread for thread safety.
+        """
+        # Determine namespace: use thread_bus_namespace if provided, else use app_id, else 'ui'
+        namespace = self.config.thread_bus_namespace
+        if not namespace:
+            namespace = self.config.app_id if self.config.app_id else "ui"
+
+        # Define event names
+        events = {
+            f"{namespace}.show": self._on_thread_bus_show,
+            f"{namespace}.hide": self._on_thread_bus_hide,
+            f"{namespace}.toggle": self._on_thread_bus_toggle,
+            f"{namespace}.move": self._on_thread_bus_move,
+            f"{namespace}.resize": self._on_thread_bus_resize,
+            f"{namespace}.close": self._on_thread_bus_close,
+            f"{namespace}.minimize": self._on_thread_bus_minimize,
+            f"{namespace}.maximize": self._on_thread_bus_maximize,
+        }
+
+        # Register event handlers
+        for event_name, handler in events.items():
+            THREAD_BUS.register_event_handler(event_name, handler)
+
+        if self.config.debug:
+            ColorPrint.green(f"[PySide6Framework] Registered THREAD_BUS listeners with namespace: {namespace}")
+
+    def _on_thread_bus_show(self, event_data):
+        """
+        Handle show event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+        """
+        self._thread_bus_show_signal.emit()
+
+    def _on_thread_bus_hide(self, event_data):
+        """
+        Handle hide event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+        """
+        self._thread_bus_hide_signal.emit()
+
+    def _on_thread_bus_toggle(self, event_data):
+        """
+        Handle toggle event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+        """
+        self._thread_bus_toggle_signal.emit()
+
+    def _on_thread_bus_move(self, event_data):
+        """
+        Handle move event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+
+        event_data expected format:
+        {
+            'x': int,  # X coordinate
+            'y': int   # Y coordinate
+        }
+        """
+        if isinstance(event_data, dict):
+            x = event_data.get('x')
+            y = event_data.get('y')
+            if x is not None and y is not None:
+                self._thread_bus_move_signal.emit(int(x), int(y))
+
+    def _on_thread_bus_resize(self, event_data):
+        """
+        Handle resize event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+
+        event_data expected format:
+        {
+            'width': int,   # Width
+            'height': int   # Height
+        }
+        """
+        if isinstance(event_data, dict):
+            width = event_data.get('width')
+            height = event_data.get('height')
+            if width is not None and height is not None:
+                self._thread_bus_resize_signal.emit(int(width), int(height))
+
+    def _on_thread_bus_close(self, event_data):
+        """
+        Handle close event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+        """
+        self._thread_bus_close_signal.emit()
+
+    def _on_thread_bus_minimize(self, event_data):
+        """
+        Handle minimize event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+        """
+        self._thread_bus_minimize_signal.emit()
+
+    def _on_thread_bus_maximize(self, event_data):
+        """
+        Handle maximize event from THREAD_BUS (may be called from any thread).
+        Emits signal to execute in Qt main thread.
+        """
+        self._thread_bus_maximize_signal.emit()
 
     # ========== WebView Methods ==========
 

@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../models/more_features_model.dart';
+import '../data/more_features_data.dart';
 
 class MoreFeaturesScreen extends StatefulWidget {
   const MoreFeaturesScreen({super.key});
@@ -18,164 +22,8 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
-  final List<Map<String, dynamic>> _featureGroups = [
-    {
-      'title': '学习工具',
-      'icon': Icons.school,
-      'color': AppTheme.primaryGreen,
-      'features': [
-        {
-          'title': '词汇测试',
-          'subtitle': '测试你的词汇掌握程度',
-          'icon': Icons.quiz,
-          'color': AppTheme.primaryGreen,
-          'route': '/vocabulary_test',
-          'locked': false,
-        },
-        {
-          'title': '发音练习',
-          'subtitle': 'AI智能发音纠正',
-          'icon': Icons.record_voice_over,
-          'color': AppTheme.learningColor,
-          'route': '/pronunciation_practice',
-          'locked': false,
-        },
-        {
-          'title': '语法练习',
-          'subtitle': '语法规则和练习',
-          'icon': Icons.text_fields,
-          'color': AppTheme.newColor,
-          'route': '/grammar_practice',
-          'locked': false,
-        },
-        {
-          'title': '写作助手',
-          'subtitle': 'AI辅助写作优化',
-          'icon': Icons.edit,
-          'color': AppTheme.masteredColor,
-          'route': '/writing_assistant',
-          'locked': true,
-        },
-      ],
-    },
-    {
-      'title': '个性化功能',
-      'icon': Icons.person,
-      'color': AppTheme.secondaryGreen,
-      'features': [
-        {
-          'title': '学习计划',
-          'subtitle': '定制个性化学习路径',
-          'icon': Icons.calendar_today,
-          'color': AppTheme.secondaryGreen,
-          'route': '/study_plan',
-          'locked': false,
-        },
-        {
-          'title': '学习报告',
-          'subtitle': '详细的学习数据分析',
-          'icon': Icons.analytics,
-          'color': AppTheme.info,
-          'route': '/learning_report',
-          'locked': false,
-        },
-        {
-          'title': '目标设定',
-          'subtitle': '设定学习目标和提醒',
-          'icon': Icons.flag,
-          'color': AppTheme.warning,
-          'route': '/goal_setting',
-          'locked': false,
-        },
-        {
-          'title': '学习社区',
-          'subtitle': '与同学交流分享',
-          'icon': Icons.groups,
-          'color': AppTheme.primaryGreen,
-          'route': '/community',
-          'locked': false,
-        },
-      ],
-    },
-    {
-      'title': '娱乐功能',
-      'icon': '🎮',
-      'color': AppTheme.success,
-      'features': [
-        {
-          'title': '单词游戏',
-          'subtitle': '趣味记忆单词游戏',
-          'icon': Icons.games,
-          'color': AppTheme.success,
-          'route': '/word_games',
-          'locked': false,
-        },
-        {
-          'title': '挑战赛',
-          'subtitle': '与其他用户比拼学习',
-          'icon': EmojiIcons.emoji_events,
-          'color': AppTheme.warning,
-          'route': '/challenge',
-          'locked': false,
-        },
-        {
-          'title': '成就系统',
-          'subtitle': '解锁学习成就徽章',
-          'icon': EmojiIcons.military_tech,
-          'color': AppTheme.learningColor,
-          'route': '/achievements',
-          'locked': false,
-        },
-        {
-          'title': '排行榜',
-          'subtitle': '全球学习排名',
-          'icon': EmojiIcons.leaderboard,
-          'color': AppTheme.error,
-          'route': '/leaderboard',
-          'locked': true,
-        },
-      ],
-    },
-    {
-      'title': '专业工具',
-      'icon': Icons.build,
-      'color': AppTheme.darkGreen,
-      'features': [
-        {
-          'title': '词典查询',
-          'subtitle': '强大的词典工具',
-          'icon': Icons.menu_book,
-          'color': AppTheme.darkGreen,
-          'route': '/dictionary',
-          'locked': false,
-        },
-        {
-          'title': '翻译工具',
-          'subtitle': '中英文快速翻译',
-          'icon': Icons.translate,
-          'color': AppTheme.primaryGreen,
-          'route': '/translator',
-          'locked': false,
-        },
-        {
-          'title': '语法检查',
-          'subtitle': '智能语法检查器',
-          'icon': Icons.spellcheck,
-          'color': AppTheme.warning,
-          'route': '/grammar_checker',
-          'locked': false,
-        },
-        {
-          'title': '语音助手',
-          'subtitle': 'AI语音学习助手',
-          'icon': Icons.mic,
-          'color': AppTheme.info,
-          'route': '/voice_assistant',
-          'locked': true,
-        },
-      ],
-    },
-  ];
+  List<FeatureGroupModel> get _featureGroups =>
+      MoreFeaturesData.getFeatureGroups();
 
   @override
   void initState() {
@@ -245,14 +93,14 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
             child: Column(
               children: [
                 Text(
-                  '更多功能',
+                  QyAppLocalizationKeys.qyMoreFeatures.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '探索更多学习功能',
+                  QyAppLocalizationKeys.qyMoreFeaturesSubtitle.tr(context),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -290,7 +138,7 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
     );
   }
 
-  Widget _buildFeatureGroup(Map<String, dynamic> group, int groupIndex) {
+  Widget _buildFeatureGroup(FeatureGroupModel group, int groupIndex) {
     return Container(
       decoration: ComponentStyles.primaryCardDecoration,
       child: Container(
@@ -300,12 +148,12 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              (group['color'] as Color).withOpacity(0.1),
+              group.color.withOpacity(0.1),
               Colors.white.withOpacity(0.9),
             ],
           ),
           border: Border.all(
-            color: (group['color'] as Color).withOpacity(0.3),
+            color: group.color.withOpacity(0.3),
             width: 1,
           ),
         ),
@@ -320,18 +168,23 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: (group['color'] as Color).withOpacity(0.1),
+                      color: group.color.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(
-                      group['icon'] as IconData,
-                      color: group['color'] as Color,
-                      size: 24,
-                    ),
+                    child: group.icon != null
+                        ? Icon(
+                            group.icon!,
+                            color: group.color,
+                            size: 24,
+                          )
+                        : Text(
+                            group.emojiIcon ?? '',
+                            style: const TextStyle(fontSize: 24),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    group['title'] as String,
+                    group.titleKey.tr(context),
                     style: AppTextStyles.headline5.copyWith(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -349,9 +202,9 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
                 ),
-                itemCount: (group['features'] as List).length,
+                itemCount: group.features.length,
                 itemBuilder: (context, index) {
-                  final feature = (group['features'] as List)[index];
+                  final feature = group.features[index];
                   return _buildFeatureItem(feature, groupIndex, index);
                 },
               ),
@@ -362,8 +215,9 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
     );
   }
 
-  Widget _buildFeatureItem(Map<String, dynamic> feature, int groupIndex, int itemIndex) {
-    final isLocked = feature['locked'] as bool;
+  Widget _buildFeatureItem(
+      FeatureItemModel feature, int groupIndex, int itemIndex) {
+    final isLocked = feature.locked;
 
     return BouncingButton(
       onPressed: isLocked ? _showLockedMessage : () => _openFeature(feature),
@@ -372,7 +226,9 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
           color: isLocked ? Colors.grey.shade100 : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isLocked ? Colors.grey.shade300 : (feature['color'] as Color).withOpacity(0.3),
+            color: isLocked
+                ? Colors.grey.shade300
+                : feature.color.withOpacity(0.3),
             width: 1,
           ),
         ),
@@ -382,13 +238,13 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                feature['icon'] as IconData,
-                color: isLocked ? Colors.grey.shade400 : feature['color'] as Color,
+                feature.icon,
+                color: isLocked ? Colors.grey.shade400 : feature.color,
                 size: 28,
               ),
               const SizedBox(height: 8),
               Text(
-                feature['title'] as String,
+                feature.titleKey.tr(context),
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: isLocked ? Colors.grey.shade600 : AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -399,9 +255,10 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
               ),
               const SizedBox(height: 4),
               Text(
-                feature['subtitle'] as String,
+                feature.subtitleKey.tr(context),
                 style: AppTextStyles.bodySmall.copyWith(
-                  color: isLocked ? Colors.grey.shade500 : AppTheme.textSecondary,
+                  color:
+                      isLocked ? Colors.grey.shade500 : AppTheme.textSecondary,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -414,10 +271,11 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
     );
   }
 
-  void _openFeature(Map<String, dynamic> feature) {
+  void _openFeature(FeatureItemModel feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('正在打开: ${feature['title']}'),
+        content: Text(
+            '${QyAppLocalizationKeys.qyOpeningFeature.tr(context)}: ${feature.titleKey.tr(context)}'),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -426,7 +284,7 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
   void _showLockedMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('该功能暂未开放，敬请期待'),
+        content: Text(QyAppLocalizationKeys.qyFeatureNotAvailable.tr(context)),
         backgroundColor: AppTheme.warning,
       ),
     );
@@ -439,9 +297,10 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
         onOpen: (context) {
           // Handle search result
         },
-        suggestions: _featureGroups.expand((group)
-          => (group['features'] as List).map((feature) => feature['title'] as String)
-        ).toList(),
+        suggestions: _featureGroups
+            .expand((group) =>
+                group.features.map((feature) => feature.titleKey.tr(context)))
+            .toList(),
       ),
     );
   }
@@ -493,12 +352,15 @@ class FeatureSearchDelegate extends SearchDelegate<String> {
       itemBuilder: (context, index) {
         return ListTile(
           title: Text(suggestions[index]),
-          subtitle: Text('点击搜索相关功能'),
+          subtitle:
+              Text(QyAppLocalizationKeys.qyClickToSearchFeatures.tr(context)),
           onTap: () {
             query = suggestions[index];
-            showResults(context, suggestions.where((s) =>
-              s.toLowerCase().contains(query.toLowerCase())
-            ).toList());
+            showResults(
+                context,
+                suggestions
+                    .where((s) => s.toLowerCase().contains(query.toLowerCase()))
+                    .toList());
           },
         );
       },

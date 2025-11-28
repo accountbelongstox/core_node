@@ -240,6 +240,10 @@ class QyAppRoutesProvider {
         name: 'qy_login',
         builder: (context, state) => const LoginScreenRefactoredAppQy(),
       ),
+      GoRoute(
+        path: '/login',
+        redirect: (context, state) => routeLogin,
+      ),
 
       // Course routes
       GoRoute(

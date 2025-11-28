@@ -2,22 +2,28 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_localization/flutter_localization.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SettingsScreenV2RefactoredAppQy extends StatefulWidget {
   const SettingsScreenV2RefactoredAppQy({super.key});
 
   @override
-  State<SettingsScreenV2RefactoredAppQy> createState() => _SettingsScreenV2RefactoredAppQyState();
+  State<SettingsScreenV2RefactoredAppQy> createState() =>
+      _SettingsScreenV2RefactoredAppQyState();
 }
 
-class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2RefactoredAppQy>
+class _SettingsScreenV2RefactoredAppQyState
+    extends State<SettingsScreenV2RefactoredAppQy>
     with TickerProviderStateMixin {
   late final AnimationController _shimmerController;
+  final FlutterLocalization _localization = FlutterLocalization.instance;
 
   @override
   void initState() {
@@ -26,6 +32,13 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat();
+
+    // Listen to language changes to rebuild UI immediately
+    _localization.onTranslatedLanguage = (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SettingsControllerRefactoredAppQy>().initialize();
@@ -57,13 +70,15 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                       if (controller.isLoading) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                ColorsAppQy.qyPrimary),
                           ),
                         );
                       }
 
                       return ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: ThemeDimensions.spacing16),
                         children: [
                           if (isLoggedIn) ...[
                             _buildUserSection(authService),
@@ -103,7 +118,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       builder: (context, child) {
         return Container(
           decoration: BoxDecoration(
-            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
           ),
         );
       },
@@ -116,7 +132,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+            icon:
+                const Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
             onPressed: () => context.pop(),
           ),
           const SizedBox(width: ThemeDimensions.spacing8),
@@ -191,13 +208,16 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => context.go('/login'),
-                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.radiusFull),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: ThemeDimensions.spacing14),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: ThemeDimensions.spacing14),
                     decoration: BoxDecoration(
                       gradient: ColorsAppQy.qyPrimaryGradient,
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusFull),
                       boxShadow: [
                         BoxShadow(
                           color: ColorsAppQy.qyPrimary.withOpacity(0.4),
@@ -290,7 +310,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit_rounded, color: ColorsAppQy.qyPrimary),
+                icon: const Icon(Icons.edit_rounded,
+                    color: ColorsAppQy.qyPrimary),
                 onPressed: () {},
               ),
             ],
@@ -308,7 +329,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: ThemeDimensions.spacing8, bottom: ThemeDimensions.spacing12),
+          padding: const EdgeInsets.only(
+              left: ThemeDimensions.spacing8,
+              bottom: ThemeDimensions.spacing12),
           child: Text(
             'General Settings',
             style: ThemeTextStyles.title3.copyWith(
@@ -328,7 +351,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
             _buildBentoCard(
               icon: Icons.language_rounded,
               title: 'App Language',
-              subtitle: _getLanguageDisplayName(controller.languageVoice.appLanguage),
+              subtitle:
+                  _getLanguageDisplayName(controller.languageVoice.appLanguage),
               gradient: ColorsAppQy.qyPrimaryGradient,
               onTap: () => _showAppLanguageDialog(controller),
             ),
@@ -339,7 +363,7 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               gradient: LinearGradient(
                 colors: [Colors.orange.shade400, Colors.orange.shade600],
               ),
-              onTap: () {},
+              onTap: () => _showThemeModeDialog(controller),
             ),
             _buildBentoCard(
               icon: Icons.volume_up_rounded,
@@ -353,7 +377,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
             _buildBentoCard(
               icon: Icons.notifications_rounded,
               title: 'Notifications',
-              subtitle: controller.notification.dailyStudyReminder ? 'Enabled' : 'Disabled',
+              subtitle: controller.notification.dailyStudyReminder
+                  ? 'Enabled'
+                  : 'Disabled',
               gradient: LinearGradient(
                 colors: [Colors.pink.shade400, Colors.pink.shade600],
               ),
@@ -376,7 +402,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: ThemeDimensions.spacing8, bottom: ThemeDimensions.spacing12),
+          padding: const EdgeInsets.only(
+              left: ThemeDimensions.spacing8,
+              bottom: ThemeDimensions.spacing12),
           child: Text(
             'My Account',
             style: ThemeTextStyles.title3.copyWith(
@@ -393,7 +421,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               padding: const EdgeInsets.all(ThemeDimensions.spacing16),
               decoration: BoxDecoration(
                 gradient: ColorsAppQy.qyFrostedGlassGradient,
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusLarge),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.2),
                   width: 1.5,
@@ -404,7 +433,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                   _buildAccountActionItem(
                     icon: Icons.school_rounded,
                     title: 'Learning Languages',
-                    subtitle: learningLanguages.map((e) => e.toUpperCase()).join(', '),
+                    subtitle: learningLanguages
+                        .map((e) => e.toUpperCase())
+                        .join(', '),
                     onTap: () => context.push('/learning-languages'),
                     gradient: LinearGradient(
                       colors: [Colors.purple.shade400, Colors.purple.shade600],
@@ -457,7 +488,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               padding: const EdgeInsets.all(ThemeDimensions.spacing16),
               decoration: BoxDecoration(
                 gradient: ColorsAppQy.qyFrostedGlassGradient,
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusLarge),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.2),
                   width: 1.5,
@@ -471,7 +503,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                     height: 48,
                     decoration: BoxDecoration(
                       gradient: gradient,
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.2),
@@ -535,7 +568,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                   height: 40,
                   decoration: BoxDecoration(
                     gradient: gradient,
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusSmall),
                   ),
                   child: Icon(icon, color: Colors.white, size: 20),
                 ),
@@ -655,7 +689,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
     );
   }
 
-  Widget _buildDataSection(SettingsControllerRefactoredAppQy controller, bool isLoggedIn) {
+  Widget _buildDataSection(
+      SettingsControllerRefactoredAppQy controller, bool isLoggedIn) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
       child: BackdropFilter(
@@ -741,7 +776,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               children: [
                 Icon(
                   icon,
-                  color: isDestructive ? Colors.red.shade400 : ColorsAppQy.qyPrimary,
+                  color: isDestructive
+                      ? Colors.red.shade400
+                      : ColorsAppQy.qyPrimary,
                   size: 20,
                 ),
                 const SizedBox(width: ThemeDimensions.spacing12),
@@ -848,8 +885,14 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
 
   void _showAppLanguageDialog(SettingsControllerRefactoredAppQy controller) {
     final languages = [
-      {'code': 'zh', 'name': '中文 (Chinese)'},
-      {'code': 'en', 'name': 'English'},
+      {
+        'code': QyAppLocalizationKeys.qyLanguageCodeZh,
+        'nameKey': QyAppLocalizationKeys.qyLanguageChinese
+      },
+      {
+        'code': QyAppLocalizationKeys.qyLanguageCodeEn,
+        'nameKey': QyAppLocalizationKeys.qyLanguageEnglish
+      },
     ];
 
     showDialog(
@@ -859,12 +902,48 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: languages.map((lang) {
-            final isSelected = controller.languageVoice.appLanguage == lang['code'];
+            final isSelected =
+                controller.languageVoice.appLanguage == lang['code'];
             return ListTile(
-              title: Text(lang['name']!),
-              trailing: isSelected ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary) : null,
+              title: Text((lang['nameKey'] as String).tr(context)),
+              trailing: isSelected
+                  ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary)
+                  : null,
               onTap: () async {
                 await controller.updateAppLanguage(lang['code']!);
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showThemeModeDialog(SettingsControllerRefactoredAppQy controller) {
+    final themeModes = [
+      {'value': 'light', 'nameKey': QyAppLocalizationKeys.qyLightMode},
+      {'value': 'dark', 'nameKey': QyAppLocalizationKeys.qyDarkMode},
+      {'value': 'auto', 'nameKey': QyAppLocalizationKeys.qySettingsThemeAuto},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(QyAppLocalizationKeys.qySettingsTheme.tr(context)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: themeModes.map((theme) {
+            final isSelected = controller.display.themeMode == theme['value'];
+            return ListTile(
+              title: Text((theme['nameKey'] as String).tr(context)),
+              trailing: isSelected
+                  ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary)
+                  : null,
+              onTap: () async {
+                await controller.updateThemeMode(theme['value']!);
                 if (mounted) {
                   Navigator.pop(context);
                 }
@@ -881,7 +960,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reset Settings'),
-        content: const Text('Are you sure you want to reset all settings to defaults?'),
+        content: const Text(
+            'Are you sure you want to reset all settings to defaults?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -912,11 +992,13 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
   }
 
   String _getLanguageDisplayName(String code) {
-    const names = {
-      'zh': '中文',
-      'en': 'English',
-    };
-    return names[code] ?? code;
+    final context = this.context;
+    if (code == QyAppLocalizationKeys.qyLanguageCodeZh) {
+      return QyAppLocalizationKeys.qyLanguageChinese.tr(context);
+    } else if (code == QyAppLocalizationKeys.qyLanguageCodeEn) {
+      return QyAppLocalizationKeys.qyLanguageEnglish.tr(context);
+    }
+    return code;
   }
 }
 

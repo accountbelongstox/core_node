@@ -23,10 +23,10 @@ mss = get_third_package_mss()
 ImageGrab = PIL.ImageGrab
 Image = PIL.Image
 from pycore.pyfoundations.color_print import ColorPrint
-from pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pyutils.window_activator import WindowActivator
-from pyutils.common.window_finder import WindowFinder
-from pygvar.global_var_manager import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.common.window_finder import WindowFinder
+from pycore.pygvar.global_var_manager import PYTOOLS_TMP_DIR
 
 
 class WindowScreenshot:
