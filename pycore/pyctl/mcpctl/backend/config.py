@@ -18,7 +18,7 @@ BACKEND_INFO_TEMPLATE = {
     "rpc_version": "v2",
     "tools": [
         # File Processing (4 tools)
-        "img_ocr_doc_allfile_parser_info_tool",
+        "imgocr_doc_file_parser_info_tool",
         "generate_placeholder_image_with_ocr_tool",
         "query_file_processing_history_tool",
         "clear_file_cache_tool",
