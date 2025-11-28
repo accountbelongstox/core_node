@@ -63,10 +63,24 @@ class GridDisplay:
         for ticker in tickers[:20]:
             inst_id = ticker.get('instId', 'N/A')
             last = format_price(ticker.get('last', 'N/A'))
-            change_24h = ticker.get('changePercent24h', ticker.get('changeRate24h', 'N/A'))
             vol_24h = ticker.get('vol24h', 'N/A')
-            
-            change_float = float(change_24h) if isinstance(change_24h, str) else change_24h
+
+            last_price = ticker.get('last', None)
+            open_24h = ticker.get('open24h', None)
+
+            if last_price and open_24h:
+                try:
+                    last_float = float(last_price)
+                    open_float = float(open_24h)
+                    if open_float > 0:
+                        change_float = ((last_float - open_float) / open_float) * 100
+                    else:
+                        change_float = 0.0
+                except (ValueError, TypeError, ZeroDivisionError):
+                    change_float = 0.0
+            else:
+                change_float = 0.0
+
             change_str = f"{change_float:+.2f}%"
             
             self.printer.table_row(

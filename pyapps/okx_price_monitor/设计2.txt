@@ -8,6 +8,9 @@ _prompt\mcpWindowsTemplate.json _prompt\mcpWSLTemplate.json 更新文档冲突�
 AICollaboration 等服务。只需要刚刚的，也不需要指定 "autoApprove": [
 
 
+CoinProvider] Fetched 698 tickers
+[PriceMonitor] Tick #15 complete: 3 tickers, 0 saved to DB
+
 
 ] [Step 84] Step 7: Handling WSL installation/upgrade...
 [!] [Step 84] WSL is not installed. Installing...

@@ -1,9 +1,15 @@
 /// Category list widget for word listening
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, localization
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../../common/theme/app_theme.dart';
+import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class CategoryList extends StatefulWidget {
   final ListeningCategory selectedCategory;
@@ -25,54 +31,54 @@ class _CategoryListState extends State<CategoryList> {
     final categories = [
       CategoryItem(
         category: ListeningCategory.wordBook,
-        label: 'wordListening.wordBook'.tr,
+        label: QyAppLocalizationKeys.qyWordWordBook.tr(context),
         count: 200,
-        color: AppTheme.primaryGreen,
+        color: ColorsAppQy.qyPrimary,
       ),
       CategoryItem(
         category: ListeningCategory.newWords,
-        label: 'wordListening.newWords'.tr,
+        label: QyAppLocalizationKeys.qyWordBookNewWord.tr(context),
         count: 27,
-        color: Colors.orange,
+        color: ColorsAppQy.qyWarning,
       ),
       CategoryItem(
         category: ListeningCategory.todayNew,
-        label: 'wordListening.todayNew'.tr,
+        label: QyAppLocalizationKeys.qyWordTodayNew.tr(context),
         count: 27,
-        color: AppTheme.secondaryGreen,
+        color: ColorsAppQy.qySecondary,
       ),
       CategoryItem(
         category: ListeningCategory.todayReview,
-        label: 'wordListening.todayReview'.tr,
+        label: QyAppLocalizationKeys.qyWordReview.tr(context),
         count: 27,
-        color: AppTheme.accentGreen,
+        color: ColorsAppQy.qyAccent,
       ),
     ];
 
     final bottomCategories = [
       CategoryItem(
         category: ListeningCategory.fullList,
-        label: 'wordListening.fullList'.tr,
+        label: QyAppLocalizationKeys.qyWordBookAll.tr(context),
         count: 16952,
-        color: AppTheme.primaryGreen,
+        color: ColorsAppQy.qyPrimary,
       ),
       CategoryItem(
         category: ListeningCategory.fullUnlearned,
-        label: 'wordListening.fullUnlearned'.tr,
+        label: QyAppLocalizationKeys.qyWordBookNewWord.tr(context),
         count: 16925,
-        color: Colors.red,
+        color: ColorsAppQy.qyError,
       ),
       CategoryItem(
         category: ListeningCategory.fullLearning,
-        label: 'wordListening.fullLearning'.tr,
+        label: QyAppLocalizationKeys.qyWordBookLearning.tr(context),
         count: 27,
-        color: AppTheme.secondaryGreen,
+        color: ColorsAppQy.qySecondary,
       ),
       CategoryItem(
         category: ListeningCategory.fullSimple,
-        label: 'wordListening.fullSimple'.tr,
+        label: QyAppLocalizationKeys.qyWordBookAll.tr(context),
         count: 27,
-        color: Colors.grey,
+        color: ColorsAppQy.qyTextTertiary,
       ),
     ];
 
@@ -89,14 +95,17 @@ class _CategoryListState extends State<CategoryList> {
 
               return Padding(
                 padding: EdgeInsets.only(
-                  left: index == 0 ? 16 : 8,
-                  right: index == categories.length - 1 ? 16 : 8,
+                  left: index == 0 ? ThemeDimensions.spacing16 : ThemeDimensions.spacing8,
+                  right: index == categories.length - 1 ? ThemeDimensions.spacing16 : ThemeDimensions.spacing8,
                 ),
-                child: GestureDetector(
-                  onTap: () => widget.onCategorySelected(category.category),
+                child: BouncingButton(
+                  onPressed: () => widget.onCategorySelected(category.category),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ThemeDimensions.spacing16,
+                      vertical: ThemeDimensions.spacing8,
+                    ),
                     decoration: BoxDecoration(
                       gradient: isSelected
                           ? LinearGradient(
@@ -106,10 +115,10 @@ class _CategoryListState extends State<CategoryList> {
                               ],
                             )
                           : null,
-                      color: isSelected ? null : Colors.white,
-                      borderRadius: BorderRadius.circular(25),
+                      color: isSelected ? null : ColorsAppQy.qyFrostWhite,
+                      borderRadius: ThemeDimensions.borderRadiusL,
                       border: Border.all(
-                        color: isSelected ? category.color : Colors.grey.shade300,
+                        color: isSelected ? category.color : ColorsAppQy.qyBorderLight,
                         width: isSelected ? 0 : 1,
                       ),
                       boxShadow: isSelected
@@ -127,26 +136,27 @@ class _CategoryListState extends State<CategoryList> {
                       children: [
                         Text(
                           category.label,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : AppTheme.textPrimary,
+                          style: ThemeTextStyles.bodyMedium.copyWith(
+                            color: isSelected ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                             fontWeight: FontWeight.w600,
-                            fontSize: 14,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: ThemeDimensions.spacing8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ThemeDimensions.spacing6,
+                            vertical: ThemeDimensions.spacing2,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.white.withOpacity(0.2)
+                                ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.2)
                                 : category.color.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: ThemeDimensions.borderRadiusS,
                           ),
                           child: Text(
                             '${category.count}',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : category.color,
-                              fontSize: 12,
+                            style: ThemeTextStyles.bodySmall.copyWith(
+                              color: isSelected ? ColorsAppQy.qyTextOnPrimary : category.color,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -159,7 +169,7 @@ class _CategoryListState extends State<CategoryList> {
             },
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: ThemeDimensions.spacing8),
         SizedBox(
           height: 50,
           child: ListView.builder(
@@ -171,14 +181,17 @@ class _CategoryListState extends State<CategoryList> {
 
               return Padding(
                 padding: EdgeInsets.only(
-                  left: index == 0 ? 16 : 8,
-                  right: index == bottomCategories.length - 1 ? 16 : 8,
+                  left: index == 0 ? ThemeDimensions.spacing16 : ThemeDimensions.spacing8,
+                  right: index == bottomCategories.length - 1 ? ThemeDimensions.spacing16 : ThemeDimensions.spacing8,
                 ),
-                child: GestureDetector(
-                  onTap: () => widget.onCategorySelected(category.category),
+                child: BouncingButton(
+                  onPressed: () => widget.onCategorySelected(category.category),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ThemeDimensions.spacing16,
+                      vertical: ThemeDimensions.spacing8,
+                    ),
                     decoration: BoxDecoration(
                       gradient: isSelected
                           ? LinearGradient(
@@ -188,10 +201,10 @@ class _CategoryListState extends State<CategoryList> {
                               ],
                             )
                           : null,
-                      color: isSelected ? null : Colors.white,
-                      borderRadius: BorderRadius.circular(25),
+                      color: isSelected ? null : ColorsAppQy.qyFrostWhite,
+                      borderRadius: ThemeDimensions.borderRadiusL,
                       border: Border.all(
-                        color: isSelected ? category.color : Colors.grey.shade300,
+                        color: isSelected ? category.color : ColorsAppQy.qyBorderLight,
                         width: isSelected ? 0 : 1,
                       ),
                       boxShadow: isSelected
@@ -209,26 +222,27 @@ class _CategoryListState extends State<CategoryList> {
                       children: [
                         Text(
                           category.label,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : AppTheme.textPrimary,
+                          style: ThemeTextStyles.bodyMedium.copyWith(
+                            color: isSelected ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                             fontWeight: FontWeight.w600,
-                            fontSize: 14,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: ThemeDimensions.spacing8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ThemeDimensions.spacing6,
+                            vertical: ThemeDimensions.spacing2,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.white.withOpacity(0.2)
+                                ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.2)
                                 : category.color.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: ThemeDimensions.borderRadiusS,
                           ),
                           child: Text(
                             '${category.count}',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : category.color,
-                              fontSize: 12,
+                            style: ThemeTextStyles.bodySmall.copyWith(
+                              color: isSelected ? ColorsAppQy.qyTextOnPrimary : category.color,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

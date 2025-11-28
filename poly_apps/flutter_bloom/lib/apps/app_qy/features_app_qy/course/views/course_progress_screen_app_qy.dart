@@ -12,14 +12,18 @@
 
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
+import '../../../../../../common/widgets/progress/progress_indicators.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/course_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
+import '../../courses/domain/models/course_model.dart';
 
 class CourseProgressScreenRefactoredAppQy extends StatefulWidget {
   final String courseId;
@@ -35,224 +39,277 @@ class CourseProgressScreenRefactoredAppQy extends StatefulWidget {
 }
 
 class _CourseProgressScreenRefactoredAppQyState
-    extends State<CourseProgressScreenRefactoredAppQy> {
-  final List<Map<String, dynamic>> _chapters = [];
-  double _overallProgress = 0.0;
-  int _completedLessons = 0;
-  int _totalLessons = 0;
-  String _courseName = '';
+    extends State<CourseProgressScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+  final StorageAppQy _storage = StorageAppQy.instance;
+  CourseProgress? _courseProgress;
+  List<CourseModule> _modules = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initCourseProgress();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+    _loadCourseProgress();
   }
 
-  void _initCourseProgress() {
-    _courseName = 'Business English Communication';
-    _overallProgress = 0.65;
-    _completedLessons = 13;
-    _totalLessons = 20;
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
 
-    _chapters.addAll([
-      {
-        'title': 'Introduction to Business',
-        'lessons': [
-          {'title': 'Business Vocabulary Basics', 'completed': true, 'score': 95},
-          {'title': 'Common Business Phrases', 'completed': true, 'score': 88},
-          {'title': 'Professional Greetings', 'completed': true, 'score': 92},
-        ],
-        'progress': 1.0,
-      },
-      {
-        'title': 'Email Writing',
-        'lessons': [
-          {'title': 'Formal Email Structure', 'completed': true, 'score': 90},
-          {'title': 'Writing Subject Lines', 'completed': true, 'score': 85},
-          {'title': 'Professional Closings', 'completed': true, 'score': 94},
-          {'title': 'Email Etiquette', 'completed': true, 'score': 91},
-        ],
-        'progress': 1.0,
-      },
-      {
-        'title': 'Meetings and Presentations',
-        'lessons': [
-          {'title': 'Meeting Vocabulary', 'completed': true, 'score': 87},
-          {'title': 'Giving Presentations', 'completed': true, 'score': 89},
-          {'title': 'Asking Questions', 'completed': true, 'score': 93},
-          {'title': 'Making Suggestions', 'completed': true, 'score': 86},
-          {'title': 'Handling Q&A Sessions', 'completed': false, 'score': 0},
-        ],
-        'progress': 0.8,
-      },
-      {
-        'title': 'Negotiations',
-        'lessons': [
-          {'title': 'Negotiation Basics', 'completed': true, 'score': 88},
-          {'title': 'Making Offers', 'completed': true, 'score': 90},
-          {'title': 'Compromise Phrases', 'completed': false, 'score': 0},
-          {'title': 'Closing Deals', 'completed': false, 'score': 0},
-        ],
-        'progress': 0.5,
-      },
-      {
-        'title': 'Telephone Communication',
-        'lessons': [
-          {'title': 'Phone Etiquette', 'completed': false, 'score': 0},
-          {'title': 'Taking Messages', 'completed': false, 'score': 0},
-          {'title': 'Conference Calls', 'completed': false, 'score': 0},
-        ],
-        'progress': 0.0,
-      },
-    ]);
+  Future<void> _loadCourseProgress() async {
+    setState(() => _isLoading = true);
+    try {
+      final progressData = await _storage.getApp<Map<String, dynamic>>(
+        '${StorageAppQy.keyUserProgress}_${widget.courseId}',
+      );
+      if (progressData != null) {
+        _courseProgress = CourseProgress.fromJson(progressData);
+      } else {
+        _courseProgress = CourseProgress(
+          id: 'progress_${widget.courseId}',
+          courseId: widget.courseId,
+          userId: 'current_user',
+          overallProgress: 0.65,
+          completedLessons: 13,
+          totalLessons: 20,
+          completedProjects: 1,
+          totalProjects: 2,
+        );
+      }
+      _modules = await _loadModules();
+    } catch (e) {
+      _courseProgress = CourseProgress(
+        id: 'progress_${widget.courseId}',
+        courseId: widget.courseId,
+        userId: 'current_user',
+        overallProgress: 0.0,
+        completedLessons: 0,
+        totalLessons: 0,
+        completedProjects: 0,
+        totalProjects: 0,
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<List<CourseModule>> _loadModules() async {
+    final modulesData = await _storage.getApp<List<dynamic>>(
+      '${StorageAppQy.keyUserProgress}_${widget.courseId}_modules',
+    );
+    if (modulesData != null) {
+      return modulesData
+          .map((json) => CourseModule.fromJson(json as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading || _courseProgress == null) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: ThemeColors.background,
-      appBar: AppBar(
-        title: Text(
-          QyAppLocalizationKeys.qyCourseProgress.tr(context),
-          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
-        ),
-        backgroundColor: ThemeColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
-        ),
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      body: Stack(
         children: [
-          _buildOverviewCard(),
-          SizedBox(height: ThemeDimensions.spacingLarge),
-          _buildProgressStats(),
-          SizedBox(height: ThemeDimensions.spacingLarge),
-          _buildChaptersList(),
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+                    child: Column(
+                      children: [
+                        _buildOverviewCard(),
+                        const SizedBox(height: ThemeDimensions.spacing24),
+                        _buildBentoBoxStats(),
+                        const SizedBox(height: ThemeDimensions.spacing24),
+                        _buildModulesList(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+                onPressed: () => context.pop(),
+              ),
+              const SizedBox(width: ThemeDimensions.spacing8),
+              Expanded(
+                child: Text(
+                  QyAppLocalizationKeys.qyCourseProgress.tr(context),
+                  style: ThemeTextStyles.title1.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildOverviewCard() {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            ThemeColors.primary,
-            ThemeColors.primary.withOpacity(0.8),
+    final progress = _courseProgress!;
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 20,
+      opacity: 0.3,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: ColorsAppQy.qyPrimaryGradient,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        ),
+        padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              QyAppLocalizationKeys.qyCourseProgress.tr(context),
+              style: ThemeTextStyles.title1.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: ThemeDimensions.spacing16),
+            Text(
+              '${QyAppLocalizationKeys.qyOverallProgress.tr(context)}: ${(progress.overallProgress * 100).toInt()}%',
+              style: ThemeTextStyles.body1.copyWith(
+                color: Colors.white70,
+              ),
+            ),
+            const SizedBox(height: ThemeDimensions.spacing12),
+            LabeledLinearProgress(
+              value: progress.overallProgress,
+              label: '',
+              showPercentage: false,
+              progressColor: Colors.white,
+            ),
+            const SizedBox(height: ThemeDimensions.spacing16),
+            Text(
+              '${progress.completedLessons} / ${progress.totalLessons} ${QyAppLocalizationKeys.qyLessonsCompleted.tr(context)}',
+              style: ThemeTextStyles.body2.copyWith(
+                color: Colors.white70,
+              ),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.primary.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _courseName,
-            style: ThemeTextStyles.h3.copyWith(
-              color: ThemeColors.surface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: ThemeDimensions.spacingLarge),
-          Text(
-            '${QyAppLocalizationKeys.qyOverallProgress.tr(context)}: ${(_overallProgress * 100).toInt()}%',
-            style: ThemeTextStyles.body1.copyWith(
-              color: ThemeColors.surface.withOpacity(0.9),
-            ),
-          ),
-          SizedBox(height: ThemeDimensions.spacingSmall),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
-            child: LinearProgressIndicator(
-              value: _overallProgress,
-              minHeight: 12,
-              backgroundColor: ThemeColors.surface.withOpacity(0.3),
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.surface),
-            ),
-          ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          Text(
-            '$_completedLessons / $_totalLessons ${QyAppLocalizationKeys.qyLessonsCompleted.tr(context)}',
-            style: ThemeTextStyles.body2.copyWith(
-              color: ThemeColors.surface.withOpacity(0.9),
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildProgressStats() {
-    return Row(
+  Widget _buildBentoBoxStats() {
+    final progress = _courseProgress!;
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 3,
+      crossAxisSpacing: ThemeDimensions.spacing12,
+      mainAxisSpacing: ThemeDimensions.spacing12,
+      childAspectRatio: 1.1,
       children: [
-        Expanded(
-          child: _buildStatCard(
-            Icons.check_circle,
-            QyAppLocalizationKeys.qyCompleted.tr(context),
-            _completedLessons.toString(),
-            ThemeColors.success,
-          ),
+        _buildBentoStatCard(
+          Icons.check_circle,
+          QyAppLocalizationKeys.qyCompleted.tr(context),
+          progress.completedLessons.toString(),
+          ColorsAppQy.qySuccess,
         ),
-        SizedBox(width: ThemeDimensions.spacingMedium),
-        Expanded(
-          child: _buildStatCard(
-            Icons.pending,
-            QyAppLocalizationKeys.qyRemaining.tr(context),
-            (_totalLessons - _completedLessons).toString(),
-            Colors.orange,
-          ),
+        _buildBentoStatCard(
+          Icons.pending,
+          QyAppLocalizationKeys.qyRemaining.tr(context),
+          (progress.totalLessons - progress.completedLessons).toString(),
+          ColorsAppQy.qyWarning,
         ),
-        SizedBox(width: ThemeDimensions.spacingMedium),
-        Expanded(
-          child: _buildStatCard(
-            Icons.star,
-            QyAppLocalizationKeys.qyAvgScore.tr(context),
-            '89%',
-            ThemeColors.primary,
-          ),
+        _buildBentoStatCard(
+          Icons.star,
+          QyAppLocalizationKeys.qyAvgScore.tr(context),
+          '89%',
+          ColorsAppQy.qyPrimary,
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(IconData icon, String label, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
+  Widget _buildBentoStatCard(IconData icon, String label, String value, Color color) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 28),
-          SizedBox(height: ThemeDimensions.spacingSmall),
+          Icon(icon, color: color, size: 32),
+          const SizedBox(height: ThemeDimensions.spacing8),
           Text(
             value,
-            style: ThemeTextStyles.h4.copyWith(
-              color: ThemeColors.textPrimary,
+            style: ThemeTextStyles.title3.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: ThemeDimensions.spacingXSmall),
+          const SizedBox(height: ThemeDimensions.spacing4),
           Text(
             label,
             style: ThemeTextStyles.caption.copyWith(
-              color: ThemeColors.textSecondary,
+              color: ColorsAppQy.qyTextSecondary,
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -263,191 +320,109 @@ class _CourseProgressScreenRefactoredAppQyState
     );
   }
 
-  Widget _buildChaptersList() {
+  Widget _buildModulesList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           QyAppLocalizationKeys.qyChapters.tr(context),
-          style: ThemeTextStyles.h4.copyWith(
-            color: ThemeColors.textPrimary,
-            fontWeight: FontWeight.w600,
+          style: ThemeTextStyles.title2.copyWith(
+            color: ColorsAppQy.qyTextPrimary,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        SizedBox(height: ThemeDimensions.spacingMedium),
+        const SizedBox(height: ThemeDimensions.spacing16),
         ...List.generate(
-          _chapters.length,
+          _modules.length,
           (index) => Padding(
-            padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-            child: _buildChapterCard(index),
+            padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing16),
+            child: _buildModuleCard(_modules[index], index),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildChapterCard(int index) {
-    final chapter = _chapters[index];
-    final lessons = chapter['lessons'] as List<Map<String, dynamic>>;
-    final progress = chapter['progress'] as double;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
+  Widget _buildModuleCard(CourseModule module, int index) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
         children: [
-          InkWell(
-            onTap: () {},
-            child: Padding(
-              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: ThemeColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: ThemeTextStyles.h4.copyWith(
-                          color: ThemeColors.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: module.isCompleted
+                      ? ColorsAppQy.qySecondaryGradient
+                      : ColorsAppQy.qyPrimaryGradient,
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                ),
+                child: Center(
+                  child: Text(
+                    '${index + 1}',
+                    style: ThemeTextStyles.title3.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(width: ThemeDimensions.spacingMedium),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          chapter['title'] as String,
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ThemeColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: ThemeDimensions.spacingXSmall),
-                        Text(
-                          '${lessons.length} ${QyAppLocalizationKeys.qyLessons.tr(context)}',
-                          style: ThemeTextStyles.caption.copyWith(
-                            color: ThemeColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: ThemeDimensions.paddingSmall,
-                      vertical: ThemeDimensions.paddingXSmall,
-                    ),
-                    decoration: BoxDecoration(
-                      color: progress == 1.0
-                          ? ThemeColors.success.withOpacity(0.1)
-                          : ThemeColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
-                    ),
-                    child: Text(
-                      '${(progress * 100).toInt()}%',
-                      style: ThemeTextStyles.caption.copyWith(
-                        color: progress == 1.0 ? ThemeColors.success : ThemeColors.primary,
+                ),
+              ),
+              const SizedBox(width: ThemeDimensions.spacing16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      module.title,
+                      style: ThemeTextStyles.body1.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingMedium),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 4,
-                backgroundColor: ThemeColors.border,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  progress == 1.0 ? ThemeColors.success : ThemeColors.primary,
-                ),
-              ),
-            ),
-          ),
-          ...List.generate(
-            lessons.length,
-            (lessonIndex) => _buildLessonItem(lessons[lessonIndex]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLessonItem(Map<String, dynamic> lesson) {
-    final completed = lesson['completed'] as bool;
-    final score = lesson['score'] as int;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: ThemeColors.border),
-        ),
-      ),
-      child: InkWell(
-        onTap: () {},
-        child: Padding(
-          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-          child: Row(
-            children: [
-              Icon(
-                completed ? Icons.check_circle : Icons.radio_button_unchecked,
-                color: completed ? ThemeColors.success : ThemeColors.textTertiary,
-                size: 24,
-              ),
-              SizedBox(width: ThemeDimensions.spacingMedium),
-              Expanded(
-                child: Text(
-                  lesson['title'] as String,
-                  style: ThemeTextStyles.body2.copyWith(
-                    color: completed ? ThemeColors.textPrimary : ThemeColors.textSecondary,
-                    decoration: completed ? TextDecoration.none : null,
-                  ),
-                ),
-              ),
-              if (completed)
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ThemeDimensions.paddingSmall,
-                    vertical: ThemeDimensions.paddingXSmall,
-                  ),
-                  decoration: BoxDecoration(
-                    color: ThemeColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.star, size: 12, color: ThemeColors.success),
-                      SizedBox(width: ThemeDimensions.spacingXSmall),
-                      Text(
-                        '$score',
-                        style: ThemeTextStyles.caption.copyWith(
-                          color: ThemeColors.success,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    const SizedBox(height: ThemeDimensions.spacing4),
+                    Text(
+                      '${module.totalLessons} ${QyAppLocalizationKeys.qyLessons.tr(context)}',
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: ThemeDimensions.spacing12,
+                  vertical: ThemeDimensions.spacing6,
+                ),
+                decoration: BoxDecoration(
+                  gradient: module.isCompleted
+                      ? ColorsAppQy.qySecondaryGradient
+                      : ColorsAppQy.qyPrimaryGradient,
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                ),
+                child: Text(
+                  '${(module.progress * 100).toInt()}%',
+                  style: ThemeTextStyles.caption.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+              ),
             ],
           ),
-        ),
+          const SizedBox(height: ThemeDimensions.spacing12),
+          LabeledLinearProgress(
+            value: module.progress,
+            label: '',
+            showPercentage: false,
+            progressColor: module.isCompleted ? ColorsAppQy.qySuccess : ColorsAppQy.qyPrimary,
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,7 @@
 /// Dictionary Recommendation Model
 /// Represents a recommended dictionary with all its metadata
+library;
+
 class DictionaryModel {
   final String id;
   final String title;

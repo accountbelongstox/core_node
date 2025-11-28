@@ -12,53 +12,53 @@
 
 import 'package:go_router/go_router.dart';
 
-// Import QY App Refactored Screens (MVC Architecture)
+// Import QY App Screens (MVC Architecture)
 // Authentication
-// import '../features_app_qy/auth/views/login_phone_screen_refactored_app_qy.dart';
+import '../features_app_qy/auth/views/login_screen_refactored_app_qy.dart';
 // Home
 import '../features_app_qy/home/views/home_study_screen_refactored_app_qy.dart';
-// import '../features_app_qy/home/views/home_search_screen_refactored_app_qy.dart';
+import '../features_app_qy/home/views/home_search_screen_app_qy.dart';
 // Course
-// import '../features_app_qy/course/views/course_ielts_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_plans_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_detail_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_lesson_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_progress_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_review_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_search_screen_refactored_app_qy.dart';
-// import '../features_app_qy/course/views/course_certificate_screen_refactored_app_qy.dart';
+import '../features_app_qy/course/views/course_ielts_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_plans_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_detail_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_lesson_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_progress_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_review_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_search_screen_app_qy.dart';
+import '../features_app_qy/course/views/course_certificate_screen_app_qy.dart';
 // Word
-// import '../features_app_qy/word/views/word_book_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_listening_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_dictation_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_flashcard_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_review_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_listening_1_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_listening_dictation_1_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_listening_dictation_2_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_listening_free_screen_refactored_app_qy.dart';
-// import '../features_app_qy/word/views/word_listening_sleep_screen_refactored_app_qy.dart';
+import '../features_app_qy/word/views/word_book_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_listening_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_dictation_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_flashcard_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_review_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_listening_1_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_listening_dictation_1_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_listening_dictation_2_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_listening_free_screen_app_qy.dart';
+import '../features_app_qy/word/views/word_listening_sleep_screen_app_qy.dart';
 // Profile
-// import '../features_app_qy/profile/views/about_screen_refactored_app_qy.dart';
-// import '../features_app_qy/profile/views/certificate_center_screen_refactored_app_qy.dart';
-// import '../features_app_qy/profile/views/more_features_screen_refactored_app_qy.dart';
-// import '../features_app_qy/profile/views/profile_achievements_screen_refactored_app_qy.dart';
+import '../features_app_qy/profile/views/about_screen_app_qy.dart';
+import '../features_app_qy/profile/views/certificate_center_screen_app_qy.dart';
+import '../features_app_qy/profile/views/more_features_screen_app_qy.dart';
+import '../features_app_qy/profile/views/profile_achievements_screen_app_qy.dart';
 // Settings
-import '../features_app_qy/settings/views/settings_screen_refactored_app_qy.dart';
-// import '../features_app_qy/settings/views/account_settings_screen_refactored_app_qy.dart';
-// import '../features_app_qy/settings/views/display_mode_screen_refactored_app_qy.dart';
-// import '../features_app_qy/settings/views/help_center_screen_refactored_app_qy.dart';
-// import '../features_app_qy/settings/views/recommend_settings_screen_refactored_app_qy.dart';
-// import '../features_app_qy/settings/views/reminder_settings_screen_refactored_app_qy.dart';
+import '../features_app_qy/settings/views/settings_screen_v2_refactored_app_qy.dart';
+import '../features_app_qy/settings/views/account_settings_screen_app_qy.dart';
+import '../features_app_qy/settings/views/display_mode_screen_app_qy.dart';
+import '../features_app_qy/settings/views/help_center_screen_app_qy.dart';
+import '../features_app_qy/settings/views/recommend_settings_screen_app_qy.dart';
+import '../features_app_qy/settings/views/reminder_settings_screen_app_qy.dart';
 // Social
-// import '../features_app_qy/social/views/checkin_challenge_screen_refactored_app_qy.dart';
-// import '../features_app_qy/social/views/message_center_screen_refactored_app_qy.dart';
+import '../features_app_qy/social/views/checkin_challenge_screen_app_qy.dart';
+import '../features_app_qy/social/views/message_center_screen_app_qy.dart';
 // AI Study
-// import '../features_app_qy/ai_study/views/ai_study_screen_refactored_app_qy.dart';
+import '../features_app_qy/ai_study/views/ai_study_screen_app_qy.dart';
 // Discover
-// import '../features_app_qy/discover/views/discover_screen_refactored_app_qy.dart';
+import '../features_app_qy/discover/views/discover_screen_app_qy.dart';
 // Other
-// import '../features_app_qy/other/views/image_001_screen_refactored_app_qy.dart';
+import '../features_app_qy/other/views/image_001_screen_app_qy.dart';
 
 // [DEPRECATED - MS] Old screens - Not used in refactored routes
 // import '../features_app_qy/splash/views/splash_screen.dart';
@@ -107,8 +107,10 @@ class QyAppRoutesProvider {
   static const String routeWordFlashcard = '/qy/word/flashcard';
   static const String routeWordReview = '/qy/word/review';
   static const String routeWordListening1 = '/qy/word/listening-1';
-  static const String routeWordListeningDictation1 = '/qy/word/listening-dictation-1';
-  static const String routeWordListeningDictation2 = '/qy/word/listening-dictation-2';
+  static const String routeWordListeningDictation1 =
+      '/qy/word/listening-dictation-1';
+  static const String routeWordListeningDictation2 =
+      '/qy/word/listening-dictation-2';
   static const String routeWordListeningFree = '/qy/word/listening-free';
   static const String routeWordListeningSleep = '/qy/word/listening-sleep';
 
@@ -167,8 +169,7 @@ class QyAppRoutesProvider {
 
   /// Create GoRouter configuration for QY app
   static GoRouter createRouter({String? initialLocation}) {
-    final String effectiveInitialLocation =
-        initialLocation ?? routeHome;
+    final String effectiveInitialLocation = initialLocation ?? routeHome;
     return GoRouter(
       initialLocation: effectiveInitialLocation,
       routes: getQyAppRoutes(),
@@ -193,8 +194,10 @@ class QyAppRoutesProvider {
   static String getWordFlashcardRoute() => routeWordFlashcard;
   static String getWordReviewRoute() => routeWordReview;
   static String getWordListening1Route() => routeWordListening1;
-  static String getWordListeningDictation1Route() => routeWordListeningDictation1;
-  static String getWordListeningDictation2Route() => routeWordListeningDictation2;
+  static String getWordListeningDictation1Route() =>
+      routeWordListeningDictation1;
+  static String getWordListeningDictation2Route() =>
+      routeWordListeningDictation2;
   static String getWordListeningFreeRoute() => routeWordListeningFree;
   static String getWordListeningSleepRoute() => routeWordListeningSleep;
   static String getAboutRoute() => routeAbout;
@@ -225,20 +228,21 @@ class QyAppRoutesProvider {
         name: 'qy_home',
         builder: (context, state) => const HomeStudyScreenRefactoredAppQy(),
       ),
-      // GoRoute(
-        // path: routeHomeSearch,
-        // name: 'qy_home_search',
-        // builder: (context, state) => const HomeSearchScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeHomeSearch,
+        name: 'qy_home_search',
+        builder: (context, state) => const HomeSearchScreenRefactoredAppQy(),
+      ),
 
       // Authentication routes
-      // GoRoute(
-        // path: routeLogin,
-        // name: 'qy_login',
-        // builder: (context, state) => const LoginPhoneScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeLogin,
+        name: 'qy_login',
+        builder: (context, state) => const LoginScreenRefactoredAppQy(),
+      ),
 
       // Course routes
+<<<<<<< HEAD
       // GoRoute(
         // path: routeCourseIelts,
         // name: 'qy_course_ielts',
@@ -287,145 +291,206 @@ class QyAppRoutesProvider {
           // courseId: state.uri.queryParameters['courseId'] ?? '1',
         // ),
       // ),
+=======
+      GoRoute(
+        path: routeCourseIelts,
+        name: 'qy_course_ielts',
+        builder: (context, state) => const CourseIeltsScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeCoursePlans,
+        name: 'qy_course_plans',
+        builder: (context, state) => const CoursePlansScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeCourseDetail,
+        name: 'qy_course_detail',
+        builder: (context, state) => const CourseDetailScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeCourseLesson,
+        name: 'qy_course_lesson',
+        builder: (context, state) => CourseLessonScreenRefactoredAppQy(
+          lessonId: state.uri.queryParameters['lessonId'] ?? '1',
+        ),
+      ),
+      GoRoute(
+        path: routeCourseProgress,
+        name: 'qy_course_progress',
+        builder: (context, state) => CourseProgressScreenRefactoredAppQy(
+          courseId: state.uri.queryParameters['courseId'] ?? '1',
+        ),
+      ),
+      GoRoute(
+        path: routeCourseReview,
+        name: 'qy_course_review',
+        builder: (context, state) => CourseReviewScreenRefactoredAppQy(
+          courseId: state.uri.queryParameters['courseId'] ?? '1',
+        ),
+      ),
+      GoRoute(
+        path: routeCourseSearch,
+        name: 'qy_course_search',
+        builder: (context, state) => const CourseSearchScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeCourseCertificate,
+        name: 'qy_course_certificate',
+        builder: (context, state) => CourseCertificateScreenRefactoredAppQy(
+          courseId: state.uri.queryParameters['courseId'] ?? '1',
+        ),
+      ),
+>>>>>>> 452bbc117c4dddde273360b2d53af3e4fb8d540f
 
       // Word routes
-      // GoRoute(
-        // path: routeWordBook,
-        // name: 'qy_word_book',
-        // builder: (context, state) => const WordBookScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordListening,
-        // name: 'qy_word_listening',
-        // builder: (context, state) => const WordListeningScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordDictation,
-        // name: 'qy_word_dictation',
-        // builder: (context, state) => const WordDictationScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordFlashcard,
-        // name: 'qy_word_flashcard',
-        // builder: (context, state) => const WordFlashcardScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordReview,
-        // name: 'qy_word_review',
-        // builder: (context, state) => const WordReviewScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordListening1,
-        // name: 'qy_word_listening_1',
-        // builder: (context, state) => const WordListening1ScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordListeningDictation1,
-        // name: 'qy_word_listening_dictation_1',
-        // builder: (context, state) => const WordListeningDictation1ScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordListeningDictation2,
-        // name: 'qy_word_listening_dictation_2',
-        // builder: (context, state) => const WordListeningDictation2ScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordListeningFree,
-        // name: 'qy_word_listening_free',
-        // builder: (context, state) => const WordListeningFreeScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeWordListeningSleep,
-        // name: 'qy_word_listening_sleep',
-        // builder: (context, state) => const WordListeningSleepScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeWordBook,
+        name: 'qy_word_book',
+        builder: (context, state) => const WordBookScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordListening,
+        name: 'qy_word_listening',
+        builder: (context, state) => const WordListeningScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordDictation,
+        name: 'qy_word_dictation',
+        builder: (context, state) => const WordDictationScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordFlashcard,
+        name: 'qy_word_flashcard',
+        builder: (context, state) => const WordFlashcardScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordReview,
+        name: 'qy_word_review',
+        builder: (context, state) => const WordReviewScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordListening1,
+        name: 'qy_word_listening_1',
+        builder: (context, state) =>
+            const WordListening1ScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordListeningDictation1,
+        name: 'qy_word_listening_dictation_1',
+        builder: (context, state) =>
+            const WordListeningDictation1ScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordListeningDictation2,
+        name: 'qy_word_listening_dictation_2',
+        builder: (context, state) =>
+            const WordListeningDictation2ScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordListeningFree,
+        name: 'qy_word_listening_free',
+        builder: (context, state) =>
+            const WordListeningFreeScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeWordListeningSleep,
+        name: 'qy_word_listening_sleep',
+        builder: (context, state) =>
+            const WordListeningSleepScreenRefactoredAppQy(),
+      ),
 
       // Profile routes
-      // GoRoute(
-        // path: routeAbout,
-        // name: 'qy_about',
-        // builder: (context, state) => const AboutScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeCertificateCenter,
-        // name: 'qy_certificate_center',
-        // builder: (context, state) => const CertificateCenterScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeMoreFeatures,
-        // name: 'qy_more_features',
-        // builder: (context, state) => const MoreFeaturesScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeProfileAchievements,
-        // name: 'qy_profile_achievements',
-        // builder: (context, state) => const ProfileAchievementsScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeAbout,
+        name: 'qy_about',
+        builder: (context, state) => const AboutScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeCertificateCenter,
+        name: 'qy_certificate_center',
+        builder: (context, state) =>
+            const CertificateCenterScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeMoreFeatures,
+        name: 'qy_more_features',
+        builder: (context, state) => const MoreFeaturesScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeProfileAchievements,
+        name: 'qy_profile_achievements',
+        builder: (context, state) =>
+            const ProfileAchievementsScreenRefactoredAppQy(),
+      ),
 
       // Settings routes
-      // GoRoute(
-        // path: routeSettings,
-        // name: 'qy_settings',
-        // builder: (context, state) => const SettingsScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeAccountSettings,
-        // name: 'qy_account_settings',
-        // builder: (context, state) => const AccountSettingsScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeDisplayMode,
-        // name: 'qy_display_mode',
-        // builder: (context, state) => const DisplayModeScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeHelpCenter,
-        // name: 'qy_help_center',
-        // builder: (context, state) => const HelpCenterScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeRecommendSettings,
-        // name: 'qy_recommend_settings',
-        // builder: (context, state) => const RecommendSettingsScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeReminderSettings,
-        // name: 'qy_reminder_settings',
-        // builder: (context, state) => const ReminderSettingsScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeSettings,
+        name: 'qy_settings',
+        builder: (context, state) => const SettingsScreenV2RefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeAccountSettings,
+        name: 'qy_account_settings',
+        builder: (context, state) =>
+            const AccountSettingsScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeDisplayMode,
+        name: 'qy_display_mode',
+        builder: (context, state) => const DisplayModeScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeHelpCenter,
+        name: 'qy_help_center',
+        builder: (context, state) => const HelpCenterScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeRecommendSettings,
+        name: 'qy_recommend_settings',
+        builder: (context, state) =>
+            const RecommendSettingsScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeReminderSettings,
+        name: 'qy_reminder_settings',
+        builder: (context, state) =>
+            const ReminderSettingsScreenRefactoredAppQy(),
+      ),
 
       // Social routes
-      // GoRoute(
-        // path: routeCheckinChallenge,
-        // name: 'qy_checkin_challenge',
-        // builder: (context, state) => const CheckinChallengeScreenRefactoredAppQy(),
-      // ),
-      // GoRoute(
-        // path: routeMessageCenter,
-        // name: 'qy_message_center',
-        // builder: (context, state) => const MessageCenterScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeCheckinChallenge,
+        name: 'qy_checkin_challenge',
+        builder: (context, state) =>
+            const CheckinChallengeScreenRefactoredAppQy(),
+      ),
+      GoRoute(
+        path: routeMessageCenter,
+        name: 'qy_message_center',
+        builder: (context, state) => const MessageCenterScreenRefactoredAppQy(),
+      ),
 
       // AI Study routes
-      // GoRoute(
-        // path: routeAiStudy,
-        // name: 'qy_ai_study',
-        // builder: (context, state) => const AiStudyScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeAiStudy,
+        name: 'qy_ai_study',
+        builder: (context, state) => const AiStudyScreenRefactoredAppQy(),
+      ),
 
       // Discover routes
-      // GoRoute(
-        // path: routeDiscover,
-        // name: 'qy_discover',
-        // builder: (context, state) => const DiscoverScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeDiscover,
+        name: 'qy_discover',
+        builder: (context, state) => const DiscoverScreenRefactoredAppQy(),
+      ),
 
       // Other routes
-      // GoRoute(
-        // path: routeImage001,
-        // name: 'qy_image_001',
-        // builder: (context, state) => const Image001ScreenRefactoredAppQy(),
-      // ),
+      GoRoute(
+        path: routeImage001,
+        name: 'qy_image_001',
+        builder: (context, state) => const Image001ScreenRefactoredAppQy(),
+      ),
     ];
   }
 
@@ -474,7 +539,8 @@ class QyAppRoutesProvider {
   /// Get all route names
   static List<String> getAllRouteNames() {
     final routes = getQyAppRoutes();
-    return routes.whereType<GoRoute>()
+    return routes
+        .whereType<GoRoute>()
         .map((route) => route.name)
         .where((name) => name != null)
         .cast<String>()

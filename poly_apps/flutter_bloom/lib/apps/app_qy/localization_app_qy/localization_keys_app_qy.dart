@@ -757,6 +757,17 @@ class QyAppLocalizationKeys {
   static const String qyListeningStats = 'qy_listening_stats';
   static const String qyListeningAddToVocab = 'qy_listening_add_to_vocab';
   static const String qyListeningPracticing = 'qy_listening_practicing';
+  static const String qyListeningMastered = 'qy_listening_mastered';
+  static const String qyListeningAccuracyRate = 'qy_listening_accuracy_rate';
+  static const String qyListeningDictationTraining = 'qy_listening_dictation_training';
+  static const String qyListeningDictationTrainingDesc = 'qy_listening_dictation_training_desc';
+  static const String qyListeningWordCount = 'qy_listening_word_count';
+  static const String qyListeningUnlockAfterCurrentLevel = 'qy_listening_unlock_after_current_level';
+  static const String qyListeningDictationHelp = 'qy_listening_dictation_help';
+  static const String qyListeningHelpHowToPractice = 'qy_listening_help_how_to_practice';
+  static const String qyListeningHelpPracticeSteps = 'qy_listening_help_practice_steps';
+  static const String qyListeningHelpTipsContent = 'qy_listening_help_tips_content';
+  static const String qyListeningDailyChallengeInDev = 'qy_listening_daily_challenge_in_dev';
   static const String qyListeningDailyChallenge = 'qy_listening_daily_challenge';
   static const String qyListeningUnlockTip = 'qy_listening_unlock_tip';
   static const String qyListeningHelp = 'qy_listening_help';
@@ -768,6 +779,22 @@ class QyAppLocalizationKeys {
   static const String qyListeningPlaylist = 'qy_listening_playlist';
   static const String qyListeningMinutes = 'qy_listening_minutes';
   static const String qyListeningDays = 'qy_listening_days';
+  static const String qyListeningShuffle = 'qy_listening_shuffle';
+  static const String qyListeningSettings = 'qy_listening_settings';
+  static const String qyListeningPlaying = 'qy_listening_playing';
+  static const String qyListeningPaused = 'qy_listening_paused';
+  static const String qyListeningClickToPlay = 'qy_listening_click_to_play';
+  static const String qyListeningWriteWord = 'qy_listening_write_word';
+  static const String qyListeningInputWord = 'qy_listening_input_word';
+  static const String qyListeningPreviousAttempts = 'qy_listening_previous_attempts';
+  static const String qyListeningHintShown = 'qy_listening_hint_shown';
+  static const String qyListeningShowHint = 'qy_listening_show_hint';
+  static const String qyListeningCheckAnswer = 'qy_listening_check_answer';
+  static const String qyListeningReplay = 'qy_listening_replay';
+  static const String qyListeningEasy = 'qy_listening_easy';
+  static const String qyListeningMedium = 'qy_listening_medium';
+  static const String qyListeningHard = 'qy_listening_hard';
+  static const String qyListeningUnknown = 'qy_listening_unknown';
 
   // Word Listening - Sleep Mode
   static const String qyListeningSleepTitle = 'qy_listening_sleep_title';
@@ -795,6 +822,28 @@ class QyAppLocalizationKeys {
   static const String qyListeningSleepEndTitle = 'qy_listening_sleep_end_title';
   static const String qyListeningSleepEndMessage = 'qy_listening_sleep_end_message';
   static const String qyListeningSleepContinue = 'qy_listening_sleep_continue';
+  
+  // Expert Dictation Level 3 specific keys
+  static const String qyListeningDictationExpertTitle = 'qy_listening_dictation_expert_title';
+  static const String qyListeningExpertProgress = 'qy_listening_expert_progress';
+  static const String qyListeningStreak = 'qy_listening_streak';
+  static const String qyListeningAttempts = 'qy_listening_attempts';
+  static const String qyListeningLevel = 'qy_listening_level';
+  static const String qyListeningExpert = 'qy_listening_expert';
+  static const String qyListeningExpertLevel = 'qy_listening_expert_level';
+  static const String qyListeningExamples = 'qy_listening_examples';
+  static const String qyListeningPlayingExpert = 'qy_listening_playing_expert';
+  static const String qyListeningClickExpert = 'qy_listening_click_expert';
+  static const String qyListeningEnterExpert = 'qy_listening_enter_expert';
+  static const String qyListeningInputExpert = 'qy_listening_input_expert';
+  static const String qyListeningAttemptHistory = 'qy_listening_attempt_history';
+  static const String qyListeningPhonetic = 'qy_listening_phonetic';
+  static const String qyListeningVerifyAnswer = 'qy_listening_verify_answer';
+  static const String qyListeningSkip = 'qy_listening_skip';
+  static const String qyListeningSlow = 'qy_listening_slow';
+  static const String qyListeningNormal = 'qy_listening_normal';
+  static const String qyListeningFast = 'qy_listening_fast';
+  static const String qyExpertLevel = 'qy_expert_level';
 
   // Courses
   static const String qyCoursesTitle = 'qy_courses_title';
@@ -880,6 +929,35 @@ class QyAppLocalizationKeys {
   // Course Detail
   static const String qyCourseContinue = 'qy_course_continue';
   static const String qyCourseContinueCoding = 'qy_course_continue_coding';
+  static const String qyCourseIelts = 'qy_course_ielts';
+  static const String qyCoursePython = 'qy_course_python';
+  static const String qyCoursePythonDesc = 'qy_course_python_desc';
+  static const String qyCourseIeltsDesc = 'qy_course_ielts_desc';
+  static const String qyIeltsFourSkills = 'qy_ielts_four_skills';
+  static const String qyIeltsPracticeTests = 'qy_ielts_practice_tests';
+  static const String qyIeltsOneOnOne = 'qy_ielts_one_on_one';
+  static const String qyIeltsCustomPlan = 'qy_ielts_custom_plan';
+  static const String qyIeltsProgressTracking = 'qy_ielts_progress_tracking';
+  static const String qyIeltsAIAssessment = 'qy_ielts_ai_assessment';
+  static const String qyIeltsSpeaking = 'qy_ielts_speaking';
+  static const String qyIeltsWriting = 'qy_ielts_writing';
+  static const String qyIeltsReading = 'qy_ielts_reading';
+  static const String qyIeltsListening = 'qy_ielts_listening';
+  static const String qyIeltsVocabulary = 'qy_ielts_vocabulary';
+  static const String qyIeltsTestTips = 'qy_ielts_test_tips';
+  static const String qyPractice = 'qy_practice';
+  static const String qyProjectDriven = 'qy_project_driven';
+  static const String qyCodePractice = 'qy_code_practice';
+  static const String qyCodeReview = 'qy_code_review';
+  static const String qyPortfolioGuide = 'qy_portfolio_guide';
+  static const String qyJobRecommendation = 'qy_job_recommendation';
+  static const String qyCommunitySupport = 'qy_community_support';
+  static const String qyPythonBasics = 'qy_python_basics';
+  static const String qyOOP = 'qy_oop';
+  static const String qyWebFramework = 'qy_web_framework';
+  static const String qyDataAnalysis = 'qy_data_analysis';
+  static const String qyMachineLearning = 'qy_machine_learning';
+  static const String qyProjectPractice = 'qy_project_practice';
   static const String qyCourseOverview = 'qy_course_overview';
   static const String qyCourseLessons = 'qy_course_lessons';
   static const String qyCourseProjects = 'qy_course_projects';
@@ -1091,4 +1169,17 @@ class QyAppLocalizationKeys {
   static const String qyWordLocked = 'qy_word_locked';
   static const String qyWordBookDesc = 'qy_word_book_desc';
   static const String qyWordVocabulary = 'qy_word_vocabulary';
+
+  // Word Listening AI Explain
+  static const String qyListeningAIExplainTitle = 'qy_listening_ai_explain_title';
+  static const String qyListeningAIAnalyzing = 'qy_listening_ai_analyzing';
+  static const String qyListeningAIAnalysis = 'qy_listening_ai_analysis';
+  static const String qyListeningEtymology = 'qy_listening_etymology';
+  static const String qyListeningSynonyms = 'qy_listening_synonyms';
+  static const String qyListeningAntonyms = 'qy_listening_antonyms';
+  static const String qyListeningCollocations = 'qy_listening_collocations';
+  static const String qyListeningStartPractice = 'qy_listening_start_practice';
+  static const String qyListeningBackToStudy = 'qy_listening_back_to_study';
+  static const String qyListeningShareInDev = 'qy_listening_share_in_dev';
+  static const String qyListeningPracticeInDev = 'qy_listening_practice_in_dev';
 }

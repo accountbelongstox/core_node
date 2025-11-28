@@ -1,0 +1,9 @@
+从 python .\pycore_module_caller.py中，
+查看tray菜单的注册和事件注册，先给tray添加一个，播放语音字mu。 该功能会toggle一个在系统上播放声音的功能 。
+之后扩展pycore\pyctl 查看文档 development-guides\PYTHON_PYCORE.md 注意 pyctl是用来组织 pycore\pyutils逻辑的，避免循环引用。
+现在 引用 pycore\pyfoundations\system_paths.py 作为一个站外缓存目录 ，建立一个队列， [{
+文字,语音路径,播放次数
+}」] 之后建立一个index表示当前播放到第几。
+之后，将在 pycore\pylauncher\launcher.py 中传递参数 给 pycore\pyutils\native_ui ，引用 pycore\pyctl\语音播放/ui/中的 index作为ui界面。其中显示text，播放的时候显示。
+先完成这一步。注意不要破坏之前的逻辑。
+注意，这是由  python .\pycore_module_caller.py中组织参数来使 pycore\pylauncher\launcher.py同时启动 native_ui，默认 pycore\pylauncher\launcher.py是不启动 native_ui的

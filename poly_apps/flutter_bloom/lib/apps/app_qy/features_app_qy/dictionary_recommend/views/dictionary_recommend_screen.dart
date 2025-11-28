@@ -1,66 +1,88 @@
+/// Dictionary Recommendation Screen - Refactored with centralized theme and common components
+library;
+
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
+import '../../../../../../common/widgets/custom_app_bar.dart';
+import '../../../../../../common/widgets/states/empty_state.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
 import '../domain/model/dictionary_model.dart';
 import '../domain/service/dictionary_service.dart';
-import '../data/mock_dictionaries.dart';
-import '../widgets/dictionary_card.dart';
-import '../widgets/waterfall_grid.dart';
 
-/// Dictionary Recommendation Screen
-/// Displays recommended dictionaries in a beautiful waterfall layout
-class DictionaryRecommendScreen extends StatefulWidget {
-  const DictionaryRecommendScreen({Key? key}) : super(key: key);
+class DictionaryRecommendScreenRefactoredAppQy extends StatefulWidget {
+  const DictionaryRecommendScreenRefactoredAppQy({super.key});
 
   @override
-  State<DictionaryRecommendScreen> createState() => _DictionaryRecommendScreenState();
+  State<DictionaryRecommendScreenRefactoredAppQy> createState() =>
+      _DictionaryRecommendScreenRefactoredAppQyState();
 }
 
-class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
+class _DictionaryRecommendScreenRefactoredAppQyState
+    extends State<DictionaryRecommendScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
   final DictionaryService _service = DictionaryService();
+  final StorageAppQy _storage = StorageAppQy.instance;
+  final TextEditingController _searchController = TextEditingController();
   List<DictionaryModel> _dictionaries = [];
   List<DictionaryModel> _filteredDictionaries = [];
   bool _isLoading = true;
   String _selectedCategory = 'All';
   String _selectedDifficulty = 'All';
   String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
     _loadDictionaries();
   }
 
   @override
   void dispose() {
+    _shimmerController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _loadDictionaries() async {
     setState(() => _isLoading = true);
-
     try {
-      // Set mock data to service
-      _service.setMockData(MockDictionaries.getMockDictionaries());
-
-      // Fetch dictionaries
-      final dictionaries = await _service.fetchRecommendedDictionaries();
-
-      // Actually use the mock data since service returns empty
-      final mockData = MockDictionaries.getMockDictionaries();
-
-      setState(() {
+      final cachedDictionaries = await _storage.getApp<List<dynamic>>(
+        '${StorageAppQy.keyUserProgress}_dictionaries',
+      );
+      if (cachedDictionaries != null) {
+        _dictionaries = (cachedDictionaries as List<dynamic>)
+            .map<DictionaryModel>((json) =>
+                DictionaryModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        final mockData = _getMockDictionaries();
+        _service.setMockData(mockData);
         _dictionaries = mockData;
-        _filteredDictionaries = mockData;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading dictionaries: $e')),
+        await _storage.setApp(
+          '${StorageAppQy.keyUserProgress}_dictionaries',
+          _dictionaries.map((d) => d.toJson()).toList(),
         );
       }
+      _filteredDictionaries = _dictionaries;
+    } catch (e) {
+      final mockData = _getMockDictionaries();
+      _dictionaries = mockData;
+      _filteredDictionaries = mockData;
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -68,20 +90,76 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
     setState(() {
       _filteredDictionaries = _dictionaries.where((dict) {
         // Category filter
-        final categoryMatch = _selectedCategory == 'All' || dict.category == _selectedCategory;
+        final categoryMatch =
+            _selectedCategory == 'All' || dict.category == _selectedCategory;
 
         // Difficulty filter
-        final difficultyMatch = _selectedDifficulty == 'All' || dict.difficulty == _selectedDifficulty;
+        final difficultyMatch = _selectedDifficulty == 'All' ||
+            dict.difficulty == _selectedDifficulty;
 
         // Search query
         final searchMatch = _searchQuery.isEmpty ||
             dict.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            dict.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            dict.tags.any((tag) => tag.toLowerCase().contains(_searchQuery.toLowerCase()));
+            dict.description
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()) ||
+            dict.tags.any((tag) =>
+                tag.toLowerCase().contains(_searchQuery.toLowerCase()));
 
         return categoryMatch && difficultyMatch && searchMatch;
       }).toList();
     });
+  }
+
+  List<DictionaryModel> _getMockDictionaries() {
+    return [
+      DictionaryModel(
+        id: '1',
+        title: 'Oxford Advanced Learner\'s Dictionary',
+        imageUrl: 'https://via.placeholder.com/300',
+        wordCount: 185000,
+        likeCount: 1234,
+        isAdded: false,
+        description: 'Comprehensive dictionary for advanced learners',
+        category: 'Academic',
+        tags: ['vocabulary', 'advanced', 'academic'],
+        author: 'Oxford University Press',
+        createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        difficulty: 'advanced',
+      ),
+      DictionaryModel(
+        id: '2',
+        title: 'Cambridge English Dictionary',
+        imageUrl: 'https://via.placeholder.com/300',
+        wordCount: 140000,
+        likeCount: 987,
+        isAdded: false,
+        description: 'Essential dictionary for English learners',
+        category: 'General',
+        tags: ['vocabulary', 'general', 'beginner'],
+        author: 'Cambridge University Press',
+        createdAt: DateTime.now().subtract(const Duration(days: 20)),
+        difficulty: 'beginner',
+      ),
+      DictionaryModel(
+        id: '3',
+        title: 'Longman Dictionary of Contemporary English',
+        imageUrl: 'https://via.placeholder.com/300',
+        wordCount: 230000,
+        likeCount: 1567,
+        isAdded: false,
+        description: 'Modern dictionary with clear definitions',
+        category: 'General',
+        tags: ['vocabulary', 'modern', 'intermediate'],
+        author: 'Pearson Education',
+        createdAt: DateTime.now().subtract(const Duration(days: 15)),
+        difficulty: 'intermediate',
+      ),
+    ];
+  }
+
+  List<String> _getAllCategories() {
+    return ['Academic', 'General', 'Business', 'Medical', 'Technical'];
   }
 
   Future<void> _handleToggleAdd(DictionaryModel dictionary) async {
@@ -92,19 +170,29 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
         await _service.addDictionaryToCollection(dictionary.id);
       }
 
-      // Update local state
       setState(() {
         final index = _dictionaries.indexWhere((d) => d.id == dictionary.id);
         if (index != -1) {
-          _dictionaries[index] = _dictionaries[index].copyWith(isAdded: !dictionary.isAdded);
+          _dictionaries[index] =
+              _dictionaries[index].copyWith(isAdded: !dictionary.isAdded);
         }
         _applyFilters();
       });
 
+      await _storage.setApp(
+        '${StorageAppQy.keyUserProgress}_dictionaries',
+        _dictionaries.map((d) => d.toJson()).toList(),
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(dictionary.isAdded ? 'Removed from library' : 'Added to library'),
+            content: Text(
+              dictionary.isAdded
+                  ? QyAppLocalizationKeys.qyCourseUnenrolled.tr(context)
+                  : QyAppLocalizationKeys.qyCourseEnrolled.tr(context),
+            ),
+            backgroundColor: ColorsAppQy.qyPrimary,
             duration: const Duration(seconds: 1),
           ),
         );
@@ -112,7 +200,10 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('${QyAppLocalizationKeys.qyError.tr(context)}: $e'),
+            backgroundColor: ColorsAppQy.qyError,
+          ),
         );
       }
     }
@@ -122,7 +213,6 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
     try {
       await _service.likeDictionary(dictionary.id);
 
-      // Update local state
       setState(() {
         final index = _dictionaries.indexWhere((d) => d.id == dictionary.id);
         if (index != -1) {
@@ -133,18 +223,27 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
         _applyFilters();
       });
 
+      await _storage.setApp(
+        '${StorageAppQy.keyUserProgress}_dictionaries',
+        _dictionaries.map((d) => d.toJson()).toList(),
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❤️ Liked!'),
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text('❤️ ${QyAppLocalizationKeys.qyLike.tr(context)}!'),
+            backgroundColor: ColorsAppQy.qyPrimary,
+            duration: const Duration(seconds: 1),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('${QyAppLocalizationKeys.qyError.tr(context)}: $e'),
+            backgroundColor: ColorsAppQy.qyError,
+          ),
         );
       }
     }
@@ -181,8 +280,10 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              _buildDetailRow(Icons.book_outlined, 'Words', '${dictionary.wordCount}'),
-              _buildDetailRow(Icons.favorite, 'Likes', '${dictionary.likeCount}'),
+              _buildDetailRow(
+                  Icons.book_outlined, 'Words', '${dictionary.wordCount}'),
+              _buildDetailRow(
+                  Icons.favorite, 'Likes', '${dictionary.likeCount}'),
               _buildDetailRow(Icons.category, 'Category', dictionary.category),
               _buildDetailRow(Icons.star, 'Difficulty', dictionary.difficulty),
               _buildDetailRow(Icons.person, 'Author', dictionary.author),
@@ -243,115 +344,161 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Recommended Dictionaries'),
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDictionaries,
-          ),
-        ],
-      ),
-      body: Column(
+      extendBodyBehindAppBar: true,
+      body: Stack(
         children: [
-          // Search Bar
-          _buildSearchBar(),
-
-          // Filters
-          _buildFilters(),
-
-          // Dictionary Count
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Column(
               children: [
-                Text(
-                  '${_filteredDictionaries.length} dictionaries',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
+                _buildAppBar(),
+                _buildSearchBar(),
+                _buildBentoFilters(),
+                _buildDictionaryCount(),
+                Expanded(
+                  child: _isLoading
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                ColorsAppQy.qyPrimary),
+                          ),
+                        )
+                      : _filteredDictionaries.isEmpty
+                          ? _buildEmptyState()
+                          : _buildBentoDictionaryGrid(),
                 ),
               ],
             ),
           ),
-
-          // Waterfall Grid
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredDictionaries.isEmpty
-                    ? _buildEmptyState()
-                    : ResponsiveWaterfallGrid(
-                        padding: const EdgeInsets.all(16),
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        children: _filteredDictionaries.map((dictionary) {
-                          return DictionaryCard(
-                            dictionary: dictionary,
-                            onTap: () => _handleViewDetails(dictionary),
-                            onLike: () => _handleLike(dictionary),
-                            onToggleAdd: () => _handleToggleAdd(dictionary),
-                          );
-                        }).toList(),
-                      ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAppBar() {
+    return CustomAppBar(
+      title: QyAppLocalizationKeys.qyWordBook.tr(context),
+      backgroundColor: Colors.transparent,
+      titleColor: ColorsAppQy.qyTextPrimary,
+      iconColor: ColorsAppQy.qyTextPrimary,
+      elevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      actions: [
+        IconButton(
+          icon: Icon(Icons.refresh, color: ColorsAppQy.qyTextPrimary),
+          onPressed: _loadDictionaries,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDictionaryCount() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing8,
+      ),
+      child: Text(
+        '${_filteredDictionaries.length} ${QyAppLocalizationKeys.qyWordBook.tr(context)}',
+        style: ThemeTextStyles.body2.copyWith(
+          color: ColorsAppQy.qyTextSecondary,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: Theme.of(context).primaryColor.withOpacity(0.05),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search dictionaries...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchQuery = '';
-                      _applyFilters();
-                    });
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: TextField(
+            controller: _searchController,
+            style: ThemeTextStyles.body1.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: QyAppLocalizationKeys.qySearch.tr(context),
+              hintStyle: ThemeTextStyles.body1.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
+              ),
+              prefixIcon:
+                  Icon(Icons.search, color: ColorsAppQy.qyTextSecondary),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon:
+                          Icon(Icons.clear, color: ColorsAppQy.qyTextSecondary),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                          _applyFilters();
+                        });
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.3),
+              border: OutlineInputBorder(
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusLarge),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: ThemeDimensions.spacing16,
+                vertical: ThemeDimensions.spacing12,
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+                _applyFilters();
+              });
+            },
+          ),
         ),
-        onChanged: (value) {
-          setState(() {
-            _searchQuery = value;
-            _applyFilters();
-          });
-        },
       ),
     );
   }
 
-  Widget _buildFilters() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  Widget _buildBentoFilters() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing8,
+      ),
       child: Row(
         children: [
           Expanded(
-            child: _buildFilterChip(
-              'Category',
+            child: _buildBentoFilterChip(
+              QyAppLocalizationKeys.qyCategory.tr(context),
               _selectedCategory,
-              ['All', ...MockDictionaries.getAllCategories()],
+              ['All', ..._getAllCategories()],
               (value) {
                 setState(() {
                   _selectedCategory = value;
@@ -360,10 +507,10 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
               },
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: ThemeDimensions.spacing12),
           Expanded(
-            child: _buildFilterChip(
-              'Difficulty',
+            child: _buildBentoFilterChip(
+              QyAppLocalizationKeys.qyLevel.tr(context),
               _selectedDifficulty,
               ['All', 'beginner', 'intermediate', 'advanced'],
               (value) {
@@ -379,91 +526,225 @@ class _DictionaryRecommendScreenState extends State<DictionaryRecommendScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, String value, List<String> options, Function(String) onChanged) {
-    return InkWell(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select $label',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+  Widget _buildBentoFilterChip(String label, String value, List<String> options,
+      Function(String) onChanged) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 10,
+      opacity: 0.2,
+      padding: const EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing12,
+        vertical: ThemeDimensions.spacing10,
+      ),
+      child: InkWell(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            builder: (context) => ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(ThemeDimensions.radiusLarge),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: ColorsAppQy.qyFrostedGlassGradient,
+                  ),
+                  padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$label',
+                        style: ThemeTextStyles.title2.copyWith(
+                          color: ColorsAppQy.qyTextPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: ThemeDimensions.spacing16),
+                      ...options.map((option) => ListTile(
+                            title: Text(
+                              option,
+                              style: ThemeTextStyles.body1.copyWith(
+                                color: ColorsAppQy.qyTextPrimary,
+                              ),
+                            ),
+                            trailing: value == option
+                                ? Icon(Icons.check,
+                                    color: ColorsAppQy.qyPrimary)
+                                : null,
+                            onTap: () {
+                              onChanged(option);
+                              Navigator.pop(context);
+                            },
+                          )),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                ...options.map((option) => ListTile(
-                      title: Text(option),
-                      trailing: value == option ? const Icon(Icons.check, color: Colors.blue) : null,
-                      onTap: () {
-                        onChanged(option);
-                        Navigator.pop(context);
-                      },
-                    )),
-              ],
+              ),
             ),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.blue[50],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blue[200]!),
-        ),
+          );
+        },
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
               child: Text(
                 value,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.blue[900],
+                style: ThemeTextStyles.body2.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(Icons.arrow_drop_down, color: Colors.blue[700], size: 20),
+            Icon(Icons.arrow_drop_down, color: ColorsAppQy.qyPrimary, size: 20),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'No dictionaries found',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try adjusting your filters',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
+  Widget _buildBentoDictionaryGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: ThemeDimensions.spacing16,
+        mainAxisSpacing: ThemeDimensions.spacing16,
+        childAspectRatio: 0.75,
       ),
+      itemCount: _filteredDictionaries.length,
+      itemBuilder: (context, index) {
+        final dictionary = _filteredDictionaries[index];
+        return _buildBentoDictionaryCard(dictionary);
+      },
+    );
+  }
+
+  Widget _buildBentoDictionaryCard(DictionaryModel dictionary) {
+    final gradients = [
+      ColorsAppQy.qyPrimaryGradient,
+      ColorsAppQy.qySecondaryGradient,
+      ColorsAppQy.qyAccentGradient,
+    ];
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () => _handleViewDetails(dictionary),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: gradients[dictionary.hashCode % gradients.length],
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(ThemeDimensions.radiusLarge),
+                  ),
+                  child: Image.network(
+                    dictionary.imageUrl,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.white.withOpacity(0.2),
+                        child: Icon(
+                          Icons.book,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(ThemeDimensions.spacing12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dictionary.title,
+                        style: ThemeTextStyles.body1.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: ThemeDimensions.spacing4),
+                      Text(
+                        dictionary.description,
+                        style: ThemeTextStyles.caption.copyWith(
+                          color: Colors.white70,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Icon(Icons.favorite, size: 14, color: Colors.white70),
+                          const SizedBox(width: ThemeDimensions.spacing4),
+                          Text(
+                            '${dictionary.likeCount}',
+                            style: ThemeTextStyles.caption.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(width: ThemeDimensions.spacing12),
+                          Icon(Icons.book, size: 14, color: Colors.white70),
+                          const SizedBox(width: ThemeDimensions.spacing4),
+                          Text(
+                            '${dictionary.wordCount}',
+                            style: ThemeTextStyles.caption.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: Icon(
+                              dictionary.isAdded
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () => _handleToggleAdd(dictionary),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return EmptyState(
+      icon: Icons.search_off,
+      title: QyAppLocalizationKeys.qyComingSoon.tr(context),
+      message: QyAppLocalizationKeys.qyComingSoon.tr(context),
     );
   }
 }
