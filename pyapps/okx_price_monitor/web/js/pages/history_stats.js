@@ -205,12 +205,14 @@
                             Change 2min
                             ${getSortIcon('change_2min')}
                         </th>
+                        <th style="min-width: 220px;">Real-time Chart</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        sortedData.forEach(coin => {
+        sortedData.forEach((coin, index) => {
+            const chartId = `chart-${coin.coin_symbol || index}`;
             tableHTML += `
                 <tr>
                     <td><strong>${coin.coin_symbol || '-'}</strong></td>
@@ -220,6 +222,12 @@
                     <td>${formatChange(coin.change_30s)}</td>
                     <td>${formatChange(coin.change_1min)}</td>
                     <td>${formatChange(coin.change_2min)}</td>
+                    <td>
+                        <div id="${chartId}" class="mini-chart" style="width:200px;height:60px;"
+                             data-coin="${coin.coin_symbol || ''}">
+                            <span class="text-muted" style="font-size:11px;">Loading...</span>
+                        </div>
+                    </td>
                 </tr>
             `;
         });
@@ -233,6 +241,9 @@
 
         // Setup sort handlers
         setupSortHandlers();
+
+        // Setup lazy-loading charts
+        setupLazyCharts(sortedData);
     }
 
     /**
@@ -381,6 +392,152 @@
         a.click();
 
         console.log('[HistoryStats] CSV exported');
+    }
+
+    /**
+     * Setup lazy-loading charts using Intersection Observer
+     * @param {Array} data - Coin data
+     */
+    function setupLazyCharts(data) {
+        // Check if ECharts is available
+        if (typeof echarts === 'undefined') {
+            console.warn('[HistoryStats] ECharts not loaded, charts disabled');
+            return;
+        }
+
+        const chartElements = document.querySelectorAll('.mini-chart');
+        const loadedCharts = new Set();
+
+        // Create an Intersection Observer for lazy loading
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const chartEl = entry.target;
+                    const coinSymbol = chartEl.dataset.coin;
+
+                    // Only load once
+                    if (!loadedCharts.has(coinSymbol)) {
+                        loadedCharts.add(coinSymbol);
+
+                        // Find coin data
+                        const coinData = data.find(c => c.coin_symbol === coinSymbol);
+                        if (coinData) {
+                            initMiniChart(chartEl, coinData);
+                        }
+                    }
+
+                    // Stop observing this element
+                    observer.unobserve(chartEl);
+                }
+            });
+        }, {
+            rootMargin: '100px' // Start loading 100px before visible
+        });
+
+        // Observe all chart elements
+        chartElements.forEach(el => observer.observe(el));
+
+        console.log(`[HistoryStats] Setup lazy loading for ${chartElements.length} charts`);
+    }
+
+    /**
+     * Initialize mini chart for a coin
+     * @param {HTMLElement} container - Chart container
+     * @param {Object} coinData - Coin data
+     */
+    function initMiniChart(container, coinData) {
+        if (!coinData || !container) {
+            return;
+        }
+
+        // Generate sample price trend data (in real app, fetch from API)
+        const dataPoints = generateTrendData(coinData);
+
+        // Initialize ECharts instance
+        const chart = echarts.init(container, 'dark');
+
+        // Configure chart
+        const option = {
+            grid: {
+                left: 5,
+                right: 5,
+                top: 5,
+                bottom: 5
+            },
+            xAxis: {
+                type: 'category',
+                show: false,
+                data: dataPoints.map((_, i) => i)
+            },
+            yAxis: {
+                type: 'value',
+                show: false,
+                scale: true
+            },
+            series: [{
+                type: 'line',
+                data: dataPoints,
+                smooth: true,
+                symbol: 'none',
+                lineStyle: {
+                    color: dataPoints[dataPoints.length - 1] > dataPoints[0]
+                        ? '#00ff88'
+                        : '#ff4444',
+                    width: 1.5
+                },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                        offset: 0,
+                        color: dataPoints[dataPoints.length - 1] > dataPoints[0]
+                            ? 'rgba(0, 255, 136, 0.3)'
+                            : 'rgba(255, 68, 68, 0.3)'
+                    }, {
+                        offset: 1,
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }])
+                }
+            }],
+            tooltip: {
+                trigger: 'axis',
+                formatter: function(params) {
+                    return `Price: $${params[0].value.toFixed(6)}`;
+                }
+            }
+        };
+
+        chart.setOption(option);
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            chart.resize();
+        });
+    }
+
+    /**
+     * Generate trend data for chart
+     * @param {Object} coinData - Coin data
+     * @returns {Array} Price data points
+     */
+    function generateTrendData(coinData) {
+        const currentPrice = coinData.current_price || 100;
+        const change1m = (coinData.change_1min || 0) / 100; // Convert to decimal
+
+        // Generate 20 data points simulating price trend
+        const points = 20;
+        const data = [];
+
+        // Start price (1 minute ago)
+        const startPrice = currentPrice / (1 + change1m);
+
+        for (let i = 0; i < points; i++) {
+            const progress = i / (points - 1);
+            // Linear interpolation with some random noise
+            const noise = (Math.random() - 0.5) * currentPrice * 0.002;
+            const price = startPrice + (currentPrice - startPrice) * progress + noise;
+            data.push(Number(price.toFixed(6)));
+        }
+
+        return data;
     }
 
 })();

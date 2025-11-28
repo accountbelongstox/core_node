@@ -10,7 +10,7 @@ import time
 from typing import List, Dict, Optional
 
 from pyapps.okx_price_monitor.core import config, calculate_change_percent, format_price
-from pyapps.okx_price_monitor.foundation import CoinProvider, DatabaseHandler, Printer
+from pyapps.okx_price_monitor.foundation import CoinProvider, Printer
 
 
 class PriceMonitor:
@@ -24,14 +24,14 @@ class PriceMonitor:
     def __init__(
         self,
         coin_provider: CoinProvider,
-        database_handler: Optional[DatabaseHandler] = None
+        database_handler: Optional[object] = None
     ):
         """
         Initialize price monitor
-        
+
         Args:
             coin_provider (CoinProvider): Coin data provider
-            database_handler (DatabaseHandler): Database handler (optional)
+            database_handler (object): Database handler (optional, not used)
         """
         self.coin_provider = coin_provider
         self.database_handler = database_handler

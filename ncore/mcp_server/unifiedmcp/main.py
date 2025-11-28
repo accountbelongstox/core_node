@@ -287,7 +287,7 @@ def start_unified_mcp():
     # ========================================
 
     @mcp.tool()
-    async def get_file_info_with_ocr_and_document_parsing_tool(
+    async def imgocr_doc_file_parser_info_tool(
         file_path: str,
         use_cache: bool = True,
         include_pixel_matrix: bool = False,
@@ -787,7 +787,7 @@ def start_unified_mcp():
     logger.info("  [System]")
     logger.info("    1. mcp_server_status (local)")
     logger.info(f"  [File Processing - 4 tools] {'[AVAILABLE]' if backends['pycore'] else '[OFFLINE]'}")
-    logger.info("    2. get_file_info_with_ocr_and_document_parsing_tool")
+    logger.info("    2. imgocr_doc_file_parser_info_tool")
     logger.info("    3. generate_placeholder_image_with_ocr_tool")
     logger.info("    4. query_file_processing_history_tool")
     logger.info("    5. clear_file_cache_tool")
