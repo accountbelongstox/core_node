@@ -15,11 +15,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../router_app_qy/routes_provider_app_qy.dart';
 import '../controllers/home_controller_app_qy.dart';
 
 class HomeStreakScreenRefactoredAppQy extends StatefulWidget {
@@ -68,7 +70,13 @@ class _HomeStreakScreenRefactoredAppQyState
         backgroundColor: ThemeColors.surface,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              context.go(QyAppRoutesProvider.routeHome);
+            }
+          },
           icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
         ),
       ),
@@ -185,7 +193,8 @@ class _HomeStreakScreenRefactoredAppQyState
     );
   }
 
-  Widget _buildStatCard(IconData icon, String label, String value, Color color) {
+  Widget _buildStatCard(
+      IconData icon, String label, String value, Color color) {
     return Container(
       padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
@@ -293,7 +302,8 @@ class _HomeStreakScreenRefactoredAppQyState
                     color: isActive
                         ? Colors.orange.withOpacity(0.8)
                         : ThemeColors.background,
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusSmall),
                     border: Border.all(
                       color: isActive ? Colors.orange : ThemeColors.border,
                     ),

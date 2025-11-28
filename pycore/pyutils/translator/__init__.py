@@ -169,7 +169,25 @@ from pycore.pyutils.translator.google_translator import (
     clear_cache,
 )
 
+from pycore.pyutils.translator.romanization import (
+    Romanizer,
+    RomanizationResult,
+    RomanizationCache,
+    romanize_text,
+    romanize_batch,
+)
+
+from pycore.pyutils.translator.phonetic import (
+    PhoneticTranscriber,
+    PhoneticResult,
+    PhoneticCache,
+    text_to_ipa,
+    word_to_ipa,
+    batch_to_ipa,
+)
+
 __all__ = [
+    # Translation
     'GoogleTranslator',
     'GoogleTranslatorCache',
     'TranslationTask',
@@ -177,4 +195,17 @@ __all__ = [
     'translate_from_dict',
     'translate_from_json_file',
     'clear_cache',
+    # Romanization
+    'Romanizer',
+    'RomanizationResult',
+    'RomanizationCache',
+    'romanize_text',
+    'romanize_batch',
+    # Phonetic (IPA)
+    'PhoneticTranscriber',
+    'PhoneticResult',
+    'PhoneticCache',
+    'text_to_ipa',
+    'word_to_ipa',
+    'batch_to_ipa',
 ]

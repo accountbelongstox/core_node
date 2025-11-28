@@ -10,112 +10,138 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/inbox/domain/model/inbox_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/inbox/data/inbox_dashboard_data.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:get/get.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class InBoxScreenView extends StatelessWidget {
   const InBoxScreenView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Using common text styles directly
+    final inboxUsers = InboxDashboardData.getInboxUsers();
+
     return Scaffold(
-        appBar: AppBar(
-          forceMaterialTransparency: true,
-          title: Text(
-            'Inbox',
-            style: ThemeTextStyles.appNavigation,
-          ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: ColorsAppQy.qyHolographicGradient,
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(ThemeDimensions.defaultSize),
+        child: SafeArea(
           child: Column(
             children: [
-              const SizedBox(height: ThemeDimensions.defaultSize),
-              Container(
-                decoration: BoxDecoration(
-                    color: Theme.of(context).hintColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusBig)),
-                child: const TextField(
-                  decoration: InputDecoration(
+              AppBar(
+                forceMaterialTransparency: true,
+                title: Text(
+                  QyAppLocalizationKeys.qyMessageCenter.tr(context),
+                  style: ThemeTextStyles.appNavigation.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
+                  ),
+                ),
+                backgroundColor:
+                    ColorsAppQy.qyHolographicWhite.withOpacity(0.8),
+              ),
+              Padding(
+                padding: EdgeInsets.all(ThemeDimensions.defaultSize),
+                child: GlassCard(
+                  borderRadius: ThemeDimensions.borderRadiusL,
+                  padding: EdgeInsets.zero,
+                  child: TextField(
+                    decoration: InputDecoration(
                       contentPadding: EdgeInsets.symmetric(
-                          vertical: ThemeDimensions.defaultSize,
-                          horizontal: ThemeDimensions.defaultSize),
+                        vertical: ThemeDimensions.defaultSize,
+                        horizontal: ThemeDimensions.defaultSize,
+                      ),
                       border: OutlineInputBorder(
                         borderSide: BorderSide.none,
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(ThemeDimensions.radiusBig),
+                        ),
                       ),
-                      hintText: 'Search',
-                      suffixIcon: Icon(Icons.search)),
+                      hintText: QyAppLocalizationKeys.qySearch.tr(context),
+                      hintStyle: ThemeTextStyles.bodyMedium.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
+                      suffixIcon: Icon(
+                        Icons.search,
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
+                    ),
+                  ),
                 ),
               ),
               Expanded(
-                  child: ListView.builder(
-                      itemCount: inboxUsersList.length,
-                      itemBuilder: (_, index) {
-                        return InkWell(
-                          onTap: () {
-                            Get.toNamed(QyAppRoutesProvider.routeChat);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: ThemeDimensions.paddingSizeExtraSmall),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(
-                                      ThemeDimensions.defaultSize),
-                                  border: Border.all(
-                                      width: 1.5,
-                                      color: Colors.grey.withOpacity(0.2))),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Row(
-                                  children: [
-                                    CircleAvatar(
-                                        radius: ThemeDimensions.sizeTwentyFive,
-                                        backgroundColor: Colors.grey,
-                                        backgroundImage: AssetImage(
-                                            inboxUsersList[index].userImage)),
-                                    const SizedBox(
-                                        width: ThemeDimensions.defaultSize),
-                                    Expanded(
-                                      child: Row(
-                                        children: [
-                                          Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                inboxUsersList[index].userName,
-                                                style: ThemeTextStyles.textBold,
-                                              ),
-                                              const SizedBox(
-                                                  height: ThemeDimensions
-                                                      .paddingSizeExtraSmall),
-                                              Text(
-                                                inboxUsersList[index].message,
-                                                style: ThemeTextStyles.textMedium,
-                                              ),
-                                            ],
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                    Text(inboxUsersList[index].dateTime,
-                                        style: ThemeTextStyles.textMedium),
-                                  ],
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.defaultSize,
+                  ),
+                  itemCount: inboxUsers.length,
+                  itemBuilder: (_, index) {
+                    final user = inboxUsers[index];
+                    return GlassCard(
+                      borderRadius: ThemeDimensions.borderRadiusM,
+                      margin: EdgeInsets.only(
+                        bottom: ThemeDimensions.spacing8,
+                      ),
+                      padding: EdgeInsets.all(ThemeDimensions.spacing12),
+                      onTap: () {
+                        Navigator.pushNamed(
+                            context, QyAppRoutesProvider.routeMessageCenter);
+                      },
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: ThemeDimensions.sizeTwentyFive,
+                            backgroundColor: ColorsAppQy.qyBorderLight,
+                            backgroundImage: AssetImage(user.userImage),
+                          ),
+                          SizedBox(width: ThemeDimensions.defaultSize),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  user.userNameKey.tr(context),
+                                  style: ThemeTextStyles.textBold.copyWith(
+                                    color: ColorsAppQy.qyTextPrimary,
+                                  ),
                                 ),
-                              ),
+                                SizedBox(
+                                  height: ThemeDimensions.paddingSizeExtraSmall,
+                                ),
+                                Text(
+                                  user.messageKey.tr(context),
+                                  style: ThemeTextStyles.textMedium.copyWith(
+                                    color: ColorsAppQy.qyTextSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      }))
+                          Text(
+                            user.dateTimeKey.tr(context),
+                            style: ThemeTextStyles.textMedium.copyWith(
+                              color: ColorsAppQy.qyTextTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
             ],
           ),
-        ));
+        ),
+      ),
+    );
   }
 }

@@ -14,6 +14,11 @@ ARCHITECTURE:
 
 import platform
 
+from pycore import ColorPrint, THREAD_BUS
+from pycore.pylauncher import ServiceLauncher, LauncherConfig
+from pycore.callmodule.platform.windows_tray import launch_windows_tray
+from pycore.callmodule.platform.linux_service import launch_linux_service
+
 IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
 
@@ -29,9 +34,6 @@ def launch_platform_aware(host='0.0.0.0', port=59000, debug=False):
         port: Port to bind to
         debug: Enable debug mode
     """
-    from pycore import ColorPrint
-    from pycore.pylauncher import ServiceLauncher, LauncherConfig
-
     # Create launcher configuration
     config = LauncherConfig(
         app_id="pycore_module_caller",
@@ -47,23 +49,28 @@ def launch_platform_aware(host='0.0.0.0', port=59000, debug=False):
         }
     )
 
-    # Start ServiceLauncher (handles singleton detection)
+    # Start ServiceLauncher (handles singleton detection) - Only call once
     launcher = ServiceLauncher(config)
-    success = launcher.start()
-
-    if not success:
-        # Singleton detection failed (existing instance busy or other error)
-        ColorPrint.yellow("[Launcher] Failed to start (singleton conflict or error)")
-        return
+    if not launcher.start():
+        return  # Singleton conflict, exit
 
     # Get singleton info from detection result
     singleton_port = launcher.detection_result.port if launcher.detection_result else None
 
     ColorPrint.green(f"[Launcher] Singleton OK, launching platform-specific UI...")
 
+    # Voice subtitle player is now handled by HTML UI (no Python pygame player needed)
+    # HTML UI uses HTML5 <audio> element for playback
+    ColorPrint.blue("[Launcher] Voice subtitle playback handled by HTML UI")
+
+    # Start voice subtitle UI (always start, hidden initially)
+    ColorPrint.blue("[Launcher] Starting voice subtitle UI...")
+    from pycore.pyctl.desktop.ui import start_voice_subtitle_ui
+    ui_thread = start_voice_subtitle_ui()
+    ColorPrint.green("[Launcher] Voice subtitle UI thread started")
+
     # Launch platform-specific UI
     if IS_WINDOWS:
-        from .windows_tray import launch_windows_tray
         launch_windows_tray(
             host=host,
             port=port,
@@ -72,7 +79,6 @@ def launch_platform_aware(host='0.0.0.0', port=59000, debug=False):
             singleton_port=singleton_port
         )
     else:
-        from .linux_service import launch_linux_service
         launch_linux_service(
             host=host,
             port=port,

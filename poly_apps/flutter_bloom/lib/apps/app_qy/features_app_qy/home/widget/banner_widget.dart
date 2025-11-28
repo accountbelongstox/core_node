@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/banner_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/banner_data.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
@@ -20,7 +21,8 @@ class BannerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    PageController pageController = PageController();
+    final sliderImages = BannerData.getSliderImages();
+    final PageController pageController = PageController();
     return Padding(
       padding:
           const EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSizeDefault),
@@ -34,13 +36,13 @@ class BannerWidget extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: PageView.builder(
-              itemCount: sliderImage.length,
+              itemCount: sliderImages.length,
               controller: pageController,
               itemBuilder: (_, index) {
                 return ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
-                      sliderImage[index],
+                      sliderImages[index],
                       fit: BoxFit.cover,
                     ));
               },
@@ -51,8 +53,8 @@ class BannerWidget extends StatelessWidget {
             child: Align(
               alignment: Alignment.bottomCenter,
               child: SmoothPageIndicator(
-                  controller: pageController, // PageController
-                  count: sliderImage.length,
+                  controller: pageController,
+                  count: sliderImages.length,
                   effect: WormEffect(
                     dotHeight: 8,
                     dotWidth: 8,

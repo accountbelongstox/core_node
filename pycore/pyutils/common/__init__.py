@@ -10,6 +10,7 @@ Components:
 - SpeechSwitch: Routes both TTS and STT tasks based on provider status
 - Legacy wrappers: TTSSwitch/STTSwitch aliases for backward compatibility
 - Shared task models and provider status helpers
+- WindowFinder: Centralized window searching utility
 """
 
 # Legacy switch exports (proxies to SpeechSwitch)
@@ -63,6 +64,9 @@ from pycore.pyutils.common.speech_switch import (
     initialize_speech_switch
 )
 
+# Window Finder exports
+from pycore.pyutils.common.window_finder import WindowFinder
+
 __all__ = [
     # TTS Switch
     'TTSProvider',
@@ -95,5 +99,8 @@ __all__ = [
     # Unified Speech Switch
     'SpeechSwitch',
     'get_speech_switch',
-    'initialize_speech_switch'
+    'initialize_speech_switch',
+    # Window Finder
+    'WindowFinder'
 ]
+

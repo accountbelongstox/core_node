@@ -26,6 +26,11 @@ const McpManager = {
                 icon: '📷',
                 component: McpScreenshotModule
             },
+            'placeholders': {
+                name: 'Placeholder Generator',
+                icon: '🖼️',
+                component: McpPlaceholderModule
+            },
             'task-dispatch': {
                 name: 'Task Dispatch',
                 icon: '📋',

@@ -115,8 +115,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                title: user?.displayName ?? QyAppLocalizationKeys.qyUser.tr(context),
-                subtitle: user?.phone ?? QyAppLocalizationKeys.qyNotLoggedIn.tr(context),
+                title: user?.displayName ??
+                    QyAppLocalizationKeys.qyUser.tr(context),
+                subtitle: user?.phone ??
+                    QyAppLocalizationKeys.qyNotLoggedIn.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _navigateToAccountSettings(),
               ),
@@ -148,7 +150,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: AppTheme.secondaryGreen,
             ),
             title: 'settings.recommend'.tr(context),
-            subtitle: QyAppLocalizationKeys.qyPersonalizedRecommendations.tr(context),
+            subtitle:
+                QyAppLocalizationKeys.qyPersonalizedRecommendations.tr(context),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _navigateToRecommendSettings(),
           ),
@@ -202,9 +205,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: AppTheme.secondaryGreen,
                 ),
                 title: 'settings.language'.tr(context),
-                subtitle: settings.language == 'zh'
-                    ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
-                    : QyAppLocalizationKeys.qyLanguageEnglish.tr(context),
+                subtitle:
+                    settings.language == QyAppLocalizationKeys.qyLanguageCodeZh
+                        ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
+                        : QyAppLocalizationKeys.qyLanguageEnglish.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showLanguageDialog(),
               ),
@@ -214,7 +218,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: AppTheme.accentGreen,
                 ),
                 title: 'settings.displayMode'.tr(context),
-                subtitle: QyAppLocalizationKeys.qyDisplayLayoutSettings.tr(context),
+                subtitle:
+                    QyAppLocalizationKeys.qyDisplayLayoutSettings.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _navigateToDisplaySettings(),
               ),
@@ -268,7 +273,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: AppTheme.secondaryGreen,
             ),
             title: 'settings.playerCompat'.tr(context),
-            subtitle: QyAppLocalizationKeys.qySettingsPlayerCompatibility.tr(context),
+            subtitle:
+                QyAppLocalizationKeys.qySettingsPlayerCompatibility.tr(context),
             trailing: Switch(
               value: _playerCompat,
               onChanged: (value) {
@@ -410,13 +416,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(QyAppLocalizationKeys.qyLanguageChinese.tr(context)),
               trailing: Consumer<SettingsService>(
                 builder: (context, service, child) {
-                  return service.language == 'zh'
+                  return service.language ==
+                          QyAppLocalizationKeys.qyLanguageCodeZh
                       ? Icon(Icons.check, color: AppTheme.primaryGreen)
                       : null;
                 },
               ),
               onTap: () {
-                settingsService.setLanguage('zh');
+                settingsService
+                    .setLanguage(QyAppLocalizationKeys.qyLanguageCodeZh);
                 Navigator.of(context).pop();
               },
             ),
@@ -424,13 +432,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(QyAppLocalizationKeys.qyLanguageEnglish.tr(context)),
               trailing: Consumer<SettingsService>(
                 builder: (context, service, child) {
-                  return service.language == 'en'
+                  return service.language ==
+                          QyAppLocalizationKeys.qyLanguageCodeEn
                       ? Icon(Icons.check, color: AppTheme.primaryGreen)
                       : null;
                 },
               ),
               onTap: () {
-                settingsService.setLanguage('en');
+                settingsService
+                    .setLanguage(QyAppLocalizationKeys.qyLanguageCodeEn);
                 Navigator.of(context).pop();
               },
             ),
@@ -481,8 +491,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _clearCache() {
-    final messageTemplate = QyAppLocalizationKeys.qyClearCacheMessage.tr(context);
-    final message = messageTemplate.replaceFirst('{size}', _cacheSize.toStringAsFixed(1));
+    final messageTemplate =
+        QyAppLocalizationKeys.qyClearCacheMessage.tr(context);
+    final message =
+        messageTemplate.replaceFirst('{size}', _cacheSize.toStringAsFixed(1));
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -501,7 +513,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(QyAppLocalizationKeys.qyCacheCleared.tr(context)),
+                  content:
+                      Text(QyAppLocalizationKeys.qyCacheCleared.tr(context)),
                   backgroundColor: AppTheme.primaryGreen,
                 ),
               );
@@ -529,7 +542,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToFeedback() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qySettingsFeedbackInProgress.tr(context)),
+        content: Text(
+            QyAppLocalizationKeys.qySettingsFeedbackInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -538,7 +552,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToAbout() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qySettingsAboutInProgress.tr(context)),
+        content:
+            Text(QyAppLocalizationKeys.qySettingsAboutInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -547,7 +562,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToAgreement() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qySettingsTermsInProgress.tr(context)),
+        content:
+            Text(QyAppLocalizationKeys.qySettingsTermsInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -556,7 +572,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _navigateToPrivacyPolicy() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qySettingsPrivacyInProgress.tr(context)),
+        content:
+            Text(QyAppLocalizationKeys.qySettingsPrivacyInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );

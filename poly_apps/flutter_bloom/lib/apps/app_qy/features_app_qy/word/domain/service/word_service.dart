@@ -15,6 +15,7 @@ library;
 
 import '../model/word_model.dart';
 import '../../../../services_app_qy/api_service_app_qy.dart';
+import '../../data/word_book_data_service.dart';
 
 class WordService {
   final ApiServiceAppQy _apiService;
@@ -100,34 +101,6 @@ class WordService {
   }
 
   List<WordBookModel> _getMockWordBooks() {
-    return [
-      const WordBookModel(
-        id: '1',
-        name: 'COCA 语料库 20000',
-        description: '美国当代英语语料库高频词汇',
-        totalWords: 16952,
-        learnedWords: 27,
-        remainingWords: 16925,
-        category: 'coca',
-      ),
-      const WordBookModel(
-        id: '2',
-        name: '雅思词汇',
-        description: 'IELTS 核心词汇',
-        totalWords: 5000,
-        learnedWords: 0,
-        remainingWords: 5000,
-        category: 'ielts',
-      ),
-      const WordBookModel(
-        id: '3',
-        name: '四六级词汇',
-        description: 'CET-4/6 核心词汇',
-        totalWords: 4500,
-        learnedWords: 0,
-        remainingWords: 4500,
-        category: 'cet',
-      ),
-    ];
+    return WordBookDataService.getMockWordBooks();
   }
 }

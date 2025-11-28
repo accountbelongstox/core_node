@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
+use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 
 class InitializeApps extends Command
 {
@@ -245,6 +246,7 @@ class InitializeApps extends Command
         $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());
+        $manager->register(new McpV1Initializer());
         $result = $manager->initializeAll(false);
         
         foreach ($result['results'] as $appName => $appResult) {
