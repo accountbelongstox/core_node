@@ -242,6 +242,56 @@ class QyAppRoutesProvider {
       ),
 
       // Course routes
+<<<<<<< HEAD
+      // GoRoute(
+        // path: routeCourseIelts,
+        // name: 'qy_course_ielts',
+        // builder: (context, state) => const CourseIeltsScreenRefactoredAppQy(),
+      // ),
+      // GoRoute(
+        // path: routeCoursePlans,
+        // name: 'qy_course_plans',
+        // builder: (context, state) => const CoursePlansScreenRefactoredAppQy(),
+      // ),
+      // GoRoute(
+        // path: routeCourseDetail,
+        // name: 'qy_course_detail',
+        // builder: (context, state) => const CourseDetailScreenRefactoredAppQy(),
+      // ),
+      // GoRoute(
+        // path: routeCourseLesson,
+        // name: 'qy_course_lesson',
+        // builder: (context, state) => CourseLessonScreenRefactoredAppQy(
+          // lessonId: state.uri.queryParameters['lessonId'] ?? '1',
+        // ),
+      // ),
+      // GoRoute(
+        // path: routeCourseProgress,
+        // name: 'qy_course_progress',
+        // builder: (context, state) => CourseProgressScreenRefactoredAppQy(
+          // courseId: state.uri.queryParameters['courseId'] ?? '1',
+        // ),
+      // ),
+      // GoRoute(
+        // path: routeCourseReview,
+        // name: 'qy_course_review',
+        // builder: (context, state) => CourseReviewScreenRefactoredAppQy(
+          // courseId: state.uri.queryParameters['courseId'] ?? '1',
+        // ),
+      // ),
+      // GoRoute(
+        // path: routeCourseSearch,
+        // name: 'qy_course_search',
+        // builder: (context, state) => const CourseSearchScreenRefactoredAppQy(),
+      // ),
+      // GoRoute(
+        // path: routeCourseCertificate,
+        // name: 'qy_course_certificate',
+        // builder: (context, state) => CourseCertificateScreenRefactoredAppQy(
+          // courseId: state.uri.queryParameters['courseId'] ?? '1',
+        // ),
+      // ),
+=======
       GoRoute(
         path: routeCourseIelts,
         name: 'qy_course_ielts',
@@ -290,6 +340,7 @@ class QyAppRoutesProvider {
           courseId: state.uri.queryParameters['courseId'] ?? '1',
         ),
       ),
+>>>>>>> 452bbc117c4dddde273360b2d53af3e4fb8d540f
 
       // Word routes
       GoRoute(
