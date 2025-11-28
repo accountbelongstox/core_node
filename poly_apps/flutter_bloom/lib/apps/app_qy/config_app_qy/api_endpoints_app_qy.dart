@@ -9,8 +9,8 @@ class ApiEndpointsAppQy {
   static const String authGetCurrentUser = '/api/dict/v1/user';
   
   static const String userProfile = '/api/dict/v1/user';
-  static const String userLanguages = '/api/dict/v1/learning/languages';
-  static const String userSetLanguages = '/api/dict/v1/learning/languages';
+  static const String userGetLanguages = '/api/dict/v1/learning/languages';
+  static const String userSetLanguages = '/api/dict/v1/learning/languages/set';
   static const String userStats = '/api/dict/v1/learning/stats';
   
   static const String vocabularyLibraries = '/api/dict/v1/learning/libraries';
@@ -56,7 +56,7 @@ class ApiEndpointMethods {
     ApiEndpointsAppQy.authSendCode: 'POST',
     ApiEndpointsAppQy.authVerifyCode: 'POST',
     ApiEndpointsAppQy.userProfile: 'GET',
-    ApiEndpointsAppQy.userLanguages: 'GET',
+    ApiEndpointsAppQy.userGetLanguages: 'GET',
     ApiEndpointsAppQy.userSetLanguages: 'POST',
     ApiEndpointsAppQy.userStats: 'GET',
     ApiEndpointsAppQy.vocabularyLibraries: 'GET',
