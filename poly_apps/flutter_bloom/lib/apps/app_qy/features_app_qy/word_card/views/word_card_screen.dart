@@ -17,6 +17,8 @@ import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 // Updated: Using new base theme system (符合最新文档规范)
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class WordCardScreen extends StatelessWidget {
   const WordCardScreen({super.key});
@@ -27,7 +29,7 @@ class WordCardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: '单词学习',
+        title: QyAppLocalizationKeys.qyWordLearning.tr(context),
         showBackButton: true,
       ),
       body: SafeArea(
@@ -77,7 +79,7 @@ class WordCardScreen extends StatelessWidget {
                   ),
                   SizedBox(height: ThemeDimensions.spacing24),
                   Text(
-                    '例句:',
+                    '${QyAppLocalizationKeys.qyExamples.tr(context)}:',
                     // Updated: Using base theme system
                     style: ThemeTextStyles.title3Bold,
                   ),
@@ -106,20 +108,20 @@ class WordCardScreen extends StatelessWidget {
             _buildActionButton(
               context: context,
               icon: Icons.volume_up,
-              label: '发音',
+              label: QyAppLocalizationKeys.qyPronunciation.tr(context),
               onPressed: () => Get.find<WordCardController>().playPronunciation(),
             ),
             _buildActionButton(
               context: context,
               icon: Icons.check_circle,
-              label: '认识',
+              label: QyAppLocalizationKeys.qyKnown.tr(context),
               onPressed: () => Get.find<WordCardController>().markAsKnown(),
               color: Colors.green,
             ),
             _buildActionButton(
               context: context,
               icon: Icons.close,
-              label: '不认识',
+              label: QyAppLocalizationKeys.qyUnknown.tr(context),
               onPressed: () => Get.find<WordCardController>().markAsUnknown(),
               color: Colors.red,
             ),

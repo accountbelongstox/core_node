@@ -13,6 +13,8 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import '../models/word_listening_dictation_model.dart';
+import '../data/word_listening_dictation_data.dart';
 import 'word_listening_dictation_practice_screen.dart';
 
 class WordListeningDictationScreen extends StatefulWidget {
@@ -27,48 +29,8 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
-  List<Map<String, dynamic>> get _dictationLevels => [
-    {
-      'title': QyAppLocalizationKeys.qyListeningDictationBeginner.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningDictationBeginnerDesc.tr(context),
-      'level': 'Beginner',
-      'icon': Icons.school,
-      'color': ColorsAppQy.qySecondary,
-      'wordCount': 500,
-      'progress': 0.3,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningDictationIntermediate.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningDictationIntermediateDesc.tr(context),
-      'level': 'Intermediate',
-      'icon': Icons.trending_up,
-      'color': ColorsAppQy.qyAccent,
-      'wordCount': 1000,
-      'progress': 0.0,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningDictationAdvanced.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningDictationAdvancedDesc.tr(context),
-      'level': 'Advanced',
-      'icon': Icons.psychology,
-      'color': ColorsAppQy.qySuccess,
-      'wordCount': 1500,
-      'progress': 0.0,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningDictationExpert.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningDictationExpertDesc.tr(context),
-      'level': 'Expert',
-      'icon': Icons.workspace_premium,
-      'color': ColorsAppQy.qyInfo,
-      'wordCount': 2000,
-      'progress': 0.0,
-      'locked': true,
-    },
-  ];
+  // Use centralized data source instead of hardcoded array
+  List<DictationLevelModel> get _dictationLevels => WordListeningDictationData.dictationLevels;
 
   @override
   void initState() {
@@ -95,7 +57,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
   Future<void> _saveProgress() async {
     final storage = StorageAppQy.instance;
     await storage.setApp<Map<String, dynamic>>('dictation_progress', {
-      'lastLevel': _dictationLevels.firstWhere((l) => !(l['locked'] as bool))['level'],
+      'lastLevel': _dictationLevels.firstWhere((l) => !l.locked).level,
     });
   }
 
@@ -359,8 +321,8 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
     );
   }
 
-  Widget _buildLevelCard(Map<String, dynamic> level, int index) {
-    final isLocked = level['locked'] as bool;
+  Widget _buildLevelCard(DictationLevelModel level, int index) {
+    final isLocked = level.locked;
 
     return BouncingButton(
       onPressed: isLocked ? _showLockedMessage : () => _startDictation(level),
@@ -377,14 +339,14 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                     decoration: BoxDecoration(
                       color: isLocked
                           ? Colors.grey.shade300
-                          : (level['color'] as Color).withOpacity(0.1),
+                          : level.color.withOpacity(0.1),
                       borderRadius: ThemeDimensions.borderRadiusM,
                     ),
                     child: Icon(
-                      level['icon'] as IconData,
+                      level.icon,
                       color: isLocked
                           ? Colors.grey.shade500
-                          : level['color'] as Color,
+                          : level.color,
                       size: 30,
                     ),
                   ),
@@ -394,7 +356,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          level['title'] as String,
+                          level.titleKey.tr(context),
                           style: ThemeTextStyles.headlineSmall.copyWith(
                             color: isLocked
                                 ? Colors.grey.shade600
@@ -404,7 +366,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                         ),
                         SizedBox(height: ThemeDimensions.spacing4),
                         Text(
-                          level['subtitle'] as String,
+                          level.subtitleKey.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: isLocked
                                 ? Colors.grey.shade500
@@ -423,7 +385,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                   else
                     Icon(
                       Icons.play_circle,
-                      color: level['color'] as Color,
+                      color: level.color,
                       size: 32,
                     ),
                 ],
@@ -434,13 +396,13 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                   children: [
                     Expanded(
                       child: _buildProgressIndicator(
-                        level['progress'] as double,
-                        level['color'] as Color,
+                        level.progress,
+                        level.color,
                       ),
                     ),
                     SizedBox(width: ThemeDimensions.spacing16),
                     Text(
-                      QyAppLocalizationKeys.qyListeningWordCount.tr(context).replaceAll('{count}', level['wordCount'].toString()),
+                      QyAppLocalizationKeys.qyListeningWordCount.tr(context).replaceAll('{count}', level.wordCount.toString()),
                       style: ThemeTextStyles.bodyMedium.copyWith(
                         color: ColorsAppQy.qyTextSecondary,
                       ),
@@ -544,13 +506,13 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
     );
   }
 
-  void _startDictation(Map<String, dynamic> level) {
+  void _startDictation(DictationLevelModel level) {
     _saveProgress();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordListeningDictationPracticeScreen(
-          level: level['level'] as String,
-          title: level['title'] as String,
+          level: level.level,
+          title: level.titleKey.tr(context),
         ),
       ),
     );

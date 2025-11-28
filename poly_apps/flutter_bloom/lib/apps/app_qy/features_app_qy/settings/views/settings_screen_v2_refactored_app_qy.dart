@@ -7,6 +7,8 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SettingsScreenV2RefactoredAppQy extends StatefulWidget {
   const SettingsScreenV2RefactoredAppQy({super.key});
@@ -848,8 +850,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
 
   void _showAppLanguageDialog(SettingsControllerRefactoredAppQy controller) {
     final languages = [
-      {'code': 'zh', 'name': '中文 (Chinese)'},
-      {'code': 'en', 'name': 'English'},
+      {'code': QyAppLocalizationKeys.qyLanguageCodeZh, 'nameKey': QyAppLocalizationKeys.qyLanguageChinese},
+      {'code': QyAppLocalizationKeys.qyLanguageCodeEn, 'nameKey': QyAppLocalizationKeys.qyLanguageEnglish},
     ];
 
     showDialog(
@@ -861,7 +863,7 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
           children: languages.map((lang) {
             final isSelected = controller.languageVoice.appLanguage == lang['code'];
             return ListTile(
-              title: Text(lang['name']!),
+              title: Text((lang['nameKey'] as String).tr(context)),
               trailing: isSelected ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary) : null,
               onTap: () async {
                 await controller.updateAppLanguage(lang['code']!);
@@ -912,11 +914,13 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
   }
 
   String _getLanguageDisplayName(String code) {
-    const names = {
-      'zh': '中文',
-      'en': 'English',
-    };
-    return names[code] ?? code;
+    final context = this.context;
+    if (code == QyAppLocalizationKeys.qyLanguageCodeZh) {
+      return QyAppLocalizationKeys.qyLanguageChinese.tr(context);
+    } else if (code == QyAppLocalizationKeys.qyLanguageCodeEn) {
+      return QyAppLocalizationKeys.qyLanguageEnglish.tr(context);
+    }
+    return code;
   }
 }
 

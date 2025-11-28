@@ -113,6 +113,21 @@ class PySide6UIConfig:
     on_webview_ready: Optional[Callable] = None  # Called when webview loads
     on_webview_error: Optional[Callable] = None  # Called on webview error
 
+    # ========== THREAD_BUS Integration (Always Enabled) ==========
+    thread_bus_namespace: Optional[str] = None
+    """
+    THREAD_BUS event namespace (default: app_id if provided, else 'ui')
+    Automatically listens to events like:
+    - {namespace}.show - Show window
+    - {namespace}.hide - Hide window
+    - {namespace}.toggle - Toggle window visibility
+    - {namespace}.move - Move window (data: {x, y})
+    - {namespace}.resize - Resize window (data: {width, height})
+    - {namespace}.close - Close window
+    - {namespace}.minimize - Minimize window
+    - {namespace}.maximize - Maximize window
+    """
+
     # ========== Debug Configuration ==========
     debug: bool = False
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR

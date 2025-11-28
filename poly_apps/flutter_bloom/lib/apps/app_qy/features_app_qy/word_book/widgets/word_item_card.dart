@@ -2,9 +2,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/theme/app_theme.dart';
-import '../../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../../../../../common/localization/localization_manager.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../models/word_models.dart';
 
@@ -25,154 +28,149 @@ class WordItemCard extends StatelessWidget {
     return AnimationUtils.scaleOnTap(
       onTap: onTap,
       child: AnimationUtils.fadeInWithSlide(
-        child: AnimatedContainer(
-          duration: ComponentStyles.fastDuration,
-          decoration: ComponentStyles.primaryCardDecoration,
+        child: GlassCard(
+          onTap: onTap,
+          borderRadius: ThemeDimensions.borderRadiusXL,
+          padding: EdgeInsets.all(ThemeDimensions.spacing20),
           child: Container(
-          padding: const EdgeInsets.all(ComponentStyles.lg),
-          decoration: BoxDecoration(
-            gradient: _getGradientForType(word.type),
-            borderRadius: BorderRadius.circular(ComponentStyles.radiusXLarge),
-            border: Border.all(
-              color: _getTypeColor(word.type).withOpacity(0.2),
-              width: 1,
+            decoration: BoxDecoration(
+              gradient: _getGradientForType(word.type),
+              borderRadius: ThemeDimensions.borderRadiusXL,
+              border: Border.all(
+                color: _getTypeColor(word.type).withOpacity(0.2),
+                width: 1,
+              ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          word.word,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            word.word,
+                            style: ThemeTextStyles.headlineSmall.copyWith(
+                              color: ColorsAppQy.qyTextPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          word.pronunciation,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                            fontStyle: FontStyle.italic,
+                          SizedBox(height: ThemeDimensions.spacing4),
+                          Text(
+                            word.pronunciation,
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyTextSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ThemeDimensions.spacing12,
+                        vertical: ThemeDimensions.spacing4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getTypeColor(word.type).withOpacity(0.12),
+                        borderRadius: ThemeDimensions.borderRadiusS,
+                      ),
+                      child: Text(
+                        _getTypeLabel(word.type, context),
+                        style: ThemeTextStyles.bodySmall.copyWith(
+                          color: _getTypeColor(word.type),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: ThemeDimensions.spacing8),
+                    IconButton(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
+                      onPressed: onAction,
+                    ),
+                  ],
+                ),
+                SizedBox(height: ThemeDimensions.spacing12),
+                Text(
+                  word.meaningKey.tr(context),
+                  style: ThemeTextStyles.bodyLarge.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getTypeColor(word.type).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                ),
+                SizedBox(height: ThemeDimensions.spacing12),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(ThemeDimensions.spacing12),
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qyFrostWhite,
+                    borderRadius: ThemeDimensions.borderRadiusM,
+                  ),
+                  child: Text(
+                    word.exampleKey.tr(context),
+                    style: ThemeTextStyles.bodyMedium.copyWith(
+                      color: ColorsAppQy.qyTextSecondary,
                     ),
-                    child: Text(
-                      _getTypeLabel(word.type, context),
-                      style: TextStyle(
-                        fontSize: 12,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(height: ThemeDimensions.spacing16),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.headphones,
+                      size: ThemeDimensions.iconSizeS,
+                      color: _getTypeColor(word.type),
+                    ),
+                    SizedBox(width: ThemeDimensions.spacing4),
+                    Text(
+                      QyAppLocalizationKeys.qyWordBookPronunciation.tr(context),
+                      style: ThemeTextStyles.bodySmall.copyWith(
                         color: _getTypeColor(word.type),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      QyAppLocalizationKeys.qyWordBookMasteryLevel.tr(context),
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: ThemeDimensions.spacing8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: LinearProgressIndicator(
+                        value: word.masteryLevel,
+                        backgroundColor: ColorsAppQy.qyHolographicMedium,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _getMasteryColor(word.masteryLevel),
+                        ),
+                        minHeight: ThemeDimensions.spacing4,
+                      ),
+                    ),
+                    SizedBox(width: ThemeDimensions.spacing8),
+                    Text(
+                      '${(word.masteryLevel * 100).toInt()}%',
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: _getMasteryColor(word.masteryLevel),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(
-                      Icons.more_vert,
-                      color: Colors.grey[600],
-                    ),
-                    onPressed: onAction,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                word.meaning,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: AppTheme.textPrimary,
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        word.example,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppTheme.textSecondary,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.headphones,
-                    size: 16,
-                    color: _getTypeColor(word.type),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    QyAppLocalizationKeys.qyWordBookPronunciation.tr(context),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _getTypeColor(word.type),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    QyAppLocalizationKeys.qyWordBookMasteryLevel.tr(context),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: word.masteryLevel,
-                      backgroundColor: Colors.grey.shade300,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        _getMasteryColor(word.masteryLevel),
-                      ),
-                      minHeight: 4,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${(word.masteryLevel * 100).toInt()}%',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _getMasteryColor(word.masteryLevel),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -180,26 +178,26 @@ class WordItemCard extends StatelessWidget {
   LinearGradient _getGradientForType(WordType type) {
     switch (type) {
       case WordType.newWords:
-        return AppTheme.newWordsGradient;
+        return ColorsAppQy.qyAccentGradient;
       case WordType.learning:
-        return AppTheme.learningGradient;
+        return ColorsAppQy.qySecondaryGradient;
       case WordType.mastered:
-        return AppTheme.masteredGradient;
+        return ColorsAppQy.qyPrimaryGradient;
       default:
-        return AppTheme.learningGradient;
+        return ColorsAppQy.qyHolographicGradient;
     }
   }
 
   Color _getTypeColor(WordType type) {
     switch (type) {
       case WordType.newWords:
-        return AppTheme.newColor;
+        return ColorsAppQy.qyAccent;
       case WordType.learning:
-        return AppTheme.learningColor;
+        return ColorsAppQy.qySecondary;
       case WordType.mastered:
-        return AppTheme.masteredColor;
+        return ColorsAppQy.qyPrimary;
       default:
-        return AppTheme.learningPrimary;
+        return ColorsAppQy.qyInfo;
     }
   }
 
@@ -218,11 +216,11 @@ class WordItemCard extends StatelessWidget {
 
   Color _getMasteryColor(double level) {
     if (level < 0.3) {
-      return AppTheme.error;
+      return ColorsAppQy.qyWarning;
     } else if (level < 0.7) {
-      return AppTheme.warning;
+      return ColorsAppQy.qySecondary;
     } else {
-      return AppTheme.masteredColor;
+      return ColorsAppQy.qyPrimary;
     }
   }
 }

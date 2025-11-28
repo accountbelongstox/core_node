@@ -161,6 +161,18 @@ DEPENDENCY_MAP = {
 
     # For Redis cache
     "redis": "redis",
+
+    # For Google Gemini API (google.genai)
+    "google.genai": "google-genai",
+
+    # For audio playback (cross-platform, supports MP3/OGG/WAV)
+    "pygame": "pygame",
+
+    # For native UI (cross-platform GUI framework)
+    "PySide6": "PySide6",
+
+    # For phonetic transcription (IPA - International Phonetic Alphabet)
+    "eng_to_ipa": "eng-to-ipa",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -1090,6 +1102,16 @@ def get_third_package_whisper():
 
 
 # Audio packages
+def get_third_package_pygame():
+    """Get pygame package (lazy load)"""
+    return _lazy_import('pygame', 'import pygame')
+
+
+def get_third_package_eng_to_ipa():
+    """Get eng_to_ipa package (lazy load)"""
+    return _lazy_import('eng_to_ipa', 'import eng_to_ipa')
+
+
 def get_third_package_pyaudio():
     """Get pyaudio package (lazy load, may be None if not installed)"""
     if 'pyaudio' not in _PACKAGE_CACHE:
@@ -1100,6 +1122,12 @@ def get_third_package_pyaudio():
             ColorPrint.yellow("[WARNING] pyaudio not available")
             _PACKAGE_CACHE['pyaudio'] = None
     return _PACKAGE_CACHE['pyaudio']
+
+
+# GUI packages
+def get_third_package_pyside6():
+    """Get PySide6 package (lazy load)"""
+    return _lazy_import('PySide6', 'import PySide6')
 
 
 # Windows-only packages
@@ -1215,6 +1243,15 @@ def get_third_package_redis():
     return _lazy_import('redis', 'import redis')
 
 
+# Google Gemini API
+def get_third_package_google_genai():
+    """Get google.genai package (lazy load)"""
+    if 'google_genai' not in _PACKAGE_CACHE:
+        from google import genai as google_genai
+        _PACKAGE_CACHE['google_genai'] = google_genai
+    return _PACKAGE_CACHE['google_genai']
+
+
 __all__ = [
     # Dependency management utilities
     'check_system_package_installed',
@@ -1277,7 +1314,11 @@ __all__ = [
     'get_third_package_vosk',
     'get_third_package_whisper',
     # Audio packages
+    'get_third_package_pygame',
+    'get_third_package_eng_to_ipa',
     'get_third_package_pyaudio',
+    # GUI packages
+    'get_third_package_pyside6',
     # Windows-only packages
     'get_third_package_win32gui',
     'get_third_package_win32con',
@@ -1291,4 +1332,6 @@ __all__ = [
     'get_third_package_okx',
     # Redis cache
     'get_third_package_redis',
+    # Google Gemini API
+    'get_third_package_google_genai',
 ]

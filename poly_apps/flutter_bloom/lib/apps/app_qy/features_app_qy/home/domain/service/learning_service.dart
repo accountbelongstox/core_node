@@ -15,6 +15,7 @@ library;
 
 import '../model/learning_stats_model.dart';
 import '../../../../services_app_qy/api_service_app_qy.dart';
+import '../../../word/data/word_book_data_service.dart';
 
 class LearningService {
   final ApiServiceAppQy _apiService;
@@ -74,12 +75,7 @@ class LearningService {
       final data = response['data'] ?? response;
       return data as Map<String, dynamic>;
     } catch (e) {
-      return {
-        'name': '默认词书',
-        'total_words': 16952,
-        'learned': 27,
-        'remaining': 16925,
-      };
+      return WordBookDataService.getDefaultWordBookInfo();
     }
   }
 }
