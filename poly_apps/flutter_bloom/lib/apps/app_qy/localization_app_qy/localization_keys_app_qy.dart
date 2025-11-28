@@ -132,6 +132,10 @@ class QyAppLocalizationKeys {
   static const String qyProfileTellAboutYourself = 'qy_profile_tell_about_yourself';
   static const String qyProfileCityCountry = 'qy_profile_city_country';
   static const String qyProfileDefaultName = 'qy_profile_default_name';
+  static const String qyProfileFollowers = 'qy_profile_followers';
+  static const String qyProfileFollowing = 'qy_profile_following';
+  static const String qyProfilePosts = 'qy_profile_posts';
+  static const String qyInterest = 'qy_interest';
 
   static const String qySettings = 'qy_settings';
   static const String qyGeneralSettings = 'qy_general_settings';
@@ -459,7 +463,6 @@ class QyAppLocalizationKeys {
   static const String qyStudyDuration = 'qy_study_duration';
   static const String qyAccuracyRate = 'qy_accuracy_rate';
   static const String qyReviewCount = 'qy_review_count';
-  static const String qyInterest = 'qy_interest';
   static const String qyIAm = 'qy_i_am';
   static const String qyWordLearning = 'qy_word_learning';
   static const String qyPronunciation = 'qy_pronunciation';

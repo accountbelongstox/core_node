@@ -142,4 +142,22 @@ class VoiceSubtitleAPI {
     getAudioUrl(audioPath) {
         return `${this.baseUrl}${this.endpoints.AUDIO}?path=${encodeURIComponent(audioPath)}`;
     }
+
+    // ========== Code Sync ==========
+
+    async getCodeSyncStatus() {
+        return await this.get(this.endpoints.CODE_SYNC_STATUS);
+    }
+
+    async startCodeSyncServer() {
+        return await this.post(this.endpoints.CODE_SYNC_START_SERVER);
+    }
+
+    async startCodeSyncClient() {
+        return await this.post(this.endpoints.CODE_SYNC_START_CLIENT);
+    }
+
+    async stopCodeSync() {
+        return await this.post(this.endpoints.CODE_SYNC_STOP);
+    }
 }

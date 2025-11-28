@@ -41,7 +41,13 @@ const CONFIG = {
         SCREENSHOT_STATUS: '/voice-subtitle/screenshot-monitor/status',
 
         // File upload
-        FILE_UPLOAD: '/web/upload-file'
+        FILE_UPLOAD: '/web/upload-file',
+
+        // Code sync
+        CODE_SYNC_STATUS: '/code-sync/status',
+        CODE_SYNC_START_SERVER: '/code-sync/set-server',
+        CODE_SYNC_START_CLIENT: '/code-sync/set-client',
+        CODE_SYNC_STOP: '/code-sync/stop'
     },
 
     // WebSocket configuration
@@ -67,7 +73,7 @@ const CONFIG = {
 
     // UI settings
     UI: {
-        MODULES: ['voice-player', 'queue-manager', 'window-automation'],
+        MODULES: ['voice-player', 'queue-manager', 'window-automation', 'code-sync'],
         DEFAULT_MODULE: 'voice-player'
     }
 };

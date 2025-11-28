@@ -14,10 +14,12 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class FollowerCardWidget extends StatelessWidget {
   final String followers;
-  const FollowerCardWidget({super.key, required this.followers});
+  final String labelKey;
+  const FollowerCardWidget({super.key, required this.followers, required this.labelKey});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +38,7 @@ class FollowerCardWidget extends StatelessWidget {
               height: ThemeDimensions.defaultSize,
             ),
             Text(
-              "Followers",
+              labelKey.tr(context),
               style: ThemeTextStyles.contentDetail,
             ),
           ],

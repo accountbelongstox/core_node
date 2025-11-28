@@ -36,8 +36,8 @@ class _DictionaryRecommendScreenRefactoredAppQyState
   List<DictionaryModel> _dictionaries = [];
   List<DictionaryModel> _filteredDictionaries = [];
   bool _isLoading = true;
-  String _selectedCategory = 'All';
-  String _selectedDifficulty = 'All';
+  String? _selectedCategory;
+  String? _selectedDifficulty;
   String _searchQuery = '';
 
   @override
@@ -92,10 +92,10 @@ class _DictionaryRecommendScreenRefactoredAppQyState
       _filteredDictionaries = _dictionaries.where((dict) {
         // Category filter
         final categoryMatch =
-            _selectedCategory == 'All' || dict.category == _selectedCategory;
+            _selectedCategory == null || dict.category == _selectedCategory;
 
         // Difficulty filter
-        final difficultyMatch = _selectedDifficulty == 'All' ||
+        final difficultyMatch = _selectedDifficulty == null ||
             dict.difficulty == _selectedDifficulty;
 
         // Search query
@@ -447,11 +447,17 @@ class _DictionaryRecommendScreenRefactoredAppQyState
           Expanded(
             child: _buildBentoFilterChip(
               QyAppLocalizationKeys.qyCategory.tr(context),
-              _selectedCategory,
-              ['All', ...DictionaryData.getAllCategories()],
+              _selectedCategory == null
+                  ? QyAppLocalizationKeys.qyAll.tr(context)
+                  : _selectedCategory!,
+              [
+                QyAppLocalizationKeys.qyAll.tr(context),
+                ...DictionaryData.getAllCategories(),
+              ],
               (value) {
                 setState(() {
-                  _selectedCategory = value;
+                  final allKey = QyAppLocalizationKeys.qyAll.tr(context);
+                  _selectedCategory = value == allKey ? null : value;
                   _applyFilters();
                 });
               },
@@ -461,11 +467,17 @@ class _DictionaryRecommendScreenRefactoredAppQyState
           Expanded(
             child: _buildBentoFilterChip(
               QyAppLocalizationKeys.qyLevel.tr(context),
-              _selectedDifficulty,
-              ['All', 'beginner', 'intermediate', 'advanced'],
+              _selectedDifficulty == null
+                  ? QyAppLocalizationKeys.qyAll.tr(context)
+                  : _selectedDifficulty!,
+              [
+                QyAppLocalizationKeys.qyAll.tr(context),
+                ...DictionaryData.getAllDifficulties(),
+              ],
               (value) {
                 setState(() {
-                  _selectedDifficulty = value;
+                  final allKey = QyAppLocalizationKeys.qyAll.tr(context);
+                  _selectedDifficulty = value == allKey ? null : value;
                   _applyFilters();
                 });
               },

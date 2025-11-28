@@ -41,6 +41,10 @@
                     <span class="nav-label">Window Automation</span>
                     <span class="badge">TODO</span>
                 </button>
+                <button class="nav-item" data-tool="code-sync">
+                    <span class="nav-icon">🔄</span>
+                    <span class="nav-label">Code Sync</span>
+                </button>
             </nav>
         </aside>
 
@@ -267,6 +271,151 @@
                     <div class="todo-icon">🚧</div>
                     <h3>Coming Soon</h3>
                     <p>Window automation features are under development</p>
+                </div>
+            </div>
+
+            <!-- Code Sync Module -->
+            <div class="module" id="module-code-sync" style="display: none;">
+                <div class="module-header">
+                    <h2>Code Sync</h2>
+                    <div class="module-actions">
+                        <select id="codeSyncMode" class="mode-select">
+                            <option value="server" selected>Server Mode</option>
+                            <option value="client">Client Mode</option>
+                        </select>
+                        <button class="action-btn" id="startSyncBtn">▶️ Start Sync</button>
+                        <button class="action-btn danger" id="stopSyncBtn" style="display: none;">⏹️ Stop Sync</button>
+                    </div>
+                </div>
+
+                <!-- Sync Status Panel -->
+                <div class="sync-status-panel">
+                    <div class="status-row">
+                        <div class="status-item">
+                            <span class="status-label">Status:</span>
+                            <span class="status-value" id="syncStatus">Stopped</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Mode:</span>
+                            <span class="status-value" id="syncModeDisplay">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server Mode Panel -->
+                <div id="serverModePanel" class="sync-panel">
+                    <h3 class="collapsible-header" data-target="serverStats">
+                        <span>Server Statistics</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="serverStats" class="collapsible-content stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="serverPushCount">0</div>
+                            <div class="stat-label">Push Count</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="serverTotalFiles">0</div>
+                            <div class="stat-label">Total Files</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="serverClientCount">0</div>
+                            <div class="stat-label">Connected Clients</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="serverChangedFiles">0</div>
+                            <div class="stat-label">Changed Files</div>
+                        </div>
+                    </div>
+
+                    <!-- Connected Clients List -->
+                    <h3 class="collapsible-header" data-target="clientsList">
+                        <span>Connected Clients</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="clientsList" class="collapsible-content">
+                        <table class="sync-table">
+                            <thead>
+                                <tr>
+                                    <th>Client ID</th>
+                                    <th>IP Address</th>
+                                    <th>Connected At</th>
+                                    <th>Last Seen</th>
+                                    <th>Synced Files</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                <tr>
+                                    <td colspan="5" class="empty-state">No connected clients</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Client Mode Panel -->
+                <div id="clientModePanel" class="sync-panel" style="display: none;">
+                    <h3 class="collapsible-header" data-target="clientStats">
+                        <span>Client Statistics</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="clientStats" class="collapsible-content stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="clientScanCount">0</div>
+                            <div class="stat-label">Scan Count</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="clientReceivedFiles">0</div>
+                            <div class="stat-label">Received Files</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="clientConnected">No</div>
+                            <div class="stat-label">Connected</div>
+                        </div>
+                    </div>
+
+                    <!-- Server Info -->
+                    <h3 class="collapsible-header" data-target="serverInfo">
+                        <span>Server Information</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="serverInfo" class="collapsible-content">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Server Host:</span>
+                                <span class="info-value" id="serverHost">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Server Port:</span>
+                                <span class="info-value" id="serverPort">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Client ID:</span>
+                                <span class="info-value" id="clientId">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discovery History -->
+                    <h3 class="collapsible-header" data-target="discoveryHistory">
+                        <span>Discovery History</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="discoveryHistory" class="collapsible-content">
+                        <table class="sync-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Server</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="discoveryTableBody">
+                                <tr>
+                                    <td colspan="3" class="empty-state">No discovery history</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
