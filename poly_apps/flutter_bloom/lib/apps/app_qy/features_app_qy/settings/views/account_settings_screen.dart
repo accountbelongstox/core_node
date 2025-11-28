@@ -149,7 +149,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 trailing: TextButton(
                   onPressed: () => _showPhoneBindingDialog(),
                   child: Text(
-                    user?.phone != null ? QyAppLocalizationKeys.qySettingsRebind.tr(context) : QyAppLocalizationKeys.qySettingsBind.tr(context),
+                    user?.phone != null
+                        ? QyAppLocalizationKeys.qySettingsRebind.tr(context)
+                        : QyAppLocalizationKeys.qySettingsBind.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
                 ),
@@ -186,7 +188,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 return TextButton(
                   onPressed: () => _showPhoneBindingDialog(),
                   child: Text(
-                    user?.phone != null ? QyAppLocalizationKeys.qySettingsRebind.tr(context) : QyAppLocalizationKeys.qySettingsBind.tr(context),
+                    user?.phone != null
+                        ? QyAppLocalizationKeys.qySettingsRebind.tr(context)
+                        : QyAppLocalizationKeys.qySettingsBind.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
                 );
@@ -200,7 +204,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               color: const Color(0xFF07C160),
             ),
             title: QyAppLocalizationKeys.qySettingsWechat.tr(context),
-            subtitle: '蓦然回首',
+            subtitle: QyAppLocalizationKeys.qyWechatNickname.tr(context),
             trailing: TextButton(
               onPressed: () => _showWechatBindingDialog(),
               child: Text(
@@ -257,7 +261,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               color: Colors.red,
             ),
             title: QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context),
-            subtitle: QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle
+                .tr(context),
             trailing: TextButton(
               onPressed: _showAccountDeletionDialog,
               child: Text(
@@ -285,7 +290,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         content: TextField(
           controller: _usernameController,
           decoration: InputDecoration(
-            hintText: QyAppLocalizationKeys.qySettingsEnterNewUsername.tr(context),
+            hintText:
+                QyAppLocalizationKeys.qySettingsEnterNewUsername.tr(context),
             border: OutlineInputBorder(),
           ),
         ),
@@ -299,7 +305,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(QyAppLocalizationKeys.qySettingsUsernameUpdated.tr(context)),
+                  content: Text(QyAppLocalizationKeys.qySettingsUsernameUpdated
+                      .tr(context)),
                   backgroundColor: AppTheme.primaryGreen,
                 ),
               );
@@ -319,7 +326,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(QyAppLocalizationKeys.qySettingsChangePasswordTitle.tr(context)),
+        title: Text(
+            QyAppLocalizationKeys.qySettingsChangePasswordTitle.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -327,7 +335,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               controller: _passwordController,
               obscureText: true,
               decoration: InputDecoration(
-                hintText: QyAppLocalizationKeys.qySettingsEnterNewPassword.tr(context),
+                hintText: QyAppLocalizationKeys.qySettingsEnterNewPassword
+                    .tr(context),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -335,7 +344,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             TextField(
               obscureText: true,
               decoration: InputDecoration(
-                hintText: QyAppLocalizationKeys.qySettingsConfirmNewPassword.tr(context),
+                hintText: QyAppLocalizationKeys.qySettingsConfirmNewPassword
+                    .tr(context),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -351,7 +361,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(QyAppLocalizationKeys.qySettingsPasswordUpdated.tr(context)),
+                  content: Text(QyAppLocalizationKeys.qySettingsPasswordUpdated
+                      .tr(context)),
                   backgroundColor: AppTheme.primaryGreen,
                 ),
               );
@@ -372,7 +383,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(QyAppLocalizationKeys.qySettingsPhoneBinding.tr(context)),
-        content: Text(QyAppLocalizationKeys.qySettingsPhoneBindingInProgress.tr(context)),
+        content: Text(
+            QyAppLocalizationKeys.qySettingsPhoneBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -388,7 +400,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(QyAppLocalizationKeys.qySettingsWechatBinding.tr(context)),
-        content: Text(QyAppLocalizationKeys.qySettingsWechatBindingInProgress.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsWechatBindingInProgress
+            .tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -404,7 +417,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(QyAppLocalizationKeys.qySettingsWeiboBinding.tr(context)),
-        content: Text(QyAppLocalizationKeys.qySettingsWeiboBindingInProgress.tr(context)),
+        content: Text(
+            QyAppLocalizationKeys.qySettingsWeiboBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -420,7 +434,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(QyAppLocalizationKeys.qySettingsQQBinding.tr(context)),
-        content: Text(QyAppLocalizationKeys.qySettingsQQBindingInProgress.tr(context)),
+        content: Text(
+            QyAppLocalizationKeys.qySettingsQQBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -435,7 +450,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context)),
+        title:
+            Text(QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,9 +460,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             const SizedBox(height: 16),
             Text(QyAppLocalizationKeys.qySettingsAfterDeletion.tr(context)),
             const SizedBox(height: 8),
-            Text('• ${QyAppLocalizationKeys.qySettingsDeletionDataLoss.tr(context)}'),
-            Text('• ${QyAppLocalizationKeys.qySettingsDeletionCourseLoss.tr(context)}'),
-            Text('• ${QyAppLocalizationKeys.qySettingsDeletionAccountClear.tr(context)}'),
+            Text(
+                '• ${QyAppLocalizationKeys.qySettingsDeletionDataLoss.tr(context)}'),
+            Text(
+                '• ${QyAppLocalizationKeys.qySettingsDeletionCourseLoss.tr(context)}'),
+            Text(
+                '• ${QyAppLocalizationKeys.qySettingsDeletionAccountClear.tr(context)}'),
             const SizedBox(height: 16),
             Text(QyAppLocalizationKeys.qySettingsConfirmDeletion.tr(context)),
           ],
@@ -465,7 +484,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
+            child:
+                Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
           ),
         ],
       ),
@@ -476,8 +496,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(QyAppLocalizationKeys.qySettingsFinalConfirmation.tr(context)),
-        content: Text(QyAppLocalizationKeys.qySettingsFinalConfirmationMessage.tr(context)),
+        title:
+            Text(QyAppLocalizationKeys.qySettingsFinalConfirmation.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsFinalConfirmationMessage
+            .tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -488,7 +510,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(QyAppLocalizationKeys.qySettingsAccountDeletionInProgress.tr(context)),
+                  content: Text(QyAppLocalizationKeys
+                      .qySettingsAccountDeletionInProgress
+                      .tr(context)),
                   backgroundColor: Colors.red,
                 ),
               );
@@ -497,7 +521,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
+            child:
+                Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
           ),
         ],
       ),

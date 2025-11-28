@@ -14,6 +14,8 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import '../models/word_category_model.dart';
+import '../data/word_category_data.dart';
 
 class WordListeningSleepScreen extends StatefulWidget {
   const WordListeningSleepScreen({super.key});
@@ -36,13 +38,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
   Timer? _timer;
   Timer? _sleepTimer;
 
-  List<String> get _wordCategories => [
-    QyAppLocalizationKeys.qyListeningSleepCategorySoothing.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryNature.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryStory.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryPoetry.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryMeditation.tr(context),
-  ];
+  List<WordSleepCategoryModel> get _wordCategories => WordSleepCategoryData.getSleepCategories();
 
   int _selectedCategoryIndex = 0;
 
@@ -373,7 +369,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                       ),
                     ),
                     child: Text(
-                      category,
+                      category.nameKey.tr(context),
                       style: ThemeTextStyles.bodyMedium.copyWith(
                         color: isSelected
                             ? Colors.white

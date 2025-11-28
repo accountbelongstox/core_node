@@ -102,6 +102,9 @@ class NativeUIConfig:
     window_size: Union[Tuple[int, int], Literal["fullscreen"]] = (1280, 900)
     """Window size (width, height) or 'fullscreen'"""
 
+    show_on_start: bool = True
+    """Whether to show window immediately on start (False = starts hidden)"""
+
     frameless: bool = True
     """Frameless window (custom title bar)"""
 
