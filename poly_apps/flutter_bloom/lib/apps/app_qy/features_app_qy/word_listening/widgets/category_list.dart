@@ -10,6 +10,7 @@ import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../models/word_audio_model.dart';
 
 class CategoryList extends StatefulWidget {
   final ListeningCategory selectedCategory;
@@ -274,13 +275,3 @@ class CategoryItem {
   });
 }
 
-enum ListeningCategory {
-  wordBook,
-  newWords,
-  todayNew,
-  todayReview,
-  fullList,
-  fullUnlearned,
-  fullLearning,
-  fullSimple,
-}

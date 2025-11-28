@@ -13,6 +13,8 @@
 /// Settings model for QY App
 library;
 
+import '../../../../localization_app_qy/localization_keys_app_qy.dart';
+
 class AppSettingsModel {
   final bool notificationsEnabled;
   final bool soundEnabled;
@@ -33,7 +35,7 @@ class AppSettingsModel {
     this.vibrationEnabled = true,
     this.autoPlayAudio = true,
     this.showTranslation = true,
-    this.language = 'zh',
+    this.language = QyAppLocalizationKeys.qyLanguageCodeZh,
     this.theme = 'auto',
     this.dailyGoal = 200,
     this.reminderHour = 9,
@@ -49,7 +51,7 @@ class AppSettingsModel {
       vibrationEnabled: json['vibration_enabled'] as bool? ?? true,
       autoPlayAudio: json['auto_play_audio'] as bool? ?? true,
       showTranslation: json['show_translation'] as bool? ?? true,
-      language: json['language'] as String? ?? 'zh',
+      language: json['language'] as String? ?? QyAppLocalizationKeys.qyLanguageCodeZh,
       theme: json['theme'] as String? ?? 'auto',
       dailyGoal: json['daily_goal'] as int? ?? 200,
       reminderHour: json['reminder_hour'] as int? ?? 9,

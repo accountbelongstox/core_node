@@ -15,6 +15,7 @@ library;
 
 import '../model/course_model.dart';
 import '../../../../services_app_qy/api_service_app_qy.dart';
+import '../../data/course_plan_data.dart';
 
 class CourseService {
   final ApiServiceAppQy _apiService;
@@ -116,25 +117,6 @@ class CourseService {
   }
 
   List<CoursePlanModel> _getMockPlans(String category) {
-    return [
-      const CoursePlanModel(
-        id: '1',
-        title: '7天英文原版入门计划',
-        subtitle: '精读原版经典',
-        description: '通过7天系统学习，掌握英文原版阅读技巧',
-        totalDays: 7,
-        participants: 31000,
-        category: 'reading',
-      ),
-      const CoursePlanModel(
-        id: '2',
-        title: '7天生活英语计划',
-        subtitle: '积累地道口语',
-        description: '学习日常英语对话和实用表达',
-        totalDays: 7,
-        participants: 12000,
-        category: 'speaking',
-      ),
-    ];
+    return CoursePlanData.getMockPlans(category);
   }
 }

@@ -1,17 +1,22 @@
 /// Expert Dictation Practice Screen - Level 3
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, bento box layout
 library;
 
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../../../common/theme/base/theme_dimensions.dart';
-import '../../../../../../common/theme/base/theme_text_styles.dart';
-import '../../../../../../common/localization/localization_manager.dart';
-import '../../../../../../common/widgets/custom_app_bar.dart';
-import '../../../../../../common/widgets/buttons/primary_button.dart';
-import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../../../resources_app_qy/colors_app_qy.dart';
-import '../../../config_app_qy/storage_app_qy.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_animations.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/custom_app_bar.dart';
+import 'package:qyflutter/common/widgets/buttons/primary_button.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import '../models/word_listening_dictation_model.dart';
+import '../data/word_listening_dictation_data.dart';
 
 class WordListeningDictation3Screen extends StatefulWidget {
   const WordListeningDictation3Screen({super.key});
@@ -30,74 +35,9 @@ class _WordListeningDictation3ScreenState
   late AnimationController _shimmerController;
   final StorageAppQy _storage = StorageAppQy.instance;
 
-  final List<Map<String, dynamic>> _expertWords = [
-    {
-      'word': 'phenomenal',
-      'phonetic': '/fəˈnɒmɪnl/',
-      'meaning': '非凡的，惊人的',
-      'difficulty': 'expert',
-      'category': 'adjective',
-      'examples': [
-        'The performance was phenomenal.',
-        'She has phenomenal memory.',
-      ],
-      'audioSpeed': 'normal',
-      'context': 'The company achieved phenomenal growth this quarter.',
-    },
-    {
-      'word': 'conscientious',
-      'phonetic': '/ˌkɒnʃiˈenʃəs/',
-      'meaning': '认真负责的，勤勉认真的',
-      'difficulty': 'expert',
-      'category': 'adjective',
-      'examples': [
-        'She is a conscientious student.',
-        'He is conscientious about his work.',
-      ],
-      'audioSpeed': 'slow',
-      'context': 'The conscientious employee always double-checked his work.',
-    },
-    {
-      'word': 'unprecedented',
-      'phonetic': '/ʌnˈpresɪdentɪd/',
-      'meaning': '史无前例的，空前的',
-      'difficulty': 'expert',
-      'category': 'adjective',
-      'examples': [
-        'It was an unprecedented event.',
-        'The crisis reached unprecedented levels.',
-      ],
-      'audioSpeed': 'slow',
-      'context': 'The pandemic caused unprecedented changes in society.',
-    },
-    {
-      'word': 'entrepreneurial',
-      'phonetic': '/ˌɒntrəprəˈnɜːriəl/',
-      'meaning': '创业的，企业家的',
-      'difficulty': 'expert',
-      'category': 'adjective',
-      'examples': [
-        'She has an entrepreneurial spirit.',
-        'The program encourages entrepreneurial thinking.',
-      ],
-      'audioSpeed': 'slow',
-      'context':
-          'His entrepreneurial vision led to the creation of multiple successful companies.',
-    },
-    {
-      'word': 'sophisticated',
-      'phonetic': '/səˈfɪstɪkeɪtɪd/',
-      'meaning': '复杂的，精密的，久经世故的',
-      'difficulty': 'expert',
-      'category': 'adjective',
-      'examples': [
-        'The system is very sophisticated.',
-        'She has sophisticated taste.',
-      ],
-      'audioSpeed': 'normal',
-      'context': 'The research required sophisticated analytical techniques.',
-    },
-  ];
+  // Use centralized data source instead of hardcoded array
+  List<WordListeningDictationModel> get _expertWords =>
+      WordListeningDictationData.getExpertWords();
 
   int _currentWordIndex = 0;
   String _userInput = '';
@@ -105,7 +45,6 @@ class _WordListeningDictation3ScreenState
   bool _showPhonetic = false;
   bool _showMeaning = false;
   bool _showContext = false;
-  bool _isCompleted = false;
   int _correctCount = 0;
   int _attempts = 0;
   final List<String> _userAttempts = [];
@@ -115,21 +54,23 @@ class _WordListeningDictation3ScreenState
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+      CurvedAnimation(parent: _controller, curve: ThemeAnimations.easeInOut),
     );
     _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: Duration(milliseconds: ThemeDimensions.animationDurationSlow),
       vsync: this,
     )..repeat();
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+      CurvedAnimation(
+          parent: _pulseController, curve: ThemeAnimations.easeInOut),
     );
     _shimmerController = AnimationController(
-      duration: const Duration(seconds: 3),
+      duration:
+          Duration(milliseconds: ThemeDimensions.animationDurationSlow * 2),
       vsync: this,
     )..repeat();
     _loadProgressFromStorage();
@@ -197,7 +138,7 @@ class _WordListeningDictation3ScreenState
                     _buildInputSection(),
                     _buildHintButtons(),
                     _buildActionButtons(),
-                    const SizedBox(height: ThemeDimensions.spacing20),
+                    SizedBox(height: ThemeDimensions.spacing20),
                   ],
                 ),
               ),
@@ -227,7 +168,7 @@ class _WordListeningDictation3ScreenState
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(
+          padding: EdgeInsets.symmetric(
             horizontal: ThemeDimensions.spacing16,
             vertical: ThemeDimensions.spacing12,
           ),
@@ -250,7 +191,7 @@ class _WordListeningDictation3ScreenState
             systemOverlayStyle: SystemUiOverlayStyle.dark,
             actions: [
               Container(
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: ThemeDimensions.spacing12,
                   vertical: ThemeDimensions.spacing6,
                 ),
@@ -261,8 +202,8 @@ class _WordListeningDictation3ScreenState
                 ),
                 child: Text(
                   '${_currentWordIndex + 1}/${_expertWords.length}',
-                  style: ThemeTextStyles.body2.copyWith(
-                    color: Colors.white,
+                  style: ThemeTextStyles.bodySmall.copyWith(
+                    color: ColorsAppQy.qyTextOnPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -276,7 +217,10 @@ class _WordListeningDictation3ScreenState
 
   Widget _buildProgressIndicator() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing8,
+      ),
       child: Column(
         children: [
           Row(
@@ -284,7 +228,7 @@ class _WordListeningDictation3ScreenState
             children: [
               Text(
                 QyAppLocalizationKeys.qyListeningExpertProgress.tr(context),
-                style: ThemeTextStyles.body1.copyWith(
+                style: ThemeTextStyles.bodyMedium.copyWith(
                   color: ColorsAppQy.qyTextSecondary,
                 ),
               ),
@@ -296,10 +240,10 @@ class _WordListeningDictation3ScreenState
                       color: Colors.orange,
                       size: 20,
                     ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: ThemeDimensions.spacing8),
                   Text(
                     '${(_currentWordIndex / _expertWords.length * 100).toInt()}%',
-                    style: ThemeTextStyles.body1.copyWith(
+                    style: ThemeTextStyles.bodyMedium.copyWith(
                       color: ColorsAppQy.qyPrimary,
                       fontWeight: FontWeight.bold,
                     ),
@@ -308,12 +252,12 @@ class _WordListeningDictation3ScreenState
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: ThemeDimensions.spacing8),
           Container(
             height: 8,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: ThemeDimensions.borderRadiusS,
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
@@ -321,7 +265,7 @@ class _WordListeningDictation3ScreenState
               child: Container(
                 decoration: BoxDecoration(
                   gradient: ColorsAppQy.qyPrimaryGradient,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
               ),
             ),
@@ -333,8 +277,11 @@ class _WordListeningDictation3ScreenState
 
   Widget _buildExpertStatus() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing8,
+      ),
+      padding: EdgeInsets.all(ThemeDimensions.spacing16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -388,7 +335,7 @@ class _WordListeningDictation3ScreenState
             color: isHighlight
                 ? ColorsAppQy.qyPrimary.withOpacity(0.1)
                 : Colors.white.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: ThemeDimensions.borderRadiusL,
           ),
           child: Center(
             child: Text(
@@ -419,127 +366,128 @@ class _WordListeningDictation3ScreenState
   Widget _buildWordCard() {
     final currentWord = _expertWords[_currentWordIndex];
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: ColorsAppQy.qyFrostedGlassGradient,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  gradient: ColorsAppQy.qyPrimaryGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  QyAppLocalizationKeys.qyListeningExpertLevel.tr(context),
-                  style: ThemeTextStyles.caption.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+    return GlassCard(
+      borderRadius: ThemeDimensions.borderRadiusL,
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.spacing24),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing8,
+                    vertical: ThemeDimensions.spacing4,
                   ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: ColorsAppQy.qyPrimary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  currentWord['category'].toString().toUpperCase(),
-                  style: ThemeTextStyles.caption.copyWith(
-                    color: ColorsAppQy.qyPrimary,
-                    fontWeight: FontWeight.bold,
+                  decoration: BoxDecoration(
+                    gradient: ColorsAppQy.qyPrimaryGradient,
+                    borderRadius: ThemeDimensions.borderRadiusS,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_showPhonetic) ...[
-            Text(
-              currentWord['phonetic'],
-              style: ThemeTextStyles.h4.copyWith(
-                color: ColorsAppQy.qyTextSecondary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (_showMeaning) ...[
-            Text(
-              currentWord['meaning'],
-              style: ThemeTextStyles.body2.copyWith(
-                color: ColorsAppQy.qyTextPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-          ],
-          if (_showContext) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    QyAppLocalizationKeys.qyListeningExamples.tr(context),
-                    style: ThemeTextStyles.caption.copyWith(
-                      color: ColorsAppQy.qyTextSecondary,
+                  child: Text(
+                    QyAppLocalizationKeys.qyListeningExpertLevel.tr(context),
+                    style: ThemeTextStyles.bodySmall.copyWith(
+                      color: ColorsAppQy.qyTextOnPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    currentWord['context'],
-                    style: ThemeTextStyles.body1.copyWith(
-                      color: ColorsAppQy.qyTextPrimary,
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing8,
+                    vertical: ThemeDimensions.spacing4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+                    borderRadius: ThemeDimensions.borderRadiusS,
+                  ),
+                  child: Text(
+                    currentWord.category.toUpperCase(),
+                    style: ThemeTextStyles.bodySmall.copyWith(
+                      color: ColorsAppQy.qyPrimary,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.speed,
-                color: ColorsAppQy.qyTextSecondary,
-                size: 16,
-              ),
-              const SizedBox(width: 4),
+            SizedBox(height: ThemeDimensions.spacing20),
+            if (_showPhonetic) ...[
               Text(
-                '${QyAppLocalizationKeys.qyListeningSpeed.tr(context)}: ${_getSpeedText(currentWord['audioSpeed'])}',
-                style: ThemeTextStyles.caption.copyWith(
+                currentWord.phonetic,
+                style: ThemeTextStyles.headlineSmall.copyWith(
                   color: ColorsAppQy.qyTextSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              SizedBox(height: ThemeDimensions.spacing12),
+            ],
+            if (_showMeaning) ...[
+              Text(
+                currentWord.meaningKey.tr(context),
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: ThemeDimensions.spacing16),
+            ],
+            if (_showContext) ...[
+              GlassCard(
+                borderRadius: ThemeDimensions.borderRadiusS,
+                child: Padding(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        QyAppLocalizationKeys.qyListeningExamples.tr(context),
+                        style: ThemeTextStyles.bodySmall.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: ThemeDimensions.spacing4),
+                      if (currentWord.context != null)
+                        Text(
+                          currentWord.context!,
+                          style: ThemeTextStyles.bodyMedium.copyWith(
+                            color: ColorsAppQy.qyTextPrimary,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
-          ),
-        ],
+            SizedBox(height: ThemeDimensions.spacing16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.speed,
+                  color: ColorsAppQy.qyTextSecondary,
+                  size: ThemeDimensions.iconSizeS,
+                ),
+                SizedBox(width: ThemeDimensions.spacing4),
+                Text(
+                  '${QyAppLocalizationKeys.qyListeningSpeed.tr(context)}: ${_getSpeedText(currentWord.audioSpeed)}',
+                  style: ThemeTextStyles.bodySmall.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildAudioSection() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
       child: Column(
         children: [
           AnimatedBuilder(
@@ -552,7 +500,7 @@ class _WordListeningDictation3ScreenState
                   height: 120,
                   decoration: BoxDecoration(
                     gradient: ColorsAppQy.qyPrimaryGradient,
-                    borderRadius: BorderRadius.circular(60),
+                    borderRadius: ThemeDimensions.borderRadiusXL,
                     boxShadow: [
                       BoxShadow(
                         color: ColorsAppQy.qyPrimary.withOpacity(0.3),
@@ -570,8 +518,7 @@ class _WordListeningDictation3ScreenState
                         height: _isPlaying ? 50 : 60,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius:
-                              BorderRadius.circular(_isPlaying ? 25 : 30),
+                          borderRadius: ThemeDimensions.borderRadiusXL,
                         ),
                         child: Icon(
                           _isPlaying ? Icons.pause : Icons.play_arrow,
@@ -585,7 +532,7 @@ class _WordListeningDictation3ScreenState
               );
             },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: ThemeDimensions.spacing16),
           Text(
             _isPlaying
                 ? QyAppLocalizationKeys.qyListeningPlayingExpert.tr(context)
@@ -601,7 +548,7 @@ class _WordListeningDictation3ScreenState
 
   Widget _buildInputSection() {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -609,16 +556,18 @@ class _WordListeningDictation3ScreenState
             children: [
               Text(
                 QyAppLocalizationKeys.qyListeningEnterExpert.tr(context),
-                style: ThemeTextStyles.h4.copyWith(
+                style: ThemeTextStyles.headlineSmall.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: ThemeDimensions.spacing8),
               if (_streakCount >= 3)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing8,
+                    vertical: ThemeDimensions.spacing4,
+                  ),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
@@ -628,23 +577,23 @@ class _WordListeningDictation3ScreenState
                         ColorsAppQy.qyWarning.withOpacity(0.8)
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: ThemeDimensions.borderRadiusS,
                   ),
                   child: Text(
-                    '🔥 连胜 $_streakCount',
-                    style: ThemeTextStyles.caption.copyWith(
-                      color: Colors.white,
+                    '${QyAppLocalizationKeys.qyListeningStreak.tr(context)} $_streakCount',
+                    style: ThemeTextStyles.bodySmall.copyWith(
+                      color: ColorsAppQy.qyTextOnPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: ThemeDimensions.spacing12),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: ThemeDimensions.borderRadiusM,
               border: Border.all(
                 color: _userInput.isNotEmpty
                     ? ColorsAppQy.qyPrimary
@@ -674,7 +623,7 @@ class _WordListeningDictation3ScreenState
                   color: ColorsAppQy.qyTextSecondary.withOpacity(0.5),
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(16),
+                contentPadding: EdgeInsets.all(ThemeDimensions.spacing16),
                 suffixIcon: _userInput.isNotEmpty
                     ? IconButton(
                         onPressed: () {
@@ -689,7 +638,7 @@ class _WordListeningDictation3ScreenState
                       )
                     : null,
               ),
-              style: ThemeTextStyles.body2.copyWith(
+              style: ThemeTextStyles.bodySmall.copyWith(
                 color: ColorsAppQy.qyTextPrimary,
                 fontWeight: FontWeight.w500,
               ),
@@ -697,14 +646,14 @@ class _WordListeningDictation3ScreenState
             ),
           ),
           if (_userAttempts.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: ThemeDimensions.spacing12),
             Text(
               QyAppLocalizationKeys.qyListeningAttemptHistory.tr(context),
               style: ThemeTextStyles.caption.copyWith(
                 color: ColorsAppQy.qyTextSecondary,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: ThemeDimensions.spacing4),
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -713,13 +662,15 @@ class _WordListeningDictation3ScreenState
                 final attempt = entry.value;
                 final isRecent = index == _userAttempts.length - 1;
                 return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing8,
+                    vertical: ThemeDimensions.spacing4,
+                  ),
                   decoration: BoxDecoration(
                     color: isRecent
                         ? ColorsAppQy.qyError.withOpacity(0.2)
                         : ColorsAppQy.qyError.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: ThemeDimensions.borderRadiusS,
                     border: isRecent
                         ? Border.all(
                             color: ColorsAppQy.qyError.withOpacity(0.5))
@@ -727,7 +678,7 @@ class _WordListeningDictation3ScreenState
                   ),
                   child: Text(
                     attempt,
-                    style: ThemeTextStyles.caption.copyWith(
+                    style: ThemeTextStyles.bodySmall.copyWith(
                       color: ColorsAppQy.qyError,
                       decoration: TextDecoration.lineThrough,
                       fontWeight:
@@ -745,7 +696,7 @@ class _WordListeningDictation3ScreenState
 
   Widget _buildHintButtons() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
       child: Column(
         children: [
           Row(
@@ -758,7 +709,7 @@ class _WordListeningDictation3ScreenState
                   () => _toggleHint('phonetic'),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: ThemeDimensions.spacing8),
               Expanded(
                 child: _buildHintButton(
                   QyAppLocalizationKeys.qyListeningMeaning.tr(context),
@@ -767,7 +718,7 @@ class _WordListeningDictation3ScreenState
                   () => _toggleHint('meaning'),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: ThemeDimensions.spacing8),
               Expanded(
                 child: _buildHintButton(
                   QyAppLocalizationKeys.qyListeningExample.tr(context),
@@ -788,7 +739,7 @@ class _WordListeningDictation3ScreenState
     return IconButton(
       onPressed: isActive ? null : onPressed,
       icon: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           gradient: isActive
               ? LinearGradient(
@@ -826,7 +777,7 @@ class _WordListeningDictation3ScreenState
               color: Colors.white,
               size: 16,
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: ThemeDimensions.spacing4),
             Text(
               label,
               style: ThemeTextStyles.caption.copyWith(
@@ -842,7 +793,7 @@ class _WordListeningDictation3ScreenState
 
   Widget _buildActionButtons() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
       child: Column(
         children: [
           Row(
@@ -861,7 +812,7 @@ class _WordListeningDictation3ScreenState
                   icon: Icons.check_circle,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: ThemeDimensions.spacing12),
               Expanded(
                 child: OutlinedButton(
                   onPressed: _skipWord,
@@ -869,14 +820,14 @@ class _WordListeningDictation3ScreenState
                     side: BorderSide(
                       color: Colors.white.withOpacity(0.3),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: ThemeDimensions.borderRadiusM,
                     ),
                   ),
                   child: Text(
                     QyAppLocalizationKeys.qyListeningSkip.tr(context),
-                    style: ThemeTextStyles.body1.copyWith(
+                    style: ThemeTextStyles.bodyMedium.copyWith(
                       color: ColorsAppQy.qyTextSecondary,
                       fontWeight: FontWeight.w600,
                     ),
@@ -886,7 +837,7 @@ class _WordListeningDictation3ScreenState
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: ThemeDimensions.spacing12),
           PrimaryButton(
             text: _isPlaying
                 ? QyAppLocalizationKeys.qyListeningStop.tr(context)
@@ -905,13 +856,13 @@ class _WordListeningDictation3ScreenState
   String _getSpeedText(String speed) {
     switch (speed) {
       case 'slow':
-        return QyAppLocalizationKeys.qyListeningSlow.tr(context);
+        return QyAppLocalizationKeys.qyListeningSpeedSlow.tr(context);
       case 'normal':
-        return QyAppLocalizationKeys.qyListeningNormal.tr(context);
+        return QyAppLocalizationKeys.qyListeningSpeedNormal.tr(context);
       case 'fast':
-        return QyAppLocalizationKeys.qyListeningFast.tr(context);
+        return QyAppLocalizationKeys.qyListeningSpeedFast.tr(context);
       default:
-        return QyAppLocalizationKeys.qyListeningNormal.tr(context);
+        return QyAppLocalizationKeys.qyListeningSpeedNormal.tr(context);
     }
   }
 
@@ -932,8 +883,11 @@ class _WordListeningDictation3ScreenState
     // In a real app, you would play the actual audio file
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content:
-            Text('🎯 正在播放专家级发音: ${_expertWords[_currentWordIndex]['word']}'),
+        content: Text(
+          QyAppLocalizationKeys.qyListeningPlayingExpertAudio
+              .tr(context)
+              .replaceAll('{word}', _expertWords[_currentWordIndex].word),
+        ),
         backgroundColor: ColorsAppQy.qyPrimary,
         duration: const Duration(seconds: 2),
       ),
@@ -959,7 +913,7 @@ class _WordListeningDictation3ScreenState
   void _checkAnswer() {
     final currentWord = _expertWords[_currentWordIndex];
     final isCorrect =
-        _userInput == currentWord['word'].toString().toLowerCase();
+        _userInput.toLowerCase() == currentWord.word.toLowerCase();
 
     setState(() {
       _attempts++;
@@ -971,6 +925,7 @@ class _WordListeningDictation3ScreenState
         _streakCount++;
       }
     });
+    _saveProgressToStorage();
 
     if (isCorrect) {
       _showCorrectDialog();
@@ -1028,56 +983,60 @@ class _WordListeningDictation3ScreenState
                   size: 50,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: ThemeDimensions.spacing20),
               Text(
-                _streakCount >= 3 ? '🔥 连胜成功！' : '专家级回答！',
-                style: ThemeTextStyles.h3.copyWith(
+                _streakCount >= 3
+                    ? '${QyAppLocalizationKeys.qyListeningStreak.tr(context)} ${QyAppLocalizationKeys.qyListeningComplete.tr(context)}'
+                    : QyAppLocalizationKeys.qyListeningExpertLevel.tr(context),
+                style: ThemeTextStyles.headlineMedium.copyWith(
                   color: ColorsAppQy.qyPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: ThemeDimensions.spacing12),
               Text(
-                '${_expertWords[_currentWordIndex]['word']}',
-                style: ThemeTextStyles.h2.copyWith(
+                _expertWords[_currentWordIndex].word,
+                style: ThemeTextStyles.headlineLarge.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: ThemeDimensions.spacing4),
               Text(
-                _expertWords[_currentWordIndex]['meaning'],
-                style: ThemeTextStyles.body2.copyWith(
+                _expertWords[_currentWordIndex].meaningKey.tr(context),
+                style: ThemeTextStyles.bodyMedium.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                 ),
                 textAlign: TextAlign.center,
               ),
               if (_streakCount >= 3) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: ThemeDimensions.spacing12),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing12,
+                    vertical: ThemeDimensions.spacing6,
+                  ),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
                         ColorsAppQy.qyWarning,
-                        ColorsAppQy.qyWarning.withOpacity(0.8)
+                        ColorsAppQy.qyWarning.withOpacity(0.8),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: ThemeDimensions.borderRadiusM,
                   ),
                   child: Text(
-                    '🔥 连胜 $_streakCount',
-                    style: ThemeTextStyles.body1.copyWith(
-                      color: Colors.white,
+                    '${QyAppLocalizationKeys.qyListeningStreak.tr(context)} $_streakCount',
+                    style: ThemeTextStyles.bodyMedium.copyWith(
+                      color: ColorsAppQy.qyTextOnPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
+              SizedBox(height: ThemeDimensions.spacing20),
               Row(
                 children: [
                   Expanded(
@@ -1134,56 +1093,56 @@ class _WordListeningDictation3ScreenState
                   size: 40,
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: ThemeDimensions.spacing16),
               Text(
-                '还需努力',
-                style: ThemeTextStyles.h3.copyWith(
+                QyAppLocalizationKeys.qyListeningIncorrect.tr(context),
+                style: ThemeTextStyles.headlineMedium.copyWith(
                   color: ColorsAppQy.qyError,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '正确答案:',
-                      style: ThemeTextStyles.caption.copyWith(
-                        color: ColorsAppQy.qyTextSecondary,
+              SizedBox(height: ThemeDimensions.spacing12),
+              GlassCard(
+                borderRadius: ThemeDimensions.borderRadiusS,
+                child: Padding(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing16),
+                  child: Column(
+                    children: [
+                      Text(
+                        QyAppLocalizationKeys.qyListeningCorrectAnswerLabel
+                            .tr(context),
+                        style: ThemeTextStyles.bodySmall.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _expertWords[_currentWordIndex]['word'],
-                      style: ThemeTextStyles.h4.copyWith(
-                        color: ColorsAppQy.qyTextPrimary,
-                        fontWeight: FontWeight.bold,
+                      SizedBox(height: ThemeDimensions.spacing4),
+                      Text(
+                        _expertWords[_currentWordIndex].word,
+                        style: ThemeTextStyles.headlineSmall.copyWith(
+                          color: ColorsAppQy.qyTextPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _expertWords[_currentWordIndex]['phonetic'],
-                      style: ThemeTextStyles.body1.copyWith(
-                        color: ColorsAppQy.qyTextSecondary,
-                        fontStyle: FontStyle.italic,
+                      SizedBox(height: ThemeDimensions.spacing8),
+                      Text(
+                        _expertWords[_currentWordIndex].phonetic,
+                        style: ThemeTextStyles.bodyMedium.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _expertWords[_currentWordIndex]['meaning'],
-                      style: ThemeTextStyles.body1.copyWith(
-                        color: ColorsAppQy.qyTextPrimary,
+                      SizedBox(height: ThemeDimensions.spacing4),
+                      Text(
+                        _expertWords[_currentWordIndex].meaningKey.tr(context),
+                        style: ThemeTextStyles.bodyMedium.copyWith(
+                          color: ColorsAppQy.qyTextPrimary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: ThemeDimensions.spacing20),
               Row(
                 children: [
                   Expanded(
@@ -1198,7 +1157,7 @@ class _WordListeningDictation3ScreenState
                       isFullWidth: true,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: ThemeDimensions.spacing12),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () {
@@ -1212,14 +1171,14 @@ class _WordListeningDictation3ScreenState
                         side: BorderSide(
                           color: Colors.white.withOpacity(0.3),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                       ),
                       child: Text(
                         QyAppLocalizationKeys.qyCommonCancel.tr(context),
-                        style: ThemeTextStyles.body1.copyWith(
+                        style: ThemeTextStyles.bodyMedium.copyWith(
                           color: ColorsAppQy.qyTextSecondary,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1237,10 +1196,6 @@ class _WordListeningDictation3ScreenState
   }
 
   void _showCompletionDialog() {
-    setState(() {
-      _isCompleted = true;
-    });
-
     final accuracy = (_correctCount / _attempts * 100).round();
     final isExpert = accuracy >= 90;
 
@@ -1271,10 +1226,14 @@ class _WordListeningDictation3ScreenState
                   size: 60,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: ThemeDimensions.spacing20),
               Text(
-                isExpert ? '🏆 专家认证通过！' : '🎯 挑战完成！',
-                style: ThemeTextStyles.h2.copyWith(
+                isExpert
+                    ? QyAppLocalizationKeys.qyListeningExpertCertified
+                        .tr(context)
+                    : QyAppLocalizationKeys.qyListeningChallengeComplete
+                        .tr(context),
+                style: ThemeTextStyles.headlineLarge.copyWith(
                   color: isExpert
                       ? ColorsAppQy.qyPrimary
                       : ColorsAppQy.qySecondary,
@@ -1282,110 +1241,100 @@ class _WordListeningDictation3ScreenState
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      isExpert
-                          ? ColorsAppQy.qyPrimary.withOpacity(0.1)
-                          : ColorsAppQy.qySecondary.withOpacity(0.1),
-                      Colors.white.withOpacity(0.9),
+              SizedBox(height: ThemeDimensions.spacing20),
+              GlassCard(
+                borderRadius: ThemeDimensions.borderRadiusM,
+                child: Padding(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing20),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            QyAppLocalizationKeys.qyListeningFinalAccuracy
+                                .tr(context),
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyTextSecondary,
+                            ),
+                          ),
+                          Text(
+                            '$accuracy%',
+                            style: ThemeTextStyles.headlineSmall.copyWith(
+                              color: isExpert
+                                  ? ColorsAppQy.qyPrimary
+                                  : ColorsAppQy.qySecondary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: ThemeDimensions.spacing12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            QyAppLocalizationKeys.qyListeningCorrectWords
+                                .tr(context),
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyTextSecondary,
+                            ),
+                          ),
+                          Text(
+                            '$_correctCount/${_expertWords.length}',
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyTextPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: ThemeDimensions.spacing12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            QyAppLocalizationKeys.qyListeningMaxStreak
+                                .tr(context),
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyTextSecondary,
+                            ),
+                          ),
+                          Text(
+                            '$_streakCount',
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyWarning,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: ThemeDimensions.spacing12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            QyAppLocalizationKeys.qyListeningLevel.tr(context),
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyTextSecondary,
+                            ),
+                          ),
+                          Text(
+                            isExpert
+                                ? '${QyAppLocalizationKeys.qyListeningExpert.tr(context)} ⭐⭐⭐'
+                                : '${QyAppLocalizationKeys.qyListeningExpert.tr(context)} ⭐⭐',
+                            style: ThemeTextStyles.bodyMedium.copyWith(
+                              color: ColorsAppQy.qyPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isExpert
-                        ? ColorsAppQy.qyPrimary.withOpacity(0.3)
-                        : ColorsAppQy.qySecondary.withOpacity(0.3),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '最终准确率:',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ColorsAppQy.qyTextSecondary,
-                          ),
-                        ),
-                        Text(
-                          '$accuracy%',
-                          style: ThemeTextStyles.h4.copyWith(
-                            color: isExpert
-                                ? ColorsAppQy.qyPrimary
-                                : ColorsAppQy.qySecondary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '正确单词:',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ColorsAppQy.qyTextSecondary,
-                          ),
-                        ),
-                        Text(
-                          '$_correctCount/${_expertWords.length}',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ColorsAppQy.qyTextPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '最高连胜:',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ColorsAppQy.qyTextSecondary,
-                          ),
-                        ),
-                        Text(
-                          '$_streakCount',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '专家等级:',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ColorsAppQy.qyTextSecondary,
-                          ),
-                        ),
-                        Text(
-                          isExpert ? '⭐⭐⭐ 大师' : '⭐⭐ 专业',
-                          style: ThemeTextStyles.body1.copyWith(
-                            color: ColorsAppQy.qyPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: ThemeDimensions.spacing20),
               Row(
                 children: [
                   Expanded(

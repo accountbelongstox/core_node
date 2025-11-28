@@ -7,6 +7,8 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SettingsScreenRefactoredAppQy extends StatefulWidget {
   const SettingsScreenRefactoredAppQy({super.key});
@@ -214,7 +216,9 @@ class _SettingsScreenRefactoredAppQyState extends State<SettingsScreenRefactored
         _buildBentoCard(
           icon: Icons.language_rounded,
           title: 'Language & Voice',
-          subtitle: controller.languageVoice.appLanguage == 'zh' ? 'Chinese' : 'English',
+          subtitle: controller.languageVoice.appLanguage == QyAppLocalizationKeys.qyLanguageCodeZh 
+              ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
+              : QyAppLocalizationKeys.qyLanguageEnglish.tr(context),
           gradient: ColorsAppQy.qyPrimaryGradient,
           onTap: () {
           },

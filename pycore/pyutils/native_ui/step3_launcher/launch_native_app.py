@@ -109,9 +109,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
     if config.debug:
         ColorPrint.print_info(f"[NativeLauncher] Phase 5: Became primary instance on port {detection.port}")
 
-    # ========== Phase 6: Launch with startup window ==========
-    from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
-
+    # ========== Phase 6: Launch with or without startup window ==========
     # Create wrapped main_entry that integrates PySide6 UI
     def _wrapped_main_entry():
         """Wrapped main entry that creates PySide6 UI with callbacks"""
@@ -119,22 +117,40 @@ def launch_native_app(config: NativeUIConfig) -> None:
         if config.main_entry:
             config.main_entry()
 
-        # If enable_tray and PySide6 available, create PySide6 UI
-        if config.enable_tray:
+        # Create PySide6 UI if URL is provided (regardless of enable_tray)
+        if final_url:
             _create_pyside6_ui(config, final_url, callback_manager)
 
-    # Launch with startup window
-    launch_app_with_startup(
-        app_name=config.app_name,
-        main_entry=_wrapped_main_entry,
-        startup_width=config.debug_window_width,
-        startup_height=config.debug_window_height,
-        min_display_time=config.min_display_time,
-        icon_path=config.icon_path,
-        logo_path=config.logo_path,
-        enable_language_selector=config.enable_language_selector,
-        enable_tray=config.enable_tray
-    )
+    # Check if we should show debug window
+    if config.show_debug_window:
+        # Launch with startup window
+        from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
+
+        launch_app_with_startup(
+            app_name=config.app_name,
+            main_entry=_wrapped_main_entry,
+            startup_width=config.debug_window_width,
+            startup_height=config.debug_window_height,
+            min_display_time=config.min_display_time,
+            icon_path=config.icon_path,
+            logo_path=config.logo_path,
+            enable_language_selector=config.enable_language_selector,
+            enable_tray=config.enable_tray
+        )
+    else:
+        # Launch directly without startup window
+        if config.debug:
+            ColorPrint.print_info("[NativeLauncher] Phase 6: Launching directly (no debug window)")
+
+        try:
+            _wrapped_main_entry()
+        except KeyboardInterrupt:
+            ColorPrint.yellow("\nKeyboard interrupt received")
+        except Exception as e:
+            ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
 
 def _initialize_timer_manager(config: NativeUIConfig) -> None:
@@ -170,63 +186,60 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
 
     Integrates callback_manager with PySide6 lifecycle events.
     """
-    try:
-        from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
-            PySide6Framework,
-            PySide6UIConfig,
-            PySide6TrayMenuItem
-        )
+    # Import PySide6 via third_party manager (will auto-install if needed)
+    from pycore.pyfoundations.third_party import get_third_package_pyside6
+    get_third_package_pyside6()  # Ensure PySide6 is installed
 
-        if config.debug:
-            ColorPrint.print_info("[NativeLauncher] Phase 7: Creating PySide6 UI...")
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
+        PySide6Framework,
+        PySide6UIConfig,
+        PySide6TrayMenuItem
+    )
 
-        # Convert tray menu items
-        pyside6_tray_items = []
-        if config.tray_menu_items:
-            for item in config.tray_menu_items:
-                pyside6_tray_items.append(
-                    PySide6TrayMenuItem(
-                        text=item.get("text", ""),
-                        callback=item.get("callback")
-                    )
+    if config.debug:
+        ColorPrint.print_info("[NativeLauncher] Phase 7: Creating PySide6 UI...")
+
+    # Convert tray menu items
+    pyside6_tray_items = []
+    if config.tray_menu_items:
+        for item in config.tray_menu_items:
+            pyside6_tray_items.append(
+                PySide6TrayMenuItem(
+                    text=item.get("text", ""),
+                    callback=item.get("callback")
                 )
+            )
 
-        # Extract window size
-        if isinstance(config.window_size, tuple):
-            window_width, window_height = config.window_size
-        else:
-            window_width, window_height = 1280, 900  # Default
+    # Extract window size
+    if isinstance(config.window_size, tuple):
+        window_width, window_height = config.window_size
+    else:
+        window_width, window_height = 1280, 900  # Default
 
-        # Create PySide6 UI config
-        ui_config = PySide6UIConfig(
-            app_name=config.app_name,
-            url=url,
-            window_width=window_width,
-            window_height=window_height,
-            icon_path=config.icon_path,
-            enable_tray=config.enable_tray,
-            tray_menu_items=pyside6_tray_items
-        )
+    # Create PySide6 UI config
+    ui_config = PySide6UIConfig(
+        app_name=config.app_name,
+        webview_url=url,
+        window_size=(window_width, window_height),
+        show_on_start=config.show_on_start,
+        frameless=config.frameless,
+        icon_path=config.icon_path,
+        enable_tray=config.enable_tray,
+        tray_menu_items=pyside6_tray_items
+    )
 
-        # Wire callbacks from callback_manager
-        ui_config.on_ready = lambda: callback_manager.execute_ready_callbacks()
-        ui_config.on_closing = lambda: callback_manager.execute_closing_callbacks()
-        ui_config.on_closed = lambda: callback_manager.execute_closed_callbacks()
+    # Wire callbacks from callback_manager
+    ui_config.on_ready = lambda: callback_manager.execute_ready_callbacks()
+    ui_config.on_closing = lambda: callback_manager.execute_closing_callbacks()
+    ui_config.on_closed = lambda: callback_manager.execute_closed_callbacks()
 
-        # Create and start PySide6 framework
-        framework = PySide6Framework(ui_config)
+    # Create and start PySide6 framework
+    framework = PySide6Framework(ui_config)
 
-        if config.debug:
-            ColorPrint.print_success("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")
+    if config.debug:
+        ColorPrint.print_success("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")
 
-        framework.start()  # Blocks until window closes
-
-    except ImportError:
-        ColorPrint.print_warn("[NativeLauncher] PySide6 not available, skipping UI creation")
-    except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Failed to create PySide6 UI: {e}")
-        import traceback
-        traceback.print_exc()
+    framework.start()  # Blocks until window closes
 
 
 # Alias for convenience

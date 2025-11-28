@@ -11,7 +11,7 @@ import string
 from typing import List, Dict, Optional, Tuple
 
 from pycore import ColorPrint
-from pycore.pyutils.common.tts_models import SentenceModel, WordModel
+from pycore.pyutils.common.tts_models import SentenceModel, WordModel, clean_tts_text
 
 
 class TTSProcessor:
@@ -154,39 +154,39 @@ class TTSProcessor:
     def normalize_text(text: str) -> str:
         """
         Normalize text for processing
-        
+
         Args:
             text: Input text
-        
+
         Returns:
             str: Normalized text
         """
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
-        # Remove leading/trailing whitespace
-        text = text.strip()
-        return text
+        # Clean text (remove asterisks, normalize whitespace)
+        return clean_tts_text(text)
     
     @staticmethod
-    def create_sentences_from_text(text: str, locale: Optional[str] = None, 
+    def create_sentences_from_text(text: str, locale: Optional[str] = None,
                                    document_id: Optional[str] = None) -> List[SentenceModel]:
         """
         Create sentence models from text
-        
+
         Args:
             text: Input text
             locale: Language locale (optional)
             document_id: Document ID (optional)
-        
+
         Returns:
             List[SentenceModel]: List of sentence models
         """
+        # Clean text before processing (remove asterisks, etc.)
+        cleaned_text = clean_tts_text(text)
+
         if not locale:
-            locale = TTSProcessor.detect_language(text)
-        
-        sentences_text = TTSProcessor.split_sentences(text, locale)
+            locale = TTSProcessor.detect_language(cleaned_text)
+
+        sentences_text = TTSProcessor.split_sentences(cleaned_text, locale)
         sentences = []
-        
+
         for index, sentence_text in enumerate(sentences_text):
             sentence = SentenceModel(
                 content=sentence_text,
@@ -195,33 +195,36 @@ class TTSProcessor:
                 sentence_index=index
             )
             sentences.append(sentence)
-        
+
         return sentences
     
     @staticmethod
     def create_words_from_text(text: str, locale: Optional[str] = None) -> List[WordModel]:
         """
         Create word models from text
-        
+
         Args:
             text: Input text
             locale: Language locale (optional)
-        
+
         Returns:
             List[WordModel]: List of word models
         """
+        # Clean text before processing (remove asterisks, etc.)
+        cleaned_text = clean_tts_text(text)
+
         if not locale:
-            locale = TTSProcessor.detect_language(text)
-        
-        words_text = TTSProcessor.extract_words(text, locale)
+            locale = TTSProcessor.detect_language(cleaned_text)
+
+        words_text = TTSProcessor.extract_words(cleaned_text, locale)
         words = []
-        
+
         for word_text in words_text:
             word = WordModel(
                 content=word_text,
                 locale=locale
             )
             words.append(word)
-        
+
         return words
 

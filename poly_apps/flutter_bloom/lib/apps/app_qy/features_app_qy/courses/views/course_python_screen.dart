@@ -12,6 +12,8 @@ import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../config_app_qy/storage_app_qy.dart';
 import '../domain/models/course_model.dart';
+import '../domain/models/course_python_model.dart';
+import '../data/course_python_data.dart';
 
 class CoursePythonScreen extends StatefulWidget {
   const CoursePythonScreen({super.key});
@@ -762,88 +764,22 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
   }
 
   Widget _buildLessonModules() {
-    final modules = [
-      {
-        'title': 'Python基础入门',
-        'subtitle': '变量、数据类型、控制流',
-        'icon': Icons.school,
-        'color': ColorsAppQy.qyInfo,
-        'lessons': 12,
-        'completed': 12,
-        'duration': '3周',
-      },
-      {
-        'title': '面向对象编程',
-        'subtitle': '类、对象、继承、多态',
-        'icon': Icons.widgets,
-        'color': ColorsAppQy.qySuccess,
-        'lessons': 10,
-        'completed': 6,
-        'duration': '2.5周',
-      },
-      {
-        'title': 'Web开发框架',
-        'subtitle': 'Django、Flask、FastAPI',
-        'icon': Icons.web,
-        'color': ColorsAppQy.qyWarning,
-        'lessons': 14,
-        'completed': 0,
-        'duration': '4周',
-      },
-      {
-        'title': '数据分析与可视化',
-        'subtitle': 'NumPy、Pandas、Matplotlib',
-        'icon': Icons.analytics,
-        'color': ColorsAppQy.qyAccent,
-        'lessons': 12,
-        'completed': 0,
-        'duration': '3周',
-      },
-      {
-        'title': '机器学习入门',
-        'subtitle': 'Scikit-learn、TensorFlow基础',
-        'icon': Icons.psychology,
-        'color': ColorsAppQy.qyPrimary,
-        'lessons': 10,
-        'completed': 0,
-        'duration': '3.5周',
-      },
-      {
-        'title': '项目实战',
-        'subtitle': '完整项目开发流程',
-        'icon': Icons.integration_instructions,
-        'color': ColorsAppQy.qyPrimary,
-        'lessons': 6,
-        'completed': 0,
-        'duration': '2周',
-      },
-    ];
-
     return Column(
-      children: modules
+      children: CoursePythonData.modules
           .map((module) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _buildModuleCard(
-                  module['title'] as String,
-                  module['subtitle'] as String,
-                  module['icon'] as IconData,
-                  module['color'] as Color,
-                  module['lessons'] as int,
-                  module['completed'] as int,
-                  module['duration'] as String,
-                ),
+                child: _buildModuleCard(module),
               ))
           .toList(),
     );
   }
 
-  Widget _buildModuleCard(String title, String subtitle, IconData icon,
-      Color color, int totalLessons, int completed, String duration) {
-    final progress = totalLessons > 0 ? completed / totalLessons : 0.0;
-    final isLocked = completed == 0 && totalLessons > 0;
+  Widget _buildModuleCard(PythonModuleModel module) {
+    final progress = module.lessons > 0 ? module.completed / module.lessons : 0.0;
+    final isLocked = module.completed == 0 && module.lessons > 0;
 
     return InkWell(
-      onTap: isLocked ? null : () => _openModule(title),
+      onTap: isLocked ? null : () => _openModule(module.titleKey.tr(context)),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -912,7 +848,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                               size: 14),
                           const SizedBox(width: 4),
                           Text(
-                            duration,
+                            module.durationKey.tr(context),
                             style: ThemeTextStyles.caption.copyWith(
                               color: isLocked
                                   ? Colors.grey
@@ -927,9 +863,9 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                               QyAppLocalizationKeys.qyCourseCompletedLessons
                                   .tr(context)
                                   .replaceAll(
-                                      '{completed}', completed.toString())
+                                      '{completed}', module.completed.toString())
                                   .replaceAll(
-                                      '{total}', totalLessons.toString()),
+                                      '{total}', module.lessons.toString()),
                               style: ThemeTextStyles.caption.copyWith(
                                 color: ColorsAppQy.qyTextSecondary,
                               ),
@@ -950,7 +886,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                     child: Text(
                       '${(progress * 100).toInt()}%',
                       style: ThemeTextStyles.caption.copyWith(
-                        color: color,
+                        color: module.color,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -971,7 +907,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [color, color.withOpacity(0.7)],
+                        colors: [module.color, module.color.withOpacity(0.7)],
                       ),
                       borderRadius: BorderRadius.circular(3),
                     ),
@@ -992,7 +928,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '编程项目',
+            QyAppLocalizationKeys.qyPythonProjects.tr(context),
             style: ThemeTextStyles.h3.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -1006,85 +942,32 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
   }
 
   Widget _buildProjectsList() {
-    final projects = [
-      {
-        'title': '待办事项应用',
-        'subtitle': '使用Flask构建的Web应用',
-        'difficulty': '初级',
-        'status': 'completed',
-        'icon': Icons.checklist,
-        'color': ColorsAppQy.qySuccess,
-        'technologies': ['Python', 'Flask', 'HTML/CSS'],
-      },
-      {
-        'title': '数据可视化仪表板',
-        'subtitle': '使用Pandas和Matplotlib分析销售数据',
-        'difficulty': '中级',
-        'status': 'completed',
-        'icon': Icons.dashboard,
-        'color': ColorsAppQy.qyInfo,
-        'technologies': ['Python', 'Pandas', 'Matplotlib'],
-      },
-      {
-        'title': 'Web爬虫工具',
-        'subtitle': '爬取电商网站数据并进行分析',
-        'difficulty': '中级',
-        'status': 'in_progress',
-        'icon': Icons.web,
-        'color': ColorsAppQy.qyWarning,
-        'technologies': ['Python', 'BeautifulSoup', 'Requests'],
-      },
-      {
-        'title': '博客网站',
-        'subtitle': 'Django全栈Web开发项目',
-        'difficulty': '高级',
-        'status': 'locked',
-        'icon': Icons.web,
-        'color': ColorsAppQy.qyAccent,
-        'technologies': ['Python', 'Django', 'PostgreSQL'],
-      },
-      {
-        'title': '机器学习预测模型',
-        'subtitle': '预测房价的回归分析项目',
-        'difficulty': '高级',
-        'status': 'locked',
-        'icon': Icons.trending_up,
-        'color': ColorsAppQy.qyPrimary,
-        'technologies': ['Python', 'Scikit-learn', 'Pandas'],
-      },
-    ];
-
     return Column(
-      children: projects
+      children: CoursePythonData.projects
           .map((project) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _buildProjectCard(
-                  project['title'] as String,
-                  project['subtitle'] as String,
-                  project['difficulty'] as String,
-                  project['status'] as String,
-                  project['icon'] as IconData,
-                  project['color'] as Color,
-                  project['technologies'] as List<String>,
-                ),
+                child: _buildProjectCard(project),
               ))
           .toList(),
     );
   }
 
-  Widget _buildProjectCard(String title, String subtitle, String difficulty,
-      String status, IconData icon, Color color, List<String> technologies) {
-    bool isLocked = status == 'locked';
-    bool isCompleted = status == 'completed';
-    bool isInProgress = status == 'in_progress';
+  Widget _buildProjectCard(PythonProjectModel project) {
+    bool isLocked = project.status == 'locked';
+    bool isCompleted = project.status == 'completed';
+    bool isInProgress = project.status == 'in_progress';
 
     Color statusColor = isCompleted
         ? ColorsAppQy.qySuccess
         : (isInProgress ? ColorsAppQy.qyWarning : Colors.grey);
-    String statusText = isCompleted ? '已完成' : (isInProgress ? '进行中' : '未解锁');
+    String statusText = isCompleted
+        ? QyAppLocalizationKeys.qyPythonStatusCompleted.tr(context)
+        : (isInProgress
+            ? QyAppLocalizationKeys.qyPythonStatusInProgress.tr(context)
+            : QyAppLocalizationKeys.qyPythonStatusLocked.tr(context));
 
     return InkWell(
-      onTap: isLocked ? null : () => _openProject(title),
+      onTap: isLocked ? null : () => _openProject(project.titleKey.tr(context)),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -1115,12 +998,12 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                   decoration: BoxDecoration(
                     color: isLocked
                         ? Colors.grey.withOpacity(0.2)
-                        : color.withOpacity(0.1),
+                        : project.color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Icon(
-                    icon,
-                    color: isLocked ? Colors.grey : color,
+                    project.icon,
+                    color: isLocked ? Colors.grey : project.color,
                     size: 24,
                   ),
                 ),
@@ -1130,19 +1013,20 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        project.titleKey.tr(context),
                         style: ThemeTextStyles.h4.copyWith(
                           color: isLocked ? Colors.grey : ColorsAppQy.qyTextPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Text(
-                        subtitle,
-                        style: ThemeTextStyles.body1.copyWith(
-                          color:
-                              isLocked ? Colors.grey : ColorsAppQy.qyTextSecondary,
+                      if (project.subtitleKey != null)
+                        Text(
+                          project.subtitleKey!.tr(context),
+                          style: ThemeTextStyles.body1.copyWith(
+                            color:
+                                isLocked ? Colors.grey : ColorsAppQy.qyTextSecondary,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -1170,13 +1054,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getDifficultyColor(difficulty).withOpacity(0.1),
+                    color: _getDifficultyColor(project.difficultyKey).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    difficulty,
+                    project.difficultyKey.tr(context),
                     style: ThemeTextStyles.caption.copyWith(
-                      color: _getDifficultyColor(difficulty),
+                      color: _getDifficultyColor(project.difficultyKey),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1213,17 +1097,15 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
     );
   }
 
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty) {
-      case '初级':
-        return ColorsAppQy.qySuccess;
-      case '中级':
-        return ColorsAppQy.qyWarning;
-      case '高级':
-        return ColorsAppQy.qyError;
-      default:
-        return ColorsAppQy.qyInfo;
+  Color _getDifficultyColor(String difficultyKey) {
+    if (difficultyKey == QyAppLocalizationKeys.qyPythonDifficultyBeginner) {
+      return ColorsAppQy.qySuccess;
+    } else if (difficultyKey == QyAppLocalizationKeys.qyPythonDifficultyIntermediate) {
+      return ColorsAppQy.qyWarning;
+    } else if (difficultyKey == QyAppLocalizationKeys.qyPythonDifficultyAdvanced) {
+      return ColorsAppQy.qyError;
     }
+    return ColorsAppQy.qyInfo;
   }
 
   Widget _buildProgressTab() {
@@ -1233,7 +1115,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '编程统计',
+            QyAppLocalizationKeys.qyPythonCodingStats.tr(context),
             style: ThemeTextStyles.h3.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -1259,12 +1141,25 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
       mainAxisSpacing: 16,
       children: [
         _buildStatCard(
-            '编码天数', '42', Icons.calendar_today, ColorsAppQy.qySecondary),
-        _buildStatCard('完成项目', '$_projectCompleted', Icons.folder_special,
+            QyAppLocalizationKeys.qyPythonCodingDays.tr(context),
+            '42',
+            Icons.calendar_today,
+            ColorsAppQy.qySecondary),
+        _buildStatCard(
+            QyAppLocalizationKeys.qyPythonCompletedProjects.tr(context),
+            '$_projectCompleted',
+            Icons.folder_special,
             ColorsAppQy.qySuccess),
         _buildStatCard(
-            '代码行数', _getTotalLinesOfCode(), Icons.code, ColorsAppQy.qyWarning),
-        _buildStatCard('练习时长', '186h', Icons.schedule, ColorsAppQy.qyAccent),
+            QyAppLocalizationKeys.qyPythonLinesOfCode.tr(context),
+            _getTotalLinesOfCode(),
+            Icons.code,
+            ColorsAppQy.qyWarning),
+        _buildStatCard(
+            QyAppLocalizationKeys.qyPythonPracticeHours.tr(context),
+            '186h',
+            Icons.schedule,
+            ColorsAppQy.qyAccent),
       ],
     );
   }
@@ -1316,7 +1211,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '编程活跃度',
+            QyAppLocalizationKeys.qyPythonCodingActivity.tr(context),
             style: ThemeTextStyles.h4.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -1329,10 +1224,10 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               color: Colors.white.withOpacity(0.3),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
-                '📈 编程活跃度图表\n(显示每日编码时间和提交次数)',
-                style: TextStyle(
+                QyAppLocalizationKeys.qyPythonCodingActivityChart.tr(context),
+                style: const TextStyle(
                   color: Colors.grey,
                   fontSize: 16,
                 ),
@@ -1346,14 +1241,6 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
   }
 
   Widget _buildSkillsProgress() {
-    final skills = [
-      {'name': 'Python基础', 'progress': 0.95, 'color': ColorsAppQy.qySuccess},
-      {'name': '面向对象', 'progress': 0.70, 'color': ColorsAppQy.qyInfo},
-      {'name': 'Web开发', 'progress': 0.30, 'color': ColorsAppQy.qyWarning},
-      {'name': '数据分析', 'progress': 0.15, 'color': ColorsAppQy.qyAccent},
-      {'name': '机器学习', 'progress': 0.05, 'color': ColorsAppQy.qyPrimary},
-    ];
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1364,14 +1251,14 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '技能进度',
+            QyAppLocalizationKeys.qyPythonSkillsProgress.tr(context),
             style: ThemeTextStyles.h4.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
-          ...skills.map((skill) => Padding(
+          ...CoursePythonData.skills.map((skill) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1380,16 +1267,16 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          skill['name'] as String,
+                          skill.nameKey.tr(context),
                           style: ThemeTextStyles.body1.copyWith(
                             color: ColorsAppQy.qyTextPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
-                          '${((skill['progress'] as double) * 100).toInt()}%',
+                          '${(skill.progress * 100).toInt()}%',
                           style: ThemeTextStyles.caption.copyWith(
-                            color: skill['color'] as Color,
+                            color: skill.color,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1404,13 +1291,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                       ),
                       child: FractionallySizedBox(
                         alignment: Alignment.centerLeft,
-                        widthFactor: skill['progress'] as double,
+                        widthFactor: skill.progress,
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                skill['color'] as Color,
-                                (skill['color'] as Color).withOpacity(0.7),
+                                skill.color,
+                                skill.color.withOpacity(0.7),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(4),

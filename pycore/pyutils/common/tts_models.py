@@ -17,9 +17,38 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
+def clean_tts_text(text: str) -> str:
+    """
+    Clean text for TTS processing.
+
+    - Replace asterisks (*) with spaces (asterisks are pronounced by TTS)
+    - Normalize whitespace
+
+    Args:
+        text: Input text
+
+    Returns:
+        str: Cleaned text
+    """
+    # Replace asterisks with spaces
+    text = text.replace('*', ' ')
+    # Normalize multiple spaces to single space
+    import re
+    text = re.sub(r'\s+', ' ', text)
+    # Strip leading/trailing whitespace
+    return text.strip()
+
+
 def _build_md5(*parts: str) -> str:
-    """Create a stable identifier from multiple string fragments."""
-    joined = "|".join(part or "" for part in parts)
+    """
+    Create a stable identifier from multiple string fragments.
+
+    IMPORTANT: Text parts are cleaned before MD5 calculation to ensure
+    consistency between cache key and actual TTS generation.
+    """
+    # Clean each part before joining
+    cleaned_parts = [clean_tts_text(part) if part else "" for part in parts]
+    joined = "|".join(cleaned_parts)
     return hashlib.md5(joined.encode('utf-8')).hexdigest()
 
 
@@ -98,6 +127,7 @@ class WordModel:
 
 
 __all__ = [
+    'clean_tts_text',
     'DocumentModel',
     'SentenceModel',
     'WordModel',

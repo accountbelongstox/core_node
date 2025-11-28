@@ -14,7 +14,7 @@ from pycore.pyfoundations.third_party import get_third_package_win32gui, get_thi
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 from pycore.pyfoundations.color_print import ColorPrint
-from pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 
 class WindowActivator:

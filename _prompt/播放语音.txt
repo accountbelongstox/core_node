@@ -6,4 +6,31 @@
 }」] 之后建立一个index表示当前播放到第几。
 之后，将在 pycore\pylauncher\launcher.py 中传递参数 给 pycore\pyutils\native_ui ，引用 pycore\pyctl\语音播放/ui/中的 index作为ui界面。其中显示text，播放的时候显示。
 先完成这一步。注意不要破坏之前的逻辑。
-注意，这是由  python .\pycore_module_caller.py中组织参数来使 pycore\pylauncher\launcher.py同时启动 native_ui，默认 pycore\pylauncher\launcher.py是不启动 native_ui的
+注意，这是由  python .\pycore_module_caller.py中组织参数来使 pycore\pylauncher\launcher.py同时启动 pycore\pyutils\native_ui，默认 pycore\pylauncher\launcher.py是不启动 native_ui的
+说了要通过 pycore\pylauncher\launcher.py 来启动 pycore\pyutils\native_ui，先查看 pycore\pyutils\native_ui 中的逻辑，确保传递一个html过去就可以启动。使用rpc v2 的websockt和主程序 通信。
+
+
+先硬编码可以多语言播放，[en]，目前只先扩展这一种语言，这里先标记为langs.
+通过现在的 http://localhost:59000/ 添加路由，然后提供一个接口，添加文字到播放清单，可以添加文字 ，图片，url。语音，文字。之后在 pycore\pyctl 组织逻辑，当收到添加的信息后，根据添加的内容，进行处理，
+1：如果是图片，则调用 pycore\pyutils\ocr 识别，
+	之后将识别内容 组织提示词传递给  pycore\pyutils\gemini 总结，得到一段完整的文字 。
+	再调用 pycore\pyutils\common 中的edge tts，包括当前的   http://localhost:59000/    {
+      "name": "translator",
+      "description": "Google Translator - Text translation service",
+      "preload": true,
+      "methods": [
+  根据 langs 中的所有 语言，翻译为目标语言，最后调用 pycore\pyutils\common 中的edge tts 得到语音，这样就同时得到了字幕和语言。
+ 注意，生成tts果要生成缓存，需要使用tts的缓存表，使用\n对每个段落生成，而不是整个生成，之后根据 段落文字和md5编码保存缓存。播放的时候 也是根据一段文字 中的段落挨个播放。
+先完成这一步。
+如果收到的是文件，识别调用文件转换，转为文字 。同果使用pycore\pyutils中的库，如果是url，则使用下载。提取text（不要css/js部份），
+
+代码同步服务器， 新增加一个接口，在tray可以开启启用本机为代码服务器， /code-sync 
+1：修改其中的方法 D:\programing\core_node\pycore\pyutils\device_sync
+2：通过  python .\pycore_module_caller.py 通过其中的一个tray添加一个方法菜单，toggle 切换为客户端/切换为服务端
+3：当时服务端时，开始准备推送D:\programing\core_node\中的代码，跳过子目录中的node module/ python临时目录 /dart/flutter/nuxt/vite/vue的临时目录和编译目录
+4：当时客户端时，每5秒调用 D:\programing\core_node\pycore\pyutils\device_sync 发出同局域网IP中的其他59000服务器，并对其建立，初次切换时立即扫描。
+5：服务端收到连接后，注意不要闪断，记录ID值，如果客户端重连时不超过5m则继续当旧客户端。
+6：首次连接时，向客户端推送全部代码，之后每5秒推送一次有修改过的代码。
+7：目前客户端为了测试，只提示是否覆盖，但并不真的覆盖，当服务端推送的代码修改日志比客户端新时，客端端提示覆盖，其他提示忽略。
+
+重点先修改device_sync。
