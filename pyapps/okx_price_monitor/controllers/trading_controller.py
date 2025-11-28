@@ -49,8 +49,12 @@ class TradingController:
         print("[TradingController] Creating backtest engine...")
         sys.stdout.flush()
         self.backtest_engine = get_backtest_engine()
+        print("[TradingController] Backtest engine created!")
+        sys.stdout.flush()
 
         self.coin_symbols: List[str] = []
+        print("[TradingController] Initializing worker placeholders...")
+        sys.stdout.flush()
 
         # Workers
         self.sync_worker = None
@@ -59,36 +63,61 @@ class TradingController:
         self.data_replayer = None  # TEST mode only
 
         self.running = False
+        print("[TradingController] Printing banner...")
+        sys.stdout.flush()
 
         print("\n" + "="*80)
+        sys.stdout.flush()
         print(f"TRADING SYSTEM CONTROLLER - {self.mode} MODE")
+        sys.stdout.flush()
         print("="*80)
+        sys.stdout.flush()
         print(f"Mode: {self.mode}")
+        sys.stdout.flush()
         if self.mode == 'TEST':
             print(f"Start Time: {strategy_config.BACKTEST_START_DAYS} days ago")
         else:
             print(f"Start Time: Current time")
+        sys.stdout.flush()
         print(f"Strategy: {strategy_config.BUY_SIGNAL_THRESHOLD_PERCENT}% rise in {strategy_config.BUY_SIGNAL_WINDOW_SECONDS}s -> Hold {strategy_config.SELL_AFTER_MINUTES}m")
+        sys.stdout.flush()
         print(f"Initial Balance: {strategy_config.INITIAL_BALANCE_USDT} USDT")
+        sys.stdout.flush()
         print(f"Position Size: {strategy_config.POSITION_SIZE_PERCENT}% per trade")
+        sys.stdout.flush()
         print(f"Max Positions: {strategy_config.MAX_POSITIONS}")
+        sys.stdout.flush()
         print("="*80 + "\n")
+        sys.stdout.flush()
+        print("[TradingController] Banner printed, __init__ complete")
+        sys.stdout.flush()
 
     def initialize_historical_data(self):
         """
         Load historical data into SQLite and Redis
 
-        Data Flow: OKX API → SQLite → Redis
+        Data Flow: OKX API -> SQLite -> Redis
         """
+        import sys
         print("\n" + "="*80)
-        print("INITIALIZING HISTORICAL DATA (SQLite → Redis)")
+        sys.stdout.flush()
+        print("INITIALIZING HISTORICAL DATA (SQLite -> Redis)")
+        sys.stdout.flush()
         print("="*80)
+        sys.stdout.flush()
 
         # Get all coins
+        print("[Init] Step 1: Fetching instruments...")
+        sys.stdout.flush()
         self.coin_provider.fetch_instruments()
+        print("[Init] Step 2: Getting coin list...")
+        sys.stdout.flush()
         self.coin_symbols = self.coin_provider.get_coin_list()
+        print(f"[Init] Step 3: Got {len(self.coin_symbols)} coins")
+        sys.stdout.flush()
 
         print(f"Total coins: {len(self.coin_symbols)}")
+        sys.stdout.flush()
 
         # Calculate time range
         days_to_load = strategy_config.HISTORY_INIT_DAYS
@@ -96,7 +125,7 @@ class TradingController:
         start_time = end_time - timedelta(days=days_to_load)
 
         print(f"Loading {days_to_load} days of data ({start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')})")
-        print("Data Flow: OKX API → SQLite → Redis")
+        print("Data Flow: OKX API -> SQLite -> Redis")
 
         # Load data for each coin
         loaded_count = 0
@@ -105,38 +134,74 @@ class TradingController:
         for i, coin_symbol in enumerate(self.coin_symbols, 1):
             print(f"[{i}/{len(self.coin_symbols)}] Loading {coin_symbol}...", end=' ')
 
-            # Check existing data in SQLite
-            oldest_ts = self.db_manager.get_oldest_timestamp(coin_symbol)
+            # Check existing data in SQLite (both oldest and latest)
+            time_range = self.db_manager.get_time_range(coin_symbol)
 
-            if oldest_ts:
-                oldest_dt = datetime.fromtimestamp(oldest_ts / 1000)
-                print(f"(existing: {oldest_dt.strftime('%Y-%m-%d')})", end=' ')
+            if time_range:
+                oldest_ms, latest_ms = time_range
+                oldest_dt = datetime.fromtimestamp(oldest_ms / 1000)
+                latest_dt = datetime.fromtimestamp(latest_ms / 1000)
 
-                if oldest_dt <= start_time:
-                    # Already have enough data, just load to Redis
-                    print("✓ Loading to Redis", end=' ')
+                print(f"(DB: {oldest_dt.strftime('%m-%d')} to {latest_dt.strftime('%m-%d')})", end=' ')
+
+                # Check for duplicates and deduplicate if needed
+                dup_count = self.db_manager.check_duplicates(coin_symbol)
+                if dup_count > 0:
+                    print(f"[Dedup: {dup_count}]", end=' ')
+                    self.db_manager.deduplicate_coin_data(coin_symbol)
+
+                # Check if data is complete and up-to-date
+                has_enough_history = oldest_dt <= start_time
+                is_up_to_date = latest_dt >= end_time - timedelta(hours=1)
+
+                if has_enough_history and is_up_to_date:
+                    # Data is complete and recent, just load to Redis
+                    print("[Up-to-date] Loading to Redis...", end=' ')
                     self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
-                    print("✓ Complete")
+                    print("[OK]")
                     loaded_count += 1
                     continue
 
-            # Fetch from API
-            inst_id = f"{coin_symbol}-USDT"
-            candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
+                # Need to fetch missing data
+                if not has_enough_history and not is_up_to_date:
+                    # Missing both historical and recent data
+                    print(f"[Gap: full range]", end=' ')
+                    candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
+                elif not is_up_to_date:
+                    # Only need recent data (incremental update)
+                    gap_start = latest_dt
+                    gap_end = end_time
+                    print(f"[Gap: {gap_start.strftime('%m-%d %H:%M')} to {gap_end.strftime('%m-%d %H:%M')}]", end=' ')
+                    inst_id = f"{coin_symbol}-USDT"
+                    candles_data = self._fetch_all_candles(inst_id, gap_start, gap_end)
+                else:
+                    # Only need older historical data
+                    gap_start = start_time
+                    gap_end = oldest_dt
+                    print(f"[Gap: {gap_start.strftime('%m-%d')} to {gap_end.strftime('%m-%d')}]", end=' ')
+                    inst_id = f"{coin_symbol}-USDT"
+                    candles_data = self._fetch_all_candles(inst_id, gap_start, gap_end)
 
+            else:
+                # No existing data, fetch full range
+                print("[New]", end=' ')
+                inst_id = f"{coin_symbol}-USDT"
+                candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
+
+            # Process fetched data
             if not candles_data:
-                print("✗ No data")
+                print("[FAIL] No data")
                 failed_count += 1
                 continue
 
-            # Save to SQLite
+            # Save to SQLite (INSERT OR REPLACE handles duplicates)
             for candle in candles_data:
                 self.db_manager.insert_historical_candle(coin_symbol, candle)
 
-            # Load to Redis
-            self._load_to_redis(coin_symbol, candles_data)
+            # Load all data to Redis (including existing + new)
+            self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
 
-            print(f"✓ Loaded {len(candles_data)} candles")
+            print(f"[OK] +{len(candles_data)} candles")
             loaded_count += 1
 
             # Rate limiting
@@ -150,7 +215,7 @@ class TradingController:
 
     def _fetch_all_candles(self, inst_id: str, start_time: datetime, end_time: datetime) -> List:
         """
-        Fetch all candles for time range from OKX API
+        Fetch candles for time range from OKX API using hybrid strategy
 
         Args:
             inst_id: Instrument ID
@@ -159,38 +224,138 @@ class TradingController:
 
         Returns:
             List: Candle data
+
+        Strategy (Hybrid - Best of both worlds):
+            Due to OKX API limitations:
+            - 1m bars: only 1 day available
+            - 5m bars: 5 days available
+
+            Solution: Use both!
+            1. Use 5m bars for historical data (day 3 to day 2)
+            2. Use 1m bars for recent data (last 24 hours)
+
+            Benefits:
+            - Full 3-day coverage for 24h attribute calculation
+            - Precise 1-minute data for 60-second signal detection
         """
         all_candles = []
-        current_end = end_time
 
-        while current_end > start_time:
-            before_ts = str(int(current_end.timestamp() * 1000))
+        # Calculate split point: last 1 day uses 1m, older uses 5m
+        one_day_ago = end_time - timedelta(days=1)
 
-            response = self.okx_client.get_candles(
-                inst_id=inst_id,
-                bar='1m',
-                limit=300,
-                before=before_ts
+        print(f"    Using hybrid strategy:")
+        print(f"    - 5m bars: {start_time.strftime('%m-%d')} to {one_day_ago.strftime('%m-%d')} (historical)")
+        print(f"    - 1m bars: {one_day_ago.strftime('%m-%d')} to {end_time.strftime('%m-%d')} (recent)")
+
+        # Part 1: Fetch older data with 5m bars (fast, 3-4 requests)
+        if one_day_ago > start_time:
+            print(f"\n    [Part 1] Fetching 5m historical data...")
+            historical_candles = self._fetch_candles_with_bar(
+                inst_id, start_time, one_day_ago, bar='5m'
             )
+            print(f"    Got {len(historical_candles)} candles (5m)")
+            all_candles.extend(historical_candles)
 
-            if response['code'] != '0' or not response['data']:
-                break
+        # Part 2: Fetch recent data with 1m bars (precise, 5-6 requests)
+        print(f"\n    [Part 2] Fetching 1m recent data...")
+        recent_candles = self._fetch_candles_with_bar(
+            inst_id, one_day_ago, end_time, bar='1m'
+        )
+        print(f"    Got {len(recent_candles)} candles (1m)")
+        all_candles.extend(recent_candles)
 
-            candles = response['data']
-            all_candles.extend(candles)
+        # Remove duplicates and sort
+        unique_candles = []
+        seen_ts = set()
+        for candle in all_candles:
+            ts = int(candle[0])
+            if ts not in seen_ts:
+                seen_ts.add(ts)
+                unique_candles.append(candle)
 
-            oldest_ts = int(candles[-1][0]) / 1000
-            current_end = datetime.fromtimestamp(oldest_ts)
+        unique_candles.sort(key=lambda c: int(c[0]))
 
-            if current_end <= start_time:
-                break
+        print(f"\n    Total: {len(unique_candles)} unique candles collected")
 
-        # Filter to exact range
+        return unique_candles
+
+    def _fetch_candles_with_bar(self, inst_id: str, start_time: datetime,
+                                  end_time: datetime, bar: str) -> List:
+        """
+        Fetch candles with specific bar size
+
+        Args:
+            inst_id: Instrument ID
+            start_time: Start datetime
+            end_time: End datetime
+            bar: Bar size (e.g., '1m', '5m')
+
+        Returns:
+            List: Candle data
+        """
+        candles = []
         start_ts_ms = int(start_time.timestamp() * 1000)
         end_ts_ms = int(end_time.timestamp() * 1000)
 
-        filtered = [c for c in all_candles if start_ts_ms <= int(c[0]) <= end_ts_ms]
-        return filtered
+        iteration = 0
+        max_iterations = 20  # Safety limit
+        current_after = None
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            params = {
+                'inst_id': inst_id,
+                'bar': bar,
+                'limit': 300,
+            }
+
+            if current_after is not None:
+                params['after'] = str(current_after)
+
+            response = self.okx_client.get_candles(**params)
+
+            if response['code'] != '0':
+                print(f"      [API ERROR: {response.get('msg')}]")
+                break
+
+            if not response['data']:
+                break
+
+            batch = response['data']
+            new_count = 0
+
+            for candle in batch:
+                candle_ts = int(candle[0])
+
+                # Filter by time range
+                if candle_ts < start_ts_ms or candle_ts > end_ts_ms:
+                    continue
+
+                # Skip duplicates
+                if any(int(c[0]) == candle_ts for c in candles):
+                    continue
+
+                candles.append(candle)
+                new_count += 1
+
+            # Update cursor
+            if batch:
+                oldest_in_batch = min(int(c[0]) for c in batch)
+                current_after = oldest_in_batch
+
+            # Stop conditions
+            if new_count == 0:
+                break
+
+            oldest = min(int(c[0]) for c in candles) if candles else end_ts_ms
+            if oldest <= start_ts_ms:
+                break
+
+            # Rate limiting
+            time.sleep(0.05)
+
+        return candles
 
     def _load_to_redis(self, coin_symbol: str, candles: List):
         """
@@ -253,8 +418,8 @@ class TradingController:
         print("STARTING WORKER THREADS (Redis-only operations)")
         print("="*80)
 
-        # Start sync worker (Redis → SQLite persistence)
-        print("Starting sync worker (Redis → SQLite)...")
+        # Start sync worker (Redis -> SQLite persistence)
+        print("Starting sync worker (Redis -> SQLite)...")
         self.sync_worker = get_sync_worker()
         self.sync_worker.start()
 
@@ -278,7 +443,7 @@ class TradingController:
 
         # Start data source based on mode
         if self.mode == 'TEST':
-            print("\n[TEST Mode] Starting data replayer (SQLite → Redis chronologically)...")
+            print("\n[TEST Mode] Starting data replayer (SQLite -> Redis chronologically)...")
             start_time = datetime.now() - timedelta(days=strategy_config.BACKTEST_START_DAYS)
             self.data_replayer = create_data_replayer(self.coin_symbols, start_time)
             self.data_replayer.set_replay_speed(1.0)  # 1x speed
@@ -376,9 +541,9 @@ class TradingController:
         for worker in self.calculation_workers:
             worker.stop()
 
-        # Stop sync worker (final sync: Redis → SQLite)
+        # Stop sync worker (final sync: Redis -> SQLite)
         if self.sync_worker:
-            print("Final Redis → SQLite sync...")
+            print("Final Redis -> SQLite sync...")
             self.sync_worker.stop(wait=True)
 
         print("="*80 + "\n")

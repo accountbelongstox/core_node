@@ -27,6 +27,11 @@ class StrategyConfig:
     # Start backtesting from N days ago (TEST mode only)
     BACKTEST_START_DAYS = 3  # 从3天前开始扫描
 
+    # Data granularity (bar size)
+    # Note: Due to OKX API limitations, 1m bars only provide 1 day of history
+    #       We use 5m bars to get 3+ days for initialization
+    CANDLE_BAR = '5m'  # 5-minute bars (covers 5 days of history)
+
 
     # ==================== 24小时分析窗口配置 ====================
     # Time window for attribute calculation (hours)
