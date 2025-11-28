@@ -135,6 +135,10 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyProfileTellAboutYourself: '介绍一下您自己',
     QyAppLocalizationKeys.qyProfileCityCountry: '城市, 国家',
     QyAppLocalizationKeys.qyProfileDefaultName: '亚当·史密斯',
+    QyAppLocalizationKeys.qyProfileFollowers: '粉丝',
+    QyAppLocalizationKeys.qyProfileFollowing: '关注',
+    QyAppLocalizationKeys.qyProfilePosts: '帖子',
+    QyAppLocalizationKeys.qyInterest: '兴趣',
     QyAppLocalizationKeys.qySettings: '设置',
     QyAppLocalizationKeys.qyGeneralSettings: '通用设置',
     QyAppLocalizationKeys.qyAccountSettings: '账号设置',
@@ -227,7 +231,6 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyWordLearning: '词汇学习',
     QyAppLocalizationKeys.qyPronunciation: '发音',
     QyAppLocalizationKeys.qyUnknown: '不认识',
-    QyAppLocalizationKeys.qyInterest: '兴趣',
     QyAppLocalizationKeys.qyIAm: '我是',
 
     QyAppLocalizationKeys.qyCertificateCenter: '证书中心',

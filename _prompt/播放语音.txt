@@ -24,4 +24,13 @@
 先完成这一步。
 如果收到的是文件，识别调用文件转换，转为文字 。同果使用pycore\pyutils中的库，如果是url，则使用下载。提取text（不要css/js部份），
 
+代码同步服务器， 新增加一个接口，在tray可以开启启用本机为代码服务器， /code-sync 
+1：修改其中的方法 D:\programing\core_node\pycore\pyutils\device_sync
+2：通过  python .\pycore_module_caller.py 通过其中的一个tray添加一个方法菜单，toggle 切换为客户端/切换为服务端
+3：当时服务端时，开始准备推送D:\programing\core_node\中的代码，跳过子目录中的node module/ python临时目录 /dart/flutter/nuxt/vite/vue的临时目录和编译目录
+4：当时客户端时，每5秒调用 D:\programing\core_node\pycore\pyutils\device_sync 发出同局域网IP中的其他59000服务器，并对其建立，初次切换时立即扫描。
+5：服务端收到连接后，注意不要闪断，记录ID值，如果客户端重连时不超过5m则继续当旧客户端。
+6：首次连接时，向客户端推送全部代码，之后每5秒推送一次有修改过的代码。
+7：目前客户端为了测试，只提示是否覆盖，但并不真的覆盖，当服务端推送的代码修改日志比客户端新时，客端端提示覆盖，其他提示忽略。
 
+重点先修改device_sync。

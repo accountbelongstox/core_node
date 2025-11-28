@@ -292,53 +292,55 @@ class VideoProcessor:
 
     def concat_videos(self, video_paths: list, output_path: Path) -> bool:
         """
-        合并多个视频为一个
-        使用重新编码确保兼容性
+        Concatenate multiple videos into one
+        Using re-encoding for maximum compatibility
 
         Args:
-            video_paths: 视频文件路径列表
-            output_path: 输出视频路径
+            video_paths: List of video file paths
+            output_path: Output video path
 
         Returns:
-            是否成功
+            bool: Success status
         """
         if not video_paths:
             print("Error: No videos to concatenate")
             return False
 
-        # 创建 FFmpeg concat 文件列表
+        # Create FFmpeg concat file list
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8') as f:
             concat_file = Path(f.name)
             for video_path in video_paths:
-                # FFmpeg concat 格式: file 'path'
-                # 使用 as_posix() 确保路径格式兼容，或在 Windows 上使用双反斜杠
                 abs_path = str(video_path.absolute()).replace('\\', '/')
                 f.write(f"file '{abs_path}'\n")
 
         try:
-            # FFmpeg concat 命令 - 使用重新编码确保兼容性
+            # FFmpeg concat command - using re-encoding for compatibility
             cmd = [
                 'ffmpeg',
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', str(concat_file),
-                '-c:v', 'libx264',             # H.264 视频编码
-                '-preset', 'medium',           # 编码速度
-                '-crf', '23',                  # 质量
-                '-c:a', 'aac',                 # AAC 音频编码
-                '-b:a', '192k',                # 音频比特率
-                '-movflags', '+faststart',     # 优化流媒体
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-movflags', '+faststart',
                 '-y',
                 str(output_path)
             ]
 
             print(f"\nConcatenating {len(video_paths)} videos (with re-encoding)...")
             print("Note: Re-encoding ensures compatibility and fixes sync issues")
+            print("This may take a long time depending on video count and size...")
+
+            timeout = 7200  # 120 minutes (2 hours)
+
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=1200  # 20分钟超时（重新编码需要更多时间）
+                timeout=timeout
             )
 
             if result.returncode == 0:
@@ -351,83 +353,81 @@ class VideoProcessor:
                 return False
 
         except subprocess.TimeoutExpired:
-            print("Concatenation timeout (exceeded 20 minutes)")
+            print(f"Concatenation timeout (exceeded {timeout//60} minutes)")
+            print(f"Suggestion: Too many videos or videos too large")
+            print(f"Consider processing in smaller batches")
             return False
         except Exception as e:
             print(f"Concatenation error: {e}")
             return False
         finally:
-            # 清理临时文件
+            # Clean up temp file
             if concat_file.exists():
                 concat_file.unlink()
 
     def process_directory(self, directory: Path, output_dir: Path = None) -> Path:
         """
-        处理整个目录的视频
+        Process all videos in directory
 
         Args:
-            directory: 输入视频目录
-            output_dir: 输出目录 (默认为输入目录)
+            directory: Input video directory
+            output_dir: Output directory (default: same as input)
 
         Returns:
-            最终输出视频路径
+            Path to final output video
         """
         if output_dir is None:
             output_dir = directory
 
-        # 查找所有视频
+        # Find all videos
         videos = self.find_videos(directory)
 
         if not videos:
-            print(f"错误: 在 {directory} 中未找到支持的视频文件")
-            print(f"支持的格式: {', '.join(self.SUPPORTED_FORMATS)}")
+            print(f"Error: No supported video files found in {directory}")
+            print(f"Supported formats: {', '.join(self.SUPPORTED_FORMATS)}")
             return None
 
-        print(f"\n找到 {len(videos)} 个视频文件:")
+        print(f"\nFound {len(videos)} video files:")
         for i, video in enumerate(videos, 1):
             print(f"  {i}. {video.name}")
 
-        # 创建临时目录存储裁剪后的视频
+        # Create temp directory for trimmed videos
         temp_dir = output_dir / f"temp_trimmed_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         temp_dir.mkdir(exist_ok=True)
 
-        print(f"\n临时目录: {temp_dir}")
-        print(f"裁剪设置: 去掉开头 {self.trim_start}s，结尾 {self.trim_end}s\n")
+        print(f"\nTemp directory: {temp_dir}")
+        print(f"Trim settings: Remove {self.trim_start}s from start, {self.trim_end}s from end\n")
         print("=" * 70)
 
-        # 裁剪所有视频
+        # Trim all videos
         trimmed_videos = []
         for video in videos:
-            output_name = f"trimmed_{video.name}"
+            # Keep original filename (no prefix)
+            output_name = video.name
             output_path = temp_dir / output_name
 
-            if self.trim_video(video, output_path):
+            if self.trim_video(video, output_path, use_reencode=True):  # Force re-encoding
                 trimmed_videos.append(output_path)
 
         if not trimmed_videos:
-            print("\n错误: 没有成功裁剪的视频")
+            print("\nError: No videos were successfully trimmed")
             temp_dir.rmdir()
             return None
 
         print("\n" + "=" * 70)
-        print(f"成功裁剪 {len(trimmed_videos)}/{len(videos)} 个视频\n")
+        print(f"Successfully trimmed {len(trimmed_videos)}/{len(videos)} videos\n")
 
-        # 生成时间戳文件名
+        # Generate timestamp filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_filename = f"concatenated_{timestamp}.mp4"
         output_path = output_dir / output_filename
 
-        # 合并视频
+        # Concatenate videos
         success = self.concat_videos(trimmed_videos, output_path)
 
-        # 清理临时文件
-        print("\n清理临时文件...")
-        for trimmed_video in trimmed_videos:
-            if trimmed_video.exists():
-                trimmed_video.unlink()
-
-        if temp_dir.exists():
-            temp_dir.rmdir()
+        # Do NOT clean up temp files - keep them for review
+        print(f"\nTemp files preserved in: {temp_dir}")
+        print("You can review individual trimmed videos before deleting")
 
         if success:
             return output_path
@@ -550,17 +550,19 @@ def main():
 
     print("\n" + "=" * 70)
     print("Video Batch Processing Tool / 视频批量处理工具")
-    print("v1.3.0 - With Re-encoding for Maximum Compatibility")
+    print("v1.4.0 - Force Re-encoding + Keep Temp Files")
     print("=" * 70)
     print(f"\nInput directory: {directory}")
     print(f"Output directory: {output_dir}")
     print(f"Trim settings: Start {args.trim_start}s, End {args.trim_end}s")
     if args.skip_keywords:
         print(f"Skip keywords: {', '.join(args.skip_keywords)}")
-    print(f"Encoding: Auto-fallback (Fast copy → Re-encode if needed)")
+    print(f"Mode: Re-encoding ALL videos (ensures maximum compatibility)")
     print(f"Quality: H.264 CRF 23, AAC 192kbps")
+    print(f"Temp files: Will be PRESERVED for review")
+    print(f"Timeout: 120 minutes for concatenation")
 
-    # 处理视频
+    # Process videos
     output_path = processor.process_directory(directory, output_dir)
 
     if output_path and output_path.exists():

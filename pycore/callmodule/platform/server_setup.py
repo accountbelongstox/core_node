@@ -21,6 +21,7 @@ from pycore.callmodule.routers.mcp_router import mcp_router
 from pycore.callmodule.routers.singleton_router import singleton_router
 from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
 from pycore.callmodule.routers.web_router import router as web_router
+from pycore.callmodule.routers.code_sync_router import router as code_sync_router
 
 
 class SuppressCancelledErrorFilter(logging.Filter):
@@ -87,6 +88,11 @@ def create_rpc_server(host='0.0.0.0', port=59000, debug=False):
     ColorPrint.blue("[Server] Registering web UI routes...")
     server.app.include_router(web_router)
     ColorPrint.green("[Server] Web UI routes registered at /web/*")
+
+    # Register code sync routes
+    ColorPrint.blue("[Server] Registering code sync routes...")
+    server.app.include_router(code_sync_router)
+    ColorPrint.green("[Server] Code sync routes registered at /code-sync/*")
 
     # Mount static directory for subtitle UI assets
     subtitle_ui_dir = Path(__file__).parent.parent.parent / "pyctl" / "voice_subtitle" / "ui"

@@ -126,6 +126,25 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
 
         ColorPrint.green("[Tray] Voice subtitle window toggle event sent")
 
+    def handle_tray_toggle_code_sync(event_data):
+        """Toggle code sync mode (disabled -> server -> client -> disabled)"""
+        ColorPrint.blue("[Tray] Toggling code sync mode...")
+
+        try:
+            from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+            manager = get_code_sync_manager()
+            manager.toggle_mode()
+
+            mode = manager.get_mode()
+            ColorPrint.green(f"[Tray] Code sync mode: {mode}")
+
+            # Update menu
+            update_tray_menu()
+
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Error toggling code sync: {e}")
+
     def update_tray_menu():
         """Update tray menu with current startup state"""
         if not tray_instance or not startup_manager:
@@ -133,6 +152,22 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
 
         startup_enabled = startup_manager.is_enabled()
         startup_text = "✓ Auto-Start on Boot" if startup_enabled else "Auto-Start on Boot"
+
+        # Get code sync mode
+        code_sync_text = "Code Sync: Disabled"
+        try:
+            from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+            manager = get_code_sync_manager()
+            mode = manager.get_mode()
+
+            if mode == "server":
+                code_sync_text = "✓ Code Sync: Server"
+            elif mode == "client":
+                code_sync_text = "✓ Code Sync: Client"
+            else:
+                code_sync_text = "Code Sync: Disabled"
+        except Exception:
+            pass
 
         menu_items = [
             TrayMenuItem(
@@ -161,6 +196,10 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
         menu_items.extend([
             TrayMenuItem.SEPARATOR,
             TrayMenuItem(
+                text=code_sync_text,
+                action_signal="tray_action_toggle_code_sync"
+            ),
+            TrayMenuItem(
                 text="Toggle Voice Subtitle Window",
                 action_signal="tray_action_toggle_voice_subtitle"
             ),
@@ -188,6 +227,7 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
     THREAD_BUS.register_event_handler('tray_action_exit', handle_tray_exit)
     THREAD_BUS.register_event_handler('tray_action_toggle_startup', handle_tray_toggle_startup)
     THREAD_BUS.register_event_handler('tray_action_toggle_voice_subtitle', handle_tray_toggle_voice_subtitle)
+    THREAD_BUS.register_event_handler('tray_action_toggle_code_sync', handle_tray_toggle_code_sync)
 
     icon_path = PYCORE_ROOT / "pyutils" / "native_ui" / "step1_config" / "app_icon.png"
     if not icon_path.exists():
@@ -196,6 +236,22 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
     # Build initial menu with startup state
     startup_enabled = startup_manager.is_enabled() if startup_manager else False
     startup_text = "✓ Auto-Start on Boot" if startup_enabled else "Auto-Start on Boot"
+
+    # Get code sync mode
+    code_sync_text = "Code Sync: Disabled"
+    try:
+        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+        manager = get_code_sync_manager()
+        mode = manager.get_mode()
+
+        if mode == "server":
+            code_sync_text = "✓ Code Sync: Server"
+        elif mode == "client":
+            code_sync_text = "✓ Code Sync: Client"
+        else:
+            code_sync_text = "Code Sync: Disabled"
+    except Exception:
+        pass
 
     menu_items = [
         TrayMenuItem(

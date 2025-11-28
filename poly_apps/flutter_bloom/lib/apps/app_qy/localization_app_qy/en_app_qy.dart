@@ -137,6 +137,10 @@ class EnAppQy {
     QyAppLocalizationKeys.qyProfileTellAboutYourself: 'Tell us about yourself',
     QyAppLocalizationKeys.qyProfileCityCountry: 'City, Country',
     QyAppLocalizationKeys.qyProfileDefaultName: 'Adam Smith',
+    QyAppLocalizationKeys.qyProfileFollowers: 'Followers',
+    QyAppLocalizationKeys.qyProfileFollowing: 'Following',
+    QyAppLocalizationKeys.qyProfilePosts: 'Posts',
+    QyAppLocalizationKeys.qyInterest: 'Interest',
     QyAppLocalizationKeys.qySettings: 'Settings',
     QyAppLocalizationKeys.qyGeneralSettings: 'General Settings',
     QyAppLocalizationKeys.qyAccountSettings: 'Account Settings',
@@ -234,7 +238,6 @@ class EnAppQy {
     QyAppLocalizationKeys.qyWordLearning: 'Word Learning',
     QyAppLocalizationKeys.qyPronunciation: 'Pronunciation',
     QyAppLocalizationKeys.qyUnknown: 'Unknown',
-    QyAppLocalizationKeys.qyInterest: 'Interest',
     QyAppLocalizationKeys.qyIAm: 'I am',
 
     QyAppLocalizationKeys.qyCertificateCenter: 'Certificate Center',
