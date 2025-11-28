@@ -13,6 +13,10 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/fund_rising_model.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/urgetnt_fundrasing_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/urgent_funding_data.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/fund_rising_data.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 
@@ -33,20 +37,22 @@ class _UrgentFundRisingWidgetState extends State<UrgentFundRisingWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final types = FundRisingData.getFundRisingTypes();
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSizeLarge),
+      padding: const EdgeInsets.symmetric(
+          vertical: ThemeDimensions.paddingSizeLarge),
       child: SizedBox(
           height: 35,
           child: ListView.builder(
               shrinkWrap: true,
-              itemCount: urgentModelList.length,
+              itemCount: types.length,
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.zero,
               itemBuilder: (context, index) {
                 return FundRisingTypeItem(
                   index: index,
                   selectedIndex: selectedIndex,
+                  typeKey: types[index],
                   onTap: () {
                     setState(() {
                       selectedIndex = index;
@@ -61,12 +67,15 @@ class _UrgentFundRisingWidgetState extends State<UrgentFundRisingWidget> {
 class FundRisingTypeItem extends StatelessWidget {
   final int index;
   final int selectedIndex;
+  final String typeKey;
   final Function()? onTap;
-  const FundRisingTypeItem(
-      {super.key,
-      this.onTap,
-      required this.index,
-      required this.selectedIndex});
+  const FundRisingTypeItem({
+    super.key,
+    this.onTap,
+    required this.index,
+    required this.selectedIndex,
+    required this.typeKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,13 +99,14 @@ class FundRisingTypeItem extends StatelessWidget {
                           ? Theme.of(context).colorScheme.surfaceTint
                           : Theme.of(context).colorScheme.surfaceTint)),
               child: Center(
-                  child: Text(typeList[index],
-                      style: ThemeTextStyles.textMedium.copyWith(
-                        color: index == selectedIndex
-                            ? Theme.of(context).cardColor
-                            : Colors.black,
-                        // Theme.of(context).hintColor
-                      ))))),
+                  child: Text(
+                typeKey.tr(context),
+                style: ThemeTextStyles.textMedium.copyWith(
+                  color: index == selectedIndex
+                      ? Theme.of(context).cardColor
+                      : Colors.black,
+                ),
+              )))),
     );
   }
 }

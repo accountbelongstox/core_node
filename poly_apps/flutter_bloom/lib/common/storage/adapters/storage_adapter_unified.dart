@@ -77,6 +77,18 @@ class UnifiedSQLiteStorageAdapter implements KeyValueStorageInterface {
       _isInitialized = true;
       debugPrint('UnifiedSQLiteStorageAdapter initialized successfully: $dbPath');
     } catch (e) {
+      // Handle MissingPluginException gracefully
+      if (e.toString().contains('MissingPluginException') || 
+          e.toString().contains('getApplicationDocumentsDirectory')) {
+        debugPrint('UnifiedSQLiteStorageAdapter: path_provider plugin not available. '
+            'This is expected on web platform or when plugin is not properly initialized. '
+            'Storage will use fallback mechanism.');
+        // Don't rethrow on web or when plugin is missing - let the app continue
+        if (kIsWeb) {
+          _isInitialized = false;
+          return;
+        }
+      }
       debugPrint('UnifiedSQLiteStorageAdapter initialization failed: $e');
       rethrow;
     }

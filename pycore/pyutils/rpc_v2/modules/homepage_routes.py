@@ -11,6 +11,7 @@ Provides user-friendly web interface showing:
 """
 
 from typing import TYPE_CHECKING, Dict, Any
+from fastapi.responses import RedirectResponse
 
 from .module_registry import SUPPORTED_MODULES, get_all_modules
 
@@ -21,15 +22,15 @@ if TYPE_CHECKING:
 def register_homepage_routes(app: 'FastAPI'):
     """
     Register homepage and API documentation routes
-    
+
     Args:
         app: FastAPI application instance
     """
-    
+
     @app.get("/")
     async def homepage():
-        """Homepage - Display available modules and routes"""
-        return generate_homepage_html()
+        """Homepage - Redirect to Desktop Manager UI"""
+        return RedirectResponse(url="/desktop/index.html", status_code=302)
     
     @app.get("/api/modules")
     async def list_modules():

@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-视频批量处理工具 - 裁剪并合并视频
-Video Batch Processing Tool - Trim and Concatenate Videos
+视频批量处理工具 - 裁剪并合并视频 (v2.0)
+Video Batch Processing Tool - Trim and Concatenate Videos (v2.0)
 
 功能 / Features:
-- 裁剪视频开头和结尾
-- 批量处理目录中的所有视频
-- 自动合并为单个视频文件
-- 生成时间戳文件名
-- 自动处理路径转义和特殊字符
-- 修复音画不同步问题
-- 支持跳过包含特定关键字的文件
+- 🌍 自动翻译文件名为英文 (使用 Google Translate + 缓存)
+- 🧹 清理文件名 (替换空格为下划线，移除特殊字符)
+- ✂️ 裁剪视频开头和结尾
+- 📦 批量处理目录中的所有视频
+- 🔗 自动合并为单个视频文件
+- 🕐 生成时间戳文件名
+- 🔧 自动处理路径转义和特殊字符
+- 🎵 修复音画不同步问题
+- ⏭️ 支持跳过包含特定关键字的文件
+- 📝 详细错误日志输出
 
 Usage:
     # 基本使用
@@ -51,8 +54,69 @@ import sys
 import subprocess
 import tempfile
 import argparse
+import asyncio
+import re
+import shutil
 from pathlib import Path
 from datetime import datetime
+
+# Add project root to path
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from pycore.pyutils.translator import GoogleTranslator
+
+
+async def translate_filename(filename: str) -> str:
+    """
+    Translate filename to English using GoogleTranslator
+
+    Args:
+        filename: Original filename (without extension)
+
+    Returns:
+        Translated filename
+    """
+    try:
+        async with GoogleTranslator() as translator:
+            result = await translator.translate_single(
+                text=filename,
+                src='auto',
+                dest='en',
+                use_cache=True
+            )
+            if result.error:
+                print(f"Translation warning: {result.error}, using original name")
+                return filename
+            return result.translated_text
+    except Exception as e:
+        print(f"Translation error: {e}, using original name")
+        return filename
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize filename: remove special characters and replace spaces with underscores
+
+    Args:
+        filename: Filename to sanitize
+
+    Returns:
+        Sanitized filename
+    """
+    # Replace spaces with underscores
+    filename = filename.replace(' ', '_')
+
+    # Remove or replace special characters (keep only alphanumeric, underscore, hyphen, dot)
+    filename = re.sub(r'[^\w\-\.]', '_', filename)
+
+    # Replace multiple underscores with single underscore
+    filename = re.sub(r'_+', '_', filename)
+
+    # Remove leading/trailing underscores
+    filename = filename.strip('_')
+
+    return filename
 
 
 def normalize_path(path_str: str) -> Path:
@@ -145,6 +209,67 @@ class VideoProcessor:
         # 按文件名排序
         videos.sort()
         return videos
+
+    async def prepare_videos_with_translation(self, videos: list, temp_dir: Path) -> list:
+        """
+        Prepare videos: translate filenames to English and copy to temp directory
+
+        Args:
+            videos: List of original video file paths
+            temp_dir: Temporary directory to store renamed videos
+
+        Returns:
+            List of renamed video file paths
+        """
+        print("\n" + "=" * 70)
+        print("STEP 1: Translating and sanitizing filenames")
+        print("=" * 70)
+
+        renamed_videos = []
+
+        for i, video_path in enumerate(videos, 1):
+            stem = video_path.stem  # filename without extension
+            suffix = video_path.suffix  # file extension
+
+            print(f"\n[{i}/{len(videos)}] Processing: {video_path.name}")
+
+            # Step 1: Translate filename to English
+            print(f"  - Translating to English...")
+            translated_name = await translate_filename(stem)
+            print(f"    Original: {stem}")
+            print(f"    Translated: {translated_name}")
+
+            # Step 2: Sanitize filename (remove special chars, replace spaces)
+            sanitized_name = sanitize_filename(translated_name)
+            print(f"    Sanitized: {sanitized_name}")
+
+            # Step 3: Generate new filename
+            new_filename = f"{sanitized_name}{suffix}"
+            new_path = temp_dir / new_filename
+
+            # Handle filename conflicts
+            counter = 1
+            while new_path.exists():
+                new_filename = f"{sanitized_name}_{counter}{suffix}"
+                new_path = temp_dir / new_filename
+                counter += 1
+
+            # Step 4: Copy file to temp directory with new name
+            print(f"  - Copying to: {new_filename}")
+            try:
+                shutil.copy2(video_path, new_path)
+                renamed_videos.append(new_path)
+                print(f"  ✓ Success")
+            except Exception as e:
+                print(f"  ✗ Failed to copy: {e}")
+                print(f"    Using original file instead")
+                renamed_videos.append(video_path)
+
+        print("\n" + "=" * 70)
+        print(f"Filename translation completed: {len(renamed_videos)}/{len(videos)} files")
+        print("=" * 70)
+
+        return renamed_videos
 
     def get_video_duration(self, video_path: Path) -> float:
         """
@@ -306,12 +431,17 @@ class VideoProcessor:
             print("Error: No videos to concatenate")
             return False
 
-        # Create FFmpeg concat file list
+        # Create FFmpeg concat file list with proper escaping
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8') as f:
             concat_file = Path(f.name)
             for video_path in video_paths:
                 abs_path = str(video_path.absolute()).replace('\\', '/')
-                f.write(f"file '{abs_path}'\n")
+                # Properly escape single quotes by replacing ' with '\''
+                escaped_path = abs_path.replace("'", "'\\''")
+                f.write(f"file '{escaped_path}'\n")
+
+        print(f"\n[DEBUG] Concat file created at: {concat_file}")
+        print(f"[DEBUG] Concat file contains {len(video_paths)} video paths")
 
         try:
             # FFmpeg concat command - using re-encoding for compatibility
@@ -348,8 +478,31 @@ class VideoProcessor:
                 return True
             else:
                 error_msg = result.stderr.decode('utf-8', errors='ignore')
-                print(f"Concatenation failed!")
-                print(f"Error: {error_msg[:200]}")
+                print(f"\n" + "=" * 70)
+                print("ERROR: Concatenation failed!")
+                print("=" * 70)
+                print(f"Return code: {result.returncode}")
+                print(f"\n[Full Error Output]:")
+                print(error_msg)
+                print("=" * 70)
+
+                # Save error log to file
+                error_log_path = output_path.parent / f"concat_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                try:
+                    with open(error_log_path, 'w', encoding='utf-8') as log_file:
+                        log_file.write("FFmpeg Concatenation Error Log\n")
+                        log_file.write("=" * 70 + "\n\n")
+                        log_file.write(f"Command: {' '.join(cmd)}\n\n")
+                        log_file.write(f"Return code: {result.returncode}\n\n")
+                        log_file.write("Stderr output:\n")
+                        log_file.write(error_msg)
+                        log_file.write("\n\nConcat file content:\n")
+                        with open(concat_file, 'r', encoding='utf-8') as cf:
+                            log_file.write(cf.read())
+                    print(f"\nError log saved to: {error_log_path}")
+                except Exception as e:
+                    print(f"Warning: Could not save error log: {e}")
+
                 return False
 
         except subprocess.TimeoutExpired:
@@ -365,9 +518,9 @@ class VideoProcessor:
             if concat_file.exists():
                 concat_file.unlink()
 
-    def process_directory(self, directory: Path, output_dir: Path = None) -> Path:
+    async def process_directory(self, directory: Path, output_dir: Path = None) -> Path:
         """
-        Process all videos in directory
+        Process all videos in directory (async version with translation)
 
         Args:
             directory: Input video directory
@@ -391,31 +544,50 @@ class VideoProcessor:
         for i, video in enumerate(videos, 1):
             print(f"  {i}. {video.name}")
 
-        # Create temp directory for trimmed videos
-        temp_dir = output_dir / f"temp_trimmed_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # Create temp directory for renamed and trimmed videos
+        temp_dir = output_dir / f"temp_processing_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         temp_dir.mkdir(exist_ok=True)
 
         print(f"\nTemp directory: {temp_dir}")
-        print(f"Trim settings: Remove {self.trim_start}s from start, {self.trim_end}s from end\n")
-        print("=" * 70)
 
-        # Trim all videos
+        # STEP 1: Translate and sanitize filenames
+        renamed_videos = await self.prepare_videos_with_translation(videos, temp_dir)
+
+        if not renamed_videos:
+            print("\nError: No videos were successfully renamed")
+            temp_dir.rmdir()
+            return None
+
+        # STEP 2: Trim all videos
+        print("\n" + "=" * 70)
+        print("STEP 2: Trimming videos")
+        print("=" * 70)
+        print(f"Trim settings: Remove {self.trim_start}s from start, {self.trim_end}s from end\n")
+
+        trimmed_dir = temp_dir / "trimmed"
+        trimmed_dir.mkdir(exist_ok=True)
+
         trimmed_videos = []
-        for video in videos:
-            # Keep original filename (no prefix)
+        for video in renamed_videos:
+            # Keep the renamed filename
             output_name = video.name
-            output_path = temp_dir / output_name
+            output_path = trimmed_dir / output_name
 
             if self.trim_video(video, output_path, use_reencode=True):  # Force re-encoding
                 trimmed_videos.append(output_path)
 
         if not trimmed_videos:
             print("\nError: No videos were successfully trimmed")
-            temp_dir.rmdir()
             return None
 
         print("\n" + "=" * 70)
-        print(f"Successfully trimmed {len(trimmed_videos)}/{len(videos)} videos\n")
+        print(f"Successfully trimmed {len(trimmed_videos)}/{len(renamed_videos)} videos")
+        print("=" * 70)
+
+        # STEP 3: Concatenate videos
+        print("\n" + "=" * 70)
+        print("STEP 3: Concatenating videos")
+        print("=" * 70)
 
         # Generate timestamp filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -427,7 +599,7 @@ class VideoProcessor:
 
         # Do NOT clean up temp files - keep them for review
         print(f"\nTemp files preserved in: {temp_dir}")
-        print("You can review individual trimmed videos before deleting")
+        print("You can review individual renamed and trimmed videos before deleting")
 
         if success:
             return output_path
@@ -550,20 +722,23 @@ def main():
 
     print("\n" + "=" * 70)
     print("Video Batch Processing Tool / 视频批量处理工具")
-    print("v1.4.0 - Force Re-encoding + Keep Temp Files")
+    print("v2.0.0 - Filename Translation + Re-encoding + Keep Temp Files")
     print("=" * 70)
     print(f"\nInput directory: {directory}")
     print(f"Output directory: {output_dir}")
     print(f"Trim settings: Start {args.trim_start}s, End {args.trim_end}s")
     if args.skip_keywords:
         print(f"Skip keywords: {', '.join(args.skip_keywords)}")
-    print(f"Mode: Re-encoding ALL videos (ensures maximum compatibility)")
+    print(f"Features:")
+    print(f"  - Auto-translate filenames to English (Google Translate)")
+    print(f"  - Sanitize filenames (remove special chars, replace spaces)")
+    print(f"  - Re-encoding ALL videos (ensures maximum compatibility)")
     print(f"Quality: H.264 CRF 23, AAC 192kbps")
     print(f"Temp files: Will be PRESERVED for review")
     print(f"Timeout: 120 minutes for concatenation")
 
-    # Process videos
-    output_path = processor.process_directory(directory, output_dir)
+    # Process videos (async call)
+    output_path = asyncio.run(processor.process_directory(directory, output_dir))
 
     if output_path and output_path.exists():
         print("\n" + "=" * 70)

@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/urgetnt_fundrasing_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/urgent_funding_data.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/urgent_fund_rising_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
@@ -23,11 +24,12 @@ class UrgentFundraisingScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final urgentFundings = UrgentFundingData.getMockUrgentFundings();
     return Scaffold(
       appBar: AppBar(
         forceMaterialTransparency: true,
         title: Text(
-          "Urgent Fundraising (${urgentModelList.length}) ",
+          "Urgent Fundraising (${urgentFundings.length}) ",
           style: ThemeTextStyles.textSemiBold,
         ),
         actions: const [
@@ -67,8 +69,9 @@ class UrgentFundraisingScreenView extends StatelessWidget {
           ),
           Expanded(
               child: ListView.builder(
-                  itemCount: urgentModelList.length,
+                  itemCount: urgentFundings.length,
                   itemBuilder: (_, index) {
+                    final item = urgentFundings[index];
                     return Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Container(
@@ -104,7 +107,7 @@ class UrgentFundraisingScreenView extends StatelessWidget {
                                                   ThemeDimensions.radiusLarge)),
                                           child: Image(
                                             image: AssetImage(
-                                              "${urgentModelList[index].image}",
+                                              "${item.image}",
                                             ),
                                             fit: BoxFit.cover,
                                           ))),
@@ -117,14 +120,14 @@ class UrgentFundraisingScreenView extends StatelessWidget {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          " ${urgentModelList[index].title}",
+                                          " ${item.title}",
                                           style: ThemeTextStyles.textBold,
                                         ),
                                         const SizedBox(
                                           height: 10,
                                         ),
                                         Text(
-                                          "\$ ${urgentModelList[index].found},fund reusing from the ",
+                                          "\$ ${item.found},fund reusing from the ",
                                           style: ThemeTextStyles.textMedium,
                                         ),
                                         Padding(
@@ -146,9 +149,9 @@ class UrgentFundraisingScreenView extends StatelessWidget {
                                               MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                                "  ${urgentModelList[index].donators} Donations"),
+                                                "  ${item.donators} Donations"),
                                             Text(
-                                                " ${urgentModelList[index].days} Days Left"),
+                                                " ${item.days} Days Left"),
                                           ],
                                         ),
                                       ],

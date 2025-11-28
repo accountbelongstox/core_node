@@ -1,11 +1,15 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_localization/flutter_localization.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/settings_model_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/settings_service_app_qy.dart';
+import 'package:qyflutter/common/controller/settings_controller.dart';
 
 class SettingsControllerRefactoredAppQy extends ChangeNotifier {
   final SettingsServiceAppQy _service;
   final FlutterLocalization _localization = FlutterLocalization.instance;
+  SettingsController? _commonSettingsController;
 
   AppSettingsModelAppQy _settings;
   bool _isLoading = false;
@@ -13,8 +17,10 @@ class SettingsControllerRefactoredAppQy extends ChangeNotifier {
 
   SettingsControllerRefactoredAppQy({
     SettingsServiceAppQy? service,
+    SettingsController? commonSettingsController,
   })  : _service = service ?? SettingsServiceAppQy(),
-        _settings = AppSettingsModelAppQy.defaultSettings();
+        _settings = AppSettingsModelAppQy.defaultSettings(),
+        _commonSettingsController = commonSettingsController;
 
   AppSettingsModelAppQy get settings => _settings;
   bool get isLoading => _isLoading;
@@ -50,7 +56,21 @@ class SettingsControllerRefactoredAppQy extends ChangeNotifier {
     try {
       final success = await _service.updateLanguageVoiceSettings(newSettings);
       if (success) {
+        final previousLanguage = _settings.languageVoice.appLanguage;
         _settings.updateLanguageVoice(newSettings);
+        
+        // If language changed, update FlutterLocalization and notify
+        if (newSettings.appLanguage != previousLanguage) {
+          _localization.translate(newSettings.appLanguage);
+          
+          // Sync with common SettingsController for immediate UI refresh
+          if (_commonSettingsController != null) {
+            await _commonSettingsController!.changeLanguage(newSettings.appLanguage);
+          }
+          
+          // Notify listeners to rebuild UI immediately
+          notifyListeners();
+        }
       } else {
         _error = 'Failed to update language/voice settings';
       }
@@ -95,6 +115,19 @@ class SettingsControllerRefactoredAppQy extends ChangeNotifier {
       final success = await _service.updateDisplaySettings(newSettings);
       if (success) {
         _settings.updateDisplay(newSettings);
+
+        // Sync with common SettingsController for immediate UI refresh
+        if (_commonSettingsController != null) {
+          // Handle theme mode: 'dark', 'light', or 'auto'
+          if (newSettings.themeMode == 'dark') {
+            await _commonSettingsController!
+                .setSetting('theme_dark_mode', true);
+          } else if (newSettings.themeMode == 'light') {
+            await _commonSettingsController!
+                .setSetting('theme_dark_mode', false);
+          }
+          // 'auto' mode is handled by MaterialApp's themeMode
+        }
       } else {
         _error = 'Failed to update display settings';
       }
@@ -158,6 +191,15 @@ class SettingsControllerRefactoredAppQy extends ChangeNotifier {
 
     if (success) {
       _localization.translate(language);
+      
+      // Sync with common SettingsController for immediate UI refresh
+      if (_commonSettingsController != null) {
+        await _commonSettingsController!.changeLanguage(language);
+      }
+      
+      // Notify listeners to rebuild UI immediately
+      // This ensures the settings page and all Consumer widgets rebuild
+      notifyListeners();
     }
 
     return success;
