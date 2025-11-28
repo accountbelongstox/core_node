@@ -83,7 +83,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          gradient:
+              ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
         ),
         child: SafeArea(
           child: Consumer<UserProviderAppQy>(
@@ -170,9 +171,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
     return Column(
       children: [
         PhoneLoginButton(
-          onPressed: _agreedToTerms && !_isLoading
-              ? () => _togglePhoneForm()
-              : null,
+          onPressed:
+              _agreedToTerms && !_isLoading ? () => _togglePhoneForm() : null,
         ),
         SizedBox(height: ThemeDimensions.spacing16),
         WeChatLoginButton(
@@ -203,7 +203,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
               ),
               decoration: InputDecoration(
                 labelText: QyAppLocalizationKeys.qyAuthPhoneNumber.tr(context),
-                hintText: QyAppLocalizationKeys.qyAuthPhonePlaceholder.tr(context),
+                hintText:
+                    QyAppLocalizationKeys.qyAuthPhonePlaceholder.tr(context),
                 prefixIcon: Icon(
                   Icons.phone,
                   color: ColorsAppQy.qyPrimary,
@@ -246,8 +247,10 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
                       color: ColorsAppQy.qyTextPrimary,
                     ),
                     decoration: InputDecoration(
-                      labelText: QyAppLocalizationKeys.qyAuthVerificationCode.tr(context),
-                      hintText: QyAppLocalizationKeys.qyAuthCodePlaceholder.tr(context),
+                      labelText: QyAppLocalizationKeys.qyAuthVerificationCode
+                          .tr(context),
+                      hintText: QyAppLocalizationKeys.qyAuthCodePlaceholder
+                          .tr(context),
                       prefixIcon: Icon(
                         Icons.message,
                         color: ColorsAppQy.qyPrimary,
@@ -274,7 +277,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
                     ),
                     validator: (value) {
                       if (!userProvider.validateVerificationCode(value ?? '')) {
-                        return QyAppLocalizationKeys.qyAuthCodeLength.tr(context);
+                        return QyAppLocalizationKeys.qyAuthCodeLength
+                            .tr(context);
                       }
                       return null;
                     },
@@ -298,7 +302,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
             SizedBox(height: ThemeDimensions.spacing16),
             PrimaryButton(
               text: QyAppLocalizationKeys.qyAuthLoginButton.tr(context),
-              onPressed: _isLoading ? null : () => _handlePhoneLogin(userProvider),
+              onPressed:
+                  _isLoading ? null : () => _handlePhoneLogin(userProvider),
               isLoading: _isLoading,
               backgroundColor: ColorsAppQy.qyPrimary,
               foregroundColor: ColorsAppQy.qyTextOnPrimary,
@@ -377,7 +382,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
       setState(() => _isLoading = true);
 
       try {
-        final result = await userProvider.sendVerificationCode(_phoneController.text);
+        final result =
+            await userProvider.sendVerificationCode(_phoneController.text);
 
         if (result.success) {
           _startCountdown();
@@ -393,11 +399,11 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-              content: Text(
-                (result.errorMessage?.isNotEmpty ?? false)
-                    ? result.errorMessage!
-                    : QyAppLocalizationKeys.qyAuthCodeSendFailed.tr(context),
-              ),
+                content: Text(
+                  (result.errorMessage?.isNotEmpty ?? false)
+                      ? result.errorMessage!
+                      : QyAppLocalizationKeys.qyAuthCodeSendFailed.tr(context),
+                ),
                 backgroundColor: ColorsAppQy.qyError,
               ),
             );
@@ -449,7 +455,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(QyAppLocalizationKeys.qyAuthLoginFailed.tr(context)),
+                content:
+                    Text(QyAppLocalizationKeys.qyAuthLoginFailed.tr(context)),
                 backgroundColor: ColorsAppQy.qyError,
               ),
             );
@@ -475,7 +482,8 @@ class _LoginScreenAppQyState extends State<LoginScreenAppQy>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(QyAppLocalizationKeys.qyAuthWechatLoginFailed.tr(context)),
+              content: Text(
+                  QyAppLocalizationKeys.qyAuthWechatLoginFailed.tr(context)),
               backgroundColor: ColorsAppQy.qyError,
             ),
           );
