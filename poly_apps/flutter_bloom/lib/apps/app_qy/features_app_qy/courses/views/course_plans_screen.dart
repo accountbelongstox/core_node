@@ -1,188 +1,115 @@
-/// Course Plans screen with learning roadmap and schedules
+/// Course Plans screen with learning roadmap and schedules - Refactored with centralized theme and common components
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../localization_app_qy/localization_manager.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
+import '../../../services_app_qy/api_service_app_qy.dart';
+import '../../course/domain/model/course_model.dart';
+import '../../course/domain/service/course_service.dart';
 
-class CoursePlansScreen extends StatefulWidget {
-  const CoursePlansScreen({super.key});
+class CoursePlansScreenRefactoredAppQy extends StatefulWidget {
+  const CoursePlansScreenRefactoredAppQy({super.key});
 
   @override
-  State<CoursePlansScreen> createState() => _CoursePlansScreenState();
+  State<CoursePlansScreenRefactoredAppQy> createState() =>
+      _CoursePlansScreenRefactoredAppQyState();
 }
 
-class _CoursePlansScreenState extends State<CoursePlansScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-
-  final List<Map<String, dynamic>> _coursePlans = [
-    {
-      'title': '雅思30天速成班',
-      'subtitle': '短期高强度雅思备考',
-      'level': 'IELTS Advanced',
-      'duration': '30天',
-      'price': '¥2999',
-      'students': 1234,
-      'rating': 4.8,
-      'progress': 0.0,
-      'locked': false,
-      'badge': '热门',
-      'badgeColor': AppTheme.error,
-      'icon': Icons.speed,
-      'gradient': AppTheme.sunsetGradient,
-    },
-    {
-      'title': '商务英语进阶',
-      'subtitle': '职场沟通能力提升',
-      'level': 'Business Intermediate',
-      'duration': '60天',
-      'price': '¥1999',
-      'students': 892,
-      'rating': 4.7,
-      'progress': 0.25,
-      'locked': false,
-      'badge': '推荐',
-      'badgeColor': AppTheme.primaryGreen,
-      'icon': Icons.business_center,
-      'gradient': AppTheme.primaryGradient,
-    },
-    {
-      'title': 'Python编程入门',
-      'subtitle': '零基础学习Python',
-      'level': 'Programming Beginner',
-      'duration': '45天',
-      'price': '¥2499',
-      'students': 567,
-      'rating': 4.9,
-      'progress': 0.0,
-      'locked': false,
-      'badge': '新课',
-      'badgeColor': AppTheme.newColor,
-      'icon': Icons.code,
-      'gradient': AppTheme.oceanGradient,
-    },
-    {
-      'title': '口语流利训练',
-      'subtitle': '提升英语口语表达能力',
-      'level': 'Speaking Advanced',
-      'duration': '90天',
-      'price': '¥3499',
-      'students': 445,
-      'rating': 4.6,
-      'progress': 0.0,
-      'locked': false,
-      'icon': Icons.record_voice_over,
-      'gradient': AppTheme.lavenderGradient,
-    },
-    {
-      'title': '学术英语写作',
-      'subtitle': '学术论文写作技巧',
-      'level': 'Academic Advanced',
-      'duration': '120天',
-      'price': '¥3999',
-      'students': 234,
-      'rating': 4.5,
-      'progress': 0.0,
-      'locked': true,
-      'icon': Icons.edit,
-      'gradient': AppTheme.peachGradient,
-    },
-  ];
+class _CoursePlansScreenRefactoredAppQyState
+    extends State<CoursePlansScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+  final StorageAppQy _storage = StorageAppQy.instance;
+  late final CourseService _courseService;
+  List<CoursePlanModel> _coursePlans = [];
+  int _inProgressCount = 0;
+  int _completedCount = 0;
+  double _totalDuration = 0.0;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: ComponentStyles.normalDuration,
+    _courseService = CourseService(apiService: ApiServiceAppQy());
+    _shimmerController = AnimationController(
       vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: ComponentStyles.primaryCurve),
-    );
-    _controller.forward();
+      duration: const Duration(seconds: 3),
+    )..repeat();
+    _loadCoursePlans();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _shimmerController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCoursePlans() async {
+    setState(() => _isLoading = true);
+    try {
+      final cachedPlans = await _storage.getApp<List<dynamic>>(
+        '${StorageAppQy.keyUserProgress}_course_plans',
+      );
+      if (cachedPlans != null) {
+        _coursePlans = cachedPlans
+            .map((json) =>
+                CoursePlanModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        _coursePlans = await _courseService.getCoursePlans('all');
+        await _storage.setApp(
+          '${StorageAppQy.keyUserProgress}_course_plans',
+          _coursePlans.map((p) => p.toJson()).toList(),
+        );
+      }
+      _calculateStats();
+    } catch (e) {
+      _coursePlans = await _courseService.getCoursePlans('all');
+      _calculateStats();
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _calculateStats() {
+    _inProgressCount = _coursePlans.where((p) => p.totalDays > 0).length;
+    _completedCount = _coursePlans.length - _inProgressCount;
+    _totalDuration = _coursePlans.fold(0.0, (sum, p) => sum + p.totalDays);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.peachGradient.colors[0].withOpacity(0.1),
-              AppTheme.peachGradient.colors[1].withOpacity(0.05),
-              Colors.white,
-            ],
+    if (_isLoading) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
           ),
         ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
+      );
+    }
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          SafeArea(
             child: Column(
               children: [
                 _buildAppBar(),
-                _buildStatsHeader(),
+                _buildBentoStatsHeader(),
                 Expanded(
-                  child: _buildCoursePlans(),
+                  child: _buildBentoCoursePlans(),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          BouncingButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Icon(
-              Icons.arrow_back,
-              color: AppTheme.textPrimary,
-              size: 24,
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Text(
-                  QyAppLocalizationKeys.qyCoursesTitle.tr(context),
-                  style: AppTextStyles.headline4.copyWith(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  QyAppLocalizationKeys.qyCourseLearningPath.tr(context),
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          BouncingButton(
-            onPressed: _showFilterDialog,
-            child: Icon(
-              Icons.filter_list,
-              color: AppTheme.primaryGreen,
-              size: 24,
             ),
           ),
         ],
@@ -190,332 +117,285 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
     );
   }
 
-  Widget _buildStatsHeader() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppTheme.sunsetGradient,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatItem(
-              QyAppLocalizationKeys.qyCourseInProgress.tr(context),
-              '2',
-              Icons.play_circle,
-              Colors.white,
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.white.withOpacity(0.3),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              QyAppLocalizationKeys.qyCourseCompleted.tr(context),
-              '5',
-              Icons.check_circle,
-              Colors.white,
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.white.withOpacity(0.3),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              QyAppLocalizationKeys.qyCourseDuration.tr(context),
-              '165h',
-              Icons.access_time,
-              Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: AppTextStyles.headline4.copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: AppTextStyles.bodySmall.copyWith(
-            color: color.withOpacity(0.9),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCoursePlans() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _coursePlans.length,
-      itemBuilder: (context, index) {
-        final plan = _coursePlans[index];
-        return AnimationUtils.staggeredAnimation(
-          index: index,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _buildCoursePlanCard(plan, index),
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
           ),
         );
       },
     );
   }
 
-  Widget _buildCoursePlanCard(Map<String, dynamic> plan, int index) {
-    final isLocked = plan['locked'] as bool;
-
-    return BouncingButton(
-      onPressed: isLocked ? _showLockedMessage : () => _openCoursePlan(plan),
-      child: Container(
-        decoration: ComponentStyles.primaryCardDecoration,
+  Widget _buildAppBar() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: (plan['gradient'] as LinearGradient),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.95),
-                  Colors.white.withOpacity(0.9),
-                ],
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                plan['title'] as String,
-                                style: AppTextStyles.headline5.copyWith(
-                                  color: AppTheme.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (plan['badge'] != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: (plan['badgeColor'] as Color),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    plan['badge'] as String,
-                                    style: AppTextStyles.bodySmall.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            plan['subtitle'] as String,
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.schedule,
-                                color: AppTheme.textHint,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                plan['duration'] as String,
-                                style: AppTextStyles.bodySmall.copyWith(
-                                  color: AppTheme.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Icon(
-                                Icons.price_check,
-                                color: AppTheme.textHint,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                plan['price'] as String,
-                                style: AppTextStyles.bodySmall.copyWith(
-                                  color: AppTheme.primaryGreen,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: (plan['gradient'] as LinearGradient).colors[0].withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        plan['icon'] as IconData,
-                        color: (plan['gradient'] as LinearGradient).colors[0],
-                        size: 30,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildRatingBar(plan['rating'] as double),
-                    ),
-                    Text(
-                      '(${plan['students']}人)',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                if (!(plan['progress'] as double).isNaN && (plan['progress'] as double) > 0) ...[
-                  const SizedBox(height: 16),
-                  _buildProgressBar(plan['progress'] as double),
-                ],
-                const SizedBox(height: 16),
-                Row(
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+                onPressed: () => context.pop(),
+              ),
+              const SizedBox(width: ThemeDimensions.spacing8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      plan['level'] as String,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppTheme.textSecondary,
+                      QyAppLocalizationKeys.qyCoursesTitle.tr(context),
+                      style: ThemeTextStyles.title1.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const Spacer(),
-                    if (isLocked)
-                      Icon(
-                        Icons.lock,
-                        color: AppTheme.textHint,
-                        size: 20,
-                      )
-                    else
-                      Icon(
-                        Icons.play_circle,
-                        color: AppTheme.primaryGreen,
-                        size: 24,
+                    Text(
+                      QyAppLocalizationKeys.qyCourseLearningPath.tr(context),
+                      style: ThemeTextStyles.body2.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
                       ),
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: Icon(Icons.filter_list, color: ColorsAppQy.qyPrimary),
+                onPressed: _showFilterDialog,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildRatingBar(double rating) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
-        return Icon(
-          index < rating.floor()
-              ? Icons.star
-              : index < rating
-                  ? Icons.star_half
-                  : Icons.star_border,
-          color: index < rating
-              ? AppTheme.warning
-              : AppTheme.borderLight,
-          size: 16,
-        );
-      }),
+  Widget _buildBentoStatsHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: GlassmorphismCard(
+        borderRadius: ThemeDimensions.radiusLarge,
+        blur: 20,
+        opacity: 0.3,
+        padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyAccentGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+          ),
+          padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildBentoStatItem(
+                  QyAppLocalizationKeys.qyCourseInProgress.tr(context),
+                  '$_inProgressCount',
+                  Icons.play_circle,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              Expanded(
+                child: _buildBentoStatItem(
+                  QyAppLocalizationKeys.qyCourseCompleted.tr(context),
+                  '$_completedCount',
+                  Icons.check_circle,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              Expanded(
+                child: _buildBentoStatItem(
+                  QyAppLocalizationKeys.qyCourseDuration.tr(context),
+                  '${_totalDuration.toInt()}d',
+                  Icons.access_time,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildProgressBar(double progress) {
+  Widget _buildBentoStatItem(String label, String value, IconData icon) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            Text(
-              '${(progress * 100).toInt()}%',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppTheme.primaryGreen,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+        Icon(icon, color: Colors.white, size: 28),
+        const SizedBox(height: ThemeDimensions.spacing8),
+        Text(
+          value,
+          style: ThemeTextStyles.title2.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        const SizedBox(height: 8),
-        Container(
-          height: 6,
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceLight,
-            borderRadius: BorderRadius.circular(3),
+        const SizedBox(height: ThemeDimensions.spacing4),
+        Text(
+          label,
+          style: ThemeTextStyles.caption.copyWith(
+            color: Colors.white70,
           ),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: progress,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
-  void _openCoursePlan(Map<String, dynamic> plan) {
-    // Navigate to course plan detail screen
+  Widget _buildBentoCoursePlans() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 1,
+        mainAxisSpacing: ThemeDimensions.spacing16,
+        childAspectRatio: 2.2,
+      ),
+      itemCount: _coursePlans.length,
+      itemBuilder: (context, index) {
+        final plan = _coursePlans[index];
+        return _buildBentoCoursePlanCard(plan, index);
+      },
+    );
+  }
+
+  Widget _buildBentoCoursePlanCard(CoursePlanModel plan, int index) {
+    final gradients = [
+      ColorsAppQy.qyPrimaryGradient,
+      ColorsAppQy.qySecondaryGradient,
+      ColorsAppQy.qyAccentGradient,
+    ];
+    final icons = [
+      Icons.speed,
+      Icons.business_center,
+      Icons.code,
+      Icons.record_voice_over,
+      Icons.edit,
+    ];
+    final isLocked = plan.totalDays == 0;
+
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+      child: InkWell(
+        onTap: isLocked ? _showLockedMessage : () => _openCoursePlan(plan),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: gradients[index % gradients.length],
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+          ),
+          padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
+                    ),
+                    child: Icon(
+                      icons[index % icons.length],
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: ThemeDimensions.spacing16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.title,
+                          style: ThemeTextStyles.title3.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: ThemeDimensions.spacing4),
+                        Text(
+                          plan.subtitle,
+                          style: ThemeTextStyles.body2.copyWith(
+                            color: Colors.white70,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isLocked)
+                    Icon(Icons.lock, color: Colors.white70, size: 24)
+                  else
+                    Icon(Icons.play_circle, color: Colors.white, size: 28),
+                ],
+              ),
+              const SizedBox(height: ThemeDimensions.spacing16),
+              Row(
+                children: [
+                  Icon(Icons.schedule, color: Colors.white70, size: 18),
+                  const SizedBox(width: ThemeDimensions.spacing4),
+                  Text(
+                    '${plan.totalDays} ${QyAppLocalizationKeys.qyDays.tr(context)}',
+                    style: ThemeTextStyles.body2.copyWith(
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(width: ThemeDimensions.spacing16),
+                  Icon(Icons.people, color: Colors.white70, size: 18),
+                  const SizedBox(width: ThemeDimensions.spacing4),
+                  Text(
+                    '${plan.participants}',
+                    style: ThemeTextStyles.body2.copyWith(
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCoursePlan(CoursePlanModel plan) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${QyAppLocalizationKeys.qyCourseStart.tr(context)}: ${plan['title']}'),
-        backgroundColor: AppTheme.primaryGreen,
+        content: Text(
+          '${QyAppLocalizationKeys.qyCourseStart.tr(context)}: ${plan.title}',
+        ),
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
@@ -524,7 +404,7 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(QyAppLocalizationKeys.qyCourseLocked.tr(context)),
-        backgroundColor: AppTheme.warning,
+        backgroundColor: ColorsAppQy.qyWarning,
       ),
     );
   }
@@ -532,84 +412,59 @@ class _CoursePlansScreenState extends State<CoursePlansScreen>
   void _showFilterDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          QyAppLocalizationKeys.qyCoursesCategories.tr(context),
-          style: AppTextStyles.headline5.copyWith(
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildFilterOption('难度级别', ['全部', '初级', '中级', '高级']),
-            _buildFilterOption('课程时长', ['全部', '30天', '60天', '90天以上']),
-            _buildFilterOption('价格范围', ['全部', '0-1000', '1000-3000', '3000+']),
-          ],
-        ),
-        actions: [
-          BouncingButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                QyAppLocalizationKeys.qyCommonOk.tr(context),
-                style: AppTextStyles.buttonText,
-              ),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassmorphismCard(
+          borderRadius: ThemeDimensions.radiusLarge,
+          blur: 20,
+          opacity: 0.3,
+          padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: ColorsAppQy.qyFrostedGlassGradient,
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterOption(String title, List<String> options) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: AppTextStyles.bodyLarge.copyWith(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: options.map((option) {
-              return BouncingButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: option == '全部' ? AppTheme.primaryGreen : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: option == '全部' ? Colors.transparent : AppTheme.borderLight,
-                    ),
-                  ),
-                  child: Text(
-                    option,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: option == '全部' ? Colors.white : AppTheme.textPrimary,
-                    ),
+            padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  QyAppLocalizationKeys.qyCoursesCategories.tr(context),
+                  style: ThemeTextStyles.title2.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              );
-            }).toList(),
+                const SizedBox(height: ThemeDimensions.spacing20),
+                Text(
+                  QyAppLocalizationKeys.qyComingSoon.tr(context),
+                  style: ThemeTextStyles.body1.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: ThemeDimensions.spacing20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ColorsAppQy.qyPrimary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: ThemeDimensions.spacing12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      ),
+                    ),
+                    child: Text(QyAppLocalizationKeys.qyCommonOk.tr(context)),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

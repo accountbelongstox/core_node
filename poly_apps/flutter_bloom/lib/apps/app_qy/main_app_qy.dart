@@ -22,6 +22,7 @@ import 'localization_app_qy/en_app_qy.dart';
 import 'localization_app_qy/zh_app_qy.dart';
 import 'providers_app_qy/qy_user_provider.dart';
 import 'controller_app_qy/settings_controller_app_qy.dart';
+import 'controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'controller_app_qy/learning_controller_app_qy.dart';
 import 'controller_app_qy/auth_controller_app_qy.dart';
 import 'services_app_qy/api_service_app_qy.dart';
@@ -77,6 +78,10 @@ Future<void> main() async {
     scopedProvidersBuilder: (commonSettingsController) => [
       ChangeNotifierProvider<SettingsControllerAppQy>(
         create: (_) => SettingsControllerAppQy(commonSettingsController),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<SettingsControllerRefactoredAppQy>(
+        create: (_) => SettingsControllerRefactoredAppQy(),
         lazy: false,
       ),
       ChangeNotifierProvider<UserModelAppQy>(
