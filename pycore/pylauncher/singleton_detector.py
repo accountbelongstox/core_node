@@ -227,7 +227,9 @@ class SingletonDetector:
         """
         try:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.settimeout(self.timeout)
+            # Use longer timeout for SHUTDOWN to allow response time
+            timeout = 2.0 if message.get('type') == MessageType.SHUTDOWN.value else self.timeout
+            client_socket.settimeout(timeout)
             client_socket.connect(('localhost', port))
 
             # Send message
@@ -355,10 +357,14 @@ class SingletonDetector:
                 # Check if we should shutdown existing instance
                 if self.shutdown_existing:
                     self._log("[SHUTDOWN] Attempting to shutdown existing instance...")
-                    if self.send_shutdown_to_existing(port):
-                        self._log("[SHUTDOWN] Successfully shutdown existing instance, retrying bind...")
+                    result = self.send_shutdown_to_existing(port)
 
-                        # Retry binding with small delays (旧实例可能需要时间释放端口)
+                    if result['accepted']:
+                        # Old instance accepted shutdown, wait and retry binding
+                        self._log("[SHUTDOWN] Shutdown accepted, waiting for old instance to stop...")
+                        time.sleep(1.5)  # Wait for old instance to shutdown
+
+                        # Retry binding with small delays (old instance may need time to release port)
                         max_retries = 3
                         for retry in range(max_retries):
                             if retry > 0:
@@ -378,22 +384,23 @@ class SingletonDetector:
                                 )
 
                         # All retries failed
-                        self._log("[ERROR] Shutdown succeeded but failed to bind port after retries", "ERROR")
+                        self._log("[ERROR] Failed to bind port after shutdown", "ERROR")
                         return DetectionResult(
                             is_primary=False,
                             port=0,
                             existing_instance=False,
                             existing_port=None,
-                            message=f"Shutdown succeeded but failed to bind port {port} after {max_retries} retries"
+                            message=f"Failed to bind port {port} after shutdown (unknown error)"
                         )
                     else:
-                        self._log("[SHUTDOWN] Failed to shutdown existing instance", "WARNING")
+                        # Old instance rejected shutdown (busy or other reason)
+                        self._log(f"[SHUTDOWN] Shutdown rejected: {result['reason']}")
                         return DetectionResult(
                             is_primary=False,
                             port=0,
                             existing_instance=True,
                             existing_port=port,
-                            message=f"Found existing instance at port {port} (shutdown failed)"
+                            message=f"Existing instance at port {port} ({result['reason']})"
                         )
                 else:
                     # Don't shutdown, return as SECONDARY
@@ -466,8 +473,9 @@ class SingletonDetector:
             msg_type = message.get('type')
             self._log(f"Received {msg_type} from PID {message.get('pid')}")
 
-            # Call message callback if set
-            if self.on_message:
+            # Call message callback for non-SHUTDOWN messages
+            # SHUTDOWN is handled specially below (after sending response)
+            if self.on_message and msg_type != MessageType.SHUTDOWN.value:
                 self.on_message(message)
 
             # Handle different message types
@@ -523,19 +531,33 @@ class SingletonDetector:
                         # On error, allow shutdown (fail-safe)
                         can_shutdown = True
 
-                if can_shutdown:
-                    self._log("Shutdown accepted, triggering shutdown...", "WARNING")
+                # Send response
+                response = self._create_message(
+                    MessageType.SHUTDOWN_ACK,
+                    accepted=can_shutdown,
+                    reason=shutdown_reason if not can_shutdown else "Shutdown accepted"
+                )
+                response_data = json.dumps(response).encode('utf-8')
+                client_socket.sendall(response_data + b'\n')
 
-                    # Trigger shutdown callback (calls THREAD_BUS.request_shutdown via on_message)
+                # Flush and close socket to ensure response is sent
+                try:
+                    client_socket.shutdown(socket.SHUT_WR)
+                except:
+                    pass
+
+                if can_shutdown:
+                    self._log("Shutdown ACK sent (accepted), triggering shutdown...", "WARNING")
+
+                    # Trigger shutdown via on_message callback
                     if self.on_message:
-                        # Trigger shutdown in separate thread to avoid blocking current message handler
                         def trigger_shutdown():
-                            time.sleep(0.1)  # Short delay to ensure message handling completes
+                            time.sleep(0.3)  # Short delay to ensure response is received
                             self.on_message({'type': 'SHUTDOWN', 'pid': message.get('pid')})
 
                         threading.Thread(target=trigger_shutdown, daemon=True).start()
                 else:
-                    self._log(f"Shutdown rejected: {shutdown_reason}", "WARNING")
+                    self._log(f"Shutdown ACK sent (rejected): {shutdown_reason}", "WARNING")
 
             elif msg_type == MessageType.PING.value:
                 # Send PONG
@@ -548,41 +570,40 @@ class SingletonDetector:
         finally:
             client_socket.close()
 
-    def send_shutdown_to_existing(self, existing_port: int) -> bool:
+    def send_shutdown_to_existing(self, existing_port: int) -> dict:
         """
-        Send shutdown request to existing instance
-
-        Simplified logic: Don't wait for response, just send SHUTDOWN message
-        Old instance will trigger THREAD_BUS.request_shutdown() via on_message callback
+        Send shutdown request to existing instance and wait for response
 
         Args:
             existing_port: Port of existing instance
 
         Returns:
-            True (always, because we don't wait for response)
+            dict with 'accepted' (bool) and 'reason' (str)
         """
         self._log(f"Sending SHUTDOWN to existing instance on port {existing_port}")
 
-        try:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.settimeout(1.0)
-            client_socket.connect(('localhost', existing_port))
+        shutdown_msg = self._create_message(MessageType.SHUTDOWN)
+        response = self._send_message_and_wait_response(existing_port, shutdown_msg, validate=True)
 
-            # Send SHUTDOWN message
-            shutdown_msg = self._create_message(MessageType.SHUTDOWN)
-            message_data = json.dumps(shutdown_msg).encode('utf-8')
-            client_socket.sendall(message_data + b'\n')
+        if response and response.get('type') == MessageType.SHUTDOWN_ACK.value:
+            accepted = response.get('accepted', False)
+            reason = response.get('reason', '')
 
-            client_socket.close()
+            if accepted:
+                self._log(f"Shutdown ACCEPTED: {reason}")
+            else:
+                self._log(f"Shutdown REJECTED: {reason}", "WARNING")
 
-            self._log("SHUTDOWN message sent (not waiting for response)")
-            # Give old instance some time to start shutdown
-            time.sleep(1.0)
-            return True
+            return {
+                'accepted': accepted,
+                'reason': reason
+            }
 
-        except Exception as e:
-            self._log(f"Failed to send SHUTDOWN: {e}", "ERROR")
-            return False
+        self._log("No valid shutdown response received", "ERROR")
+        return {
+            'accepted': False,
+            'reason': 'No response from existing instance'
+        }
 
     def stop(self):
         """Stop detector and close socket"""

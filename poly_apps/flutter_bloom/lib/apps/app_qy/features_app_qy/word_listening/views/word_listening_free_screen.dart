@@ -1,12 +1,19 @@
 /// Word Listening Free Mode screen
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, bento box layout
 library;
 
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../../../../common/localization/localization_manager.dart';
-import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_animations.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 
 class WordListeningFreeScreen extends StatefulWidget {
   const WordListeningFreeScreen({super.key});
@@ -25,7 +32,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
       'title': QyAppLocalizationKeys.qyListeningCategoryDaily.tr(context),
       'subtitle': QyAppLocalizationKeys.qyListeningCategoryDailyDesc.tr(context),
       'icon': Icons.home,
-      'color': AppTheme.primaryGreen,
+      'color': ColorsAppQy.qyPrimary,
       'count': 1200,
       'locked': false,
     },
@@ -33,7 +40,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
       'title': QyAppLocalizationKeys.qyListeningCategoryBusiness.tr(context),
       'subtitle': QyAppLocalizationKeys.qyListeningCategoryBusinessDesc.tr(context),
       'icon': Icons.business,
-      'color': AppTheme.newColor,
+      'color': ColorsAppQy.qySecondary,
       'count': 800,
       'locked': false,
     },
@@ -41,7 +48,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
       'title': QyAppLocalizationKeys.qyListeningCategoryAcademic.tr(context),
       'subtitle': QyAppLocalizationKeys.qyListeningCategoryAcademicDesc.tr(context),
       'icon': Icons.school,
-      'color': AppTheme.learningColor,
+      'color': ColorsAppQy.qyAccent,
       'count': 600,
       'locked': false,
     },
@@ -49,7 +56,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
       'title': QyAppLocalizationKeys.qyListeningCategoryTravel.tr(context),
       'subtitle': QyAppLocalizationKeys.qyListeningCategoryTravelDesc.tr(context),
       'icon': Icons.flight,
-      'color': AppTheme.masteredColor,
+      'color': ColorsAppQy.qySuccess,
       'count': 400,
       'locked': false,
     },
@@ -57,7 +64,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
       'title': QyAppLocalizationKeys.qyListeningCategoryTech.tr(context),
       'subtitle': QyAppLocalizationKeys.qyListeningCategoryTechDesc.tr(context),
       'icon': Icons.computer,
-      'color': AppTheme.darkGreen,
+      'color': ColorsAppQy.qyInfo,
       'count': 500,
       'locked': false,
     },
@@ -65,7 +72,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
       'title': QyAppLocalizationKeys.qyListeningCategoryMedical.tr(context),
       'subtitle': QyAppLocalizationKeys.qyListeningCategoryMedicalDesc.tr(context),
       'icon': Icons.local_hospital,
-      'color': AppTheme.error,
+      'color': ColorsAppQy.qyWarning,
       'count': 300,
       'locked': false,
     },
@@ -81,13 +88,32 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: ComponentStyles.normalDuration,
+      duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: ComponentStyles.primaryCurve),
+      CurvedAnimation(parent: _controller, curve: ThemeAnimations.easeInOut),
     );
     _controller.forward();
+    _loadSettings();
+  }
+  
+  Future<void> _loadSettings() async {
+    final storage = StorageAppQy.instance;
+    final speed = await storage.getApp<int>('free_listening_speed');
+    final listeningTime = await storage.getApp<int>('free_listening_time');
+    if (mounted) {
+      setState(() {
+        _currentSpeed = speed ?? 1;
+        _listeningTime = listeningTime ?? 0;
+      });
+    }
+  }
+  
+  Future<void> _saveSettings() async {
+    final storage = StorageAppQy.instance;
+    await storage.setApp<int>('free_listening_speed', _currentSpeed);
+    await storage.setApp<int>('free_listening_time', _listeningTime);
   }
 
   @override
@@ -100,48 +126,72 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.lavenderGradient.colors[0].withOpacity(0.1),
-              AppTheme.lavenderGradient.colors[1].withOpacity(0.05),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Column(
-              children: [
-                _buildAppBar(),
-                _buildSpeedSelector(),
-                _buildStatsHeader(),
-                Expanded(
-                  child: _buildWordCategories(),
-                ),
-                _buildCurrentWord(),
-              ],
+      body: AnimatedBuilder(
+        animation: _fadeAnimation,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: ColorsAppQy.qyDynamicShimmerGradient(_fadeAnimation.value),
             ),
-          ),
-        ),
+            child: SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing16),
+                  child: Column(
+                    children: [
+                      _buildAppBar(),
+                      SizedBox(height: ThemeDimensions.spacing16),
+                      _buildBentoBoxContent(),
+                      SizedBox(height: ThemeDimensions.spacing16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
+    );
+  }
+  
+  Widget _buildBentoBoxContent() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildSpeedSelector(),
+            ),
+            SizedBox(width: ThemeDimensions.spacing16),
+            Expanded(
+              flex: 1,
+              child: _buildStatsHeader(),
+            ),
+          ],
+        ),
+        SizedBox(height: ThemeDimensions.spacing16),
+        _buildWordCategories(),
+        SizedBox(height: ThemeDimensions.spacing16),
+        _buildCurrentWord(),
+      ],
     );
   }
 
   Widget _buildAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing12,
+      ),
       child: Row(
         children: [
           BouncingButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Icon(
               Icons.arrow_back,
-              color: AppTheme.textPrimary,
+              color: ColorsAppQy.qyTextPrimary,
               size: 24,
             ),
           ),
@@ -150,15 +200,15 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
               children: [
                 Text(
                   QyAppLocalizationKeys.qyListeningFreeTitle.tr(context),
-                  style: AppTextStyles.headline4.copyWith(
-                    color: AppTheme.textPrimary,
+                  style: ThemeTextStyles.headlineSmall.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   QyAppLocalizationKeys.qyListeningFreeDesc.tr(context),
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppTheme.textSecondary,
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
                   ),
                 ),
               ],
@@ -168,7 +218,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             onPressed: _showListeningStats,
             child: Icon(
               Icons.analytics,
-              color: AppTheme.primaryGreen,
+              color: ColorsAppQy.qyPrimary,
               size: 24,
             ),
           ),
@@ -178,34 +228,32 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
   }
 
   Widget _buildSpeedSelector() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: ComponentStyles.primaryCardDecoration,
+    return GlassCard(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(ThemeDimensions.spacing16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               QyAppLocalizationKeys.qyListeningSpeed.tr(context),
-              style: AppTextStyles.headline5.copyWith(
-                color: AppTheme.textPrimary,
+              style: ThemeTextStyles.headlineSmall.copyWith(
+                color: ColorsAppQy.qyTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: ThemeDimensions.spacing12),
             Row(
               children: [
                 Expanded(
-                  child: _buildSpeedButton(0, QyAppLocalizationKeys.qyListeningSpeedSlow.tr(context), Icons.turtle_down, AppTheme.newColor),
+                  child: _buildSpeedButton(0, QyAppLocalizationKeys.qyListeningSpeedSlow.tr(context), Icons.slow_motion_video, ColorsAppQy.qySecondary),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: ThemeDimensions.spacing8),
                 Expanded(
-                  child: _buildSpeedButton(1, QyAppLocalizationKeys.qyListeningSpeedNormal.tr(context), Icons.play_arrow, AppTheme.primaryGreen),
+                  child: _buildSpeedButton(1, QyAppLocalizationKeys.qyListeningSpeedNormal.tr(context), Icons.play_arrow, ColorsAppQy.qyPrimary),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: ThemeDimensions.spacing8),
                 Expanded(
-                  child: _buildSpeedButton(2, QyAppLocalizationKeys.qyListeningSpeedFast.tr(context), Icons.fast_forward, AppTheme.learningColor),
+                  child: _buildSpeedButton(2, QyAppLocalizationKeys.qyListeningSpeedFast.tr(context), Icons.fast_forward, ColorsAppQy.qyAccent),
                 ),
               ],
             ),
@@ -219,9 +267,12 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
     final isSelected = _currentSpeed == speed;
 
     return BouncingButton(
-      onPressed: () => setState(() => _currentSpeed = speed),
+      onPressed: () {
+        setState(() => _currentSpeed = speed);
+        _saveSettings();
+      },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing12),
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
@@ -229,9 +280,9 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                 )
               : null,
           color: isSelected ? null : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: ThemeDimensions.borderRadiusS,
           border: Border.all(
-            color: isSelected ? color : AppTheme.borderLight,
+            color: isSelected ? color : ColorsAppQy.qyBorderLight,
             width: isSelected ? 0 : 2,
           ),
         ),
@@ -245,7 +296,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             const SizedBox(height: 4),
             Text(
               label,
-              style: AppTextStyles.bodyMedium.copyWith(
+              style: ThemeTextStyles.bodyMedium.copyWith(
                 color: isSelected ? Colors.white : color,
                 fontWeight: FontWeight.w600,
               ),
@@ -258,49 +309,56 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
 
   Widget _buildStatsHeader() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: AppTheme.lavenderGradient,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
+      margin: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
+      child: GlassCard(
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.spacing16),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: ColorsAppQy.qyPrimaryGradient,
+              borderRadius: ThemeDimensions.borderRadiusM,
+            ),
+            child: Row(
+              children: [
+                Expanded(
             child: _buildStatItem(
               QyAppLocalizationKeys.qyListeningTodayListening.tr(context),
               '${(_listeningTime / 60).toInt()} 分钟',
               Icons.access_time,
               Colors.white,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  QyAppLocalizationKeys.qyListeningLearnedWords.tr(context),
+                  '89',
+                  Icons.headphones,
+                  Colors.white,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  QyAppLocalizationKeys.qyListeningStreakDays.tr(context),
+                  '7 天',
+                  Icons.local_fire_department,
+                  Colors.white,
+                ),
+              ),
+              ],
             ),
           ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.white.withOpacity(0.3),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              QyAppLocalizationKeys.qyListeningLearnedWords.tr(context),
-              '89',
-              Icons.headphones,
-              Colors.white,
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.white.withOpacity(0.3),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              QyAppLocalizationKeys.qyListeningStreakDays.tr(context),
-              '7 天',
-              Icons.local_fire_department,
-              Colors.white,
-            ),
-          ),
-        ],
+        ),
+        borderRadius: ThemeDimensions.borderRadiusM,
       ),
     );
   }
@@ -312,7 +370,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         const SizedBox(height: 8),
         Text(
           value,
-          style: AppTextStyles.bodyLarge.copyWith(
+          style: ThemeTextStyles.bodyLarge.copyWith(
             color: color,
             fontWeight: FontWeight.bold,
           ),
@@ -320,7 +378,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         const SizedBox(height: 4),
         Text(
           label,
-          style: AppTextStyles.bodySmall.copyWith(
+              style: ThemeTextStyles.bodySmall.copyWith(
             color: color.withOpacity(0.9),
           ),
         ),
@@ -340,25 +398,9 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             padding: const EdgeInsets.only(bottom: 12),
             child: BouncingButton(
               onPressed: () => _selectCategory(category),
-              child: Container(
-                decoration: ComponentStyles.primaryCardDecoration,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        (category['color'] as Color).withOpacity(0.1),
-                        Colors.white.withOpacity(0.9),
-                      ],
-                    ),
-                    border: Border.all(
-                      color: (category['color'] as Color).withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
+              child: GlassCard(
+                child: Padding(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing20),
                   child: Row(
                     children: [
                       Container(
@@ -366,7 +408,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                         height: 50,
                         decoration: BoxDecoration(
                           color: (category['color'] as Color).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Icon(
                           category['icon'] as IconData,
@@ -381,16 +423,16 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                           children: [
                             Text(
                               category['title'] as String,
-                              style: AppTextStyles.headline5.copyWith(
-                                color: AppTheme.textPrimary,
+                              style: ThemeTextStyles.headlineSmall.copyWith(
+                                color: ColorsAppQy.qyTextPrimary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               category['subtitle'] as String,
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                color: AppTheme.textSecondary,
+                              style: ThemeTextStyles.bodyMedium.copyWith(
+                                color: ColorsAppQy.qyTextSecondary,
                               ),
                             ),
                           ],
@@ -401,7 +443,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                         children: [
                           Text(
                             '${category['count']} 词',
-                            style: AppTextStyles.bodyMedium.copyWith(
+                            style: ThemeTextStyles.bodyMedium.copyWith(
                               color: category['color'] as Color,
                               fontWeight: FontWeight.bold,
                             ),
@@ -417,6 +459,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                     ],
                   ),
                 ),
+                borderRadius: ThemeDimensions.borderRadiusM,
               ),
             ),
           ),
@@ -427,37 +470,37 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
 
   Widget _buildCurrentWord() {
     if (_selectedCategory.isEmpty) {
-      return Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(24),
-        decoration: ComponentStyles.primaryCardDecoration,
-        child: Column(
+      return GlassCard(
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.spacing24),
+          child: Column(
           children: [
             Icon(
               Icons.category,
-              color: AppTheme.textHint,
+              color: ColorsAppQy.qyTextSecondary,
               size: 48,
             ),
             const SizedBox(height: 16),
             Text(
               QyAppLocalizationKeys.qyListeningSelectCategory.tr(context),
-              style: AppTextStyles.bodyLarge.copyWith(
-                color: AppTheme.textSecondary,
+              style: ThemeTextStyles.bodyLarge.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
               ),
               textAlign: TextAlign.center,
             ),
           ],
         ),
-      );
+      ),
+      borderRadius: ThemeDimensions.borderRadiusM,
+    );
     }
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.gradientCardDecoration,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
+    return GlassCard(
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.spacing20),
+        child: Container(
+          padding: EdgeInsets.all(ThemeDimensions.spacing20),
+          decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -472,23 +515,23 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
           children: [
             Text(
               QyAppLocalizationKeys.qyListeningCurrentWord.tr(context),
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppTheme.textSecondary,
+              style: ThemeTextStyles.bodyMedium.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: ThemeDimensions.spacing12),
             Text(
               'Hello World',
-              style: AppTextStyles.headline3.copyWith(
-                color: AppTheme.primaryGreen,
+              style: ThemeTextStyles.headlineMedium.copyWith(
+                color: ColorsAppQy.qyPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: ThemeDimensions.spacing12),
             Text(
               '你好，世界',
-              style: AppTextStyles.bodyLarge.copyWith(
-                color: AppTheme.textPrimary,
+              style: ThemeTextStyles.bodyLarge.copyWith(
+                color: ColorsAppQy.qyTextPrimary,
               ),
             ),
             const SizedBox(height: 20),
@@ -500,7 +543,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
+                        gradient: ColorsAppQy.qyPrimaryGradient,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -511,10 +554,13 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                             color: Colors.white,
                             size: 24,
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: ThemeDimensions.spacing8),
                           Text(
                             _isPlaying ? QyAppLocalizationKeys.qyListeningStop.tr(context) : QyAppLocalizationKeys.qyListeningPlay.tr(context),
-                            style: AppTextStyles.buttonText,
+                            style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
                           ),
                         ],
                       ),
@@ -530,13 +576,13 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppTheme.primaryGreen,
+                        color: ColorsAppQy.qyPrimary,
                         width: 2,
                       ),
                     ),
                     child: Icon(
                       Icons.skip_next,
-                      color: AppTheme.primaryGreen,
+                      color: ColorsAppQy.qyPrimary,
                       size: 24,
                     ),
                   ),
@@ -545,7 +591,9 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             ),
           ],
         ),
+        ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusM,
     );
   }
 
@@ -589,7 +637,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(QyAppLocalizationKeys.qyListeningNextWordTip.tr(context)),
-        backgroundColor: AppTheme.primaryGreen,
+                backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
@@ -603,8 +651,8 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         ),
         title: Text(
           QyAppLocalizationKeys.qyListeningStats.tr(context),
-          style: AppTextStyles.headline5.copyWith(
-            color: AppTheme.textPrimary,
+          style: ThemeTextStyles.headlineSmall.copyWith(
+            color: ColorsAppQy.qyTextPrimary,
           ),
         ),
         content: Column(
@@ -623,12 +671,15 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: AppTheme.primaryGreen,
-                borderRadius: BorderRadius.circular(12),
+                color: ColorsAppQy.qyPrimary,
+                borderRadius: ThemeDimensions.borderRadiusS,
               ),
               child: Text(
                 QyAppLocalizationKeys.qyClose.tr(context),
-                style: AppTextStyles.buttonText,
+                style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -645,14 +696,14 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
         children: [
           Text(
             label,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppTheme.textSecondary,
+            style: ThemeTextStyles.bodyMedium.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
             ),
           ),
           Text(
             value,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.bodyMedium.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),

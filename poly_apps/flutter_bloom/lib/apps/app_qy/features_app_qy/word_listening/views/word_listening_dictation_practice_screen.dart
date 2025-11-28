@@ -1,11 +1,18 @@
 /// Word Listening Dictation Practice screen
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, bento box layout
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../../../../common/localization/localization_manager.dart';
-import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_animations.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 
 class WordListeningDictationPracticeScreen extends StatefulWidget {
   final String level;
@@ -47,13 +54,35 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: ComponentStyles.normalDuration,
+      duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: ComponentStyles.primaryCurve),
+      CurvedAnimation(parent: _controller, curve: ThemeAnimations.easeInOut),
     );
     _controller.forward();
+    _loadProgress();
+  }
+  
+  Future<void> _loadProgress() async {
+    final storage = StorageAppQy.instance;
+    final progress = await storage.getApp<Map<String, dynamic>>('dictation_practice_${widget.level}_progress');
+    if (mounted && progress != null) {
+      setState(() {
+        _currentWordIndex = (progress['currentIndex'] as int?) ?? 0;
+        _correctAnswers = (progress['correctAnswers'] as int?) ?? 0;
+        _totalAttempts = (progress['totalAttempts'] as int?) ?? 0;
+      });
+    }
+  }
+  
+  Future<void> _saveProgress() async {
+    final storage = StorageAppQy.instance;
+    await storage.setApp<Map<String, dynamic>>('dictation_practice_${widget.level}_progress', {
+      'currentIndex': _currentWordIndex,
+      'correctAnswers': _correctAnswers,
+      'totalAttempts': _totalAttempts,
+    });
   }
 
   @override
@@ -68,79 +97,152 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
     final currentWord = _words[_currentWordIndex];
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.learningGradient.colors[0].withOpacity(0.15),
-              AppTheme.learningGradient.colors[1].withOpacity(0.08),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Column(
-              children: [
-                _buildAppBar(),
-                _buildProgressBar(),
-                Expanded(
-                  child: _buildContent(currentWord),
-                ),
-                _buildBottomActions(),
-              ],
+      body: AnimatedBuilder(
+        animation: _fadeAnimation,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: ColorsAppQy.qyDynamicShimmerGradient(_fadeAnimation.value),
             ),
-          ),
+            child: SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(ThemeDimensions.spacing16),
+                  child: Column(
+                    children: [
+                      _buildAppBar(),
+                      SizedBox(height: ThemeDimensions.spacing16),
+                      _buildProgressBar(),
+                      SizedBox(height: ThemeDimensions.spacing16),
+                      _buildBentoBoxContent(currentWord),
+                      SizedBox(height: ThemeDimensions.spacing16),
+                      _buildBottomActions(),
+                      SizedBox(height: ThemeDimensions.spacing16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  Widget _buildBentoBoxContent(Map<String, dynamic> currentWord) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildAudioPlayer(currentWord),
+            ),
+            SizedBox(width: ThemeDimensions.spacing16),
+            Expanded(
+              flex: 1,
+              child: _buildStatsCard(),
+            ),
+          ],
+        ),
+        SizedBox(height: ThemeDimensions.spacing16),
+        _buildAnswerInput(currentWord),
+        if (_showResult) ...[
+          SizedBox(height: ThemeDimensions.spacing16),
+          _buildResult(currentWord),
+        ],
+      ],
+    );
+  }
+  
+  Widget _buildStatsCard() {
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
+    return GlassCard(
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.spacing16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle,
+              color: ColorsAppQy.qySuccess,
+              size: ThemeDimensions.iconSizeL,
+            ),
+            SizedBox(height: ThemeDimensions.spacing8),
+            Text(
+              '$accuracy%',
+              style: ThemeTextStyles.headlineMedium.copyWith(
+                color: ColorsAppQy.qyTextPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: ThemeDimensions.spacing4),
+            Text(
+              QyAppLocalizationKeys.qyListeningAccuracy.tr(context),
+              style: ThemeTextStyles.bodySmall.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusM,
     );
   }
 
   Widget _buildAppBar() {
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing12,
+      ),
       child: Row(
         children: [
           BouncingButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Icon(
               Icons.close,
-              color: AppTheme.textPrimary,
-              size: 24,
+              color: ColorsAppQy.qyTextPrimary,
+              size: ThemeDimensions.iconSizeM,
             ),
           ),
+          SizedBox(width: ThemeDimensions.spacing8),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.title,
-                  style: AppTextStyles.headline5.copyWith(
-                    color: AppTheme.textPrimary,
+                  style: ThemeTextStyles.headlineSmall.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   QyAppLocalizationKeys.qyListeningQuestionNumber.tr(context).replaceAll('{index}', '${_currentWordIndex + 1}').replaceAll('{total}', '${_words.length}'),
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppTheme.textSecondary,
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
                   ),
                 ),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.spacing12,
+              vertical: ThemeDimensions.spacing6,
+            ),
             decoration: BoxDecoration(
-              color: AppTheme.primaryGreen.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+              borderRadius: ThemeDimensions.borderRadiusS,
             ),
             child: Text(
-              '${QyAppLocalizationKeys.qyListeningAccuracy.tr(context)}: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0}%',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppTheme.primaryGreen,
+              '$accuracy%',
+              style: ThemeTextStyles.bodySmall.copyWith(
+                color: ColorsAppQy.qyPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -151,85 +253,65 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
   }
 
   Widget _buildProgressBar() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                QyAppLocalizationKeys.qyListeningProgress.tr(context),
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppTheme.textSecondary,
+    return GlassCard(
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.spacing16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  QyAppLocalizationKeys.qyListeningProgress.tr(context),
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
+                  ),
                 ),
-              ),
-              Text(
-                '${(_currentWordIndex / _words.length * 100).toInt()}%',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppTheme.primaryGreen,
-                  fontWeight: FontWeight.bold,
+                Text(
+                  '${(_currentWordIndex / _words.length * 100).toInt()}%',
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: ColorsAppQy.qyPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 6,
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceLight,
-              borderRadius: BorderRadius.circular(3),
+              ],
             ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: _currentWordIndex / _words.length,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(3),
+            SizedBox(height: ThemeDimensions.spacing8),
+            Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: ColorsAppQy.qyHolographicMedium,
+                borderRadius: ThemeDimensions.borderRadiusS,
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: _currentWordIndex / _words.length,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: ColorsAppQy.qyPrimaryGradient,
+                    borderRadius: ThemeDimensions.borderRadiusS,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusM,
     );
   }
 
-  Widget _buildContent(Map<String, dynamic> currentWord) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildAudioPlayer(currentWord),
-          const SizedBox(height: 24),
-          _buildAnswerInput(currentWord),
-          if (_showResult) ...[
-            const SizedBox(height: 24),
-            _buildResult(currentWord),
-          ],
-        ],
-      ),
-    );
-  }
 
   Widget _buildAudioPlayer(Map<String, dynamic> currentWord) {
     return AnimationUtils.fadeInWithSlide(
-      child: Container(
-        decoration: ComponentStyles.gradientCardDecoration,
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.9),
-                Colors.white.withOpacity(0.7),
-              ],
+      GlassCard(
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.spacing32),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: ColorsAppQy.qyPrimaryGradient,
+              borderRadius: ThemeDimensions.borderRadiusL,
             ),
-          ),
           child: Column(
             children: [
               AnimationUtils.pulse(
@@ -237,24 +319,24 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    gradient: AppTheme.learningGradient,
-                    borderRadius: BorderRadius.circular(50),
+                    gradient: ColorsAppQy.qySecondaryGradient,
+                    borderRadius: ThemeDimensions.borderRadiusXL,
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.learningPrimary.withOpacity(0.3),
+                        color: ColorsAppQy.qySecondary.withOpacity(0.3),
                         blurRadius: 15,
-                        offset: const Offset(0, 8),
+                        offset: Offset(0, 8),
                       ),
                     ],
                   ),
                   child: Icon(
                     _isPlaying ? Icons.volume_up : Icons.headphones,
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     size: 50,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: ThemeDimensions.spacing24),
               BouncingButton(
                 onPressed: _playWord,
                 child: Container(

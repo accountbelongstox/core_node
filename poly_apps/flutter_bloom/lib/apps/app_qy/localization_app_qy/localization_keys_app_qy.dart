@@ -757,6 +757,17 @@ class QyAppLocalizationKeys {
   static const String qyListeningStats = 'qy_listening_stats';
   static const String qyListeningAddToVocab = 'qy_listening_add_to_vocab';
   static const String qyListeningPracticing = 'qy_listening_practicing';
+  static const String qyListeningMastered = 'qy_listening_mastered';
+  static const String qyListeningAccuracyRate = 'qy_listening_accuracy_rate';
+  static const String qyListeningDictationTraining = 'qy_listening_dictation_training';
+  static const String qyListeningDictationTrainingDesc = 'qy_listening_dictation_training_desc';
+  static const String qyListeningWordCount = 'qy_listening_word_count';
+  static const String qyListeningUnlockAfterCurrentLevel = 'qy_listening_unlock_after_current_level';
+  static const String qyListeningDictationHelp = 'qy_listening_dictation_help';
+  static const String qyListeningHelpHowToPractice = 'qy_listening_help_how_to_practice';
+  static const String qyListeningHelpPracticeSteps = 'qy_listening_help_practice_steps';
+  static const String qyListeningHelpTipsContent = 'qy_listening_help_tips_content';
+  static const String qyListeningDailyChallengeInDev = 'qy_listening_daily_challenge_in_dev';
   static const String qyListeningDailyChallenge = 'qy_listening_daily_challenge';
   static const String qyListeningUnlockTip = 'qy_listening_unlock_tip';
   static const String qyListeningHelp = 'qy_listening_help';
@@ -772,6 +783,18 @@ class QyAppLocalizationKeys {
   static const String qyListeningSettings = 'qy_listening_settings';
   static const String qyListeningPlaying = 'qy_listening_playing';
   static const String qyListeningPaused = 'qy_listening_paused';
+  static const String qyListeningClickToPlay = 'qy_listening_click_to_play';
+  static const String qyListeningWriteWord = 'qy_listening_write_word';
+  static const String qyListeningInputWord = 'qy_listening_input_word';
+  static const String qyListeningPreviousAttempts = 'qy_listening_previous_attempts';
+  static const String qyListeningHintShown = 'qy_listening_hint_shown';
+  static const String qyListeningShowHint = 'qy_listening_show_hint';
+  static const String qyListeningCheckAnswer = 'qy_listening_check_answer';
+  static const String qyListeningReplay = 'qy_listening_replay';
+  static const String qyListeningEasy = 'qy_listening_easy';
+  static const String qyListeningMedium = 'qy_listening_medium';
+  static const String qyListeningHard = 'qy_listening_hard';
+  static const String qyListeningUnknown = 'qy_listening_unknown';
 
   // Word Listening - Sleep Mode
   static const String qyListeningSleepTitle = 'qy_listening_sleep_title';
