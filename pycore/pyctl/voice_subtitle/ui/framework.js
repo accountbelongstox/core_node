@@ -36,7 +36,8 @@ const navItems = document.querySelectorAll('.nav-item');
 const modules = {
     'voice-player': document.getElementById('module-voice-player'),
     'queue-manager': document.getElementById('module-queue-manager'),
-    'window-automation': document.getElementById('module-window-automation')
+    'window-automation': document.getElementById('module-window-automation'),
+    'code-sync': document.getElementById('module-code-sync')
 };
 
 // ========== Initialization ==========
@@ -92,6 +93,8 @@ function switchModule(moduleName) {
     // Refresh module-specific data
     if (moduleName === 'queue-manager') {
         fetchQueueList();
+    } else if (moduleName === 'code-sync') {
+        refreshCodeSyncStatus();
     }
 }
 
@@ -521,6 +524,15 @@ function setupEventListeners() {
             fetchQueue();
         }
     });
+
+    // Code Sync controls
+    document.getElementById('startSyncBtn')?.addEventListener('click', startCodeSync);
+    document.getElementById('stopSyncBtn')?.addEventListener('click', stopCodeSync);
+    document.getElementById('codeSyncMode')?.addEventListener('change', (e) => {
+        console.log('[Code Sync] Mode selector changed:', e.target.value);
+        // Update display based on selected mode
+        updateCodeSyncPanelVisibility(e.target.value);
+    });
 }
 
 // ========== Quick Add Functions ==========
@@ -848,6 +860,157 @@ function toggleSubtitleMode() {
     } else {
         enterSubtitleMode();
     }
+}
+
+// ========== Code Sync Functions ==========
+
+// Code sync state
+let codeSyncRefreshInterval = null;
+
+async function startCodeSync() {
+    const mode = document.getElementById('codeSyncMode')?.value || 'server';
+
+    try {
+        let data;
+        if (mode === 'server') {
+            data = await api.startCodeSyncServer();
+        } else {
+            data = await api.startCodeSyncClient();
+        }
+
+        if (data.success) {
+            dialog.success(`Code sync ${mode} mode started`);
+
+            // Update UI
+            document.getElementById('startSyncBtn').style.display = 'none';
+            document.getElementById('stopSyncBtn').style.display = 'inline-block';
+            document.getElementById('codeSyncMode').disabled = true;
+
+            // Start auto-refresh
+            refreshCodeSyncStatus();
+            codeSyncRefreshInterval = setInterval(refreshCodeSyncStatus, 3000);
+        } else {
+            dialog.error(`Failed to start code sync: ${data.message || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('[Code Sync] Start error:', error);
+        dialog.error(`Failed to start code sync: ${error.message}`);
+    }
+}
+
+async function stopCodeSync() {
+    try {
+        const data = await api.stopCodeSync();
+
+        if (data.success) {
+            dialog.success('Code sync stopped');
+
+            // Update UI
+            document.getElementById('startSyncBtn').style.display = 'inline-block';
+            document.getElementById('stopSyncBtn').style.display = 'none';
+            document.getElementById('codeSyncMode').disabled = false;
+
+            // Stop auto-refresh
+            if (codeSyncRefreshInterval) {
+                clearInterval(codeSyncRefreshInterval);
+                codeSyncRefreshInterval = null;
+            }
+
+            // Final status update
+            refreshCodeSyncStatus();
+        } else {
+            dialog.error(`Failed to stop code sync: ${data.message || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('[Code Sync] Stop error:', error);
+        dialog.error(`Failed to stop code sync: ${error.message}`);
+    }
+}
+
+async function refreshCodeSyncStatus() {
+    try {
+        const data = await api.getCodeSyncStatus();
+
+        if (data.success) {
+            updateCodeSyncUI(data);
+        }
+    } catch (error) {
+        console.error('[Code Sync] Status refresh error:', error);
+    }
+}
+
+function updateCodeSyncUI(statusData) {
+    const mode = statusData.mode || 'disabled';
+
+    // Update status panel
+    document.getElementById('syncStatus').textContent = mode === 'disabled' ? 'Stopped' : 'Running';
+    document.getElementById('syncModeDisplay').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+
+    // Update panel visibility
+    updateCodeSyncPanelVisibility(mode);
+
+    // Update server mode stats
+    if (mode === 'server' && statusData.server) {
+        const server = statusData.server;
+        document.getElementById('serverTotalFiles').textContent = server.total_files || 0;
+        document.getElementById('serverChangedFiles').textContent = server.changed_files || 0;
+        document.getElementById('serverClientCount').textContent = server.clients_count || 0;
+
+        // Update clients table
+        updateClientsTable(server.clients || []);
+    }
+
+    // Update client mode stats
+    if (mode === 'client' && statusData.client) {
+        const client = statusData.client;
+        document.getElementById('clientReceivedFiles').textContent = client.received_files_count || 0;
+        document.getElementById('clientConnected').textContent = client.connected ? 'Yes' : 'No';
+        document.getElementById('serverHost').textContent = client.server_host || '-';
+        document.getElementById('serverPort').textContent = client.server_port || '-';
+        document.getElementById('clientId').textContent = client.client_id || '-';
+    }
+}
+
+function updateCodeSyncPanelVisibility(mode) {
+    const serverPanel = document.getElementById('serverModePanel');
+    const clientPanel = document.getElementById('clientModePanel');
+
+    if (mode === 'server') {
+        serverPanel.style.display = 'block';
+        clientPanel.style.display = 'none';
+    } else if (mode === 'client') {
+        serverPanel.style.display = 'none';
+        clientPanel.style.display = 'block';
+    } else {
+        // Default to server panel for disabled state
+        serverPanel.style.display = 'block';
+        clientPanel.style.display = 'none';
+    }
+}
+
+function updateClientsTable(clients) {
+    const tbody = document.getElementById('clientsTableBody');
+
+    if (!clients || clients.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No connected clients</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    clients.forEach(client => {
+        const connectedAt = new Date(client.connected_at).toLocaleString();
+        const lastSeen = new Date(client.last_seen).toLocaleString();
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${client.id}">${client.id.substring(0, 20)}...</td>
+            <td>${client.ip}</td>
+            <td style="font-size: 12px;">${connectedAt}</td>
+            <td style="font-size: 12px;">${lastSeen}</td>
+            <td>${client.synced_files || 0}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 // ========== RPC Connection Events ==========

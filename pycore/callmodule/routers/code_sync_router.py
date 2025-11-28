@@ -45,9 +45,10 @@ class ChangesResponse(BaseModel):
 
 
 class StatusResponse(BaseModel):
+    success: bool = True
     mode: str  # "server", "client", or "disabled"
-    server_status: Optional[Dict] = None
-    client_status: Optional[Dict] = None
+    server: Optional[Dict] = None
+    client: Optional[Dict] = None
 
 
 # Endpoints
@@ -168,12 +169,12 @@ async def get_status():
         if mode == "server":
             server = manager.get_server()
             if server:
-                response.server_status = server.get_status()
+                response.server = server.get_status()
 
         elif mode == "client":
             client = manager.get_client()
             if client:
-                response.client_status = client.get_status()
+                response.client = client.get_status()
 
         return response
 
