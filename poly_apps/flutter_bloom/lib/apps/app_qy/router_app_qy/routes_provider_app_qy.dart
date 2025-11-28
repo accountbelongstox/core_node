@@ -259,21 +259,21 @@ class QyAppRoutesProvider {
         // name: 'qy_course_lesson',
         // builder: (context, state) => CourseLessonScreenRefactoredAppQy(
           // lessonId: state.uri.queryParameters['lessonId'] ?? '1',
-        ),
+        // ),
       // ),
       // GoRoute(
         // path: routeCourseProgress,
         // name: 'qy_course_progress',
         // builder: (context, state) => CourseProgressScreenRefactoredAppQy(
           // courseId: state.uri.queryParameters['courseId'] ?? '1',
-        ),
+        // ),
       // ),
       // GoRoute(
         // path: routeCourseReview,
         // name: 'qy_course_review',
         // builder: (context, state) => CourseReviewScreenRefactoredAppQy(
           // courseId: state.uri.queryParameters['courseId'] ?? '1',
-        ),
+        // ),
       // ),
       // GoRoute(
         // path: routeCourseSearch,
@@ -285,7 +285,7 @@ class QyAppRoutesProvider {
         // name: 'qy_course_certificate',
         // builder: (context, state) => CourseCertificateScreenRefactoredAppQy(
           // courseId: state.uri.queryParameters['courseId'] ?? '1',
-        ),
+        // ),
       // ),
 
       // Word routes
