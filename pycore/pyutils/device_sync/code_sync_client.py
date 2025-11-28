@@ -52,8 +52,8 @@ class CodeSyncClient:
         self.scan_thread: Optional[threading.Thread] = None
         self.sync_thread: Optional[threading.Thread] = None
 
-        # Received files tracking
-        self.received_files: Dict[str, float] = {}  # path -> mtime
+        # Received files tracking (mirror server's client state format)
+        self.received_file_states: Dict[str, Tuple[float, str]] = {}  # path -> (mtime, hash)
 
         ColorPrint.green(f"[CodeSync Client] Initialized with target: {self.target_dir}")
         ColorPrint.blue(f"[CodeSync Client] Client ID: {self.client_id}")
@@ -336,7 +336,7 @@ class CodeSyncClient:
                 local_time = datetime.fromtimestamp(local_mtime).strftime('%Y-%m-%d %H:%M:%S')
 
                 ColorPrint.yellow(f"[CodeSync Client] WOULD OVERWRITE: {rel_path}")
-                ColorPrint.yellow(f"  Server: {server_time} | Local: {local_time}")
+                ColorPrint.yellow(f"  Server: {server_time} ({server_hash[:8]}) | Local: {local_time}")
 
                 # TEST MODE: Don't actually overwrite
                 # In production, would download and overwrite here
@@ -352,8 +352,8 @@ class CodeSyncClient:
             # TEST MODE: Don't actually create
             # In production, would download and create here
 
-        # Track received file
-        self.received_files[rel_path] = server_mtime
+        # Track received file state (mirror server format)
+        self.received_file_states[rel_path] = (server_mtime, server_hash)
 
     def get_status(self) -> Dict:
         """Get client status"""
@@ -365,7 +365,7 @@ class CodeSyncClient:
             'server_host': self.server_host,
             'server_port': self.server_port,
             'scan_interval': self.scan_interval,
-            'received_files_count': len(self.received_files)
+            'received_files_count': len(self.received_file_states)
         }
 
 

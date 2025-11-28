@@ -92,6 +92,15 @@ class QyAppLocalizationKeys {
   static const String qyLogin = 'qy_login';
   static const String qyLoginFailed = 'qy_login_failed';
   static const String qyRegister = 'qy_register';
+  static const String qyRegisterSuccess = 'qy_register_success';
+  static const String qyRegisterFailed = 'qy_register_failed';
+  static const String qyPasswordsDoNotMatch = 'qy_passwords_do_not_match';
+  static const String qyInvalidRegistrationData = 'qy_invalid_registration_data';
+  static const String qySwitchToRegister = 'qy_switch_to_register';
+  static const String qySwitchToLogin = 'qy_switch_to_login';
+  static const String qyRegisterToContinue = 'qy_register_to_continue';
+  static const String qyPleaseEnterEmail = 'qy_please_enter_email';
+  static const String qyPleaseEnterConfirmPassword = 'qy_please_enter_confirm_password';
   static const String qyForgotPassword = 'qy_forgot_password';
   static const String qyResetPassword = 'qy_reset_password';
   static const String qyChangePassword = 'qy_change_password';
@@ -987,6 +996,8 @@ class QyAppLocalizationKeys {
   static const String qyCourseVipCta = 'qy_course_vip_cta';
   static const String qyCoursePlanBadgeAdvanced = 'qy_course_plan_badge_advanced';
   static const String qyCoursePlanBadgeFlagship = 'qy_course_plan_badge_flagship';
+  static const String qyCourseFeaturedTitle1 = 'qy_course_featured_title_1';
+  static const String qyCourseFeaturedTitle2 = 'qy_course_featured_title_2';
   static const String qyCoursePlanTitleCareerUpgrade = 'qy_course_plan_title_career_upgrade';
   static const String qyCoursePlanDescriptionCareerUpgrade = 'qy_course_plan_description_career_upgrade';
   static const String qyCoursePlanDuration12Weeks = 'qy_course_plan_duration_12_weeks';
@@ -1382,6 +1393,7 @@ class QyAppLocalizationKeys {
   static const String qyHomeListeningSpeaking = 'qy_home_listening_speaking';
   static const String qyHomeLearnSettings = 'qy_home_learn_settings';
   static const String qyHomeLearnData = 'qy_home_learn_data';
+  static const String qyHomeWatchImpact = 'qy_home_watch_impact';
   static const String qyHomeLearned = 'qy_home_learned';
   static const String qyHomeWordsTotal = 'qy_home_words_total';
   static const String qyHomeNewWords = 'qy_home_new_words';

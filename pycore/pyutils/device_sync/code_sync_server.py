@@ -25,7 +25,8 @@ class CodeSyncClient:
         self.ip = ip
         self.connected_at = datetime.now()
         self.last_seen = datetime.now()
-        self.synced_files: Set[str] = set()  # Files already synced to this client
+        # Track synced files with their state (mtime, hash)
+        self.synced_file_states: Dict[str, Tuple[float, str]] = {}
         self.is_initial_sync_done = False
 
     def update_last_seen(self):
@@ -35,6 +36,15 @@ class CodeSyncClient:
     def is_expired(self, timeout_minutes: int = 5) -> bool:
         """Check if client connection expired"""
         return (datetime.now() - self.last_seen) > timedelta(minutes=timeout_minutes)
+
+    def mark_files_synced(self, file_states: Dict[str, Tuple[float, str]]):
+        """
+        Mark files as synced with their current state
+
+        Args:
+            file_states: {relative_path: (mtime, hash)}
+        """
+        self.synced_file_states.update(file_states)
 
 
 class CodeSyncServer:
@@ -96,7 +106,7 @@ class CodeSyncServer:
 
         Args:
             root_dir: Root directory to sync
-            scan_interval: Scan interval in seconds
+            scan_interval: Minimum interval between scans (seconds)
         """
         self.root_dir = Path(root_dir)
         self.scan_interval = scan_interval
@@ -105,13 +115,13 @@ class CodeSyncServer:
         self.clients: Dict[str, CodeSyncClient] = {}
         self.clients_lock = threading.Lock()
 
-        # File tracking
+        # File cache (for performance, avoid rescanning too frequently)
         self.file_cache: Dict[str, Tuple[float, str]] = {}  # path -> (mtime, hash)
-        self.changed_files: Set[str] = set()
+        self.file_cache_lock = threading.Lock()
+        self.last_scan_time: float = 0  # Last time we scanned the filesystem
 
         # Server state
         self.running = False
-        self.scan_thread: Optional[threading.Thread] = None
 
         ColorPrint.green(f"[CodeSync Server] Initialized with root: {self.root_dir}")
 
@@ -122,16 +132,7 @@ class CodeSyncServer:
             return
 
         self.running = True
-
-        # Start file scanner thread
-        self.scan_thread = threading.Thread(
-            target=self._scan_loop,
-            daemon=True,
-            name="CodeSync-Scanner"
-        )
-        self.scan_thread.start()
-
-        ColorPrint.green("[CodeSync Server] Started")
+        ColorPrint.green("[CodeSync Server] Started (on-demand scan mode)")
 
     def stop(self):
         """Stop code sync server"""
@@ -139,10 +140,6 @@ class CodeSyncServer:
             return
 
         self.running = False
-
-        if self.scan_thread:
-            self.scan_thread.join(timeout=2.0)
-
         ColorPrint.yellow("[CodeSync Server] Stopped")
 
     def register_client(self, client_id: str, ip: str) -> bool:
@@ -189,17 +186,27 @@ class CodeSyncServer:
         """
         ColorPrint.blue(f"[CodeSync Server] Preparing initial sync for {client_id}...")
 
+        # Trigger scan before initial sync
+        self._scan_if_needed()
+
         files = []
-        for file_path in self._scan_all_files():
+        file_states = {}
+
+        with self.file_cache_lock:
+            current_cache = self.file_cache.copy()
+
+        for rel_path, (mtime, file_hash) in current_cache.items():
+            file_path = self.root_dir / rel_path
             file_info = self._get_file_info(file_path)
             if file_info:
                 files.append(file_info)
+                file_states[rel_path] = (mtime, file_hash)
 
-        # Mark client as synced
+        # Mark client as synced with current file states
         with self.clients_lock:
             if client_id in self.clients:
                 client = self.clients[client_id]
-                client.synced_files = {f['relative_path'] for f in files}
+                client.mark_files_synced(file_states)
                 client.is_initial_sync_done = True
 
         ColorPrint.green(f"[CodeSync Server] Initial sync prepared: {len(files)} files for {client_id}")
@@ -207,13 +214,15 @@ class CodeSyncServer:
 
     def get_changed_files(self, client_id: str) -> List[Dict]:
         """
-        Get changed files for incremental sync (批量模式)
+        Get changed files for incremental sync
+
+        Compare client's synced state with current file cache to find changes.
 
         Args:
             client_id: Client identifier
 
         Returns:
-            List of changed file info dicts (批量返回所有变化的文件)
+            List of changed file info dicts
         """
         with self.clients_lock:
             if client_id not in self.clients:
@@ -227,81 +236,104 @@ class CodeSyncServer:
                 ColorPrint.yellow(f"[CodeSync Server] Client {client_id} not initialized")
                 return []
 
-        # 批量获取所有变化的文件
+            # Get client's synced state
+            client_synced_states = client.synced_file_states.copy()
+
+        # Trigger scan before checking changes
+        self._scan_if_needed()
+
+        # Compare with current file cache to find changes
         changed = []
-        for file_path in self.changed_files:
-            file_info = self._get_file_info(file_path)
-            if file_info:
-                changed.append(file_info)
+        new_states = {}
+
+        with self.file_cache_lock:
+            current_cache = self.file_cache.copy()
+
+        # Check for new or modified files
+        for rel_path, (current_mtime, current_hash) in current_cache.items():
+            if rel_path not in client_synced_states:
+                # New file for this client
+                file_path = self.root_dir / rel_path
+                file_info = self._get_file_info(file_path)
+                if file_info:
+                    changed.append(file_info)
+                    new_states[rel_path] = (current_mtime, current_hash)
+            else:
+                # Check if file changed
+                synced_mtime, synced_hash = client_synced_states[rel_path]
+                if current_hash != synced_hash or current_mtime > synced_mtime:
+                    # File modified
+                    file_path = self.root_dir / rel_path
+                    file_info = self._get_file_info(file_path)
+                    if file_info:
+                        changed.append(file_info)
+                        new_states[rel_path] = (current_mtime, current_hash)
+
+        # Update client's synced states
+        if new_states:
+            with self.clients_lock:
+                if client_id in self.clients:
+                    self.clients[client_id].mark_files_synced(new_states)
 
         if changed:
-            ColorPrint.green(f"[CodeSync Server] Batch sync for {client_id}: {len(changed)} files")
-
-        # 清空已推送的变化（批量推送后清空）
-        self.changed_files.clear()
+            ColorPrint.green(f"[CodeSync Server] Sync for {client_id}: {len(changed)} changed files")
 
         return changed
 
-    def _scan_loop(self):
-        """File scanner loop"""
-        ColorPrint.green("[CodeSync Server] Scanner started")
+    def _scan_if_needed(self):
+        """
+        Scan files only if needed (on-demand)
 
-        # Initial scan
-        self._scan_files()
+        Only rescans if more than scan_interval seconds have passed since last scan.
+        This avoids rescanning for every client request.
+        """
+        current_time = time.time()
 
-        while self.running:
-            try:
-                time.sleep(self.scan_interval)
+        # Check if we need to rescan
+        if current_time - self.last_scan_time < self.scan_interval:
+            # Recent scan exists, skip
+            return
 
-                if not self.running:
-                    break
+        ColorPrint.blue(f"[CodeSync Server] Scanning filesystem...")
+        start_time = time.time()
 
-                # Scan for changes
-                self._scan_files()
+        with self.file_cache_lock:
+            for file_path in self._scan_all_files():
+                rel_path = str(file_path.relative_to(self.root_dir))
 
-                # Cleanup expired clients
-                self._cleanup_expired_clients()
+                try:
+                    stat = file_path.stat()
+                    mtime = stat.st_mtime
 
-            except Exception as e:
-                ColorPrint.red(f"[CodeSync Server] Error in scan loop: {e}")
-                import traceback
-                traceback.print_exc()
+                    # Check if file changed
+                    if rel_path in self.file_cache:
+                        cached_mtime, cached_hash = self.file_cache[rel_path]
 
-        ColorPrint.yellow("[CodeSync Server] Scanner stopped")
+                        if mtime > cached_mtime:
+                            # File potentially modified, check hash
+                            file_hash = self._hash_file(file_path)
 
-    def _scan_files(self):
-        """Scan files for changes"""
-        self.changed_files.clear()
-
-        for file_path in self._scan_all_files():
-            rel_path = str(file_path.relative_to(self.root_dir))
-
-            try:
-                stat = file_path.stat()
-                mtime = stat.st_mtime
-
-                # Check if file changed
-                if rel_path in self.file_cache:
-                    cached_mtime, cached_hash = self.file_cache[rel_path]
-
-                    if mtime > cached_mtime:
-                        # File modified
+                            if file_hash != cached_hash:
+                                # Content changed
+                                self.file_cache[rel_path] = (mtime, file_hash)
+                                ColorPrint.blue(f"[CodeSync Server] File changed: {rel_path}")
+                    else:
+                        # New file
                         file_hash = self._hash_file(file_path)
+                        self.file_cache[rel_path] = (mtime, file_hash)
+                        ColorPrint.green(f"[CodeSync Server] New file: {rel_path}")
 
-                        if file_hash != cached_hash:
-                            # Content changed
-                            self.file_cache[rel_path] = (mtime, file_hash)
-                            self.changed_files.add(file_path)
-                            ColorPrint.blue(f"[CodeSync Server] File changed: {rel_path}")
-                else:
-                    # New file
-                    file_hash = self._hash_file(file_path)
-                    self.file_cache[rel_path] = (mtime, file_hash)
-                    self.changed_files.add(file_path)
-                    ColorPrint.green(f"[CodeSync Server] New file: {rel_path}")
+                except Exception as e:
+                    ColorPrint.red(f"[CodeSync Server] Error scanning {rel_path}: {e}")
 
-            except Exception as e:
-                ColorPrint.red(f"[CodeSync Server] Error scanning {rel_path}: {e}")
+            # Update last scan time
+            self.last_scan_time = current_time
+
+        elapsed = time.time() - start_time
+        ColorPrint.green(f"[CodeSync Server] Scan complete: {len(self.file_cache)} files ({elapsed:.2f}s)")
+
+        # Cleanup expired clients periodically
+        self._cleanup_expired_clients()
 
     def _scan_all_files(self) -> List[Path]:
         """
@@ -385,25 +417,26 @@ class CodeSyncServer:
     def get_status(self) -> Dict:
         """Get server status"""
         with self.clients_lock:
-            return {
-                'running': self.running,
-                'root_dir': str(self.root_dir),
-                'scan_interval': self.scan_interval,
-                'clients_count': len(self.clients),
-                'clients': [
-                    {
-                        'id': client_id,
-                        'ip': client.ip,
-                        'connected_at': client.connected_at.isoformat(),
-                        'last_seen': client.last_seen.isoformat(),
-                        'synced_files': len(client.synced_files),
-                        'initial_sync_done': client.is_initial_sync_done
-                    }
-                    for client_id, client in self.clients.items()
-                ],
-                'total_files': len(self.file_cache),
-                'changed_files': len(self.changed_files)
-            }
+            with self.file_cache_lock:
+                return {
+                    'running': self.running,
+                    'root_dir': str(self.root_dir),
+                    'scan_interval': self.scan_interval,
+                    'clients_count': len(self.clients),
+                    'clients': [
+                        {
+                            'id': client_id,
+                            'ip': client.ip,
+                            'connected_at': client.connected_at.isoformat(),
+                            'last_seen': client.last_seen.isoformat(),
+                            'synced_files': len(client.synced_file_states),
+                            'initial_sync_done': client.is_initial_sync_done
+                        }
+                        for client_id, client in self.clients.items()
+                    ],
+                    'total_files': len(self.file_cache),
+                    'changed_files': 0  # Not tracked globally anymore
+                }
 
 
 # Global singleton

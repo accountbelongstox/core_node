@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/prayer_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/prayer_data.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/prayer_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
@@ -46,13 +47,14 @@ class PrayerScreen extends StatelessWidget {
           children: [
             Expanded(
               child: ListView.builder(
-                  itemCount: prayerList.length,
+                  itemCount: PrayerData.getMockPrayers().length,
                   itemBuilder: (_, index) {
+                    final prayers = PrayerData.getMockPrayers();
                     return Container(
                         height: 230,
                         decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(50)),
-                        child: PrayerWidget(prayerModel: prayerList[index]));
+                        child: PrayerWidget(prayerModel: prayers[index]));
                   }),
             ),
             Padding(

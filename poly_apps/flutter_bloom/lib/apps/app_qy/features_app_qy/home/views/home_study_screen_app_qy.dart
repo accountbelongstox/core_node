@@ -15,14 +15,16 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
+import 'dart:ui';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../widgets_app_qy/bottom_navigation_app_qy.dart';
 import '../../../models_app_qy/user_model_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../controllers/learning_controller_app_qy.dart';
+import '../data/home_features_data.dart';
 
 class HomeStudyScreenRefactoredAppQy extends StatefulWidget {
   const HomeStudyScreenRefactoredAppQy({super.key});
@@ -33,13 +35,28 @@ class HomeStudyScreenRefactoredAppQy extends StatefulWidget {
 }
 
 class _HomeStudyScreenRefactoredAppQyState
-    extends State<HomeStudyScreenRefactoredAppQy> {
+    extends State<HomeStudyScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LearningControllerAppQy>().loadLearningStats();
+      if (mounted) {
+        context.read<LearningControllerAppQy>().loadLearningStats();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
   }
 
   void _handleStartLearning() {
@@ -61,20 +78,39 @@ class _HomeStudyScreenRefactoredAppQyState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.background,
-      body: Consumer<LearningControllerAppQy>(
-        builder: (context, controller, child) {
-          return SafeArea(
-            child: Stack(
-              children: [
-                _buildMainContent(controller),
-                if (controller.showMoreFeatures)
-                  _buildMoreFeaturesDrawer(controller),
-              ],
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Consumer<LearningControllerAppQy>(
+              builder: (context, controller, child) {
+                return Stack(
+                  children: [
+                    _buildMainContent(controller),
+                    if (controller.showMoreFeatures)
+                      _buildMoreFeaturesDrawer(controller),
+                  ],
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyDynamicShimmerGradient(
+              _shimmerController.value,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -89,27 +125,24 @@ class _HomeStudyScreenRefactoredAppQyState
           child: controller.isLoading
               ? Center(
                   child: CircularProgressIndicator(
-                    color: ThemeColors.primary,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      ColorsAppQy.qyPrimary,
+                    ),
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: controller.refreshStats,
-                  color: ThemeColors.primary,
+                  color: ColorsAppQy.qyPrimary,
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: EdgeInsets.only(
-                      left: ThemeDimensions.paddingMedium,
-                      right: ThemeDimensions.paddingMedium,
-                      top: ThemeDimensions.paddingMedium,
-                      bottom: ThemeDimensions.paddingSmall,
-                    ),
+                    padding: const EdgeInsets.all(ThemeDimensions.spacing16),
                     child: Column(
                       children: [
-                        SizedBox(height: ThemeDimensions.spacingLarge),
+                        const SizedBox(height: ThemeDimensions.spacing16),
                         _buildProgressSection(stats),
-                        SizedBox(height: ThemeDimensions.spacingXLarge),
+                        const SizedBox(height: ThemeDimensions.spacing16),
                         _buildLearningStats(stats),
-                        SizedBox(height: ThemeDimensions.spacingXLarge),
+                        const SizedBox(height: ThemeDimensions.spacing16),
                         _buildStartButton(controller),
                       ],
                     ),
@@ -122,110 +155,133 @@ class _HomeStudyScreenRefactoredAppQyState
   }
 
   Widget _buildHeader(UserModelAppQy user) {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.shadow.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () {
-                  context.read<LearningControllerAppQy>().toggleMoreFeatures();
-                },
-                icon: Icon(
-                  Icons.menu,
-                  color: ThemeColors.textPrimary,
-                ),
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
               ),
-              SizedBox(width: ThemeDimensions.spacingSmall),
-              Text(
-                DateTime.now().hour.toString().padLeft(2, '0') +
-                    ':' +
-                    DateTime.now().minute.toString().padLeft(2, '0'),
-                style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      context
+                          .read<LearningControllerAppQy>()
+                          .toggleMoreFeatures();
+                    },
+                    icon: Icon(
+                      Icons.menu,
+                      color: ColorsAppQy.qyTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: ThemeDimensions.spacing8),
+                  Text(
+                    DateTime.now().hour.toString().padLeft(2, '0') +
+                        ':' +
+                        DateTime.now().minute.toString().padLeft(2, '0'),
+                    style: ThemeTextStyles.h3.copyWith(
+                      color: ColorsAppQy.qyTextPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    user.displayName ??
+                        QyAppLocalizationKeys.qyGuest.tr(context),
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: ColorsAppQy.qyTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: ThemeDimensions.spacing8),
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: ColorsAppQy.qyPrimary.withOpacity(0.2),
+                    child: Icon(
+                      Icons.person,
+                      size: 18,
+                      color: ColorsAppQy.qyPrimary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          Row(
-            children: [
-              Text(
-                user.displayName ?? QyAppLocalizationKeys.qyGuest.tr(context),
-                style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textPrimary),
-              ),
-              SizedBox(width: ThemeDimensions.spacingSmall),
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: ThemeColors.primary.withOpacity(0.1),
-                child: Icon(
-                  Icons.person,
-                  size: 18,
-                  color: ThemeColors.primary,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildProgressSection(dynamic stats) {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            ThemeColors.primary.withOpacity(0.1),
-            ThemeColors.secondary.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${QyAppLocalizationKeys.qyHomeLearned.tr(context)} ${stats.learnedPercentage}%',
-                style: ThemeTextStyles.body1.copyWith(
-                  color: ThemeColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 5),
               ),
-              Text(
-                '${stats.learnedWords}/${stats.totalWords}${QyAppLocalizationKeys.qyWords.tr(context)}',
-                style: ThemeTextStyles.body1.copyWith(
-                  color: ThemeColors.textSecondary,
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${QyAppLocalizationKeys.qyHomeLearned.tr(context)} ${stats.learnedPercentage}%',
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: ColorsAppQy.qyTextSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '${stats.learnedWords}/${stats.totalWords}${QyAppLocalizationKeys.qyWords.tr(context)}',
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: ColorsAppQy.qyTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: ThemeDimensions.spacing16),
+              ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusSmall),
+                child: LinearProgressIndicator(
+                  value: stats.learnedPercentage / 100,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
                 ),
               ),
             ],
           ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
-            child: LinearProgressIndicator(
-              value: stats.learnedPercentage / 100,
-              minHeight: 8,
-              backgroundColor: ThemeColors.border,
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -237,15 +293,15 @@ class _HomeStudyScreenRefactoredAppQyState
           child: _buildStatCard(
             QyAppLocalizationKeys.qyHomeNewWords.tr(context),
             '${stats.newWordsToday}/${stats.newWordsTarget}',
-            ThemeColors.primary,
+            ColorsAppQy.qyPrimary,
           ),
         ),
-        SizedBox(width: ThemeDimensions.spacingMedium),
+        const SizedBox(width: ThemeDimensions.spacing16),
         Expanded(
           child: _buildStatCard(
             QyAppLocalizationKeys.qyHomeReviewWords.tr(context),
             '${stats.reviewWordsToday}/${stats.reviewWordsTarget}',
-            ThemeColors.secondary,
+            ColorsAppQy.qySecondary,
           ),
         ),
       ],
@@ -253,28 +309,46 @@ class _HomeStudyScreenRefactoredAppQyState
   }
 
   Widget _buildStatCard(String title, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: ThemeTextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-          ),
-          SizedBox(height: ThemeDimensions.spacingSmall),
-          Text(
-            value,
-            style: ThemeTextStyles.h3.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-        ],
+          child: Column(
+            children: [
+              Text(
+                title,
+                style: ThemeTextStyles.body2.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
+              ),
+              const SizedBox(height: ThemeDimensions.spacing8),
+              Text(
+                value,
+                style: ThemeTextStyles.h3.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -282,22 +356,42 @@ class _HomeStudyScreenRefactoredAppQyState
   Widget _buildStartButton(LearningControllerAppQy controller) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
-        onPressed: controller.isLoading ? null : _handleStartLearning,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: ThemeColors.primary,
-          disabledBackgroundColor: ThemeColors.primary.withOpacity(0.5),
-          padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingLarge),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-          ),
-          elevation: 2,
-        ),
-        child: Text(
-          QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
-          style: ThemeTextStyles.h3.copyWith(
-            color: ThemeColors.surface,
-            fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: controller.isLoading ? null : _handleStartLearning,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
+            decoration: BoxDecoration(
+              gradient: controller.isLoading
+                  ? LinearGradient(
+                      colors: [
+                        Colors.grey.shade400,
+                        Colors.grey.shade500,
+                      ],
+                    )
+                  : ColorsAppQy.qyPrimaryGradient,
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+              boxShadow: controller.isLoading
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: ColorsAppQy.qyPrimary.withOpacity(0.4),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+            ),
+            child: Text(
+              QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
+              style: ThemeTextStyles.h3.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       ),
@@ -318,10 +412,16 @@ class _HomeStudyScreenRefactoredAppQyState
                 width: MediaQuery.of(context).size.width * 0.85,
                 height: MediaQuery.of(context).size.height,
                 decoration: BoxDecoration(
-                  color: ThemeColors.surface,
+                  gradient: ColorsAppQy.qyFrostedGlassGradient,
                   borderRadius: BorderRadius.only(
                     topRight: Radius.circular(ThemeDimensions.radiusLarge),
                     bottomRight: Radius.circular(ThemeDimensions.radiusLarge),
+                  ),
+                  border: Border(
+                    right: BorderSide(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
                   ),
                 ),
                 child: SafeArea(
@@ -341,59 +441,13 @@ class _HomeStudyScreenRefactoredAppQyState
                               _buildFeatureGridSection(
                                 QyAppLocalizationKeys.qyHomeConsolidate
                                     .tr(context),
-                                [
-                                  {
-                                    'label': QyAppLocalizationKeys.qyHomeWordTest
-                                        .tr(context),
-                                    'icon': Icons.assignment,
-                                    'color': Colors.amber.shade100,
-                                    'iconColor': Colors.amber.shade700,
-                                  },
-                                  {
-                                    'label': QyAppLocalizationKeys
-                                        .qyHomePortableListening
-                                        .tr(context),
-                                    'icon': Icons.headphones,
-                                    'color': Colors.purple.shade100,
-                                    'iconColor': Colors.purple.shade700,
-                                  },
-                                  {
-                                    'label': QyAppLocalizationKeys.qyHomePhrase
-                                        .tr(context),
-                                    'icon': Icons.message,
-                                    'color': Colors.pink.shade100,
-                                    'iconColor': Colors.pink.shade700,
-                                  },
-                                  {
-                                    'label': QyAppLocalizationKeys.qyHomeSpeedReview
-                                        .tr(context),
-                                    'icon': Icons.speed,
-                                    'color': Colors.cyan.shade100,
-                                    'iconColor': Colors.cyan.shade700,
-                                  },
-                                ],
+                                HomeFeaturesData.getConsolidateFeatures(),
                               ),
-                              SizedBox(height: ThemeDimensions.spacingXLarge),
+                              const SizedBox(height: ThemeDimensions.spacing16),
                               _buildFeatureGridSection(
                                 QyAppLocalizationKeys.qyHomeExtension
                                     .tr(context),
-                                [
-                                  {
-                                    'label': QyAppLocalizationKeys.qyHomeReading
-                                        .tr(context),
-                                    'icon': Icons.menu_book,
-                                    'color': Colors.green.shade100,
-                                    'iconColor': Colors.green.shade700,
-                                  },
-                                  {
-                                    'label': QyAppLocalizationKeys
-                                        .qyHomeListeningSpeaking
-                                        .tr(context),
-                                    'icon': Icons.headset,
-                                    'color': Colors.teal.shade100,
-                                    'iconColor': Colors.teal.shade700,
-                                  },
-                                ],
+                                HomeFeaturesData.getExtensionFeatures(),
                               ),
                               SizedBox(height: ThemeDimensions.spacingXLarge),
                               _buildSettingsSection(),
@@ -420,7 +474,10 @@ class _HomeStudyScreenRefactoredAppQyState
       ),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: ThemeColors.border.withOpacity(0.3)),
+          bottom: BorderSide(
+            color: Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
         ),
       ),
       child: Row(
@@ -429,13 +486,17 @@ class _HomeStudyScreenRefactoredAppQyState
           Text(
             QyAppLocalizationKeys.qyHomeMoreFeatures.tr(context),
             style: ThemeTextStyles.h3.copyWith(
-              color: ThemeColors.textPrimary,
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
           IconButton(
             onPressed: controller.closeMoreFeatures,
-            icon: Icon(Icons.close, color: ThemeColors.textSecondary, size: 28),
+            icon: Icon(
+              Icons.close,
+              color: ColorsAppQy.qyTextSecondary,
+              size: 28,
+            ),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
@@ -445,7 +506,7 @@ class _HomeStudyScreenRefactoredAppQyState
   }
 
   Widget _buildFeatureGridSection(
-      String title, List<Map<String, dynamic>> features) {
+      String title, List<HomeFeatureItem> features) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -454,7 +515,7 @@ class _HomeStudyScreenRefactoredAppQyState
           child: Text(
             title,
             style: ThemeTextStyles.body2.copyWith(
-              color: ThemeColors.textTertiary,
+              color: ColorsAppQy.qyTextSecondary,
               fontSize: 13,
             ),
           ),
@@ -477,9 +538,9 @@ class _HomeStudyScreenRefactoredAppQyState
     );
   }
 
-  Widget _buildFeatureGridItem(Map<String, dynamic> feature) {
+  Widget _buildFeatureGridItem(HomeFeatureItem feature) {
     return InkWell(
-      onTap: () => _handleFeatureTap(feature['label'] as String),
+      onTap: () => _handleFeatureTap(feature.labelKey.tr(context)),
       borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -488,20 +549,24 @@ class _HomeStudyScreenRefactoredAppQyState
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: feature['color'] as Color,
+              color: feature.color.withOpacity(0.2),
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+              border: Border.all(
+                color: feature.color.withOpacity(0.3),
+                width: 1,
+              ),
             ),
             child: Icon(
-              feature['icon'] as IconData,
-              color: feature['iconColor'] as Color,
+              feature.icon,
+              color: feature.iconColor,
               size: 28,
             ),
           ),
-          SizedBox(height: ThemeDimensions.spacingSmall),
+          const SizedBox(height: ThemeDimensions.spacing8),
           Text(
-            feature['label'] as String,
+            feature.labelKey.tr(context),
             style: ThemeTextStyles.caption.copyWith(
-              color: ThemeColors.textPrimary,
+              color: ColorsAppQy.qyTextPrimary,
               fontSize: 12,
             ),
             textAlign: TextAlign.center,
@@ -514,30 +579,15 @@ class _HomeStudyScreenRefactoredAppQyState
   }
 
   Widget _buildSettingsSection() {
-    final settings = [
-      {
-        'label': QyAppLocalizationKeys.qyHomeLearnSettings.tr(context),
-        'icon': Icons.settings_applications,
-        'color': Colors.blue.shade100,
-        'iconColor': Colors.blue.shade700,
-      },
-      {
-        'label': QyAppLocalizationKeys.qyHomeLearnData.tr(context),
-        'icon': Icons.analytics,
-        'color': Colors.orange.shade100,
-        'iconColor': Colors.orange.shade700,
-      },
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
+          padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing16),
           child: Text(
             QyAppLocalizationKeys.qySettings.tr(context),
             style: ThemeTextStyles.body2.copyWith(
-              color: ThemeColors.textTertiary,
+              color: ColorsAppQy.qyTextSecondary,
               fontSize: 13,
             ),
           ),
@@ -547,13 +597,15 @@ class _HomeStudyScreenRefactoredAppQyState
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
-            crossAxisSpacing: ThemeDimensions.spacingMedium,
-            mainAxisSpacing: ThemeDimensions.spacingMedium,
+            crossAxisSpacing: ThemeDimensions.spacing16,
+            mainAxisSpacing: ThemeDimensions.spacing16,
             childAspectRatio: 0.85,
           ),
-          itemCount: settings.length,
+          itemCount: HomeFeaturesData.getSettingsFeatures().length,
           itemBuilder: (context, index) {
-            return _buildFeatureGridItem(settings[index]);
+            return _buildFeatureGridItem(
+              HomeFeaturesData.getSettingsFeatures()[index],
+            );
           },
         ),
       ],

@@ -25,6 +25,13 @@ import 'controller_app_qy/settings_controller_app_qy.dart';
 import 'controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'controller_app_qy/learning_controller_app_qy.dart';
 import 'controller_app_qy/auth_controller_app_qy.dart';
+import 'features_app_qy/course/controllers/course_controller_app_qy.dart';
+import 'features_app_qy/course/domain/service/course_service.dart';
+import 'features_app_qy/word/controllers/word_controller_app_qy.dart';
+import 'features_app_qy/word/domain/service/word_service.dart';
+import 'features_app_qy/home/controllers/learning_controller_app_qy.dart'
+    as home_learning;
+import 'features_app_qy/home/domain/service/learning_service.dart';
 import 'services_app_qy/api_service_app_qy.dart';
 import 'services_app_qy/vocabulary_service_app_qy.dart';
 import 'services_app_qy/auth_service_app_qy.dart';
@@ -62,6 +69,10 @@ Future<void> main() async {
   final ApiServiceAppQy apiService = ApiServiceAppQy();
   final VocabularyServiceAppQy vocabularyService = VocabularyServiceAppQy();
   final AuthServiceAppQy authService = AuthServiceAppQy();
+  final CourseService courseService = CourseService(apiService: apiService);
+  final WordService wordService = WordService(apiService: apiService);
+  final LearningService learningService =
+      LearningService(apiService: apiService);
 
   await runCommonApp(
     appName: QyAppConfig.appName,
@@ -81,7 +92,9 @@ Future<void> main() async {
         lazy: false,
       ),
       ChangeNotifierProvider<SettingsControllerRefactoredAppQy>(
-        create: (_) => SettingsControllerRefactoredAppQy(),
+        create: (_) => SettingsControllerRefactoredAppQy(
+          commonSettingsController: commonSettingsController,
+        ),
         lazy: false,
       ),
       ChangeNotifierProvider<UserModelAppQy>(
@@ -97,11 +110,25 @@ Future<void> main() async {
         ),
         lazy: false,
       ),
+      ChangeNotifierProvider<home_learning.LearningControllerAppQy>(
+        create: (_) => home_learning.LearningControllerAppQy(
+          learningService: learningService,
+        ),
+        lazy: false,
+      ),
       ChangeNotifierProvider<AuthServiceAppQy>.value(
         value: authService,
       ),
       ChangeNotifierProvider<AuthControllerAppQy>(
         create: (_) => AuthControllerAppQy(authService: authService),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<CourseControllerAppQy>(
+        create: (_) => CourseControllerAppQy(courseService: courseService),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<WordControllerAppQy>(
+        create: (_) => WordControllerAppQy(wordService: wordService),
         lazy: false,
       ),
     ],

@@ -113,13 +113,92 @@ class AuthServiceAppQy extends ChangeNotifier {
     }
   }
   
-  Future<bool> sendVerificationCode(String phoneNumber) async {
+  Future<bool> register({
+    String? username,
+    String? email,
+    String? password,
+    String? confirmPassword,
+    String? phoneNumber,
+    String? verificationCode,
+  }) async {
+    _setLoading(true);
+    _setError(null);
+    
+    try {
+      Map<String, dynamic> requestData = {};
+      
+      if (phoneNumber != null && verificationCode != null) {
+        requestData = {
+          'phoneNumber': phoneNumber,
+          'verificationCode': verificationCode,
+        };
+      } else if (username != null && email != null && password != null && confirmPassword != null) {
+        if (password != confirmPassword) {
+          _setError('Passwords do not match'); // Will be localized in UI
+          _setLoading(false);
+          return false;
+        }
+        requestData = {
+          'username': username,
+          'email': email,
+          'password': password,
+        };
+      } else {
+        _setError('Invalid registration data'); // Will be localized in UI
+        _setLoading(false);
+        return false;
+      }
+      
+      final response = await _apiService.post(
+        ApiEndpointsAppQy.authRegister,
+        data: requestData,
+      );
+      
+      if (response['success'] == true) {
+        final data = response['data'] ?? response;
+        
+        _accessToken = data['login_token'] ?? data['token']?['accessToken'];
+        _userToken = data['user_token'] ?? data['token']?['refreshToken'];
+        
+        if (data['user_token_expires_at'] != null) {
+          _tokenExpiresAt = DateTime.tryParse(data['user_token_expires_at']);
+        } else if (data['token']?['expiresIn'] != null) {
+          final expiresIn = data['token']!['expiresIn'] as int;
+          _tokenExpiresAt = DateTime.now().add(Duration(seconds: expiresIn));
+        }
+        
+        _currentUser = UserModelAppQy.fromJson(data);
+        
+        if (_accessToken != null) {
+          _apiService.setAuthToken(_accessToken);
+        }
+        
+        await _saveAuthData();
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _setError(response['error']?.toString() ?? 
+                  response['message']?.toString() ?? 
+                  'Registration failed');
+        _setLoading(false);
+        return false;
+      }
+    } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      return false;
+    }
+  }
+  
+  Future<bool> sendVerificationCode(String phoneNumber, {String purpose = 'login'}) async {
     _setLoading(true);
     
     final response = await _apiService.post(
       ApiEndpointsAppQy.authSendCode,
       data: {
         'phoneNumber': phoneNumber,
+        'purpose': purpose,
       },
     );
     
