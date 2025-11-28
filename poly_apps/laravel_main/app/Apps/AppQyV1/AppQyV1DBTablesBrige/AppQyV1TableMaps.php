@@ -198,10 +198,9 @@ class AppQyV1TableMaps
                 return "app_qy_v1_{$langCode}_dictionaries";
             }
         }
-        
-        $constantName = strtoupper($tableKey);
-        if (defined("self::{$constantName}")) {
-            return constant("self::{$constantName}")['tablename'];
+
+        if (defined("self::{$tableKey}")) {
+            return constant("self::{$tableKey}")['tablename'];
         }
         throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
     }
@@ -229,10 +228,9 @@ class AppQyV1TableMaps
                 throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in dictionary tables");
             }
         }
-        
-        $constantName = strtoupper($tableKey);
-        if (defined("self::{$constantName}")) {
-            $tableMap = constant("self::{$constantName}");
+
+        if (defined("self::{$tableKey}")) {
+            $tableMap = constant("self::{$tableKey}");
             if (isset($tableMap['fields'][$fieldKey])) {
                 return $tableMap['fields'][$fieldKey];
             }
@@ -254,9 +252,8 @@ class AppQyV1TableMaps
      */
     public static function getTableFields(string $tableKey): array
     {
-        $constantName = strtoupper($tableKey);
-        if (defined("self::{$constantName}")) {
-            return constant("self::{$constantName}")['fields'];
+        if (defined("self::{$tableKey}")) {
+            return constant("self::{$tableKey}")['fields'];
         }
         throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
     }
