@@ -26,7 +26,8 @@ class LearningService {
   Future<LearningStatsModel> getLearningStats() async {
     try {
       final response = await _apiService.get('/api/v1/learning/stats');
-      return LearningStatsModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return LearningStatsModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return LearningStatsModel.empty();
     }
@@ -70,7 +71,8 @@ class LearningService {
   Future<Map<String, dynamic>> getWordBookInfo() async {
     try {
       final response = await _apiService.get('/api/v1/learning/wordbook');
-      return response.data as Map<String, dynamic>;
+      final data = response['data'] ?? response;
+      return data as Map<String, dynamic>;
     } catch (e) {
       return {
         'name': '默认词书',

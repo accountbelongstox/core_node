@@ -25,16 +25,16 @@ class ProductApiAppQyService extends AdvancedNetworkService {
 
   @override
   ApiConfig get apiConfig => ApiConfig.jwtAuth(
-    baseUrl: 'https://api.example.com',
-    responseValidation: ResponseValidationConfig.defaultConfig(),
-  );
+        baseUrl: 'https://api.example.com',
+        responseValidation: ResponseValidationConfig.defaultConfig(),
+      );
 
   @override
   EndpointConfig get endpointConfig => EndpointConfig(appName: 'app_qy');
 
-
   /// POST request with authentication verification
-  Future<NetworkResponse<Map<String, dynamic>>> postRequest(String endpoint, Map<String, dynamic> data) async {
+  Future<NetworkResponse<Map<String, dynamic>>> postRequest(
+      String endpoint, Map<String, dynamic> data) async {
     return await request<Map<String, dynamic>>(
       endpoint,
       data: data,
@@ -42,7 +42,8 @@ class ProductApiAppQyService extends AdvancedNetworkService {
   }
 
   /// GET request with authentication verification
-  Future<NetworkResponse<Map<String, dynamic>>> getRequest(String endpoint, {Map<String, String>? queryParams}) async {
+  Future<NetworkResponse<Map<String, dynamic>>> getRequest(String endpoint,
+      {Map<String, String>? queryParams}) async {
     return await request<Map<String, dynamic>>(
       endpoint,
       queryParameters: queryParams,
@@ -50,7 +51,8 @@ class ProductApiAppQyService extends AdvancedNetworkService {
   }
 
   /// PUT request with authentication verification
-  Future<NetworkResponse<Map<String, dynamic>>> putRequest(String endpoint, Map<String, dynamic> data) async {
+  Future<NetworkResponse<Map<String, dynamic>>> putRequest(
+      String endpoint, Map<String, dynamic> data) async {
     return await request<Map<String, dynamic>>(
       endpoint,
       data: data,
@@ -58,10 +60,10 @@ class ProductApiAppQyService extends AdvancedNetworkService {
   }
 
   /// DELETE request with authentication verification
-  Future<NetworkResponse<Map<String, dynamic>>> deleteRequest(String endpoint) async {
+  Future<NetworkResponse<Map<String, dynamic>>> deleteRequest(
+      String endpoint) async {
     return await request<Map<String, dynamic>>(endpoint);
   }
-
 
   /// Get content list
   Future<List<ContentData>> getContentList({
@@ -73,7 +75,7 @@ class ProductApiAppQyService extends AdvancedNetworkService {
       'limit': limit.toString(),
       'offset': offset.toString(),
     };
-    
+
     if (category != null) {
       queryParams['category'] = category;
     }
@@ -85,11 +87,9 @@ class ProductApiAppQyService extends AdvancedNetworkService {
 
     if (response.isSuccess && response.data != null) {
       final contentList = response.data!['data'] ?? response.data!['content'];
-      
+
       if (contentList is List) {
-        return contentList
-            .map((item) => ContentData.fromJson(item))
-            .toList();
+        return contentList.map((item) => ContentData.fromJson(item)).toList();
       }
     }
 
@@ -103,7 +103,7 @@ class ProductApiAppQyService extends AdvancedNetworkService {
 
     if (response.isSuccess && response.data != null) {
       final contentData = response.data!['content'] ?? response.data!['data'];
-      
+
       if (contentData != null) {
         return ContentData.fromJson(contentData);
       }
@@ -113,15 +113,17 @@ class ProductApiAppQyService extends AdvancedNetworkService {
   }
 
   /// Create new content
-  Future<ContentData?> createContent(CreateContentRequestData contentData) async {
+  Future<ContentData?> createContent(
+      CreateContentRequestData contentData) async {
     final response = await postRequest(
       ApiEndpointsAppQy.contentCreate,
       contentData.toJson(),
     );
 
     if (response.isSuccess && response.data != null) {
-      final createdContent = response.data!['content'] ?? response.data!['data'];
-      
+      final createdContent =
+          response.data!['content'] ?? response.data!['data'];
+
       if (createdContent != null) {
         return ContentData.fromJson(createdContent);
       }
@@ -131,7 +133,8 @@ class ProductApiAppQyService extends AdvancedNetworkService {
   }
 
   /// Update content
-  Future<bool> updateContent(String contentId, Map<String, dynamic> updateData) async {
+  Future<bool> updateContent(
+      String contentId, Map<String, dynamic> updateData) async {
     final endpoint = ApiEndpointsAppQy.getContentUpdate(contentId);
     final response = await putRequest(endpoint, updateData);
 
@@ -157,7 +160,7 @@ class ProductApiAppQyService extends AdvancedNetworkService {
       'q': query,
       'limit': limit.toString(),
     };
-    
+
     if (category != null) queryParams['category'] = category;
     if (type != null) queryParams['type'] = type.value;
 
@@ -168,11 +171,9 @@ class ProductApiAppQyService extends AdvancedNetworkService {
 
     if (response.isSuccess && response.data != null) {
       final searchResults = response.data!['results'] ?? response.data!['data'];
-      
+
       if (searchResults is List) {
-        return searchResults
-            .map((item) => ContentData.fromJson(item))
-            .toList();
+        return searchResults.map((item) => ContentData.fromJson(item)).toList();
       }
     }
 
@@ -185,7 +186,7 @@ class ProductApiAppQyService extends AdvancedNetworkService {
 
     if (response.isSuccess && response.data != null) {
       final categories = response.data!['categories'] ?? response.data!['data'];
-      
+
       if (categories is List) {
         return categories.cast<Map<String, dynamic>>();
       }
@@ -209,11 +210,9 @@ class ProductApiAppQyService extends AdvancedNetworkService {
 
     if (response.isSuccess && response.data != null) {
       final favorites = response.data!['favorites'] ?? response.data!['data'];
-      
+
       if (favorites is List) {
-        return favorites
-            .map((item) => ContentData.fromJson(item))
-            .toList();
+        return favorites.map((item) => ContentData.fromJson(item)).toList();
       }
     }
 

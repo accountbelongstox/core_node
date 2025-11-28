@@ -224,7 +224,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCertificateCopyLink: '复制链接',
     QyAppLocalizationKeys.qyCertificateDownloadInProgress: '证书下载功能开发中...',
     QyAppLocalizationKeys.qyCertificateShareInProgress: '证书分享功能开发中...',
-    QyAppLocalizationKeys.qyCertificateDescription: '此证书由扇贝单词英语学习平台颁发\n\n兹证明学员已完成相关学习要求，\n达到相应学习标准，特发此证以资鼓励。',
+    QyAppLocalizationKeys.qyCertificateDescription:
+        '此证书由扇贝单词英语学习平台颁发\n\n兹证明学员已完成相关学习要求，\n达到相应学习标准，特发此证以资鼓励。',
     QyAppLocalizationKeys.qyCertificateLevelBeginner: '初级',
     QyAppLocalizationKeys.qyCertificateLevelIntermediate: '中级',
     QyAppLocalizationKeys.qyCertificateLevelAdvanced: '高级',
@@ -380,7 +381,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qySettingsDeletionAccountClear: '账户信息将被彻底清除',
     QyAppLocalizationKeys.qySettingsConfirmDeletion: '确定要注销账号吗？',
     QyAppLocalizationKeys.qySettingsFinalConfirmation: '最终确认',
-    QyAppLocalizationKeys.qySettingsFinalConfirmationMessage: '请再次确认：您真的要永久注销账号吗？',
+    QyAppLocalizationKeys.qySettingsFinalConfirmationMessage:
+        '请再次确认：您真的要永久注销账号吗？',
     QyAppLocalizationKeys.qySettingsLetMeThink: '我再想想',
     QyAppLocalizationKeys.qySettingsAccountDeletionInProgress: '账号注销功能开发中...',
 
@@ -488,7 +490,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyListeningInputPlaceholder: '在此输入单词...',
     QyAppLocalizationKeys.qyListeningSubmitAnswer: '提交答案',
     QyAppLocalizationKeys.qyListeningHint: '提示',
-    QyAppLocalizationKeys.qyListeningHintMessage: '提示：这个词以 "{letter}" 开头，共 {length} 个字母',
+    QyAppLocalizationKeys.qyListeningHintMessage:
+        '提示：这个词以 "{letter}" 开头，共 {length} 个字母',
     QyAppLocalizationKeys.qyListeningCorrect: '回答正确！',
     QyAppLocalizationKeys.qyListeningIncorrect: '回答错误',
     QyAppLocalizationKeys.qyListeningCorrectAnswer: '正确答案',
@@ -518,8 +521,10 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyListeningDailyChallenge: '每日挑战',
     QyAppLocalizationKeys.qyListeningUnlockTip: '完成当前级别后解锁',
     QyAppLocalizationKeys.qyListeningHelp: '听写训练帮助',
-    QyAppLocalizationKeys.qyListeningHelpContent: '1. 选择适合的难度级别\n2. 点击播放按钮听取单词发音\n3. 在输入框中拼写听到的单词\n4. 提交答案查看结果',
-    QyAppLocalizationKeys.qyListeningHelpTips: '• 可以重复播放单词发音\n• 注意大小写\n• 可以使用提示功能\n• 坚持每天练习效果更佳',
+    QyAppLocalizationKeys.qyListeningHelpContent:
+        '1. 选择适合的难度级别\n2. 点击播放按钮听取单词发音\n3. 在输入框中拼写听到的单词\n4. 提交答案查看结果',
+    QyAppLocalizationKeys.qyListeningHelpTips:
+        '• 可以重复播放单词发音\n• 注意大小写\n• 可以使用提示功能\n• 坚持每天练习效果更佳',
     QyAppLocalizationKeys.qyListeningGotIt: '知道了',
     QyAppLocalizationKeys.qyListeningDailyChallengeComingSoon: '每日挑战功能开发中...',
     QyAppLocalizationKeys.qyListeningSelectCategory: '选择词汇类别开始听力练习',
@@ -551,7 +556,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyListeningSleepPrevious: '上一个词汇',
     QyAppLocalizationKeys.qyListeningSleepNext: '下一个词汇',
     QyAppLocalizationKeys.qyListeningSleepEndTitle: '睡眠模式结束',
-    QyAppLocalizationKeys.qyListeningSleepEndMessage: '希望您有一个美好的睡眠！\n已播放 {minutes} 分钟舒缓词汇。',
+    QyAppLocalizationKeys.qyListeningSleepEndMessage:
+        '希望您有一个美好的睡眠！\n已播放 {minutes} 分钟舒缓词汇。',
     QyAppLocalizationKeys.qyListeningSleepContinue: '继续听力',
 
     // Courses
@@ -585,10 +591,12 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCoursePlanBadgeAdvanced: '进阶计划',
     QyAppLocalizationKeys.qyCoursePlanBadgeFlagship: '旗舰课程',
     QyAppLocalizationKeys.qyCoursePlanTitleCareerUpgrade: '职场提升从小白到高手',
-    QyAppLocalizationKeys.qyCoursePlanDescriptionCareerUpgrade: '循序渐进掌握商务沟通、会议表达与项目汇报能力。',
+    QyAppLocalizationKeys.qyCoursePlanDescriptionCareerUpgrade:
+        '循序渐进掌握商务沟通、会议表达与项目汇报能力。',
     QyAppLocalizationKeys.qyCoursePlanDuration12Weeks: '12 周',
     QyAppLocalizationKeys.qyCoursePlanTitleBusinessCommunication: '职场商务口语计划',
-    QyAppLocalizationKeys.qyCoursePlanDescriptionBusinessCommunication: '真实场景还原，打造沉浸式情景对话能力。',
+    QyAppLocalizationKeys.qyCoursePlanDescriptionBusinessCommunication:
+        '真实场景还原，打造沉浸式情景对话能力。',
     QyAppLocalizationKeys.qyCoursePlanDuration24Lessons: '24 节',
     QyAppLocalizationKeys.qyCoursePlanActionExperience: '立即体验',
     QyAppLocalizationKeys.qyCoursePlanActionDetails: '查看详情',
@@ -598,7 +606,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCoursePythonZoneTitle: 'Python 学习专区',
     QyAppLocalizationKeys.qyCourseDigitalSkill: '数字时代硬技能',
     QyAppLocalizationKeys.qyCoursePythonPathTitle: 'Python 全栈学习路径',
-    QyAppLocalizationKeys.qyCoursePythonPathDescription: '21 天入门，14 天进阶，数据分析与案例实战一站掌握。',
+    QyAppLocalizationKeys.qyCoursePythonPathDescription:
+        '21 天入门，14 天进阶，数据分析与案例实战一站掌握。',
     QyAppLocalizationKeys.qyCourseBadgeIntro: '入门',
     QyAppLocalizationKeys.qyCourseBadgeIntermediate: '进阶',
     QyAppLocalizationKeys.qyCourseBadgePopular: '热门',
@@ -691,7 +700,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyValid: '有效',
     QyAppLocalizationKeys.qyPrint: '打印',
     QyAppLocalizationKeys.qyCourseLearningProgress: '编程学习进度',
-    QyAppLocalizationKeys.qyCourseCompletedLessons: '已完成 {completed}/{total} 节课',
+    QyAppLocalizationKeys.qyCourseCompletedLessons:
+        '已完成 {completed}/{total} 节课',
     QyAppLocalizationKeys.qyCourseConsecutiveDays: '连续 {days} 天',
     QyAppLocalizationKeys.qyCourseProjectsCompleted: '完成项目 {count} 个',
     QyAppLocalizationKeys.qyCourseLinesOfCode: '编程 {lines} 行',
@@ -831,6 +841,19 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyWordLocked: '已锁定',
     QyAppLocalizationKeys.qyWordBookDesc: '词书描述',
     QyAppLocalizationKeys.qyWordVocabulary: '词汇',
+
+    // Word Listening AI Explain
+    QyAppLocalizationKeys.qyListeningAIExplainTitle: 'AI解析',
+    QyAppLocalizationKeys.qyListeningAIAnalyzing: 'AI正在分析中...',
+    QyAppLocalizationKeys.qyListeningAIAnalysis: 'AI分析',
+    QyAppLocalizationKeys.qyListeningEtymology: '词源',
+    QyAppLocalizationKeys.qyListeningSynonyms: '同义词',
+    QyAppLocalizationKeys.qyListeningAntonyms: '反义词',
+    QyAppLocalizationKeys.qyListeningCollocations: '搭配',
+    QyAppLocalizationKeys.qyListeningStartPractice: '开始练习',
+    QyAppLocalizationKeys.qyListeningBackToStudy: '返回学习',
+    QyAppLocalizationKeys.qyListeningShareInDev: '分享功能开发中',
+    QyAppLocalizationKeys.qyListeningPracticeInDev: '练习功能开发中',
   };
 
   /// Get locales for runCommonApp

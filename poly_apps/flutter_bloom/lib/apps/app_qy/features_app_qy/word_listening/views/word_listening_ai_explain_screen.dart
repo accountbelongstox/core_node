@@ -1,11 +1,21 @@
 /// Word Listening AI Explain screen with advanced AI explanations
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, bento box layout
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../localization_app_qy/localization_manager.dart';
-import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_effects.dart';
+import 'package:qyflutter/common/theme/base/theme_gradients.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/buttons/primary_button.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 
 class WordListeningAIExplainScreen extends StatefulWidget {
   final String word;
@@ -22,14 +32,17 @@ class WordListeningAIExplainScreen extends StatefulWidget {
   });
 
   @override
-  State<WordListeningAIExplainScreen> createState() => _WordListeningAIExplainScreenState();
+  State<WordListeningAIExplainScreen> createState() =>
+      _WordListeningAIExplainScreenState();
 }
 
-class _WordListeningAIExplainScreenState extends State<WordListeningAIExplainScreen>
-    with TickerProviderStateMixin {
+class _WordListeningAIExplainScreenState
+    extends State<WordListeningAIExplainScreen> with TickerProviderStateMixin {
   late AnimationController _controller;
+  late AnimationController _shimmerController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late Animation<double> _shimmerAnimation;
 
   bool _isLoading = true;
   String _aiExplanation = '';
@@ -37,6 +50,8 @@ class _WordListeningAIExplainScreenState extends State<WordListeningAIExplainScr
   List<String> _synonyms = [];
   List<String> _antonyms = [];
   List<String> _collocations = [];
+
+  final StorageAppQy _storage = StorageAppQy.instance;
 
   @override
   void initState() {
@@ -47,48 +62,85 @@ class _WordListeningAIExplainScreenState extends State<WordListeningAIExplainScr
 
   void _setupAnimations() {
     _controller = AnimationController(
-      duration: ComponentStyles.normalDuration,
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat();
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: ComponentStyles.primaryCurve),
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(
-      CurvedAnimation(parent: _controller, curve: ComponentStyles.secondaryCurve),
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+
+    _shimmerAnimation = Tween<double>(begin: -2.0, end: 2.0).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.linear),
     );
 
     _controller.forward();
   }
 
   Future<void> _loadAIExplanation() async {
-    // Simulate AI API call
+    final cachedData = await _storage.getApp<Map<String, dynamic>>(
+      'ai_explanation_${widget.word}',
+    );
+
+    if (cachedData != null) {
+      setState(() {
+        _aiExplanation = cachedData['explanation'] ?? '';
+        _etymology = cachedData['etymology'] ?? '';
+        _synonyms = List<String>.from(cachedData['synonyms'] ?? []);
+        _antonyms = List<String>.from(cachedData['antonyms'] ?? []);
+        _collocations = List<String>.from(cachedData['collocations'] ?? []);
+        _isLoading = false;
+      });
+      return;
+    }
+
     await Future.delayed(const Duration(seconds: 2));
 
-    setState(() {
-      _aiExplanation = '''
-${widget.word} 是一个非常常用的英语词汇，在日常交流和专业领域中都有广泛应用。
+    final data = {
+      'explanation': '''
+${widget.word} is a very commonly used English word, widely applied in daily communication and professional fields.
 
-这个词的词源可以追溯到拉丁语，经过历史演变形成了现代英语中的含义。
+The etymology of this word can be traced back to Latin, and through historical evolution, it has formed its modern English meaning.
 
-在语法上，${widget.word} 可以作为动词使用，表示相关的动作或状态。
+Grammatically, ${widget.word} can be used as a verb, representing related actions or states.
 
-在商务环境中，这个词经常用来描述具体的业务场景和操作流程。
-''';
-
-      _etymology = '源自拉丁语，通过古法语进入英语，最初含义为...';
-      _synonyms = ['synonym1', 'synonym2', 'synonym3'];
-      _antonyms = ['antonym1', 'antonym2'];
-      _collocations = [
+In business environments, this word is often used to describe specific business scenarios and operational processes.
+''',
+      'etymology':
+          'Derived from Latin, entered English through Old French, originally meaning...',
+      'synonyms': ['synonym1', 'synonym2', 'synonym3'],
+      'antonyms': ['antonym1', 'antonym2'],
+      'collocations': [
         '${widget.word} management',
         '${widget.word} development',
         '${widget.word} strategy',
         '${widget.word} solution'
-      ];
+      ],
+    };
+
+    await _storage.setApp<Map<String, dynamic>>(
+      'ai_explanation_${widget.word}',
+      data,
+    );
+
+    setState(() {
+      _aiExplanation = data['explanation'] ?? '';
+      _etymology = data['etymology'] ?? '';
+      _synonyms = List<String>.from(data['synonyms'] ?? []);
+      _antonyms = List<String>.from(data['antonyms'] ?? []);
+      _collocations = List<String>.from(data['collocations'] ?? []);
       _isLoading = false;
     });
   }
@@ -96,62 +148,66 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
   @override
   void dispose() {
     _controller.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppTheme.auroraGradient.colors[0].withOpacity(0.1),
-              AppTheme.auroraGradient.colors[1].withOpacity(0.05),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: Column(
-                children: [
-                  _buildAppBar(),
-                  Expanded(
-                    child: _isLoading ? _buildLoadingState() : _buildContent(),
+      body: AnimatedBuilder(
+        animation: _shimmerController,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient:
+                  ColorsAppQy.qyDynamicShimmerGradient(_shimmerAnimation.value),
+            ),
+            child: SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: Column(
+                    children: [
+                      _buildAppBar(context),
+                      Expanded(
+                        child: _isLoading
+                            ? _buildLoadingState(context)
+                            : _buildBentoBoxContent(context),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildAppBar(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing12,
+      ),
       child: Row(
         children: [
           BouncingButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Icon(
               Icons.arrow_back,
-              color: AppTheme.textPrimary,
-              size: 24,
+              color: ThemeColors.textPrimary,
+              size: ThemeDimensions.spacing24,
             ),
           ),
           Expanded(
             child: Text(
               QyAppLocalizationKeys.qyListeningAIExplainTitle.tr(context),
-              style: AppTextStyles.headline4.copyWith(
-                color: AppTheme.textPrimary,
+              style: ThemeTextStyles.headline4.copyWith(
+                color: ThemeColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
@@ -161,8 +217,8 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
             onPressed: _shareExplanation,
             child: Icon(
               Icons.share,
-              color: AppTheme.primaryGreen,
-              size: 24,
+              color: ColorsAppQy.qyPrimary,
+              size: ThemeDimensions.spacing24,
             ),
           ),
         ],
@@ -170,245 +226,190 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
     );
   }
 
-  Widget _buildLoadingState() {
+  Widget _buildLoadingState(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           AnimationUtils.pulse(
             child: Container(
-              width: 80,
-              height: 80,
+              width: ThemeDimensions.spacing80,
+              height: ThemeDimensions.spacing80,
               decoration: BoxDecoration(
-                gradient: AppTheme.auroraGradient,
-                borderRadius: BorderRadius.circular(40),
+                gradient: ColorsAppQy.qyPrimaryGradient,
+                borderRadius: BorderRadius.circular(ThemeDimensions.spacing40),
               ),
               child: Icon(
                 Icons.psychology,
-                color: Colors.white,
-                size: 40,
+                color: ColorsAppQy.qyTextOnPrimary,
+                size: ThemeDimensions.spacing40,
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: ThemeDimensions.spacing24),
           Text(
             QyAppLocalizationKeys.qyListeningAIAnalyzing.tr(context),
-            style: AppTextStyles.bodyLarge.copyWith(
-              color: AppTheme.textSecondary,
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: ThemeColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 16),
-          const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
+          SizedBox(height: ThemeDimensions.spacing16),
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildBentoBoxContent(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWordHeader(),
-          const SizedBox(height: 24),
-          _buildAIExplanation(),
-          const SizedBox(height: 24),
-          _buildEtymology(),
-          const SizedBox(height: 24),
-          _buildSynonymsAndAntonyms(),
-          const SizedBox(height: 24),
-          _buildCollocations(),
-          const SizedBox(height: 32),
-          _buildActionButtons(),
+          _buildWordHeaderCard(context),
+          SizedBox(height: ThemeDimensions.spacing16),
+          _buildBentoGrid(context),
+          SizedBox(height: ThemeDimensions.spacing16),
+          _buildActionButtons(context),
         ],
       ),
     );
   }
 
-  Widget _buildWordHeader() {
-    return AnimationUtils.fadeInWithSlide(
-      child: Container(
-        decoration: ComponentStyles.gradientCardDecoration,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.9),
-                Colors.white.withOpacity(0.7),
-              ],
+  Widget _buildWordHeaderCard(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.all(ThemeDimensions.spacing24),
+      blurAmount: 15.0,
+      opacity: 0.25,
+      backgroundColor: ColorsAppQy.qyHolographicWhite,
+      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.word,
+            style: ThemeTextStyles.largeTitle.copyWith(
+              color: ColorsAppQy.qyPrimary,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          SizedBox(height: ThemeDimensions.spacing8),
+          Text(
+            widget.pronunciation,
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: ThemeColors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacing12),
+          Text(
+            widget.meaning,
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacing12),
+          Container(
+            padding: EdgeInsets.all(ThemeDimensions.spacing12),
+            decoration: BoxDecoration(
+              color: ColorsAppQy.qyFrostWhite.withOpacity(0.5),
+              borderRadius:
+                  BorderRadius.circular(ThemeDimensions.borderRadiusM),
+              border: Border.all(
+                color: ColorsAppQy.qyBorderLight.withOpacity(0.3),
+              ),
+            ),
+            child: Text(
+              widget.example,
+              style: ThemeTextStyles.bodyMedium.copyWith(
+                color: ThemeColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBentoGrid(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildAICard(context),
+            ),
+            SizedBox(width: ThemeDimensions.spacing16),
+            Expanded(
+              flex: 1,
+              child: _buildEtymologyCard(context),
+            ),
+          ],
+        ),
+        SizedBox(height: ThemeDimensions.spacing16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSynonymsCard(context),
+            ),
+            SizedBox(width: ThemeDimensions.spacing16),
+            Expanded(
+              child: _buildAntonymsCard(context),
+            ),
+          ],
+        ),
+        SizedBox(height: ThemeDimensions.spacing16),
+        _buildCollocationsCard(context),
+      ],
+    );
+  }
+
+  Widget _buildAICard(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.all(ThemeDimensions.spacing20),
+      blurAmount: 12.0,
+      opacity: 0.2,
+      backgroundColor: ColorsAppQy.qyGlassWhite,
+      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
+              Container(
+                padding: EdgeInsets.all(ThemeDimensions.spacing8),
+                decoration: BoxDecoration(
+                  color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                ),
+                child: Icon(
+                  Icons.psychology,
+                  color: ColorsAppQy.qyPrimary,
+                  size: ThemeDimensions.spacing24,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.spacing12),
               Text(
-                widget.word,
-                style: AppTextStyles.headline1.copyWith(
-                  color: AppTheme.primaryGreen,
+                QyAppLocalizationKeys.qyListeningAIAnalysis.tr(context),
+                style: ThemeTextStyles.headline5.copyWith(
+                  color: ThemeColors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                widget.pronunciation,
-                style: AppTextStyles.bodyLarge.copyWith(
-                  color: AppTheme.textSecondary,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.meaning,
-                style: AppTextStyles.bodyLarge.copyWith(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.borderLight),
-                ),
-                child: Text(
-                  widget.example,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppTheme.textSecondary,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAIExplanation() {
-    return AnimationUtils.fadeInWithSlide(
-      child: Container(
-        decoration: ComponentStyles.primaryCardDecoration,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.psychology,
-                      color: AppTheme.primaryGreen,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    QyAppLocalizationKeys.qyListeningAIAnalysis.tr(context),
-                    style: AppTextStyles.headline5.copyWith(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _aiExplanation,
-                style: AppTextStyles.bodyLarge.copyWith(
-                  color: AppTheme.textPrimary,
-                  height: 1.6,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEtymology() {
-    return AnimationUtils.fadeInWithSlide(
-      child: Container(
-        decoration: ComponentStyles.primaryCardDecoration,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.secondaryGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.history,
-                      color: AppTheme.secondaryGreen,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    QyAppLocalizationKeys.qyListeningEtymology.tr(context),
-                    style: AppTextStyles.headline5.copyWith(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _etymology,
-                style: AppTextStyles.bodyLarge.copyWith(
-                  color: AppTheme.textPrimary,
-                  height: 1.6,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSynonymsAndAntonyms() {
-    return AnimationUtils.fadeInWithSlide(
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildWordList(
-              QyAppLocalizationKeys.qyListeningSynonyms.tr(context),
-              _synonyms,
-              Icons.compare_arrows,
-              AppTheme.newColor,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildWordList(
-              QyAppLocalizationKeys.qyListeningAntonyms.tr(context),
-              _antonyms,
-              Icons.swap_horiz,
-              AppTheme.error,
+          SizedBox(height: ThemeDimensions.spacing16),
+          Text(
+            _aiExplanation,
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: ThemeColors.textPrimary,
+              height: 1.6,
             ),
           ),
         ],
@@ -416,163 +417,271 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
     );
   }
 
-  Widget _buildWordList(String title, List<String> words, IconData icon, Color color) {
-    return Container(
-      decoration: ComponentStyles.primaryCardDecoration,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: AppTextStyles.headline5.copyWith(
-                    color: AppTheme.textPrimary,
+  Widget _buildEtymologyCard(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.all(ThemeDimensions.spacing20),
+      blurAmount: 12.0,
+      opacity: 0.2,
+      backgroundColor: ColorsAppQy.qyGlassLight,
+      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(ThemeDimensions.spacing8),
+                decoration: BoxDecoration(
+                  color: ColorsAppQy.qySecondary.withOpacity(0.1),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                ),
+                child: Icon(
+                  Icons.history,
+                  color: ColorsAppQy.qySecondary,
+                  size: ThemeDimensions.spacing20,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.spacing8),
+              Expanded(
+                child: Text(
+                  QyAppLocalizationKeys.qyListeningEtymology.tr(context),
+                  style: ThemeTextStyles.headline6.copyWith(
+                    color: ThemeColors.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...words.map((word) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color.withOpacity(0.3)),
-                ),
-                child: Text(
-                  word,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCollocations() {
-    return AnimationUtils.fadeInWithSlide(
-      child: Container(
-        decoration: ComponentStyles.primaryCardDecoration,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.link,
-                      color: AppTheme.accentGreen,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    QyAppLocalizationKeys.qyListeningCollocations.tr(context),
-                    style: AppTextStyles.headline5.copyWith(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _collocations.map((collocation) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.accentGreen.withOpacity(0.1),
-                        AppTheme.learningColor.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppTheme.accentGreen.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Text(
-                    collocation,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppTheme.accentGreen,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                )).toList(),
               ),
             ],
           ),
-        ),
+          SizedBox(height: ThemeDimensions.spacing12),
+          Text(
+            _etymology,
+            style: ThemeTextStyles.bodyMedium.copyWith(
+              color: ThemeColors.textPrimary,
+              height: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildSynonymsCard(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.all(ThemeDimensions.spacing16),
+      blurAmount: 10.0,
+      opacity: 0.2,
+      backgroundColor: ColorsAppQy.qyGlassWhite,
+      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.compare_arrows,
+                color: ColorsAppQy.qyPrimary,
+                size: ThemeDimensions.spacing20,
+              ),
+              SizedBox(width: ThemeDimensions.spacing8),
+              Text(
+                QyAppLocalizationKeys.qyListeningSynonyms.tr(context),
+                style: ThemeTextStyles.headline6.copyWith(
+                  color: ThemeColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: ThemeDimensions.spacing12),
+          ..._synonyms.map((word) => Padding(
+                padding: EdgeInsets.only(bottom: ThemeDimensions.spacing8),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing12,
+                    vertical: ThemeDimensions.spacing8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                    border: Border.all(
+                      color: ColorsAppQy.qyPrimary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    word,
+                    style: ThemeTextStyles.bodyMedium.copyWith(
+                      color: ColorsAppQy.qyPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAntonymsCard(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.all(ThemeDimensions.spacing16),
+      blurAmount: 10.0,
+      opacity: 0.2,
+      backgroundColor: ColorsAppQy.qyGlassWhite,
+      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.swap_horiz,
+                color: ColorsAppQy.qyError,
+                size: ThemeDimensions.spacing20,
+              ),
+              SizedBox(width: ThemeDimensions.spacing8),
+              Text(
+                QyAppLocalizationKeys.qyListeningAntonyms.tr(context),
+                style: ThemeTextStyles.headline6.copyWith(
+                  color: ThemeColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: ThemeDimensions.spacing12),
+          ..._antonyms.map((word) => Padding(
+                padding: EdgeInsets.only(bottom: ThemeDimensions.spacing8),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing12,
+                    vertical: ThemeDimensions.spacing8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qyError.withOpacity(0.1),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                    border: Border.all(
+                      color: ColorsAppQy.qyError.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    word,
+                    style: ThemeTextStyles.bodyMedium.copyWith(
+                      color: ColorsAppQy.qyError,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollocationsCard(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.all(ThemeDimensions.spacing20),
+      blurAmount: 12.0,
+      opacity: 0.2,
+      backgroundColor: ColorsAppQy.qyGlassWhite,
+      borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusL),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(ThemeDimensions.spacing8),
+                decoration: BoxDecoration(
+                  color: ColorsAppQy.qySecondary.withOpacity(0.1),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.borderRadiusS),
+                ),
+                child: Icon(
+                  Icons.link,
+                  color: ColorsAppQy.qySecondary,
+                  size: ThemeDimensions.spacing24,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.spacing12),
+              Text(
+                QyAppLocalizationKeys.qyListeningCollocations.tr(context),
+                style: ThemeTextStyles.headline5.copyWith(
+                  color: ThemeColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: ThemeDimensions.spacing16),
+          Wrap(
+            spacing: ThemeDimensions.spacing8,
+            runSpacing: ThemeDimensions.spacing8,
+            children: _collocations
+                .map((collocation) => Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ThemeDimensions.spacing12,
+                        vertical: ThemeDimensions.spacing8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            ColorsAppQy.qySecondary.withOpacity(0.1),
+                            ColorsAppQy.qySecondary.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(ThemeDimensions.spacing20),
+                        border: Border.all(
+                          color: ColorsAppQy.qySecondary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        collocation,
+                        style: ThemeTextStyles.bodyMedium.copyWith(
+                          color: ColorsAppQy.qySecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
-        BouncingButton(
+        PrimaryButton(
+          text: QyAppLocalizationKeys.qyListeningStartPractice.tr(context),
           onPressed: _practiceWord,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.shadowColored,
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+          isFullWidth: true,
+        ),
+        SizedBox(height: ThemeDimensions.spacing16),
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
+            side: BorderSide(
+              color: ColorsAppQy.qyPrimary,
+              width: 2,
             ),
-            child: Text(
-              QyAppLocalizationKeys.qyListeningStartPractice.tr(context),
-              style: AppTextStyles.buttonText,
-              textAlign: TextAlign.center,
+            shape: RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(ThemeDimensions.borderRadiusL),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        BouncingButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Container(
+          child: SizedBox(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppTheme.primaryGreen,
-                width: 2,
-              ),
-            ),
             child: Text(
               QyAppLocalizationKeys.qyListeningBackToStudy.tr(context),
-              style: AppTextStyles.buttonText.copyWith(
-                color: AppTheme.primaryGreen,
+              style: ThemeTextStyles.buttonText.copyWith(
+                color: ColorsAppQy.qyPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -583,21 +692,20 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
   }
 
   void _shareExplanation() {
-    // Implement share functionality
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(QyAppLocalizationKeys.qyListeningShareInDev.tr(context)),
-        backgroundColor: AppTheme.primaryGreen,
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
 
   void _practiceWord() {
-    // Navigate to practice screen
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qyListeningPracticeInDev.tr(context)),
-        backgroundColor: AppTheme.primaryGreen,
+        content:
+            Text(QyAppLocalizationKeys.qyListeningPracticeInDev.tr(context)),
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }

@@ -111,6 +111,25 @@ class ApiServiceAppQy {
       return _handleError(e);
     }
   }
+
+  Future<Map<String, dynamic>> patch(
+    String endpoint, {
+    Map<String, dynamic>? data,
+    Map<String, dynamic>? queryParameters,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        endpoint,
+        data: data,
+        queryParameters: queryParameters,
+        options: Options(headers: headers),
+      );
+      return _handleResponse(response);
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
   
   Map<String, dynamic> _handleResponse(Response response) {
     if (response.data is Map<String, dynamic>) {
