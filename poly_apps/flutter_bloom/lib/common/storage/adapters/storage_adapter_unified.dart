@@ -13,7 +13,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -38,6 +38,13 @@ class UnifiedSQLiteStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<void> init({String? appName, String? subDirectory}) async {
     if (_isInitialized) return;
+
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'UnifiedSQLiteStorageAdapter cannot be used on web platform. '
+        'Use WebStorageAdapter instead.',
+      );
+    }
 
     _appName = appName ?? 'flutter_bloom';
     _subDirectory = subDirectory ?? 'storage_unified';
@@ -418,6 +425,10 @@ class UnifiedSQLiteStorageAdapter implements KeyValueStorageInterface {
 
   /// Get database file size
   Future<int> _getDatabaseSize() async {
+    if (kIsWeb) {
+      return 0;
+    }
+    
     try {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final dbPath = join(

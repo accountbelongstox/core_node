@@ -768,6 +768,10 @@ class QyAppLocalizationKeys {
   static const String qyListeningPlaylist = 'qy_listening_playlist';
   static const String qyListeningMinutes = 'qy_listening_minutes';
   static const String qyListeningDays = 'qy_listening_days';
+  static const String qyListeningShuffle = 'qy_listening_shuffle';
+  static const String qyListeningSettings = 'qy_listening_settings';
+  static const String qyListeningPlaying = 'qy_listening_playing';
+  static const String qyListeningPaused = 'qy_listening_paused';
 
   // Word Listening - Sleep Mode
   static const String qyListeningSleepTitle = 'qy_listening_sleep_title';

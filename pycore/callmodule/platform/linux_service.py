@@ -64,6 +64,26 @@ def launch_linux_service(host='0.0.0.0', port=59000, debug=False, launcher=None,
     # Get uvicorn module
     uvicorn = get_third_package_uvicorn()
 
+    # Configure logging to suppress CancelledError during shutdown
+    import logging
+
+    class SuppressCancelledErrorFilter(logging.Filter):
+        """Filter to suppress asyncio.CancelledError logs during shutdown"""
+        def filter(self, record):
+            # Suppress CancelledError from starlette/uvicorn during shutdown
+            if "CancelledError" in str(record.msg):
+                return False
+            if hasattr(record, 'exc_info') and record.exc_info:
+                exc_type = record.exc_info[0]
+                if exc_type and exc_type.__name__ == 'CancelledError':
+                    return False
+            return True
+
+    # Add filter to uvicorn's error logger
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    cancel_filter = SuppressCancelledErrorFilter()
+    uvicorn_error_logger.addFilter(cancel_filter)
+
     # Create uvicorn Server instance (for shutdown control)
     config = uvicorn.Config(
         server.app,

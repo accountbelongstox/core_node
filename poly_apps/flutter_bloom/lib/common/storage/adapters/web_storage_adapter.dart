@@ -13,6 +13,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'dart:html' as html;
 import '../interfaces/storage_interface.dart';
 import '../models/storage_models.dart';
 
@@ -437,32 +438,55 @@ class WebStorageAdapter implements KeyValueStorageInterface {
     }
   }
 
-  // JavaScript interop methods
+  // JavaScript interop methods using dart:html
   String? _jsGetLocalStorage(String key) {
-    // This would use dart:js in a real implementation
-    // For now, return null to avoid compilation errors
-    return null;
+    if (!kIsWeb) return null;
+    try {
+      return html.window.localStorage[key];
+    } catch (e) {
+      debugPrint('Failed to get from localStorage: $e');
+      return null;
+    }
   }
 
   void _jsSetLocalStorage(String key, String value) {
-    // This would use dart:js in a real implementation
-    // For now, do nothing to avoid compilation errors
+    if (!kIsWeb) return;
+    try {
+      html.window.localStorage[key] = value;
+    } catch (e) {
+      debugPrint('Failed to set localStorage: $e');
+    }
   }
 
   void _jsRemoveLocalStorage(String key) {
-    // This would use dart:js in a real implementation
-    // For now, do nothing to avoid compilation errors
+    if (!kIsWeb) return;
+    try {
+      html.window.localStorage.remove(key);
+    } catch (e) {
+      debugPrint('Failed to remove from localStorage: $e');
+    }
   }
 
   int _jsGetLocalStorageLength() {
-    // This would use dart:js in a real implementation
-    // For now, return 0 to avoid compilation errors
-    return 0;
+    if (!kIsWeb) return 0;
+    try {
+      return html.window.localStorage.length;
+    } catch (e) {
+      debugPrint('Failed to get localStorage length: $e');
+      return 0;
+    }
   }
 
   String? _jsGetLocalStorageKey(int index) {
-    // This would use dart:js in a real implementation
-    // For now, return null to avoid compilation errors
-    return null;
+    if (!kIsWeb) return null;
+    try {
+      if (index >= 0 && index < html.window.localStorage.length) {
+        return html.window.localStorage.keys.elementAt(index);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Failed to get localStorage key: $e');
+      return null;
+    }
   }
 }

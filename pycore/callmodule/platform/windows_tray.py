@@ -99,6 +99,26 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
             nonlocal uvicorn_server
 
             # Create uvicorn Server instance (for shutdown control)
+            # Configure logging to suppress CancelledError during shutdown
+            import logging
+
+            class SuppressCancelledErrorFilter(logging.Filter):
+                """Filter to suppress asyncio.CancelledError logs during shutdown"""
+                def filter(self, record):
+                    # Suppress CancelledError from starlette/uvicorn during shutdown
+                    if "CancelledError" in str(record.msg):
+                        return False
+                    if hasattr(record, 'exc_info') and record.exc_info:
+                        exc_type = record.exc_info[0]
+                        if exc_type and exc_type.__name__ == 'CancelledError':
+                            return False
+                    return True
+
+            # Add filter to uvicorn's error logger
+            uvicorn_error_logger = logging.getLogger("uvicorn.error")
+            cancel_filter = SuppressCancelledErrorFilter()
+            uvicorn_error_logger.addFilter(cancel_filter)
+
             config = uvicorn.Config(
                 server.app,
                 host=host,
@@ -320,6 +340,17 @@ def launch_windows_tray(host='0.0.0.0', port=59000, debug=False, launcher=None, 
 
     # Set tray instance for exit handler
     tray_instance = tray
+
+    # Register tray shutdown handler to THREAD_BUS
+    def shutdown_tray_handler(event_data=None):
+        """Shutdown tray (registered with THREAD_BUS)"""
+        ColorPrint.yellow("[Windows] Shutting down system tray...")
+        if tray_instance:
+            tray_instance.stop()
+        ColorPrint.green("[Windows] System tray shutdown signal sent")
+
+    THREAD_BUS.register_shutdown_handler(shutdown_tray_handler, priority=80, name='system_tray')
+    ColorPrint.blue("[Windows] System tray shutdown handler registered")
 
     try:
         tray.run()

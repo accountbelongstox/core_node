@@ -760,6 +760,26 @@ class FastAPIRPCServerRunner:
             ColorPrint.yellow("[FastAPIRPCRunner] Server already running")
             return
 
+        # Configure logging to suppress CancelledError during shutdown
+        import logging
+
+        class SuppressCancelledErrorFilter(logging.Filter):
+            """Filter to suppress asyncio.CancelledError logs during shutdown"""
+            def filter(self, record):
+                # Suppress CancelledError from starlette/uvicorn during shutdown
+                if "CancelledError" in str(record.msg):
+                    return False
+                if hasattr(record, 'exc_info') and record.exc_info:
+                    exc_type = record.exc_info[0]
+                    if exc_type and exc_type.__name__ == 'CancelledError':
+                        return False
+                return True
+
+        # Add filter to uvicorn's error logger
+        uvicorn_error_logger = logging.getLogger("uvicorn.error")
+        cancel_filter = SuppressCancelledErrorFilter()
+        uvicorn_error_logger.addFilter(cancel_filter)
+
         self._start_event.clear()
         config = uvicorn.Config(
             app=self.server.app,
@@ -775,7 +795,11 @@ class FastAPIRPCServerRunner:
                 f"[FastAPIRPCRunner] Starting FastAPI RPC server on {self.server.host}:{self.server.port}"
             )
             self._start_event.set()
-            self._uvicorn_server.run()
+            try:
+                self._uvicorn_server.run()
+            except Exception:
+                # Suppress expected errors during shutdown (CancelledError, etc.)
+                pass
 
         self._thread = threading.Thread(target=runner, name="FastAPIRPCServerThread", daemon=True)
         self._thread.start()
