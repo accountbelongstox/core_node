@@ -340,15 +340,18 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               BouncingButton(
                 onPressed: _playWord,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing32,
+                    vertical: ThemeDimensions.spacing16,
+                  ),
                   decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(30),
+                    gradient: ColorsAppQy.qyPrimaryGradient,
+                    borderRadius: ThemeDimensions.borderRadiusXL,
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.shadowColored,
+                        color: ColorsAppQy.qyShadowLight,
                         blurRadius: 12,
-                        offset: const Offset(0, 6),
+                        offset: Offset(0, 6),
                       ),
                     ],
                   ),
@@ -357,28 +360,32 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                     children: [
                       Icon(
                         _isPlaying ? Icons.stop : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 24,
+                        color: ColorsAppQy.qyTextOnPrimary,
+                        size: ThemeDimensions.iconSizeM,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: ThemeDimensions.spacing8),
                       Text(
                         _isPlaying ? QyAppLocalizationKeys.qyListeningStopPlay.tr(context) : QyAppLocalizationKeys.qyListeningPlayWord.tr(context),
-                        style: AppTextStyles.buttonText,
+                        style: ThemeTextStyles.bodyLarge.copyWith(
+                          color: ColorsAppQy.qyTextOnPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: ThemeDimensions.spacing16),
               Text(
                 '${QyAppLocalizationKeys.qyListeningPlayCount.tr(context)}: $_playCount / 3',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppTheme.textSecondary,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  color: ColorsAppQy.qyTextOnPrimary.withOpacity(0.9),
                 ),
               ),
             ],
           ),
         ),
+        borderRadius: ThemeDimensions.borderRadiusM,
       ),
     );
   }
