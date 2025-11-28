@@ -92,6 +92,7 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyLogoutFailed: '退出失败，请重试',
     QyAppLocalizationKeys.qyYesLogout: '确认退出',
     QyAppLocalizationKeys.qyLogin: '登录',
+    QyAppLocalizationKeys.qyLoginFailed: '登录失败',
     QyAppLocalizationKeys.qyRegister: '注册',
     QyAppLocalizationKeys.qyForgotPassword: '忘记密码',
     QyAppLocalizationKeys.qyResetPassword: '重置密码',
