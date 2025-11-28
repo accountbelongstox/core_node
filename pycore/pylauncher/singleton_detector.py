@@ -526,11 +526,11 @@ class SingletonDetector:
                 if can_shutdown:
                     self._log("Shutdown accepted, triggering shutdown...", "WARNING")
 
-                    # 触发 shutdown 回调（通过 on_message 调用 THREAD_BUS.request_shutdown）
+                    # Trigger shutdown callback (calls THREAD_BUS.request_shutdown via on_message)
                     if self.on_message:
-                        # 在独立线程中触发 shutdown，避免阻塞当前消息处理
+                        # Trigger shutdown in separate thread to avoid blocking current message handler
                         def trigger_shutdown():
-                            time.sleep(0.1)  # 短暂延迟，确保消息处理完成
+                            time.sleep(0.1)  # Short delay to ensure message handling completes
                             self.on_message({'type': 'SHUTDOWN', 'pid': message.get('pid')})
 
                         threading.Thread(target=trigger_shutdown, daemon=True).start()
