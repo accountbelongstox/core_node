@@ -12,6 +12,13 @@ from pycore.pyfoundations.third_party import get_third_package_okx
 from pycore.pyfoundations.secret_manager import get_secret_key
 from pyapps.okx_price_monitor.core import config
 
+get_third_package_okx()
+
+import okx.MarketData as MarketData
+import okx.PublicData as PublicData
+import okx.Account as Account
+import okx.Trade as Trade
+
 
 class OKXClient:
     """
@@ -28,11 +35,6 @@ class OKXClient:
         Args:
             use_auth (bool): Whether to use authentication for private API calls
         """
-        get_third_package_okx()
-
-        import okx.MarketData as MarketData
-        import okx.PublicData as PublicData
-
         self.use_auth = use_auth
         self.api_key = None
         self.secret_key = None
@@ -62,9 +64,6 @@ class OKXClient:
                 passphrase=self.passphrase,
                 flag='0'
             )
-
-            import okx.Account as Account
-            import okx.Trade as Trade
 
             self.account_api = Account.AccountAPI(
                 api_key=self.api_key,
@@ -147,7 +146,8 @@ class OKXClient:
         """
         return self.market_api.get_trades(instId=inst_id, limit=str(limit))
 
-    def get_candles(self, inst_id: str, bar: str = "1m", limit: int = 100) -> dict:
+    def get_candles(self, inst_id: str, bar: str = "1m", limit: int = 100,
+                    after: Optional[str] = None, before: Optional[str] = None) -> dict:
         """
         Get candlestick data
 
@@ -155,11 +155,25 @@ class OKXClient:
             inst_id (str): Instrument ID (e.g., "BTC-USDT")
             bar (str): Bar size (1m, 5m, 15m, 30m, 1H, 4H, 1D, etc.)
             limit (int): Number of candles to fetch (1-300)
+            after (Optional[str]): Pagination - get data before this timestamp (backwards in time)
+            before (Optional[str]): Pagination - get data after this timestamp (forwards in time)
 
         Returns:
             dict: API response with candle data
         """
-        return self.market_api.get_candlesticks(instId=inst_id, bar=bar, limit=str(limit))
+        # Build parameters for OKX API
+        params = {
+            'instId': inst_id,
+            'bar': bar,
+            'limit': str(limit)
+        }
+
+        if after:
+            params['after'] = after
+        if before:
+            params['before'] = before
+
+        return self.market_api.get_candlesticks(**params)
 
     def get_account_balance(self) -> Optional[dict]:
         """

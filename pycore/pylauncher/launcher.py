@@ -129,6 +129,7 @@ class ServiceLauncher:
         self.config = config
         self.services = {}
         self.singleton_detector = None
+        self.detection_result = None  # Singleton detection result
         self._started = False
 
         # Ensure heartbeat is always enabled
@@ -174,26 +175,21 @@ class ServiceLauncher:
         ColorPrint.green(f"=== Launched {success_count}/{len(self.config.services)} services ===")
         return success_count > 0
 
-    def _create_singleton_detector(self, on_msg, state_checker):
-        """Create and bind singleton detector (extracted to avoid duplication)"""
-        detector = SingletonDetector(
-            app_id=self.config.app_id,
-            port_start=self.config.singleton_port_start,
-            port_range=self.config.singleton_port_range,
-            debug=True,
-            on_message=on_msg,
-            state_checker=state_checker
-        )
-        return detector, detector.detect_and_bind()
-
     def _singleton_detect(self) -> bool:
-        """Perform singleton detection"""
+        """
+        Perform singleton detection
+
+        Simplified: Just calls SingletonDetector once.
+        All retry logic is handled inside SingletonDetector.
+        """
         ColorPrint.blue(f"[Singleton] Detecting {self.config.app_id}...")
 
+        # Define callbacks
         def on_msg(msg):
+            """Handle incoming messages from new instances"""
             if msg.get('type') == 'SHUTDOWN':
                 THREAD_BUS.request_shutdown(
-                    f"Shutdown by PID {msg.get('pid')}",
+                    f"Shutdown by new instance (PID {msg.get('pid')})",
                     execute_handlers=True
                 )
 
@@ -205,34 +201,31 @@ class ServiceLauncher:
                 'message': THREAD_BUS.get_busy_reason() if is_busy else 'Ready to shutdown'
             }
 
-        # Create detector and detect
-        self.singleton_detector, detection = self._create_singleton_detector(on_msg, state_checker)
+        # Create detector with all configuration
+        self.singleton_detector = SingletonDetector(
+            app_id=self.config.app_id,
+            port_start=self.config.singleton_port_start,
+            port_range=self.config.singleton_port_range,
+            debug=True,
+            on_message=on_msg,
+            state_checker=state_checker,
+            shutdown_existing=self.config.shutdown_existing  # Pass config to detector
+        )
 
-        # Handle existing instance
-        if detection.existing_instance:
-            ColorPrint.yellow(f"[Singleton] Found existing at port {detection.existing_port}")
+        # Detect and bind (handles retry internally)
+        detection = self.singleton_detector.detect_and_bind()
+        self.detection_result = detection
 
-            if self.config.shutdown_existing:
-                # Use singleton detector's shutdown method
-                success = self.singleton_detector.send_shutdown_to_existing(detection.existing_port)
-
-                if success:
-                    ColorPrint.green("[Singleton] Old instance shutdown, retrying detection")
-                    # Re-create detector and retry (using extracted method)
-                    self.singleton_detector, detection = self._create_singleton_detector(on_msg, state_checker)
-                else:
-                    ColorPrint.red("[Singleton] Failed to shutdown existing instance")
-                    return False
-
-            elif not self.config.force_launch:
-                ColorPrint.yellow("[Singleton] Exiting (use shutdown_existing=True to replace)")
-                return False
-            else:
-                ColorPrint.yellow("[Singleton] force_launch=True, continuing anyway")
-
-        # Verify PRIMARY
+        # Check result
         if detection.is_primary:
             ColorPrint.green(f"[Singleton] PRIMARY on port {detection.port}")
+            return True
+        elif detection.existing_instance and not self.config.force_launch:
+            ColorPrint.yellow(f"[Singleton] Existing instance at {detection.existing_port}")
+            ColorPrint.yellow(f"[Singleton] {detection.message}")
+            return False
+        elif self.config.force_launch:
+            ColorPrint.yellow("[Singleton] force_launch=True, continuing anyway")
             return True
         else:
             ColorPrint.red("[Singleton] Failed to become PRIMARY")
