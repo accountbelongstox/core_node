@@ -12,9 +12,9 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from pycore.pygvar import PROJECT_ROOT
 from pyapps.okx_price_monitor.lib import OKXClient
 from pyapps.okx_price_monitor.core import config
+from pyapps.okx_price_monitor.core.monitor_config import monitor_config
 from pyapps.okx_price_monitor.foundation.printer import Printer
 
 
@@ -186,7 +186,8 @@ class CoinProvider:
             cache_name (str): Cache file name prefix
             data: Data to save
         """
-        cache_dir = Path(PROJECT_ROOT) / 'public' / 'uploads' / config.CACHE_DIR_NAME / config.CACHE_SUBDIR_NAME
+        # Use system cache directory from monitor_config
+        cache_dir = monitor_config.CACHE_DIR
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')

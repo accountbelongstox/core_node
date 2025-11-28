@@ -26,8 +26,10 @@ class WordService {
   Future<List<WordBookModel>> getWordBooks() async {
     try {
       final response = await _apiService.get('/api/v1/words/books');
-      final data = response.data as List<dynamic>;
-      return data.map((json) => WordBookModel.fromJson(json as Map<String, dynamic>)).toList();
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['books'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList.map((json) => WordBookModel.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
       return _getMockWordBooks();
     }
@@ -36,7 +38,8 @@ class WordService {
   Future<WordBookModel> getWordBookById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/words/books/$id');
-      return WordBookModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return WordBookModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return _getMockWordBooks().first;
     }
@@ -48,8 +51,10 @@ class WordService {
         '/api/v1/words/books/$bookId/words',
         queryParameters: {'page': page, 'limit': limit},
       );
-      final data = response.data['words'] as List<dynamic>;
-      return data.map((json) => WordModel.fromJson(json as Map<String, dynamic>)).toList();
+      final responseData = response['data'] ?? response;
+      final wordsData = (responseData is Map) ? (responseData['words'] ?? responseData['items'] ?? []) : [];
+      final dataList = wordsData as List<dynamic>;
+      return dataList.map((json) => WordModel.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
       return [];
     }
@@ -58,7 +63,8 @@ class WordService {
   Future<WordModel> getWordById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/words/$id');
-      return WordModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return WordModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       rethrow;
     }
@@ -86,7 +92,8 @@ class WordService {
         '/api/v1/words/search',
         queryParameters: {'q': query},
       );
-      return response.data as Map<String, dynamic>;
+      final data = response['data'] ?? response;
+      return data as Map<String, dynamic>;
     } catch (e) {
       return {};
     }

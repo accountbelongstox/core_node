@@ -158,6 +158,9 @@ DEPENDENCY_MAP = {
 
     # For OKX exchange API
     "okx": "python-okx",
+
+    # For Redis cache
+    "redis": "redis",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -1206,6 +1209,12 @@ def get_third_package_okx():
     return _lazy_import('okx', 'import okx')
 
 
+# Redis cache
+def get_third_package_redis():
+    """Get redis package (lazy load)"""
+    return _lazy_import('redis', 'import redis')
+
+
 __all__ = [
     # Dependency management utilities
     'check_system_package_installed',
@@ -1280,4 +1289,6 @@ __all__ = [
     'get_third_package_pyaudiowpatch',
     # OKX exchange API
     'get_third_package_okx',
+    # Redis cache
+    'get_third_package_redis',
 ]

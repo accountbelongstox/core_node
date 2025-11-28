@@ -1,8 +1,12 @@
+/// Current word card widget for word listening
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/theme/app_theme.dart';
-import '../../../../../../../common/widgets/glassmorphism_card.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class CurrentWordCard extends StatelessWidget {
   final String word;
@@ -20,51 +24,47 @@ class CurrentWordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassmorphismCard(
+    return GlassCard(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(ThemeDimensions.spacing24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               word,
-              style: const TextStyle(
-                fontSize: 36,
+              style: ThemeTextStyles.headlineLarge.copyWith(
                 fontWeight: FontWeight.bold,
-                color: AppTheme.primaryGreen,
+                color: ColorsAppQy.qyPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: ThemeDimensions.spacing8),
             Text(
               phonetic,
-              style: const TextStyle(
-                fontSize: 18,
-                color: AppTheme.textSecondary,
+              style: ThemeTextStyles.bodyLarge.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: ThemeDimensions.spacing16),
             Text(
               translation,
-              style: const TextStyle(
-                fontSize: 20,
-                color: AppTheme.textPrimary,
+              style: ThemeTextStyles.headlineSmall.copyWith(
+                color: ColorsAppQy.qyTextPrimary,
               ),
               textAlign: TextAlign.center,
             ),
             if (example != null) ...[
-              const SizedBox(height: 16),
+              SizedBox(height: ThemeDimensions.spacing16),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(ThemeDimensions.spacing12),
                 decoration: BoxDecoration(
-                  color: AppTheme.lightGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Text(
                   example!,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
                     fontStyle: FontStyle.italic,
                   ),
                   textAlign: TextAlign.center,
@@ -74,6 +74,7 @@ class CurrentWordCard extends StatelessWidget {
           ],
         ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusL,
     );
   }
 }

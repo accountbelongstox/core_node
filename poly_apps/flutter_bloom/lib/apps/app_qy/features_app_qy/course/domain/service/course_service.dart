@@ -29,8 +29,10 @@ class CourseService {
         '/api/v1/courses',
         queryParameters: {'category': category},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['courses'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => CourseModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -41,7 +43,8 @@ class CourseService {
   Future<CourseModel> getCourseById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/courses/$id');
-      return CourseModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return CourseModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       rethrow;
     }
@@ -53,8 +56,10 @@ class CourseService {
         '/api/v1/courses/plans',
         queryParameters: {'category': category},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['plans'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => CoursePlanModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {

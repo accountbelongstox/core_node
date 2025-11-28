@@ -12,17 +12,27 @@
 
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
+import '../../../../../../common/widgets/buttons/primary_button.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/course_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
+import '../../courses/domain/models/course_model.dart';
+import '../../courses/domain/services/course_service.dart';
 
 class CourseDetailScreenRefactoredAppQy extends StatefulWidget {
-  const CourseDetailScreenRefactoredAppQy({super.key});
+  final String? courseId;
+
+  const CourseDetailScreenRefactoredAppQy({
+    super.key,
+    this.courseId,
+  });
 
   @override
   State<CourseDetailScreenRefactoredAppQy> createState() =>
@@ -32,126 +42,77 @@ class CourseDetailScreenRefactoredAppQy extends StatefulWidget {
 class _CourseDetailScreenRefactoredAppQyState
     extends State<CourseDetailScreenRefactoredAppQy>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  late final AnimationController _shimmerController;
+  late final TabController _tabController;
+  final StorageAppQy _storage = StorageAppQy.instance;
+  CourseModel? _course;
+  List<CourseModule> _modules = [];
   bool _isEnrolled = false;
-
-  final Map<String, dynamic> _courseData = {};
-  final List<Map<String, dynamic>> _lessons = [];
-  final List<Map<String, dynamic>> _reviews = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
     _tabController = TabController(length: 3, vsync: this);
-    _initMockData();
+    _loadCourseData();
   }
 
   @override
   void dispose() {
+    _shimmerController.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
-  void _initMockData() {
-    _courseData.addAll({
-      'title': 'IELTS Vocabulary Master Course',
-      'subtitle': 'Complete vocabulary preparation for IELTS 7.0+',
-      'description':
-          'A comprehensive course designed to help you master essential IELTS vocabulary. '
-          'Learn 3000+ high-frequency words with real IELTS examples, expert pronunciation guides, '
-          'and practical usage tips.',
-      'instructor': 'Dr. Sarah Johnson',
-      'rating': 4.8,
-      'totalReviews': 2458,
-      'students': 15230,
-      'duration': '8 weeks',
-      'level': 'Intermediate to Advanced',
-      'category': 'IELTS',
-      'isPremium': true,
-      'price': 299,
-    });
-
-    _lessons.addAll([
-      {
-        'title': 'Week 1: Academic Vocabulary Foundation',
-        'duration': '2 hours',
-        'completed': true,
-        'lessons': 8,
-      },
-      {
-        'title': 'Week 2: Task 1 Academic Writing Vocabulary',
-        'duration': '2.5 hours',
-        'completed': true,
-        'lessons': 10,
-      },
-      {
-        'title': 'Week 3: Task 2 Essay Vocabulary',
-        'duration': '3 hours',
-        'completed': false,
-        'lessons': 12,
-      },
-      {
-        'title': 'Week 4: Speaking Test Vocabulary',
-        'duration': '2 hours',
-        'completed': false,
-        'lessons': 9,
-      },
-      {
-        'title': 'Week 5: Reading Comprehension Vocabulary',
-        'duration': '2.5 hours',
-        'completed': false,
-        'lessons': 11,
-      },
-      {
-        'title': 'Week 6: Listening Test Vocabulary',
-        'duration': '2 hours',
-        'completed': false,
-        'lessons': 8,
-      },
-      {
-        'title': 'Week 7: Advanced Vocabulary & Collocations',
-        'duration': '3 hours',
-        'completed': false,
-        'lessons': 14,
-      },
-      {
-        'title': 'Week 8: Review & Practice Tests',
-        'duration': '4 hours',
-        'completed': false,
-        'lessons': 10,
-      },
-    ]);
-
-    _reviews.addAll([
-      {
-        'userName': 'Alice Wang',
-        'rating': 5,
-        'date': '2025-10-15',
-        'comment':
-            'Excellent course! The vocabulary is very practical and helped me achieve 7.5 in IELTS.',
-      },
-      {
-        'userName': 'Michael Chen',
-        'rating': 5,
-        'date': '2025-10-10',
-        'comment':
-            'Dr. Johnson explains everything clearly. The examples are from real IELTS tests.',
-      },
-      {
-        'userName': 'Emma Li',
-        'rating': 4,
-        'date': '2025-10-05',
-        'comment':
-            'Great content, but I wish there were more practice exercises.',
-      },
-    ]);
+  Future<void> _loadCourseData() async {
+    setState(() => _isLoading = true);
+    try {
+      final courseId = widget.courseId ?? 'ielts_master';
+      final cachedCourse = await _storage.getApp<Map<String, dynamic>>(
+        '${StorageAppQy.keyUserProgress}_course_$courseId',
+      );
+      if (cachedCourse != null) {
+        _course = CourseModel.fromJson(cachedCourse);
+      } else {
+        _course = CourseService.getCourseById(courseId);
+        if (_course != null) {
+          await _storage.setApp(
+            '${StorageAppQy.keyUserProgress}_course_$courseId',
+            _course!.toJson(),
+          );
+        }
+      }
+      if (_course != null) {
+        _modules = CourseService.getModulesByCourseId(_course!.id);
+        final enrollmentData = await _storage.getApp<bool>(
+          '${StorageAppQy.keyUserProgress}_enrolled_$courseId',
+        );
+        _isEnrolled = enrollmentData ?? false;
+      }
+    } catch (e) {
+      final fallbackCourse = CourseService.getCourseById('ielts_master');
+      if (fallbackCourse != null) {
+        _course = fallbackCourse;
+        _modules = CourseService.getModulesByCourseId(_course!.id);
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
-  void _handleEnrollment() {
+  Future<void> _handleEnrollment() async {
+    if (_course == null) return;
     setState(() {
       _isEnrolled = !_isEnrolled;
     });
-
+    await _storage.setApp(
+      '${StorageAppQy.keyUserProgress}_enrolled_${_course!.id}',
+      _isEnrolled,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -159,34 +120,49 @@ class _CourseDetailScreenRefactoredAppQyState
               ? QyAppLocalizationKeys.qyCourseEnrolled.tr(context)
               : QyAppLocalizationKeys.qyCourseUnenrolled.tr(context),
         ),
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ThemeColors.background,
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(),
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                _buildCourseHeader(),
-                _buildTabBar(),
-              ],
-            ),
+    if (_isLoading || _course == null) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
           ),
-          SliverFillRemaining(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(),
-                _buildCurriculumTab(),
-                _buildReviewsTab(),
-              ],
-            ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    _buildCourseHeader(),
+                    _buildTabBar(),
+                  ],
+                ),
+              ),
+              SliverFillRemaining(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildOverviewTab(),
+                    _buildBentoCurriculumTab(),
+                    _buildBentoReviewsTab(),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -194,42 +170,87 @@ class _CourseDetailScreenRefactoredAppQyState
     );
   }
 
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 200,
+      expandedHeight: 220,
       pinned: true,
-      backgroundColor: ThemeColors.primary,
-      leading: IconButton(
-        onPressed: () => Navigator.pop(context),
-        icon: Icon(Icons.arrow_back, color: ThemeColors.surface),
+      backgroundColor: Colors.transparent,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            margin: const EdgeInsets.all(ThemeDimensions.spacing8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              onPressed: () => context.pop(),
+              icon: Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+            ),
+          ),
+        ),
       ),
       actions: [
-        IconButton(
-          onPressed: () {},
-          icon: Icon(Icons.share, color: ThemeColors.surface),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              margin: const EdgeInsets.all(ThemeDimensions.spacing8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: () {},
+                icon: Icon(Icons.share, color: ColorsAppQy.qyTextPrimary),
+              ),
+            ),
+          ),
         ),
-        IconButton(
-          onPressed: () {},
-          icon: Icon(Icons.bookmark_border, color: ThemeColors.surface),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              margin: const EdgeInsets.all(ThemeDimensions.spacing8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: () {},
+                icon: Icon(Icons.bookmark_border, color: ColorsAppQy.qyTextPrimary),
+              ),
+            ),
+          ),
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                ThemeColors.primary,
-                ThemeColors.primary.withOpacity(0.8),
-              ],
-            ),
+            gradient: ColorsAppQy.qyPrimaryGradient,
           ),
           child: Center(
             child: Icon(
               Icons.school,
               size: 80,
-              color: ThemeColors.surface.withOpacity(0.3),
+              color: Colors.white.withOpacity(0.3),
             ),
           ),
         ),
@@ -238,37 +259,50 @@ class _CourseDetailScreenRefactoredAppQyState
   }
 
   Widget _buildCourseHeader() {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
-      color: ThemeColors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _courseData['title'] as String,
-            style: ThemeTextStyles.h3.copyWith(
-              color: ThemeColors.textPrimary,
-              fontWeight: FontWeight.bold,
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
             ),
           ),
-          SizedBox(height: ThemeDimensions.spacingSmall),
-          Text(
-            _courseData['subtitle'] as String,
-            style: ThemeTextStyles.body1.copyWith(
-              color: ThemeColors.textSecondary,
-            ),
-          ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildRating(),
-              SizedBox(width: ThemeDimensions.spacingLarge),
-              _buildInfoItem(Icons.people, '${_courseData['students']}'),
-              SizedBox(width: ThemeDimensions.spacingLarge),
-              _buildInfoItem(Icons.access_time, _courseData['duration'] as String),
+              Text(
+                _course!.title,
+                style: ThemeTextStyles.title1.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: ThemeDimensions.spacing8),
+              Text(
+                _course!.subtitle,
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
+              ),
+              const SizedBox(height: ThemeDimensions.spacing16),
+              Row(
+                children: [
+                  _buildRating(),
+                  const SizedBox(width: ThemeDimensions.spacing16),
+                  _buildInfoItem(Icons.people, '${_course!.students}'),
+                  const SizedBox(width: ThemeDimensions.spacing16),
+                  _buildInfoItem(Icons.access_time, _course!.duration),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -277,18 +311,18 @@ class _CourseDetailScreenRefactoredAppQyState
     return Row(
       children: [
         Icon(Icons.star, color: Colors.amber, size: 20),
-        SizedBox(width: ThemeDimensions.spacingXSmall),
+        const SizedBox(width: ThemeDimensions.spacing4),
         Text(
-          '${_courseData['rating']}',
+          '${_course!.rating}',
           style: ThemeTextStyles.body1.copyWith(
-            color: ThemeColors.textPrimary,
+            color: ColorsAppQy.qyTextPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),
         Text(
-          ' (${_courseData['totalReviews']})',
+          ' (${_course!.students})',
           style: ThemeTextStyles.caption.copyWith(
-            color: ThemeColors.textSecondary,
+            color: ColorsAppQy.qyTextSecondary,
           ),
         ),
       ],
@@ -298,12 +332,12 @@ class _CourseDetailScreenRefactoredAppQyState
   Widget _buildInfoItem(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: ThemeColors.textSecondary),
-        SizedBox(width: ThemeDimensions.spacingXSmall),
+        Icon(icon, size: 16, color: ColorsAppQy.qyTextSecondary),
+        const SizedBox(width: ThemeDimensions.spacing4),
         Text(
           text,
           style: ThemeTextStyles.caption.copyWith(
-            color: ThemeColors.textSecondary,
+            color: ColorsAppQy.qyTextSecondary,
           ),
         ),
       ],
@@ -311,87 +345,100 @@ class _CourseDetailScreenRefactoredAppQyState
   }
 
   Widget _buildTabBar() {
-    return Container(
-      color: ThemeColors.surface,
-      child: TabBar(
-        controller: _tabController,
-        indicatorColor: ThemeColors.primary,
-        labelColor: ThemeColors.primary,
-        unselectedLabelColor: ThemeColors.textSecondary,
-        labelStyle: ThemeTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
-        unselectedLabelStyle: ThemeTextStyles.body1,
-        tabs: [
-          Tab(text: QyAppLocalizationKeys.qyOverview.tr(context)),
-          Tab(text: QyAppLocalizationKeys.qyCurriculum.tr(context)),
-          Tab(text: QyAppLocalizationKeys.qyReviews.tr(context)),
-        ],
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+          ),
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: ColorsAppQy.qyPrimary,
+            labelColor: ColorsAppQy.qyPrimary,
+            unselectedLabelColor: ColorsAppQy.qyTextSecondary,
+            labelStyle: ThemeTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
+            unselectedLabelStyle: ThemeTextStyles.body1,
+            tabs: [
+              Tab(text: QyAppLocalizationKeys.qyOverview.tr(context)),
+              Tab(text: QyAppLocalizationKeys.qyCurriculum.tr(context)),
+              Tab(text: QyAppLocalizationKeys.qyReviews.tr(context)),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildOverviewTab() {
-    return ListView(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      children: [
-        _buildSection(
-          QyAppLocalizationKeys.qyAboutCourse.tr(context),
-          _courseData['description'] as String,
-        ),
-        SizedBox(height: ThemeDimensions.spacingLarge),
-        _buildInstructorCard(),
-        SizedBox(height: ThemeDimensions.spacingLarge),
-        _buildCourseInfo(),
-      ],
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: Column(
+        children: [
+          _buildSection(
+            QyAppLocalizationKeys.qyAboutCourse.tr(context),
+            _course!.description,
+          ),
+          const SizedBox(height: ThemeDimensions.spacing24),
+          _buildBentoInstructorCard(),
+          const SizedBox(height: ThemeDimensions.spacing24),
+          _buildBentoCourseInfo(),
+        ],
+      ),
     );
   }
 
   Widget _buildSection(String title, String content) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: ThemeTextStyles.h4.copyWith(
-            color: ThemeColors.textPrimary,
-            fontWeight: FontWeight.w600,
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: ThemeTextStyles.title2.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        SizedBox(height: ThemeDimensions.spacingMedium),
-        Text(
-          content,
-          style: ThemeTextStyles.body2.copyWith(
-            color: ThemeColors.textSecondary,
-            height: 1.6,
+          const SizedBox(height: ThemeDimensions.spacing16),
+          Text(
+            content,
+            style: ThemeTextStyles.body2.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
+              height: 1.6,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildInstructorCard() {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
+  Widget _buildBentoInstructorCard() {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing20),
       child: Row(
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
-              color: ThemeColors.primary.withOpacity(0.1),
+              gradient: ColorsAppQy.qyPrimaryGradient,
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.person,
-              size: 32,
-              color: ThemeColors.primary,
+              size: 36,
+              color: Colors.white,
             ),
           ),
-          SizedBox(width: ThemeDimensions.spacingMedium),
+          const SizedBox(width: ThemeDimensions.spacing16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,20 +446,20 @@ class _CourseDetailScreenRefactoredAppQyState
                 Text(
                   QyAppLocalizationKeys.qyInstructor.tr(context),
                   style: ThemeTextStyles.caption.copyWith(
-                    color: ThemeColors.textSecondary,
+                    color: ColorsAppQy.qyTextSecondary,
                   ),
                 ),
                 Text(
-                  _courseData['instructor'] as String,
+                  _course!.instructor,
                   style: ThemeTextStyles.body1.copyWith(
-                    color: ThemeColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                    color: ColorsAppQy.qyTextPrimary,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'IELTS Expert & Educator',
+                  '${_course!.level} Expert',
                   style: ThemeTextStyles.caption.copyWith(
-                    color: ThemeColors.textSecondary,
+                    color: ColorsAppQy.qyTextSecondary,
                   ),
                 ),
               ],
@@ -423,200 +470,204 @@ class _CourseDetailScreenRefactoredAppQyState
     );
   }
 
-  Widget _buildCourseInfo() {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Column(
-        children: [
-          _buildInfoRow(QyAppLocalizationKeys.qyLevel.tr(context), _courseData['level'] as String),
-          Divider(color: ThemeColors.border),
-          _buildInfoRow(QyAppLocalizationKeys.qyDuration.tr(context), _courseData['duration'] as String),
-          Divider(color: ThemeColors.border),
-          _buildInfoRow(QyAppLocalizationKeys.qyCategory.tr(context), _courseData['category'] as String),
-        ],
-      ),
+  Widget _buildBentoCourseInfo() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: ThemeDimensions.spacing12,
+      mainAxisSpacing: ThemeDimensions.spacing12,
+      childAspectRatio: 2.5,
+      children: [
+        _buildBentoInfoCard(
+          QyAppLocalizationKeys.qyLevel.tr(context),
+          _course!.level,
+          Icons.trending_up,
+        ),
+        _buildBentoInfoCard(
+          QyAppLocalizationKeys.qyDuration.tr(context),
+          _course!.duration,
+          Icons.access_time,
+        ),
+        _buildBentoInfoCard(
+          QyAppLocalizationKeys.qyCategory.tr(context),
+          _course!.category,
+          Icons.category,
+        ),
+        _buildBentoInfoCard(
+          QyAppLocalizationKeys.qyLessons.tr(context),
+          '${_course!.lessons}',
+          Icons.book,
+        ),
+      ],
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSmall),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildBentoInfoCard(String label, String value, IconData icon) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: ThemeTextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-          ),
+          Icon(icon, color: ColorsAppQy.qyPrimary, size: 24),
+          const SizedBox(height: ThemeDimensions.spacing8),
           Text(
             value,
-            style: ThemeTextStyles.body2.copyWith(
-              color: ThemeColors.textPrimary,
-              fontWeight: FontWeight.w600,
+            style: ThemeTextStyles.body1.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
+              fontWeight: FontWeight.bold,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: ThemeDimensions.spacing4),
+          Text(
+            label,
+            style: ThemeTextStyles.caption.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCurriculumTab() {
-    return ListView.builder(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      itemCount: _lessons.length,
-      itemBuilder: (context, index) => _buildLessonCard(_lessons[index]),
-    );
-  }
-
-  Widget _buildLessonCard(Map<String, dynamic> lesson) {
-    final isCompleted = lesson['completed'] as bool;
-
-    return Container(
-      margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(
-          color: isCompleted
-              ? ThemeColors.success.withOpacity(0.3)
-              : ThemeColors.border,
+  Widget _buildBentoCurriculumTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 1,
+          mainAxisSpacing: ThemeDimensions.spacing16,
+          childAspectRatio: 4.0,
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
-            decoration: BoxDecoration(
-              color: isCompleted
-                  ? ThemeColors.success.withOpacity(0.1)
-                  : ThemeColors.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isCompleted ? Icons.check_circle : Icons.play_circle_outline,
-              color: isCompleted ? ThemeColors.success : ThemeColors.primary,
-              size: 24,
-            ),
-          ),
-          SizedBox(width: ThemeDimensions.spacingMedium),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  lesson['title'] as String,
-                  style: ThemeTextStyles.body1.copyWith(
-                    color: ThemeColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: ThemeDimensions.spacingXSmall),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 14, color: ThemeColors.textTertiary),
-                    SizedBox(width: ThemeDimensions.spacingXSmall),
-                    Text(
-                      lesson['duration'] as String,
-                      style: ThemeTextStyles.caption.copyWith(
-                        color: ThemeColors.textTertiary,
-                      ),
-                    ),
-                    SizedBox(width: ThemeDimensions.spacingMedium),
-                    Icon(Icons.article, size: 14, color: ThemeColors.textTertiary),
-                    SizedBox(width: ThemeDimensions.spacingXSmall),
-                    Text(
-                      '${lesson['lessons']} lessons',
-                      style: ThemeTextStyles.caption.copyWith(
-                        color: ThemeColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+        itemCount: _modules.length,
+        itemBuilder: (context, index) {
+          final module = _modules[index];
+          return _buildBentoModuleCard(module, index);
+        },
       ),
     );
   }
 
-  Widget _buildReviewsTab() {
-    return ListView.builder(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      itemCount: _reviews.length,
-      itemBuilder: (context, index) => _buildReviewCard(_reviews[index]),
-    );
-  }
-
-  Widget _buildReviewCard(Map<String, dynamic> review) {
-    return Container(
-      margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildBentoModuleCard(CourseModule module, int index) {
+    final gradients = [
+      ColorsAppQy.qyPrimaryGradient,
+      ColorsAppQy.qySecondaryGradient,
+      ColorsAppQy.qyAccentGradient,
+    ];
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+      child: InkWell(
+        onTap: () {
+          context.push('/qy/course/lesson?lessonId=${module.id}');
+        },
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: gradients[index % gradients.length],
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+          ),
+          padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+          child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: ThemeColors.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
                 ),
-                child: Icon(Icons.person, color: ThemeColors.primary),
+                child: Center(
+                  child: Text(
+                    '${index + 1}',
+                    style: ThemeTextStyles.title3.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-              SizedBox(width: ThemeDimensions.spacingSmall),
+              const SizedBox(width: ThemeDimensions.spacing16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      review['userName'] as String,
+                      module.title,
                       style: ThemeTextStyles.body1.copyWith(
-                        color: ThemeColors.textPrimary,
-                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      review['date'] as String,
-                      style: ThemeTextStyles.caption.copyWith(
-                        color: ThemeColors.textTertiary,
-                      ),
+                    const SizedBox(height: ThemeDimensions.spacing4),
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 14, color: Colors.white70),
+                        const SizedBox(width: ThemeDimensions.spacing4),
+                        Text(
+                          module.duration,
+                          style: ThemeTextStyles.caption.copyWith(
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(width: ThemeDimensions.spacing12),
+                        Icon(Icons.article, size: 14, color: Colors.white70),
+                        const SizedBox(width: ThemeDimensions.spacing4),
+                        Text(
+                          '${module.totalLessons} ${QyAppLocalizationKeys.qyLessons.tr(context)}',
+                          style: ThemeTextStyles.caption.copyWith(
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              Row(
-                children: List.generate(
-                  5,
-                  (index) => Icon(
-                    index < (review['rating'] as int)
-                        ? Icons.star
-                        : Icons.star_border,
-                    color: Colors.amber,
-                    size: 16,
-                  ),
-                ),
+              Icon(
+                module.isCompleted ? Icons.check_circle : Icons.play_circle_outline,
+                color: Colors.white,
+                size: 28,
               ),
             ],
           ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBentoReviewsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: Column(
+        children: [
           Text(
-            review['comment'] as String,
-            style: ThemeTextStyles.body2.copyWith(
-              color: ThemeColors.textSecondary,
+            QyAppLocalizationKeys.qyReviews.tr(context),
+            style: ThemeTextStyles.title2.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: ThemeDimensions.spacing16),
+          Text(
+            QyAppLocalizationKeys.qyComingSoon.tr(context),
+            style: ThemeTextStyles.body1.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
             ),
           ),
         ],
@@ -625,64 +676,62 @@ class _CourseDetailScreenRefactoredAppQyState
   }
 
   Widget _buildBottomBar() {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        border: Border(top: BorderSide(color: ThemeColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            if (_courseData['isPremium'] as bool) ...[
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    QyAppLocalizationKeys.qyPrice.tr(context),
-                    style: ThemeTextStyles.caption.copyWith(
-                      color: ThemeColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    '\$${_courseData['price']}',
-                    style: ThemeTextStyles.h3.copyWith(
-                      color: ThemeColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(width: ThemeDimensions.spacingMedium),
-            ],
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _handleEnrollment,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isEnrolled
-                      ? ThemeColors.success
-                      : ThemeColors.primary,
-                  padding: EdgeInsets.symmetric(
-                    vertical: ThemeDimensions.paddingMedium,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-                  ),
-                ),
-                child: Text(
-                  _isEnrolled
-                      ? QyAppLocalizationKeys.qyEnrolled.tr(context)
-                      : QyAppLocalizationKeys.qyEnrollNow.tr(context),
-                  style: ThemeTextStyles.button.copyWith(
-                    color: ThemeColors.surface,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
               ),
             ),
-          ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                if (_course!.price > 0) ...[
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        QyAppLocalizationKeys.qyPrice.tr(context),
+                        style: ThemeTextStyles.caption.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                        ),
+                      ),
+                      Text(
+                        '¥${_course!.price.toInt()}',
+                        style: ThemeTextStyles.title2.copyWith(
+                          color: ColorsAppQy.qyPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: ThemeDimensions.spacing16),
+                ],
+                Expanded(
+                  child: PrimaryButton(
+                    text: _isEnrolled
+                        ? QyAppLocalizationKeys.qyEnrolled.tr(context)
+                        : QyAppLocalizationKeys.qyEnrollNow.tr(context),
+                    onPressed: _handleEnrollment,
+                    isFullWidth: true,
+                    backgroundColor: _isEnrolled
+                        ? ColorsAppQy.qySuccess
+                        : ColorsAppQy.qyPrimary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

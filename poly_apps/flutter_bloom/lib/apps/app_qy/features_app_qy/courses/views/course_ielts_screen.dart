@@ -1,11 +1,16 @@
 /// IELTS Course Detail Screen
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../localization_app_qy/localization_manager.dart';
+import 'package:flutter/services.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/custom_app_bar.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
 import '../domain/models/course_model.dart';
 
 class CourseIeltsScreen extends StatefulWidget {
@@ -21,72 +26,106 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   late Animation<double> _fadeAnimation;
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
+  late AnimationController _shimmerController;
   late TabController _tabController;
+  final StorageAppQy _storage = StorageAppQy.instance;
+  CourseModel? _course;
+  bool _isLoading = true;
 
-  final CourseModel _ieltsCourse = CourseModel(
-    id: 'ielts_master',
-    title: 'IELTS 雅思备考大师',
-    subtitle: '全方位雅思考试辅导课程',
-    category: 'IELTS',
-    level: 'Advanced',
-    duration: '12周',
-    lessons: 48,
-    price: 999.0,
-    rating: 4.8,
-    students: 15234,
-    instructor: 'Prof. Sarah Johnson',
-    description: '专为雅思考试设计的高强度备考课程，涵盖听说读写全面训练',
-    features: [
-      '听说读写四项专项训练',
-      '真题演练和模拟考试',
-      '名师一对一辅导',
-      '学习计划定制',
-      '实时进度跟踪',
-      'AI智能评估',
-    ],
-    topics: [
-      '雅思口语技巧',
-      '写作结构与表达',
-      '阅读理解策略',
-      '听力技能提升',
-      '词汇与语法强化',
-      '考试技巧与策略',
-    ],
-  );
-
-  final double _userProgress = 0.35;
-  final int _completedLessons = 17;
-  final int _currentStreak = 5;
+  double _userProgress = 0.0;
+  int _completedLessons = 0;
+  int _currentStreak = 0;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: ComponentStyles.normalDuration,
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: ComponentStyles.primaryCurve),
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
     _progressController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    _progressAnimation = Tween<double>(begin: 0.0, end: _userProgress).animate(
-      CurvedAnimation(parent: _progressController, curve: Curves.easeOutCubic),
-    );
+    _shimmerController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    )..repeat();
 
     _tabController = TabController(length: 4, vsync: this);
 
+    _loadCourseData();
     _controller.forward();
-    _progressController.forward();
+  }
+
+  Future<void> _loadCourseData() async {
+    setState(() => _isLoading = true);
+    try {
+      final cachedCourse = await _storage.getApp<Map<String, dynamic>>(
+        '${StorageAppQy.keyUserProgress}_course_ielts',
+      );
+      if (cachedCourse != null) {
+        _course = CourseModel.fromJson(cachedCourse);
+        _userProgress = cachedCourse['progress'] as double? ?? 0.0;
+        _completedLessons = cachedCourse['completedLessons'] as int? ?? 0;
+        _currentStreak = cachedCourse['currentStreak'] as int? ?? 0;
+      } else {
+        _course = CourseModel(
+          id: 'ielts_master',
+          title: QyAppLocalizationKeys.qyCourseIelts.tr(context),
+          subtitle: QyAppLocalizationKeys.qyCourseIeltsDesc.tr(context),
+          category: 'IELTS',
+          level: 'Advanced',
+          duration: '12周',
+          lessons: 48,
+          price: 999.0,
+          rating: 4.8,
+          students: 15234,
+          instructor: 'Prof. Sarah Johnson',
+          description: QyAppLocalizationKeys.qyCourseIeltsDesc.tr(context),
+          features: [
+            QyAppLocalizationKeys.qyIeltsFourSkills.tr(context),
+            QyAppLocalizationKeys.qyIeltsPracticeTests.tr(context),
+            QyAppLocalizationKeys.qyIeltsOneOnOne.tr(context),
+            QyAppLocalizationKeys.qyIeltsCustomPlan.tr(context),
+            QyAppLocalizationKeys.qyIeltsProgressTracking.tr(context),
+            QyAppLocalizationKeys.qyIeltsAIAssessment.tr(context),
+          ],
+          topics: [
+            QyAppLocalizationKeys.qyIeltsSpeaking.tr(context),
+            QyAppLocalizationKeys.qyIeltsWriting.tr(context),
+            QyAppLocalizationKeys.qyIeltsReading.tr(context),
+            QyAppLocalizationKeys.qyIeltsListening.tr(context),
+            QyAppLocalizationKeys.qyIeltsVocabulary.tr(context),
+            QyAppLocalizationKeys.qyIeltsTestTips.tr(context),
+          ],
+        );
+        _userProgress = 0.35;
+        _completedLessons = 17;
+        _currentStreak = 5;
+      }
+      _progressAnimation = Tween<double>(begin: 0.0, end: _userProgress).animate(
+        CurvedAnimation(parent: _progressController, curve: Curves.easeOutCubic),
+      );
+      _progressController.forward();
+    } catch (e) {
+      // Handle error
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _progressController.dispose();
+    _shimmerController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -96,15 +135,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.primaryGradient.colors[0].withOpacity(0.1),
-              AppTheme.primaryGradient.colors[1].withOpacity(0.05),
-              Colors.white,
-            ],
-          ),
+          gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
         ),
         child: SafeArea(
           child: FadeTransition(
@@ -130,19 +161,14 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _continueLearning,
-        backgroundColor: AppTheme.primaryColor,
-        child: Row(
-          children: [
-            const Icon(Icons.play_arrow, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              QyAppLocalizationKeys.qyCourseContinue.tr(context),
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+        backgroundColor: ColorsAppQy.qyPrimary,
+        icon: const Icon(Icons.play_arrow, color: Colors.white),
+        label: Text(
+          QyAppLocalizationKeys.qyCourseContinue.tr(context),
+          style: ThemeTextStyles.body1.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -155,9 +181,9 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         children: [
           Row(
             children: [
-              BouncingButton(
+              IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: Container(
+                icon: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.8),
@@ -165,7 +191,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   ),
                   child: Icon(
                     Icons.arrow_back,
-                    color: AppTheme.primaryColor,
+                    color: ColorsAppQy.qyPrimary,
                   ),
                 ),
               ),
@@ -175,16 +201,16 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _ieltsCourse.title,
-                      style: AppTextStyles.headline5.copyWith(
-                        color: AppTheme.textPrimary,
+                      _course!.title,
+                      style: ThemeTextStyles.h3.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
-                      _ieltsCourse.subtitle,
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppTheme.textSecondary,
+                      _course!.subtitle,
+                      style: ThemeTextStyles.body1.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
                       ),
                     ),
                   ],
@@ -193,12 +219,12 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
+                  gradient: ColorsAppQy.qyPrimaryGradient,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'IELTS',
-                  style: AppTextStyles.bodySmall.copyWith(
+                  style: ThemeTextStyles.caption.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -220,7 +246,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.shadowLight.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -229,16 +255,16 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
-          gradient: AppTheme.primaryGradient,
+          gradient: ColorsAppQy.qyPrimaryGradient,
           borderRadius: BorderRadius.circular(25),
         ),
         labelColor: Colors.white,
-        unselectedLabelColor: AppTheme.textSecondary,
+        unselectedLabelColor: ColorsAppQy.qyTextSecondary,
         indicatorSize: TabBarIndicatorSize.tab,
-        labelStyle: AppTextStyles.bodySmall.copyWith(
+        labelStyle: ThemeTextStyles.caption.copyWith(
           fontWeight: FontWeight.bold,
         ),
-        unselectedLabelStyle: AppTextStyles.bodySmall,
+        unselectedLabelStyle: ThemeTextStyles.caption,
         tabs: [
           Tab(text: QyAppLocalizationKeys.qyCourseOverview.tr(context)),
           Tab(text: QyAppLocalizationKeys.qyCourseLessons.tr(context)),
@@ -273,11 +299,11 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: ColorsAppQy.qyPrimaryGradient,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.3),
+            color: ColorsAppQy.qyPrimary.withOpacity(0.3),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -291,7 +317,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
             children: [
               Text(
                 QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
-                style: AppTextStyles.headline6.copyWith(
+                style: ThemeTextStyles.h4.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -304,7 +330,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 ),
                 child: Text(
                   '${(_userProgress * 100).toInt()}%',
-                  style: AppTextStyles.bodySmall.copyWith(
+                  style: ThemeTextStyles.caption.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -341,8 +367,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        QyAppLocalizationKeys.qyCourseCompletedLessons.tr(context).replaceAll('{completed}', _completedLessons.toString()).replaceAll('{total}', _ieltsCourse.lessons.toString()),
-                        style: AppTextStyles.bodyMedium.copyWith(
+                        QyAppLocalizationKeys.qyCourseCompletedLessons.tr(context).replaceAll('{completed}', _completedLessons.toString()).replaceAll('{total}', _course!.lessons.toString()),
+                        style: ThemeTextStyles.body1.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),
                       ),
@@ -353,7 +379,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                           const SizedBox(width: 4),
                           Text(
                             '连续 $_currentStreak 天',
-                            style: AppTextStyles.bodyMedium.copyWith(
+                            style: ThemeTextStyles.body1.copyWith(
                               color: Colors.white.withOpacity(0.9),
                             ),
                           ),
@@ -373,14 +399,17 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildCourseInfo() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.primaryCardDecoration,
+      decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '课程信息',
-            style: AppTextStyles.headline6.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h4.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -391,8 +420,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 child: _buildInfoItem(
                   Icons.schedule,
                   '课程时长',
-                  _ieltsCourse.duration,
-                  AppTheme.info,
+                  _course!.duration,
+                  ColorsAppQy.qyInfo,
                 ),
               ),
               const SizedBox(width: 16),
@@ -400,8 +429,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 child: _buildInfoItem(
                   Icons.book,
                   '课程数量',
-                  '${_ieltsCourse.lessons}节',
-                  AppTheme.success,
+                  '${_course!.lessons}节',
+                  ColorsAppQy.qySuccess,
                 ),
               ),
             ],
@@ -413,8 +442,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 child: _buildInfoItem(
                   Icons.signal_cellular_alt,
                   '难度等级',
-                  _ieltsCourse.level,
-                  AppTheme.warning,
+                  _course!.level,
+                  ColorsAppQy.qyWarning,
                 ),
               ),
               const SizedBox(width: 16),
@@ -422,8 +451,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 child: _buildInfoItem(
                   Icons.star,
                   '评分',
-                  '${_ieltsCourse.rating}',
-                  AppTheme.accentColor,
+                  '${_course!.rating}',
+                  ColorsAppQy.qyAccent,
                 ),
               ),
             ],
@@ -446,14 +475,14 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           const SizedBox(height: 8),
           Text(
             label,
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppTheme.textSecondary,
+            style: ThemeTextStyles.caption.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: AppTextStyles.bodyMedium.copyWith(
+            style: ThemeTextStyles.body1.copyWith(
               color: color,
               fontWeight: FontWeight.bold,
             ),
@@ -466,19 +495,22 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildFeatures() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.primaryCardDecoration,
+      decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '课程特色',
-            style: AppTextStyles.headline6.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h4.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
-          ..._ieltsCourse.features.map((feature) => Padding(
+          ..._course!.features.map((feature) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
@@ -486,7 +518,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
+                    gradient: ColorsAppQy.qyPrimaryGradient,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -499,8 +531,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 Expanded(
                   child: Text(
                     feature,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppTheme.textPrimary,
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: ColorsAppQy.qyTextPrimary,
                     ),
                   ),
                 ),
@@ -515,14 +547,17 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildInstructorInfo() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.primaryCardDecoration,
+      decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '授课导师',
-            style: AppTextStyles.headline6.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h4.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -533,7 +568,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
+                  gradient: ColorsAppQy.qyPrimaryGradient,
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: const Center(
@@ -550,17 +585,17 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _ieltsCourse.instructor,
-                      style: AppTextStyles.headline6.copyWith(
-                        color: AppTheme.textPrimary,
+                      _course!.instructor,
+                      style: ThemeTextStyles.h4.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '资深雅思培训专家\n10年教学经验',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppTheme.textSecondary,
+                      style: ThemeTextStyles.body1.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
                       ),
                     ),
                   ],
@@ -576,70 +611,69 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildTopics() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.primaryCardDecoration,
+      decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '课程大纲',
-            style: AppTextStyles.headline6.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h4.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
-          ..._ieltsCourse.topics.asMap().entries.map((entry) {
+          ..._course!.topics.asMap().entries.map((entry) {
             final index = entry.key;
             final topic = entry.value;
-            return AnimationUtils.staggeredAnimation(
-              index: index,
-              totalItems: _ieltsCourse.topics.length,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.backgroundLight,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppTheme.borderLight,
-                    ),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: ColorsAppQy.qyBorderLight,
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        gradient: ColorsAppQy.qyPrimaryGradient,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
+                      child: Center(
                         child: Text(
-                          topic,
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppTheme.textPrimary,
+                          '${index + 1}',
+                          style: ThemeTextStyles.caption.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: AppTheme.textSecondary,
-                        size: 16,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        topic,
+                        style: ThemeTextStyles.body1.copyWith(
+                          color: ColorsAppQy.qyTextPrimary,
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      color: ColorsAppQy.qyTextSecondary,
+                      size: 16,
+                    ),
+                  ],
                 ),
               ),
             );
@@ -657,8 +691,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         children: [
           Text(
             '课程内容',
-            style: AppTextStyles.headline5.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h3.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -674,28 +708,28 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
       {
         'title': '听力训练',
         'icon': Icons.headphones,
-        'color': AppTheme.info,
+        'color': ColorsAppQy.qyInfo,
         'lessons': 12,
         'completed': 5,
       },
       {
         'title': '阅读理解',
         'icon': Icons.menu_book,
-        'color': AppTheme.success,
+        'color': ColorsAppQy.qySuccess,
         'lessons': 12,
         'completed': 4,
       },
       {
         'title': '写作技巧',
         'icon': Icons.edit,
-        'color': AppTheme.warning,
+        'color': ColorsAppQy.qyWarning,
         'lessons': 12,
         'completed': 3,
       },
       {
         'title': '口语表达',
         'icon': Icons.record_voice_over,
-        'color': AppTheme.accentColor,
+        'color': ColorsAppQy.qyAccent,
         'lessons': 12,
         'completed': 5,
       },
@@ -718,11 +752,14 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildLessonCategoryCard(String title, IconData icon, Color color, int totalLessons, int completed) {
     final progress = completed / totalLessons;
 
-    return BouncingButton(
-      onPressed: () => _openLessonCategory(title),
+    return InkWell(
+      onTap: () => _openLessonCategory(title),
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: ComponentStyles.primaryCardDecoration,
+        decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -744,15 +781,15 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                     children: [
                       Text(
                         title,
-                        style: AppTextStyles.headline6.copyWith(
-                          color: AppTheme.textPrimary,
+                        style: ThemeTextStyles.h4.copyWith(
+                          color: ColorsAppQy.qyTextPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
                         '已完成 $completed/$totalLessons 节课',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppTheme.textSecondary,
+                        style: ThemeTextStyles.body1.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
                         ),
                       ),
                     ],
@@ -766,7 +803,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   ),
                   child: Text(
                     '${(progress * 100).toInt()}%',
-                    style: AppTextStyles.bodySmall.copyWith(
+                    style: ThemeTextStyles.caption.copyWith(
                       color: color,
                       fontWeight: FontWeight.bold,
                     ),
@@ -778,7 +815,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
             Container(
               height: 6,
               decoration: BoxDecoration(
-                color: AppTheme.backgroundLight,
+                color: Colors.white.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(3),
               ),
               child: FractionallySizedBox(
@@ -808,8 +845,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         children: [
           Text(
             '练习与测试',
-            style: AppTextStyles.headline5.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h3.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -826,7 +863,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         'title': '模拟测试',
         'subtitle': '完整雅思模拟考试',
         'icon': Icons.assignment,
-        'color': AppTheme.primaryColor,
+        'color': ColorsAppQy.qyPrimary,
         'duration': '2小时45分钟',
         'type': 'full_test',
       },
@@ -834,7 +871,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         'title': '专项练习',
         'subtitle': '分项技能强化训练',
         'icon': Icons.fitness_center,
-        'color': AppTheme.success,
+        'color': ColorsAppQy.qySuccess,
         'duration': '30-60分钟',
         'type': 'skill_practice',
       },
@@ -842,7 +879,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         'title': '真题演练',
         'subtitle': '历年真题精选练习',
         'icon': Icons.history_edu,
-        'color': AppTheme.warning,
+        'color': ColorsAppQy.qyWarning,
         'duration': '45-90分钟',
         'type': 'past_papers',
       },
@@ -850,7 +887,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         'title': '口语对练',
         'subtitle': 'AI智能口语对话',
         'icon': Icons.chat,
-        'color': AppTheme.info,
+        'color': ColorsAppQy.qyInfo,
         'duration': '15-30分钟',
         'type': 'speaking',
       },
@@ -872,11 +909,14 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   }
 
   Widget _buildPracticeCard(String title, String subtitle, IconData icon, Color color, String duration, String type) {
-    return BouncingButton(
-      onPressed: () => _startPractice(type),
+    return InkWell(
+      onTap: () => _startPractice(type),
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: ComponentStyles.primaryCardDecoration,
+        decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
         child: Row(
           children: [
             Container(
@@ -899,27 +939,27 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 children: [
                   Text(
                     title,
-                    style: AppTextStyles.headline6.copyWith(
-                      color: AppTheme.textPrimary,
+                    style: ThemeTextStyles.h4.copyWith(
+                      color: ColorsAppQy.qyTextPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppTheme.textSecondary,
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: ColorsAppQy.qyTextSecondary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.schedule, color: AppTheme.textSecondary, size: 14),
+                      Icon(Icons.schedule, color: ColorsAppQy.qyTextSecondary, size: 14),
                       const SizedBox(width: 4),
                       Text(
                         duration,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppTheme.textSecondary,
+                        style: ThemeTextStyles.caption.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
                         ),
                       ),
                     ],
@@ -946,8 +986,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         children: [
           Text(
             '学习统计',
-            style: AppTextStyles.headline5.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h3.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -969,12 +1009,11 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
       crossAxisCount: 2,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childCount: 4,
       children: [
-        _buildStatCard('学习天数', '42', Icons.calendar_today, AppTheme.primaryColor),
-        _buildStatCard('完成课时', '$_completedLessons', Icons.check_circle, AppTheme.success),
-        _buildStatCard('练习时长', '126h', Icons.schedule, AppTheme.warning),
-        _buildStatCard('平均分数', '7.5', Icons.star, AppTheme.accentColor),
+        _buildStatCard('学习天数', '42', Icons.calendar_today, ColorsAppQy.qyPrimary),
+        _buildStatCard('完成课时', '$_completedLessons', Icons.check_circle, ColorsAppQy.qySuccess),
+        _buildStatCard('练习时长', '126h', Icons.schedule, ColorsAppQy.qyWarning),
+        _buildStatCard('平均分数', '7.5', Icons.star, ColorsAppQy.qyAccent),
       ],
     );
   }
@@ -996,7 +1035,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           const SizedBox(height: 8),
           Text(
             value,
-            style: AppTextStyles.headline4.copyWith(
+            style: ThemeTextStyles.h2.copyWith(
               color: color,
               fontWeight: FontWeight.bold,
             ),
@@ -1004,8 +1043,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           const SizedBox(height: 4),
           Text(
             title,
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppTheme.textSecondary,
+            style: ThemeTextStyles.caption.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1017,14 +1056,17 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildProgressChart() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.primaryCardDecoration,
+      decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '学习进度趋势',
-            style: AppTextStyles.headline6.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h4.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1032,7 +1074,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           Container(
             height: 200,
             decoration: BoxDecoration(
-              color: AppTheme.backgroundLight,
+              color: Colors.white.withOpacity(0.3),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Center(
@@ -1063,14 +1105,17 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: ComponentStyles.primaryCardDecoration,
+      decoration: BoxDecoration(
+        gradient: ColorsAppQy.qyFrostedGlassGradient,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '成就徽章',
-            style: AppTextStyles.headline6.copyWith(
-              color: AppTheme.textPrimary,
+            style: ThemeTextStyles.h4.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1092,13 +1137,13 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
               return Container(
                 decoration: BoxDecoration(
                   color: isAchieved
-                      ? AppTheme.success.withOpacity(0.1)
-                      : AppTheme.backgroundLight,
+                      ? ColorsAppQy.qySuccess.withOpacity(0.1)
+                      : Colors.white.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isAchieved
-                        ? AppTheme.success.withOpacity(0.3)
-                        : AppTheme.borderLight,
+                        ? ColorsAppQy.qySuccess.withOpacity(0.3)
+                        : ColorsAppQy.qyBorderLight,
                   ),
                 ),
                 child: Column(
@@ -1106,14 +1151,14 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   children: [
                     Icon(
                       achievement['icon'] as IconData,
-                      color: isAchieved ? AppTheme.success : Colors.grey,
+                      color: isAchieved ? ColorsAppQy.qySuccess : Colors.grey,
                       size: 28,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       achievement['title'] as String,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: isAchieved ? AppTheme.textPrimary : Colors.grey,
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: isAchieved ? ColorsAppQy.qyTextPrimary : Colors.grey,
                         fontWeight: isAchieved ? FontWeight.w600 : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
@@ -1134,8 +1179,8 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
     // Navigate to the next lesson
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('继续学习：${_ieltsCourse.title}'),
-        backgroundColor: AppTheme.primaryColor,
+        content: Text('继续学习：${_course!.title}'),
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
@@ -1144,7 +1189,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('打开$category课程'),
-        backgroundColor: AppTheme.info,
+        backgroundColor: ColorsAppQy.qyInfo,
       ),
     );
   }
@@ -1153,7 +1198,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('开始$practiceType练习'),
-        backgroundColor: AppTheme.success,
+        backgroundColor: ColorsAppQy.qySuccess,
       ),
     );
   }

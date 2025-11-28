@@ -17,7 +17,8 @@ class EnAppQy {
   static const Map<String, String> values = {
     // App Identity
     QyAppLocalizationKeys.qyAppName: 'QY App',
-    QyAppLocalizationKeys.qyAppDescription: 'A comprehensive QY learning platform',
+    QyAppLocalizationKeys.qyAppDescription:
+        'A comprehensive QY learning platform',
     QyAppLocalizationKeys.qyAppSlogan: 'Learn, Build, Grow',
     QyAppLocalizationKeys.qyAppVersion: 'Version 1.0.0',
     QyAppLocalizationKeys.qyAppSettings: 'App Settings',
@@ -88,7 +89,8 @@ class EnAppQy {
     QyAppLocalizationKeys.qySignOut: 'Sign Out',
     QyAppLocalizationKeys.qyLogout: 'Logout',
     QyAppLocalizationKeys.qyLogoutConfirm: 'Are you sure you want to log out?',
-    QyAppLocalizationKeys.qyLogoutSuccess: 'You have been logged out successfully',
+    QyAppLocalizationKeys.qyLogoutSuccess:
+        'You have been logged out successfully',
     QyAppLocalizationKeys.qyLogoutFailed: 'Logout failed, please try again',
     QyAppLocalizationKeys.qyYesLogout: 'Yes, logout',
     QyAppLocalizationKeys.qyLogin: 'Login',
@@ -127,9 +129,11 @@ class EnAppQy {
     QyAppLocalizationKeys.qyLanguageSettings: 'Language Settings',
     QyAppLocalizationKeys.qyThemeSettings: 'Theme Settings',
     QyAppLocalizationKeys.qyReminderSettings: 'Reminder Settings',
-    QyAppLocalizationKeys.qyReminderSettingsDesc: 'Customize study reminders and schedules',
+    QyAppLocalizationKeys.qyReminderSettingsDesc:
+        'Customize study reminders and schedules',
     QyAppLocalizationKeys.qyRecommendSettings: 'Recommendation Settings',
-    QyAppLocalizationKeys.qyRecommendSettingsDesc: 'Smart word suggestions based on your progress',
+    QyAppLocalizationKeys.qyRecommendSettingsDesc:
+        'Smart word suggestions based on your progress',
     QyAppLocalizationKeys.qyOtherSettings: 'Other Settings',
     QyAppLocalizationKeys.qyDisplayMode: 'Display Mode',
     QyAppLocalizationKeys.qyAboutUs: 'About Us',
@@ -185,14 +189,17 @@ class EnAppQy {
     QyAppLocalizationKeys.qyMedical: 'Medical Aid',
     QyAppLocalizationKeys.qyOrphanage: 'Orphanage',
     QyAppLocalizationKeys.qyDailyStudyReminder: 'Daily study reminder',
-    QyAppLocalizationKeys.qyPersonalizedRecommendations: 'Personalized recommendation settings',
+    QyAppLocalizationKeys.qyPersonalizedRecommendations:
+        'Personalized recommendation settings',
     QyAppLocalizationKeys.qySyncSettings: 'Sync settings',
     QyAppLocalizationKeys.qyNotLoggedIn: 'Not logged in',
     QyAppLocalizationKeys.qyUser: 'User',
     QyAppLocalizationKeys.qyClearCacheTitle: 'Clear cache',
-    QyAppLocalizationKeys.qyClearCacheMessage: 'Are you sure you want to clear the cache? This will remove {size} MB of data.',
+    QyAppLocalizationKeys.qyClearCacheMessage:
+        'Are you sure you want to clear the cache? This will remove {size} MB of data.',
     QyAppLocalizationKeys.qyCacheCleared: 'Cache cleared successfully.',
-    QyAppLocalizationKeys.qyHelpCenterInProgress: 'Help center feature is under development...',
+    QyAppLocalizationKeys.qyHelpCenterInProgress:
+        'Help center feature is under development...',
 
     // Learning statistics
     QyAppLocalizationKeys.qyCommunity: 'Community',
@@ -208,7 +215,8 @@ class EnAppQy {
     QyAppLocalizationKeys.qyIAm: 'I am',
 
     QyAppLocalizationKeys.qyCertificateCenter: 'Certificate Center',
-    QyAppLocalizationKeys.qyCertificateCenterSubtitle: 'View your learning achievements',
+    QyAppLocalizationKeys.qyCertificateCenterSubtitle:
+        'View your learning achievements',
     QyAppLocalizationKeys.qyCertificateEarned: 'Earned',
     QyAppLocalizationKeys.qyCertificateInProgress: 'In Progress',
     QyAppLocalizationKeys.qyCertificateTotalPoints: 'Total Points',
@@ -217,14 +225,18 @@ class EnAppQy {
     QyAppLocalizationKeys.qyCertificateEarnedDate: 'Earned Date',
     QyAppLocalizationKeys.qyCertificateNumber: 'Certificate No.',
     QyAppLocalizationKeys.qyCertificateIssueDate: 'Issue Date',
-    QyAppLocalizationKeys.qyCertificateKeepWorking: 'Keep working to unlock this certificate!',
+    QyAppLocalizationKeys.qyCertificateKeepWorking:
+        'Keep working to unlock this certificate!',
     QyAppLocalizationKeys.qyCertificateShareToWechat: 'Share to WeChat',
     QyAppLocalizationKeys.qyCertificateShareToMoments: 'Share to Moments',
     QyAppLocalizationKeys.qyCertificateSaveImage: 'Save Image',
     QyAppLocalizationKeys.qyCertificateCopyLink: 'Copy Link',
-    QyAppLocalizationKeys.qyCertificateDownloadInProgress: 'Certificate download feature is under development...',
-    QyAppLocalizationKeys.qyCertificateShareInProgress: 'Certificate share feature is under development...',
-    QyAppLocalizationKeys.qyCertificateDescription: 'This certificate is issued by the English Learning Platform\n\nThis certifies that the student has completed the relevant learning requirements,\nachieved the corresponding learning standards, and this certificate is issued as encouragement.',
+    QyAppLocalizationKeys.qyCertificateDownloadInProgress:
+        'Certificate download feature is under development...',
+    QyAppLocalizationKeys.qyCertificateShareInProgress:
+        'Certificate share feature is under development...',
+    QyAppLocalizationKeys.qyCertificateDescription:
+        'This certificate is issued by the English Learning Platform\n\nThis certifies that the student has completed the relevant learning requirements,\nachieved the corresponding learning standards, and this certificate is issued as encouragement.',
     QyAppLocalizationKeys.qyCertificateLevelBeginner: 'Beginner',
     QyAppLocalizationKeys.qyCertificateLevelIntermediate: 'Intermediate',
     QyAppLocalizationKeys.qyCertificateLevelAdvanced: 'Advanced',
@@ -232,25 +244,34 @@ class EnAppQy {
     QyAppLocalizationKeys.qyCertificateBadgeNewbie: 'Newbie',
     QyAppLocalizationKeys.qyCertificateBadgeDiligent: 'Diligent',
     QyAppLocalizationKeys.qyCertificateBadgePersistent: 'Persistent',
-    QyAppLocalizationKeys.qyCertificateBadgePerfectAttendance: 'Perfect Attendance',
+    QyAppLocalizationKeys.qyCertificateBadgePerfectAttendance:
+        'Perfect Attendance',
     QyAppLocalizationKeys.qyCertificateBadgeExpert: 'Expert',
     QyAppLocalizationKeys.qyCertificateBadgeExcellent: 'Excellent',
 
     QyAppLocalizationKeys.qyCertBasicEnglishTitle: 'Basic English Certificate',
-    QyAppLocalizationKeys.qyCertBasicEnglishDesc: 'Complete basic English learning course',
+    QyAppLocalizationKeys.qyCertBasicEnglishDesc:
+        'Complete basic English learning course',
     QyAppLocalizationKeys.qyCertWordMasterTitle: 'Word Master',
     QyAppLocalizationKeys.qyCertWordMasterDesc: 'Master 1000 words in total',
     QyAppLocalizationKeys.qyCertListeningMasterTitle: 'Listening Master',
-    QyAppLocalizationKeys.qyCertListeningMasterDesc: 'Complete listening practice for 30 consecutive days',
-    QyAppLocalizationKeys.qyCertPerfectAttendanceTitle: 'Perfect Attendance Award',
-    QyAppLocalizationKeys.qyCertPerfectAttendanceDesc: 'Study continuously for 90 days without interruption',
-    QyAppLocalizationKeys.qyCertVocabularyExpertTitle: 'Vocabulary Expert Certification',
-    QyAppLocalizationKeys.qyCertVocabularyExpertDesc: 'Master 5000 advanced vocabulary words',
-    QyAppLocalizationKeys.qyCertIeltsHighScoreTitle: 'IELTS High Score Certificate',
+    QyAppLocalizationKeys.qyCertListeningMasterDesc:
+        'Complete listening practice for 30 consecutive days',
+    QyAppLocalizationKeys.qyCertPerfectAttendanceTitle:
+        'Perfect Attendance Award',
+    QyAppLocalizationKeys.qyCertPerfectAttendanceDesc:
+        'Study continuously for 90 days without interruption',
+    QyAppLocalizationKeys.qyCertVocabularyExpertTitle:
+        'Vocabulary Expert Certification',
+    QyAppLocalizationKeys.qyCertVocabularyExpertDesc:
+        'Master 5000 advanced vocabulary words',
+    QyAppLocalizationKeys.qyCertIeltsHighScoreTitle:
+        'IELTS High Score Certificate',
     QyAppLocalizationKeys.qyCertIeltsHighScoreDesc: 'IELTS score above 7.5',
 
     QyAppLocalizationKeys.qyAuthWelcomeMessage: 'Welcome',
-    QyAppLocalizationKeys.qyAuthAppSlogan: 'Shanbay Words - Remember Words, Record Changes',
+    QyAppLocalizationKeys.qyAuthAppSlogan:
+        'Shanbay Words - Remember Words, Record Changes',
     QyAppLocalizationKeys.qyAuthPhoneLogin: 'Phone Login',
     QyAppLocalizationKeys.qyAuthWechatLogin: 'WeChat Login',
     QyAppLocalizationKeys.qyAuthQQLogin: 'QQ Login',
@@ -279,8 +300,10 @@ class EnAppQy {
     QyAppLocalizationKeys.qyAuthTermsOfService: 'Terms of Service',
     QyAppLocalizationKeys.qyAuthAnd: 'and',
     QyAppLocalizationKeys.qyAuthPrivacyPolicy: 'Privacy Policy',
-    QyAppLocalizationKeys.qyAuthMustAgree: 'Please agree to the user agreement first',
-    QyAppLocalizationKeys.qyAuthPhoneInvalid: 'Please enter a valid phone number',
+    QyAppLocalizationKeys.qyAuthMustAgree:
+        'Please agree to the user agreement first',
+    QyAppLocalizationKeys.qyAuthPhoneInvalid:
+        'Please enter a valid phone number',
     QyAppLocalizationKeys.qyAuthCodeInvalid: 'Please enter verification code',
     QyAppLocalizationKeys.qyAuthCodeLength: 'Please enter a 6-digit code',
     QyAppLocalizationKeys.qyAuthSeconds: 'seconds',
@@ -288,20 +311,23 @@ class EnAppQy {
     QyAppLocalizationKeys.qyAuthSelectCountry: 'Select Country/Region',
     QyAppLocalizationKeys.qyAuthCountryCode: 'Country Code',
     QyAppLocalizationKeys.qyAuthVerifyPhone: 'Verify Phone',
-    QyAppLocalizationKeys.qyAuthVerifyPhoneHint: 'Enter code to verify your phone',
+    QyAppLocalizationKeys.qyAuthVerifyPhoneHint:
+        'Enter code to verify your phone',
     QyAppLocalizationKeys.qyAuthForgotPassword: 'Forgot Password',
     QyAppLocalizationKeys.qyAuthResetPassword: 'Reset Password',
     QyAppLocalizationKeys.qyAuthNewPassword: 'New Password',
     QyAppLocalizationKeys.qyAuthConfirmNewPassword: 'Confirm New Password',
     QyAppLocalizationKeys.qyAuthPasswordMismatch: 'Passwords do not match',
-    QyAppLocalizationKeys.qyAuthPasswordTooShort: 'Password must be at least 6 characters',
+    QyAppLocalizationKeys.qyAuthPasswordTooShort:
+        'Password must be at least 6 characters',
     QyAppLocalizationKeys.qyAuthCreatePin: 'Create PIN',
     QyAppLocalizationKeys.qyAuthEnterPin: 'Enter PIN',
     QyAppLocalizationKeys.qyAuthConfirmPin: 'Confirm PIN',
     QyAppLocalizationKeys.qyAuthPinMismatch: 'PIN does not match',
     QyAppLocalizationKeys.qyAuthCongratulations: 'Congratulations',
     QyAppLocalizationKeys.qyAuthAccountCreated: 'Account Created',
-    QyAppLocalizationKeys.qyAuthAccountCreatedDesc: 'Your account has been created successfully',
+    QyAppLocalizationKeys.qyAuthAccountCreatedDesc:
+        'Your account has been created successfully',
     QyAppLocalizationKeys.qyAuthGetStarted: 'Get Started',
     QyAppLocalizationKeys.qyAuthLoginModeSwitch: 'Switch to Login',
     QyAppLocalizationKeys.qyAuthRegisterModeSwitch: 'Switch to Register',
@@ -310,19 +336,27 @@ class EnAppQy {
 
     QyAppLocalizationKeys.qySettingsPlayerCompatibility: 'Player compatibility',
     QyAppLocalizationKeys.qySettingsFeedback: 'Feedback',
-    QyAppLocalizationKeys.qySettingsFeedbackInProgress: 'Feedback feature is under development...',
-    QyAppLocalizationKeys.qySettingsAboutInProgress: 'About page feature is under development...',
-    QyAppLocalizationKeys.qySettingsTermsInProgress: 'User agreement feature is under development...',
-    QyAppLocalizationKeys.qySettingsPrivacyInProgress: 'Privacy policy feature is under development...',
+    QyAppLocalizationKeys.qySettingsFeedbackInProgress:
+        'Feedback feature is under development...',
+    QyAppLocalizationKeys.qySettingsAboutInProgress:
+        'About page feature is under development...',
+    QyAppLocalizationKeys.qySettingsTermsInProgress:
+        'User agreement feature is under development...',
+    QyAppLocalizationKeys.qySettingsPrivacyInProgress:
+        'Privacy policy feature is under development...',
 
     QyAppLocalizationKeys.qySettingsDailyReminder: 'Daily reminder',
-    QyAppLocalizationKeys.qySettingsEnableDailyReminder: 'Enable daily reminder',
-    QyAppLocalizationKeys.qySettingsEnableDailyReminderSubtitle: 'Daily study reminder at fixed time',
+    QyAppLocalizationKeys.qySettingsEnableDailyReminder:
+        'Enable daily reminder',
+    QyAppLocalizationKeys.qySettingsEnableDailyReminderSubtitle:
+        'Daily study reminder at fixed time',
     QyAppLocalizationKeys.qySettingsReminderTime: 'Reminder time',
     QyAppLocalizationKeys.qySettingsVibrationReminder: 'Vibration reminder',
-    QyAppLocalizationKeys.qySettingsVibrationReminderSubtitle: 'Vibrate on study reminder',
+    QyAppLocalizationKeys.qySettingsVibrationReminderSubtitle:
+        'Vibrate on study reminder',
     QyAppLocalizationKeys.qySettingsSoundReminder: 'Sound reminder',
-    QyAppLocalizationKeys.qySettingsSoundReminderSubtitle: 'Play sound on study reminder',
+    QyAppLocalizationKeys.qySettingsSoundReminderSubtitle:
+        'Play sound on study reminder',
     QyAppLocalizationKeys.qySettingsReminderDate: 'Reminder date',
     QyAppLocalizationKeys.qySettingsRemindEveryday: 'Remind every day',
     QyAppLocalizationKeys.qySettingsWeekdayMonday: 'Mon',
@@ -340,11 +374,14 @@ class EnAppQy {
     QyAppLocalizationKeys.qySettingsStandardMode: 'Standard mode',
     QyAppLocalizationKeys.qySettingsAccessibility: 'Accessibility',
     QyAppLocalizationKeys.qySettingsHighContrast: 'High contrast',
-    QyAppLocalizationKeys.qySettingsHighContrastSubtitle: 'Improve contrast between text and background',
+    QyAppLocalizationKeys.qySettingsHighContrastSubtitle:
+        'Improve contrast between text and background',
     QyAppLocalizationKeys.qySettingsLargeFontMode: 'Large font mode',
-    QyAppLocalizationKeys.qySettingsLargeFontModeSubtitle: 'Suitable for users with poor vision',
+    QyAppLocalizationKeys.qySettingsLargeFontModeSubtitle:
+        'Suitable for users with poor vision',
     QyAppLocalizationKeys.qySettingsSelectFont: 'Select font',
-    QyAppLocalizationKeys.qySettingsLayoutInProgress: 'Layout settings feature is under development...',
+    QyAppLocalizationKeys.qySettingsLayoutInProgress:
+        'Layout settings feature is under development...',
 
     QyAppLocalizationKeys.qySettingsModify: 'Modify',
     QyAppLocalizationKeys.qySettingsRebind: 'Rebind',
@@ -356,7 +393,8 @@ class EnAppQy {
     QyAppLocalizationKeys.qySettingsWeibo: 'Weibo',
     QyAppLocalizationKeys.qySettingsQQ: 'QQ',
     QyAppLocalizationKeys.qySettingsAccountDeletion: 'Account deletion',
-    QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle: 'Delete all data, permanent deletion',
+    QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle:
+        'Delete all data, permanent deletion',
     QyAppLocalizationKeys.qySettingsDeleteAccount: 'Delete',
     QyAppLocalizationKeys.qySettingsChangeUsername: 'Change username',
     QyAppLocalizationKeys.qySettingsEnterNewUsername: 'Enter new username',
@@ -366,27 +404,39 @@ class EnAppQy {
     QyAppLocalizationKeys.qySettingsConfirmNewPassword: 'Confirm new password',
     QyAppLocalizationKeys.qySettingsPasswordUpdated: 'Password updated',
     QyAppLocalizationKeys.qySettingsPhoneBinding: 'Phone binding',
-    QyAppLocalizationKeys.qySettingsPhoneBindingInProgress: 'Phone binding feature is under development...',
+    QyAppLocalizationKeys.qySettingsPhoneBindingInProgress:
+        'Phone binding feature is under development...',
     QyAppLocalizationKeys.qySettingsWechatBinding: 'WeChat binding',
-    QyAppLocalizationKeys.qySettingsWechatBindingInProgress: 'WeChat binding feature is under development...',
+    QyAppLocalizationKeys.qySettingsWechatBindingInProgress:
+        'WeChat binding feature is under development...',
     QyAppLocalizationKeys.qySettingsWeiboBinding: 'Weibo binding',
-    QyAppLocalizationKeys.qySettingsWeiboBindingInProgress: 'Weibo binding feature is under development...',
+    QyAppLocalizationKeys.qySettingsWeiboBindingInProgress:
+        'Weibo binding feature is under development...',
     QyAppLocalizationKeys.qySettingsQQBinding: 'QQ binding',
-    QyAppLocalizationKeys.qySettingsQQBindingInProgress: 'QQ binding feature is under development...',
-    QyAppLocalizationKeys.qySettingsDeletionWarning: 'Warning: This operation is irreversible!',
+    QyAppLocalizationKeys.qySettingsQQBindingInProgress:
+        'QQ binding feature is under development...',
+    QyAppLocalizationKeys.qySettingsDeletionWarning:
+        'Warning: This operation is irreversible!',
     QyAppLocalizationKeys.qySettingsAfterDeletion: 'After account deletion:',
-    QyAppLocalizationKeys.qySettingsDeletionDataLoss: 'All learning data will be permanently deleted',
-    QyAppLocalizationKeys.qySettingsDeletionCourseLoss: 'Purchased courses and services will be unavailable',
-    QyAppLocalizationKeys.qySettingsDeletionAccountClear: 'Account information will be completely cleared',
-    QyAppLocalizationKeys.qySettingsConfirmDeletion: 'Are you sure you want to delete your account?',
+    QyAppLocalizationKeys.qySettingsDeletionDataLoss:
+        'All learning data will be permanently deleted',
+    QyAppLocalizationKeys.qySettingsDeletionCourseLoss:
+        'Purchased courses and services will be unavailable',
+    QyAppLocalizationKeys.qySettingsDeletionAccountClear:
+        'Account information will be completely cleared',
+    QyAppLocalizationKeys.qySettingsConfirmDeletion:
+        'Are you sure you want to delete your account?',
     QyAppLocalizationKeys.qySettingsFinalConfirmation: 'Final confirmation',
-    QyAppLocalizationKeys.qySettingsFinalConfirmationMessage: 'Please confirm again: Do you really want to permanently delete your account?',
+    QyAppLocalizationKeys.qySettingsFinalConfirmationMessage:
+        'Please confirm again: Do you really want to permanently delete your account?',
     QyAppLocalizationKeys.qySettingsLetMeThink: 'Let me think again',
-    QyAppLocalizationKeys.qySettingsAccountDeletionInProgress: 'Account deletion feature is under development...',
+    QyAppLocalizationKeys.qySettingsAccountDeletionInProgress:
+        'Account deletion feature is under development...',
 
     QyAppLocalizationKeys.qySettingsSmartRecommendation: 'Smart recommendation',
     QyAppLocalizationKeys.qySettingsAutoRecommend: 'Auto recommend',
-    QyAppLocalizationKeys.qySettingsAutoRecommendSubtitle: 'Recommend words based on learning history',
+    QyAppLocalizationKeys.qySettingsAutoRecommendSubtitle:
+        'Recommend words based on learning history',
     QyAppLocalizationKeys.qySettingsDifficulty: 'Difficulty',
     QyAppLocalizationKeys.qySettingsDifficultySettings: 'Difficulty settings',
     QyAppLocalizationKeys.qySettingsDifficultyBeginner: 'Beginner',
@@ -394,14 +444,21 @@ class EnAppQy {
     QyAppLocalizationKeys.qySettingsDifficultyAdvanced: 'Advanced',
     QyAppLocalizationKeys.qySettingsDifficultyExpert: 'Expert',
     QyAppLocalizationKeys.qySettingsInterestTags: 'Interest tags',
-    QyAppLocalizationKeys.qySettingsInterestTagsSelected: '{count} interest tags selected',
-    QyAppLocalizationKeys.qySettingsRecommendationFrequency: 'Recommendation frequency',
-    QyAppLocalizationKeys.qySettingsRecommendationStrength: 'Recommendation strength',
+    QyAppLocalizationKeys.qySettingsInterestTagsSelected:
+        '{count} interest tags selected',
+    QyAppLocalizationKeys.qySettingsRecommendationFrequency:
+        'Recommendation frequency',
+    QyAppLocalizationKeys.qySettingsRecommendationStrength:
+        'Recommendation strength',
     QyAppLocalizationKeys.qySettingsSelectDifficulty: 'Select difficulty',
-    QyAppLocalizationKeys.qySettingsDifficultyBeginnerDesc: 'Suitable for beginners, basic vocabulary',
-    QyAppLocalizationKeys.qySettingsDifficultyIntermediateDesc: 'Suitable for learners with some foundation',
-    QyAppLocalizationKeys.qySettingsDifficultyAdvancedDesc: 'Suitable for advanced learners, professional vocabulary',
-    QyAppLocalizationKeys.qySettingsDifficultyExpertDesc: 'Suitable for expert learners, academic vocabulary',
+    QyAppLocalizationKeys.qySettingsDifficultyBeginnerDesc:
+        'Suitable for beginners, basic vocabulary',
+    QyAppLocalizationKeys.qySettingsDifficultyIntermediateDesc:
+        'Suitable for learners with some foundation',
+    QyAppLocalizationKeys.qySettingsDifficultyAdvancedDesc:
+        'Suitable for advanced learners, professional vocabulary',
+    QyAppLocalizationKeys.qySettingsDifficultyExpertDesc:
+        'Suitable for expert learners, academic vocabulary',
 
     // Word Book Module
     QyAppLocalizationKeys.qyWordBook: 'Word Book',
@@ -456,29 +513,42 @@ class EnAppQy {
     QyAppLocalizationKeys.qyListeningSpeedNormal: 'Normal',
     QyAppLocalizationKeys.qyListeningSpeedFast: 'Fast',
     QyAppLocalizationKeys.qyListeningCategoryDaily: 'Daily Vocabulary',
-    QyAppLocalizationKeys.qyListeningCategoryDailyDesc: 'Basic daily expressions',
+    QyAppLocalizationKeys.qyListeningCategoryDailyDesc:
+        'Basic daily expressions',
     QyAppLocalizationKeys.qyListeningCategoryBusiness: 'Business English',
-    QyAppLocalizationKeys.qyListeningCategoryBusinessDesc: 'Workplace business vocabulary',
+    QyAppLocalizationKeys.qyListeningCategoryBusinessDesc:
+        'Workplace business vocabulary',
     QyAppLocalizationKeys.qyListeningCategoryAcademic: 'Academic Vocabulary',
-    QyAppLocalizationKeys.qyListeningCategoryAcademicDesc: 'Academic terminology',
+    QyAppLocalizationKeys.qyListeningCategoryAcademicDesc:
+        'Academic terminology',
     QyAppLocalizationKeys.qyListeningCategoryTravel: 'Travel English',
-    QyAppLocalizationKeys.qyListeningCategoryTravelDesc: 'Travel communication vocabulary',
+    QyAppLocalizationKeys.qyListeningCategoryTravelDesc:
+        'Travel communication vocabulary',
     QyAppLocalizationKeys.qyListeningCategoryTech: 'Tech Vocabulary',
-    QyAppLocalizationKeys.qyListeningCategoryTechDesc: 'Science and technology terms',
+    QyAppLocalizationKeys.qyListeningCategoryTechDesc:
+        'Science and technology terms',
     QyAppLocalizationKeys.qyListeningCategoryMedical: 'Medical Vocabulary',
-    QyAppLocalizationKeys.qyListeningCategoryMedicalDesc: 'Medical health terminology',
+    QyAppLocalizationKeys.qyListeningCategoryMedicalDesc:
+        'Medical health terminology',
     QyAppLocalizationKeys.qyListeningDictationBeginner: 'Beginner Dictation',
-    QyAppLocalizationKeys.qyListeningDictationBeginnerDesc: 'Basic vocabulary, slow playback',
-    QyAppLocalizationKeys.qyListeningDictationIntermediate: 'Intermediate Dictation',
-    QyAppLocalizationKeys.qyListeningDictationIntermediateDesc: 'Common vocabulary, standard speed',
+    QyAppLocalizationKeys.qyListeningDictationBeginnerDesc:
+        'Basic vocabulary, slow playback',
+    QyAppLocalizationKeys.qyListeningDictationIntermediate:
+        'Intermediate Dictation',
+    QyAppLocalizationKeys.qyListeningDictationIntermediateDesc:
+        'Common vocabulary, standard speed',
     QyAppLocalizationKeys.qyListeningDictationAdvanced: 'Advanced Dictation',
-    QyAppLocalizationKeys.qyListeningDictationAdvancedDesc: 'Professional vocabulary, fast playback',
+    QyAppLocalizationKeys.qyListeningDictationAdvancedDesc:
+        'Professional vocabulary, fast playback',
     QyAppLocalizationKeys.qyListeningDictationExpert: 'Expert Dictation',
-    QyAppLocalizationKeys.qyListeningDictationExpertDesc: 'Complex sentences, native speed',
+    QyAppLocalizationKeys.qyListeningDictationExpertDesc:
+        'Complex sentences, native speed',
     QyAppLocalizationKeys.qyListeningDictation: 'Word Dictation',
     QyAppLocalizationKeys.qyListeningDictationTitle: 'Dictation Training',
-    QyAppLocalizationKeys.qyListeningDictationDesc: 'Improve spelling and listening skills through dictation',
-    QyAppLocalizationKeys.qyListeningQuestionNumber: 'Question {index} / {total}',
+    QyAppLocalizationKeys.qyListeningDictationDesc:
+        'Improve spelling and listening skills through dictation',
+    QyAppLocalizationKeys.qyListeningQuestionNumber:
+        'Question {index} / {total}',
     QyAppLocalizationKeys.qyListeningAccuracy: 'Accuracy',
     QyAppLocalizationKeys.qyListeningProgress: 'Practice Progress',
     QyAppLocalizationKeys.qyListeningPlayWord: 'Play Word',
@@ -488,7 +558,8 @@ class EnAppQy {
     QyAppLocalizationKeys.qyListeningInputPlaceholder: 'Type word here...',
     QyAppLocalizationKeys.qyListeningSubmitAnswer: 'Submit Answer',
     QyAppLocalizationKeys.qyListeningHint: 'Hint',
-    QyAppLocalizationKeys.qyListeningHintMessage: 'Hint: Word starts with "{letter}", {length} letters total',
+    QyAppLocalizationKeys.qyListeningHintMessage:
+        'Hint: Word starts with "{letter}", {length} letters total',
     QyAppLocalizationKeys.qyListeningCorrect: 'Correct!',
     QyAppLocalizationKeys.qyListeningIncorrect: 'Incorrect',
     QyAppLocalizationKeys.qyListeningCorrectAnswer: 'Correct Answer',
@@ -508,57 +579,95 @@ class EnAppQy {
     QyAppLocalizationKeys.qyListeningContinuousDays: 'Continuous Days',
     QyAppLocalizationKeys.qyListeningDailyAverage: 'Daily Average',
     QyAppLocalizationKeys.qyListeningFreeTitle: 'Free Listening',
-    QyAppLocalizationKeys.qyListeningFreeDesc: 'Choose category, practice freely',
+    QyAppLocalizationKeys.qyListeningFreeDesc:
+        'Choose category, practice freely',
     QyAppLocalizationKeys.qyListeningSpeed: 'Playback Speed',
     QyAppLocalizationKeys.qyListeningCurrentWord: 'Current Word',
     QyAppLocalizationKeys.qyListeningNextWordTip: 'Switch to next word',
     QyAppLocalizationKeys.qyListeningStats: 'Listening Stats',
     QyAppLocalizationKeys.qyListeningAddToVocab: 'Add to Vocabulary',
     QyAppLocalizationKeys.qyListeningPracticing: 'Practicing',
+    QyAppLocalizationKeys.qyListeningMastered: 'Mastered',
+    QyAppLocalizationKeys.qyListeningAccuracyRate: 'Accuracy Rate',
+    QyAppLocalizationKeys.qyListeningDictationTraining: 'Dictation Training',
+    QyAppLocalizationKeys.qyListeningDictationTrainingDesc: 'Improve spelling through listening',
+    QyAppLocalizationKeys.qyListeningWordCount: '{count} words',
+    QyAppLocalizationKeys.qyListeningUnlockAfterCurrentLevel: 'Unlock after completing current level',
+    QyAppLocalizationKeys.qyListeningDictationHelp: 'Dictation Help',
+    QyAppLocalizationKeys.qyListeningHelpHowToPractice: 'How to Practice',
+    QyAppLocalizationKeys.qyListeningHelpPracticeSteps: '1. Listen to the word\n2. Type what you heard\n3. Check your answer',
+    QyAppLocalizationKeys.qyListeningHelpTipsContent: '• Pay attention to pronunciation\n• Practice daily for best results',
+    QyAppLocalizationKeys.qyListeningDailyChallengeInDev: 'Daily Challenge feature coming soon...',
     QyAppLocalizationKeys.qyListeningDailyChallenge: 'Daily Challenge',
-    QyAppLocalizationKeys.qyListeningUnlockTip: 'Unlock after completing current level',
+    QyAppLocalizationKeys.qyListeningUnlockTip:
+        'Unlock after completing current level',
     QyAppLocalizationKeys.qyListeningHelp: 'Dictation Training Help',
-    QyAppLocalizationKeys.qyListeningHelpContent: '1. Choose appropriate difficulty level\n2. Click play button to hear word pronunciation\n3. Spell the word you heard in the input box\n4. Submit answer to view result',
-    QyAppLocalizationKeys.qyListeningHelpTips: '• Can replay word pronunciation\n• Pay attention to capitalization\n• Can use hint function\n• Daily practice yields better results',
+    QyAppLocalizationKeys.qyListeningHelpContent:
+        '1. Choose appropriate difficulty level\n2. Click play button to hear word pronunciation\n3. Spell the word you heard in the input box\n4. Submit answer to view result',
+    QyAppLocalizationKeys.qyListeningHelpTips:
+        '• Can replay word pronunciation\n• Pay attention to capitalization\n• Can use hint function\n• Daily practice yields better results',
     QyAppLocalizationKeys.qyListeningGotIt: 'Got it',
-    QyAppLocalizationKeys.qyListeningDailyChallengeComingSoon: 'Daily challenge feature coming soon...',
-    QyAppLocalizationKeys.qyListeningSelectCategory: 'Select vocabulary category to start listening practice',
+    QyAppLocalizationKeys.qyListeningDailyChallengeComingSoon:
+        'Daily challenge feature coming soon...',
+    QyAppLocalizationKeys.qyListeningSelectCategory:
+        'Select vocabulary category to start listening practice',
     QyAppLocalizationKeys.qyListeningPlaylist: 'Playlist',
     QyAppLocalizationKeys.qyListeningMinutes: 'minutes',
     QyAppLocalizationKeys.qyListeningDays: 'days',
+    QyAppLocalizationKeys.qyListeningClickToPlay: 'Click to play audio',
+    QyAppLocalizationKeys.qyListeningWriteWord: 'Write the word',
+    QyAppLocalizationKeys.qyListeningInputWord: 'Enter the word you heard',
+    QyAppLocalizationKeys.qyListeningPreviousAttempts: 'Previous attempts',
+    QyAppLocalizationKeys.qyListeningHintShown: 'Hint shown',
+    QyAppLocalizationKeys.qyListeningShowHint: 'Show hint',
+    QyAppLocalizationKeys.qyListeningCheckAnswer: 'Check answer',
+    QyAppLocalizationKeys.qyListeningReplay: 'Replay',
+    QyAppLocalizationKeys.qyListeningEasy: 'Easy',
+    QyAppLocalizationKeys.qyListeningMedium: 'Medium',
+    QyAppLocalizationKeys.qyListeningHard: 'Hard',
+    QyAppLocalizationKeys.qyListeningUnknown: 'Unknown',
 
     // Word Listening - Sleep Mode
     QyAppLocalizationKeys.qyListeningSleepTitle: 'Sleep Listening',
-    QyAppLocalizationKeys.qyListeningSleepSubtitle: 'Soothing words for better sleep',
+    QyAppLocalizationKeys.qyListeningSleepSubtitle:
+        'Soothing words for better sleep',
     QyAppLocalizationKeys.qyListeningSleepCategorySoothing: 'Soothing Words',
     QyAppLocalizationKeys.qyListeningSleepCategoryNature: 'Nature Words',
     QyAppLocalizationKeys.qyListeningSleepCategoryStory: 'Story Words',
     QyAppLocalizationKeys.qyListeningSleepCategoryPoetry: 'Poetry Words',
-    QyAppLocalizationKeys.qyListeningSleepCategoryMeditation: 'Meditation Words',
-    QyAppLocalizationKeys.qyListeningSleepSelectCategory: 'Select Vocabulary Category',
+    QyAppLocalizationKeys.qyListeningSleepCategoryMeditation:
+        'Meditation Words',
+    QyAppLocalizationKeys.qyListeningSleepSelectCategory:
+        'Select Vocabulary Category',
     QyAppLocalizationKeys.qyListeningSleepDuration: 'Play Duration',
     QyAppLocalizationKeys.qyListeningSleepMinutes: '{minutes} minutes',
     QyAppLocalizationKeys.qyListeningSleepTipsTitle: 'Sleep Tips',
-    QyAppLocalizationKeys.qyListeningSleepTip1: '• Avoid electronic devices 1 hour before bed',
-    QyAppLocalizationKeys.qyListeningSleepTip2: '• Keep bedroom temperature between 18-22°C',
+    QyAppLocalizationKeys.qyListeningSleepTip1:
+        '• Avoid electronic devices 1 hour before bed',
+    QyAppLocalizationKeys.qyListeningSleepTip2:
+        '• Keep bedroom temperature between 18-22°C',
     QyAppLocalizationKeys.qyListeningSleepTip3: '• Use soft background music',
-    QyAppLocalizationKeys.qyListeningSleepTip4: '• Adjust screen brightness to minimum',
+    QyAppLocalizationKeys.qyListeningSleepTip4:
+        '• Adjust screen brightness to minimum',
     QyAppLocalizationKeys.qyListeningSleepStart: 'Start Sleep Listening',
     QyAppLocalizationKeys.qyListeningSleepPlaying: 'Playing soothing words...',
-    QyAppLocalizationKeys.qyListeningSleepRemainingTime: 'Remaining time: {time}',
+    QyAppLocalizationKeys.qyListeningSleepRemainingTime:
+        'Remaining time: {time}',
     QyAppLocalizationKeys.qyListeningSleepProgress: 'Play Progress',
     QyAppLocalizationKeys.qyListeningSleepEnd: 'End Sleep Mode',
     QyAppLocalizationKeys.qyListeningSleepPrevious: 'Previous word',
     QyAppLocalizationKeys.qyListeningSleepNext: 'Next word',
     QyAppLocalizationKeys.qyListeningSleepEndTitle: 'Sleep Mode Ended',
-    QyAppLocalizationKeys.qyListeningSleepEndMessage: 'Hope you had a good sleep!\nPlayed {minutes} minutes of soothing words.',
+    QyAppLocalizationKeys.qyListeningSleepEndMessage:
+        'Hope you had a good sleep!\nPlayed {minutes} minutes of soothing words.',
     QyAppLocalizationKeys.qyListeningSleepContinue: 'Continue Listening',
 
     // Courses
     QyAppLocalizationKeys.qyCoursesTitle: 'Course Center',
     QyAppLocalizationKeys.qyCoursesFeatured: 'Featured Courses',
     QyAppLocalizationKeys.qyCoursesCategories: 'Course Categories',
-    QyAppLocalizationKeys.qyCoursesTagline: 'Professional Teachers • Systematic Learning',
+    QyAppLocalizationKeys.qyCoursesTagline:
+        'Professional Teachers • Systematic Learning',
     QyAppLocalizationKeys.qyCoursesCount: '{count} courses',
     QyAppLocalizationKeys.qyCoursesInDev: '{name} feature in development...',
     QyAppLocalizationKeys.qyCourseHotCategoriesTitle: 'Hot Categories',
@@ -572,56 +681,79 @@ class EnAppQy {
     QyAppLocalizationKeys.qyCourseFocusEfficientTitle: 'High-efficiency Prep',
     QyAppLocalizationKeys.qyCourseFocusEfficientSubtitle: '6-week sprint plan',
     QyAppLocalizationKeys.qyCourseFocusDailyTitle: 'Daily Conversation',
-    QyAppLocalizationKeys.qyCourseFocusDailySubtitle: 'Authentic expression set',
+    QyAppLocalizationKeys.qyCourseFocusDailySubtitle:
+        'Authentic expression set',
     QyAppLocalizationKeys.qyCourseFocusCareerTitle: 'Career Advancement',
-    QyAppLocalizationKeys.qyCourseFocusCareerSubtitle: 'Business writing & presenting',
+    QyAppLocalizationKeys.qyCourseFocusCareerSubtitle:
+        'Business writing & presenting',
     QyAppLocalizationKeys.qyCourseVipLabel: 'VIP Annual Pass',
-    QyAppLocalizationKeys.qyCourseVipHeadline: 'Career Boost: From Beginner to Pro',
-    QyAppLocalizationKeys.qyCourseVipSubhead: 'Business speaking plan • Best price of the year',
-    QyAppLocalizationKeys.qyCourseVipBenefit1: 'Best annual price • includes Qianyu VIP annual pass',
-    QyAppLocalizationKeys.qyCourseVipBenefit2: 'Covers Vocabulary / Reading / Listening & Speaking / Postgraduate',
-    QyAppLocalizationKeys.qyCourseVipBenefit3: 'AI learning path • Study anytime, anywhere',
+    QyAppLocalizationKeys.qyCourseVipHeadline:
+        'Career Boost: From Beginner to Pro',
+    QyAppLocalizationKeys.qyCourseVipSubhead:
+        'Business speaking plan • Best price of the year',
+    QyAppLocalizationKeys.qyCourseVipBenefit1:
+        'Best annual price • includes Qianyu VIP annual pass',
+    QyAppLocalizationKeys.qyCourseVipBenefit2:
+        'Covers Vocabulary / Reading / Listening & Speaking / Postgraduate',
+    QyAppLocalizationKeys.qyCourseVipBenefit3:
+        'AI learning path • Study anytime, anywhere',
     QyAppLocalizationKeys.qyCourseVipCta: 'Activate Now',
     QyAppLocalizationKeys.qyCoursePlanBadgeAdvanced: 'Advanced Plan',
     QyAppLocalizationKeys.qyCoursePlanBadgeFlagship: 'Flagship Course',
-    QyAppLocalizationKeys.qyCoursePlanTitleCareerUpgrade: 'Career Boost: From Beginner to Expert',
-    QyAppLocalizationKeys.qyCoursePlanDescriptionCareerUpgrade: 'Master business communication, meeting delivery, and project reporting step by step.',
+    QyAppLocalizationKeys.qyCoursePlanTitleCareerUpgrade:
+        'Career Boost: From Beginner to Expert',
+    QyAppLocalizationKeys.qyCoursePlanDescriptionCareerUpgrade:
+        'Master business communication, meeting delivery, and project reporting step by step.',
     QyAppLocalizationKeys.qyCoursePlanDuration12Weeks: '12 weeks',
-    QyAppLocalizationKeys.qyCoursePlanTitleBusinessCommunication: 'Business Speaking Program',
-    QyAppLocalizationKeys.qyCoursePlanDescriptionBusinessCommunication: 'Immerse yourself in real scenarios to strengthen practical dialogue.',
+    QyAppLocalizationKeys.qyCoursePlanTitleBusinessCommunication:
+        'Business Speaking Program',
+    QyAppLocalizationKeys.qyCoursePlanDescriptionBusinessCommunication:
+        'Immerse yourself in real scenarios to strengthen practical dialogue.',
     QyAppLocalizationKeys.qyCoursePlanDuration24Lessons: '24 lessons',
     QyAppLocalizationKeys.qyCoursePlanActionExperience: 'Experience Now',
     QyAppLocalizationKeys.qyCoursePlanActionDetails: 'View Details',
     QyAppLocalizationKeys.qyCoursePlanActionStart: 'Start Now',
     QyAppLocalizationKeys.qyCourseOpening: 'Opening course',
-    QyAppLocalizationKeys.qyCourseVipSnackbar: 'VIP annual pass benefits are loading...',
+    QyAppLocalizationKeys.qyCourseVipSnackbar:
+        'VIP annual pass benefits are loading...',
     QyAppLocalizationKeys.qyCoursePythonZoneTitle: 'Python Learning Hub',
     QyAppLocalizationKeys.qyCourseDigitalSkill: 'Digital-age core skill',
-    QyAppLocalizationKeys.qyCoursePythonPathTitle: 'Python Full-stack Learning Path',
-    QyAppLocalizationKeys.qyCoursePythonPathDescription: '21-day foundation, 14-day advance, data analysis and case practice in one track.',
+    QyAppLocalizationKeys.qyCoursePythonPathTitle:
+        'Python Full-stack Learning Path',
+    QyAppLocalizationKeys.qyCoursePythonPathDescription:
+        '21-day foundation, 14-day advance, data analysis and case practice in one track.',
     QyAppLocalizationKeys.qyCourseBadgeIntro: 'Beginner',
     QyAppLocalizationKeys.qyCourseBadgeIntermediate: 'Intermediate',
     QyAppLocalizationKeys.qyCourseBadgePopular: 'Popular',
     QyAppLocalizationKeys.qyCourseBadgePractical: 'Practical',
     QyAppLocalizationKeys.qyCourseVipFreeTag: 'VIP annual pass included',
     QyAppLocalizationKeys.qyCoursePythonIntroTitle: 'Python 21-day Foundation',
-    QyAppLocalizationKeys.qyCoursePythonIntroSubtitle: 'Beyond English—learn the language of the future',
+    QyAppLocalizationKeys.qyCoursePythonIntroSubtitle:
+        'Beyond English—learn the language of the future',
     QyAppLocalizationKeys.qyCoursePythonAdvanceTitle: 'Python 14-day Advance',
-    QyAppLocalizationKeys.qyCoursePythonAdvanceSubtitle: 'Level up your skills quickly',
+    QyAppLocalizationKeys.qyCoursePythonAdvanceSubtitle:
+        'Level up your skills quickly',
     QyAppLocalizationKeys.qyCoursePythonDataTitle: 'Python Data Analysis',
-    QyAppLocalizationKeys.qyCoursePythonDataSubtitle: 'Use code to empower data and efficiency',
+    QyAppLocalizationKeys.qyCoursePythonDataSubtitle:
+        'Use code to empower data and efficiency',
     QyAppLocalizationKeys.qyCoursePythonCasesTitle: 'Data Analysis Case Lab',
-    QyAppLocalizationKeys.qyCoursePythonCasesSubtitle: 'Data mindset + three essential analysis tools',
+    QyAppLocalizationKeys.qyCoursePythonCasesSubtitle:
+        'Data mindset + three essential analysis tools',
     QyAppLocalizationKeys.qyCourseExperienceZoneTitle: 'Experience Zone',
-    QyAppLocalizationKeys.qyCourseVipExperienceSubtitle: 'Best price of the year • Includes Qianyu VIP annual pass',
-    QyAppLocalizationKeys.qyCourseVipCoverage: 'Enjoy full access to Vocabulary, Reading, Listening & Speaking, and Postgraduate content.',
+    QyAppLocalizationKeys.qyCourseVipExperienceSubtitle:
+        'Best price of the year • Includes Qianyu VIP annual pass',
+    QyAppLocalizationKeys.qyCourseVipCoverage:
+        'Enjoy full access to Vocabulary, Reading, Listening & Speaking, and Postgraduate content.',
     QyAppLocalizationKeys.qyCoursePlanCategoryIelts: 'IELTS',
     QyAppLocalizationKeys.qyCoursePlanCategoryGaokao: 'College Entrance',
     QyAppLocalizationKeys.qyCoursePlanCategoryMiddle: 'Junior/Middle Exams',
-    QyAppLocalizationKeys.qyCoursePlanAllSkillTagline: 'All-round skills · Listening · Speaking · Reading · Writing',
-    QyAppLocalizationKeys.qyCoursePlanAllSkillDescription: 'Weekly modules with live evaluation and personalised review.',
+    QyAppLocalizationKeys.qyCoursePlanAllSkillTagline:
+        'All-round skills · Listening · Speaking · Reading · Writing',
+    QyAppLocalizationKeys.qyCoursePlanAllSkillDescription:
+        'Weekly modules with live evaluation and personalised review.',
     QyAppLocalizationKeys.qyCoursePlanClassicTitle: 'Classic Reading Intensive',
-    QyAppLocalizationKeys.qyCoursePlanClassicName: '7-day English Originals Starter Plan',
+    QyAppLocalizationKeys.qyCoursePlanClassicName:
+        '7-day English Originals Starter Plan',
     QyAppLocalizationKeys.qyCoursePlanClassicStats: '31k learners · 7 days',
     QyAppLocalizationKeys.qyCoursePlanOralTitle: 'Authentic Oral Practice',
     QyAppLocalizationKeys.qyCoursePlanOralName: '7-day Everyday English Plan',
@@ -629,9 +761,11 @@ class EnAppQy {
     QyAppLocalizationKeys.qyCoursePlanReadingTitle: 'Reading & Writing Booster',
     QyAppLocalizationKeys.qyCoursePlanViewMore: 'View More',
     QyAppLocalizationKeys.qyCoursePlanTextbookSync: 'Textbook Sync',
-    QyAppLocalizationKeys.qyCoursePlanTextbookTitle: 'Yilin Grade 7 Extension (Semester 1)',
+    QyAppLocalizationKeys.qyCoursePlanTextbookTitle:
+        'Yilin Grade 7 Extension (Semester 1)',
     QyAppLocalizationKeys.qyCoursePlanReadingBrand: 'Qianyu Reading',
-    QyAppLocalizationKeys.qyCoursePlanFurtherStudy: 'Further Study companion reader',
+    QyAppLocalizationKeys.qyCoursePlanFurtherStudy:
+        'Further Study companion reader',
     QyAppLocalizationKeys.qyCoursePlanTextbookGrade: 'Yilin Grade 7',
     QyAppLocalizationKeys.qyCoursePlanMoreComing: 'More plans coming soon',
 
@@ -679,9 +813,11 @@ class EnAppQy {
     QyAppLocalizationKeys.qyDownloading: 'Downloading',
     QyAppLocalizationKeys.qySharing: 'Sharing',
     QyAppLocalizationKeys.qyCertificate: 'Certificate',
-    QyAppLocalizationKeys.qyCertificateOfCompletion: 'Certificate of Completion',
+    QyAppLocalizationKeys.qyCertificateOfCompletion:
+        'Certificate of Completion',
     QyAppLocalizationKeys.qyThisCertifies: 'This Certifies That',
-    QyAppLocalizationKeys.qyHasSuccessfullyCompleted: 'Has Successfully Completed',
+    QyAppLocalizationKeys.qyHasSuccessfullyCompleted:
+        'Has Successfully Completed',
     QyAppLocalizationKeys.qyCompletionDate: 'Completion Date',
     QyAppLocalizationKeys.qyFinalScore: 'Final Score',
     QyAppLocalizationKeys.qyVerifiedCertificate: 'Verified Certificate',
@@ -690,15 +826,19 @@ class EnAppQy {
     QyAppLocalizationKeys.qyStatus: 'Status',
     QyAppLocalizationKeys.qyValid: 'Valid',
     QyAppLocalizationKeys.qyPrint: 'Print',
-    QyAppLocalizationKeys.qyCourseLearningProgress: 'Programming Learning Progress',
-    QyAppLocalizationKeys.qyCourseCompletedLessons: 'Completed {completed}/{total} lessons',
+    QyAppLocalizationKeys.qyCourseLearningProgress:
+        'Programming Learning Progress',
+    QyAppLocalizationKeys.qyCourseCompletedLessons:
+        'Completed {completed}/{total} lessons',
     QyAppLocalizationKeys.qyCourseConsecutiveDays: 'Streak {days} days',
-    QyAppLocalizationKeys.qyCourseProjectsCompleted: 'Completed {count} projects',
+    QyAppLocalizationKeys.qyCourseProjectsCompleted:
+        'Completed {count} projects',
     QyAppLocalizationKeys.qyCourseLinesOfCode: 'Coded {lines} lines',
     QyAppLocalizationKeys.qyCourseInfo: 'Course Information',
     QyAppLocalizationKeys.qyCourseDuration: 'Course Duration',
     QyAppLocalizationKeys.qyCourseCodePractice: 'Code Practice',
-    QyAppLocalizationKeys.qyCourseDifficultyProgression: 'Difficulty Progression',
+    QyAppLocalizationKeys.qyCourseDifficultyProgression:
+        'Difficulty Progression',
     QyAppLocalizationKeys.qyCourseRating: 'Course Rating',
     QyAppLocalizationKeys.qyCourseFeatures: 'Course Features',
     QyAppLocalizationKeys.qyCourseInstructor: 'Instructor',
@@ -831,6 +971,21 @@ class EnAppQy {
     QyAppLocalizationKeys.qyWordLocked: 'Locked',
     QyAppLocalizationKeys.qyWordBookDesc: 'Word Book Description',
     QyAppLocalizationKeys.qyWordVocabulary: 'Vocabulary',
+
+    // Word Listening AI Explain
+    QyAppLocalizationKeys.qyListeningAIExplainTitle: 'AI Explanation',
+    QyAppLocalizationKeys.qyListeningAIAnalyzing: 'AI is analyzing...',
+    QyAppLocalizationKeys.qyListeningAIAnalysis: 'AI Analysis',
+    QyAppLocalizationKeys.qyListeningEtymology: 'Etymology',
+    QyAppLocalizationKeys.qyListeningSynonyms: 'Synonyms',
+    QyAppLocalizationKeys.qyListeningAntonyms: 'Antonyms',
+    QyAppLocalizationKeys.qyListeningCollocations: 'Collocations',
+    QyAppLocalizationKeys.qyListeningStartPractice: 'Start Practice',
+    QyAppLocalizationKeys.qyListeningBackToStudy: 'Back to Study',
+    QyAppLocalizationKeys.qyListeningShareInDev:
+        'Share feature is under development',
+    QyAppLocalizationKeys.qyListeningPracticeInDev:
+        'Practice feature is under development',
   };
 
   /// Get locales for runCommonApp

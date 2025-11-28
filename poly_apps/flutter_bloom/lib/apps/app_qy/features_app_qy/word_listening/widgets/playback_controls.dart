@@ -1,8 +1,16 @@
 /// Playback controls widget for word listening
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/theme/app_theme.dart';
+import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class PlaybackControls extends StatelessWidget {
   final bool isPlaying;
@@ -36,187 +44,176 @@ class PlaybackControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Progress bar
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${currentIndex + 1}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+    return GlassCard(
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.spacing20),
+        child: Column(
+          children: [
+            // Progress bar
+            Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${currentIndex + 1}',
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${(currentIndex / totalWords * 100).toInt()}%',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                    Text(
+                      '${(currentIndex / totalWords * 100).toInt()}%',
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '$totalWords',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: (currentIndex + 1) / totalWords,
-                backgroundColor: Colors.grey.shade300,
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
-                minHeight: 4,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Main playback controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // Shuffle button
-              IconButton(
-                onPressed: onShuffleChanged,
-                icon: Icon(
-                  Icons.shuffle,
-                  color: isShuffling ? AppTheme.primaryGreen : Colors.grey.shade400,
-                  size: 24,
-                ),
-              ),
-
-              // Previous button
-              IconButton(
-                onPressed: currentIndex > 0 ? onPrevious : null,
-                icon: Icon(
-                  Icons.skip_previous,
-                  color: currentIndex > 0 ? AppTheme.textPrimary : Colors.grey.shade300,
-                  size: 32,
-                ),
-              ),
-
-              // Play/Pause button
-              Container(
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryGreen.withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
+                    Text(
+                      '$totalWords',
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
                     ),
                   ],
                 ),
-                child: IconButton(
-                  onPressed: onPlayPause,
-                  icon: Icon(
-                    isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: Colors.white,
-                    size: 40,
+                SizedBox(height: ThemeDimensions.spacing8),
+                LinearProgressIndicator(
+                  value: (currentIndex + 1) / totalWords,
+                  backgroundColor: ColorsAppQy.qyHolographicMedium,
+                  valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
+                  minHeight: 4,
+                  borderRadius: ThemeDimensions.borderRadiusS,
+                ),
+              ],
+            ),
+            SizedBox(height: ThemeDimensions.spacing20),
+
+            // Main playback controls
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Shuffle button
+                BouncingButton(
+                  onPressed: onShuffleChanged,
+                  child: Icon(
+                    Icons.shuffle,
+                    color: isShuffling ? ColorsAppQy.qyPrimary : ColorsAppQy.qyTextTertiary,
+                    size: ThemeDimensions.iconSizeM,
                   ),
-                  padding: const EdgeInsets.all(16),
                 ),
-              ),
 
-              // Next button
-              IconButton(
-                onPressed: currentIndex < totalWords - 1 ? onNext : null,
-                icon: Icon(
-                  Icons.skip_next,
-                  color: currentIndex < totalWords - 1 ? AppTheme.textPrimary : Colors.grey.shade300,
-                  size: 32,
+                // Previous button
+                BouncingButton(
+                  onPressed: currentIndex > 0 ? onPrevious : null,
+                  child: Icon(
+                    Icons.skip_previous,
+                    color: currentIndex > 0 ? ColorsAppQy.qyTextPrimary : ColorsAppQy.qyTextTertiary,
+                    size: ThemeDimensions.iconSizeL,
+                  ),
                 ),
-              ),
 
-              // Loop button
-              IconButton(
-                onPressed: onLoopChanged,
-                icon: Icon(
-                  Icons.loop,
-                  color: isLooping ? AppTheme.accentGreen : Colors.grey.shade400,
-                  size: 24,
+                // Play/Pause button
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: ColorsAppQy.qyPrimaryGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: ColorsAppQy.qyPrimary.withOpacity(0.3),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: BouncingButton(
+                    onPressed: onPlayPause,
+                    child: Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: ColorsAppQy.qyTextOnPrimary,
+                      size: ThemeDimensions.iconSizeXL,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 16),
+                // Next button
+                BouncingButton(
+                  onPressed: currentIndex < totalWords - 1 ? onNext : null,
+                  child: Icon(
+                    Icons.skip_next,
+                    color: currentIndex < totalWords - 1 ? ColorsAppQy.qyTextPrimary : ColorsAppQy.qyTextTertiary,
+                    size: ThemeDimensions.iconSizeL,
+                  ),
+                ),
 
-          // Speed control
-          Row(
-            children: [
-              Icon(
-                Icons.speed,
-                color: AppTheme.textSecondary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '播放速度: ${playbackSpeed}x',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textSecondary,
+                // Loop button
+                BouncingButton(
+                  onPressed: onLoopChanged,
+                  child: Icon(
+                    Icons.loop,
+                    color: isLooping ? ColorsAppQy.qyAccent : ColorsAppQy.qyTextTertiary,
+                    size: ThemeDimensions.iconSizeM,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+              ],
+            ),
+
+            SizedBox(height: ThemeDimensions.spacing16),
+
+            // Speed control
+            Row(
+              children: [
+                Icon(
+                  Icons.speed,
+                  color: ColorsAppQy.qyTextSecondary,
+                  size: ThemeDimensions.iconSizeS,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speed) {
-                    final isSelected = speed == playbackSpeed;
-                    return GestureDetector(
-                      onTap: () => onSpeedChanged?.call(speed),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.all(2),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppTheme.primaryGreen : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          '${speed}x',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isSelected ? Colors.white : AppTheme.textSecondary,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                SizedBox(width: ThemeDimensions.spacing8),
+                Text(
+                  '${QyAppLocalizationKeys.qyListeningSpeed.tr(context)}: ${playbackSpeed}x',
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.1),
+                    borderRadius: ThemeDimensions.borderRadiusM,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speed) {
+                      final isSelected = speed == playbackSpeed;
+                      return GestureDetector(
+                        onTap: () => onSpeedChanged?.call(speed),
+                        child: AnimatedContainer(
+                          duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
+                          margin: EdgeInsets.all(ThemeDimensions.spacing2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ThemeDimensions.spacing8,
+                            vertical: ThemeDimensions.spacing4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected ? ColorsAppQy.qyPrimary : Colors.transparent,
+                            borderRadius: ThemeDimensions.borderRadiusS,
+                          ),
+                          child: Text(
+                            '${speed}x',
+                            style: ThemeTextStyles.bodySmall.copyWith(
+                              color: isSelected ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextSecondary,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusL,
     );
   }
 }
