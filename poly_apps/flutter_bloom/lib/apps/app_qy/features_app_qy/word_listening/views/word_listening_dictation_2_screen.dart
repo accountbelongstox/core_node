@@ -13,6 +13,8 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import '../models/word_listening_dictation_model.dart';
+import '../data/word_listening_dictation_data.dart';
 
 class WordListeningDictation2Screen extends StatefulWidget {
   const WordListeningDictation2Screen({super.key});
@@ -29,68 +31,9 @@ class _WordListeningDictation2ScreenState
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
 
-  final List<Map<String, dynamic>> _dictationWords = [
-    {
-      'word': 'magnificent',
-      'phonetic': '/mæɡˈnɪfɪsənt/',
-      'meaning': '宏伟的，壮丽的',
-      'difficulty': 'medium',
-      'category': 'adjective',
-      'examples': [
-        'The magnificent palace attracts millions of tourists.',
-        'She has a magnificent voice.',
-      ],
-      'audioSpeed': 'normal',
-    },
-    {
-      'word': 'extraordinary',
-      'phonetic': '/ɪkˈstrɔːrdəneri/',
-      'meaning': '非凡的，特别的',
-      'difficulty': 'medium',
-      'category': 'adjective',
-      'examples': [
-        'It was an extraordinary achievement.',
-        'She has extraordinary talent.',
-      ],
-      'audioSpeed': 'normal',
-    },
-    {
-      'word': 'accomplishment',
-      'phonetic': '/əˈkʌmplɪʃmənt/',
-      'meaning': '成就，完成',
-      'difficulty': 'medium',
-      'category': 'noun',
-      'examples': [
-        'Winning the award was a great accomplishment.',
-        'She felt a sense of accomplishment.',
-      ],
-      'audioSpeed': 'normal',
-    },
-    {
-      'word': 'environmental',
-      'phonetic': '/ɪnˌvaɪrənˈmentl/',
-      'meaning': '环境的',
-      'difficulty': 'medium',
-      'category': 'adjective',
-      'examples': [
-        'We need to address environmental issues.',
-        'Environmental protection is important.',
-      ],
-      'audioSpeed': 'slow',
-    },
-    {
-      'word': 'revolutionary',
-      'phonetic': '/ˌrevəˈluːʃəneri/',
-      'meaning': '革命性的，创新的',
-      'difficulty': 'hard',
-      'category': 'adjective',
-      'examples': [
-        'It was a revolutionary discovery.',
-        'The technology is revolutionary.',
-      ],
-      'audioSpeed': 'slow',
-    },
-  ];
+  // Use centralized data source instead of hardcoded array
+  List<WordListeningDictationModel> get _dictationWords =>
+      WordListeningDictationData.getIntermediateWords();
 
   int _currentWordIndex = 0;
   String _userInput = '';
@@ -376,14 +319,14 @@ class _WordListeningDictation2ScreenState
                     vertical: ThemeDimensions.spacing4,
                   ),
                   decoration: BoxDecoration(
-                    color: _getDifficultyColor(currentWord['difficulty'])
+                    color: _getDifficultyColor(currentWord.difficulty)
                         .withOpacity(0.1),
                     borderRadius: ThemeDimensions.borderRadiusS,
                   ),
                   child: Text(
-                    _getDifficultyText(currentWord['difficulty']),
+                    _getDifficultyText(currentWord.difficulty),
                     style: ThemeTextStyles.bodySmall.copyWith(
-                      color: _getDifficultyColor(currentWord['difficulty']),
+                      color: _getDifficultyColor(currentWord.difficulty),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -398,7 +341,7 @@ class _WordListeningDictation2ScreenState
                     borderRadius: ThemeDimensions.borderRadiusS,
                   ),
                   child: Text(
-                    currentWord['category'].toString().toUpperCase(),
+                    currentWord.category.toUpperCase(),
                     style: ThemeTextStyles.bodySmall.copyWith(
                       color: ColorsAppQy.qyInfo,
                       fontWeight: FontWeight.bold,
@@ -410,7 +353,7 @@ class _WordListeningDictation2ScreenState
             SizedBox(height: ThemeDimensions.spacing16),
             if (_showHint) ...[
               Text(
-                currentWord['phonetic'],
+                currentWord.phonetic,
                 style: ThemeTextStyles.bodyLarge.copyWith(
                   color: ColorsAppQy.qyTextSecondary,
                   fontStyle: FontStyle.italic,
@@ -418,7 +361,7 @@ class _WordListeningDictation2ScreenState
               ),
               SizedBox(height: ThemeDimensions.spacing12),
               Text(
-                currentWord['meaning'],
+                currentWord.meaningKey.tr(context),
                 style: ThemeTextStyles.bodyMedium.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.w500,
@@ -435,7 +378,7 @@ class _WordListeningDictation2ScreenState
                 ),
                 SizedBox(width: ThemeDimensions.spacing4),
                 Text(
-                  '${QyAppLocalizationKeys.qyListeningSpeed.tr(context)}: ${_getSpeedText(currentWord['audioSpeed'])}',
+                  '${QyAppLocalizationKeys.qyListeningSpeed.tr(context)}: ${_getSpeedText(currentWord.audioSpeed)}',
                   style: ThemeTextStyles.bodySmall.copyWith(
                     color: ColorsAppQy.qyTextSecondary,
                   ),
@@ -822,7 +765,8 @@ class _WordListeningDictation2ScreenState
     // In a real app, you would play the actual audio file
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('正在播放: ${_dictationWords[_currentWordIndex]['word']}'),
+        content: Text(
+            '${QyAppLocalizationKeys.qyListeningPlayingAudio.tr(context)} ${_dictationWords[_currentWordIndex].word}'),
         backgroundColor: ColorsAppQy.qySecondary,
         duration: const Duration(seconds: 1),
       ),
@@ -837,8 +781,7 @@ class _WordListeningDictation2ScreenState
 
   void _checkAnswer() {
     final currentWord = _dictationWords[_currentWordIndex];
-    final isCorrect =
-        _userInput == currentWord['word'].toString().toLowerCase();
+    final isCorrect = _userInput == currentWord.word.toLowerCase();
 
     setState(() {
       _attempts++;
@@ -909,7 +852,7 @@ class _WordListeningDictation2ScreenState
               ),
               SizedBox(height: ThemeDimensions.spacing16),
               Text(
-                '回答正确！',
+                QyAppLocalizationKeys.qyListeningAnswerCorrect.tr(context),
                 style: ThemeTextStyles.headlineSmall.copyWith(
                   color: ColorsAppQy.qySuccess,
                   fontWeight: FontWeight.bold,
@@ -917,7 +860,7 @@ class _WordListeningDictation2ScreenState
               ),
               const SizedBox(height: 8),
               Text(
-                '${_dictationWords[_currentWordIndex]['word']} - ${_dictationWords[_currentWordIndex]['meaning']}',
+                '${_dictationWords[_currentWordIndex].word} - ${_dictationWords[_currentWordIndex].meaningKey.tr(context)}',
                 style: ThemeTextStyles.bodyMedium.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                 ),
@@ -940,7 +883,7 @@ class _WordListeningDictation2ScreenState
                           borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Text(
-                          '下一个',
+                          QyAppLocalizationKeys.qyListeningNext.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -987,7 +930,7 @@ class _WordListeningDictation2ScreenState
               ),
               SizedBox(height: ThemeDimensions.spacing16),
               Text(
-                '答案不正确',
+                QyAppLocalizationKeys.qyListeningAnswerIncorrect.tr(context),
                 style: ThemeTextStyles.headlineSmall.copyWith(
                   color: ColorsAppQy.qyError,
                   fontWeight: FontWeight.bold,
@@ -995,7 +938,7 @@ class _WordListeningDictation2ScreenState
               ),
               const SizedBox(height: 8),
               Text(
-                '正确答案: ${_dictationWords[_currentWordIndex]['word']}',
+                '${QyAppLocalizationKeys.qyListeningCorrectAnswerIs.tr(context)} ${_dictationWords[_currentWordIndex].word}',
                 style: ThemeTextStyles.bodyMedium.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                 ),
@@ -1003,7 +946,7 @@ class _WordListeningDictation2ScreenState
               ),
               const SizedBox(height: 8),
               Text(
-                '${_dictationWords[_currentWordIndex]['meaning']}',
+                _dictationWords[_currentWordIndex].meaningKey.tr(context),
                 style: ThemeTextStyles.bodySmall.copyWith(
                   color: ColorsAppQy.qyTextSecondary,
                 ),
@@ -1026,7 +969,7 @@ class _WordListeningDictation2ScreenState
                           borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Text(
-                          '继续',
+                          QyAppLocalizationKeys.qyListeningContinue.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -1057,7 +1000,7 @@ class _WordListeningDictation2ScreenState
                           ),
                         ),
                         child: Text(
-                          '重试',
+                          QyAppLocalizationKeys.qyListeningRetry.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: ColorsAppQy.qyTextSecondary,
                             fontWeight: FontWeight.w600,
@@ -1112,7 +1055,7 @@ class _WordListeningDictation2ScreenState
               ),
               const SizedBox(height: 20),
               Text(
-                '练习完成！',
+                QyAppLocalizationKeys.qyListeningPracticeComplete.tr(context),
                 style: ThemeTextStyles.headlineMedium.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -1131,7 +1074,7 @@ class _WordListeningDictation2ScreenState
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '正确率:',
+                          '${QyAppLocalizationKeys.qyListeningAccuracyRate.tr(context)}:',
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: ColorsAppQy.qyTextSecondary,
                           ),
@@ -1152,7 +1095,7 @@ class _WordListeningDictation2ScreenState
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '正确单词:',
+                          '${QyAppLocalizationKeys.qyListeningCorrectWords.tr(context)}:',
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: ColorsAppQy.qyTextSecondary,
                           ),
@@ -1171,7 +1114,8 @@ class _WordListeningDictation2ScreenState
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '总尝试次数:',
+                          QyAppLocalizationKeys.qyListeningTotalAttempts
+                              .tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: ColorsAppQy.qyTextSecondary,
                           ),
@@ -1205,7 +1149,7 @@ class _WordListeningDictation2ScreenState
                           borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Text(
-                          '完成',
+                          QyAppLocalizationKeys.qyListeningDone.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

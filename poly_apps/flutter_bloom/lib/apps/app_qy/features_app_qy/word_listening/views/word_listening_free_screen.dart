@@ -14,6 +14,8 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import '../models/word_category_model.dart';
+import '../data/word_category_data.dart';
 
 class WordListeningFreeScreen extends StatefulWidget {
   const WordListeningFreeScreen({super.key});
@@ -27,56 +29,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
-  List<Map<String, dynamic>> get _wordCategories => [
-    {
-      'title': QyAppLocalizationKeys.qyListeningCategoryDaily.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningCategoryDailyDesc.tr(context),
-      'icon': Icons.home,
-      'color': ColorsAppQy.qyPrimary,
-      'count': 1200,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningCategoryBusiness.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningCategoryBusinessDesc.tr(context),
-      'icon': Icons.business,
-      'color': ColorsAppQy.qySecondary,
-      'count': 800,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningCategoryAcademic.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningCategoryAcademicDesc.tr(context),
-      'icon': Icons.school,
-      'color': ColorsAppQy.qyAccent,
-      'count': 600,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningCategoryTravel.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningCategoryTravelDesc.tr(context),
-      'icon': Icons.flight,
-      'color': ColorsAppQy.qySuccess,
-      'count': 400,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningCategoryTech.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningCategoryTechDesc.tr(context),
-      'icon': Icons.computer,
-      'color': ColorsAppQy.qyInfo,
-      'count': 500,
-      'locked': false,
-    },
-    {
-      'title': QyAppLocalizationKeys.qyListeningCategoryMedical.tr(context),
-      'subtitle': QyAppLocalizationKeys.qyListeningCategoryMedicalDesc.tr(context),
-      'icon': Icons.local_hospital,
-      'color': ColorsAppQy.qyWarning,
-      'count': 300,
-      'locked': false,
-    },
-  ];
+  List<WordCategoryModel> get _wordCategories => WordCategoryData.getFreeListeningCategories();
 
   String _selectedCategory = '';
   bool _isPlaying = false;
@@ -407,12 +360,12 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(
-                          color: (category['color'] as Color).withOpacity(0.1),
+                          color: category.color.withOpacity(0.1),
                           borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Icon(
-                          category['icon'] as IconData,
-                          color: category['color'] as Color,
+                          category.icon,
+                          color: category.color,
                           size: 28,
                         ),
                       ),
@@ -422,7 +375,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              category['title'] as String,
+                              category.titleKey.tr(context),
                               style: ThemeTextStyles.headlineSmall.copyWith(
                                 color: ColorsAppQy.qyTextPrimary,
                                 fontWeight: FontWeight.bold,
@@ -430,7 +383,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              category['subtitle'] as String,
+                              category.subtitleKey.tr(context),
                               style: ThemeTextStyles.bodyMedium.copyWith(
                                 color: ColorsAppQy.qyTextSecondary,
                               ),
@@ -442,16 +395,16 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '${category['count']} 词',
+                            '${category.count} ${QyAppLocalizationKeys.qyWords.tr(context)}',
                             style: ThemeTextStyles.bodyMedium.copyWith(
-                              color: category['color'] as Color,
+                              color: category.color,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Icon(
                             Icons.play_circle,
-                            color: category['color'] as Color,
+                            color: category.color,
                             size: 24,
                           ),
                         ],
@@ -597,9 +550,9 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
     );
   }
 
-  void _selectCategory(Map<String, dynamic> category) {
+  void _selectCategory(WordCategoryModel category) {
     setState(() {
-      _selectedCategory = category['title'] as String;
+      _selectedCategory = category.titleKey.tr(context);
     });
     _startListening();
   }

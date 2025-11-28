@@ -131,108 +131,41 @@ try:
 except ImportError:
     _BASE_AVAILABLE = False
 
-# PySide6 Framework (recommended)
-try:
-    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
-        PySide6Framework,
-        PySide6UIConfig,
-        PySide6MainWindow,
-        PySide6TitleBar,
-        PySide6SystemTray,
-        PySide6WebView,
-        create_framework
-    )
-    _PYSIDE6_AVAILABLE = True
-except ImportError:
-    _PYSIDE6_AVAILABLE = False
+# PySide6 Framework (recommended) - use third_party manager
+from pycore.pyfoundations.third_party import get_third_package_pyside6
+
+# Ensure PySide6 is installed
+get_third_package_pyside6()
+
+# Import PySide6 components (no try-except)
+from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
+    PySide6Framework,
+    PySide6UIConfig,
+    PySide6MainWindow,
+    PySide6TitleBar,
+    PySide6SystemTray,
+    PySide6WebView,
+    PySide6TrayMenuItem,
+    create_framework
+)
+_PYSIDE6_AVAILABLE = True
 
 __all__ = [
-    # Timer Manager (Built-in singleton, auto-started if enabled)
-    'TimerManager',
-    'TimerTask',
-    'get_timer_manager',
-
-    # I18n Manager
+    # I18n Manager (core utility)
     'I18nManager',
     'get_i18n_manager',
 
-    # File Monitor - DEPRECATED (Not UI related)
-    # 'FileMonitor',
-    # 'LogFileMonitor',
-
-    # Shutdown Manager
-    'ShutdownManager',
-    'ShutdownHook',
-    'get_shutdown_manager',
-
-    # THREAD_BUS Manager (NEW - recommended for all UI components)
-    'NativeUIBusManager',
-    'get_bus_manager',
-    'get_native_ui_bus_manager',  # Consistent naming alias
-    'BusNamespaces',
-    'BusKeys',
-    'BusSignals',
-    'DependencyInfo',
-
-    # Callback Manager
-    'CallbackManager',
-    'get_callback_manager',
-
-    # System Tray - moved to pyside6 package
-    # 'SystemTray',  # DEPRECATED - use PySide6SystemTray
-    # 'TrayMenuItem',  # DEPRECATED - use PySide6TrayMenuItem
-    # 'create_system_tray',  # DEPRECATED
-
-    # Startup Window and Launcher
-    'StartupWindow',
-    'TkinterStartupThread',
-    'ColorPrintCapture',
+    # Startup Window and Launcher (for advanced users)
     'launch_app_with_startup',
 
-    # NEW: Simplified Native App Launcher (RECOMMENDED)
+    # NEW: Simplified Native App Launcher (RECOMMENDED - main public API)
     'NativeUIConfig',
     'TrayMenuItemDict',  # Type alias for simple dict-based tray menu items
     'launch_native_app',
-    'launch',
-    'get_port_range',
-    'URLHandler',
-    'process_url',
-
-    # Server Management
-    'ServerManager',
-    'ServerProcess',
-    'get_server_manager',
+    'launch',  # Alias for launch_native_app
 ]
 
-# Add Tkinter exports if available
-if _TKINTER_AVAILABLE:
-    __all__.extend([
-        # Tkinter UI Components
-        'ThemeSystem',
-        'StyledWidgets',
-    ])
-
-# Add base component exports if available
-if _BASE_AVAILABLE:
-    __all__.extend([
-        'UIConfig',  # DEPRECATED: Use NativeUIConfig instead
-        'WindowState',
-        'SignalManager',
-        'SignalType',
-        'Signal',
-        'TaskTimer',
-        'MainThreadExecutor',
-    ])
-
-# Add PySide6 framework exports if available
-if _PYSIDE6_AVAILABLE:
-    __all__.extend([
-        # PySide6 Framework (RECOMMENDED)
-        'PySide6Framework',
-        'PySide6UIConfig',
-        'PySide6MainWindow',
-        'PySide6TitleBar',
-        'PySide6SystemTray',
-        'PySide6WebView',
-        'create_framework',
-    ])
+# Note: Other utilities (TimerManager, ShutdownManager, CallbackManager, etc.)
+# are for internal use only and not part of the public API.
+# Access them directly if needed:
+#   from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager

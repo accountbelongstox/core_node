@@ -16,7 +16,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.third_party import (
     get_third_package_fastapi,
     get_third_package_uvicorn,
@@ -117,6 +117,9 @@ class FastAPIRPCServer:
         self._add_default_static_dirs()
         self.protocol_server = RPCProtocolServer(self)
 
+        # Event loop for async broadcast
+        self._broadcast_loop = None
+
     # ------------------------------------------------------------------ Public API
     def route(self, name: str, handler: Callable, sync: bool = False, description: Optional[str] = None):
         """
@@ -142,6 +145,59 @@ class FastAPIRPCServer:
         self.app.mount(mount_path, StaticFiles(directory=str(path)), name=mount_path)
         if self.debug:
             ColorPrint.blue(f"[FastAPIRPC] Mounted static dir {mount_path} -> {path}")
+
+    async def broadcast_event(self, event_name: str, data: Dict[str, Any]):
+        """
+        Broadcast an event to all connected WebSocket clients.
+
+        Args:
+            event_name: Event name (e.g., 'voice_subtitle_update')
+            data: Event data to send to clients
+        """
+        clients = self.client_registry.ws_clients
+        if not clients:
+            return
+
+        message = {
+            'type': 'event',
+            'event': event_name,
+            'data': data,
+            'timestamp': time.time()
+        }
+
+        for client_id, websocket in clients.items():
+            try:
+                await websocket.send_json(message)
+                if self.debug:
+                    ColorPrint.blue(f"[Broadcast] Sent {event_name} to client {client_id[:8]}")
+            except Exception as e:
+                if self.debug:
+                    ColorPrint.yellow(f"[Broadcast] Failed to send to client {client_id[:8]}: {e}")
+
+    def register_thread_bus_listener(self, event_name: str):
+        """
+        Register a THREAD_BUS event listener that broadcasts to WebSocket clients.
+
+        Args:
+            event_name: THREAD_BUS event name to listen for
+        """
+        def handler(event_data):
+            """THREAD_BUS event handler that broadcasts to WebSocket clients"""
+            # Check if event loop is available
+            if self._broadcast_loop is None:
+                if self.debug:
+                    ColorPrint.yellow(f"[Broadcast] Event loop not ready for {event_name}, waiting for first WebSocket connection")
+                return
+
+            # Schedule the coroutine in the uvicorn loop
+            asyncio.run_coroutine_threadsafe(
+                self.broadcast_event(event_name, event_data),
+                self._broadcast_loop
+            )
+
+        THREAD_BUS.register_event_handler(event_name, handler)
+        if self.debug:
+            ColorPrint.green(f"[FastAPIRPC] Registered THREAD_BUS listener for: {event_name}")
 
     # ------------------------------------------------------------------ Internal setup
     def _add_default_static_dirs(self):
@@ -519,6 +575,12 @@ class FastAPIRPCServer:
     async def _handle_websocket(self, websocket: WebSocket):
         """Accept WebSocket connections and dispatch messages."""
         await websocket.accept()
+
+        # Capture event loop on first WebSocket connection
+        if self._broadcast_loop is None:
+            self._broadcast_loop = asyncio.get_running_loop()
+            if self.debug:
+                ColorPrint.blue("[WS] Captured event loop for broadcast")
 
         client_id = websocket.query_params.get("client_id") or str(uuid.uuid4())
         remote_addr = websocket.client.host if websocket.client else "unknown"

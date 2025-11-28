@@ -16,6 +16,7 @@ import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../config_app_qy/storage_app_qy.dart';
 import '../domain/model/dictionary_model.dart';
 import '../domain/service/dictionary_service.dart';
+import '../data/dictionary_data.dart';
 
 class DictionaryRecommendScreenRefactoredAppQy extends StatefulWidget {
   const DictionaryRecommendScreenRefactoredAppQy({super.key});
@@ -68,7 +69,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                 DictionaryModel.fromJson(json as Map<String, dynamic>))
             .toList();
       } else {
-        final mockData = _getMockDictionaries();
+        final mockData = DictionaryData.getMockDictionaries();
         _service.setMockData(mockData);
         _dictionaries = mockData;
         await _storage.setApp(
@@ -78,7 +79,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
       }
       _filteredDictionaries = _dictionaries;
     } catch (e) {
-      final mockData = _getMockDictionaries();
+      final mockData = DictionaryData.getMockDictionaries();
       _dictionaries = mockData;
       _filteredDictionaries = mockData;
     } finally {
@@ -109,57 +110,6 @@ class _DictionaryRecommendScreenRefactoredAppQyState
         return categoryMatch && difficultyMatch && searchMatch;
       }).toList();
     });
-  }
-
-  List<DictionaryModel> _getMockDictionaries() {
-    return [
-      DictionaryModel(
-        id: '1',
-        title: 'Oxford Advanced Learner\'s Dictionary',
-        imageUrl: 'https://via.placeholder.com/300',
-        wordCount: 185000,
-        likeCount: 1234,
-        isAdded: false,
-        description: 'Comprehensive dictionary for advanced learners',
-        category: 'Academic',
-        tags: ['vocabulary', 'advanced', 'academic'],
-        author: 'Oxford University Press',
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        difficulty: 'advanced',
-      ),
-      DictionaryModel(
-        id: '2',
-        title: 'Cambridge English Dictionary',
-        imageUrl: 'https://via.placeholder.com/300',
-        wordCount: 140000,
-        likeCount: 987,
-        isAdded: false,
-        description: 'Essential dictionary for English learners',
-        category: 'General',
-        tags: ['vocabulary', 'general', 'beginner'],
-        author: 'Cambridge University Press',
-        createdAt: DateTime.now().subtract(const Duration(days: 20)),
-        difficulty: 'beginner',
-      ),
-      DictionaryModel(
-        id: '3',
-        title: 'Longman Dictionary of Contemporary English',
-        imageUrl: 'https://via.placeholder.com/300',
-        wordCount: 230000,
-        likeCount: 1567,
-        isAdded: false,
-        description: 'Modern dictionary with clear definitions',
-        category: 'General',
-        tags: ['vocabulary', 'modern', 'intermediate'],
-        author: 'Pearson Education',
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        difficulty: 'intermediate',
-      ),
-    ];
-  }
-
-  List<String> _getAllCategories() {
-    return ['Academic', 'General', 'Business', 'Medical', 'Technical'];
   }
 
   Future<void> _handleToggleAdd(DictionaryModel dictionary) async {
@@ -498,7 +448,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
             child: _buildBentoFilterChip(
               QyAppLocalizationKeys.qyCategory.tr(context),
               _selectedCategory,
-              ['All', ..._getAllCategories()],
+              ['All', ...DictionaryData.getAllCategories()],
               (value) {
                 setState(() {
                   _selectedCategory = value;

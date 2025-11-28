@@ -55,8 +55,8 @@ class _SettingsScreenRefactoredAppQyState
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildLanguageOption('zh', currentLanguage),
-            _buildLanguageOption('en', currentLanguage),
+            _buildLanguageOption(QyAppLocalizationKeys.qyLanguageCodeZh, currentLanguage),
+            _buildLanguageOption(QyAppLocalizationKeys.qyLanguageCodeEn, currentLanguage),
           ],
         ),
         actions: [
@@ -74,7 +74,9 @@ class _SettingsScreenRefactoredAppQyState
 
   Widget _buildLanguageOption(String language, String currentLanguage) {
     final isSelected = language == currentLanguage;
-    final displayName = language == 'zh' ? '中文' : 'English';
+    final displayName = language == QyAppLocalizationKeys.qyLanguageCodeZh 
+        ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
+        : QyAppLocalizationKeys.qyLanguageEnglish.tr(context);
 
     return ListTile(
       title: Text(
@@ -257,7 +259,9 @@ class _SettingsScreenRefactoredAppQyState
                 _buildSettingsTile(
                   icon: Icons.language,
                   title: QyAppLocalizationKeys.qySettingsLanguage.tr(context),
-                  subtitle: controller.settings.language == 'zh' ? '中文' : 'English',
+                  subtitle: controller.settings.language == QyAppLocalizationKeys.qyLanguageCodeZh 
+                      ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
+                      : QyAppLocalizationKeys.qyLanguageEnglish.tr(context),
                   onTap: _showLanguageDialog,
                 ),
                 _buildSettingsTile(

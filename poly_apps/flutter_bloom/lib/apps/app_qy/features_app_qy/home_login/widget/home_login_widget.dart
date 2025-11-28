@@ -15,6 +15,8 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../localization_app_qy/localization_manager.dart' as qy_localization;
 
 // AI MODIFICATION NOTE: This widget was enhanced by QR_Profile_AI_Assistant
 // - Added proper theme system imports
@@ -30,6 +32,19 @@ class HomeLoginWidget extends StatefulWidget {
 }
 
 class _HomeLoginWidgetState extends State<HomeLoginWidget> {
+  String _getWeekdayName(int weekday, BuildContext context) {
+    final keys = [
+      QyAppLocalizationKeys.qySunday,
+      QyAppLocalizationKeys.qyMonday,
+      QyAppLocalizationKeys.qyTuesday,
+      QyAppLocalizationKeys.qyWednesday,
+      QyAppLocalizationKeys.qyThursday,
+      QyAppLocalizationKeys.qyFriday,
+      QyAppLocalizationKeys.qySaturday,
+    ];
+    return keys[weekday].tr(context);
+  }
+
   bool _isMenuOpen = false;
   bool _isSearchModalOpen = false;
   bool _isStatsModalOpen = false;
@@ -280,15 +295,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         Text(
-                          '周${[
-                            '日',
-                            '一',
-                            '二',
-                            '三',
-                            '四',
-                            '五',
-                            '六'
-                          ][date.weekday % 7]}',
+                          '${QyAppLocalizationKeys.qyWeek.tr(context)}${_getWeekdayName(date.weekday % 7, context)}',
                           style: const TextStyle(color: Colors.grey),
                         ),
                         Text(
@@ -386,9 +393,9 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          Text('背词任务'),
-                          Text('30/50'),
+                        children: [
+                          Text(QyAppLocalizationKeys.qyWordTask.tr(context)),
+                          const Text('30/50'),
                         ],
                       ),
                       const SizedBox(height: 10),

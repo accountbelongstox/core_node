@@ -32,7 +32,11 @@ def run_server(host='0.0.0.0', port=59000):
         port: Port to bind to
     """
     from pycore.callmodule import launch_platform_aware
-    launch_platform_aware(host=host, port=port, debug=False)
+    launch_platform_aware(
+        host=host,
+        port=port,
+        debug=False
+    )
 
 
 if __name__ == '__main__':
@@ -43,4 +47,7 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=59000, help='Port to bind to')
 
     args = parser.parse_args()
-    run_server(host=args.host, port=args.port)
+    run_server(
+        host=args.host,
+        port=args.port
+    )

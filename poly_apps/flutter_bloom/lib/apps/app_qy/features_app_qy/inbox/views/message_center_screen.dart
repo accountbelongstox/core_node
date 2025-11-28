@@ -6,6 +6,9 @@ import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 import '../domain/model/inbox_model.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../data/inbox_data.dart';
 
 class MessageCenterScreen extends StatefulWidget {
   const MessageCenterScreen({super.key});
@@ -20,58 +23,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
   late Animation<double> _fadeAnimation;
   late TabController _tabController;
 
-  final List<InboxModel> _conversations = [
-    InboxModel(
-      id: '1',
-      name: '学习助手',
-      avatar: '🤖',
-      lastMessage: '今天的词汇学习已完成，继续保持！',
-      time: '2分钟前',
-      unreadCount: 2,
-      isOnline: true,
-      messageType: InboxType.system,
-    ),
-    InboxModel(
-      id: '2',
-      name: '英语角小组',
-      avatar: '👥',
-      lastMessage: 'John: 大家觉得这个语法点怎么样？',
-      time: '15分钟前',
-      unreadCount: 5,
-      isOnline: false,
-      messageType: InboxType.group,
-    ),
-    InboxModel(
-      id: '3',
-      name: 'Lucy',
-      avatar: '👩‍🎓',
-      lastMessage: '好的，明天见！',
-      time: '1小时前',
-      unreadCount: 0,
-      isOnline: true,
-      messageType: InboxType.personal,
-    ),
-    InboxModel(
-      id: '4',
-      name: '系统通知',
-      avatar: '🔔',
-      lastMessage: '您获得新的学习成就徽章！',
-      time: '2小时前',
-      unreadCount: 1,
-      isOnline: false,
-      messageType: InboxType.notification,
-    ),
-    InboxModel(
-      id: '5',
-      name: '学习提醒',
-      avatar: '⏰',
-      lastMessage: '该复习今天学习的单词了',
-      time: '3小时前',
-      unreadCount: 0,
-      isOnline: false,
-      messageType: InboxType.system,
-    ),
-  ];
+  List<InboxModel> get _conversations => InboxData.getConversations();
 
   @override
   void initState() {
@@ -176,14 +128,14 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
             child: Column(
               children: [
                 Text(
-                  '消息中心',
+                  QyAppLocalizationKeys.qyMessageCenter.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '${_conversations.where((c) => c.unreadCount > 0).length} 条未读消息',
+                  '${_conversations.where((c) => c.unreadCount > 0).length} ${QyAppLocalizationKeys.qyUnreadMessages.tr(context)}',
                   style: AppTextStyles.bodySmall.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -250,15 +202,15 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
         tabs: const [
           Tab(
             icon: Icon(Icons.chat),
-            text: '全部',
+            text: QyAppLocalizationKeys.qyAll.tr(context),
           ),
           Tab(
             icon: Icon(Icons.group),
-            text: '群组',
+            text: QyAppLocalizationKeys.qyGroups.tr(context),
           ),
           Tab(
             icon: Icon(Icons.notifications),
-            text: '通知',
+            text: QyAppLocalizationKeys.qyNotifications.tr(context),
           ),
         ],
       ),
@@ -312,7 +264,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.name,
+                            conversation.nameKey.tr(context),
                             style: AppTextStyles.headline6.copyWith(
                               color: AppTheme.textPrimary,
                               fontWeight: FontWeight.bold,
@@ -322,7 +274,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
                           ),
                         ),
                         Text(
-                          conversation.time,
+                          conversation.timeKey.tr(context),
                           style: AppTextStyles.bodySmall.copyWith(
                             color: AppTheme.textSecondary,
                           ),
@@ -334,7 +286,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.lastMessage,
+                            conversation.lastMessageKey.tr(context),
                             style: AppTextStyles.bodyMedium.copyWith(
                               color: conversation.unreadCount > 0
                                   ? AppTheme.textPrimary
@@ -388,7 +340,8 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: _getConversationColor(conversation).colors[0].withOpacity(0.3),
+            color:
+                _getConversationColor(conversation).colors[0].withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -425,12 +378,14 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
   }
 
   Widget _buildGroupChats() {
-    final groupChats = _conversations
-        .where((c) => c.messageType == InboxType.group)
-        .toList();
+    final groupChats =
+        _conversations.where((c) => c.messageType == InboxType.group).toList();
 
     if (groupChats.isEmpty) {
-      return _buildEmptyState('👥', '暂无群组聊天', '加入或创建学习小组开始讨论');
+      return _buildEmptyState(
+          '👥',
+          QyAppLocalizationKeys.qyNoGroupChats.tr(context),
+          QyAppLocalizationKeys.qyJoinOrCreateGroup.tr(context));
     }
 
     return ListView.builder(
@@ -451,12 +406,16 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
 
   Widget _buildNotifications() {
     final notifications = _conversations
-        .where((c) => c.messageType == InboxType.notification ||
-                     c.messageType == InboxType.system)
+        .where((c) =>
+            c.messageType == InboxType.notification ||
+            c.messageType == InboxType.system)
         .toList();
 
     if (notifications.isEmpty) {
-      return _buildEmptyState('🔔', '暂无通知', '系统通知和提醒将显示在这里');
+      return _buildEmptyState(
+          '🔔',
+          QyAppLocalizationKeys.qyNoNotifications.tr(context),
+          QyAppLocalizationKeys.qyNotificationsWillShowHere.tr(context));
     }
 
     return ListView.builder(
@@ -565,16 +524,25 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
             child: Column(
               children: [
                 Text(
-                  '开始新对话',
+                  QyAppLocalizationKeys.qyStartNewConversation.tr(context),
                   style: AppTextStyles.headline5.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildNewChatOption('👤', '私聊', '与单个同学交流'),
-                _buildNewChatOption('👥', '群聊', '创建或加入学习小组'),
-                _buildNewChatOption('🤖', 'AI助手', '获取学习建议和帮助'),
+                _buildNewChatOption(
+                    '👤',
+                    QyAppLocalizationKeys.qyPrivateChat.tr(context),
+                    QyAppLocalizationKeys.qyChatWithSingleStudent.tr(context)),
+                _buildNewChatOption(
+                    '👥',
+                    QyAppLocalizationKeys.qyGroupChat.tr(context),
+                    QyAppLocalizationKeys.qyJoinOrCreateGroup.tr(context)),
+                _buildNewChatOption(
+                    '🤖',
+                    QyAppLocalizationKeys.qyAiAssistant.tr(context),
+                    QyAppLocalizationKeys.qyGetLearningAdvice.tr(context)),
               ],
             ),
           ),
@@ -656,7 +624,8 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('所有消息已标记为已读'),
+        content:
+            Text(QyAppLocalizationKeys.qyAllMessagesMarkedAsRead.tr(context)),
         backgroundColor: AppTheme.success,
       ),
     );
@@ -696,10 +665,17 @@ class MessageSearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildResults(BuildContext context) {
-    final results = conversations.where((conversation) =>
-      conversation.name.toLowerCase().contains(query.toLowerCase()) ||
-      conversation.lastMessage.toLowerCase().contains(query.toLowerCase())
-    ).toList();
+    final results = conversations
+        .where((conversation) =>
+            conversation.nameKey
+                .tr(context)
+                .toLowerCase()
+                .contains(query.toLowerCase()) ||
+            conversation.lastMessageKey
+                .tr(context)
+                .toLowerCase()
+                .contains(query.toLowerCase()))
+        .toList();
 
     return ListView.builder(
       itemCount: results.length,
@@ -709,8 +685,8 @@ class MessageSearchDelegate extends SearchDelegate<String> {
           leading: CircleAvatar(
             child: Text(conversation.avatar),
           ),
-          title: Text(conversation.name),
-          subtitle: Text(conversation.lastMessage),
+          title: Text(conversation.nameKey.tr(context)),
+          subtitle: Text(conversation.lastMessageKey.tr(context)),
           onTap: () => close(context, conversation.id),
         );
       },

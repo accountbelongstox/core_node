@@ -16,6 +16,8 @@ import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 import 'widgets/category_list.dart';
 import 'widgets/playback_controls.dart';
 import 'widgets/current_word_card.dart';
+import '../models/word_audio_model.dart';
+import '../data/word_audio_data.dart';
 
 class WordListeningScreen extends StatefulWidget {
   const WordListeningScreen({super.key});
@@ -29,7 +31,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
   late AnimationController _pulseController;
   late AnimationController _shimmerController;
   late Animation<double> _shimmerAnimation;
-  
+
   ListeningCategory _selectedCategory = ListeningCategory.todayNew;
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
@@ -58,19 +60,23 @@ class _WordListeningScreenState extends State<WordListeningScreen>
     _loadWordsForCategory(_selectedCategory);
     _loadSettings();
   }
-  
+
   Future<void> _loadSettings() async {
     final storage = StorageAppQy.instance;
-    final settings = await storage.getApp<Map<String, dynamic>>('word_listening_settings');
+    final settings =
+        await storage.getApp<Map<String, dynamic>>('word_listening_settings');
     if (mounted && settings != null) {
       setState(() {
-        if (settings['speed'] != null) _playbackSpeed = (settings['speed'] as num).toDouble();
-        if (settings['looping'] != null) _isLooping = settings['looping'] as bool;
-        if (settings['shuffling'] != null) _isShuffling = settings['shuffling'] as bool;
+        if (settings['speed'] != null)
+          _playbackSpeed = (settings['speed'] as num).toDouble();
+        if (settings['looping'] != null)
+          _isLooping = settings['looping'] as bool;
+        if (settings['shuffling'] != null)
+          _isShuffling = settings['shuffling'] as bool;
       });
     }
   }
-  
+
   Future<void> _saveSettings() async {
     final storage = StorageAppQy.instance;
     await storage.setApp<Map<String, dynamic>>('word_listening_settings', {
@@ -95,12 +101,14 @@ class _WordListeningScreenState extends State<WordListeningScreen>
         builder: (context, child) {
           return Container(
             decoration: BoxDecoration(
-              gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerAnimation.value),
+              gradient:
+                  ColorsAppQy.qyDynamicShimmerGradient(_shimmerAnimation.value),
             ),
             child: SafeArea(
               child: FadeTransition(
                 opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-                  CurvedAnimation(parent: _pulseController, curve: Curves.easeIn),
+                  CurvedAnimation(
+                      parent: _pulseController, curve: Curves.easeIn),
                 ),
                 child: Column(
                   children: [
@@ -121,7 +129,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
       ),
     );
   }
-  
+
   Widget _buildBentoBoxContent(BuildContext context) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(ThemeDimensions.spacing16),
@@ -132,7 +140,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
       ),
     );
   }
-  
+
   Widget _buildBentoGrid(BuildContext context) {
     return Column(
       children: [
@@ -141,10 +149,18 @@ class _WordListeningScreenState extends State<WordListeningScreen>
             Expanded(
               flex: 2,
               child: CurrentWordCard(
-                word: _currentWords.isNotEmpty ? _currentWords[_currentIndex].word : '',
-                phonetic: _currentWords.isNotEmpty ? _currentWords[_currentIndex].pronunciation : '',
-                translation: _currentWords.isNotEmpty ? _currentWords[_currentIndex].meaning : '',
-                example: _currentWords.isNotEmpty ? _currentWords[_currentIndex].example : null,
+                word: _currentWords.isNotEmpty
+                    ? _currentWords[_currentIndex].word
+                    : '',
+                phonetic: _currentWords.isNotEmpty
+                    ? _currentWords[_currentIndex].pronunciation
+                    : '',
+                translation: _currentWords.isNotEmpty
+                    ? _currentWords[_currentIndex].meaningKey.tr(context)
+                    : '',
+                example: _currentWords.isNotEmpty
+                    ? _currentWords[_currentIndex].exampleKey.tr(context)
+                    : null,
               ),
             ),
             SizedBox(width: ThemeDimensions.spacing16),
@@ -178,7 +194,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
       ],
     );
   }
-  
+
   Widget _buildStatsCard(BuildContext context) {
     return Padding(
       padding: EdgeInsets.all(ThemeDimensions.spacing16),
@@ -279,136 +295,35 @@ class _WordListeningScreenState extends State<WordListeningScreen>
     );
   }
 
-
   void _loadWordsForCategory(ListeningCategory category) {
-    // Mock data for different categories
     setState(() {
       switch (category) {
         case ListeningCategory.wordBook:
-          _currentWords = _getMockWordBookWords();
+          _currentWords = WordAudioData.getWordBookWords();
           break;
         case ListeningCategory.newWords:
-          _currentWords = _getMockNewWords();
+          _currentWords = WordAudioData.getNewWords();
           break;
         case ListeningCategory.todayNew:
-          _currentWords = _getMockTodayNewWords();
+          _currentWords = WordAudioData.getTodayNewWords();
           break;
         case ListeningCategory.todayReview:
-          _currentWords = _getMockTodayReviewWords();
+          _currentWords = WordAudioData.getTodayReviewWords();
           break;
         case ListeningCategory.fullList:
-          _currentWords = _getMockFullListWords();
+          _currentWords = WordAudioData.getFullListWords();
           break;
         case ListeningCategory.fullUnlearned:
-          _currentWords = _getMockFullUnlearnedWords();
+          _currentWords = WordAudioData.getFullUnlearnedWords();
           break;
         case ListeningCategory.fullLearning:
-          _currentWords = _getMockFullLearningWords();
+          _currentWords = WordAudioData.getFullLearningWords();
           break;
         case ListeningCategory.fullSimple:
-          _currentWords = _getMockFullSimpleWords();
+          _currentWords = WordAudioData.getFullSimpleWords();
           break;
       }
     });
-  }
-
-  List<WordAudioItem> _getMockTodayNewWords() {
-    return [
-      WordAudioItem(
-        word: 'resilient',
-        pronunciation: '/rɪˈzɪliənt/',
-        meaning: '有弹性的；能迅速恢复的',
-        example: 'She\'s a resilient person who bounces back from adversity.',
-      ),
-      WordAudioItem(
-        word: 'paradigm',
-        pronunciation: '/ˈpærədaɪm/',
-        meaning: '范式；模式',
-        example: 'The company is shifting its business paradigm.',
-      ),
-      WordAudioItem(
-        word: 'ephemeral',
-        pronunciation: '/ɪˈfemərəl/',
-        meaning: '短暂的；瞬息的',
-        example: 'The beauty of cherry blossoms is ephemeral.',
-      ),
-    ];
-  }
-
-  List<WordAudioItem> _getMockTodayReviewWords() {
-    return [
-      WordAudioItem(
-        word: 'ubiquitous',
-        pronunciation: '/juːˈbɪkwɪtəs/',
-        meaning: '无处不在的；普遍存在的',
-        example: 'Smartphones have become ubiquitous in modern society.',
-      ),
-      WordAudioItem(
-        word: 'meticulous',
-        pronunciation: '/məˈtɪkjələs/',
-        meaning: '一丝不苟的；小心翼翼的',
-        example: 'She is meticulous in her research and documentation.',
-      ),
-    ];
-  }
-
-  List<WordAudioItem> _getMockWordBookWords() {
-    return [
-      WordAudioItem(
-        word: 'resilient',
-        pronunciation: '/rɪˈzɪliənt/',
-        meaning: '有弹性的；能迅速恢复的',
-        example: 'She\'s a resilient person who bounces back from adversity.',
-      ),
-    ];
-  }
-
-  List<WordAudioItem> _getMockNewWords() {
-    return [
-      WordAudioItem(
-        word: 'serendipity',
-        pronunciation: '/ˌserənˈdɪpəti/',
-        meaning: '意外发现珍奇事物的运气；机缘巧合',
-        example: 'It was pure serendipity that led to their discovery.',
-      ),
-    ];
-  }
-
-  List<WordAudioItem> _getMockFullListWords() {
-    return _getMockTodayNewWords() + _getMockTodayReviewWords();
-  }
-
-  List<WordAudioItem> _getMockFullUnlearnedWords() {
-    return [
-      WordAudioItem(
-        word: 'ephemeral',
-        pronunciation: '/ɪˈfemərəl/',
-        meaning: '短暂的；瞬息的',
-        example: 'The beauty of cherry blossoms is ephemeral.',
-      ),
-    ];
-  }
-
-  List<WordAudioItem> _getMockFullLearningWords() {
-    return [
-      WordAudioItem(
-        word: 'resilient',
-        pronunciation: '/rɪˈzɪliənt/',
-        meaning: '有弹性的；能迅速恢复的',
-        example: 'She\'s a resilient person who bounces back from adversity.',
-      ),
-    ];
-  }
-
-  List<WordAudioItem> _getMockFullSimpleWords() {
-    return [
-      WordAudioItem(
-        word: 'simple',
-        pronunciation: '/ˈsɪmpl/',
-        meaning: '简单的；朴素的',
-        example: 'The solution is quite simple.',
-      ),
-    ];
   }
 
   void _togglePlayPause() {
@@ -473,7 +388,8 @@ class _WordListeningScreenState extends State<WordListeningScreen>
     // TODO: Implement audio playback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${QyAppLocalizationKeys.qyListeningPlaying.tr(context)}: ${_currentWords[_currentIndex].word}'),
+        content: Text(
+            '${QyAppLocalizationKeys.qyListeningPlaying.tr(context)}: ${_currentWords[_currentIndex].word}'),
         backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
@@ -540,7 +456,9 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                           child: Text(
                             '${index + 1}',
                             style: ThemeTextStyles.bodyMedium.copyWith(
-                              color: isCurrentWord ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextSecondary,
+                              color: isCurrentWord
+                                  ? ColorsAppQy.qyTextOnPrimary
+                                  : ColorsAppQy.qyTextSecondary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -548,18 +466,23 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                         title: Text(
                           word.word,
                           style: ThemeTextStyles.bodyLarge.copyWith(
-                            fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.normal,
-                            color: isCurrentWord ? ColorsAppQy.qyPrimary : ColorsAppQy.qyTextPrimary,
+                            fontWeight: isCurrentWord
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isCurrentWord
+                                ? ColorsAppQy.qyPrimary
+                                : ColorsAppQy.qyTextPrimary,
                           ),
                         ),
                         subtitle: Text(
-                          word.meaning,
+                          word.meaningKey.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: ColorsAppQy.qyTextSecondary,
                           ),
                         ),
                         trailing: isCurrentWord
-                            ? Icon(Icons.play_arrow, color: ColorsAppQy.qyPrimary)
+                            ? Icon(Icons.play_arrow,
+                                color: ColorsAppQy.qyPrimary)
                             : null,
                         onTap: () {
                           setState(() {
@@ -636,7 +559,9 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                 ),
                 secondary: Icon(
                   Icons.loop,
-                  color: _isLooping ? ColorsAppQy.qyAccent : ColorsAppQy.qyTextTertiary,
+                  color: _isLooping
+                      ? ColorsAppQy.qyAccent
+                      : ColorsAppQy.qyTextTertiary,
                 ),
               ),
               SwitchListTile(
@@ -653,7 +578,9 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                 ),
                 secondary: Icon(
                   Icons.shuffle,
-                  color: _isShuffling ? ColorsAppQy.qyPrimary : ColorsAppQy.qyTextTertiary,
+                  color: _isShuffling
+                      ? ColorsAppQy.qyPrimary
+                      : ColorsAppQy.qyTextTertiary,
                 ),
               ),
             ],
@@ -663,29 +590,4 @@ class _WordListeningScreenState extends State<WordListeningScreen>
       ),
     );
   }
-}
-
-enum ListeningCategory {
-  wordBook,
-  newWords,
-  todayNew,
-  todayReview,
-  fullList,
-  fullUnlearned,
-  fullLearning,
-  fullSimple,
-}
-
-class WordAudioItem {
-  final String word;
-  final String pronunciation;
-  final String meaning;
-  final String example;
-
-  WordAudioItem({
-    required this.word,
-    required this.pronunciation,
-    required this.meaning,
-    required this.example,
-  });
 }
