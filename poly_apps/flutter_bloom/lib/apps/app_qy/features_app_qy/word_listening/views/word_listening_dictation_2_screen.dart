@@ -362,16 +362,19 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
     return GlassCard(
       child: Padding(
         padding: EdgeInsets.all(ThemeDimensions.spacing20),
-      child: Column(
+        child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(
+                  horizontal: ThemeDimensions.spacing8,
+                  vertical: ThemeDimensions.spacing4,
+                ),
                 decoration: BoxDecoration(
                   color: _getDifficultyColor(currentWord['difficulty']).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Text(
                   _getDifficultyText(currentWord['difficulty']),
@@ -385,7 +388,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: ColorsAppQy.qyInfo.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Text(
                   currentWord['category'].toString().toUpperCase(),
@@ -782,7 +785,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('正在播放: ${_dictationWords[_currentWordIndex]['word']}'),
-        backgroundColor: AppTheme.learningColor,
+        backgroundColor: ColorsAppQy.qySecondary,
         duration: const Duration(seconds: 1),
       ),
     );
@@ -889,7 +892,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Text(
                           '下一个',
@@ -974,7 +977,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Text(
                           '继续',
@@ -1001,7 +1004,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           color: ColorsAppQy.qyFrostWhite,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: ThemeDimensions.borderRadiusS,
                           border: Border.all(
                             color: ColorsAppQy.qyBorderLight,
                           ),
@@ -1071,7 +1074,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppTheme.backgroundLight,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
                 child: Column(
                   children: [
@@ -1147,7 +1150,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: ThemeDimensions.borderRadiusS,
                         ),
                         child: Text(
                           '完成',
