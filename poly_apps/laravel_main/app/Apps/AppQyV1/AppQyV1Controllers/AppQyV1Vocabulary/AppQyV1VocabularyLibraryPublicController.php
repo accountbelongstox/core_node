@@ -93,6 +93,11 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
     private function transformLibrary(AppQyV1VocabularyLibraryModel $library): array
     {
         $cover = $this->coverService->getCoverData($library);
+        if (!is_array($cover)) {
+            $cover = [];
+        }
+
+        $imageUrl = $cover['url'] ?? $this->coverService->getDefaultCoverUrl();
 
         return [
             'id' => (int) $library->id,
@@ -102,12 +107,12 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'language' => $library->language,
             'difficulty' => $library->difficulty_level ?? 'intermediate',
             'category' => $library->category ?? 'general',
-            'image_url' => $cover['url'],
-            'cover_status' => $cover['status'],
-            'cover_error' => $cover['error'],
+            'image_url' => $imageUrl,
+            'cover_status' => $cover['status'] ?? 'pending',
+            'cover_error' => $cover['error'] ?? null,
             'is_recommended' => (bool) $library->is_recommended,
             'tags' => $library->tags ?? [],
-            'cover_log' => $cover['log'],
+            'cover_log' => $cover['log'] ?? null,
         ];
     }
 }

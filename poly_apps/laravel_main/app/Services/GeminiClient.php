@@ -5,11 +5,17 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Helpers\GlobalSecretReader;
-use App\Services\GeminiRateLimiter;
+use App\Providers\PathMapper;
 
 class GeminiClient
 {
     const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+
+    private const RATE_LIMITS = [
+        'rpm' => 5,
+        'tpm' => 250000,
+        'rpd' => 100,
+    ];
     
     const MODELS = [
         'gemini-2.5-flash' => 'gemini-2.5-flash',
@@ -19,28 +25,35 @@ class GeminiClient
     ];
     const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
     
-    private $apiKey;
-    private ?GeminiRateLimiter $rateLimiter = null;
+    private ?string $apiKey = null;
     private int $defaultImageTokens = 200;
+    private array $keyPool = [];
+    private ?string $primaryKey = null;
+    private string $rateLimitDir;
     
-    public function __construct(?string $apiKey = null, ?GeminiRateLimiter $rateLimiter = null)
+    public function __construct(?string $apiKey = null)
     {
-        if ($apiKey === null) {
-            $apiKey = GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_1');
-            if (!$apiKey) {
-                $apiKey = GlobalSecretReader::getSecretContent('GEMINI_API_KEY');
-            }
-            if (!$apiKey) {
-                $apiKey = env('GOOGLE_API_KEY_1') ?? env('GEMINI_API_KEY');
-            }
+        $this->rateLimitDir = rtrim(PathMapper::getCachePath(), '/') . '/gemini';
+        PathMapper::ensureDirectoryExists($this->rateLimitDir);
+
+        $keys = $this->resolveApiKeys($apiKey);
+        
+        if (empty($keys)) {
+            Log::warning('[GeminiClient] No API key provided. Set GOOGLE_API_KEY_1/2 in .secret_keys/.secret_ignore/');
+            return;
         }
         
-        if (!$apiKey) {
-            Log::warning('[GeminiClient] No API key provided. Set GOOGLE_API_KEY_1 in .secret_keys/.secret_ignore/');
+        foreach ($keys as $index => $keyValue) {
+            $identifier = $this->buildKeyIdentifier($index, $keyValue);
+            $this->keyPool[] = [
+                'key' => $keyValue,
+                'identifier' => $identifier,
+                'limit_path' => $this->buildRateLimitPath($identifier),
+            ];
         }
         
-        $this->apiKey = $apiKey;
-        $this->rateLimiter = $rateLimiter ?? new GeminiRateLimiter();
+        $this->primaryKey = $this->keyPool[0]['key'] ?? null;
+        $this->apiKey = $this->primaryKey;
     }
     
     public function hasApiKey(): bool
@@ -48,10 +61,11 @@ class GeminiClient
         return !empty($this->apiKey);
     }
 
-    private function buildHeaders(): array
+    private function buildHeaders(?string $apiKey = null): array
     {
+        $key = $apiKey ?? $this->primaryKey;
         return [
-            'x-goog-api-key' => $this->apiKey,
+            'x-goog-api-key' => $key,
             'Content-Type' => 'application/json',
         ];
     }
@@ -61,7 +75,8 @@ class GeminiClient
         ?string $model = null,
         array $generationConfig = [],
         int $timeout = 300,
-        array $payloadOverrides = []
+        array $payloadOverrides = [],
+        ?string $apiKeyOverride = null
     ): array {
         if (!$this->apiKey) {
             return ['error' => 'No API key configured'];
@@ -94,7 +109,7 @@ class GeminiClient
         ]);
         
         try {
-            $response = Http::withHeaders($this->buildHeaders())
+            $response = Http::withHeaders($this->buildHeaders($apiKeyOverride))
                 ->timeout($timeout)
                 ->post(self::BASE_URL . "/models/{$model}:generateContent", $payload);
             
@@ -186,9 +201,11 @@ class GeminiClient
 
     public function generateImageFromPrompt(string $prompt, array $options = []): array
     {
-        if ($limit = $this->throttle($options['token_estimate'] ?? $this->defaultImageTokens)) {
-            return $limit;
+        $reservation = $this->acquireApiKey($options['token_estimate'] ?? $this->defaultImageTokens);
+        if (!($reservation['success'] ?? false)) {
+            return $reservation;
         }
+        $selectedKey = $reservation['key'];
 
         $contents = [
             [
@@ -206,7 +223,8 @@ class GeminiClient
             $generationConfig,
             $options['model'] ?? 'gemini-2.5-flash-image',
             $options['timeout'] ?? 180,
-            $options['size'] ?? '1024x1024'
+            $options['size'] ?? '1024x1024',
+            $selectedKey
         );
     }
 
@@ -226,9 +244,11 @@ class GeminiClient
             ];
         }
 
-        if ($limit = $this->throttle($options['token_estimate'] ?? $this->defaultImageTokens)) {
-            return $limit;
+        $reservation = $this->acquireApiKey($options['token_estimate'] ?? $this->defaultImageTokens);
+        if (!($reservation['success'] ?? false)) {
+            return $reservation;
         }
+        $selectedKey = $reservation['key'];
 
         $mimeType = $options['mime_type'] ?? mime_content_type($imagePath) ?: 'image/png';
         $imageData = base64_encode(file_get_contents($imagePath));
@@ -255,7 +275,8 @@ class GeminiClient
             $generationConfig,
             $options['model'] ?? 'gemini-2.5-flash-image',
             $options['timeout'] ?? 180,
-            $options['size'] ?? '1024x1024'
+            $options['size'] ?? '1024x1024',
+            $selectedKey
         );
     }
 
@@ -488,13 +509,16 @@ class GeminiClient
         array $generationConfig,
         ?string $model,
         int $timeout,
-        string $sizeConfig = '1024x1024'
+        string $sizeConfig = '1024x1024',
+        ?string $apiKey = null
     ): array {
         $response = $this->generateContent(
             $contents,
             $model ?? 'gemini-2.5-flash-image',
             $generationConfig,
-            $timeout
+            $timeout,
+            [],
+            $apiKey
         );
 
         if (isset($response['error'])) {
@@ -557,23 +581,199 @@ class GeminiClient
         return $images;
     }
 
-    private function throttle(int $tokensEstimate, int $requests = 1): ?array
+    private function resolveApiKeys(?string $apiKeyOverride): array
     {
-        if (!$this->rateLimiter) {
-            return null;
+        $keys = [];
+        $append = function (?string $key) use (&$keys) {
+            $key = is_string($key) ? trim($key) : '';
+            if ($key !== '' && !in_array($key, $keys, true)) {
+                $keys[] = $key;
+            }
+        };
+
+        $sources = [
+            $apiKeyOverride,
+            GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_1'),
+            GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_2'),
+        ];
+
+        foreach ($sources as $candidate) {
+            $append($candidate);
         }
 
-        $result = $this->rateLimiter->reserve($tokensEstimate, $requests);
-        if (!($result['allowed'] ?? false)) {
-            $retry = $result['retry_after'] ?? 60;
+        return $keys;
+    }
+
+    private function buildKeyIdentifier(int $index, string $key): string
+    {
+        $hash = substr(md5($key), 0, 10);
+        return 'key' . ($index + 1) . '_' . $hash;
+    }
+
+    private function buildRateLimitPath(string $identifier): string
+    {
+        return rtrim($this->rateLimitDir, '/') . '/rate_' . $identifier . '.json';
+    }
+
+    private function acquireApiKey(int $tokensEstimate, int $requests = 1): array
+    {
+        if (empty($this->keyPool)) {
             return [
                 'success' => false,
-                'error' => 'Gemini rate limit (' . ($result['reason'] ?? 'unknown') . ') reached. Retry after ' . $retry . ' seconds.',
-                'retry_after' => $retry,
-                'rate_limited' => true,
+                'error' => 'No Gemini API key configured',
             ];
         }
 
-        return null;
+        $failures = [];
+
+        foreach ($this->keyPool as $entry) {
+            $result = $this->reserveUsage($entry, $tokensEstimate, $requests);
+
+            if ($result['allowed'] ?? false) {
+                return [
+                    'success' => true,
+                    'key' => $entry['key'],
+                    'identifier' => $entry['identifier'],
+                ];
+            }
+
+            $failures[] = [
+                'identifier' => $entry['identifier'],
+                'retry_after' => $result['retry_after'] ?? 60,
+                'reason' => $result['reason'] ?? 'unknown',
+            ];
+        }
+
+        $retryAfter = 60;
+        if (!empty($failures)) {
+            $retryAfter = min(array_map(static function ($failure) {
+                return $failure['retry_after'] ?? 60;
+            }, $failures));
+        }
+
+        return [
+            'success' => false,
+            'error' => 'All Gemini API keys are rate limited',
+            'retry_after' => $retryAfter,
+            'rate_limited' => true,
+            'details' => $failures,
+        ];
+    }
+
+    private function reserveUsage(array $entry, int $tokens, int $requests): array
+    {
+        $path = $entry['limit_path'];
+        $handle = @fopen($path, 'c+');
+
+        if (!$handle) {
+            Log::warning('[GeminiClient] Unable to open rate limit cache file', ['path' => $path]);
+            return [
+                'allowed' => true,
+                'retry_after' => 0,
+                'reason' => null,
+            ];
+        }
+
+        if (!flock($handle, LOCK_EX)) {
+            fclose($handle);
+            return [
+                'allowed' => true,
+                'retry_after' => 0,
+                'reason' => null,
+            ];
+        }
+
+        try {
+            rewind($handle);
+            $contents = stream_get_contents($handle);
+            $state = $contents ? json_decode($contents, true) : null;
+            if (!is_array($state)) {
+                $state = $this->defaultRateLimitState();
+            }
+
+            $now = time();
+            $currentDate = date('Y-m-d', $now);
+
+            $state['minute'] = array_merge([
+                'start' => $now,
+                'requests' => 0,
+                'tokens' => 0,
+            ], $state['minute'] ?? []);
+
+            $state['day'] = array_merge([
+                'date' => $currentDate,
+                'requests' => 0,
+                'tokens' => 0,
+            ], $state['day'] ?? []);
+
+            if ($now - $state['minute']['start'] >= 60) {
+                $state['minute'] = [
+                    'start' => $now,
+                    'requests' => 0,
+                    'tokens' => 0,
+                ];
+            }
+
+            if ($state['day']['date'] !== $currentDate) {
+                $state['day'] = [
+                    'date' => $currentDate,
+                    'requests' => 0,
+                    'tokens' => 0,
+                ];
+            }
+
+            if ($state['minute']['requests'] + $requests > self::RATE_LIMITS['rpm']
+                || $state['minute']['tokens'] + $tokens > self::RATE_LIMITS['tpm']) {
+                $retry = max(1, ($state['minute']['start'] + 60) - $now);
+                $result = [
+                    'allowed' => false,
+                    'retry_after' => $retry,
+                    'reason' => 'minute',
+                ];
+            } elseif ($state['day']['requests'] + $requests > self::RATE_LIMITS['rpd']) {
+                $retry = max(1, strtotime('tomorrow', $now) - $now);
+                $result = [
+                    'allowed' => false,
+                    'retry_after' => $retry,
+                    'reason' => 'day',
+                ];
+            } else {
+                $state['minute']['requests'] += $requests;
+                $state['minute']['tokens'] += $tokens;
+                $state['day']['requests'] += $requests;
+                $state['day']['tokens'] += $tokens;
+
+                $result = [
+                    'allowed' => true,
+                    'retry_after' => 0,
+                    'reason' => null,
+                ];
+            }
+
+            rewind($handle);
+            ftruncate($handle, 0);
+            fwrite($handle, json_encode($state));
+
+            return $result;
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    private function defaultRateLimitState(): array
+    {
+        return [
+            'minute' => [
+                'start' => time(),
+                'requests' => 0,
+                'tokens' => 0,
+            ],
+            'day' => [
+                'date' => date('Y-m-d'),
+                'requests' => 0,
+                'tokens' => 0,
+            ],
+        ];
     }
 }
