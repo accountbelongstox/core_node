@@ -533,6 +533,9 @@ function setupEventListeners() {
         // Update display based on selected mode
         updateCodeSyncPanelVisibility(e.target.value);
     });
+
+    // Backup toggle
+    document.getElementById('enableBackup')?.addEventListener('change', toggleBackup);
 }
 
 // ========== Quick Add Functions ==========
@@ -927,6 +930,27 @@ async function stopCodeSync() {
     }
 }
 
+async function toggleBackup(event) {
+    const enabled = event.target.checked;
+    console.log('[Code Sync] Backup toggle:', enabled ? 'Enabled' : 'Disabled');
+
+    try {
+        const data = await api.toggleBackup(enabled);
+
+        if (data.success) {
+            dialog.success(`Backup ${enabled ? 'enabled' : 'disabled'}`);
+        } else {
+            // Revert checkbox on error
+            event.target.checked = !enabled;
+            dialog.error('Failed to toggle backup setting');
+        }
+    } catch (error) {
+        console.error('[Code Sync] Backup toggle error:', error);
+        event.target.checked = !enabled;
+        dialog.error(`Error toggling backup: ${error.message}`);
+    }
+}
+
 async function refreshCodeSyncStatus() {
     try {
         const data = await api.getCodeSyncStatus();
@@ -988,6 +1012,15 @@ function updateCodeSyncUI(statusData) {
         document.getElementById('serverHost').textContent = client.server_host || '-';
         document.getElementById('serverPort').textContent = client.server_port || '-';
         document.getElementById('clientId').textContent = client.client_id || '-';
+
+        // Update backup checkbox
+        const backupCheckbox = document.getElementById('enableBackup');
+        if (backupCheckbox) {
+            backupCheckbox.checked = client.enable_backup || false;
+        }
+
+        // Update sync logs
+        updateSyncLogs(client.logs || []);
     }
 }
 
@@ -1032,6 +1065,48 @@ function updateClientsTable(clients) {
         `;
         tbody.appendChild(tr);
     });
+}
+
+function updateSyncLogs(logs) {
+    const container = document.getElementById('syncLogsContainer');
+
+    if (!logs || logs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No sync activity yet</div>';
+        return;
+    }
+
+    // Define color mapping for actions
+    const actionColors = {
+        'received': '#4CAF50',
+        'skipped': '#2196F3',
+        'backup': '#FF9800',
+        'error': '#F44336'
+    };
+
+    // Reverse logs to show newest first
+    const reversedLogs = [...logs].reverse();
+
+    container.innerHTML = reversedLogs.map(log => {
+        const timestamp = new Date(log.timestamp).toLocaleTimeString();
+        const color = actionColors[log.action] || '#666';
+
+        return `
+            <div style="padding: 8px; border-bottom: 1px solid #e0e0e0;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 3px;">
+                    <span style="color: ${color}; font-weight: bold;">[${log.action.toUpperCase()}]</span>
+                    <span style="opacity: 0.7;">${timestamp}</span>
+                </div>
+                <div style="margin-left: 10px; color: #333;">
+                    <div style="font-weight: 500;">${log.file}</div>
+                    <div style="opacity: 0.8; font-size: 11px;">${log.reason}</div>
+                    ${log.details ? `<div style="opacity: 0.6; font-size: 10px; margin-top: 2px;">${log.details}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Auto-scroll to top (newest)
+    container.scrollTop = 0;
 }
 
 // ========== RPC Connection Events ==========

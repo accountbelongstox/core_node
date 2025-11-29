@@ -160,4 +160,8 @@ class VoiceSubtitleAPI {
     async stopCodeSync() {
         return await this.post(this.endpoints.CODE_SYNC_STOP);
     }
+
+    async toggleBackup(enabled) {
+        return await this.post(this.endpoints.CODE_SYNC_TOGGLE_BACKUP, { enabled });
+    }
 }

@@ -393,6 +393,23 @@
                         </div>
                     </div>
 
+                    <!-- Client Settings -->
+                    <h3 class="collapsible-header" data-target="clientSettings">
+                        <span>Client Settings</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="clientSettings" class="collapsible-content">
+                        <div class="setting-item">
+                            <label class="feature-toggle">
+                                <input type="checkbox" id="enableBackup" checked>
+                                <span>Enable File Backup</span>
+                            </label>
+                            <p class="feature-desc" style="font-size: 12px; opacity: 0.7; margin-top: 5px;">
+                                Backup files before overwriting (saved with timestamp)
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- Server Info -->
                     <h3 class="collapsible-header" data-target="serverInfo">
                         <span>Server Information</span>
@@ -412,6 +429,18 @@
                                 <span class="info-label">Client ID:</span>
                                 <span class="info-value" id="clientId">-</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Sync Logs -->
+                    <h3 class="collapsible-header" data-target="syncLogs">
+                        <span>Sync Logs</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="syncLogs" class="collapsible-content">
+                        <div id="syncLogsContainer" style="max-height: 400px; overflow-y: auto; font-size: 12px; font-family: monospace;">
+                            <!-- Populated by JS -->
+                            <div class="empty-state">No sync activity yet</div>
                         </div>
                     </div>
 
