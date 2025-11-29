@@ -5,3 +5,5 @@ poly_apps\flutter_bloom\lib 对整个构架进行扫描 ，现在对全局的sta
 这个规范更新到  development-guides\LARAVEL_GUIDE.md ，只能用2行以内说明，如果有冲突，更改冲突部份。
 
 刚刚编码的请同时设置KEY：VAL，并解决全部。http://192.168.50.2:9000/api_info   访问得到后端api的信息，现在对API端点进行调整，使用多baseURL组合端点。https://api.si.12gm.com/%20https://api.si.15gm.com/   以及 192.168.50.2：9000 domain没有端口，启动时快速扫描 可用的url作为baseURL,多端点探测扩展在common区，但是配置硬编码 在app的配置区，参考 development-guides\LARAVEL_GUIDE.md ，现在可能要同时查看lib/common区的可用性和子app的配置扩展性，注意common区不能引和子APP内容。参考 文件构架  poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt  
+
+请不要重复定义多个语音端点。

@@ -1,0 +1,2092 @@
+{
+    "public_info": {
+        "CommonApiInfo": {
+            "section_name": "Common APIs",
+            "description": "Shared authentication and system management APIs",
+            "base_url": "http:\/\/192.168.50.2:9000\/api",
+            "endpoints": [
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/register",
+                    "feature": "no_auth_required\/POST|User registration|RegisteredUserController|params:name(string,required,John Doe),email(string,required,user@example.com),password(string,required,password123),password_confirmation(string,required,password123)|response:user(object,User data),token(string,Access token)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/login",
+                    "feature": "no_auth_required\/ANY|User login|LoginController|params:email(string,optional,user@example.com),password(string,optional,password123)|response:user(object,User data),token(string,Access token),token_type(string,Token type)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/logout",
+                    "feature": "auth_required\/ANY|User logout|LoginController|headers:Authorization(string,required,Bearer token123)|response:message(string,Success message)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/user",
+                    "feature": "auth_required\/ANY|Get authenticated user|inline_function|headers:Authorization(string,required,Bearer token123)|response:user(object,User profile data)|tags:auth,user"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/forgot-password",
+                    "feature": "no_auth_required\/POST|Send password reset link|PasswordResetLinkController|params:email(string,required,user@example.com)|response:message(string,Reset link sent)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/reset-password",
+                    "feature": "no_auth_required\/POST|Reset password|NewPasswordController|params:email(string,required,user@example.com),token(string,required,reset-token-123),password(string,required,newpassword123),password_confirmation(string,required,newpassword123)|response:message(string,Password reset success)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/verify-email\/{id}\/{hash}",
+                    "feature": "auth_required\/GET|Verify email address|VerifyEmailController|headers:Authorization(string,required,Bearer token123)|params:id(int,required,123),hash(string,required,verification-hash)|response:message(string,Email verified)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/email\/verification-notification",
+                    "feature": "auth_required\/POST|Resend email verification|EmailVerificationNotificationController|headers:Authorization(string,required,Bearer token123)|response:message(string,Verification sent)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/get_system_status",
+                    "feature": "no_auth_required\/ANY|Get system status|StatusController|response:status(string,System status),version(string,App version),environment(string,Environment),uptime(string,Server uptime)|tags:system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/store_session",
+                    "feature": "no_auth_required\/POST|Store session data|TokenSessionController|params:session_data(object,required,{\"key\":\"value\"}),token(string,optional,session-token-123)|response:session_id(string,Session ID),success(boolean,Operation success)|tags:system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/retrieve_session",
+                    "feature": "no_auth_required\/GET|Retrieve session data|TokenSessionController|params:session_id(string,required,session-123)|response:session_data(object,Session data)|tags:system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/broadcast_session",
+                    "feature": "no_auth_required\/POST|Broadcast session to clients|TokenSessionController|params:session_id(string,required,session-123),broadcast_data(object,required,{\"message\":\"hello\"})|response:broadcast_status(string,Broadcast status)|tags:system"
+                }
+            ],
+            "supported_headers": {
+                "Authorization": "Bearer token for Sanctum authentication",
+                "Content-Type": "application\/json",
+                "Accept": "application\/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            "authentication": {
+                "type": "sanctum_based",
+                "description": "Uses Laravel Sanctum for authentication"
+            }
+        },
+        "GlobalApiConstants": {
+            "global_headers": {
+                "authentication": {
+                    "Client-Token": {
+                        "description": "Client token for API access",
+                        "type": "string",
+                        "required_for": "Client-specific endpoints",
+                        "example": "client-token-12345"
+                    },
+                    "Auth-Username": {
+                        "description": "Username for authentication",
+                        "type": "string",
+                        "required_for": "Basic authentication",
+                        "example": "user@example.com"
+                    },
+                    "Auth-Password": {
+                        "description": "Password for authentication",
+                        "type": "string",
+                        "required_for": "Basic authentication",
+                        "example": "password123"
+                    },
+                    "Auth-User-Token": {
+                        "description": "User authentication token",
+                        "type": "string",
+                        "required_for": "Authenticated endpoints",
+                        "example": "user-token-abcdef123456"
+                    },
+                    "Auth-Debug-Token": {
+                        "description": "Debug token for development",
+                        "type": "string",
+                        "required_for": "Debug endpoints",
+                        "example": "debug-token-xyz789"
+                    }
+                },
+                "standard": {
+                    "Content-Type": {
+                        "description": "Request content type",
+                        "type": "string",
+                        "required_for": "All POST\/PUT requests",
+                        "example": "application\/json"
+                    },
+                    "Accept": {
+                        "description": "Response content type",
+                        "type": "string",
+                        "required_for": "All requests",
+                        "example": "application\/json"
+                    },
+                    "Authorization": {
+                        "description": "Bearer token authorization",
+                        "type": "string",
+                        "required_for": "Token-based auth endpoints",
+                        "example": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                    }
+                }
+            },
+            "common_constants": {
+                "auth_types": {
+                    "no_auth_required": "Endpoint does not require authentication",
+                    "auth_required": "Standard authentication required",
+                    "auth_required:client.token": "Client token authentication required"
+                },
+                "http_methods": {
+                    "GET": "Retrieve data",
+                    "POST": "Create new resource",
+                    "PUT": "Update existing resource",
+                    "DELETE": "Remove resource",
+                    "ANY": "Accepts multiple HTTP methods"
+                },
+                "feature_format": "auth_type\/method|description|controller|params:param(type,required\/optional)|headers:{{header}}(type,required\/optional)|response:field1,field2"
+            },
+            "parameter_types": {
+                "string": "Text value",
+                "int": "Integer number",
+                "boolean": "True\/false value",
+                "array": "List of values",
+                "file": "Uploaded file",
+                "float": "Decimal number",
+                "date": "Date string (YYYY-MM-DD)",
+                "datetime": "Datetime string (ISO 8601)",
+                "email": "Valid email address",
+                "url": "Valid URL"
+            },
+            "response_formats": {
+                "success": {
+                    "status": 200,
+                    "format": {
+                        "success": true,
+                        "data": "...",
+                        "message": "Operation successful"
+                    }
+                },
+                "error": {
+                    "status": "4xx\/5xx",
+                    "format": {
+                        "success": false,
+                        "error": "...",
+                        "message": "Error description"
+                    }
+                },
+                "validation_error": {
+                    "status": 422,
+                    "format": {
+                        "message": "Validation failed",
+                        "errors": {
+                            "field_name": [
+                                "error message"
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "SystemInfoService": {
+            "core_information": {
+                "php_version": "8.4.15",
+                "laravel_version": "12.38.1",
+                "environment": "local",
+                "debug_mode": "Enabled",
+                "timezone": "UTC"
+            },
+            "laravel_configuration_summary": {
+                "application_mode": "Headless API (Web routes preserved for debugging)",
+                "database_connections": {
+                    "default_connection": "sqlite",
+                    "configured_connections": 15,
+                    "connections": {
+                        "sqlite": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/database.sqlite"
+                        },
+                        "mysql": {
+                            "driver": "mysql",
+                            "database": "laravel"
+                        },
+                        "mariadb": {
+                            "driver": "mariadb",
+                            "database": "laravel"
+                        },
+                        "pgsql": {
+                            "driver": "pgsql",
+                            "database": "laravel"
+                        },
+                        "sqlsrv": {
+                            "driver": "sqlsrv",
+                            "database": "laravel"
+                        },
+                        "AppQyV1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/app_qy_v1_database.sqlite"
+                        },
+                        "appqyv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/app_qy_v1_database.sqlite"
+                        },
+                        "awyv0": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/awy_v0_database.sqlite"
+                        },
+                        "vipclubv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/vipclub_v1_database.sqlite"
+                        },
+                        "servermanagerv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/server_manager_v1_database.sqlite"
+                        },
+                        "achatv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/achat_v1_database.sqlite"
+                        },
+                        "codemartv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/code_mart_v1_database.sqlite"
+                        },
+                        "mcpv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/mcp_v1_database.sqlite"
+                        },
+                        "ittoolsv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/it_tools_v1_database.sqlite"
+                        },
+                        "bankv1": {
+                            "driver": "sqlite",
+                            "database": "\/www\/wwwroot\/laravel_db\/bank_v1_database.sqlite"
+                        }
+                    }
+                },
+                "external_storage_paths": {
+                    "public_path_external": "Configured outside project directory for deployment flexibility",
+                    "storage_path_external": "Configured outside project directory for shared storage",
+                    "uploads_path": "External path for user uploads and media files",
+                    "temp_path": "External temporary file processing location"
+                },
+                "cache_driver": "database",
+                "session_driver": "file",
+                "queue_driver": "database",
+                "mail_driver": "log",
+                "logging_channels": {
+                    "default_channel": "syslog",
+                    "configured_channels": [
+                        "stack",
+                        "single",
+                        "daily",
+                        "slack",
+                        "papertrail",
+                        "stderr",
+                        "syslog",
+                        "errorlog",
+                        "null",
+                        "emergency"
+                    ],
+                    "total_channels": 10
+                },
+                "middleware_groups": {
+                    "global_middleware_count": 0,
+                    "middleware_groups": [],
+                    "total_groups": 0
+                },
+                "route_files": {
+                    "main_route_files": [
+                        "ai.php",
+                        "api.php",
+                        "api_ocr.php",
+                        "console.php",
+                        "settings.php",
+                        "web.php"
+                    ],
+                    "app_specific_route_directories": [
+                        "AppQyV1Router\/",
+                        "AwyV0Router\/",
+                        "BankV1Router\/",
+                        "CodeMartV1Router\/",
+                        "ItToolsV1Router\/",
+                        "McpV1Router\/",
+                        "ServerManagerV1Router\/",
+                        "VipClubV1Router\/"
+                    ],
+                    "total_route_files": 6,
+                    "total_app_route_dirs": 8
+                }
+            },
+            "applications_overview": {
+                "total_applications": 7,
+                "total_apis_across_all_apps": 170,
+                "applications": {
+                    "AChatV1": {
+                        "api_count": 0,
+                        "status": "active"
+                    },
+                    "AppQyV1": {
+                        "api_count": 59,
+                        "status": "active"
+                    },
+                    "AwyV0": {
+                        "api_count": 24,
+                        "status": "active"
+                    },
+                    "BankV1": {
+                        "api_count": 16,
+                        "status": "active"
+                    },
+                    "ItToolsV1": {
+                        "api_count": 8,
+                        "status": "active"
+                    },
+                    "McpV1": {
+                        "api_count": 39,
+                        "status": "active"
+                    },
+                    "ServerManagerV1": {
+                        "api_count": 24,
+                        "status": "active"
+                    }
+                }
+            },
+            "php_configuration": {
+                "memory_limit": "512M",
+                "max_execution_time": "0s",
+                "upload_max_filesize": "64M",
+                "post_max_size": "64M",
+                "display_errors": "On",
+                "command_execution_enabled": true
+            },
+            "database_information": {
+                "status": "Connected",
+                "connection_driver": "sqlite",
+                "database_name": "\/www\/wwwroot\/laravel_db\/database.sqlite",
+                "database_version": "3.45.1"
+            },
+            "system_resources": {
+                "cpu_usage": "1.79345703125% (1 min), 1.630859375% (5 min), 1.77294921875% (15 min)",
+                "memory_usage": "3.2 GB \/ 7.5 GB (42.64%)",
+                "disk_usage": "127.49 GB \/ 467.35 GB (27.28%)",
+                "load_average": "1.79345703125, 1.630859375, 1.77294921875"
+            },
+            "system_information": {
+                "os": "Linux",
+                "architecture": "x86_64",
+                "server_software": "Unknown",
+                "server_ip": "Unknown"
+            },
+            "external_tools": {
+                "git": "git version 2.43.0",
+                "node": "v24.11.1",
+                "python": "Python 3.12.3",
+                "go": "sh: 1: go: not found",
+                "curl": "curl 8.5.0 (x86_64-pc-linux-gnu) libcurl\/8.5.0 OpenSSL\/3.0.13 zlib\/1.3 brotli\/1.1.0 zstd\/1.5.5 libidn2\/2.3.7 libpsl\/0.21.2 (+libidn2\/2.3.7) libssh\/0.10.6\/openssl\/zlib nghttp2\/1.59.0 librtmp\/2.3 OpenLDAP\/2.6.7\nRelease-Date: 2023-12-06, security patched: 8.5.0-2ubuntu10.6\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd",
+                "7z": "7-Zip 23.01 (x64) : Copyright (c) 1999-2023 Igor Pavlov : 2023-06-20\n 64-bit locale=en_US.UTF-8 Threads:4 OPEN_MAX:1024\n\nUsage: 7z <command> [<switches>...] <archive_name> [<file_names>...] [@listfile]\n\n<Commands>\n  a : Add files to archive\n  b : Benchmark\n  d : Delete files from archive\n  e : Extract files from archive (without using directory names)\n  h : Calculate hash values for files\n  i : Show information about supported formats\n  l : List contents of archive\n  rn : Rename files in archive\n  t : Test integrity of archive\n  u : Update files to archive\n  x : eXtract files with full paths\n\n<Switches>\n  -- : Stop switches and @listfile parsing\n  -ai[r[-|0]]{@listfile|!wildcard} : Include archives\n  -ax[r[-|0]]{@listfile|!wildcard} : eXclude archives\n  -ao{a|s|t|u} : set Overwrite mode\n  -an : disable archive_name field\n  -bb[0-3] : set output log level\n  -bd : disable progress indicator\n  -bs{o|e|p}{0|1|2} : set output stream for output\/error\/progress line\n  -bt : show execution time statistics\n  -i[r[-|0]]{@listfile|!wildcard} : Include filenames\n  -m{Parameters} : set compression Method\n    -mmt[N] : set number of CPU threads\n    -mx[N] : set compression level: -mx1 (fastest) ... -mx9 (ultra)\n  -o{Directory} : set Output directory\n  -p{Password} : set Password\n  -r[-|0] : Recurse subdirectories for name search\n  -sa{a|e|s} : set Archive name mode\n  -scc{UTF-8|WIN|DOS} : set charset for console input\/output\n  -scs{UTF-8|UTF-16LE|UTF-16BE|WIN|DOS|{id}} : set charset for list files\n  -scrc[CRC32|CRC64|SHA1|SHA256|*] : set hash function for x, e, h commands\n  -sdel : delete files after compression\n  -seml[.] : send archive by email\n  -sfx[{name}] : Create SFX archive\n  -si[{name}] : read data from stdin\n  -slp : set Large Pages mode\n  -slt : show technical information for l (List) command\n  -snh : store hard links as links\n  -snl : store symbolic links as links\n  -sni : store NT security information\n  -sns[-] : store NTFS alternate streams\n  -so : write data to stdout\n  -spd : disable wildcard matching for file names\n  -spe : eliminate duplication of root folder for extract command\n  -spf[2] : use fully qualified file paths\n  -ssc[-] : set sensitive case mode\n  -sse : stop archive creating, if it can't open some input file\n  -ssp : do not change Last Access Time of source files while archiving\n  -ssw : compress shared files\n  -stl : set archive timestamp from the most recently modified file\n  -stm{HexMask} : set CPU thread affinity mask (hexadecimal number)\n  -stx{Type} : exclude archive type\n  -t{Type} : Set type of archive\n  -u[-][p#][q#][r#][x#][y#][z#][!newArchiveName] : Update options\n  -v{Size}[b|k|m|g] : Create volumes\n  -w[{path}] : assign Work directory. Empty path means a temporary directory\n  -x[r[-|0]]{@listfile|!wildcard} : eXclude filenames\n  -y : assume Yes on all queries",
+                "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers\nbuilt with gcc 13 (Ubuntu 13.2.0-23ubuntu3)\nconfiguration: --prefix=\/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=\/usr\/lib\/x86_64-linux-gnu --incdir=\/usr\/include\/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared\nlibavutil      58. 29.100 \/ 58. 29.100\nlibavcodec     60. 31.102 \/ 60. 31.102\nlibavformat    60. 16.100 \/ 60. 16.100\nlibavdevice    60.  3.100 \/ 60.  3.100\nlibavfilter     9. 12.100 \/  9. 12.100\nlibswscale      7.  5.100 \/  7.  5.100\nlibswresample   4. 12.100 \/  4. 12.100\nlibpostproc    57.  3.100 \/ 57.  3.100"
+            }
+        }
+    },
+    "api_reference": {
+        "AChatV1": "API information class not found for AChatV1",
+        "AppQyV1": {
+            "app_name": "AppQyV1",
+            "api_version": "v1",
+            "app_description": "app_qy vocabulary learning system",
+            "base_url": "http:\/\/192.168.50.2:9000\/api",
+            "api_prefix": "http:\/\/192.168.50.2:9000\/api",
+            "endpoints": [
+                {
+                    "path": "\/api\/dict\/v1\/register",
+                    "method": "POST\/ANY",
+                    "feature": "User Registration",
+                    "description": "User registration",
+                    "auth_required": false,
+                    "parameters": [
+                        "name",
+                        "email",
+                        "password"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/login",
+                    "method": "POST\/ANY",
+                    "feature": "User Login",
+                    "description": "User login",
+                    "auth_required": false,
+                    "parameters": [
+                        "email",
+                        "password"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/logout",
+                    "method": "POST\/ANY",
+                    "feature": "User Logout",
+                    "description": "User logout",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/user",
+                    "method": "ANY",
+                    "feature": "Get Current User",
+                    "description": "Get current user information",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/forgot-password",
+                    "method": "POST\/ANY",
+                    "feature": "Password Reset Request",
+                    "description": "Request password reset",
+                    "auth_required": false,
+                    "parameters": [
+                        "email"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/reset-password",
+                    "method": "POST\/ANY",
+                    "feature": "Password Reset",
+                    "description": "Reset password",
+                    "auth_required": false,
+                    "parameters": [
+                        "token",
+                        "email",
+                        "password"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/initialize",
+                    "method": "POST",
+                    "feature": "System Initialization",
+                    "description": "Initialize system and vocabulary",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/initialization-status",
+                    "method": "GET",
+                    "feature": "Initialization Status",
+                    "description": "Check initialization status",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/process-vocabulary",
+                    "method": "POST",
+                    "feature": "Process Vocabulary",
+                    "description": "Process vocabulary only",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/vocabulary-status",
+                    "method": "GET",
+                    "feature": "Vocabulary Status",
+                    "description": "Get vocabulary processing status",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/dictionary-statistics",
+                    "method": "GET",
+                    "feature": "Dictionary Statistics",
+                    "description": "Get dictionary statistics",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/supported-languages",
+                    "method": "GET",
+                    "feature": "Supported Languages List",
+                    "description": "Get supported languages list for learning",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/dict\/v1\/system\/supported-languages\/{code}",
+                    "method": "GET",
+                    "feature": "Language by Code",
+                    "description": "Get language details by code",
+                    "auth_required": false,
+                    "parameters": [
+                        "code"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/languages",
+                    "method": "GET",
+                    "feature": "Get User Learning Languages",
+                    "description": "Get user's learning languages",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/languages",
+                    "method": "POST",
+                    "feature": "Set User Learning Languages",
+                    "description": "Set\/update user learning languages",
+                    "auth_required": true,
+                    "parameters": [
+                        "languages"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/libraries",
+                    "method": "GET",
+                    "feature": "Get Vocabulary Libraries",
+                    "description": "Get vocabulary libraries",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/libraries\/select",
+                    "method": "POST",
+                    "feature": "Select Vocabulary Library",
+                    "description": "Select a vocabulary library",
+                    "auth_required": true,
+                    "parameters": [
+                        "library_id"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/recommendations",
+                    "method": "GET",
+                    "feature": "Vocabulary Recommendations",
+                    "description": "Get recommended vocabulary collections based on learning language",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/collections\/select",
+                    "method": "POST",
+                    "feature": "Select Vocabulary Collection",
+                    "description": "Select a vocabulary collection",
+                    "auth_required": true,
+                    "parameters": [
+                        "collection_id"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/collections\/selected",
+                    "method": "GET",
+                    "feature": "Get Selected Collections",
+                    "description": "Get user's selected collections",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/words",
+                    "method": "GET",
+                    "feature": "Get Word Cards",
+                    "description": "Get word cards for learning",
+                    "auth_required": true,
+                    "parameters": [
+                        "limit",
+                        "offset"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/progress",
+                    "method": "POST",
+                    "feature": "Update Learning Progress",
+                    "description": "Update learning progress",
+                    "auth_required": true,
+                    "parameters": [
+                        "word_id",
+                        "status"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/stats",
+                    "method": "GET",
+                    "feature": "Learning Statistics",
+                    "description": "Get learning statistics",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/upload",
+                    "method": "POST",
+                    "feature": "Upload Document",
+                    "description": "Upload document for vocabulary extraction",
+                    "auth_required": true,
+                    "parameters": [
+                        "file"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/learning\/libraries\/{library_id}",
+                    "method": "DELETE",
+                    "feature": "Delete Library",
+                    "description": "Delete a vocabulary library",
+                    "auth_required": true,
+                    "parameters": [
+                        "library_id"
+                    ]
+                },
+                {
+                    "path": "\/api\/words\/daily",
+                    "method": "GET",
+                    "feature": "Daily Words",
+                    "description": "Get daily words",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/words\/{id}",
+                    "method": "GET",
+                    "feature": "Word Details",
+                    "description": "Get word details",
+                    "auth_required": true,
+                    "parameters": [
+                        "id"
+                    ]
+                },
+                {
+                    "path": "\/api\/words\/{id}\/learn",
+                    "method": "POST",
+                    "feature": "Mark as Learned",
+                    "description": "Mark word as learned",
+                    "auth_required": true,
+                    "parameters": [
+                        "id"
+                    ]
+                },
+                {
+                    "path": "\/api\/words\/{id}\/review",
+                    "method": "POST",
+                    "feature": "Mark as Reviewed",
+                    "description": "Mark word as reviewed",
+                    "auth_required": true,
+                    "parameters": [
+                        "id"
+                    ]
+                },
+                {
+                    "path": "\/api\/words\/{id}\/favorite",
+                    "method": "POST",
+                    "feature": "Toggle Favorite",
+                    "description": "Toggle favorite status",
+                    "auth_required": true,
+                    "parameters": [
+                        "id"
+                    ]
+                },
+                {
+                    "path": "\/api\/words\/search\/{query}",
+                    "method": "GET",
+                    "feature": "Search Words",
+                    "description": "Search words",
+                    "auth_required": true,
+                    "parameters": [
+                        "query"
+                    ]
+                },
+                {
+                    "path": "\/api\/words\/public\/{word}",
+                    "method": "GET",
+                    "feature": "Public Word Lookup",
+                    "description": "Public word lookup (no auth)",
+                    "auth_required": false,
+                    "parameters": [
+                        "word"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/word\/{word}\/enhanced",
+                    "method": "GET\/POST",
+                    "feature": "Enhanced Word Query",
+                    "description": "Enhanced word query with full data",
+                    "auth_required": true,
+                    "parameters": [
+                        "word"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/untranslated",
+                    "method": "GET",
+                    "feature": "Untranslated Words",
+                    "description": "Get untranslated words",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/untranslated\/priority",
+                    "method": "GET",
+                    "feature": "Words by Priority",
+                    "description": "Get words by priority",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/dict\/v1\/word\/{word}\/translation",
+                    "method": "POST",
+                    "feature": "Submit Translation",
+                    "description": "Submit translation for word",
+                    "auth_required": true,
+                    "parameters": [
+                        "word",
+                        "translation"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/word\/{word}\/audio",
+                    "method": "POST",
+                    "feature": "Submit Audio",
+                    "description": "Submit audio for word",
+                    "auth_required": true,
+                    "parameters": [
+                        "word",
+                        "audio"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/word\/{word}\/images",
+                    "method": "POST",
+                    "feature": "Submit Images",
+                    "description": "Submit images for word",
+                    "auth_required": true,
+                    "parameters": [
+                        "word",
+                        "images"
+                    ]
+                },
+                {
+                    "path": "\/api\/dict\/v1\/word\/{word}\/complete",
+                    "method": "POST",
+                    "feature": "Submit Complete Word Data",
+                    "description": "Submit complete word data",
+                    "auth_required": true,
+                    "parameters": [
+                        "word",
+                        "data"
+                    ]
+                },
+                {
+                    "path": "\/api\/user\/progress",
+                    "method": "GET",
+                    "feature": "User Progress",
+                    "description": "Get user learning progress",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/user\/stats",
+                    "method": "GET",
+                    "feature": "User Statistics",
+                    "description": "Get user statistics",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/user\/profile",
+                    "method": "GET",
+                    "feature": "User Profile",
+                    "description": "Get user profile",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/user\/profile",
+                    "method": "PUT",
+                    "feature": "Update Profile",
+                    "description": "Update user profile",
+                    "auth_required": true,
+                    "parameters": [
+                        "displayName",
+                        "avatar"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/languages",
+                    "method": "GET",
+                    "feature": "Translation Languages",
+                    "description": "Get supported translation languages",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/types",
+                    "method": "GET",
+                    "feature": "Translation Types",
+                    "description": "Get translation types",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/models",
+                    "method": "GET",
+                    "feature": "Translation Models",
+                    "description": "Get available translation models",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/templates",
+                    "method": "GET",
+                    "feature": "Translation Templates",
+                    "description": "Get translation templates",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/translate",
+                    "method": "POST",
+                    "feature": "Translate Text",
+                    "description": "Translate text",
+                    "auth_required": true,
+                    "parameters": [
+                        "text",
+                        "source_lang",
+                        "target_lang"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/batch",
+                    "method": "POST",
+                    "feature": "Batch Translate",
+                    "description": "Batch translate texts",
+                    "auth_required": true,
+                    "parameters": [
+                        "texts",
+                        "source_lang",
+                        "target_lang"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/simple\/google",
+                    "method": "POST",
+                    "feature": "Google Translate",
+                    "description": "Simple Google translate",
+                    "auth_required": true,
+                    "parameters": [
+                        "text",
+                        "target_lang"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/learning",
+                    "method": "POST",
+                    "feature": "Learning Mode Translation",
+                    "description": "Learning mode translation",
+                    "auth_required": true,
+                    "parameters": [
+                        "text",
+                        "options"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/task\/{taskId}",
+                    "method": "GET",
+                    "feature": "Translation Task Status",
+                    "description": "Get translation task status",
+                    "auth_required": true,
+                    "parameters": [
+                        "taskId"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/translation\/process-next",
+                    "method": "POST",
+                    "feature": "Process Next Task",
+                    "description": "Process next translation task",
+                    "auth_required": true
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/tts\/voices",
+                    "method": "GET",
+                    "feature": "TTS Voices",
+                    "description": "Get available TTS voices for pronunciation",
+                    "auth_required": false
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/tts\/audio\/{language}\/{type}\/{speed}\/{filename}",
+                    "method": "GET",
+                    "feature": "Serve Audio with Speed",
+                    "description": "Serve audio file with speed control",
+                    "auth_required": false,
+                    "parameters": [
+                        "language",
+                        "type",
+                        "speed",
+                        "filename"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/tts\/audio\/{language}\/{type}\/{filename}",
+                    "method": "GET",
+                    "feature": "Serve Audio",
+                    "description": "Serve audio file",
+                    "auth_required": false,
+                    "parameters": [
+                        "language",
+                        "type",
+                        "filename"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/tts\/generate",
+                    "method": "POST",
+                    "feature": "Generate TTS",
+                    "description": "Generate TTS audio",
+                    "auth_required": true,
+                    "parameters": [
+                        "text",
+                        "language",
+                        "voice"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/ai_tools\/tts\/batch-generate",
+                    "method": "POST",
+                    "feature": "Batch Generate TTS",
+                    "description": "Batch generate TTS audio",
+                    "auth_required": true,
+                    "parameters": [
+                        "texts",
+                        "language",
+                        "voice"
+                    ]
+                },
+                {
+                    "path": "\/api\/app_qy_v1\/invitation-code",
+                    "method": "GET",
+                    "feature": "Invitation Code",
+                    "description": "Get masked invitation code",
+                    "auth_required": false
+                }
+            ],
+            "supported_headers": {
+                "Authorization": "Bearer {access_token}",
+                "Content-Type": "application\/json",
+                "Accept": "application\/json"
+            },
+            "authentication": {
+                "type": "JWT Bearer Token",
+                "methods": [
+                    "Phone SMS",
+                    "WeChat OAuth"
+                ],
+                "token_expiry": 86400
+            }
+        },
+        "AwyV0": {
+            "app_name": "AwyV0",
+            "api_version": "v0",
+            "base_url": "http:\/\/192.168.50.2:9000\/api",
+            "api_prefix": "http:\/\/192.168.50.2:9000\/api\/awy",
+            "endpoints": [
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/auth\/register",
+                    "feature": "no_auth_required\/POST|User registration|AwyV0AuthCtl|params:username(string,required),email(string,required),password(string,required),name(string,optional)|response:user,token"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/auth\/login",
+                    "feature": "no_auth_required\/POST|User login|AwyV0AuthCtl|params:email(string,required),password(string,required)|response:user,token,token_type"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/auth\/logout",
+                    "feature": "auth_required\/POST|User logout|AwyV0AuthCtl|headers:Authorization(string,required)|response:message"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/auth\/verify-email",
+                    "feature": "no_auth_required\/POST|Verify email address|AwyV0AuthCtl|params:email(string,required),verification_code(string,required)|response:success(boolean),message"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/auth\/forgot-password",
+                    "feature": "no_auth_required\/POST|Send password reset email|AwyV0AuthCtl|params:email(string,required)|response:message"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/auth\/reset-password",
+                    "feature": "no_auth_required\/POST|Reset password|AwyV0AuthCtl|params:email(string,required),token(string,required),password(string,required)|response:message"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/user\/profile",
+                    "feature": "auth_required\/GET|Get user profile|AwyV0UserCtl|headers:Authorization(string,required)|response:user"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/user\/profile",
+                    "feature": "auth_required\/PUT|Update user profile|AwyV0UserCtl|headers:Authorization(string,required)|params:name(string,optional),email(string,optional),bio(string,optional)|response:user"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/user\/change-password",
+                    "feature": "auth_required\/POST|Change user password|AwyV0UserCtl|headers:Authorization(string,required)|params:current_password(string,required),new_password(string,required)|response:success(boolean),message"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/user\/bind-phone",
+                    "feature": "auth_required\/POST|Bind phone number|AwyV0UserCtl|headers:Authorization(string,required)|params:phone(string,required),verification_code(string,required)|response:success(boolean)"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/user\/bind-email",
+                    "feature": "auth_required\/POST|Bind email address|AwyV0UserCtl|headers:Authorization(string,required)|params:email(string,required),verification_code(string,required)|response:success(boolean)"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/friend\/list",
+                    "feature": "auth_required\/GET|Get friends list|AwyV0FriendCtl|headers:Authorization(string,required)|params:status(string,optional),limit(int,optional)|response:friends(array),total_count"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/friend\/add",
+                    "feature": "auth_required\/POST|Add friend|AwyV0FriendCtl|headers:Authorization(string,required)|params:friend_id(int,required),message(string,optional)|response:success(boolean),friendship_id"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/friend\/remove",
+                    "feature": "auth_required\/DELETE|Remove friend|AwyV0FriendCtl|headers:Authorization(string,required)|params:friend_id(int,required)|response:success(boolean)"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/friend\/info",
+                    "feature": "auth_required\/GET|Get friend information|AwyV0FriendCtl|headers:Authorization(string,required)|params:friend_id(int,required)|response:friend_info"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/friend\/health",
+                    "feature": "auth_required\/GET|Get friend health status|AwyV0FriendCtl|headers:Authorization(string,required)|params:friend_id(int,required)|response:health_status"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/device\/register",
+                    "feature": "auth_required\/POST|Register new device|AwyV0DeviceCtl|headers:Authorization(string,required)|params:device_name(string,required),device_type(string,required),device_token(string,optional)|response:device_id,device_status"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/device\/unregister",
+                    "feature": "auth_required\/DELETE|Unregister device|AwyV0DeviceCtl|headers:Authorization(string,required)|params:device_id(int,required)|response:success(boolean)"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/device\/list",
+                    "feature": "auth_required\/GET|Get user devices|AwyV0DeviceCtl|headers:Authorization(string,required)|response:devices(array)"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/device\/update",
+                    "feature": "auth_required\/PUT|Update device information|AwyV0DeviceCtl|headers:Authorization(string,required)|params:device_id(int,required),device_name(string,optional),device_token(string,optional)|response:device"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/chat\/history\/{friendId}",
+                    "feature": "auth_required\/GET|Get chat history|AwyV0ChatCtl|headers:Authorization(string,required)|route_params:friendId(int,required)|params:limit(int,optional),offset(int,optional)|response:messages(array),pagination"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/chat\/send",
+                    "feature": "auth_required\/POST|Send chat message|AwyV0ChatCtl|headers:Authorization(string,required)|params:friend_id(int,required),message(string,required),message_type(string,optional)|response:message,message_id"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/chat\/delete\/{messageId}",
+                    "feature": "auth_required\/DELETE|Delete chat message|AwyV0ChatCtl|headers:Authorization(string,required)|route_params:messageId(int,required)|response:success(boolean)"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/awy-v0\/chat\/read\/{messageId}",
+                    "feature": "auth_required\/PUT|Mark message as read|AwyV0ChatCtl|headers:Authorization(string,required)|route_params:messageId(int,required)|response:success(boolean)"
+                }
+            ],
+            "supported_headers": {
+                "Authorization": "Bearer token for authentication",
+                "Content-Type": "application\/json",
+                "Accept": "application\/json",
+                "Client-Token": "Client identification token",
+                "Auth-User-Token": "User authentication token"
+            },
+            "authentication": {
+                "type": "token_based",
+                "description": "Requires authentication token in header"
+            }
+        },
+        "BankV1": {
+            "app_name": "BankV1",
+            "app_version": "1.0.0",
+            "description": "Banking Application API for Flutter Mobile App",
+            "base_path": "\/api\/bank",
+            "supported_headers": {
+                "Authorization": "Bearer token for authenticated requests",
+                "X-Device-ID": "Unique device identifier",
+                "X-App-Signature": "Application signature for security",
+                "X-Timestamp": "Request timestamp",
+                "X-Nonce": "Random nonce for security",
+                "X-Platform": "Platform information (android\/ios\/web)",
+                "X-App-Version": "Application version",
+                "Content-Type": "application\/json",
+                "Accept": "application\/json"
+            },
+            "apis": {
+                "auth\/login": {
+                    "method": "POST",
+                    "feature": "authentication|login|device_tracking",
+                    "requires_auth": false,
+                    "parameters": {
+                        "username": "string|required",
+                        "password": "string|required",
+                        "device_id": "string|optional",
+                        "app_signature": "string|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "token": "string",
+                            "refresh_token": "string",
+                            "expires_in": "integer",
+                            "user": "UserData object"
+                        },
+                        "message": "string"
+                    }
+                },
+                "auth\/register": {
+                    "method": "POST",
+                    "feature": "authentication|registration|device_tracking",
+                    "requires_auth": false,
+                    "parameters": {
+                        "username": "string|required|unique",
+                        "email": "string|required|email|unique",
+                        "password": "string|required|min:8",
+                        "full_name": "string|required",
+                        "phone": "string|optional",
+                        "device_id": "string|optional",
+                        "app_signature": "string|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "user_id": "string",
+                            "message": "string"
+                        },
+                        "message": "string"
+                    }
+                },
+                "auth\/logout": {
+                    "method": "POST",
+                    "feature": "authentication|logout|session_management",
+                    "requires_auth": true,
+                    "parameters": [],
+                    "response_format": {
+                        "success": "boolean",
+                        "message": "string"
+                    }
+                },
+                "auth\/refresh": {
+                    "method": "POST",
+                    "feature": "authentication|token_refresh",
+                    "requires_auth": false,
+                    "parameters": {
+                        "refresh_token": "string|required"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "token": "string",
+                            "expires_in": "integer"
+                        },
+                        "message": "string"
+                    }
+                },
+                "auth\/verify": {
+                    "method": "GET",
+                    "feature": "authentication|token_verification",
+                    "requires_auth": true,
+                    "parameters": [],
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "valid": "boolean",
+                            "user": "UserData object"
+                        },
+                        "message": "string"
+                    }
+                },
+                "app\/open": {
+                    "method": "POST",
+                    "feature": "app_lifecycle|logging|device_tracking|security_check",
+                    "requires_auth": false,
+                    "parameters": {
+                        "device_id": "string|required",
+                        "app_signature": "string|required",
+                        "timestamp": "integer|required",
+                        "event_type": "string|required",
+                        "app_version": "string|optional",
+                        "platform": "string|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "session_id": "string",
+                            "server_config": "object|optional",
+                            "device_locked": "boolean",
+                            "lock_reason": "string|optional"
+                        },
+                        "message": "string"
+                    }
+                },
+                "app\/close": {
+                    "method": "POST",
+                    "feature": "app_lifecycle|logging|session_tracking",
+                    "requires_auth": false,
+                    "parameters": {
+                        "device_id": "string|required",
+                        "app_signature": "string|required",
+                        "timestamp": "integer|required",
+                        "event_type": "string|required",
+                        "session_duration": "integer|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "message": "string"
+                    }
+                },
+                "app\/heartbeat": {
+                    "method": "POST",
+                    "feature": "app_lifecycle|session_monitoring",
+                    "requires_auth": true,
+                    "parameters": {
+                        "timestamp": "integer|required",
+                        "session_duration": "integer|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "message": "string"
+                    }
+                },
+                "user\/profile": {
+                    "method": "GET",
+                    "feature": "user_management|profile_access",
+                    "requires_auth": true,
+                    "parameters": [],
+                    "response_format": {
+                        "success": "boolean",
+                        "data": "UserData object",
+                        "message": "string"
+                    }
+                },
+                "user\/profile\/update": {
+                    "method": "PUT",
+                    "feature": "user_management|profile_update|logging",
+                    "requires_auth": true,
+                    "parameters": {
+                        "full_name": "string|optional",
+                        "email": "string|optional|email",
+                        "phone": "string|optional",
+                        "date_of_birth": "string|optional|date",
+                        "gender": "string|optional",
+                        "updated_at": "string|required"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": "UserData object",
+                        "message": "string"
+                    }
+                },
+                "user\/balance\/update": {
+                    "method": "PUT",
+                    "feature": "user_management|balance_update|logging|security_check",
+                    "requires_auth": true,
+                    "parameters": {
+                        "new_balance": "numeric|required",
+                        "timestamp": "integer|required",
+                        "reason": "string|optional",
+                        "transaction_type": "string|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "old_balance": "numeric",
+                            "new_balance": "numeric",
+                            "transaction_id": "string"
+                        },
+                        "message": "string"
+                    }
+                },
+                "user\/address\/update": {
+                    "method": "PUT",
+                    "feature": "user_management|address_update|logging",
+                    "requires_auth": true,
+                    "parameters": {
+                        "street": "string|optional",
+                        "city": "string|optional",
+                        "state": "string|optional",
+                        "zip_code": "string|optional",
+                        "country": "string|optional",
+                        "updated_at": "string|required"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": "AddressData object",
+                        "message": "string"
+                    }
+                },
+                "user\/register-code": {
+                    "method": "POST",
+                    "feature": "user_management|registration_code|logging",
+                    "requires_auth": true,
+                    "parameters": {
+                        "registration_code": "string|required",
+                        "timestamp": "integer|required",
+                        "referral_source": "string|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "code_valid": "boolean",
+                            "benefits": "array|optional"
+                        },
+                        "message": "string"
+                    }
+                },
+                "security\/device\/register": {
+                    "method": "POST",
+                    "feature": "security|device_registration|logging",
+                    "requires_auth": false,
+                    "parameters": {
+                        "device_id": "string|required",
+                        "app_signature": "string|required",
+                        "registration_timestamp": "integer|required",
+                        "device_name": "string|optional",
+                        "platform": "string|optional",
+                        "app_version": "string|optional"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "device_registered": "boolean",
+                            "device_status": "string"
+                        },
+                        "message": "string"
+                    }
+                },
+                "security\/device\/status": {
+                    "method": "GET",
+                    "feature": "security|device_status_check",
+                    "requires_auth": false,
+                    "parameters": {
+                        "device_id": "string|required|query"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "device_locked": "boolean",
+                            "lock_reason": "string|optional",
+                            "device_status": "string"
+                        },
+                        "message": "string"
+                    }
+                },
+                "security\/check": {
+                    "method": "POST",
+                    "feature": "security|security_check|device_validation",
+                    "requires_auth": false,
+                    "parameters": {
+                        "device_id": "string|required",
+                        "app_signature": "string|required",
+                        "timestamp": "integer|required",
+                        "check_type": "string|required"
+                    },
+                    "response_format": {
+                        "success": "boolean",
+                        "data": {
+                            "security_status": "string",
+                            "device_lock": "boolean|optional",
+                            "lock_reason": "string|optional"
+                        },
+                        "message": "string"
+                    }
+                }
+            }
+        },
+        "ItToolsV1": {
+            "supported_headers": {
+                "X-ITTools-Token": "ITTools authentication token (optional for most endpoints)",
+                "X-Request-ID": "Request tracking ID for debugging"
+            },
+            "endpoints": [
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/text\/encode",
+                    "feature": "POST|Text encoding tool (Base64, URL encode, etc.)|IttoolsV1TextCtl@encode|params:text(string,required,Hello World),encoding_type(string,required,base64)|response:encoded_text(string),encoding_type(string)|tags:text,encoding,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/text\/decode",
+                    "feature": "POST|Text decoding tool|IttoolsV1TextCtl@decode|params:text(string,required,SGVsbG8gV29ybGQ=),encoding_type(string,required,base64)|response:decoded_text(string),encoding_type(string)|tags:text,decoding,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/hash\/generate",
+                    "feature": "POST|Generate hash from text|IttoolsV1HashCtl@generate|params:text(string,required,example),algorithm(string,required,md5)|response:hash(string),algorithm(string)|tags:hash,crypto,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/json\/format",
+                    "feature": "POST|Format and validate JSON|IttoolsV1JsonCtl@format|params:json_text(string,required,{\"key\":\"value\"}),indent_size(int,optional,2)|response:formatted_json(string),is_valid(boolean)|tags:json,format,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/uuid\/generate",
+                    "feature": "GET|Generate UUID|IttoolsV1UuidCtl@generate|params:version(int,optional,4),count(int,optional,1)|response:uuids(array)|tags:uuid,generator,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/timestamp\/convert",
+                    "feature": "POST|Convert timestamp formats|IttoolsV1TimestampCtl@convert|params:timestamp(string,required,1234567890),from_format(string,required,unix),to_format(string,required,iso8601)|response:converted_timestamp(string),timezone(string)|tags:timestamp,datetime,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/color\/convert",
+                    "feature": "POST|Convert color formats|IttoolsV1ColorCtl@convert|params:color(string,required,#FF5733),from_format(string,required,hex),to_format(string,required,rgb)|response:converted_color(string),formats(object)|tags:color,convert,utility"
+                },
+                {
+                    "path": "http:\/\/localhost\/api\/ittools\/v1\/regex\/test",
+                    "feature": "POST|Test regex patterns|IttoolsV1RegexCtl@test|params:pattern(string,required,^[a-z]+$),test_string(string,required,hello),flags(string,optional,i)|response:matches(boolean),matched_groups(array)|tags:regex,test,utility"
+                }
+            ]
+        },
+        "McpV1": {
+            "app_name": "McpV1",
+            "api_version": "1.0.0",
+            "description": "MCP Bridge Application - OCR, Screenshot, and Task Dispatch",
+            "base_path": "\/api\/mcp\/v1",
+            "supported_headers": {
+                "Content-Type": "application\/json",
+                "Accept": "application\/json",
+                "Authorization": "Bearer token (optional for some endpoints)"
+            },
+            "endpoints": [
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/ocr\/recognize",
+                    "method": "POST",
+                    "description": "OCR text recognition",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/ocr\/smart-recognize",
+                    "method": "POST",
+                    "description": "Smart OCR with auto model selection",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/ocr\/batch",
+                    "method": "POST",
+                    "description": "Batch OCR processing",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/ocr\/engines",
+                    "method": "GET",
+                    "description": "Get available OCR engines",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/ocr\/engine-info",
+                    "method": "GET",
+                    "description": "Get OCR engine information",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/health",
+                    "method": "GET",
+                    "description": "Health check",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/categories",
+                    "method": "GET",
+                    "description": "Get all task categories",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/categories\/{categoryId}\/files",
+                    "method": "GET",
+                    "description": "Get files in a category",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/categories",
+                    "method": "POST",
+                    "description": "Create new task category",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/add-file",
+                    "method": "POST",
+                    "description": "Add file to task queue",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/{categoryId}\/tasks",
+                    "method": "GET",
+                    "description": "Get all tasks in category queue",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/{categoryId}\/last-task",
+                    "method": "GET",
+                    "description": "Get last task in category queue",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/{categoryId}\/has-latest",
+                    "method": "GET",
+                    "description": "Check if category has latest task",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/{categoryId}\/search",
+                    "method": "GET",
+                    "description": "Search tasks in category",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/{categoryId}\/tasks\/{taskId}\/status",
+                    "method": "PUT",
+                    "description": "Update task status",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/queue\/{categoryId}\/stats",
+                    "method": "GET",
+                    "description": "Get queue statistics",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/mappings",
+                    "method": "GET",
+                    "description": "Get all prompt mappings",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/mappings\/{categoryId}",
+                    "method": "GET",
+                    "description": "Get category prompt mapping",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/mappings\/{categoryId}",
+                    "method": "PUT",
+                    "description": "Update category prompt mapping",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/mappings\/{categoryId}\/reset",
+                    "method": "POST",
+                    "description": "Reset category prompt mapping",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/task-dispatch\/mappings\/{categoryId}",
+                    "method": "DELETE",
+                    "description": "Delete category prompt mapping",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/upload",
+                    "method": "POST",
+                    "description": "Upload screenshot",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/upload-merge",
+                    "method": "POST",
+                    "description": "Upload and merge screenshots",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/upload-batch",
+                    "method": "POST",
+                    "description": "Batch upload screenshots",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/latest",
+                    "method": "GET",
+                    "description": "Get latest screenshots",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/search",
+                    "method": "GET",
+                    "description": "Search screenshots",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/stats",
+                    "method": "GET",
+                    "description": "Get screenshot statistics",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots",
+                    "method": "GET",
+                    "description": "Get all screenshots",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/{id}",
+                    "method": "GET",
+                    "description": "Get screenshot by ID",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/{id}\/file",
+                    "method": "GET",
+                    "description": "Stream screenshot file",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/{id}.{ext}",
+                    "method": "GET",
+                    "description": "Stream screenshot file with extension",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/{id}",
+                    "method": "DELETE",
+                    "description": "Delete screenshot",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/screenshots\/clear-all\/confirm",
+                    "method": "DELETE",
+                    "description": "Clear all screenshots (requires confirmation)",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/placeholders\/generate",
+                    "method": "POST",
+                    "description": "Generate placeholder image",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/placeholders",
+                    "method": "GET",
+                    "description": "List placeholder images",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/placeholders\/stats",
+                    "method": "GET",
+                    "description": "Get placeholder statistics",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/placeholders\/cleanup",
+                    "method": "POST",
+                    "description": "Cleanup old placeholders",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/placeholders\/{uuid}\/download",
+                    "method": "GET",
+                    "description": "Download placeholder image",
+                    "auth_required": false
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/mcp\/v1\/placeholders\/{uuid}",
+                    "method": "DELETE",
+                    "description": "Delete placeholder image",
+                    "auth_required": false
+                }
+            ]
+        },
+        "ServerManagerV1": {
+            "app_name": "ServerManagerV1",
+            "api_version": "v1",
+            "app_description": "Comprehensive server management and administration system",
+            "base_url": "http:\/\/192.168.50.2:9000\/api",
+            "api_prefix": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1",
+            "endpoints": [
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/info",
+                    "feature": "auth_required\/GET|Get comprehensive API information and documentation|ServerManagerV1ApiInfoCtl|response:application(object,App info),authentication(object,Auth info),endpoints(object,All endpoints)|tags:server,info"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/system\/info",
+                    "feature": "auth_required\/GET|Get complete system information including hardware and OS details|ServerManagerV1SystemInfoCtl|response:system(object,System details),hardware(object,Hardware info),services(array,Service status)|tags:server,system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/system\/processes",
+                    "feature": "auth_required\/GET|Get list of running system processes|ServerManagerV1SystemInfoCtl|response:processes(array,Process list),total_count(int,Total processes)|tags:server,system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/system\/services",
+                    "feature": "auth_required\/GET|Get status of system services|ServerManagerV1SystemInfoCtl|response:services(array,Service status list),active_count(int,Active services)|tags:server,system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/system\/permissions",
+                    "feature": "auth_required\/GET|Check directory permissions for important system directories|ServerManagerV1SystemInfoCtl|response:permissions(object,Directory permissions),issues(array,Permission issues)|tags:server,system,security"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/system\/storage",
+                    "feature": "auth_required\/GET|Get storage analysis and disk usage information|ServerManagerV1SystemInfoCtl|response:storage(object,Storage info),usage(object,Disk usage),free_space(string,Available space)|tags:server,system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/files\/browse",
+                    "feature": "auth_required\/GET|Browse server filesystem with security restrictions|ServerManagerV1FileManagerCtl|params:path(string,optional,\/var\/www)|response:files(array,File list),directories(array,Directory list),current_path(string,Current path)|tags:server,files"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/files\/download",
+                    "feature": "auth_required\/GET|Download files from server with security validation|ServerManagerV1FileManagerCtl|params:file_path(string,required,\/var\/log\/nginx\/access.log)|response:file_content(binary,File data)|tags:server,files"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/files\/info",
+                    "feature": "auth_required\/GET|Get detailed file information and metadata|ServerManagerV1FileManagerCtl|params:file_path(string,required,\/etc\/nginx\/nginx.conf)|response:file_info(object,File details),size(int,File size),permissions(string,File permissions)|tags:server,files"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/files\/preview",
+                    "feature": "auth_required\/GET|Preview text files with syntax highlighting|ServerManagerV1FileManagerCtl|params:file_path(string,required,\/etc\/hosts),lines(int,optional,100)|response:content(string,File content),type(string,File type)|tags:server,files"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/executor\/scripts",
+                    "feature": "auth_required\/GET|List all available predefined scripts for execution|ServerManagerV1CodeExecutorCtl|response:scripts(array,Script list),categories(array,Script categories)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/executor\/run",
+                    "feature": "auth_required\/POST|Execute predefined script by ID with parameters|ServerManagerV1CodeExecutorCtl|params:script_id(string,required,system_update),parameters(object,optional,{})|response:execution_id(string,Execution ID),status(string,Execution status),output(string,Script output)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/executor\/logs",
+                    "feature": "auth_required\/GET|Get execution logs and history|ServerManagerV1CodeExecutorCtl|params:limit(int,optional,50),offset(int,optional,0)|response:logs(array,Execution logs),total_count(int,Total logs)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/executor\/status",
+                    "feature": "auth_required\/GET|Get execution status for specific execution ID|ServerManagerV1CodeExecutorCtl|params:execution_id(string,required,exec_123456)|response:status(string,Current status),progress(int,Progress percentage),output(string,Current output)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/nginx\/sites",
+                    "feature": "auth_required\/GET|List all nginx sites and their configurations|ServerManagerV1NginxManagerCtl|response:sites(array,Site list),enabled_count(int,Enabled sites),total_count(int,Total sites)|tags:server,nginx"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/nginx\/config",
+                    "feature": "auth_required\/GET|Get nginx site configuration|ServerManagerV1NginxManagerCtl|params:site_name(string,required,example.com)|response:config(string,Site config),path(string,Config file path)|tags:server,nginx"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/nginx\/enable",
+                    "feature": "auth_required\/POST|Enable nginx site|ServerManagerV1NginxManagerCtl|params:site_name(string,required,example.com)|response:success(boolean,Operation success),message(string,Result message)|tags:server,nginx"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/nginx\/disable",
+                    "feature": "auth_required\/POST|Disable nginx site|ServerManagerV1NginxManagerCtl|params:site_name(string,required,example.com)|response:success(boolean,Operation success),message(string,Result message)|tags:server,nginx"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/nginx\/test",
+                    "feature": "auth_required\/POST|Test nginx configuration validity|ServerManagerV1NginxManagerCtl|response:valid(boolean,Config valid),errors(array,Configuration errors),warnings(array,Configuration warnings)|tags:server,nginx"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/nginx\/reload",
+                    "feature": "auth_required\/POST|Reload nginx configuration|ServerManagerV1NginxManagerCtl|response:success(boolean,Reload success),message(string,Result message)|tags:server,nginx"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/unified\/apps",
+                    "feature": "auth_required\/GET|List applications from unified manager registry|ServerManagerV1UnifiedManagerCtl|response:apps(array,Application list),total_count(int,Total apps)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/unified\/deploy",
+                    "feature": "auth_required\/POST|Deploy application using unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main)|response:deployment_id(string,Deployment ID),status(string,Deployment status),message(string,Result message)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/unified\/status",
+                    "feature": "auth_required\/GET|Get application status from unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main)|response:status(string,App status),uptime(string,App uptime),health(object,Health info)|tags:server,deploy"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/servermanager\/v1\/unified\/logs",
+                    "feature": "auth_required\/GET|Get application logs from unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main),lines(int,optional,100)|response:logs(array,Log entries),total_lines(int,Total log lines)|tags:server,deploy"
+                }
+            ],
+            "cli_commands": [
+                {
+                    "command": "servermanager:deploy",
+                    "description": "Deploy domain with nginx configuration and SSL certificate",
+                    "signature": "servermanager:deploy {domain} {type}",
+                    "arguments": {
+                        "domain": {
+                            "type": "string",
+                            "required": true,
+                            "description": "The domain name to deploy",
+                            "example": "example.com"
+                        },
+                        "type": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Deployment type",
+                            "allowed_values": [
+                                "laravel",
+                                "poly-app",
+                                "ncore-app",
+                                "static",
+                                "proxy"
+                            ],
+                            "example": "laravel"
+                        }
+                    },
+                    "options": {
+                        "--app-name": {
+                            "type": "string",
+                            "description": "Application name for poly\/ncore apps",
+                            "example": "laravel_main"
+                        },
+                        "--www-dir": {
+                            "type": "string",
+                            "description": "Custom web directory",
+                            "example": "\/www\/wwwroot\/example.com"
+                        },
+                        "--php-version": {
+                            "type": "string",
+                            "description": "PHP version (default from config)",
+                            "example": "8.2"
+                        },
+                        "--proxy-target": {
+                            "type": "string",
+                            "description": "Proxy target URL",
+                            "example": "http:\/\/localhost:3000"
+                        },
+                        "--no-ssl": {
+                            "type": "boolean",
+                            "description": "Skip SSL certificate generation"
+                        },
+                        "--force": {
+                            "type": "boolean",
+                            "description": "Force update existing configuration"
+                        },
+                        "--dry-run": {
+                            "type": "boolean",
+                            "description": "Show what would be done without executing"
+                        }
+                    },
+                    "usage_examples": [
+                        "php artisan servermanager:deploy example.com laravel",
+                        "php artisan servermanager:deploy api.example.com proxy --proxy-target=http:\/\/localhost:3000",
+                        "php artisan servermanager:deploy app.example.com poly-app --app-name=laravel_main",
+                        "php artisan servermanager:deploy example.com laravel --dry-run"
+                    ],
+                    "tags": [
+                        "deploy",
+                        "nginx",
+                        "ssl"
+                    ]
+                },
+                {
+                    "command": "servermanager:ssl",
+                    "description": "Manage SSL certificates for domains",
+                    "signature": "servermanager:ssl {action} {domain?}",
+                    "arguments": {
+                        "action": {
+                            "type": "string",
+                            "required": true,
+                            "description": "SSL action to perform",
+                            "allowed_values": [
+                                "generate",
+                                "renew",
+                                "list",
+                                "info",
+                                "remove"
+                            ],
+                            "example": "generate"
+                        },
+                        "domain": {
+                            "type": "string",
+                            "required": false,
+                            "description": "Domain name (required for generate\/renew\/info\/remove)",
+                            "example": "example.com"
+                        }
+                    },
+                    "options": {
+                        "--provider": {
+                            "type": "string",
+                            "description": "SSL provider (letsencrypt, dnspod, cloudflare)",
+                            "example": "letsencrypt"
+                        },
+                        "--email": {
+                            "type": "string",
+                            "description": "Email for SSL certificate",
+                            "example": "admin@example.com"
+                        },
+                        "--staging": {
+                            "type": "boolean",
+                            "description": "Use staging environment for testing"
+                        },
+                        "--force": {
+                            "type": "boolean",
+                            "description": "Force certificate regeneration"
+                        }
+                    },
+                    "usage_examples": [
+                        "php artisan servermanager:ssl generate example.com",
+                        "php artisan servermanager:ssl list",
+                        "php artisan servermanager:ssl renew example.com",
+                        "php artisan servermanager:ssl info example.com"
+                    ],
+                    "tags": [
+                        "ssl",
+                        "certificate",
+                        "security"
+                    ]
+                },
+                {
+                    "command": "servermanager:certificate",
+                    "description": "Advanced SSL certificate management operations",
+                    "signature": "servermanager:certificate {action}",
+                    "arguments": {
+                        "action": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Certificate action",
+                            "allowed_values": [
+                                "check",
+                                "renew-all",
+                                "cleanup",
+                                "verify"
+                            ],
+                            "example": "check"
+                        }
+                    },
+                    "options": {
+                        "--domain": {
+                            "type": "string",
+                            "description": "Specific domain to operate on",
+                            "example": "example.com"
+                        },
+                        "--days": {
+                            "type": "integer",
+                            "description": "Days before expiration for renewal check",
+                            "example": "30"
+                        }
+                    },
+                    "usage_examples": [
+                        "php artisan servermanager:certificate check",
+                        "php artisan servermanager:certificate renew-all",
+                        "php artisan servermanager:certificate verify --domain=example.com"
+                    ],
+                    "tags": [
+                        "ssl",
+                        "certificate",
+                        "maintenance"
+                    ]
+                },
+                {
+                    "command": "servermanager:website",
+                    "description": "Manage nginx website configurations",
+                    "signature": "servermanager:website {action} {site?}",
+                    "arguments": {
+                        "action": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Website action",
+                            "allowed_values": [
+                                "list",
+                                "enable",
+                                "disable",
+                                "remove",
+                                "test",
+                                "reload"
+                            ],
+                            "example": "list"
+                        },
+                        "site": {
+                            "type": "string",
+                            "required": false,
+                            "description": "Site name (required for enable\/disable\/remove)",
+                            "example": "example.com"
+                        }
+                    },
+                    "options": {
+                        "--force": {
+                            "type": "boolean",
+                            "description": "Force operation without confirmation"
+                        }
+                    },
+                    "usage_examples": [
+                        "php artisan servermanager:website list",
+                        "php artisan servermanager:website enable example.com",
+                        "php artisan servermanager:website disable example.com",
+                        "php artisan servermanager:website test",
+                        "php artisan servermanager:website reload"
+                    ],
+                    "tags": [
+                        "nginx",
+                        "website",
+                        "configuration"
+                    ]
+                },
+                {
+                    "command": "servermanager:sync",
+                    "description": "Synchronize configurations and data",
+                    "signature": "servermanager:sync {type}",
+                    "arguments": {
+                        "type": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Sync type",
+                            "allowed_values": [
+                                "config",
+                                "certificates",
+                                "all"
+                            ],
+                            "example": "config"
+                        }
+                    },
+                    "options": {
+                        "--target": {
+                            "type": "string",
+                            "description": "Target server or path",
+                            "example": "backup-server"
+                        }
+                    },
+                    "usage_examples": [
+                        "php artisan servermanager:sync config",
+                        "php artisan servermanager:sync certificates",
+                        "php artisan servermanager:sync all"
+                    ],
+                    "tags": [
+                        "sync",
+                        "backup",
+                        "configuration"
+                    ]
+                }
+            ],
+            "supported_headers": {
+                "X-Server-Manager-Key": {
+                    "description": "API key for server management authentication",
+                    "type": "string",
+                    "required_for": "All authenticated endpoints (bypassed in debug\/local mode)",
+                    "example": "sm-api-key-2025-secure-production-key",
+                    "note": "Authentication is bypassed when APP_ENV=local or APP_DEBUG=true"
+                },
+                "Content-Type": {
+                    "description": "Request content type",
+                    "type": "string",
+                    "required_for": "POST requests",
+                    "example": "application\/json"
+                },
+                "Accept": {
+                    "description": "Response content type",
+                    "type": "string",
+                    "required_for": "All requests",
+                    "example": "application\/json"
+                }
+            },
+            "authentication": {
+                "type": "api_key",
+                "description": "Uses API key authentication via X-Server-Manager-Key header",
+                "header_name": "X-Server-Manager-Key",
+                "security_note": "All operations are logged and monitored for security"
+            }
+        },
+        "Common": {
+            "section_name": "Common APIs",
+            "description": "Shared authentication and system management APIs",
+            "base_url": "http:\/\/192.168.50.2:9000\/api",
+            "endpoints": [
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/register",
+                    "feature": "no_auth_required\/POST|User registration|RegisteredUserController|params:name(string,required,John Doe),email(string,required,user@example.com),password(string,required,password123),password_confirmation(string,required,password123)|response:user(object,User data),token(string,Access token)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/login",
+                    "feature": "no_auth_required\/ANY|User login|LoginController|params:email(string,optional,user@example.com),password(string,optional,password123)|response:user(object,User data),token(string,Access token),token_type(string,Token type)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/logout",
+                    "feature": "auth_required\/ANY|User logout|LoginController|headers:Authorization(string,required,Bearer token123)|response:message(string,Success message)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/user",
+                    "feature": "auth_required\/ANY|Get authenticated user|inline_function|headers:Authorization(string,required,Bearer token123)|response:user(object,User profile data)|tags:auth,user"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/forgot-password",
+                    "feature": "no_auth_required\/POST|Send password reset link|PasswordResetLinkController|params:email(string,required,user@example.com)|response:message(string,Reset link sent)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/reset-password",
+                    "feature": "no_auth_required\/POST|Reset password|NewPasswordController|params:email(string,required,user@example.com),token(string,required,reset-token-123),password(string,required,newpassword123),password_confirmation(string,required,newpassword123)|response:message(string,Password reset success)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/verify-email\/{id}\/{hash}",
+                    "feature": "auth_required\/GET|Verify email address|VerifyEmailController|headers:Authorization(string,required,Bearer token123)|params:id(int,required,123),hash(string,required,verification-hash)|response:message(string,Email verified)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/email\/verification-notification",
+                    "feature": "auth_required\/POST|Resend email verification|EmailVerificationNotificationController|headers:Authorization(string,required,Bearer token123)|response:message(string,Verification sent)|tags:auth"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/get_system_status",
+                    "feature": "no_auth_required\/ANY|Get system status|StatusController|response:status(string,System status),version(string,App version),environment(string,Environment),uptime(string,Server uptime)|tags:system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/store_session",
+                    "feature": "no_auth_required\/POST|Store session data|TokenSessionController|params:session_data(object,required,{\"key\":\"value\"}),token(string,optional,session-token-123)|response:session_id(string,Session ID),success(boolean,Operation success)|tags:system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/retrieve_session",
+                    "feature": "no_auth_required\/GET|Retrieve session data|TokenSessionController|params:session_id(string,required,session-123)|response:session_data(object,Session data)|tags:system"
+                },
+                {
+                    "path": "http:\/\/192.168.50.2:9000\/api\/broadcast_session",
+                    "feature": "no_auth_required\/POST|Broadcast session to clients|TokenSessionController|params:session_id(string,required,session-123),broadcast_data(object,required,{\"message\":\"hello\"})|response:broadcast_status(string,Broadcast status)|tags:system"
+                }
+            ],
+            "supported_headers": {
+                "Authorization": "Bearer token for Sanctum authentication",
+                "Content-Type": "application\/json",
+                "Accept": "application\/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            "authentication": {
+                "type": "sanctum_based",
+                "description": "Uses Laravel Sanctum for authentication"
+            }
+        }
+    }
+}

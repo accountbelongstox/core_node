@@ -2,9 +2,23 @@ import 'package:qyflutter/common/network/models/api_config.dart';
 import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 
 class ApiConfigAppQy {
-  static const String defaultBaseUrl = 'http://192.168.50.2:9000/api/app_qy_v1';
-  static const String _prodBaseUrl = defaultBaseUrl;
-  static const String _devBaseUrl = defaultBaseUrl;
+  // Base URL should be http://192.168.50.2:9000/api (not /api/app_qy_v1)
+  // Endpoints already include full path like /api/dict/v1/login or /api/app_qy_v1/ai_tools/tts
+
+  /// Get default base URL from multi-endpoint discovery
+  /// Throws exception if no endpoint is available
+  static String get defaultBaseUrl {
+    final discovery = MultiEndpointDiscovery();
+    final baseUrl = discovery.getAvailableBaseUrl(path: 'api');
+
+    if (baseUrl == null) {
+      throw StateError(
+        'No available API endpoint found. Please check network connection and endpoint configuration.',
+      );
+    }
+
+    return baseUrl;
+  }
 
   /// Multi-endpoint configuration for app_qy
   /// Hardcoded in app configuration area as per architecture requirements
@@ -39,9 +53,8 @@ class ApiConfigAppQy {
   /// Get main API config with discovered base URL
   /// Falls back to default if discovery hasn't completed
   static ApiConfig get mainApi {
-    final discovery = MultiEndpointDiscovery();
-    final baseUrl =
-        discovery.getAvailableBaseUrl(path: 'api/app_qy_v1') ?? _prodBaseUrl;
+    // Base URL should be just /api, endpoints already include full path
+    final baseUrl = defaultBaseUrl;
 
     return ApiConfig.jwtAuth(
       baseUrl: baseUrl,
@@ -63,9 +76,8 @@ class ApiConfigAppQy {
 
   /// Get public API config with discovered base URL
   static ApiConfig get publicApi {
-    final discovery = MultiEndpointDiscovery();
-    final baseUrl =
-        discovery.getAvailableBaseUrl(path: 'api/app_qy_v1') ?? _prodBaseUrl;
+    // Base URL should be just /api, endpoints already include full path
+    final baseUrl = defaultBaseUrl;
 
     return ApiConfig.noAuth(
       baseUrl: baseUrl,
@@ -83,7 +95,7 @@ class ApiConfigAppQy {
   }
 
   static ApiConfig get devApi => ApiConfig.jwtAuth(
-        baseUrl: _devBaseUrl,
+        baseUrl: defaultBaseUrl,
         headerKey: 'Authorization',
         headerPrefix: 'Bearer',
         cacheTimeout: const Duration(minutes: 1),
@@ -100,17 +112,9 @@ class ApiConfigAppQy {
         responseValidation: ResponseValidationConfig.laravelConfig(),
       );
 
-  static ApiConfig get ttsApi => ApiConfig.noAuth(
-        baseUrl: 'http://192.168.50.2:9000/api/app_qy_v1/ai_tools/tts',
-        cacheTimeout: const Duration(hours: 24),
-        defaultHeaders: {
-          'Accept': '*/*',
-          'X-App-Id': 'app_qy',
-        },
-        timeoutSeconds: 60,
-        enableLogging: false,
-        responseValidation: ResponseValidationConfig.defaultConfig(),
-      );
+  /// TTS API uses the same base URL as main API
+  /// No need for separate TTS endpoint configuration
+  static ApiConfig get ttsApi => publicApi;
 
   static Map<String, dynamic> parseUserFromResponse(
       Map<String, dynamic> response) {

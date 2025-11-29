@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_config_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_endpoints_app_qy.dart';
 
@@ -9,7 +8,6 @@ class ApiServiceAppQy {
   
   late final Dio _dio;
   String? _authToken;
-  final MultiEndpointDiscovery _discovery = MultiEndpointDiscovery();
   
   ApiServiceAppQy._internal() {
     _initializeWithDiscoveredEndpoint();
@@ -17,8 +15,8 @@ class ApiServiceAppQy {
 
   /// Initialize with discovered endpoint or fallback to default
   void _initializeWithDiscoveredEndpoint() {
-    final baseUrl = _discovery.getAvailableBaseUrl(path: 'api/app_qy_v1') ?? 
-                    ApiConfigAppQy.defaultBaseUrl;
+    // Base URL should be just /api, endpoints already include full path
+    final baseUrl = ApiConfigAppQy.defaultBaseUrl;
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -264,25 +262,20 @@ class ApiServiceAppQy {
     String textType = 'word',
     String rate = '+0%',
   }) async {
-    final ttsApi = ApiServiceAppQy._createTtsService();
-    return ttsApi.post(ApiEndpointsAppQy.ttsGenerate, data: {
+    // Use main service, TTS endpoints share the same base URL
+    return post(ApiEndpointsAppQy.ttsGenerate, data: {
       'text': text,
       'language': langCode,
       'type': textType,
       'options': {'rate': rate},
     });
   }
-  
-  static ApiServiceAppQy _createTtsService() {
-    final service = ApiServiceAppQy._internal();
-    service._dio.options.baseUrl = ApiConfigAppQy.ttsApi.baseUrl;
-    return service;
-  }
-  
+
   String getTtsAudioUrl(String audioPath) {
-    final ttsBaseUrl = _discovery.getAvailableBaseUrl(path: 'api/app_qy_v1/ai_tools/tts') ??
-                       ApiConfigAppQy.ttsApi.baseUrl;
-    return '$ttsBaseUrl/${ApiEndpointsAppQy.ttsAudio}/$audioPath';
+    // ApiEndpointsAppQy.ttsAudio is /api/app_qy_v1/ai_tools/tts/audio
+    // baseUrl is http://192.168.50.2:9000/api
+    // Result: http://192.168.50.2:9000/api/app_qy_v1/ai_tools/tts/audio/{audioPath}
+    return '${_dio.options.baseUrl}${ApiEndpointsAppQy.ttsAudio}/$audioPath';
   }
 
   /// Update base URL when endpoint discovery completes
