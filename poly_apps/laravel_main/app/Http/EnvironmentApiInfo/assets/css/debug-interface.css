@@ -10,6 +10,7 @@ body {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     color: #333;
+    overflow: hidden; /* Prevent body scroll, let main-content scroll */
 }
 
 .layout { display: flex; height: 100vh; }
@@ -23,6 +24,9 @@ body {
     box-shadow: 2px 0 10px rgba(0,0,0,0.1);
     transition: width 0.3s ease;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
 }
 
 .sidebar.expanded {
@@ -38,6 +42,8 @@ body {
     justify-content: center;
     cursor: pointer;
     position: relative;
+    height: 60px;
+    flex-shrink: 0;
 }
 
 .sidebar-header:hover {
@@ -71,6 +77,8 @@ body {
 .menu-items {
     list-style: none;
     padding: 0;
+    overflow-y: auto;
+    flex: 1;
 }
 
 .menu-item {
@@ -80,7 +88,7 @@ body {
 .menu-item a {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: center; /* Default centered for collapsed */
     padding: 15px;
     text-decoration: none;
     color: #555;
@@ -88,12 +96,22 @@ body {
     border-left: 3px solid transparent;
     position: relative;
     white-space: nowrap;
+    height: 54px;
+}
+
+/* Fix for chaotic icons when expanded */
+.sidebar.expanded .menu-item a {
+    justify-content: flex-start; /* Align left when expanded */
+    padding-left: 20px;
 }
 
 .menu-icon {
     font-size: 24px;
     min-width: 30px;
     text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .menu-text {
@@ -106,6 +124,8 @@ body {
 
 .sidebar.expanded .menu-text {
     opacity: 1;
+    position: static; /* Flow naturally when expanded */
+    margin-left: 10px;
 }
 
 .menu-tooltip {
@@ -148,27 +168,49 @@ body {
 .main-content {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
 }
 
 .content-header {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
-    padding: 20px 30px;
+    padding: 10px 30px; /* Reduced padding */
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    flex-shrink: 0;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end; /* Align user info to right */
+}
+
+/* Hide redundant global title */
+#page-title, #page-description {
+    display: none !important;
 }
 
 .content-body {
     padding: 30px;
+    flex: 1;
+    overflow-y: auto;
 }
 
 .content-section {
     display: none;
+    height: 100%;
 }
 
 .content-section.active {
     display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Cards */
@@ -180,22 +222,28 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     margin-bottom: 20px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%; /* Allow card to fit in view if needed */
 }
 
 .card-header {
-    padding: 20px 25px;
+    padding: 15px 25px;
     border-bottom: 1px solid rgba(0,0,0,0.1);
     background: rgba(0,0,0,0.02);
+    flex-shrink: 0;
 }
 
 .card-header h2 {
-    font-size: 20px;
+    font-size: 18px;
     color: #2c3e50;
     font-weight: 600;
+    margin: 0;
 }
 
 .card-body {
     padding: 25px;
+    overflow-y: auto;
 }
 
 /* Form Controls */
@@ -228,7 +276,7 @@ body {
 
 /* Buttons */
 .btn {
-    padding: 12px 20px;
+    padding: 10px 20px;
     border: none;
     border-radius: 8px;
     font-size: 14px;
@@ -278,6 +326,7 @@ body {
     overflow: hidden;
     transition: all 0.3s ease;
     position: relative;
+    background: white;
 }
 
 .api-item:hover {
@@ -541,6 +590,7 @@ body {
         border-left: 3px solid transparent;
         border-bottom: none;
         font-size: 14px;
+        height: auto;
     }
     
     .menu-item a:hover,
@@ -554,6 +604,7 @@ body {
         font-size: 18px;
         min-width: 30px;
         margin-right: 12px;
+        justify-content: flex-start;
     }
     
     .menu-text {
@@ -613,19 +664,12 @@ body {
     }
     
     .content-header {
-        padding: 12px 15px;
-    }
-    
-    .content-header h2 {
-        font-size: 16px;
-    }
-    
-    .content-header p {
-        font-size: 12px;
+        padding: 10px 15px;
+        min-height: 50px;
     }
     
     .content-body {
-        padding: 12px;
+        padding: 15px;
     }
     
     .btn-group {
@@ -647,7 +691,7 @@ body {
     }
     
     .card-body {
-        padding: 12px;
+        padding: 15px;
     }
 }
 
@@ -703,19 +747,15 @@ body {
     }
     
     .content-header {
-        padding: 10px 12px;
-    }
-    
-    .content-header h2 {
-        font-size: 14px;
+        padding: 8px 12px;
+        min-height: 45px;
     }
     
     .content-body {
-        padding: 8px;
+        padding: 10px;
     }
     
     .card-header h2 {
         font-size: 14px;
     }
 }
-
