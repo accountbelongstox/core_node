@@ -49,6 +49,10 @@ class PassiveQueue
 
     public static function runUntilEmpty(): void
     {
+        if (!self::isApplicationReady()) {
+            return;
+        }
+
         while (true) {
             $job = null;
 
@@ -98,6 +102,28 @@ class PassiveQueue
 
         if (PassiveQueueJob::query()->where('status', 'pending')->exists()) {
             self::triggerRunner();
+        }
+    }
+
+    private static function isApplicationReady(): bool
+    {
+        try {
+            if (!function_exists('app')) {
+                return false;
+            }
+
+            $app = app();
+            if (!$app) {
+                return false;
+            }
+
+            if (method_exists($app, 'hasBeenBootstrapped') && !$app->hasBeenBootstrapped()) {
+                return false;
+            }
+
+            return $app->bound('config') && $app->bound('db');
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 }
