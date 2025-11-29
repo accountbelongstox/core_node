@@ -6,7 +6,7 @@ Provides HTTP endpoints for code sync server/client communication.
 Mounted at /code-sync/*
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 
@@ -37,6 +37,8 @@ class InitialSyncResponse(BaseModel):
 
 class ChangesRequest(BaseModel):
     client_id: str
+    received_count: Optional[int] = 0  # Number of files client received
+    skipped_count: Optional[int] = 0   # Number of files client skipped
 
 
 class ChangesResponse(BaseModel):
@@ -60,7 +62,7 @@ async def ping():
 
 
 @router.post("/register", response_model=RegisterResponse)
-async def register_client(request: RegisterRequest):
+async def register_client(request: RegisterRequest, http_request: Request):
     """
     Register a client connection
 
@@ -79,8 +81,7 @@ async def register_client(request: RegisterRequest):
             raise HTTPException(status_code=503, detail="Server not available")
 
         # Extract client IP from request
-        # Note: In production, use request.client.host
-        client_ip = "unknown"
+        client_ip = http_request.client.host if http_request.client else "unknown"
 
         needs_initial_sync = server.register_client(request.client_id, client_ip)
 
@@ -140,6 +141,14 @@ async def get_changes(request: ChangesRequest):
         server = manager.get_server()
         if not server:
             raise HTTPException(status_code=503, detail="Server not available")
+
+        # Update client statistics if provided
+        if request.received_count > 0 or request.skipped_count > 0:
+            server.update_client_stats(
+                request.client_id,
+                received_count=request.received_count,
+                skipped_count=request.skipped_count
+            )
 
         files = server.get_changed_files(request.client_id)
 

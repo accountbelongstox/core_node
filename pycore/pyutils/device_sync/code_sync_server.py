@@ -32,6 +32,8 @@ class CodeSyncClient:
         # Statistics
         self.push_count = 0  # Total number of pushes to this client
         self.total_files_pushed = 0  # Total files pushed (including duplicates)
+        self.received_count = 0  # Files actually received by client
+        self.skipped_count = 0  # Files skipped by client (already up-to-date)
 
     def update_last_seen(self):
         """Update last seen timestamp"""
@@ -419,6 +421,28 @@ class CodeSyncServer:
             ColorPrint.red(f"[CodeSync Server] Error hashing file: {e}")
             return ""
 
+    def update_client_stats(self, client_id: str, received_count: int = 0, skipped_count: int = 0):
+        """
+        Update client statistics
+
+        Args:
+            client_id: Client identifier
+            received_count: Number of files received by client
+            skipped_count: Number of files skipped by client
+        """
+        with self.clients_lock:
+            if client_id in self.clients:
+                client = self.clients[client_id]
+                client.received_count += received_count
+                client.skipped_count += skipped_count
+                client.update_last_seen()
+
+                if received_count > 0 or skipped_count > 0:
+                    ColorPrint.blue(
+                        f"[CodeSync Server] Client {client_id}: "
+                        f"received={client.received_count}, skipped={client.skipped_count}"
+                    )
+
     def _cleanup_expired_clients(self):
         """Remove expired clients"""
         with self.clients_lock:
@@ -449,7 +473,9 @@ class CodeSyncServer:
                             'synced_files': len(client.synced_file_states),
                             'initial_sync_done': client.is_initial_sync_done,
                             'push_count': client.push_count,
-                            'total_files_pushed': client.total_files_pushed
+                            'total_files_pushed': client.total_files_pushed,
+                            'received_count': client.received_count,
+                            'skipped_count': client.skipped_count
                         }
                         for client_id, client in self.clients.items()
                     ],

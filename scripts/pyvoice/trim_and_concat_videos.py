@@ -281,16 +281,22 @@ class VideoProcessor:
             suffix = video_path.suffix  # file extension
 
             print(f"\n[{i}/{len(videos)}] Processing: {video_path.name}")
+            print(f"  - Original filename: {stem}")
 
             # Step 1: Translate filename to English
             print(f"  - Translating to English...")
-            translated_name = await translate_filename(stem)
-            print(f"    Original: {stem}")
-            print(f"    Translated: {translated_name}")
+            translated_name = await translate_filename(stem, verbose=self.verbose)
+
+            if not self.verbose:
+                # Only show summary if verbose is off
+                print(f"    Translated: {translated_name}")
 
             # Step 2: Sanitize filename (remove special chars, replace spaces)
             sanitized_name = sanitize_filename(translated_name)
-            print(f"    Sanitized: {sanitized_name}")
+            if sanitized_name != translated_name:
+                print(f"  - Sanitized: {sanitized_name}")
+            else:
+                print(f"  - Sanitization: No changes needed")
 
             # Step 3: Generate new filename
             new_filename = f"{sanitized_name}{suffix}"
@@ -721,6 +727,19 @@ def main():
         help='跳过包含这些关键字的文件 / Skip files containing these keywords (default: 书写)'
     )
 
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        default=True,
+        help='显示详细调试信息 / Show detailed debug information (default: True)'
+    )
+
+    parser.add_argument(
+        '--quiet',
+        action='store_true',
+        help='静默模式，只显示重要信息 / Quiet mode, show only important info'
+    )
+
     args = parser.parse_args()
 
     # 验证目录 - 使用 normalize_path 自动处理转义
@@ -752,11 +771,15 @@ def main():
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # 确定 verbose 设置
+    verbose = not args.quiet  # 如果设置了 --quiet，则 verbose=False
+
     # 创建处理器
     processor = VideoProcessor(
         trim_start=args.trim_start,
         trim_end=args.trim_end,
-        skip_keywords=args.skip_keywords
+        skip_keywords=args.skip_keywords,
+        verbose=verbose
     )
 
     # 检查 FFmpeg
@@ -773,18 +796,19 @@ def main():
     print("Video Batch Processing Tool / 视频批量处理工具")
     print("v2.0.0 - Filename Translation + Re-encoding + Keep Temp Files")
     print("=" * 70)
-    print(f"\nInput directory: {directory}")
-    print(f"Output directory: {output_dir}")
-    print(f"Trim settings: Start {args.trim_start}s, End {args.trim_end}s")
+    print(f"\n📂 Input directory: {directory}")
+    print(f"📂 Output directory: {output_dir}")
+    print(f"✂️  Trim settings: Start {args.trim_start}s, End {args.trim_end}s")
     if args.skip_keywords:
-        print(f"Skip keywords: {', '.join(args.skip_keywords)}")
-    print(f"Features:")
+        print(f"⏭️  Skip keywords: {', '.join(args.skip_keywords)}")
+    print(f"\n🔧 Features:")
     print(f"  - Auto-translate filenames to English (Google Translate)")
     print(f"  - Sanitize filenames (remove special chars, replace spaces)")
     print(f"  - Re-encoding ALL videos (ensures maximum compatibility)")
-    print(f"Quality: H.264 CRF 23, AAC 192kbps")
-    print(f"Temp files: Will be PRESERVED for review")
-    print(f"Timeout: 120 minutes for concatenation")
+    print(f"\n📊 Quality: H.264 CRF 23, AAC 192kbps")
+    print(f"💾 Temp files: Will be PRESERVED for review")
+    print(f"⏱️  Timeout: 120 minutes for concatenation")
+    print(f"🐛 Verbose mode: {'ON (detailed logs)' if verbose else 'OFF (quiet mode)'}")
 
     # Process videos (async call)
     output_path = asyncio.run(processor.process_directory(directory, output_dir))

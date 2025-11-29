@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:qyflutter/common/network/models/api_config.dart';
+import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_config_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_endpoints_app_qy.dart';
 
@@ -9,10 +9,19 @@ class ApiServiceAppQy {
   
   late final Dio _dio;
   String? _authToken;
+  final MultiEndpointDiscovery _discovery = MultiEndpointDiscovery();
   
   ApiServiceAppQy._internal() {
+    _initializeWithDiscoveredEndpoint();
+  }
+
+  /// Initialize with discovered endpoint or fallback to default
+  void _initializeWithDiscoveredEndpoint() {
+    final baseUrl = _discovery.getAvailableBaseUrl(path: 'api/app_qy_v1') ?? 
+                    ApiConfigAppQy.defaultBaseUrl;
+    
     _dio = Dio(BaseOptions(
-      baseUrl: ApiConfigAppQy.mainApi.baseUrl,
+      baseUrl: baseUrl,
       connectTimeout: Duration(seconds: ApiConfigAppQy.mainApi.timeoutSeconds),
       receiveTimeout: Duration(seconds: ApiConfigAppQy.mainApi.timeoutSeconds),
       headers: ApiConfigAppQy.mainApi.defaultHeaders,
@@ -271,8 +280,18 @@ class ApiServiceAppQy {
   }
   
   String getTtsAudioUrl(String audioPath) {
-    return '${ApiConfigAppQy.ttsApi.baseUrl}/${ApiEndpointsAppQy.ttsAudio}/$audioPath';
+    final ttsBaseUrl = _discovery.getAvailableBaseUrl(path: 'api/app_qy_v1/ai_tools/tts') ??
+                       ApiConfigAppQy.ttsApi.baseUrl;
+    return '$ttsBaseUrl/${ApiEndpointsAppQy.ttsAudio}/$audioPath';
   }
+
+  /// Update base URL when endpoint discovery completes
+  void updateBaseUrl(String baseUrl) {
+    _dio.options.baseUrl = baseUrl;
+  }
+
+  /// Get current base URL
+  String get currentBaseUrl => _dio.options.baseUrl;
   
   Future<Map<String, dynamic>> queryDictionary({
     required String word,

@@ -299,6 +299,16 @@
                             <span class="status-label">Mode:</span>
                             <span class="status-value" id="syncModeDisplay">-</span>
                         </div>
+                        <div class="status-item">
+                            <span class="status-label">Running:</span>
+                            <span class="status-value" id="syncRunning">No</span>
+                        </div>
+                    </div>
+                    <div class="status-row">
+                        <div class="status-item" style="flex: 1;">
+                            <span class="status-label">Root Directory:</span>
+                            <span class="status-value" id="syncRootDir" style="font-size: 11px;">-</span>
+                        </div>
                     </div>
                 </div>
 
@@ -340,13 +350,14 @@
                                     <th>IP Address</th>
                                     <th>Push Count</th>
                                     <th>Total Files</th>
-                                    <th>Synced Files</th>
+                                    <th>Received</th>
+                                    <th>Skipped</th>
                                     <th>Last Seen</th>
                                 </tr>
                             </thead>
                             <tbody id="clientsTableBody">
                                 <tr>
-                                    <td colspan="6" class="empty-state">No connected clients</td>
+                                    <td colspan="7" class="empty-state">No connected clients</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -361,12 +372,16 @@
                     </h3>
                     <div id="clientStats" class="collapsible-content stats-grid">
                         <div class="stat-item">
-                            <div class="stat-value" id="clientScanCount">0</div>
-                            <div class="stat-label">Scan Count</div>
+                            <div class="stat-value" id="clientReceivedCount">0</div>
+                            <div class="stat-label">Received</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="clientSkippedCount">0</div>
+                            <div class="stat-label">Skipped</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" id="clientReceivedFiles">0</div>
-                            <div class="stat-label">Received Files</div>
+                            <div class="stat-label">Total Files</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" id="clientConnected">No</div>

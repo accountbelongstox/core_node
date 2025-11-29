@@ -21,7 +21,7 @@ This guide provides core development rules for the `laravel_main` project.
 - **Framework Version**: This project is built on **Laravel 12**. It is a **pure headless API mode**, retaining only API functionality (while specifically retaining a `routes/web.php` web entry point). However, existing web/vite/ts/babel and other frontend files cannot be deleted, as Laravel needs these basic configurations to start in headless mode.
 - **Framework Documentation**: For framework-related questions, please refer to the `./laravel-12.x-doc` directory in the project.
 - **Development Standards**: All code uses **English**. Prohibited from running test commands during development, writing and creating unspecified documentation.
-- **Localization System**: All UI text must use localization keys (e.g., `QyAppLocalizationKeys.xxx.tr(context)`), no hardcoded strings. Language changes must trigger immediate UI rebuilds via `AppLocale.updateCurrentLanguage()` and `FlutterLocalization.onTranslatedLanguage` callbacks.
+- **Localization System**: All UI text must use localization keys (e.g., `QyAppLocalizationKeys.xxx.tr(context)`), no hardcoded strings. Language switching is handled centrally in main entry (`main_common.dart`), using `Localizations.localeOf(context)` to establish dependencies. All pages automatically rebuild when language changes, no manual listeners needed.
 
 ## 2.1. Code Organization and Standards
 

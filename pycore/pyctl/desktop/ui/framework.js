@@ -953,6 +953,10 @@ function updateCodeSyncUI(statusData) {
     if (mode === 'server' && statusData.server) {
         const server = statusData.server;
 
+        // Display running status and root_dir
+        document.getElementById('syncRunning').textContent = server.running ? 'Yes' : 'No';
+        document.getElementById('syncRootDir').textContent = server.root_dir || '-';
+
         // Calculate total push count across all clients
         const totalPushCount = (server.clients || []).reduce((sum, client) => sum + (client.push_count || 0), 0);
 
@@ -968,6 +972,13 @@ function updateCodeSyncUI(statusData) {
     // Update client mode stats
     if (mode === 'client' && statusData.client) {
         const client = statusData.client;
+
+        // Display running status and root_dir
+        document.getElementById('syncRunning').textContent = client.running ? 'Yes' : 'No';
+        document.getElementById('syncRootDir').textContent = client.root_dir || '-';
+
+        document.getElementById('clientReceivedCount').textContent = client.received_count || 0;
+        document.getElementById('clientSkippedCount').textContent = client.skipped_count || 0;
         document.getElementById('clientReceivedFiles').textContent = client.received_files_count || 0;
         document.getElementById('clientConnected').textContent = client.connected ? 'Yes' : 'No';
         document.getElementById('serverHost').textContent = client.server_host || '-';
@@ -997,7 +1008,7 @@ function updateClientsTable(clients) {
     const tbody = document.getElementById('clientsTableBody');
 
     if (!clients || clients.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No connected clients</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No connected clients</td></tr>';
         return;
     }
 
@@ -1011,7 +1022,8 @@ function updateClientsTable(clients) {
             <td>${client.ip}</td>
             <td>${client.push_count || 0}</td>
             <td>${client.total_files_pushed || 0}</td>
-            <td>${client.synced_files || 0}</td>
+            <td>${client.received_count || 0}</td>
+            <td>${client.skipped_count || 0}</td>
             <td style="font-size: 12px;">${lastSeen}</td>
         `;
         tbody.appendChild(tr);

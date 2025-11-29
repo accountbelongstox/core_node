@@ -12,7 +12,7 @@ import threading
 import requests
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 from pycore import ColorPrint
 
@@ -54,6 +54,10 @@ class CodeSyncClient:
 
         # Received files tracking (mirror server's client state format)
         self.received_file_states: Dict[str, Tuple[float, str]] = {}  # path -> (mtime, hash)
+
+        # Statistics (for current sync session)
+        self.received_count = 0  # Files actually received/processed
+        self.skipped_count = 0   # Files skipped (already up-to-date)
 
         ColorPrint.green(f"[CodeSync Client] Initialized with target: {self.target_dir}")
         ColorPrint.blue(f"[CodeSync Client] Client ID: {self.client_id}")
@@ -268,8 +272,24 @@ class CodeSyncClient:
 
                 ColorPrint.green(f"[CodeSync Client] Received {len(files)} files for initial sync")
 
+                # Count received and skipped files
+                received = 0
+                skipped = 0
                 for file_info in files:
-                    self._process_file(file_info, is_initial=True)
+                    result = self._process_file(file_info, is_initial=True)
+                    if result == 'received':
+                        received += 1
+                    elif result == 'skipped':
+                        skipped += 1
+
+                # Update session statistics
+                self.received_count += received
+                self.skipped_count += skipped
+
+                ColorPrint.green(
+                    f"[CodeSync Client] Initial sync complete: "
+                    f"{received} received, {skipped} skipped"
+                )
 
             else:
                 ColorPrint.red(f"[CodeSync Client] Initial sync failed: {response.status_code}")
@@ -282,8 +302,19 @@ class CodeSyncClient:
     def _sync_with_server(self):
         """Sync changed files from server"""
         try:
+            # Prepare request with statistics from last sync
+            request_data = {
+                'client_id': self.client_id,
+                'received_count': self.received_count,
+                'skipped_count': self.skipped_count
+            }
+
+            # Reset statistics for next sync
+            self.received_count = 0
+            self.skipped_count = 0
+
             url = f"http://{self.server_host}:{self.server_port}/code-sync/changes"
-            response = requests.post(url, json={'client_id': self.client_id}, timeout=10)
+            response = requests.post(url, json=request_data, timeout=10)
 
             if response.status_code == 200:
                 data = response.json()
@@ -292,8 +323,24 @@ class CodeSyncClient:
                 if files:
                     ColorPrint.blue(f"[CodeSync Client] Received {len(files)} changed files")
 
+                    # Count received and skipped files
+                    received = 0
+                    skipped = 0
                     for file_info in files:
-                        self._process_file(file_info, is_initial=False)
+                        result = self._process_file(file_info, is_initial=False)
+                        if result == 'received':
+                            received += 1
+                        elif result == 'skipped':
+                            skipped += 1
+
+                    # Update statistics for next report
+                    self.received_count = received
+                    self.skipped_count = skipped
+
+                    ColorPrint.green(
+                        f"[CodeSync Client] Sync complete: "
+                        f"{received} received, {skipped} skipped"
+                    )
 
             elif response.status_code == 404:
                 # Client not registered
@@ -310,13 +357,16 @@ class CodeSyncClient:
             self.connected = False
             self.server_host = None
 
-    def _process_file(self, file_info: Dict, is_initial: bool = False):
+    def _process_file(self, file_info: Dict, is_initial: bool = False) -> str:
         """
         Process received file (TEST MODE - only prompt, don't overwrite)
 
         Args:
             file_info: File information dict
             is_initial: Whether this is initial sync
+
+        Returns:
+            'received' or 'skipped'
         """
         rel_path = file_info['relative_path']
         server_mtime = file_info['mtime']
@@ -340,32 +390,38 @@ class CodeSyncClient:
 
                 # TEST MODE: Don't actually overwrite
                 # In production, would download and overwrite here
-
+                result = 'received'
             else:
                 # Local version is newer or same - ignore
                 ColorPrint.blue(f"[CodeSync Client] IGNORE (local newer): {rel_path}")
-
+                result = 'skipped'
         else:
             # File doesn't exist locally
             ColorPrint.green(f"[CodeSync Client] NEW FILE: {rel_path}")
 
             # TEST MODE: Don't actually create
             # In production, would download and create here
+            result = 'received'
 
         # Track received file state (mirror server format)
         self.received_file_states[rel_path] = (server_mtime, server_hash)
+
+        return result
 
     def get_status(self) -> Dict:
         """Get client status"""
         return {
             'running': self.running,
             'client_id': self.client_id,
+            'root_dir': str(self.target_dir),
             'target_dir': str(self.target_dir),
             'connected': self.connected,
             'server_host': self.server_host,
             'server_port': self.server_port,
             'scan_interval': self.scan_interval,
-            'received_files_count': len(self.received_file_states)
+            'received_files_count': len(self.received_file_states),
+            'received_count': self.received_count,
+            'skipped_count': self.skipped_count
         }
 
 
